@@ -8,14 +8,6 @@ import org.junit.Test
 
 /**
  * An IMAP account folds into conversations like a JMAP one: the thread key is rebuilt on the
- * client from the threading headers, and [ImapMessage.toEntity] writes it into the row.
- *
- * The key is the FIRST id of `References` — the root of the thread, which every reply in the
- * chain repeats — then `In-Reply-To`, then the message's own `Message-ID`. Two messages of one
- * chain therefore land on the same key even when the message in between is not on the page.
- *
- * The end-to-end cases go through [toEntity] on purpose: the rule can be right and still go
- * nowhere if the mapper keeps writing `threadId = null`, and that line is the one this lot changes.
  */
 class ImapThreadKeyTest {
 
@@ -77,8 +69,6 @@ class ImapThreadKeyTest {
 
     /**
      * A bracket-less `References` naming SEVERAL ids keys on the FIRST word, wrapped. Were the
-     * whole value wrapped instead (`<a@x b@x c@x>`), two messages of one chain would fork by the
-     * length of their list; and the same rule holds for a bracket-less `In-Reply-To`.
      */
     @Test fun aBareReferencesWithSeveralIdsKeysOnTheFirstWord() {
         assertEquals("<a@x>", imapThreadKey("a@x b@x c@x", null, null))

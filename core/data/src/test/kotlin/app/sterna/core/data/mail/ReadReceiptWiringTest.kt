@@ -9,25 +9,6 @@ import org.junit.Test
 
 /**
  * The read receipt (RFC 8098) inside [MailRepository]: the queued row → the four writes.
- *
- * Two halves, and they are deliberately different in kind:
- *
- *  1. **Executed.** [outboxDraftOf] is a pure function, so the mapping a re-edited outbox item goes
- *     through is RUN here, not read. It is the mapping where a dropped field does not merely fail to
- *     show — it CANCELS a request, because re-editing enqueues a brand-new row from the composer.
- *
- *  2. **Read as source text — the last resort**, exactly as [DraftAddressingWiringTest] does:
- *     `MailRepository` needs Room, a `Context` and a socket, so no JVM test can execute the four
- *     call sites below. What the header LOOKS like once written is executed elsewhere
- *     (`OutgoingMimeTest` for the MIME, `ReadReceiptOnTheWireTest` for the two JMAP requests); what
- *     nothing else can see is whether these sites still hand the row's own answer over. So the
- *     ARGUMENT is pinned, parsed out of the call and compared whole — never a `contains`, which is
- *     blind to any mutation that lengthens the line.
- *
- * The site that a partial fix leaves mute is the second `outgoing(` in `performDelivery`: the
- * PGP/MIME route builds raw bytes and imports them, so it inherits the MIME write and NOT
- * `Email/set`. Wire up `client.sendEmail` alone and every signed or encrypted message goes out
- * asking for nothing, in silence.
  */
 class ReadReceiptWiringTest {
 
@@ -96,12 +77,6 @@ class ReadReceiptWiringTest {
     @Test fun `the one builder of every raw write puts its parameter on the message, whole`() {
         // The consumer, not the callers. `outgoing(` is asked for the receipt at four sites and
         // every one of them is pinned above — but all four hand it to THIS body, and this body is
-        // what decides what lands on the OutgoingMessage. `requestReceipt = requestReceipt &&
-        // cc.isEmpty()` here was green across the whole suite while muting four of the six writes
-        // (SMTP, the Sent copy, the IMAP draft APPEND, the PGP/MIME import) the moment a message
-        // had a Cc; only `Email/set`, which does not come through here, kept asking. No JVM test
-        // can execute it — `outgoing` is private and needs Room, a Context and a socket — so what
-        // it puts on the message is pinned as text, parsed and compared whole.
         val calls = callsOf(bodyOf("outgoing"), "OutgoingMessage(")
         assertEquals("outgoing() must still build exactly one OutgoingMessage", 1, calls.size)
         assertEquals(
@@ -199,12 +174,6 @@ class ReadReceiptWiringTest {
 
     /**
      * The arguments of every `[call]…)` in [body], as name → value expression. Positional arguments
-     * are keyed `#0`, `#1`, … Comments are cut first, so prose naming an argument can neither
-     * satisfy a rule nor break one.
-     *
-     * Parsed rather than searched for: a rule written as `"requestReceipt = item.requestReceipt" in
-     * body` passes just as well when the shipped line reads
-     * `requestReceipt = item.requestReceipt && somethingElse`, which is not the same send.
      */
     private fun callsOf(body: String, call: String): List<Map<String, String>> {
         val code = codeOf(body)
@@ -277,8 +246,6 @@ class ReadReceiptWiringTest {
 
     /**
      * [body] with every comment removed — block comments included, and string literals left alone.
-     * The comments in this repository name the very arguments the rules above pin, so prose could
-     * otherwise satisfy a rule the code no longer does (or break one it does).
      */
     private fun codeOf(body: String): String {
         val out = StringBuilder()

@@ -119,8 +119,6 @@ internal suspend fun addAccountThenPrime(
 
 /** The ids an add should write into the new inbox's notification baseline, or null for none.
  *  Without it the first background pass is the first sight of the inbox, and a first sight seeds
- *  silently. [NotifyRead.baselineIds], never `read.emails.map { it.id }`, which is capped: `seed`
- *  replaces the set, so a dropped id returns as new mail and unarchives its thread server-side.
  *  Null on an empty list, which on IMAP is also what a countless SELECT looks like. */
 internal fun baselineForAddedInbox(read: NotifyRead, hasBaseline: Boolean): List<String>? =
     if (hasBaseline || read.baselineIds.isEmpty()) null else read.baselineIds

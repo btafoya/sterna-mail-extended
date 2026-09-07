@@ -5,9 +5,6 @@ import org.junit.Test
 
 /**
  * Executes [safeFileName] against pairs written by hand — never by re-running the rule. What it
- * pins: hostile path characters become `_`, unicode stays (an accented subject is not `____`, the
- * answer `StorageRepository`'s ASCII regex would give), control characters go, the edges are
- * trimmed, the length is capped, and only nothing-at-all falls back to the caller's word.
  */
 class SafeFileNameTest {
 

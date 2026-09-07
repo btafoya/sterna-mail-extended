@@ -14,10 +14,6 @@ object AndroidContacts {
 
     /**
      * Address-book matches for [q], with the contact's thumbnail URI when they have a picture.
-     * The photo column is part of the same cursor, so no extra query is made per row, and reading
-     * it needs no permission beyond the READ_CONTACTS this query already requires.
-     *
-     * Blocking (a content-provider query and its cursor): call it off the main thread.
      */
     fun query(context: Context, q: String, limit: Int): List<ContactSuggestion> {
         if (!hasPermission(context) || q.isBlank()) return emptyList()

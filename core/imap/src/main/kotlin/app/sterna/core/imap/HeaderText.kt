@@ -4,9 +4,6 @@ import java.util.Base64
 
     /**
      * Turning header bytes into text a human can read: RFC 2047 encoded-words, RFC 2231 parameter
-     * values, and the anti-spoofing filter every decoded string passes through. File-level rather than
-     * private to `ImapSession` because there is exactly ONE encoded-word decoder in this app and both
-     * readers need it — attachment filenames used to show their raw `=?…?=` (Codeberg #101).
      */
 
 /** One RFC 2047 encoded-word: `=?charset?B|Q?text?=`. */
@@ -14,16 +11,6 @@ private val ENCODED_WORD = Regex("=\\?([^?]+)\\?([BbQq])\\?([^?]*)\\?=")
 
     /**
      * Decode RFC 2047 encoded-words in a header. A word whose charset is unknown, or whose payload
-     * will not decode, is KEPT VERBATIM: a malformed subject must survive as text, not disappear.
-     *
-     * WHITESPACE BETWEEN TWO ADJACENT ENCODED-WORDS IS DROPPED (RFC 2047 §6.2, Codeberg #123): the
-     * separator a sender must insert to stay under 75 octets is syntax, not text, and keeping it made
-     * "Réunion de rentrée" read "Réunion de ren trée". Hence a single scan and not a `replace {}` — a
-     * per-word callback never sees what separates two words. Both conditions are checked here: the gap
-     * is entirely linear whitespace, and it is flanked by an encoded-word on BOTH sides. A word that
-     * failed to decode still counts as a word, §6.2 ignoring the separator at PARSE time. Only the
-     * SOURCE gap is examined; a space a sender encoded INSIDE a word is content. [decodeHeaderBytes]
-     * runs FIRST, an encoded-word being pure ASCII and passing through it untouched.
      */
 internal fun decodeWords(text: String?): String? {
     if (text == null) return null
@@ -63,11 +50,6 @@ private fun decodeWord(m: MatchResult): String {
 
     /**
      * Turn a header the parser handed over as a byte container into text, for the case RFC 2047 exists
-     * to avoid and senders use anyway: 8-bit bytes sitting raw in a `Subject` or a display name. A
-     * header declares no charset, so valid UTF-8 is taken as UTF-8 (RFC 6532) and anything else keeps
-     * its ISO-8859-1 reading, which never destroys an octet. This has to happen BEFORE
-     * [stripBidiAndControls], which removes U+0080–U+009F — precisely where UTF-8 continuation bytes
-     * land when read one per char.
      */
 internal fun decodeHeaderBytes(text: String): String {
     if (text.none { it.code >= 0x80 }) return text
@@ -84,9 +66,6 @@ internal fun decodeHeaderBytes(text: String): String {
 
     /**
      * Remove control characters and Unicode bidi overrides from a decoded header before it is shown: a
-     * crafted display name can otherwise make "moc.knab@troppus" read as a bank address. NEVER hand
-     * this raw non-ASCII bytes read one per char — it strips U+0080–U+009F, where UTF-8 continuation
-     * bytes land, and the damage cannot be undone.
      */
 internal fun stripBidiAndControls(s: String): String = s.filterNot { c ->
     val code = c.code
@@ -120,13 +99,6 @@ private const val MAX_PARAM_SECTIONS = 64
 
     /**
      * The value of MIME parameter [name] in [headerValue], decoded and safe to display — the
-     * "Отчёт.pdf" an attachment is really called (Codeberg #101). Three shapes are in the wild and all
-     * three are handled: `filename="plain.pdf"`; `filename="=?utf-8?B?…?="`, an RFC 2047 word where
-     * the standard allows none but many senders emit one; and RFC 2231's `filename*=UTF-8''%D0%9E…`,
-     * reassembled in index order and percent-decoded against the charset the first section declares.
-     * Unknown charset falls back to UTF-8, the result is capped, and it goes through
-     * [stripBidiAndControls] — an RTL override reads "…gpj.exe" as "…exe.jpg". NOT a path: what
-     * lands on disk is sanitised separately.
      */
 internal fun mimeParamValue(headerValue: String, name: String): String? {
     if (headerValue.isBlank()) return null
@@ -160,8 +132,6 @@ internal fun mimeParamValue(headerValue: String, name: String): String? {
 
     /**
      * Reassemble RFC 2231 continuations. Only the FIRST section carries `charset'lang'`. Sections are
-     * decoded as BYTES and joined at the end, never per section: a multi-byte character may straddle
-     * the split, and decoding each part alone would turn it into two replacement characters.
      */
 private fun joinSections(sections: Map<Int, Pair<String, Boolean>>): String? {
     var cs = Charsets.UTF_8
@@ -218,9 +188,6 @@ private fun percentDecode(text: String): ByteArray {
 
     /**
      * Split a header value into its `name=value` parameters, lowercased names, quotes and backslash
-     * escapes removed. Tokenised rather than matched with one regex per name, because `filename`
-     * CONTAINS `name` and a regex for `name=` finds it inside `filename=`. Semicolons inside a quoted
-     * value do not split either.
      */
 private fun headerParams(headerValue: String): List<Pair<String, String>> {
     val out = mutableListOf<Pair<String, String>>()

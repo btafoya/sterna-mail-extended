@@ -18,8 +18,6 @@ import java.util.Calendar
 
 /**
  * Notifies for newly arrived mail against a PERSISTED per-folder baseline (the ids already
- * announced, keyed "accountId:mailboxId"). Shared by [PushService] and [MailFetchWorker] (#11), so
- * the two never double-notify and a service death never loses what has been announced (#16).
  */
 object NewMailNotifier {
     private const val PREFS = "push_baselines"
@@ -56,11 +54,6 @@ object NewMailNotifier {
 
     /**
      * Reset a folder's baseline to [baselineIds] without notifying (first sight of a folder, or when
-     * the user is opening the app anyway).
-     *
-     * [baselineIds] is NOT "the ids that were diffed": it REPLACES the set, so it has to cover
-     * everything the caller read. An id that leaves this set announces as new mail when it comes
-     * back, and through `unarchiveThreadsOnReply` moves mail out of the Archive server-side.
      */
     fun seed(context: Context, accountId: String, mailboxId: String, baselineIds: Collection<String>) {
         prefs(context).edit()
@@ -116,13 +109,6 @@ object NewMailNotifier {
 
     /**
      * The subset of [emails] genuinely new to this folder: not in its baseline, and past the age
-     * floor. The cache gains OLD rows without them ever having been new mail — scrolling back,
-     * expanding a thread — and none are in the baseline, so each would otherwise count as days-late
-     * "new" mail. Genuinely new mail with an old receivedAt is skipped too, an accepted trade.
-     *
-     * Self-moves are dropped as well (#50): a folder only receives new mail when it arrives there
-     * server-side. The ids still enter the baseline, so they never announce later either. Read-only:
-     * the baseline advances in [notifyDiff]/[seed] alone.
      */
     fun newSince(context: Context, accountId: String, mailboxId: String, emails: List<Email>): List<Email> {
         val known = prefs(context).getStringSet(key(accountId, mailboxId), null).orEmpty()
@@ -138,17 +124,6 @@ object NewMailNotifier {
 
     /**
      * Post notifications for a folder's messages not in its baseline, then advance it. [emails] is
-     * what may be announced, [baselineIds] what the folder will remember — not the same set, and the
-     * second must cover the first (see [seed]).
-     *
-     * [departedIds] are the ids the SERVER reported as having LEFT this folder (#134); their banners
-     * come down as a message read elsewhere loses its own. Only a NAMED id is ever cancelled, so a
-     * pass with no such signal cancels nothing. [previewSources] says where the opening line could be
-     * READ from; empty is a complete answer.
-     *
-     * [previewBudget] is the reads and seconds of the WHOLE ACCOUNT PASS, and a multi-folder
-     * caller MUST pass the same one to every folder: this runs once per folder, so a budget of its
-     * own would be four budgets for an account watching three extras.
      */
     suspend fun notifyDiff(
         context: Context,
@@ -176,9 +151,6 @@ object NewMailNotifier {
             .map { it.id }
         // #134: a message deleted from another client is gone from this folder, yet its banner
         // stayed on screen. The ids come from what the SERVER said left the folder, never from a
-        // cache eviction. Two steps, and the order makes the second free: this narrows the delta's
-        // report to ids that actually have a banner, and only those are put to the server — a delta
-        // cannot tell a departure from a flag change.
         val candidates = Notifications.departuresToCancel(active, credentials.id, departedIds, emails.map { it.id })
         // The confirmation, from the layer that talks to the server. It confirms NOTHING when it
         // cannot ask and does not throw: leaving a banner up is survivable, and this pass has new

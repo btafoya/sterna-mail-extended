@@ -108,9 +108,6 @@ sealed interface LocalDraftEdit {
 
 /**
  * Everything but the two with a real, concurrent owner: UPLOADING belongs to the worker, STAGING
- * still says "[]" and would open amputated. EDITING is taken, and that is the hot recovery this
- * exists for: a local draft is reached by one route only, so such a row is a lease left by a dead
- * process. Exhaustive so a fifth state has to answer out loud.
  */
 fun localDraftMayBeTakenForEdit(state: LocalDraftState): Boolean = when (state) {
     LocalDraftState.PENDING, LocalDraftState.EDITING -> true
@@ -134,8 +131,6 @@ internal suspend fun takeLocalDraftEdit(
 
 /**
  * The scope can die after Room wrote `EDITING` and before the caller resumed (#95), leaving the row
- * leased to nobody until a cold start. Sheltered on the cancelled path only — [arm] does not
- * suspend, so once armed the release belongs to `abandon()`.
  */
 suspend fun takeLocalDraftEditOrGiveItBack(
     id: String,
@@ -157,9 +152,6 @@ suspend fun takeLocalDraftEditOrGiveItBack(
 
 /**
  * The only way out of [LocalDraftState.EDITING], since a cold start cannot tell a row a restored
- * composer is about to take from one nobody will claim. Only an `EDITING` row, or it hands the
- * worker's row back to itself mid-flight. [schedule] gets what is left of the backoff, not 0, or a
- * refused draft retries on every open and close.
  */
 internal suspend fun giveLocalDraftEditBack(
     id: String,
@@ -191,8 +183,6 @@ data class SendDraftTarget(
 
 /**
  * Reopened from a row, [editingDraftId] is the row's id, for which [sendDraftEmailId] answers null
- * and [replacedServerDraftId] answers instead — without it nobody names the server draft on a send,
- * the mask lifts with the consumed row and the pre-edit text comes back for good.
  */
 fun sendDraftTarget(
     editingDraftId: String?,
@@ -215,9 +205,6 @@ fun SendDraftTarget.unlessBodyIsLossy(bodyIsLossy: Boolean): SendDraftTarget =
 
 /**
  * Withheld whole when the draft was read under one account and the message is written under another
- * (#31 × #63): destroying it would need a transaction spanning two servers. A null [draftAccountId]
- * does not refuse, resting on `ComposeViewModel.prepare()` arming a server draft id and its account
- * together. A null [writingAccountId] does refuse.
  */
 fun SendDraftTarget.unlessDraftBelongsElsewhere(
     draftAccountId: String?,
@@ -247,9 +234,6 @@ data class AbandonPlan(
 
 /**
  * [sending] gives back nothing: releasing the local row from under a send in flight has the upload
- * worker file a copy of what has just gone out. [emptying] withholds the phone's own row and only
- * that one (#95 × #69), or the erased pre-edit text races the delete to the server; an argument, not
- * a null [localDraftId], since blanking that erases which row this composer holds.
  */
 fun abandonPlan(
     sending: Boolean,
@@ -267,17 +251,12 @@ fun abandonPlan(
 
 /**
  * A save closes the composer without passing through `abandon`, having rewritten the row itself —
- * unless the "From" picker moved to another account (#95 × #31), where a new row is minted and the
- * reopened one would stay `EDITING` for ever, masking the server draft it replaces. [saved] false
- * gives nothing back: the composer is still open and `EDITING` is true.
  */
 fun localDraftLeaseAfterSave(lease: String?, saved: Boolean): String? =
     if (saved) lease else null
 
 /**
  * The row is the only copy of the text and [commit] creates the other one (#95), so consumed first,
- * or in a `finally`, a commit that throws leaves the message on neither side; left behind, the row
- * stays `EDITING`, which no sweep takes back. Hence the shelter over both halves, and no wider.
  */
 suspend fun <T> commitThenConsumeLocalDraft(
     localDraftId: String?,

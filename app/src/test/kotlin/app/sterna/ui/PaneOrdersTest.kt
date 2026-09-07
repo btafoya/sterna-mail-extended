@@ -5,8 +5,6 @@ import org.junit.Test
 
 /**
  * [PaneOrders.emailOpen], run on the stacks `MainNavHost` can hand it — the routes are the REAL
- * ones, copied from `SternaApp.kt`, each stack led by the graph's own null entry as
- * `NavController.currentBackStack` lists it (see [WidgetTapNavigationTest]).
  */
 class PaneOrdersTest {
 

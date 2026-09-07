@@ -7,13 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same disclaimer as [ConversationScopeWiringTest]: it reads
- * a file as text and proves nothing about what runs. `InboxViewModel` is an `AndroidViewModel` and
- * this module has neither Robolectric nor instrumented tests, so the decision itself is executed by
- * [BulkOutcomeTest] and only its PLUG is checked here.
- *
- * What it pins is what each outcome DOES, whole: swap two branches and this goes red — "Couldn't
- * complete the action" on a mostly-successful bulk is exactly the lie this lot exists to stop
- * telling — and so does a total failure that stops asking which of the two sentences it owes.
  */
 class BulkOutcomeWiringTest {
 
@@ -42,11 +35,6 @@ class BulkOutcomeWiringTest {
         )
         // The counts it feeds it: the WHOLE selection handed in (plus whatever a delegating caller
         // already lost), and everything that did not go through — the batch's rejects, the keys
-        // nothing resolved for, and the caller's losses. `emails.size` here was the report itself:
-        // a selection whose rows were none of them cached reached nothing and said nothing.
-        // Whole lines, never `in`: a substring rule accepts anything appended to what it matched.
-        // BulkSelectionWiringTest pins the same two lines; this one is the copy that fails loudly
-        // if the pairing below is ever reached through a different count.
         assertEquals(
             "bulkOutcome must be fed the whole selection (plus the caller's losses) and every " +
                 "failure, unresolved keys included",
@@ -61,14 +49,6 @@ class BulkOutcomeWiringTest {
 
     /**
      * WHOLE BRANCHES, not the first `R.string` each names. The total-failure branch no longer
-     * reaches for one sentence: it asks the shared decision when a batch let a throwable escape,
-     * and falls back to the generic sentence when none did (a server refusal, an over-quota, a
-     * numbering the server would not confirm — none of them a transport failure). A rule reading
-     * only the first resource in the branch would have kept passing with the decision deleted, or
-     * with `online = false` tacked into it, which is the shape this fix comes undone in.
-     *
-     * PARTIAL is pinned unchanged on purpose: offline nothing succeeds by halves, so a partial
-     * failure is never an outage and "you are offline" there would be a second lie.
      */
     @Test fun eachOutcomeReachesForItsOwnString() {
         assertEquals(
@@ -87,8 +67,6 @@ class BulkOutcomeWiringTest {
 
     /**
      * The branches of `bulkBatched`'s `when (bulkOutcome(…))`, braces balanced so the last one
-     * stops at the `when` and not at the end of the function, comment lines dropped, whitespace
-     * squeezed: a wrapped branch reads as one string.
      */
     private fun outcomeBranches(): Map<String, String> {
         val body = bulkBatchedBody()

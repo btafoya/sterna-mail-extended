@@ -26,24 +26,17 @@ const val LOCAL_DRAFT_UPLOAD_BUDGET_MS: Int = 60_000
 
 /**
  * Wall clock from `upload(row)` being entered to it returning. Needed beside the read budget because
- * the wait for the account's IMAP mutex has no bound of its own, and there the read budget never
- * starts ticking. Floor above one read's minute; ceiling half of WorkManager's ten.
  */
 const val LOCAL_DRAFT_ATTEMPT_BUDGET_MS: Long = 5L * 60 * 1000
 
 /**
  * An ordinary [Exception], deliberately not a [CancellationException]: the
- * [TimeoutCancellationException] `withTimeout` throws would be read by [uploadLocalDraftOnce] as
- * "the worker is being stopped" and rethrown, leaving the row `UPLOADING` with no backoff.
  */
 class LocalDraftAttemptExpired(budgetMs: Long, cause: Throwable? = null) :
     Exception("The upload did not finish within ${budgetMs / 1000} s.", cause)
 
 /**
  * `withTimeout` joins its block, so this bounds the cancellable waits and nothing else: name
- * resolution (`ImapClient-62`) and the JMAP call (`JmapClient-2752`, no `callTimeout`)
- * stay unbounded. Only the expiry is converted — a real cancellation is what makes
- * [uploadLocalDraftRebooking] use `onlyIfNothingBooked`.
  */
 suspend fun <T> withLocalDraftAttemptBudget(budgetMs: Long, attempt: suspend () -> T): T =
     try {
@@ -106,8 +99,6 @@ data class LocalDraftUploadResult(val step: LocalDraftUploadStep, val retryAtMil
 
 /**
  * The same question `LocalDraftDao.pending` asks of the whole table, exhaustive so a fifth state has
- * to answer out loud. EDITING is held by a composer; STAGING still says "[]", and uploading that
- * sends the draft amputated.
  */
 fun localDraftUploadIsDue(state: LocalDraftState, notBeforeMillis: Long, nowMillis: Long): Boolean =
     when (state) {
@@ -117,10 +108,6 @@ fun localDraftUploadIsDue(state: LocalDraftState, notBeforeMillis: Long, nowMill
 
 /**
  * `UPLOADING` marks that an attempt started, it is not a lock: [localDraftUploadIsDue] and
- * `LocalDraftDao.pending` both count such a row as due, so one abandoned by a dying process is
- * picked up again — and two live workers can then both `APPEND`, stated and not guarded. [discard]
- * is on the success path only; in a `finally` it would delete the text on the very failure this
- * queue exists to survive.
  */
 @Suppress("LongParameterList")
 internal suspend fun uploadLocalDraftOnce(
@@ -156,10 +143,6 @@ internal suspend fun uploadLocalDraftOnce(
 
 /**
  * On a [CancellationException] nothing else can re-book, since the row's own `record` never runs —
- * hence [rebook] first, not suspending, and for [LOCAL_DRAFT_RETRY_BASE_MILLIS] rather than 0, or a
- * worker stopped under system pressure re-books itself for now and is re-stopped in a loop. That
- * path asks `onlyIfNothingBooked`: this queue books under one unique name, so a plain booking would
- * cancel WorkManager's own retry. [now] is read after [upload], or the delay carries its duration.
  */
 suspend fun uploadLocalDraftRebooking(
     now: () -> Long,
@@ -178,8 +161,6 @@ suspend fun uploadLocalDraftRebooking(
 
 /**
  * Only a row that has failed at least once: on a first attempt the `Message-ID` has never been on a
- * wire, and the duplicate this guards against needs a failed attempt to exist at all. The name leg
- * is unreachable today, kept because its failure is the losing one: abstain, then consume the row.
  */
 fun localDraftMayAlreadyBeOnServer(row: LocalDraftEntity): Boolean =
     row.attemptCount > 0 && row.messageId.isNotBlank()
@@ -199,8 +180,6 @@ private fun unbracketedMessageId(value: String): String =
 
 /**
  * [alreadyThere] may throw — a live read over the link that just failed — and a lookup that throws
- * appends: abstaining on a failed read is the one outcome that loses the text, since
- * [uploadLocalDraftOnce] consumes the row the moment the upload returns.
  */
 internal suspend fun appendDraftUnlessAlreadyThere(
     row: LocalDraftEntity,
@@ -241,8 +220,6 @@ fun localDraftUploadJobs(
 
 /**
  * The count matters as much as the bytes: `uploadDraft` weighs `attachments.size` against the parts
- * it built before letting `finishDraftSave` destroy the original (#63), so an `emptyList()` here
- * uploads every deferred draft amputated and reports it faithful.
  */
 internal fun localDraftUploadAttachments(attachmentsJson: String?): List<EmailBodyPart> =
     OutboxAttachments.decode(attachmentsJson).map {

@@ -10,10 +10,6 @@ import java.net.SocketTimeoutException
 
 /**
  * What an IMAP "Empty trash" freezes (Codeberg #99), decided without a device.
- *
- * The reported defect: on a big Trash the user had never scrolled through, "Trash emptied"
- * appeared and part of it was still on the server — the destroy list was built from the synced
- * window. Here the folder is 120 messages and the window 50, as the user's would be.
  */
 class TrashPurgeImapSnapshotTest {
 

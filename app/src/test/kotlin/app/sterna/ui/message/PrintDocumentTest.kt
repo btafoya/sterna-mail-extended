@@ -8,8 +8,6 @@ import org.junit.Test
 
 /**
  * [buildPrintDocument] EXECUTED, and the document it emits read as text. The print document is
- * a SEPARATE document from the reader's: always light, no `vh` bands, no page invert — and it
- * carries the header the screen paints in Compose, which the reader's document never had to.
  */
 class PrintDocumentTest {
 
@@ -28,11 +26,6 @@ class PrintDocumentTest {
 
     /**
      * Paper goes out WHOLE. The reader folds the trailing quoted history behind a `<details>`
-     * ([foldTopLevelQuotes]); a PDF cannot be unfolded, so a folded quote on paper is history
-     * lost for good. Today that holds because the fold is only ever called from
-     * [buildHtmlDocument] — but "it is not called from here" is not something a reader of this
-     * file can see, and adding one line to [buildPrintDocument] would leave the whole suite green
-     * and start printing amputated PDFs. This is the assertion that would not stay green.
      */
     @Test fun `the print document never folds the quoted history away`() {
         val quoted = ReaderBody(

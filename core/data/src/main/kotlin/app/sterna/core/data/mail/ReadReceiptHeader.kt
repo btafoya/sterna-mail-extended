@@ -40,8 +40,6 @@ object ReadReceiptHeader {
 
     /**
      * The quoted display name is removed FIRST: a name may legally contain `<x@elsewhere.example>`,
-     * so reading brackets from the raw token would let whoever wrote it choose where the receipt
-     * goes. The ORDER is the protection.
      */
     private fun addressIn(token: String): String? {
         val unnamed = token.replace(QUOTED, " ")

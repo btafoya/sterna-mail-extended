@@ -13,12 +13,6 @@ import java.sql.DriverManager
 
 /**
  * What the "latest messages" home-screen widget is allowed to read, run against real SQLite.
- *
- * The shipped decision is executed here, never re-stated: [recentUnifiedSql] builds the statement
- * and [recentUnifiedInboxFrom] decides `configured`, and both are the ones the repository calls.
- * The load-bearing case runs the widget's statement AND the app's own [pagingSql] over the same
- * rows and asserts the widget holds exactly the first N of the list — so the home screen and the
- * "All inboxes" view cannot drift apart in order, bound or predicate.
  */
 class RecentUnifiedInboxSqlTest {
     private lateinit var db: Connection
@@ -82,12 +76,6 @@ class RecentUnifiedInboxSqlTest {
 
     /**
      * The widget's read AS THE REPOSITORY BUILDS IT — statement and binds together.
-     *
-     * The binding is NOT retyped here. [recentUnifiedQuery] is the only thing that decides which
-     * argument lands in which placeholder, and a test that re-types that order proves nothing about
-     * it: swapping the (account, mailbox) pair compiles, executes, and asks about a folder named
-     * after an account — zero rows, and a widget that calmly reports an empty inbox. Same lesson,
-     * same shape, as [ConversationQueryTest].
      */
     private fun widget(scopes: List<Pair<String, String>>, limit: Int) =
         recentUnifiedInboxFrom(scopes) { s ->
@@ -223,13 +211,6 @@ class RecentUnifiedInboxSqlTest {
 
     /**
      * The body never leaves the database — asserted on the statement the repository SHIPS, by
-     * running it and reading back which columns it actually selected.
-     *
-     * [RecentEmailRow] omitting `preview` is the structural half of this promise; this is the half
-     * that still bites if someone reaches for `SELECT *` or adds the field back. Read from the
-     * result set's metadata, never from the SQL text: a source `contains` check is blind to a
-     * mutation that lengthens the line, and this is the one guard the whole widget rests on
-     * (a home screen is read by exactly the person an app lock is supposed to stop).
      */
     @Test fun `the widget's statement cannot carry the body of a message`() {
         insert("m1", sortKey = 100)
@@ -258,11 +239,6 @@ class RecentUnifiedInboxSqlTest {
 
     /**
      * What a line actually CARRIES — every drawn field compared to a value, not just counted.
-     *
-     * The column-label check below is not enough on its own: `preview AS subject` keeps the
-     * labels identical and hands the body over under an approved name. The fixture puts
-     * `'SECRET BODY'` in `preview` on every row precisely so that a mis-aliased SELECT shows up
-     * here as the body appearing in a field a widget draws.
      */
     @Test fun `a line carries the fields it draws, and never the body under another name`() {
         insert("m1", sortKey = 100, seen = 0)
@@ -286,10 +262,6 @@ class RecentUnifiedInboxSqlTest {
 
     /**
      * A bound that is not a bound. The number of rows is the most natural thing for a widget to
-     * derive from its own height, and that arithmetic reaches zero on a short cell and goes
-     * negative on a bad one. In SQLite `LIMIT -1` means NO limit: the whole unified inbox would
-     * be read into the launcher's process. And `LIMIT 0` answers zero rows with accounts present,
-     * which the drawer is entitled to render as "your inbox is empty" — a lie.
      */
     @Test fun `a non-positive row bound is not a way to read everything, nor to claim emptiness`() {
         (1..5).forEach { insert("m$it", sortKey = it.toLong()) }

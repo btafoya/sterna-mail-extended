@@ -14,16 +14,6 @@ object MailNotificationText {
 
     /**
      * [sender] and [subject] are the mail's own strings, already defaulted by the caller; [generic]
-     * is the identity-free stand-in; [preview] is the body opening when the caller has one.
-     *
-     *  - BODY_PREVIEW: sender, subject collapsed, subject THEN the preview expanded;
-     *  - SENDER_AND_SUBJECT: sender, subject collapsed and expanded;
-     *  - SENDER_ONLY: sender, the generic line instead of the subject;
-     *  - NONE: the generic line and nothing else.
-     *
-     * [preview] is read at BODY_PREVIEW and nowhere else, and a producer may hand over anything
-     * because the shaping happens HERE: a cap left to each producer is a cap one of them forgets,
-     * and an uncapped body travels whole in the notification's extras.
      */
     fun resolve(
         content: NotificationContent,
@@ -63,10 +53,6 @@ object MailNotificationText {
 
     /**
      * The line a send-failure banner may put under its title, or null. That banner was the one
-     * notification in the app that never asked this question: it posted the subject at
-     * IMPORTANCE_HIGH, so a failed reply put "Re: <the real subject>" on a "Sender only" lock screen.
-     * Null is not a loss — the title already says what happened, and the banner's `mailto:` still
-     * carries the subject into the composer.
      */
     fun sendFailureLine(
         content: NotificationContent,
@@ -81,27 +67,11 @@ object MailNotificationText {
 
     /**
      * One row of the latest-mail widget. Two lines and not three — there is no expanded state on a
-     * home screen. [namesSender] is whether this row NAMES the person who wrote, and exists because
-     * the widget draws a badge whose initial is a letter of somebody's name. Decided HERE: the app
-     * lock folds the effective position onto NONE inside [widgetRow], the only place that knows it.
      */
     data class WidgetRow(val primary: String, val secondary: String?, val namesSender: Boolean)
 
     /**
      * What one row of the latest-mail widget may say, per the same setting and the app lock — no
-     * setting of its own, the constraint being built into how the widget is drawn. The result is the
-     * (title, text) pair of [resolve]: a row never says more than that mail's collapsed notification,
-     * nor more than the lock allows. It does NOT decide which mails get a row — that is the "Sync
-     * new mail" switch, which stops FETCHING and not display.
-     *
-     * The first two positions are identical deliberately: BODY_PREVIEW draws no body here, the
-     * preview column being filled as a matter of course on JMAP and only on request on IMAP. There
-     * is no [preview] parameter for the same reason, pinned by `MailNotificationWidgetRowTest`
-     * reading this signature back by reflection: no test can pass an argument that does not exist.
-     *
-     * [appLockEnabled] is the lock being ENABLED, NOT AppLock.locked, which dies with the process.
-     * The lock folds the position onto NONE and lets the same exhaustive `when` decide.
-     * [WidgetRow.namesSender] rides out on that decision.
      */
     fun widgetRow(
         content: NotificationContent,

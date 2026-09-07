@@ -6,41 +6,6 @@ import java.io.File
 
 /**
  * A source lint over the bench provisioning entry points — every directory of [BENCH_DIRS], i.e.
- * everything that lands in the `-PtestApp` build and nowhere else.
- *
- * WHY IT READS TEXT INSTEAD OF EXECUTING ANYTHING. That source set is registered inside the
- * `-PtestApp` gate (see `app/build.gradle.kts`), and the unit-test suite does NOT pass that
- * property: the receiver is never compiled by any test task, so no test can instantiate it, call
- * it, or observe it. Reading it as text is the only verdict available, and it is exactly why this
- * lint itself runs without the property (it opens files, it compiles nothing).
- *
- * A source lint is a last resort everywhere else in this repo. Here it is the ONLY resort, so it
- * is written to fail loudly in the three ways that matter:
- *
- *  1. nothing to read is RED, never a silent green (see [failsLoudlyWhenThereIsNothingToRead]);
- *  2. no fourth account-creation path, no unpinned read of an intent extra, and no unpinned touch
- *     of a FILE may appear in the bench sources ([noAccountCreationOutsideTheViewModel]);
- *  3. the bench really does go through the ViewModel's own entry points ([receiverCallsTheViewModelEntryPoints]);
- *  4. each of those entry points sits under the branch that names its protocol
- *     ([eachEntryPointSitsUnderItsOwnBranch]) — rule 3 alone cannot see two swapped labels;
- *  5. the report's destination is still judged before it is written
- *     ([theOutPathIsJudgedBeforeTheReportIsWritten]). The judgement itself is executed by
- *     BenchOutPathTest; this only pins that the receiver calls it, because a perfect predicate
- *     nobody calls protects nothing and no test compiles this receiver.
- *
- * JUDGMENT IS WHOLE-LINE EQUALITY, NEVER `contains`. A suspicious line is FOUND by regex and
- * then judged by comparing the whole trimmed line against [ALLOWED_LINES]. `in`/`contains` is blind
- * to any mutation that LENGTHENS the line (a trailing comment, one more named argument) — that hole
- * was found three times on 2026-08-04, twice on irreversible server writes. [ALLOWED_LINES] is
- * empty today: every hit is a failure, and adding an entry means pasting the exact line.
- *
- * Comment lines are NOT skipped. A commented-out call still trips this lint, on purpose: skipping
- * comments would let a mutation hide behind `//`. The cost is that the bench sources must describe
- * the forbidden calls in words rather than quoting them verbatim.
- *
- * Deliberately a SECOND lint, independent of ConnectPrimingWiringTest: that one reads a single
- * hard-coded path and its `functionBody()` throws on a function it cannot find, so bolting these
- * files onto it would make an unrelated file's absence look like a ConnectViewModel regression.
  */
 class BenchProvisionSourceTest {
 
@@ -169,18 +134,11 @@ class BenchProvisionSourceTest {
     private companion object {
         /**
          * EVERY directory that ends up in the bench APK. `src/testApp/kotlin` is the receiver;
-         * `src/benchShared/kotlin` is the plain-Kotlin half that a unit test can execute — and it
-         * is compiled into the SAME `-PtestApp` build, with the same powers. Leaving it out of this
-         * walk would make "move the helper next door" a way to launder any rule below.
          */
         val BENCH_DIRS = listOf("app/src/testApp/kotlin", "app/src/benchShared/kotlin")
 
         /**
          * Repo root, walked up from the module's working directory (as the other source lints do).
-         * Anchored on `settings.gradle.kts`, NOT on one of [BENCH_DIRS]: anchoring on a bench
-         * directory means a deleted directory cannot be found, and "cannot find it" would have to
-         * be an error thrown from a lazy initialiser instead of the loud, explaining failure of
-         * [failsLoudlyWhenThereIsNothingToRead].
          */
         val REPO_ROOT: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
@@ -193,8 +151,6 @@ class BenchProvisionSourceTest {
 
         /**
          * Named rules, found by regex and judged by whole-line equality below. Broad on purpose:
-         * a rule that misfires costs one allowlist entry, a rule that misses costs an orphan
-         * account or a leaked password.
          */
         val FORBIDDEN: List<Pair<String, Regex>> = listOf(
             // Any add-ish call on anything that looks like an account store or the repository.
@@ -223,12 +179,6 @@ class BenchProvisionSourceTest {
             "names an extra after a secret" to Regex("""(?i)EXTRA_\w*(PASSWORD|PASSWD|PWD|SECRET|TOKEN|PASS|CRED|KEY)"""),
             // SECOND INVERTED RULE, and it is inverted for the same reason as the extras above:
             // EVERY line that opens or alters a file is forbidden, and the legitimate ones are
-            // pinned whole in ALLOWED_LINES. Pinning the GUARDED write is not enough on its own —
-            // that only proves the guarded line still exists, never that it is the only write. A
-            // second, unguarded write added right after it left the whole suite green: the original
-            // hole restored, with the refusal cheerfully logged next to the write that happened.
-            // Wide on purpose (the file handle itself, not just the destructive verbs): a rule that
-            // misses costs a truncated file, a rule that overshoots costs one pinned line.
             "touches a file" to Regex(
                 """\bFile\s*\(|\bFile(OutputStream|Writer)\s*\(|\bFiles\s*\.|""" +
                     """\b(writeText|writeBytes|appendText|appendBytes|outputStream|bufferedWriter""" +
@@ -239,14 +189,6 @@ class BenchProvisionSourceTest {
 
         /**
          * Lines exempted from [FORBIDDEN], compared whole and trimmed. Each entry is a promise that
-         * THIS EXACT TEXT, character for character, is safe. Append anything to such a line — a
-         * comment, one more argument — and it stops matching, so it goes back to red. That is the
-         * point, and it is why the two legitimate extra reads are pinned here rather than carved
-         * out of the regex.
-         *
-         * The list now serves TWO inverted rules: the extra reads, and the file touches added
-         * below them. Same contract for both — an entry is one exact line, and every other line
-         * the rule finds is a failure.
          */
         val ALLOWED_LINES: List<String> = listOf(
             "val specPath = intent.getStringExtra(EXTRA_SPEC)",
@@ -261,13 +203,6 @@ class BenchProvisionSourceTest {
 
         /**
          * The three production entry points the bench may add an account with, each with the `when`
-         * branch it must sit under. Pinned with their ARGUMENTS, not just their names: a call that
-         * silently starts passing a different password field, or the discovery path where the
-         * explicit-server one was meant, has to come through here.
-         *
-         * The BRANCH is pinned too, because the calls alone were not enough: swapping the
-         * `Mode.JMAP ->` and `Mode.IMAP ->` labels leaves all three lines byte-identical, the lint
-         * green, and an `imap` spec being dialled through `vm.connect(server = "")`.
          */
         val EXPECTED_BRANCHES: List<Pair<String, String>> = listOf(
             "Mode.JMAP ->" to
@@ -282,10 +217,6 @@ class BenchProvisionSourceTest {
 
         /**
          * The two lines that keep the report inside `/data/local/tmp`: the judgement, and the
-         * write it guards. Both pinned WITH THEIR ARGUMENT — the same `out` must be judged and
-         * written, otherwise a mutation judges one string and truncates another. Whole-line
-         * equality like everything else here: appending anything to either line turns this red,
-         * which is the moment someone re-reads what is being written and where.
          */
         val OUT_PATH_GUARD_LINES: List<String> = listOf(
             "!isBenchOutPathAllowed(out) -> Log.e(",

@@ -8,24 +8,6 @@ import org.junit.Test
 
 /**
  * A folder walk that read NOTHING is not a walk over an empty folder — on the wire, where the
- * difference is made.
- *
- * `select()` initialises its count to zero and only moves it when an `* n EXISTS` line parses. A
- * `SELECT` that omits the line, or answers `* NIL EXISTS`, therefore hands back the same `exists = 0`
- * an empty folder does; `walkFolder` then asks for no page at all and answers with no UID; and
- * `reconcilableIds` in `core:data` turns an empty UID list into an empty keep set, which
- * `EmailDao.reconcileMailbox` reads as "delete every cached row of this folder". 300 rows to zero on
- * one pull-to-refresh, no error, nothing left offline.
- *
- * The second shape of the same hole, and the reason a fix that only looks at EXISTS is not enough:
- * a folder that really holds a thousand messages, whose `FETCH` responses come back without a `UID`
- * item. `ImapSession.messages` drops those silently (`mapNotNull`), so the walk finishes, reports no
- * UID, and is just as empty as the first.
- *
- * What tells the cases apart is a fact the SERVER stated: [ImapMailboxStatus.existsObserved], carried
- * to the caller as [ImapFolderWalk.folderStatedEmpty]. The witness at the bottom is not optional:
- * a folder that IS empty must still be able to clear a stale cache, or an emptied folder shows its
- * old contents for ever and nothing on IMAP ever cleans up.
  */
 class ExistsThatWasNeverStatedTest {
 

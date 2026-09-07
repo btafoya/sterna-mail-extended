@@ -7,10 +7,6 @@ import org.junit.Test
 
 /**
  * The one rule that decides whether leaving compose persists a draft (#69). Both directions matter
- * and are covered here: a typed address must count as content (the reported bug — the leave dialog
- * offered "Save draft", the screen closed and nothing was in Drafts), while a compose holding
- * nothing real must still leave no trace at all (the 1.3.12 empty-shell fix, which this must not
- * undo). Blanks and stray separators are not addresses.
  */
 class DraftContentTest {
 

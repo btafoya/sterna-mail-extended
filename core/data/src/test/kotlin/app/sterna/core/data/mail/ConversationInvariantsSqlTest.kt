@@ -11,22 +11,6 @@ import java.sql.DriverManager
 
 /**
  * The conversation view's cross-query invariants, run against in-memory SQLite.
- *
- * [ConversationSqlTest] checks the collapsed list on its own. What no test checked is whether the
- * list AGREES with the other queries that describe the same mail: the unfold
- * ([app.sterna.core.data.db.EmailDao.cachedThreadEmails]), the flat list ([pagingSql]) and the
- * drawer badges ([app.sterna.core.data.db.EmailDao.observeThreadUnreadCounts] /
- * [app.sterna.core.data.db.EmailDao.observeMessageUnreadCounts]). Each case here runs TWO shipped
- * queries and asserts they say the same thing — the chip equals what unfolding shows, the two view
- * modes hold the same messages, the badge equals the bold rows.
- *
- * The DAO's statements are read out of the DAO source ([DaoQuerySource]) rather than retyped, so
- * these cases execute the app's own SQL and break when it changes.
- *
- * Two cases (grouping without thread ids, and the unified list mixing a grouping account with a
- * non-grouping one) are CHARACTERISATION tests: they pin behaviour that is real today and arguably
- * wrong. They are meant to pass; the day they fail, the protocol asymmetry has been addressed and
- * they must be rewritten, not deleted.
  */
 class ConversationInvariantsSqlTest {
     private lateinit var db: Connection
@@ -85,10 +69,6 @@ class ConversationInvariantsSqlTest {
 
     /**
      * The collapsed list, bound exactly as `conversationQuery` binds it: the (account, folder)
-     * scope pairs for the in-view sub-query, then the same pairs + each (account, Sent) pair for
-     * the chip, then the pairs once more for the outer WHERE. [accountId] pins the view to one
-     * account by scoping every folder to it — the unified list passes null and scopes each folder
-     * to its own account instead.
      */
     private fun conversation(
         vararg mailboxes: String,
@@ -147,9 +127,6 @@ class ConversationInvariantsSqlTest {
 
     /**
      * What unfolding a conversation row shows: EmailDao.cachedThreadEmails over the viewed
-     * folder(s) plus the account's Sent folder (InboxViewModel.expansionMailboxIds), representative
-     * included — `ConversationExpansion.membersBelow` only drops the representative from the list
-     * BELOW the row, which still draws it. The DAO's own statement, read from its source.
      */
     private fun unfold(accountId: String, vararg mailboxes: String, threadKey: String): List<String> {
         val (sql, order) = DaoQuerySource.bindOrder(
@@ -190,11 +167,6 @@ class ConversationInvariantsSqlTest {
     @Test fun messagesWithoutAThreadKeyGroupNothingAtAll() {
         // The SQL is protocol-agnostic: a row with no thread key is its own conversation, a row
         // with one groups with its siblings, and nothing else decides. A row without a key is an
-        // IMAP message carrying neither Message-ID nor References, a row cached before IMAP
-        // threading existed (`ImapMessage.toEntity` wrote null for every row until then), or a
-        // message whose References root is lost — COALESCE(threadId, id) then falls back to the
-        // message id. Same account, same folder, same subject, an obvious reply chain to a human
-        // eye: three rows, chip 1 each.
         insert("m1", threadId = null, sortKey = 100, subject = "Re: budget")
         insert("m2", threadId = null, sortKey = 200, subject = "Re: budget")
         insert("m3", threadId = null, sortKey = 300, subject = "Re: budget")

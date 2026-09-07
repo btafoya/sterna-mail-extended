@@ -15,10 +15,6 @@ object RelayPush {
 
     /**
      * May this account send a UnifiedPush.register right now? Three windows: never registered, a
-     * FAILED whose cooldown has elapsed, or a pending state gone stale. The FAILED cooldown is
-     * load-bearing: a failure invokes onTransportStateChanged → apply() → back here, and without it
-     * that is a tight register/fail loop against the mail server. A non-JMAP account rides them only
-     * once its owner asked for a relay address, an IMAP server having nothing to subscribe to.
      */
     fun shouldRegister(
         protocol: MailProtocol,
@@ -36,19 +32,12 @@ object RelayPush {
 
     /**
      * May this account touch the UnifiedPush subsystem AT ALL? JMAP always may; anything else only
-     * once its owner asked for a relay address. Split out of [shouldRegister] because the manager
-     * needs this EARLIER than the registration window: an account that may not use push must leave
-     * before `ensureDistributor()`, whose picker is this subsystem's only UI, while a JMAP account
-     * must go through it whatever the window says.
      */
     fun mayUsePush(protocol: MailProtocol, relayRequested: Boolean): Boolean =
         protocol == MailProtocol.JMAP || relayRequested
 
     /**
      * The user tapped "Get an address": what to persist before registering. The status goes back
-     * to NONE — withdrawing an address ends in `onUnregistered` writing FAILED stamped NOW, so
-     * "Remove address" followed by "Get an address" hit the cooldown and did nothing, in silence.
-     * That cooldown guards the AUTOMATIC path, not a deliberate tap.
      */
     fun onRelayRequested(prev: UpAccountState, now: Long): UpAccountState =
         prev.copy(relayRequested = true, status = UpStatus.NONE, statusSinceMillis = now)
@@ -104,10 +93,6 @@ object RelayPush {
 
     /**
      * A payload really arrived through this account's endpoint. Returns what to persist, or null when
-     * there is nothing to write. THIS, and not the existence of an address, is what arms a relay:
-     * the subsystem enrols the single installed distributor silently, so arming on an address alone
-     * would drop an IMAP account's permanent connection for an endpoint nobody posts to. Null for
-     * a JMAP account, whose ACTIVE is the server's PushVerification.
      */
     fun onDelivery(prev: UpAccountState, now: Long): DeliveryUpdate? {
         if (!prev.relayRequested || prev.subscriptionId != null) return null

@@ -12,24 +12,6 @@ import java.sql.DriverManager
 
 /**
  * **v21 → v22** ([MIGRATION_21_22]): `outbox` and `scheduled_sends` each gain `requestReceipt`, the
- * per-message "ask for a read receipt" choice ([OutboxEntity.requestReceipt],
- * [ScheduledSendEntity.requestReceipt]).
- *
- * Built like [CopiesMigrationSqlTest]: the REAL [androidx.room.migration.Migration] objects are
- * executed against a real SQLite engine (JDBC, in memory) through a tiny [SupportSQLiteDatabase]
- * proxy, from the PUBLISHED v15 schema chained up to a real v21 — never from a copy of the
- * statements, so this test cannot drift from the code that ships.
- *
- * This one touches the two tables that hold UNSENT MAIL, which makes the stake higher than for
- * the `emails` columns before it. `SternaDatabase` ends its builder with
- * `fallbackToDestructiveMigration()`: a step that is missing, wrong, or merely absent from
- * [SternaDatabase.ALL_MIGRATIONS] has Room drop every table — the queued sends and the scheduled
- * ones with them, i.e. messages the user wrote that never left the phone. So the seed holds a
- * QUEUED outbox row and a scheduled send, and every table's row count is compared before and after.
- *
- * **Two** tables, each asserted on its own. Adding the column to `outbox` alone is the plausible
- * slip and it is invisible until it hurts: the request would survive the undo window and be lost
- * exactly when a scheduled send hands over to the outbox, hours later.
  */
 class ReadReceiptMigrationSqlTest {
     private lateinit var db: Connection
@@ -74,12 +56,6 @@ class ReadReceiptMigrationSqlTest {
 
     /**
      * Every table a v21 database holds rows in, so "nothing was lost" can be measured, not hoped.
-     *
-     * `local_drafts` is absent because it does not EXIST at v21 — it is created by
-     * [MIGRATION_22_23], and counting rows in it here would only prove SQLite raises "no such
-     * table". The list of a migration test is the list of its own version; the one that matters for
-     * the drafts a user is holding is [LocalDraftsMigrationSqlTest]'s, and the next step's test must
-     * carry it forward.
      */
     private val allTables = listOf(
         "emails", "email_bodies", "snoozed", "mailboxes", "outbox", "scheduled_sends",
@@ -166,8 +142,6 @@ class ReadReceiptMigrationSqlTest {
 
     /**
      * A REAL v21 database: the published v15 schema, populated, then carried forward by the very
-     * migration objects that ship — 15→16 … 20→21 — and populated again in the tables those
-     * migrations create.
      */
     private fun seedV21() {
         seedPublishedV15()
@@ -204,9 +178,6 @@ class ReadReceiptMigrationSqlTest {
 
     /**
      * The DECLARED shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`.
-     * Room's `TableInfo.Column.equals` compares the affinity and the nullability at open time, so a
-     * column of the right name and the wrong type fails `validateMigration` on every launch, and
-     * the user's only way out is a reinstall — which takes the outbox with it.
      */
     private fun columnShapes(table: String): Map<String, Triple<String, Int, String?>> {
         val shapes = mutableMapOf<String, Triple<String, Int, String?>>()
@@ -368,9 +339,6 @@ class ReadReceiptMigrationSqlTest {
 
         // The entity field is a non-null Boolean, so the column must be NOT NULL; SQLite then
         // requires a DEFAULT to add it to a populated table. Room compares defaults only when the
-        // ENTITY declares one — a Kotlin default is not a @ColumnInfo(defaultValue = …)
-        // (b/136515305) — so "0" here is safe, while the wrong AFFINITY or nullability would fail
-        // validateMigration on every launch.
         assertEquals(Triple("INTEGER", 1, "0"), columnShapes("outbox")["requestReceipt"])
         assertEquals(Triple("INTEGER", 1, "0"), columnShapes("scheduled_sends")["requestReceipt"])
         // The witness: the shape Room already expects for a non-null Int/Boolean here.
@@ -382,12 +350,6 @@ class ReadReceiptMigrationSqlTest {
 
     /**
      * Chains the migrations Room is really given ([SternaDatabase.ALL_MIGRATIONS]) over a published
-     * install, and looks at where they arrive.
-     *
-     * A migration object that works perfectly and is absent from that array never runs: Room finds
-     * no path, `fallbackToDestructiveMigration()` takes over and `dropAllTables()` empties the
-     * database — the outbox and the scheduled sends with it. So the step objects are taken FROM the
-     * registered array, in ascending order, and the chain must be unbroken.
      */
     @Test fun theRegisteredMigrationsCarryAPublishedInstallAllTheWayToTheReceiptColumns() {
         seedPublishedV15()

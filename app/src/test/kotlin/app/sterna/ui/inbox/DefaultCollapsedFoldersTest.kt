@@ -6,16 +6,6 @@ import org.junit.Test
 
 /**
  * What a folder NOBODY has decided anything about does on the first run, EXECUTED
- * ([defaultCollapsedFolderIds]). The rule lives in a function precisely so this file can run it:
- * in the drawer it would sit inside a Composable, which nothing in this module can run.
- *
- * Every expectation is a set written out in full. Deriving it from the list under test would
- * re-implement the rule here, and the shipped condition could then be inverted with this file
- * still green.
- *
- * Every case below passes `rowsBadgeUnread = true` — the account whose folder rows CAN badge
- * unread, which is the only account this default was ever written for. The other answer has its
- * own case at the bottom of the file, and it is the whole of what V5 changed.
  */
 class DefaultCollapsedFoldersTest {
 
@@ -44,9 +34,6 @@ class DefaultCollapsedFoldersTest {
 
     /**
      * The mutation this test exists for: `folderRank(role) == 6` in place of `role == null`.
-     * `folderRank` answers 6 for every role outside the six the app translates, so a JMAP `all`
-     * folder — a real role on a real standard folder — would start folded under that condition.
-     * Every other case in this file stays green with it.
      */
     @Test fun `no folder carrying a role starts folded, not the six the app names and not 'all'`() {
         val folders = listOf(
@@ -72,19 +59,6 @@ class DefaultCollapsedFoldersTest {
 
     /**
      * The child that carries the role, which no other case here has: the rule reads the role of
-     * the folder being FOLDED, never of its children.
-     *
-     * The mutation it exists for: counting as a parent only the folders whose child has no role
-     * (`mailboxes.filter { it.role == null }.mapNotNullTo(…) { folderParentId(it, byId) }`). Every
-     * other case in this file stays green under it, and `Perso` — whose only child is its
-     * `Archive` — would stop folding on the first run.
-     *
-     * It is also the witness of assumed consequence n°1, written in [defaultCollapsedFolderIds]'
-     * KDoc: a role-carrying folder hanging under a folder of the user's IS off screen on the first
-     * launch, hidden by its folded parent. That is the shipped decision, not an oversight — no
-     * "never fold a parent that hides a role" exception — and the parent's unread badge
-     * ([drawerUnreadCount]) is what keeps it honest. Change your mind about it and this case is
-     * the one that has to be rewritten, deliberately.
      */
     @Test fun `a user folder whose only child carries a role still starts folded`() {
         val folders = listOf(
@@ -103,10 +77,6 @@ class DefaultCollapsedFoldersTest {
 
     /**
      * Stalwart's `Archive`, MEASURED on the bench on 2026-08-25 and written into
-     * `SubscribedFolders.kt`: `role: null` on a folder that is the Archive button's destination.
-     * `role == null` alone therefore folds the archive of every JMAP Stalwart account that has one
-     * subfolder, on the first launch, and its badge is most often 0 — nothing on screen says the
-     * row went away.
      */
     @Test fun `an archive the server left roleless is not folded — the app files mail into it`() {
         val folders = listOf(
@@ -127,8 +97,6 @@ class DefaultCollapsedFoldersTest {
 
     /**
      * The loser of an IMAP role election (`ImapClient.assignRoles`): the server DID advertise a
-     * role on it, `MailboxMapper.toMailbox` erases it to null and keeps [Mailbox.lostRoleClaim].
-     * `role == null` alone reads that folder as one of the user's own.
      */
     @Test fun `a folder that claimed a role and lost the election is not folded either`() {
         val folders = listOf(
@@ -191,9 +159,6 @@ class DefaultCollapsedFoldersTest {
 
     /**
      * The grandchild, pinned to what [folderParentId] actually answers rather than to what the
-     * shape suggests: with the middle folder missing from the list, the path branch resolves a
-     * parent the list does not hold and gives up, so the drawer draws BOTH at the top level and
-     * `Perso` hides nothing.
      */
     @Test fun `a folder whose only descendant skips a level is nobody's parent`() {
         val folders = listOf(
@@ -223,23 +188,6 @@ class DefaultCollapsedFoldersTest {
 
     /**
      * V5, and the ONLY thing it changes here: an account whose drawer rows carry no unread count
-     * folds nothing at all by default.
-     *
-     * MEASURED on the bench on 2026-09-01: not one row of an IMAP drawer shows a badge.
-     * `ImapMailService.imapMailboxEntity` writes `unreadEmails = 0` with no condition,
-     * `MailboxMapper` copies that 0 into `unreadForList`, and `MailRepository.observeMailboxes`
-     * swaps in the live local aggregate for JMAP accounts only. Filling those counters is a
-     * decision already refused in writing on `MailRepository.isImapAccount` (one STATUS round trip
-     * per folder per listing), so the badge is not coming.
-     *
-     * Without the badge the default is dishonest: [drawerUnreadCount] is what makes a folder
-     * folded on the first run survivable, and with nothing to show, mail arriving under a folded
-     * parent is on NO row of the drawer. So the default is suspended — and the default only; the
-     * user's own folds are the other function's business ([collapsedFolderIds]).
-     *
-     * The same list is pinned BOTH ways in one case on purpose. Only the `false` half fails if
-     * the flag is ignored; only the `true` half fails if the flag is read backwards, or if the
-     * guard is written as an unconditional `emptySet()` that kills the feature outright.
      */
     @Test fun `rows that cannot badge unread fold nothing by default, and the flag changes nothing else`() {
         val folders = listOf(
@@ -269,8 +217,6 @@ class DefaultCollapsedFoldersTest {
 
     /**
      * The role guard is not what V5 touches, seen from the other side: with no badge available the
-     * answer is empty whatever the roles say, so a mutation that swapped the role guard for a
-     * [folderRank] test cannot hide behind this argument.
      */
     @Test fun `a badge-less account folds nothing even where the role guard would have allowed it`() {
         val folders = listOf(mailbox("Travail"), mailbox("Travail/Client A"))

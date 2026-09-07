@@ -7,17 +7,6 @@ import app.sterna.core.jmap.model.Mailbox
 
 /**
  * The folders the screens show when an account asks for its subscribed folders only (#174), in the
- * order they came in. A folder survives on any one of five counts:
- *  1. the server says it is subscribed — one that never reports subscription hides nothing;
- *  2. it carries a role, any role, not just the ones this app translates (Stalwart answers `Sent`
- *     with `isSubscribed: false`, and an account with no visible Trash cannot delete into one);
- *  3. an action can file mail into it by name ([isRoutingTargetByName]), or the Archive button
- *     keeps filing into a folder that has left the drawer;
- *  4. something visible lives under it, or `mailboxTree` reparents the orphan and lies;
- *  5. it claimed a role and lost the election ([Mailbox.lostRoleClaim]), so it arrives role-null
- *     and routing target for nothing, and the drawer is its only way back.
- * Applied at the screen, never at the source: `MailUi.mailboxes` stays whole for `subfolderIdsOf`
- * (a hidden child left behind is unreachable mail), `selectionIsGone` (#89) and the reader's path.
  */
 internal fun visibleFolders(mailboxes: List<Mailbox>, showOnlySubscribed: Boolean): List<Mailbox> {
     if (!showOnlySubscribed) return mailboxes

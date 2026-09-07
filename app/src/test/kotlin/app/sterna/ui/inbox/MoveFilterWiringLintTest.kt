@@ -6,33 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — the instrument of [SubscribedFoldersSurfaceWiringTest],
- * pointed at the move-to-folder picker's filter field (#182).
- *
- * The rule itself is EXECUTED next door ([FolderFilterTest]). What no JVM test in this module can
- * run is the Compose code that CALLS it, and the whole feature lives there: `filterFolderRows`
- * can be perfect and the picker still show every folder. There is no `androidTest` source set
- * here, so a source lint is not the second-best instrument, it is the only one.
- *
- * Whole lines are compared, never `contains`: a `contains` check is blind to every mutation that
- * LENGTHENS the line, and three regressions have walked through that hole in this repo.
- *
- * What it is here to catch, in BOTH copies of the dialog — the list's selection bar and the
- * reader's overflow entry, which have to stay the same picker (#73):
- *  1. the rows DRAWN being the unfiltered list, which silently gives #182 back in full while
- *     every test stays green — the field types, and nothing narrows;
- *  2. the tapped row being addressed by RANK instead of carrying its own mailbox: filter, tap the
- *     second row left, and the mail lands in whatever sits second in the UNFILTERED list. On the
- *     thousand-folder account that reported #182 that is mail filed where nobody chose — the one
- *     failure in this dialog that costs data, not pixels;
- *  3. the filter query surviving the dialog: held anywhere but INSIDE the `if`, the field reopens
- *     with the last search still in it and a list already cut down, which reads as folders lost;
- *  4. "No folder matches" losing the `query.isNotEmpty()` half, so the picker claims a failed
- *     search on an account that simply has no target to offer (a lie, and there was one there
- *     before this change);
- *  5. the painting loop walking the FILTERED list, which would make the number of composable
- *     calls in the loop depend on what has been typed;
- *  6. the parent-path resolution falling back INTO the loop, where it re-walks a map built over
- *     the account's whole folder list on every keystroke — the O(n^2) the memo exists to stop.
  */
 class MoveFilterWiringLintTest {
 

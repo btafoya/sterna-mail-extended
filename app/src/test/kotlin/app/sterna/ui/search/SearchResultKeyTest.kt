@@ -7,8 +7,6 @@ import org.junit.Test
 
 /**
  * The search list spans every account and deduplicates by (accountId, id), so the same JMAP id
- * legitimately shows up twice. Keying the lazy list on the bare id made those two rows share a
- * key, which throws (#92).
  */
 class SearchResultKeyTest {
 

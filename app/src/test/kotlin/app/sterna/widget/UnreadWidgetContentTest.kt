@@ -7,16 +7,6 @@ import org.junit.Test
 
 /**
  * The widget's label, RUN — not read as source, not recomputed here. Every expectation below is a
- * literal `UnreadWidgetState`, so a shipped rule whose arms were swapped or dropped disagrees with
- * this file instead of agreeing with it.
- *
- * The rule matters for one reason: the widget sits on the home screen, where the app cannot explain
- * itself. A number under the words "All inboxes" on a phone that holds ONE account names a grouping
- * the app does not offer (the drawer shows that entry only from two accounts up), and a reader has
- * no way to find out what it added up.
- *
- * The count itself is not decided here and is not tested here: it is
- * `MailRepository.observeUnifiedInboxUnread()`, executed in `UnifiedInboxUnreadTest`.
  */
 class UnreadWidgetContentTest {
 
@@ -30,9 +20,6 @@ class UnreadWidgetContentTest {
 
     /**
      * The number is drawn ONCE. The drawer's "(N)" form is right in the drawer, where the row
-     * carries no other number; on the widget the big figure above the label already IS the count,
-     * so the counted string would draw 3 and, right under it, "All inboxes  (3)" — the same number
-     * twice, in a cell whose whole content is that number.
      */
     @Test fun `two accounts with unread mail wear the bare label, not the counted one`() {
         assertEquals(
@@ -72,11 +59,6 @@ class UnreadWidgetContentTest {
 
     /**
      * A server is free to hand back an empty mailbox name, and `AccountStore.inboxMailboxName()`
-     * only falls back when there is no ACCOUNT — a blank name goes through it untouched. Verbatim,
-     * that draws a figure with nothing under it: a number on the home screen naming nothing at all.
-     *
-     * The count is NOT reset with the label. A missing name is a cosmetic gap; a total silently
-     * replaced by 0 is a lie about the mailbox.
      */
     @Test fun `a single account whose inbox name is blank falls back to the app's name`() {
         assertEquals(

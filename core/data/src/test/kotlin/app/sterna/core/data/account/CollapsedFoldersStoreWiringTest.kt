@@ -5,21 +5,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, same instrument and disclaimer as [ShowOnlySubscribedFoldersStoreWiringTest]: it
- * reads `AccountStore.kt` — and, for the rename, `MailRepository.kt` — as text, and proves nothing
- * about a running store, which this module cannot build (a `Context` and the Keystore, no
- * Robolectric here); nor about a running repository, which wants Room and a socket.
- *
- * It exists because the executable half stops at this door. [CollapsedFoldersTest] runs the write
- * on real arguments — but a perfect `withCollapsedFolder` is worth nothing if the store hands it
- * the wrong id, saves the list it was given instead of the mapped one, or answers the getter with a
- * constant. All three compile and keep every behavioural test green.
- *
- * Whole trimmed lines, as a CONTIGUOUS block, never a `contains`: a `contains` is blind to
- * anything APPENDED to a line, and a per-line check is blind to a statement slipped between two.
- * The block starts one line above the setter's signature, on `@Synchronized` — this is a
- * read-modify-write over the WHOLE account list, and an edit made from another thread (push
- * service, workers, `reconcileLinkedAccounts` on every connect) between `accounts()` and
- * `saveAccounts()` is then lost, taking a watch flag or an identity with it.
  */
 class CollapsedFoldersStoreWiringTest {
 
@@ -54,12 +39,6 @@ class CollapsedFoldersStoreWiringTest {
 
     /**
      * The re-key after an IMAP rename, pinned like its twin. On IMAP the id IS the path, so a
-     * rename CHANGES it: without this the user's `false` stays under the old path, the renamed
-     * folder reads as "nobody decided" and the drawer's default folds it on the spot.
-     *
-     * The `@Synchronized` is in the block for the same reason as the setter's: this is a
-     * read-modify-write over the WHOLE account blob, and an edit from another thread in between is
-     * lost with whatever it carried.
      */
     @Test fun `the rename re-key delegates to the pure function, under the lock`() {
         assertEquals(
@@ -82,12 +61,6 @@ class CollapsedFoldersStoreWiringTest {
 
     /**
      * The two re-keys, SIDE BY SIDE in `MailRepository.renameFolder`, with the same delimiter.
-     *
-     * Pinned together and not one at a time: they answer the same fact (an IMAP id is a path and
-     * the rename changed it), they were written years apart (#16 then #185), and either one can be
-     * deleted or handed a different delimiter with every behavioural test in this repo still green
-     * — nothing executes `renameFolder` (it needs Room, a `Context` and a socket). A watch flag or
-     * a fold left under the old path is invisible until the next cold start.
      */
     @Test fun `the folder rename re-keys the watch flags AND the fold registry, same delimiter`() {
         assertEquals(
@@ -105,22 +78,6 @@ class CollapsedFoldersStoreWiringTest {
 
     /**
      * V5's one line of repository, and the only thing that can read it: nothing in this module
-     * builds a `MailRepository` (Room, a `Context`, a socket), and nothing in the app module can
-     * either.
-     *
-     * `folderRowsBadgeUnread` is what the drawer's DEFAULT fold rests on — where a folded row
-     * cannot show the mail it hides, nothing may fold itself (`defaultCollapsedFolderIds`,
-     * executed next door in the app module). Two ways to break it silently, both compiling:
-     *
-     *  - drop the `!` and every JMAP account stops folding while every IMAP one starts, which is
-     *    the defect with its sign reversed;
-     *  - answer a constant, and the flag stops depending on the account at all.
-     *
-     * The second assertion is the "one definition" rule: `isImapAccount` is the ONE place this
-     * class decides an account is IMAP, and it carries the written reason the folder rows hold a
-     * hard 0. A second `accountStore.account(id)?.protocol == MailProtocol.IMAP` written next to
-     * it drifts from that comment the day the decision changes — which is exactly the day this
-     * one line is supposed to be the only edit.
      */
     @Test fun `the drawer's badge-availability flag delegates to the one IMAP test, negated`() {
         assertEquals(
@@ -152,10 +109,6 @@ class CollapsedFoldersStoreWiringTest {
 
     /**
      * [count] consecutive CODE lines of `AccountStore.kt` from the single one starting with
-     * [prefix], [before] lines earlier when the annotation above it is part of the rule. Comments
-     * and blank lines are dropped first, so no rule can be satisfied by prose; a prefix matching
-     * anything other than exactly one line returns a message, so an assertion never passes by
-     * matching nothing.
      */
     private fun block(prefix: String, count: Int, before: Int = 0, path: String = ACCOUNT_STORE): List<String> {
         val code = codeLines(path)

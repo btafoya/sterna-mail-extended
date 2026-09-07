@@ -2,9 +2,6 @@ package app.sterna.core.imap
 
     /**
      * Compress a set of IMAP UIDs into an RFC 3501 sequence-set string, e.g.
-     * `[1,2,3,5,8,9,10] -> "1:3,5,8:10"`. Sorted and de-duplicated first, so order and repeats in
-     * [uids] do not matter; `""` for an empty input. One `UID MOVE`/`UID STORE` over a compressed set
-     * replaces N per-message commands — the core of the bulk-action fix (Codeberg #29).
      */
 fun compressUidSet(uids: Collection<Long>): String {
     val sorted = uids.toSortedSet().toList()
@@ -26,9 +23,6 @@ fun compressUidSet(uids: Collection<Long>): String {
 
     /**
      * Expand an RFC 3501 sequence-set string into an ordered list of UIDs, preserving token order — a
-     * range `a:b` expands ascending or descending to match. Order matters because COPYUID's source and
-     * destination sets correspond positionally (RFC 4315). The `*` wildcard is not resolvable here and
-     * its token is skipped.
      */
 fun expandUidSet(set: String): List<Long> {
     val out = mutableListOf<Long>()

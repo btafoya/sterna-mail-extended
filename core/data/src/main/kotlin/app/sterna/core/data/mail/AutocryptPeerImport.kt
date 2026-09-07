@@ -15,13 +15,6 @@ private val KNOWN_ATTRIBUTES = setOf("addr", "keydata", "prefer-encrypt")
 
 /**
  * Autocrypt Level 1 §2.1, or null meaning "ignore, in silence". [headers] must come from
- * `MimeParser.rawHeaders` or JMAP's `headers`, never `MimeParser.headerOf`, which keeps only the
- * last occurrence and would hide a second `Autocrypt`.
- *
- * Requires exactly one `Autocrypt` field (an appended header would otherwise file the appender's
- * key under the sender's address), `addr` matching `From`, no unknown critical attribute, and
- * decodable `keydata`. A date over [FUTURE_TOLERANCE_MILLIS] past [nowMillis] is refused: the
- * provider keeps the newest key for a peer, so one filed at 2100 would beat every authentic one.
  */
 internal fun autocryptPeerImportOf(
     headers: List<Pair<String, String>>,

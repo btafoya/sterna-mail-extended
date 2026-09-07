@@ -8,14 +8,6 @@ import org.junit.Test
 
 /**
  * [planSelectionDelete] — who is destroyed and who is moved, executed rather than re-derived.
- *
- * The destroy leg is irreversible after the Undo window, and the probe that decides it
- * (`deleteWouldDestroy`) reads the row's OWN folder: on a row that only exists on screen that
- * folder was frozen at crawl time, so its answer would be read off a crawl artefact. Hence: only a
- * trusted row can be destroyed; an untrusted one goes to the Trash (search excludes Trash and
- * Junk, so a hit is never in it already); and on an account with no Trash — where the account-level
- * probe answers no — an untrusted row is left alone, to be counted and announced, never destroyed
- * on a guess.
  */
 class SelectionDeletePlanTest {
 
@@ -60,8 +52,6 @@ class SelectionDeletePlanTest {
 
     /**
      * The reported case: results selected out of a search, no local row, folder unusable. They must
-     * be deleted — as a MOVE to the Trash — and the destroy probe must not even be consulted about
-     * them, since its answer would be read off a crawl artefact.
      */
     @Test
     fun `an untrusted row goes to the Trash and is never offered to the destroy probe`() = runTest {
@@ -96,10 +86,6 @@ class SelectionDeletePlanTest {
 
     /**
      * A trusted row on that same Trash-less account: it MOVES. The probe below is the shipped
-     * decision, executed — [deleteDestroysMessage], handed the null a role lookup returns on an
-     * account whose bin carries no role. `delete()` resolves the Trash by role, then by name, then
-     * creates one, so "no Trash" is no longer "destroy"; and if the folder cannot be obtained at
-     * all the delete throws and the failure is announced, which still destroys nothing.
      */
     @Test
     fun `on an account with no Trash a trusted row is moved, not destroyed`() = runTest {
@@ -128,8 +114,6 @@ class SelectionDeletePlanTest {
 
     /**
      * A mixed selection, and the same id in both trust states — the two rows a merge can produce
-     * for one message. Played in BOTH orders: a decision that lets the first row seen win would
-     * give the right answer in one order by accident.
      */
     @Test
     fun `the same id trusted and untrusted lands in both legs, in either order`() = runTest {
@@ -152,11 +136,6 @@ class SelectionDeletePlanTest {
 
     /**
      * The Trash question is about the ACCOUNT, so it is asked once per account. Asked per message
-     * it is a `listMailboxes` per message: a "select all" + delete over a few hundred search hits
-     * would enumerate the folders a few hundred times, over the network.
-     *
-     * Two rows of the same account are what makes this visible at all — one row per account cannot
-     * tell a memoised probe from a repeated one.
      */
     @Test
     fun `the Trash is asked about once per account, not once per message`() = runTest {

@@ -20,13 +20,6 @@ private val NO_SNOOZE_ROLES = OUTGOING_ROLES + setOf("junk", "spam", "trash")
 
 /**
  * Whether a message should be shown by its RECIPIENTS ("To: …") instead of its sender — the one
- * decision the list row and the reader both make.
- *
- * Two things can make a message read as outgoing: the folder it sits in (#59), or the fact that you
- * wrote it (#69). The author test alone was true EVERYWHERE, and a message sent to yourself lands in
- * the Inbox, where it was announced as "To: your own address" (#115), so it is dropped in a context
- * that is explicitly incoming and only there: [role] `inbox`, and [unified], which selects no folder
- * while aggregating Inboxes and nothing else.
  */
 internal fun showsRecipients(role: String?, unified: Boolean, selfAuthored: Boolean): Boolean {
     val normalised = role?.trim()?.lowercase()
@@ -37,10 +30,6 @@ internal fun showsRecipients(role: String?, unified: Boolean, selfAuthored: Bool
 
 /**
  * The same decision for a row INSIDE an unfolded conversation — the third surface, which used to
- * carry the pre-#115 rule and so contradicted the reader it opens. The difference is not the rule
- * but the role: an unfolded conversation spans the viewed folder(s) PLUS Sent, so the role looked up
- * here is the message's OWN. [unified] is not a parameter and cannot be, this rule never consulting
- * the selected folder; an unknown folder lands on the author test, the pre-#115 answer.
  */
 internal fun showsRecipientsInThread(
     accountId: String?,
@@ -55,10 +44,6 @@ internal fun showsRecipientsInThread(
 
 /**
  * Whether a list row carries the "(Draft)" chip — two terms, one not always there and the other not
- * always enough. [isDraft] is the `$draft` keyword, which answers for a draft that has LEFT the
- * Drafts folder (#69) but is not in the row schema: remembered in memory, only for rows a live fetch
- * has just mapped, and on IMAP never recorded at all. The message's OWN folder covers both holes,
- * and is resolved account-qualified (#31/#121), a bare folder id borrowing a sibling account's role.
  */
 internal fun showsDraftBadge(
     isDraft: Boolean,
@@ -69,8 +54,6 @@ internal fun showsDraftBadge(
 
 /**
  * The role of the folder a message is actually filed in, or null when that cannot be said.
- * Account-qualified, because servers number folders per account (#31/#121) and a bare folder id
- * would borrow a sibling account's role.
  */
 internal fun messageFolderRole(
     accountId: String?,

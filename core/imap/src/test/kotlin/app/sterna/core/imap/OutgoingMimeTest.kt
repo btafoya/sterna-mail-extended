@@ -393,13 +393,6 @@ class OutgoingMimeTest {
 
     /**
      * The seam is not a PGP seam. An entity carrying no PGP anywhere — RFC 8098's
-     * `multipart/report` receipt — replaces the body just as a signed one does, and reaches the
-     * wire character for character.
-     *
-     * This is the ONE builder both protocols use for such a message: SMTP submits these bytes, and
-     * the JMAP path uploads them with `Email/import` + `EmailSubmission/set` rather than letting
-     * the server rebuild the message from `Email/set` fields (which would re-encode it and lose
-     * `report-type=`). So proving it here proves it for both.
      */
     @Test
     fun aPrebuiltEntityWithNoPgpAtAllReachesTheWireVerbatim() {
@@ -452,9 +445,6 @@ class OutgoingMimeTest {
     //
     // `Base64.getMimeEncoder()` already separates its 76-column lines with CRLF
     // (`getMimeEncoder()` == `getMimeEncoder(76, "\r\n")`). A `.replace("\n", "\r\n")` laid over
-    // that turns every separator into `\r\r\n`: a bare CR inside the body. On a SIGNED message
-    // those bytes are the signed bytes, so a conforming relay straightening the line makes the
-    // recipient read "invalid signature".
     //
     // The witness reads what `buildBodyEntity` PRODUCES. Never `FakeSmtpServer.delivered`: that
     // server re-reads DATA with `readLine()` and rejoins on "\r\n"
@@ -469,19 +459,12 @@ class OutgoingMimeTest {
 
     /**
      * The base64 payload of a part, cut out of the entity and split on CRLF. Splitting on CRLF
-     * alone is deliberate: a `\r\r\n` separator leaves a stray CR at the END of a line, and a
-     * LF-only separator leaves a stray LF INSIDE one, so both survive the split and are caught by
-     * the per-line assertions rather than by the split itself.
      */
     private fun payloadLines(entity: String, after: String): List<String> =
         entity.substringAfter(after).substringBefore("\r\n--").split("\r\n")
 
     /**
      * What every MIME base64 payload must look like, whatever part it came from.
-     *
-     * The column is pinned EXACTLY, the way `ReadReceiptMailTest` pins it for the other encoder:
-     * `<= 76` would let `getMimeEncoder(60, …)` through, and the two encoders of this repo are
-     * meant to be the same encoder written twice.
      */
     private fun assertWellFormedMimeBase64(lines: List<String>, original: ByteArray) {
         assertTrue("the payload is wrapped onto several lines, so there IS a separator to get wrong", lines.size > 1)

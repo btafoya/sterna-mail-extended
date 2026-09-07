@@ -22,14 +22,6 @@ internal data class UnreadAccountRow(val name: String, val count: Int)
 
 /**
  * The widget's rendering decision, kept apart from Android so it can be EXECUTED in a JVM test.
- * The number is never decided here, only what it is called.
- *
- *  1. The app has an "All inboxes" view ([AllInboxesView], the bound [UnreadWidgetTap] reads too) →
- * the drawer's bare `inbox_all_inboxes`. Never the "(N)" form, the figure above being it.
- * 2. One account → never "All inboxes", a grouping the app does not offer; the account's own
- * inbox name instead, falling back like arm 3 when blank. The count is kept: a missing name
- *     is cosmetic, a total replaced by 0 is a lie.
- *  3. No account at all → the app's name, and zero.
  */
 internal object UnreadWidgetContent {
 
@@ -53,11 +45,6 @@ internal object UnreadWidgetContent {
 
     /**
      * The enlarged cell's lines, or an empty list meaning "draw the total instead". Four guards, each
-     * one a thing the user would otherwise read on a home screen: an app lock on ([StoredAccount
-     * .label] falling back to the mail address, which a locked app must not write permanently on the
-     * home screen — not the content setting, which governs what a MESSAGE says); fewer than two
-     * accounts, never naming a grouping the drawer lacks; an account absent from [unreadByAccount],
-     * which gets no line and never a `0`; and fewer than two lines, one line being the total.
      */
     fun byAccount(
         accounts: List<StoredAccount>,
@@ -75,18 +62,6 @@ internal object UnreadWidgetContent {
 
 /**
  * How much room ALL of [rows] need, in dp — the height at which the enlarged layout is offered to the
- * launcher, and the reason that size now MOVES.
- *
- * It was the constant 110dp, a claim about how many accounts the reader has: from the fourth on,
- * the last line went off the bottom edge in silence. The launcher picks the largest entry that FITS,
- * so below this height it falls back to the total. Either the cell shows every line it has, or it
- * gives the total. "Every line it has" is NOT "every account": [byAccount] already drops an
- * account with no entry, a gap older than this rule.
- *
- * [fontScale] belongs in the number and is read at DRAW time, which is what makes the rule
- * executable — and it is STALE between draws, nothing listening for a configuration change.
- * Accepted debt; the defect it replaces was permanent past three accounts. Clamped at 1
- * one-sidedly, and [ROW_SLACK_DP] applies the same asymmetry to the measurement.
  */
 internal fun ventilatedHeightDp(rows: Int, fontScale: Float): Float =
     (CONTAINER_PADDING_DP + rows * (ROW_PADDING_DP + ROW_SLACK_DP + ROW_TEXT_DP * fontScale.coerceAtLeast(1f)))

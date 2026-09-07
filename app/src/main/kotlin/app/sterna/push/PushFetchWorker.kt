@@ -17,9 +17,6 @@ import app.sterna.container
 
 /**
  * One-shot fetch+notify for a single account, expedited — the fetch path when a
- * UnifiedPush event wakes a (possibly dead) process with no foreground service to do
- * the work (issue #17). WorkManager gives retry semantics and outlives the connector
- * service's short lifetime; the push delivery already opened a network window.
  */
 class PushFetchWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
@@ -53,9 +50,6 @@ class PushFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
                 .setInputData(workDataOf(KEY_ACCOUNT_ID to accountId, KEY_RESET_INBOX to resetInbox))
             // Expedited work runs as a foreground service on Android 11 and lower, which requires
             // overriding getForegroundInfo(); the CoroutineWorker default throws "Not implemented"
-            // and crash-loops battery-saver delivery on older devices. Only expedite where it's a
-            // lightweight job (Android 12+); elsewhere a plain background fetch is enough for the
-            // battery-saver path, whose whole point is no foreground footprint (Codeberg #43).
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 builder.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             }

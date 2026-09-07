@@ -11,12 +11,6 @@ import org.junit.Test
 
 /**
  * EXECUTES the sign-in failure decision, it does not read the code that holds it.
- *
- * Every expectation below is a literal pair (input → resource, argument) written by hand: nothing
- * here recomputes the rule, so inverting a branch in [oauthFailureSpec] has to show up as a
- * mismatch. The arguments are pinned as well as the resource id, because the whole point of the
- * change is WHICH string is fed into the sentence — a test that only checked the id would stay
- * green with the server's `error_description` in the hole, which is the leak this replaces.
  */
 class OAuthErrorMessagesTest {
 
@@ -89,9 +83,6 @@ class OAuthErrorMessagesTest {
 
     /**
      * The admin-consent sentence NAMES MICROSOFT. Until this screen started going through this
-     * function it was only ever reached from the Microsoft paths; a self-hosted Stalwart, Keycloak
-     * or Authelia answering the ordinary prose "invalid_client, contact your administrator" now
-     * reaches it too, and would tell its own owner to ask Microsoft for approval.
      */
     @Test fun `an administrator mentioned by a self-hosted server is not a Microsoft consent refusal`() {
         val spec = oauthFailureSpec(
@@ -109,8 +100,6 @@ class OAuthErrorMessagesTest {
 
     /**
      * `error` is `obj["error"]` off the wire: server text of arbitrary length and content, now
-     * wired to the screen. Only the protocol's closed vocabulary may be rendered — the rest is the
-     * same leak as the description, one field over.
      */
     @Test fun `an error field that is not a protocol token is not shown`() {
         val junk = "Bearer eyJhbGciOiJIUzI1NiJ9.SECRET-PAYLOAD.sig " + "x".repeat(4000)
@@ -186,9 +175,6 @@ class OAuthErrorMessagesTest {
 
     /**
      * The fixture lost its authorization endpoint on purpose (#55): a server that publishes one
-     * IS signable-into now, through the authorization-code grant, so it is no longer a failure at
-     * all — that case is `a code-only server is no discovery failure any more` below. What this
-     * one still holds is the sentence for a server advertising OAuth with NEITHER grant.
      */
     @Test fun `metadata with no usable grant means the flow, not OAuth, is missing`() {
         val advertised = OAuthMetadata(
@@ -218,9 +204,6 @@ class OAuthErrorMessagesTest {
     //
     // `Jmap.autodiscoverHosts` tries <domain>, mail.<domain>, jmap.<domain>, api.<domain> — the
     // bare domain FIRST, i.e. the organisation's website. Taking the first host that answers at
-    // all is what breaks a user whose site publishes an OAuth document and whose mail server is
-    // mail.<domain>: she signed in yesterday, and she is told her server offers a flow this app
-    // cannot use. So the choice is by capability first, and only then by order.
 
     private fun meta(host: String, deviceFlow: Boolean, codeFlow: Boolean = false) = OAuthMetadata(
         issuer = "https://$host",
@@ -440,8 +423,6 @@ class OAuthErrorMessagesTest {
 
     /**
      * The witness that keeps the new branch from eating the old one: nothing was refused here,
-     * the server itself advertises OAuth with no grant this app can drive. Same `NONE`, same empty
-     * flow, different fact — and this one keeps the sentence it already had.
      */
     @Test fun `a server with no usable grant and nothing refused keeps the flow sentence`() {
         val advertised = OAuthMetadata(
@@ -468,8 +449,6 @@ class OAuthErrorMessagesTest {
 
     /**
      * THE WITNESS OF THE CONJUNCTION. Only the device endpoint was off-domain and blanked; the
-     * authorization and token endpoints survived, so the code grant still runs. Refusing here would
-     * break a sign-in that works. `endpointsOffDomain` alone must say NOTHING.
      */
     @Test fun `a partial refusal that still leaves a usable grant is no failure`() {
         val partly = OAuthMetadata(
@@ -497,12 +476,6 @@ class OAuthErrorMessagesTest {
 
     /**
      * THE WITNESS OF THE SHAPE, and it is the one the suite was missing. The token endpoint is
-     * on-domain and SURVIVES; only the device endpoint was sent to a third party, and there is no
-     * authorization endpoint — so nothing can be driven, and the reason is the third party.
-     *
-     * Without this case, `endpointsOffDomain && tokenEndpoint.isBlank()` reads the same as
-     * `endpointsOffDomain && NONE` across the whole file, and that mutant puts the old, false
-     * sentence back on exactly the document this volet exists for.
      */
     @Test fun `a token endpoint that survives still says elsewhere when nothing can be driven`() {
         val handed = OAuthMetadata(

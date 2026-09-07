@@ -10,16 +10,6 @@ import org.junit.Test
 
 /**
  * Every criterion the search panel offers, one by one and then crossed, on the JMAP side.
- *
- * [SearchFilterTest] pins the SHAPE of the filter (the nested OR, the AND wrapper, the flagged
- * keyword). What it does not pin is that each of the seven boxes carries its own weight: a
- * criterion whose condition is never emitted is invisible in a shape test, and a criterion emitted
- * unconditionally is invisible in a "full query" test — the user ticks a box, the filter looks
- * plausible, and the server answers a question nobody asked.
- *
- * Hence two halves, and neither works without the other:
- *  - one criterion set, ALONE, must produce exactly its own condition;
- *  - the same criterion left at its default must produce NOTHING (the witness).
  */
 class SearchFilterEveryCriterionTest {
 
@@ -77,9 +67,6 @@ class SearchFilterEveryCriterionTest {
 
     /**
      * THE witness for all seven at once. Without it every assertion above passes just as well on a
-     * filter that emits its condition unconditionally — a permanent filter nobody asked for, which
-     * on `hasAttachment` or `hasKeyword` means an account's search quietly returning a fraction of
-     * what matches.
      */
     @Test fun `criteria left at their default put no condition in the filter`() {
         val onlyText = filter(SearchQuery(text = "invoice"))
@@ -119,9 +106,6 @@ class SearchFilterEveryCriterionTest {
 
     /**
      * The crossing the flagged filter had never been through: starred AND from Alex AND since June.
-     * It must NARROW — three conditions of one AND — and the string must hold no `OR`, because an
-     * OR anywhere but under `recipient` turns "starred mail from Alex" into "starred mail, or
-     * anything from Alex", which is a bigger result set than either box alone.
      */
     @Test fun `flagged crossed with a date and a sender narrows the query rather than widening it`() {
         val crossed = SearchQuery(from = "alex@masto.top", flagged = true, afterMillis = june1)

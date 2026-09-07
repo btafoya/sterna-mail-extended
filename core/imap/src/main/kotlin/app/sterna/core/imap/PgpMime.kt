@@ -8,11 +8,6 @@ object PgpMime {
 
         /**
          * RFC 3156 §5: the signature is computed over the signed entity in canonical form — CRLF line
-         * endings. The bare CR is left EXACTLY as it is, deliberately: `"\r\r\n"` maps to `"\r\n"`
-         * and back, and an entity signed before `dee4a346` carries such octets INSIDE the bytes the
-         * signature covers, so straightening them delivers a message whose signature no longer
-         * verifies. A bare LF is the opposite kind of error — the relay refuses it, so nothing wrong
-         * is delivered.
          */
     fun canonicalize(entity: String): String =
         entity.replace("\r\n", "\n").replace("\n", "\r\n")
@@ -25,10 +20,6 @@ object PgpMime {
 
         /**
          * Wrap a MIME entity + its detached signature as multipart/signed. [innerEntity] must be
-         * EXACTLY the string that was signed (see [signablePayload]) — the wrapper adds the CRLF that
-         * separates it from the boundary. [armoredSignature] comes from the OpenPGP provider, which
-         * separates its lines with BARE LF; it is canonicalised here rather than spliced in on the
-         * unwritten assumption that a provider armor is CRLF.
          */
     fun wrapSigned(
         innerEntity: String,

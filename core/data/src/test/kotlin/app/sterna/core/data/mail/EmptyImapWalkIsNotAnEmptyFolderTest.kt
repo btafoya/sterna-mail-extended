@@ -8,31 +8,6 @@ import org.junit.Test
 
 /**
  * The IMAP twin of [EmptyWindowIsNotAnEmptyFolderTest]: a walk that read NOTHING is not a walk
- * over an empty folder, and only the second licenses a delete.
- *
- * Two shapes reach [reconcilableIds] with no UID at all and no failure anywhere:
- *
- * - a `SELECT` that never stated a count (the line absent, or `* NIL EXISTS`). `select()` leaves its
- *   count at zero, `walkFolder` asks for no page, the walk answers empty;
- * - a folder of a thousand messages whose `FETCH` responses carry no `UID`. `ImapSession.messages`
- *   drops those silently, so every page adds nothing and the walk answers empty too.
- *
- * `EmailDao.reconcileMailbox` DELETES every cached row outside the keep set it is given, so an empty
- * keep set empties the folder: 300 rows to zero on one pull-to-refresh, no error, nothing left to
- * read offline. The refusal is null, never an empty set.
- *
- * Both shapes arrive here as the SAME value — an empty UID list and a walk that does not state the
- * folder empty — which is why one refusal closes both. That the second shape really does produce that
- * value, and that a stated `* 0 EXISTS` really does produce the other, is on the wire in `core:imap`
- * (`ExistsThatWasNeverStatedTest`); this file is the decision taken on it.
- *
- * The three refusals already in [ImapFullQueryWriteThroughTest] are all stated on NON-EMPTY walks,
- * deliberately — they are about `moved`. Nothing there calls this decision on an empty one, which is
- * exactly the hole this file fills.
- *
- * And the witness below is what keeps the rule honest: a folder the server SAID holds nothing must
- * still clear its cache. Refusing on every empty walk would let the IMAP cache grow without bound and
- * leave an emptied folder showing its old contents for ever.
  */
 class EmptyImapWalkIsNotAnEmptyFolderTest {
 

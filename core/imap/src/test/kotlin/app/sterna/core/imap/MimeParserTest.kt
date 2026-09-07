@@ -130,8 +130,6 @@ class MimeParserTest {
 
     /**
      * What [ImapParser] hands over: the wire bytes of [text] in [charset], as a byte container
-     * (one char per octet). Writing the test message as an ordinary Kotlin string instead would
-     * quietly assume the very decoding under test.
      */
     private fun wire(text: String, charset: java.nio.charset.Charset): String =
         String(text.toByteArray(charset), Charsets.ISO_8859_1)
@@ -142,8 +140,6 @@ class MimeParserTest {
 
     /**
      * The reported defect: a message sent in 8 bits with a charset other than UTF-8. Nothing
-     * decoded it — `8bit` fell through the transfer-encoding switch untouched — so the declared
-     * charset was never applied, and the bytes had already been replaced with U+FFFD upstream.
      */
     @Test
     fun anEightBitLatin1BodyIsReadWithItsDeclaredCharset() {
@@ -164,9 +160,6 @@ class MimeParserTest {
 
     /**
      * THE WITNESS for "the parser reads bytes now": a UTF-8 body in 8 bits is the ordinary case,
-     * and it must come out identical. Applying the byte reading without applying the declared
-     * charset afterwards would turn every one of these into latin-1 gibberish — a far bigger
-     * regression than the defect being fixed.
      */
     @Test
     fun anEightBitUtf8BodyIsStillCorrect() {
@@ -184,8 +177,6 @@ class MimeParserTest {
 
     /**
      * THE WITNESS for the majority case: `base64` and `quoted-printable` are ASCII on the wire
-     * and have always worked. They must be bit-for-bit unaffected — breaking them to fix `8bit`
-     * would trade the rare case for the common one.
      */
     @Test
     fun base64AndQuotedPrintableAreUnaffected() {
@@ -206,8 +197,6 @@ class MimeParserTest {
 
     /**
      * The silent half of the defect. An attachment carried as `8bit`/`binary` is written to disk
-     * as bytes, and a parser that had lost them wrote `?` (0x3F) in their place — a data defect
-     * with nothing on screen to hint at it.
      */
     @Test
     fun anEightBitAttachmentKeepsItsOctets() {
@@ -223,9 +212,6 @@ class MimeParserTest {
 
     /**
      * The shortcut that keeps an ordinary `7bit` part from being copied twice: when the body is
-     * pure ASCII AND the charset reads an ASCII byte as itself, the round trip is provably the
-     * identity, so it is skipped. Asserted under all three whitelisted charsets, because the
-     * shortcut is only sound for those.
      */
     @Test
     fun anAsciiSevenBitBodyIsUnchangedUnderEveryAsciiTransparentCharset() {
@@ -238,9 +224,6 @@ class MimeParserTest {
 
     /**
      * THE WITNESS that the shortcut checks the charset and not just the bytes. A UTF-16 body is
-     * ASCII-looking byte by byte — "Hi" is 00 48 00 69, every octet under 0x80 — yet reading
-     * those bytes as UTF-16 is the whole point. Skipping the copy on the byte test alone would
-     * have handed the reader NUL-separated letters.
      */
     @Test
     fun aUtf16BodyStillTakesTheCharsetPath() {
@@ -363,8 +346,6 @@ class MimeParserTest {
 
     /**
      * "View headers" shows a header as it was sent — encoded-words stay encoded, deliberately.
-     * A header carrying its bytes raw is the one case where "as sent" needs a reading chosen for
-     * it, or the screen shows one box per octet instead of the value.
      */
     @Test
     fun rawHeadersShowRawEightBitValuesAsText() {

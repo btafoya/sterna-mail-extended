@@ -6,10 +6,6 @@ import kotlinx.serialization.json.Json
 
 /**
  * (De)serialises the `To:` recipients stored in [EmailEntity.recipientsJson], via kotlinx JSON
- * of [EmailAddress] directly.
- *
- * Total both ways: empty list encodes to null; null, blank or unparseable decodes to empty list
- * — a pre-v17 row simply has no recipients and falls back to showing its sender.
  */
 object EmailRecipients {
     private val json = Json { ignoreUnknownKeys = true }

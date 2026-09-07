@@ -6,22 +6,6 @@ import org.junit.Test
 
 /**
  * Bench, 2026-08-17, JMAP: a message unarchived (Archive → Inbox) landed in the Inbox, survived a
- * pull-to-refresh there and a cold start — and then ONE pull-to-refresh of the unread view, which
- * syncs several folders of the account at once, made it disappear from the Inbox, from the unread
- * view and from the FTS index, for good. Ten messages on the server, five rows in the app.
- *
- * The mechanism is the incremental branch of `syncMailbox`. Archive's delta rightly reports the id
- * as removed FROM ARCHIVE; the cached row is keyed `(accountId, id)` — one row per message per
- * account, with the folder in a COLUMN — and `EmailDao.deleteRowsByIds` names no folder, so the
- * row that already said "Inbox" was deleted. "It is no longer in THIS folder" was executed as
- * "it is no longer".
- *
- * Two levels, the usual split of this package:
- *  - the DECISION ([mailboxScopedEvictions]) is a pure function and is RUN here, with the bench
- *    sequence replayed as it happened;
- *  - the WIRING cannot be run (`MailRepository` needs Room and a live JMAP session), so it is read
- *    from the shipped source WHOLE LINE by whole line — never a `contains` on a fragment, which is
- *    blind to any mutation that lengthens the line.
  */
 class DeltaEvictsOnlyItsOwnFolderTest {
 
@@ -91,11 +75,6 @@ class DeltaEvictsOnlyItsOwnFolderTest {
     @Test fun `a message another client filed into Archive is not lost by the Inbox pass behind it`() {
         // The other direction, and it was losing mail too — but by the sequence the app really
         // runs, which is NOT one multi-folder pass: `refreshAccountFolders` always puts the inbox
-        // FIRST (`buildList { if (includeInbox) add(inbox) … }`), so inside one pass the inbox is
-        // never behind. The losing order comes from two separate refreshes: open Archive (its own
-        // `syncMailbox` writes the row as Archive's), then pull to refresh the Inbox, whose delta
-        // names the id removed. Without the gate that row dies, and the message the user just
-        // filed is gone from the folder they filed it into.
         val cache = mutableMapOf("M8" to "archive")
         val inboxRows = cache.filterValues { it == "inbox" }.keys
 
@@ -157,10 +136,6 @@ class DeltaEvictsOnlyItsOwnFolderTest {
 
         // And EXACTLY one call to the reconcile, inside the write-through's `reconcile` lambda.
         // The hole this closes was found by counter-expertise and no other test sees it: an
-        // `emailDao.reconcileMailbox(localAccountId, mailboxId, walked.ids.toHashSet(), …)` added
-        // just after the `val walked = fullQueryWriteThrough<…>(…)` block compiles, leaves every
-        // fixture green, and reinstates #165 whole — an unbounded DELETE against the walk's pages,
-        // run after the guarded one, with the sync cursor stored right behind it.
         assertEquals(
             "syncMailbox no longer reconciles exactly once, from inside the write-through, with " +
                 "the bound the write-through computed (evictableIds = evictable). A second call, " +
@@ -193,9 +168,6 @@ class DeltaEvictsOnlyItsOwnFolderTest {
     @Test fun `the comparison set is the folder's rows and nothing added to them`() {
         // THE LINE NO OTHER ASSERTION READS. The declaration is split in two, and every pinned
         // keyword (`idsForMailbox(`, `mailboxScopedEvictions(`, `deleteByIds(`) lives on one of
-        // the OTHER lines — so `val inThisMailbox = toRemove.toSet() +` in front of the read makes
-        // every candidate look like one of this folder's own rows, deletes exactly what the bug
-        // deleted, and leaves this file green. Found by the counter-review of 2026-08-18.
         assertEquals(
             "nothing may be added to the set the gate compares against: it is this folder's " +
                 "cached rows, exactly, or the gate spares nobody",

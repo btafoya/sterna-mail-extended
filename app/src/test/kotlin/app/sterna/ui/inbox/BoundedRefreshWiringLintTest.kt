@@ -7,29 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxViewModel.kt` as text and proves nothing about
- * what the app does. [BoundedRefreshTest] is the real test of the fix — read it first: it EXECUTES
- * [refreshWithin] on a virtual clock. This file only checks the wiring, which no JVM test can
- * reach: `InboxViewModel` is an `AndroidViewModel` and is not instantiable here.
- *
- * The call opener and ALL THREE arms are pinned, because each of these one-word mutations compiles
- * and leaves the rest of the suite green:
- *  - `refreshWithin(600_000L) { … }` — a bound spelled at the call site is a SECOND copy of the
- *    budget, and the one the app ships with. [BoundedRefreshTest] pins [REFRESH_BUDGET_MS] and
- *    would not notice. That is the trap `1cee7f42` paid for on the discovery budget;
- *  - `Delivered -> Status(refreshing = true, …)` — every SUCCESSFUL refresh then leaves the tern
- *    turning for ever: the symptom of #130, shipped by the fix for #130. The same arm carries
- *    #178's freshness stamp, which no other arm may carry;
- *  - `Failed -> Status(…, error = null)`, or the arm's `connectivity.reportFailure` dropped — a
- *    failure goes mute again, which is #65 undone;
- *  - `connectivity.reportFailure(…)` added to the abandoned arm, or `refreshing = true` left in
- *    it. The first turns a bound that fired into the offline banner on a phone that is plainly
- *    online, which IS defect #65; the second leaves the spinner the bound exists to stop.
- *
- * Every rule compares a WHOLE unit — the whole call opener, the whole arm — never a fragment. A
- * `contains` on a piece is blind to any mutation that LENGTHENS it: `refreshWithin(` contains
- * `refreshWithin`, and `Status(refreshing = false, error = timedOut, …)` contains
- * `refreshing = false`. The price is that a reformat reddens this test; that direction of error is
- * loud and one line to fix.
  */
 class BoundedRefreshWiringLintTest {
 
@@ -121,10 +98,6 @@ class BoundedRefreshWiringLintTest {
 
     /**
      * The body of the declaration whose header is [header], comments removed and whitespace
-     * collapsed: from the header up to the brace that balances its first `{`.
-     *
-     * Fails loudly when the header is not found, so a rename reddens these rules rather than
-     * satisfying them against an empty string.
      */
     private fun declarationBody(header: String): String {
         val text = codeText(INBOX_VIEW_MODEL)
@@ -135,8 +108,6 @@ class BoundedRefreshWiringLintTest {
 
     /**
      * The whole `when` arm that starts with [label], from the label to the brace that balances the
-     * arm's `{`. Fails loudly on anything but exactly one such arm: a second one would have to be
-     * told apart here rather than silently picked.
      */
     private fun whenArm(label: String): String {
         val text = codeText(INBOX_VIEW_MODEL)
@@ -168,12 +139,6 @@ class BoundedRefreshWiringLintTest {
 
     /**
      * [file] as ONE line of code: every comment taken out, every run of whitespace collapsed to a
-     * single space — so a call the formatter spreads over eight lines reads the same as one written
-     * on a line, and the rules do not care which the formatter chose.
-     *
-     * Written as a scanner over the whole file rather than per line: dropping a line because it
-     * starts with `*` — what the older lints here do — also drops a continuation written
-     * operator-first, and a `//` inside a string literal is not a comment.
      */
     private fun codeText(file: File): String {
         val code = StringBuilder()

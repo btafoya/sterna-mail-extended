@@ -7,16 +7,6 @@ import org.junit.Test
 
 /**
  * Codeberg #56: one arrival must announce itself once. A group where the summary AND its
- * children alert gives two banners, two sounds and a status icon that flashes and goes — but a
- * blanket "children stay quiet" makes a SINGLE message silent, because a single message gets no
- * summary to speak for it. The rule that decides which of the two speaks is [summaryShownFor],
- * fed by [liveChildIdsAfter]; both are tested here rather than left inside the builder.
- *
- * The same for the rule that decides whether the summary may be torn DOWN
- * ([Notifications.teardownRepairable]). This file is the one place in the module where these
- * decisions are EXECUTED — `updateGroupSummary` itself needs a `NotificationManager` and is only
- * ever read as text, next door — so every decision that can be a pure function is one, and is
- * exercised here on its real arguments.
  */
 class GroupAlertTest {
 
@@ -95,11 +85,6 @@ class GroupAlertTest {
     //
     // `NotificationManager.cancel` returns once the system has queued the work, and
     // `getActiveNotifications` reads the list without draining that queue — so a pass that
-    // re-reads the shade to decide sees the banner it has just cancelled and puts it BACK. The
-    // set below is what `updateGroupSummary` must be handed instead of that read: it decides how
-    // many children there will be, AND which clones may be re-posted. Both halves are asserted,
-    // because a set with the right SIZE and the wrong members re-posts a dismissed banner.
-    // ------------------------------------------------------------------------------------------
 
     @Test fun `the last banner departing leaves nothing to count and nothing to re-post`() {
         // Summary standing over exactly one child, and that message is deleted from another
@@ -145,11 +130,6 @@ class GroupAlertTest {
 
     // ------------------------------------------------------------------------------------------
     // [Notifications.childIdsOf] — "which ids on the shade ARE this message", executed here on
-    // pinned arguments. It answers a different question from the set above: not what must remain,
-    // but what the caller has just taken down. The summary refresh subtracts it from the shade's
-    // own answer, and everything it does NOT name stays on screen and is put back if the summary
-    // falls — so an id missing from it is unread mail the cascade eats for good.
-    // ------------------------------------------------------------------------------------------
 
     @Test fun `a message is both of its id shapes, the current one and the pre-#92 one`() {
         assertEquals(
@@ -213,14 +193,6 @@ class GroupAlertTest {
     //
     // Cancelling the summary cascades EVERY live child of the group away
     // (REASON_GROUP_SUMMARY_CANCELED), and the only repair is to copy back the notification
-    // OBJECTS the shade handed over. An id the caller expects but the shade does not show yet —
-    // `notify` is asynchronous exactly like `cancel` — has no object to copy: it is counted in the
-    // verdict, cascaded away by it, and put back by nobody. So the verdict may only demolish what
-    // the repair can rebuild. The symptom that is the whole of this: two banners are read
-    // elsewhere while a third arrives, one push pass covers all three, the new message rings, its
-    // banner vanishes within seconds, and nothing ever announces it again — `seed` has taken it
-    // into the baseline, so no later pass and no restart brings it back.
-    // ------------------------------------------------------------------------------------------
 
     @Test fun `the banner this pass has just posted forbids the teardown`() {
         // The reported path. Two messages cleared from another client, one arriving: the arrival

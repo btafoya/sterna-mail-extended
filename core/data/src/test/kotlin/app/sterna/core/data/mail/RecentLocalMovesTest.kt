@@ -6,12 +6,6 @@ import org.junit.Test
 
 /**
  * The self-move registry backing the notifier's diff filter (Codeberg #50 follow-up):
- * a message the user moved into a watched folder from this app must not announce as
- * "new mail" on the folder's next notifier pass, for as long as the TTL window that
- * covers the worst-case gap to that pass.
- *
- * Entries are keyed by account + id: the registry is process-wide and JMAP ids are per
- * account, so a bare id let one account's archive silence another account's real mail (#92).
  */
 class RecentLocalMovesTest {
 

@@ -15,16 +15,6 @@ sealed interface DevicePollVerdict {
 
 /**
  * Wait for the user to approve the device code, and say how the wait ended.
- *
- * [delay] stays at the head of the loop: at the foot, the first poll goes out with no wait at
- * all and a server that is down becomes a burst of retries for thirty minutes. It catches
- * nothing, which is what keeps `CancellationException` passing; a `catch (t: Throwable)
- * { continue }` here turns Cancel into an immortal coroutine behind a screen that is gone.
- *
- * @param intervalSeconds seconds between polls, per the server's `interval` — floored at one
- *   second: `interval` is optional in RFC 8628 § 3.2, so `0` is legal and `delay(0)` bounds nothing.
- * @param expiresInSeconds how long the device code stays valid — the wait's whole budget.
- * @param poll one exchange with the token endpoint.
  */
 suspend fun pollDeviceGrant(
     intervalSeconds: Long,

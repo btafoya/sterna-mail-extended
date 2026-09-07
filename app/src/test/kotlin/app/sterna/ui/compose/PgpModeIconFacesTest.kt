@@ -14,22 +14,6 @@ import kotlin.math.sin
 
 /**
  * The four compose modes must be told apart ON SCREEN, and in the steady state the only permanent
- * sign of which one is in force is the padlock's face: the snackbar is transient and the
- * contentDescription is spoken to TalkBack only. So this runs [pgpModeIcon] for all four modes and
- * MEASURES that the four drawings differ, the same way a bench pass does — by looking at the ink.
- *
- * Comparing the [ImageVector]s with `equals` would be an EMPTY test. `ImageVector.equals` also
- * compares `name`, so "Outlined.Lock" != "Filled.LockOpen" would hold even if the two were the
- * same drawing to the pixel — which is exactly the defect the bench reported (two modes wearing
- * padlocks nobody could tell apart). The name is not what the user sees; the ink is.
- *
- * What this CANNOT see: which mode wears which face. Swap two faces and the four drawings are
- * still pairwise distinct. That half is pinned as source text in [PgpModeWiringTest]; the two
- * tests are complements and neither replaces the other.
- *
- * The rasteriser is hand-written because there is none to borrow: `java.awt` is absent from an
- * Android unit test's classpath (android.jar carries `java.awt.font` and nothing else), and
- * `android.graphics.Path` is a stub that throws. It is ~100 lines of scan-line fill, below.
  */
 class PgpModeIconFacesTest {
 
@@ -76,8 +60,6 @@ class PgpModeIconFacesTest {
 
     /**
      * Drops the six measurements next to the build outputs. testLogging prints failures only, so a
-     * green run would otherwise leave no trace of HOW FAR the faces are from colliding — the one
-     * number that says whether [DISTINCT_PIXELS] is a real guard or a rubber stamp.
      */
     private fun record(measured: List<Triple<PgpMode, PgpMode, Int>>) {
         val out = File("build/reports/pgp-icon-faces.txt")
@@ -186,10 +168,6 @@ class PgpModeIconFacesTest {
 
     /**
      * Compose path nodes → closed contours of straight segments, in raster coordinates.
-     *
-     * Nothing is skipped. A node this cannot draw raises, NAMED: a guard that quietly ignored
-     * the segments it did not understand would still report "the four faces are distinct" on the
-     * day someone picks an icon built out of arcs, having measured two truncated drawings.
      */
     private fun contours(nodes: List<PathNode>, at: Xf, what: String): List<Contour> {
         val out = ArrayList<Contour>()
@@ -321,9 +299,6 @@ class PgpModeIconFacesTest {
 
     /**
      * Scan-line fill: for every pixel row, the crossings of the contours at the row's centre,
-     * sorted; a pixel is inked when its centre lies inside under the winding rule. Every contour
-     * is implicitly closed, as a fill always is. Ink is OR-ed into [mask], so several paths of one
-     * icon add up.
      */
     private fun fill(contours: List<Contour>, evenOdd: Boolean, mask: BooleanArray) {
         for (row in 0 until SIDE) {
@@ -374,27 +349,11 @@ class PgpModeIconFacesTest {
 
         /**
          * How many pixels two faces must differ by. Deliberately a FRANK gap, not a hair — and the
-         * gap is wide on BOTH sides, which is the only reason a round number is defensible here.
-         *
-         * The four faces shipped are 1984 apart at their closest (the open padlock against the
-         * filled one). The face this test rejected — `Icons.Outlined.Lock` for the unsigned mode —
-         * came within 82 of the open padlock, because compose's `Icons.Filled.LockOpen` is itself
-         * an outline-bodied drawing and the two then differ only by a notch in the shackle. So
-         * anything between roughly 200 and 1900 renders the same verdict on both, and 400 is a
-         * threshold, not a fitted constant. Lowering it under 82 to make a red tree green would
-         * be a rubber stamp: two drawings a user cannot tell apart would pass.
          */
         const val DISTINCT_PIXELS = 400
 
         /**
          * Below this a mask is not a drawing. The four faces shipped ink 2278 to 3846 pixels, so
-         * this sits comfortably under the lightest of them.
-         *
-         * What it catches is a BLANK or near-blank canvas — a rasteriser that drew nothing at
-         * all, which would make every pair below "distinct" from nothing. It is NOT a guard
-         * against a drawing that came out TRUNCATED: no single ink figure can separate "half an
-         * icon" from "a lighter icon". Truncation is refused upstream instead, where it can be
-         * named — [contours] raises on any node it cannot draw rather than skipping it.
          */
         const val MIN_INK = 1200
     }

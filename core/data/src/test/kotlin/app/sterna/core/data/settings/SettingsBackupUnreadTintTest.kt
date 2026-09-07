@@ -12,9 +12,6 @@ import org.junit.Test
 
 /**
  * The unread-background switch (#141): its default, its stored key, and its trip through a settings
- * backup. Same five checks and the same reasons as [SettingsBackupReplyBarTest] — a setting that
- * silently fails to restore is worse than one that does not exist, and a default that can be
- * flipped with the suite green is worse still.
  */
 class SettingsBackupUnreadTintTest {
 

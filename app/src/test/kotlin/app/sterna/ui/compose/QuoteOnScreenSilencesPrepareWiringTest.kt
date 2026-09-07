@@ -7,47 +7,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads two source files as text, same instrument and same
- * disclaimer as [ReplyQuoteConsumedWiringTest] next door, [OutgoingDateWiringTest] and
- * `ImapDiscoveryWiringTest`. Nothing in this repo can EXECUTE what is pinned here: `prepare` lives
- * on an AndroidViewModel and needs an `Application` and the repository, the flag it now takes is a
- * `rememberSaveable` that only exists inside a composition, and there is neither Robolectric nor
- * compose-ui-test here. So every rule below compares WHOLE trimmed lines: an `in`/contains on a
- * fragment is blind to any mutation that LENGTHENS the line, which is how three defects got through
- * on this repo.
- *
- * What is pinned is the one thing that closes G5/G6, measured on the bench on 2026-08-25. After a
- * REAL process death (not a rotation — [ReplyQuoteConsumedWiringTest] covers that one) the
- * ViewModel is brand new: `prepared` is an ordinary field, so `prepare()` runs a second time,
- * re-emits `_replyQuote` and calls `prefillFailed()` again. The screen, however, restored `body`,
- * `initialBody` and `applied` from `rememberSaveable` — the quote IS on screen. Both messages then
- * contradict what the user is looking at: the B6 toast "Quoted message not added: you had already
- * started writing." over a body that carries the quote (G5), and the "Couldn't load the original
- * message." banner over the restored quote when offline (G6).
- *
- * The invariant, and nothing more: NEITHER message may be produced while the body already on
- * screen carries the quote. The screen is the only place that can know it — it is what survived —
- * so it tells `prepare()`, in an argument.
- *
- * The quote reaches that body by TWO different roads, and the flag has to rise on both. Cache-first
- * (the original's row is in `emails`): the headers are prefilled at once and the quote is handed
- * over later, out of band, through `replyQuote`. Uncached (`cachedEmail` answers null — replying to
- * a server SEARCH hit is enough, those rows are never written to `emails`): there is no out-of-band
- * hand-over at all, `buildPrefill` puts the quote straight INSIDE the prefilled body, and the
- * prefill effect applies it. A flag raised only on the first road leaves G6 exactly as reported on
- * the second, so the prefill says whether it carries the quote and the screen posts the flag where
- * it applies it.
- *
- * WHERE each post sits is pinned as an ENCLOSURE, not as an "after": a lower bound alone lets the
- * post slide down into the toast branch, where the flag would mean "a quote arrived and was
- * REFUSED" — and a reply with no quote would then go out silently. That mutation survived the first
- * version of this file.
- *
- * WHAT THIS DOES NOT PROVE: that the two messages are actually gone. That is readable on a bench
- * and nowhere else — open a reply, let the quote land, kill the process, reopen. It does not prove
- * the flag is ever true at runtime (nothing here composes anything), it says nothing about the
- * forward branch beyond the negative rule below (a forward never goes through `_replyQuote` and
- * never claims `quoted`, so its `.onFailure { prefillFailed() }` is deliberately untouched), and it
- * cannot see INSIDE `prefillFailed` or `replyBody`.
  */
 class QuoteOnScreenSilencesPrepareWiringTest {
 

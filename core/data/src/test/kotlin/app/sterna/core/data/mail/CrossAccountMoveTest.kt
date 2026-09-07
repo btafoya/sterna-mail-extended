@@ -11,30 +11,6 @@ import java.time.Instant
 
 /**
  * The ORDER of a move between accounts, EXECUTED (#189): copy confirmed on B, then — and only
- * then — the original trashed on A. [crossAccountMove] is the decision; this drives it with fake
- * steps that record every call and can be made to fail one at a time. Its wiring into
- * `MailRepository.moveToAccount` is [MoveToAccountWiringTest]'s.
- *
- * Every assertion is on the WHOLE list of calls, never on `contains`: "trash was called" says
- * nothing about a trash that happened before the copy, and "trash was not called" nothing about a
- * mark that was skipped. The list IS the sequence.
- *
- * What each case holds:
- *  - the happy path is the seven steps in their order, and the bytes that leave for B are the
- *    bytes read from A;
- *  - a refused write on B is [CrossAccountMove.Failed], and A was never asked for anything;
- *  - a copy B did not name (no UIDPLUS) and cannot be found back is [CrossAccountMove.CopiedNotRemoved],
- *    with neither mark nor trash: a duplicate, never a loss;
- *  - a lookup on B that THROWS (a cut link, a `BAD`, a UIDVALIDITY that changed) is that same
- *    verdict and not a `Failed`: the copy may well be on B, so A's original stays where it is;
- *  - a cancellation during that lookup propagates, and A's original is still not touched;
- *  - a copy found back by its Message-ID is a move, and the mark carries the id found;
- *  - a trash that fails after the copy is [CrossAccountMove.CopiedNotRemoved] and the mark was
- *    made BEFORE it; nothing is refreshed;
- *  - a source that cannot be read stops before B is written;
- *  - a target that is no longer configured stops before the source is read;
- *  - a failed refresh of B's folder does not un-move a message that has moved;
- *  - a cancellation propagates and is not turned into a verdict.
  */
 class CrossAccountMoveTest {
 

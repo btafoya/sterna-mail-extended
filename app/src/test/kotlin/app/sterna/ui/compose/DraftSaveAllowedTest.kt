@@ -7,11 +7,6 @@ import org.junit.Test
 
 /**
  * The rule that decides whether the composer may offer to keep a draft (#35). A draft is uploaded
- * to the mail server as it stands in the composer, so an encrypted message must not have one: that
- * would hand the provider the exact plaintext the encryption exists to withhold. The reported bug
- * was a split between two exits — the toolbar hid "Save draft" while encrypting, the leave dialog
- * offered it anyway — so what is pinned here is that ONE function answers for every exit, and that
- * it answers on the mode alone (however the mode got there).
  */
 class DraftSaveAllowedTest {
 

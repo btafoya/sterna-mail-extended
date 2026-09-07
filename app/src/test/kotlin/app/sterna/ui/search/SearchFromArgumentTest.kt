@@ -7,13 +7,6 @@ import java.io.File
 
 /**
  * "Search this sender" hands the per-sender screen's address to the search as a nav argument, and
- * that address has to behave EXACTLY like the words the inbox's search bar already hands over.
- *
- * The decision itself — what wins between a saved value and a navigation argument — is
- * [initialCriterion], a plain function, and it is RUN below. What no JVM test can run is the
- * wiring around it (`SearchViewModel` is an `AndroidViewModel`, and the route is a string handed
- * to a NavHost), so the last three rules read the sources as text. They pin ARGUMENTS, not calls:
- * every mutation that survived on this screen kept the call and changed what it was given.
  */
 class SearchFromArgumentTest {
 

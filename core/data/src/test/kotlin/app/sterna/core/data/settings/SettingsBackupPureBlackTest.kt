@@ -12,10 +12,6 @@ import org.junit.Test
 
 /**
  * The black-background switch (#117): its default, its stored key, and its trip through a settings
- * backup. Same five checks and the same reasons as [SettingsBackupUnreadTintTest] — a setting that
- * silently fails to restore is worse than one that does not exist, and a default that can be
- * flipped with the suite green is worse still. Here the default is the one that costs the most if
- * it drifts: `true` would repaint every dark-theme user's app on the update that ships this.
  */
 class SettingsBackupPureBlackTest {
 

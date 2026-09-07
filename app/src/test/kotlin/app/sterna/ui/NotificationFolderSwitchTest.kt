@@ -6,8 +6,6 @@ import org.junit.Test
 
 /**
  * The rule behind "opening a notification shows the folder the message lives in" (issue #91) —
- * the folder half of [NotificationAccountSwitchTest]'s account rule: which folder the list
- * behind must show, and the cases where nothing must move.
  */
 class NotificationFolderSwitchTest {
 

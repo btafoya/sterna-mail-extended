@@ -48,9 +48,6 @@ const val JMAP_DISCOVERY_BUDGET_MS = 10_000L
 
 /**
  * The host of LOWEST RANK that yielded a usable session, not the fastest: the chosen host is
- * written into the account, so two installations must not disagree. Rank 0 is asked alone, the
- * others being guesses and the probe carrying the user's secret. The probes run in a CHILD job that
- * is never JOINED: a real one sits in a blocking `execute()` that ignores cancellation.
  */
 suspend fun discoverJmapAmong(
     hosts: List<String>,
@@ -85,8 +82,6 @@ suspend fun discoverJmapAmong(
 
 /**
  * Null while a pending rank could still outrank the best answer. Only RANK 0, the domain the reader
- * typed, can yield [MailRepository.DiscoveryResult.BadCredentials]: a guessed subdomain answering
- * 401/403 says "not yours to read", and counting it killed sign-in (#188).
  */
 private fun verdictOnceSettled(
     hosts: List<String>,
@@ -124,8 +119,6 @@ private fun verdictAtBudget(
 
 /**
  * Only ever asked about a host the app guessed ([oauthHostWasGuessed]). The stored host is half of
- * the account's identity, so both ways of adding one mailbox must agree on it (#55). A blank `Found`
- * falls back too: stored, its session URL cannot be built.
  */
 fun oauthServerToStore(discovered: MailRepository.DiscoveryResult, documentHost: String): String =
     (discovered as? MailRepository.DiscoveryResult.Found)?.server?.takeIf { it.isNotBlank() }
@@ -133,8 +126,6 @@ fun oauthServerToStore(discovered: MailRepository.DiscoveryResult, documentHost:
 
 /**
  * The fence around [oauthServerToStore], load-bearing both ways: too wide and the resolution
- * overwrites a host the reader TYPED, filing one mailbox under two accounts; too narrow and #55
- * stays broken, the Kagi case being a guessed host.
  */
 fun oauthHostWasGuessed(documentHost: String, guessed: List<String>): Boolean {
     val host = normalizeEndpoint(documentHost)

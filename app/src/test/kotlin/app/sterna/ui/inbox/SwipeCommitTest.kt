@@ -6,17 +6,6 @@ import org.junit.Test
 
 /**
  * How far — or how FAST — a list row must be dragged before letting go runs its action
- * (Codeberg #125).
- *
- * The report is about effort: the swipe used to commit at 40% of the row width, which is about
- * 165 dp on a phone and roughly a thumb-and-a-half of travel per message. The rule is now an
- * absolute distance, K-9/Thunderbird's 72 dp, capped by the old fraction so the gesture can only
- * ever get shorter than it was — OR a flick, which commits wherever the row has got to, as it does
- * in the reference clients the report names.
- *
- * Both things worth pinning are pinned here rather than on screen: the numbers, and the fact that
- * ONE function answers for both the commit and the visual "armed" reveal. Distances are in px
- * throughout — the caller converts — and [distancePx] stands for 72 dp on a ~2.6 density phone.
  */
 class SwipeCommitTest {
 
@@ -39,8 +28,6 @@ class SwipeCommitTest {
 
     /**
      * The decision under test, with the gesture at rest by default: no speed at all, and a drag that
-     * really ended under the finger. Every velocity argument is therefore something a test says on
-     * purpose, and the distance-only cases below read exactly as they did before the flick existed.
      */
     private fun direction(
         offsetPx: Float,
@@ -146,9 +133,6 @@ class SwipeCommitTest {
     @Test fun `an unmeasured row is not committed by a flick either, however violent`() {
         // The distance path is shut on an unmeasured row by an unreachable (infinite) threshold.
         // The velocity path does not look at the threshold at all, so it would walk straight around
-        // that guard unless it is shut on its own account. Every offset here is well past the slop
-        // and every speed miles past the escape velocity — the flick's own guards let all of this
-        // through, and the row is still not committed.
         val t = threshold(0f)
         for (offset in listOf(30f, -30f, 400f, -400f, Float.MAX_VALUE, -Float.MAX_VALUE)) {
             for (vx in listOf(400f, -400f, 100_000f, -100_000f)) {
@@ -252,9 +236,6 @@ class SwipeCommitTest {
     @Test fun `a flick back the other way commits nothing — the doubling-back case`() {
         // Archive right, delete left. The finger goes right (the swipe arms), pulls 30 px, then
         // whips back LEFT and lifts. The row's offset is still slightly positive — or pinned at 0
-        // by the bound, if the left side has no action — while vx is strongly negative. Without
-        // this guard the DELETE fires: no visible travel that way, no reveal ever lit, and a
-        // message in the bin. This is the one case in the whole rule that destroys mail.
         val t = threshold(wideRow)
         assertEquals("pulled right, flicked left", 0, direction(30f, t, vx = -2000f))
         assertEquals("pulled left, flicked right", 0, direction(-30f, t, vx = 2000f))
@@ -270,9 +251,6 @@ class SwipeCommitTest {
     @Test fun `a flick that is more vertical than horizontal commits nothing`() {
         // ItemTouchHelper's fourth condition, |vx| > |vy|, and it is not decoration here. The
         // direction lock upstream judged on distances ACCUMULATED SINCE TOUCH-DOWN, never on the
-        // instant of release: a gesture that starts flat (arming the swipe) and then curves away
-        // down the list lifts off in the middle of a fast vertical component. Without this the row
-        // is archived while the user was starting to scroll.
         val t = threshold(wideRow)
         assertEquals("equal parts: not a horizontal flick", 0, direction(60f, t, vx = 900f, vy = 900f))
         assertEquals("mostly vertical", 0, direction(60f, t, vx = 900f, vy = 1200f))
@@ -285,10 +263,6 @@ class SwipeCommitTest {
     @Test fun `a flick that has barely moved the row commits nothing`() {
         // The floor, and the reason it has to be written here rather than inherited: the travel the
         // finger makes while the direction lock is still deciding is THROWN AWAY — offsetX only
-        // starts following at horizontalDrag. So a finger that has covered 15-20 dp can leave the
-        // row a couple of pixels from home. K-9 counts its displacement from touch-down and gets
-        // this floor implicitly; ours has to say it. Without it, a fast twitch that never visibly
-        // moved anything fires an action.
         val t = threshold(wideRow)
         assertEquals("under slop, however fast", 0, direction(slopPx - 1f, t, vx = 5000f))
         assertEquals("under slop, mirrored", 0, direction(-(slopPx - 1f), t, vx = -5000f))

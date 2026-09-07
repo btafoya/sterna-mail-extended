@@ -7,9 +7,6 @@ import org.junit.Test
 
 /**
  * The three transitions of the reading pane (#103), run as the pure functions they are. Each
- * message names the visible damage, because the pane composes its reader under `key(session)`:
- * a session that moves when it should not rebuilds the pager and reloads every page's body; one
- * that stays when it should not leaves the old pager on screen under a new anchor.
  */
 class ReadingPaneRuleTest {
 

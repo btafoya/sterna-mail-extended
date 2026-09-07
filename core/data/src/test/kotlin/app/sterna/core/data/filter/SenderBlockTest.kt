@@ -10,12 +10,6 @@ import org.junit.Test
 
 /**
  * The per-sender "future mail to Trash" gesture, EXECUTED: the rule it writes, the composition
- * that adds it to what the account already has, and the order in which the two server calls
- * happen.
- *
- * [addBlockRule] takes its load and its save as parameters precisely so this can run them: the
- * failure that matters (saving a script built on a read that did not succeed) is a failure of
- * ORDER, and no assertion about a rule object can see it.
  */
 class SenderBlockTest {
 
@@ -176,9 +170,6 @@ class SenderBlockTest {
     @Test fun `an account running its own Sieve script is left alone`() = runBlocking {
         // Saving does not just write Sterna's script, it ACTIVATES it — which switches off
         // whatever script the account was running. The filter editor warns about that in red
-        // before its Save button; a one-finger gesture in a list cannot, so it must not be able
-        // to do it. The guard belongs here and not only in the screen: a path whose only
-        // protection is the way in is not protected.
         var saved: List<FilterRule>? = null
         val outcome = addBlockRule(
             address = "news@example.com",

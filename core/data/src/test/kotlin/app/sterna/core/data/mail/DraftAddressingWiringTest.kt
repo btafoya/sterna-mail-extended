@@ -5,26 +5,6 @@ import org.junit.Test
 
 /**
  * THIS TEST READS SOURCE TEXT — the last resort, exactly as [DestroyChecksTheFolderWiringTest]
- * does: `MailRepository` and `ImapMailService` need Room, a `Context` and a socket, so no JVM test
- * can run the wiring below. The DECISION it guards is executed by [DraftSaveTest]; this pins only
- * WHERE that decision is plugged in, and it pins the WHOLE LINE of each load-bearing call —
- * `contains` is blind to any mutation that lengthens a line, which is how three of this project's
- * rules were defeated before.
- *
- * The path moved with #95: the two protocol branches now live in `MailRepository.uploadDraft`,
- * which `saveDraft` reaches only once the draft is durable on the phone. The guards below follow it.
- *
- * What it exists for (#63): re-saving an IMAP draft destroys the server copy. The copy is the only
- * thing holding a Cc the composer never displayed, so the destroy is allowed only when the
- * replacement provably carries the addressing. Every single word below is one that, changed alone,
- * brings the measured loss back while every executable test stays green:
- * - `addressingIsCarried = addressingIsCarried` → `= true` re-authorises every destroy;
- * - `replacement = draftReplacementAddressing(ccTrimmed, bccTrimmed)` → `ccTrimmed.toSet()`, which
- *   is what shipped until 2026-08-25, now leaves a duplicate in Drafts on every save of a draft
- *   with a Cci: the server's copy carries a real `Bcc:` header since the APPEND passes
- *   `BlindCopies.WRITTEN`, so `ccAndBccOf` reads that address on the ORIGINAL side and a
- *   Cc-only replacement can never match it;
- * - `?: return null` → `?: return emptySet()` turns "I could not read it" into "there was none".
  */
 class DraftAddressingWiringTest {
 
@@ -54,13 +34,6 @@ class DraftAddressingWiringTest {
     @Test fun theProofIsTheCcAndTheBccSinceTheAppendedDraftCarriesBoth() {
         // THE line of the counter-expertise, and it turned over on 2026-08-25. Until then
         // OutgoingMime.build wrote From/To/Cc and no `Bcc:`, so an address typed into Bcc reached
-        // no header of the appended draft and counting it would have let a user who re-types the
-        // lost Cc into Bcc destroy the copy that still held it (#63). The APPEND now passes
-        // `BlindCopies.WRITTEN` (pinned by [DraftAppendCarriesBccWiringTest]), so that header is
-        // really written and the address really comes back on reopen.
-        // The second and third lines are the read-receipt guard's own `replacement`, pinned by
-        // [DraftReceiptWiringTest]; they are listed here so this assertion keeps comparing WHOLE
-        // lines against a closed list rather than being loosened to a search.
         assertEquals(
             "the replacement's proof is draftReplacementAddressing(ccTrimmed, bccTrimmed) — the " +
                 "Cc AND the Bcc. Back to `ccTrimmed.toSet()` and every save of a draft with a " +
@@ -135,15 +108,6 @@ class DraftAddressingWiringTest {
 
     /**
      * The EMPTYING gestures ask the same question, and until 2026-08-25 they asked nothing at all
-     * (#69 × #95 × #63). Emptying a draft and saving destroys the server copy outright — the
-     * hardest of the three routes, since it does not even leave the duplicate an ordinary save
-     * leaves — and both guards weighed one term, the body verdict. The composer cannot tell a draft
-     * that has no Cc from a Cc it never managed to read, so that route destroyed the only copy
-     * holding those addresses with nothing on screen.
-     *
-     * The decision is the SAME pure function the save uses ([draftAddressingIsCarried]) with an
-     * empty replacement, and it is executed by [DraftSaveTest]; what nothing in a JVM can see is
-     * this wiring, so it is pinned here, WHOLE LINES.
      */
     @Test fun theEmptyingAsksTheServerWhetherTheOriginalWasCopiedToAnybody() {
         assertEquals(
@@ -163,9 +127,6 @@ class DraftAddressingWiringTest {
             listOf(
                 // The braces are IN the expected list, and the body is compared WHOLE. Dropped
                 // — `.drop(1).dropLast(1)`, which reads as tidier — the opening brace's own line
-                // is thrown away before the comparison, and `{ if (emailId.isNotEmpty()) return
-                // true` restores the defect entire with every line below it still matching. The
-                // line is the unit, so no line may be discarded.
                 "{",
                 "if (credentials.protocol == MailProtocol.IMAP) {",
                 "return draftAddressingIsCarried(",

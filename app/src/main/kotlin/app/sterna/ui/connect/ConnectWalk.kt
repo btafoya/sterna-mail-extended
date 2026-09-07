@@ -96,8 +96,6 @@ internal fun stepBackKeeping(current: ConnectStep, email: String): WalkBack? =
 
 /** The quick-setup form to carry into a probe for [email], at the [step] on screen. The cascade's
  *  guard refuses over a non-blank host, and a discovery that worked leaves one behind in a form
- *  that outlives the verdict, so one success would become a permanent failure for every address
- *  typed after. Hosts are dropped per side, atomically, as soon as nothing backs them; except what
  *  the user typed ([PresetForm.discoveredFor]) and on the manual form. */
 internal fun presetForAddress(
     preset: PresetForm,

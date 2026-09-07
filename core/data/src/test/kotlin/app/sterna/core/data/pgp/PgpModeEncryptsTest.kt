@@ -5,12 +5,6 @@ import org.junit.Test
 
 /**
  * The one predicate every consequence of encrypting hangs off ([encrypts]): no draft, body blanked
- * in the outbox row at rest, recipient keys looked up.
- *
- * Exhaustive over [PgpMode.entries] ON PURPOSE. A mode added tomorrow that encrypts must be added
- * here too, and until it is this test fails — which is the whole point: the previous encrypting
- * mode was compared by name at six call sites, and a new one beside it answered "not encrypted" at
- * every single one, in silence.
  */
 class PgpModeEncryptsTest {
 

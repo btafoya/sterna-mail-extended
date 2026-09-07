@@ -7,16 +7,6 @@ import org.junit.Test
 
 /**
  * What a move brings back about the folder the mail LANDED in — the numbering `COPYUID` states
- * and this client used to throw away (RFC 4315 §3, RFC 6851 §4.3; Codeberg #99).
- *
- * Why it matters one layer up: the Undo of a move is a move OUT of the destination, so the
- * destination's numbering is what it has to oppose — and nothing else in the flow ever learns it,
- * because a `UID MOVE` does not SELECT its destination. On an account whose Trash the user has
- * never opened, the recorded number is null, and "Undo" after an ordinary delete was refused. The
- * server had said it all along, in the same response as the UIDs.
- *
- * Nothing here REFUSES anything: this module states what the server said and decides nothing
- * from it. The refusing is `core/data`'s, and it is tested there.
  */
 class MoveReportsDestinationNumberingTest {
 
@@ -91,10 +81,6 @@ class MoveReportsDestinationNumberingTest {
 
     /**
      * THE GUARD THAT MUST NOT MOVE: a server reporting no COPYUID at all. The move happened,
-     * the mapping is empty, and the numbering is nothing — which upstairs means the id gets no
-     * Undo entry and the Undo of it is lost IN SILENCE, exactly as before. Turning "no COPYUID"
-     * into a stated numbering would be inventing a fact; turning it into a loud refusal would be
-     * new noise on a path that was always mute.
      */
     @Test fun `a server that reports no COPYUID states no numbering either`() {
         FakeImapServer { tag, line ->
@@ -160,9 +146,6 @@ class MoveReportsDestinationNumberingTest {
 
     /**
      * And chunks that DISAGREE state nothing: the destination was renumbered in the middle of the
-     * move, so no single number is true of the whole mapping. Null refuses everywhere it is later
-     * opposed, which is the only safe answer — an Undo that cannot say which numbering its UIDs
-     * belong to must not go out under either of them.
      */
     @Test fun `chunks disagreeing about the numbering state none`() {
         var seen = 0

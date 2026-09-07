@@ -5,19 +5,6 @@ import org.junit.Test
 
 /**
  * A destruction may only touch a line that is STILL THE LINE THAT WAS TICKED (Codeberg #99).
- *
- * The accident this closes, in the order it happens: a selection holds keys, and an IMAP key
- * (`imap:<account>:<folder>:<uid>`) carries the bare UID with no numbering in it. The server
- * renumbers the folder the shifting way; the next background walk `@Upsert`s the row bearing that
- * exact text with ANOTHER message's envelope. The tick does not move — it follows the key — so the
- * new envelope is on screen, already ticked, with nobody having touched anything. Confirm on a row
- * that reads "in the Trash" and `UID EXPUNGE` leaves on a live message no one selected. No error,
- * no dialog, no way back.
- *
- * Everything below RUNS the delivered decision. Nothing here restates the rule to decide what to
- * expect: every expected list is written out as a literal, so inverting the condition in
- * [UidValidity.destroyableUnderTheNumberingItWasTickedUnder] reddens this file instead of moving
- * with it. What the split then does on a real socket is `DestroyUnderTheNumberingTheRowWasReadUnderTest`.
  */
 class DestroyOnlyWhatWasTickedTest {
 
@@ -58,9 +45,6 @@ class DestroyOnlyWhatWasTickedTest {
 
     /**
      * G4, the expensive half. `uidValidity` is null on EVERY JMAP row, and a row evicted from
-     * the cache — or ticked in the 50 ms before the suspending read of its stamp came back — has
-     * nothing to offer either. A guard refusing on an absent stamp would refuse 100 % of JMAP
-     * destroys, and would stay green in any test that only ever feeds it IMAP rows.
      */
     @Test fun `an absent stamp passes, on either side and on both`() {
         val split = split(

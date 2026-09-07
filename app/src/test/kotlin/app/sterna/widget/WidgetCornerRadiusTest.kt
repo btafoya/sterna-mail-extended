@@ -6,25 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as [UnreadWidgetDeclarationTest].
- * A corner radius is drawn by the LAUNCHER's process out of a `res/drawable`; nothing in this module
- * can inflate it, and there is no Robolectric here.
- *
- * The rule: the cell's corner is one value, declared twice, and read by one drawable that four
- * layout roots share. Under API 31 it is `16dp`; from API 31 it is
- * `android:dimen/system_app_widget_background_radius`, the radius the launcher gives every other
- * widget on the home screen. The indirection through `res/values` exists so that the API split
- * costs a values file instead of a second copy of the drawable.
- *
- * The `values-v31` twin is the half nothing on screen can report. Lose it, or let its value
- * drift, and the cell keeps a perfectly round corner on Android 12+ — just not the launcher's. No
- * crash, no blank, nothing to see; only a shape that no longer matches its neighbours.
- *
- * Never a `contains` on a line: a substring is blind to every mutation that LENGTHENS what it
- * matches. Every comparison below is of WHOLE lines, so a second declaration, a longer literal or a
- * changed reference all redden.
- *
- * Comments are stripped by [DeclarationSource.codeLines] before anything is matched — otherwise
- * this rule would pin the prose written in the drawable to explain it.
  */
 class WidgetCornerRadiusTest {
 
@@ -92,8 +73,6 @@ class WidgetCornerRadiusTest {
 
         /**
          * Every root that wears the cell's surface: the two widgets, the two picker previews, and
-         * the counter's enlarged layout — which the launcher swaps in on a cell dragged large, so a
-         * background missing there is a square-cornered cell for anyone who resized theirs.
          */
         val ROOTS = listOf(
             "layout/widget_unread.xml",

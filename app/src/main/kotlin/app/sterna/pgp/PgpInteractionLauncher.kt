@@ -11,10 +11,6 @@ import androidx.compose.runtime.remember
 
 /**
  * The openpgp-api user-interaction round-trip: a provider call that returns
- * [app.sterna.core.data.pgp.PgpResult.UserInteractionRequired] hands us a
- * [PendingIntent] (passphrase prompt, key chooser…). Launch it through the
- * returned lambda; [onResult] then receives the activity-result data Intent to
- * pass back as `interactionResult` on retry, or null when the user cancelled.
  */
 @Composable
 fun rememberPgpInteractionLauncher(onResult: (Intent?) -> Unit): (PendingIntent) -> Unit {

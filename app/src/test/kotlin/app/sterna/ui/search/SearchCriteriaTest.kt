@@ -8,8 +8,6 @@ import org.junit.Test
 
 /**
  * The folded criteria panel must still SAY what it is searching for. A fold that hid "from Alex,
- * with an attachment, since June" would turn the results into something nobody could explain, so
- * the summary is covered criterion by criterion here.
  */
 class SearchCriteriaTest {
 

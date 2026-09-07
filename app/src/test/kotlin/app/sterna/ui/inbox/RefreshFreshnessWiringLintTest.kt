@@ -6,25 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxViewModel.kt` as text and proves nothing about
- * what the app does. [RefreshFreshnessTest] is the real test of #178's guard — read it first: it
- * EXECUTES the decision on literal instants. This file holds the other half, which no JVM test can
- * reach: `InboxViewModel` is an `AndroidViewModel` and is not instantiable here.
- *
- * What it pins is WHICH CALLERS sit behind the guard, because that list is the whole risk of this
- * change. Skipping a refresh is only ever safe for a refresh nobody is waiting on:
- *  - the guard on `onReconnected()` is the worst of them, and it is the first rule below;
- *  - the guard on the pull gesture or a Retry button would answer a deliberate gesture with
- *    nothing at all (`refreshRequested()`'s body is pinned whole by
- *    `RefreshIndicatorWiringLintTest`, one door, no branch);
- *  - the guard on `forceRefresh()` would silently keep the locally-evicted rows an Undo is trying
- *    to bring back;
- *  - a guard on any post-action reconcile (a move, a delete, a mark-read) would leave the list
- *    showing the state the server no longer holds.
- *
- * Every rule compares a WHOLE unit — a whole declaration body — or COUNTS with a regex. Never a
- * `contains` on a fragment: a fragment is blind to any mutation that LENGTHENS what it matches.
- * The regex `\brefresh\(\)` is what tells the two doors apart, since "refreshUnlessFresh()" holds
- * no "refresh()" substring at all.
  */
 class RefreshFreshnessWiringLintTest {
 
@@ -127,9 +108,6 @@ class RefreshFreshnessWiringLintTest {
 
     /**
      * Compared WHOLE since #103, and no longer only counted: this switch is the fifth of the five,
-     * and the only one whose pane line a door count cannot see. Dropping `paneOnViewChanged()` from
-     * it left the whole suite green while an account switch kept the departing account's message on
-     * the right — the very thing the four other switches are pinned whole to prevent.
      */
     @Test
     fun `an account switch empties the pane, replays a notification's own message, and reconciles through the guard`() {
@@ -164,9 +142,6 @@ class RefreshFreshnessWiringLintTest {
 
     /**
      * Neither of the two rules below is about the freshness guard. They live in this file because
-     * it is the one that compares whole DECLARATION BODIES of `InboxViewModel`, and that class is an
-     * `AndroidViewModel` over Room: nothing in this module can build one, so no executing test can
-     * reach either method.
      */
     @Test
     fun `closing the pane really empties it`() {
@@ -323,9 +298,6 @@ class RefreshFreshnessWiringLintTest {
 
     /**
      * The body of the declaration whose header is [header], comments removed and whitespace
-     * collapsed: from the header up to the brace that balances its first `{`. Fails loudly when
-     * the header is not found exactly once, so a rename reddens these rules rather than satisfying
-     * them against an empty string.
      */
     private fun declarationBody(header: String): String {
         val text = codeText(INBOX_VIEW_MODEL)
@@ -359,10 +331,6 @@ class RefreshFreshnessWiringLintTest {
 
     /**
      * [file] as ONE line of code: every comment taken out, every run of whitespace collapsed to a
-     * single space — so a call the formatter spreads over eight lines reads the same as one written
-     * on a line. Same scanner as [BoundedRefreshWiringLintTest]'s, deliberately: a `//` inside a
-     * string literal is not a comment, and a continuation line written operator-first does not
-     * start with `*`.
      */
     private fun codeText(file: File): String {
         val code = StringBuilder()

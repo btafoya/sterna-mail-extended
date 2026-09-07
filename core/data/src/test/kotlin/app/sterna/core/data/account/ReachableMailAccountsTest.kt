@@ -9,15 +9,6 @@ import java.net.SocketTimeoutException
 
 /**
  * [retainReachableMailAccounts] (Codeberg #129): the pure keep/discard decision applied to the mail
- * accounts a JMAP session advertises, EXECUTED here with the probe outcomes the repository hands it.
- *
- * The bug it guards is device-reproduced: a read-only calendar share makes the server list the
- * sharer's account in the session with the mail capability, then answer `forbidden` to every
- * Mailbox/get for it. Sterna minted a sub-account for it and turned its name — the sharer's address
- * — into a `delegated` identity in the composer's From picker.
- *
- * Every expectation below is a literal list, never a re-derivation of the rule: recomputing the
- * decision here would keep the suite green with the shipped condition inverted.
  */
 class ReachableMailAccountsTest {
 

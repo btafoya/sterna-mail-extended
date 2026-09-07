@@ -20,15 +20,6 @@ import org.junit.Test
 
 /**
  * The `Autocrypt:` header on the JMAP wire — the OCTETS that leave, read back from a mock server.
- *
- * RFC 8621 §4.1.2's `header:<name>:<form>` seam again, `asText` this time: the value is one
- * structured string the app assembled, not a list of addresses. It goes out **flat**: the server
- * writes the field and folds it. (An RSA-4096 key folded twice is the failure this avoids; the
- * folding itself is pinned in `core/imap`'s AutocryptHeaderFoldTest.)
- *
- * The second half of this file is the net under it. `sendEmail` had none: a server that refuses an
- * unknown create property would fail every send of a PGP account — one outbox line stuck, then all
- * of them, for a header nobody asked for.
  */
 class AutocryptOnTheWireTest {
 
@@ -72,9 +63,6 @@ class AutocryptOnTheWireTest {
 
     /**
      * The submission STANDS and the server then says one recipient was refused (#183's read), for
-     * an address that happens to carry the word this guard matches on — the Autocrypt project's
-     * own mailing list is `autocrypt@lists.mayfirst.org`. The refusal text is the SERVER's, and no
-     * amount of hardening the searched string takes that address out of it.
      */
     private val refusedDeliveryResponse =
         """{"methodResponses":[

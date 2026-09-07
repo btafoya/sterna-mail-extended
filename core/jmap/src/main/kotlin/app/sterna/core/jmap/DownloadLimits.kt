@@ -12,10 +12,6 @@ class ContentTooLargeException(
 
     /**
      * Ceilings for what a single message may pull into memory over JMAP. Downloads have no framing of
-     * their own — `downloadBlob` buffers the whole response — so without a ceiling one message dictates
-     * the app's memory (the IMAP counterpart is `ImapParser.MAX_LITERAL`). The two limits differ
-     * because the two paths differ in CONSENT: an inline image is fetched the moment a message is
-     * opened and then cached base64, so it gets the tighter ceiling; an attachment is tapped.
      */
 object DownloadLimits {
 

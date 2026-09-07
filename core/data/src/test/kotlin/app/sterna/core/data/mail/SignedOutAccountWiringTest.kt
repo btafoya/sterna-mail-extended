@@ -6,47 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. The decision and its consequence are EXECUTED by
- * [SignedOutAccountStopsWritingTest]; `MailRepository` needs Room, an Android `Context` and a live
- * session, so what is read here is only the plug — as WHOLE LINES.
- *
- * Whole lines and never a fragment, and the arguments and not just the name: the mutation that
- * matters on this path lengthens the line or swaps one id for another. `checkAccountStillConfigured
- * (accountStore.currentId(), …)` compiles, keeps the call where it is, and stops the walk of every
- * account that is not the current one instead of the one that was signed out.
- *
- * Nine write paths are pinned, not two, and they were not all found at once — a counter-expertise
- * found three of them, a later one found the sixth, two more are a path #121 never walked at all,
- * and the ninth is the JMAP half of a function whose IMAP half had been guarded twice. Every path
- * that WRITES under a local account id has to ask, immediately before writing, because a network
- * round-trip always separates the answer from the write:
- *  - the JMAP full-query walk (page by page);
- *  - the IMAP folder walk (page by page);
- *  - the JMAP delta branch (its eviction, its upsert and its cursor);
- *  - the FTS header crawl, whose table the orphan sweep inventories too;
- *  - the IMAP branch of `refreshAccountFolders` — the background push/worker pass, which reads the
- *    watched folders whole and then writes them all in one `forEach`;
- *  - the JMAP branch of the same pass, whose folder-list write is the LAST statement of the
- *    function: the deepest guard it crosses is the one inside the last `syncMailbox`, and a ghost
- *    sweep, a cursor write and a notification read still separate that answer from this write;
- *  - `refresh`, which absorbs the refusal in a `runCatching` and would otherwise go on to write the
- *    folder list under the removed id;
- *  - `unarchiveThreadsOnReply`'s SERVER move — the only write of the nine that does not land in
- *    this phone's database. An `Email/set` un-archives the messages on the account itself: visible
- *    in the webmail and on every other client the user owns, with no Undo, and (its re-file being
- *    refused a moment later) not even a local trace;
- *  - `unarchiveThreadsOnReply`'s re-file, which lands AFTER that move: rows written there are
- *    recreated behind the sign-out's orphan sweep and show under a "deleted account" label until
- *    the process restarts.
- *
- * And four entry checks: `syncMailbox`, `imapWriteThrough`, the same `refreshAccountFolders`
- * IMAP branch, and `unarchiveThreadsOnReply` — each SPARES a session, a LOGIN and a folder list
- * when the account is already gone at the moment it asks.
- *
- * Spares, and nothing stronger. None of these thirteen closes the race: a check that passed
- * microseconds before the account left the store still writes, and still writes after the sweep
- * (the paragraph of [checkAccountStillConfigured] states it, and the orphan sweep at process
- * start is what collects those). What is pinned here is the narrowing — from the minutes a deep
- * folder or a cold JMAP session takes, down to the width of one write.
  */
 class SignedOutAccountWiringTest {
 
@@ -54,8 +13,6 @@ class SignedOutAccountWiringTest {
 
     /**
      * The function's body, trimmed, WITHOUT its comment and blank lines: every rule below is about
-     * which statement follows which, and a comment line between two of them changes nothing. It is
-     * also the only way a block pin can stay readable next to the prose these functions carry.
      */
     private fun lines(function: String): List<String> =
         DaoQuerySource.mailFunctionBody("MailRepository", function).lines()
@@ -189,11 +146,6 @@ class SignedOutAccountWiringTest {
     @Test fun `the watched-folder pass asks again between the network read and its grouped write`() {
         // A pass that does NOT write page by page (its JMAP twin below is the other one):
         // `loadWatchedFolders` returns
-        // when the whole network read is over (session, LOGIN, LIST, one FETCH per watched folder),
-        // and only then does the `forEach` write up to `limit` messages PER folder. One check
-        // immediately before the loop therefore covers every write it makes — and nothing else
-        // does: this is the background push/worker path, `signOut` never touches WorkManager and
-        // `PushService` only bumps its generation, so no cancellation reaches here.
         //
         // Pinned with its neighbours on both sides, because the guard line is verbatim the entry
         // check a few lines above it: what is asserted is WHERE this one is, between the pruning of
@@ -208,9 +160,6 @@ class SignedOutAccountWiringTest {
                 "$guard(credentials.id, accountStore.accounts().map { it.id })",
                 // The loop reads the cache before it writes (#187: the upsert replaces the whole
                 // row, so the page's blank `preview` column has to take back what the folder walk
-                // cached). Both statements are INSIDE the loop, hence both after this one guard —
-                // which is what it was already written to cover, one answer for every write the
-                // forEach makes.
                 "loads.forEach { load ->",
                 "val cached = emailDao.cachedPreviews(credentials.id, load.messages.map { it.id }, load.uidValidity)",
                 "emailDao.upsertAll(keepingCachedPreviews(load.messages, cached.associate { it.id to it.preview }))",
@@ -241,11 +190,6 @@ class SignedOutAccountWiringTest {
     @Test fun `the same pass asks again on its JMAP side, immediately before the folder-list write`() {
         // The IMAP half of this function has been guarded twice since #121 and the JMAP half not
         // at all, and the two are NOT symmetrical by accident of reachability: `targets` is never
-        // empty here, so `syncMailbox` does run and does ask — but the last answer it got is a
-        // ghost sweep, a `putSyncState` and a `notifyRead` behind this line, and nothing asks in
-        // between. What lands is `MailboxDao.replaceAll`, the table `MailboxDao` itself calls the
-        // place an orphan is seen EARLIEST: a full drawer of folders under an account the user just
-        // removed, written after the sign-out's orphan sweep, until the process restarts.
         //
         // Pinned as a block from the end of the refresh loop through the return, because WHERE is
         // the whole property: one line lower — below `replaceAll` — the folders are already
@@ -288,11 +232,6 @@ class SignedOutAccountWiringTest {
     @Test fun `the un-archive refuses to start for an account that is gone, before it even connects`() {
         // Not "just" an entry check that spares a session, which is why it is worth its own line
         // ahead of `connect`: everything below it leads to `client.move`, a write on the SERVER
-        // made in the name of an account the user has just removed. And `connect` is one round-trip
-        // at best, five or six on a cold JMAP context (fetchSession, jmapAccountIdFor,
-        // reconcileLinkedAccounts, getIdentities, getMailboxes) — a check placed after it has
-        // already paid for them. It does not make the move safe, though: what does that is the
-        // check immediately before the move itself, pinned below.
         //
         // Pinned as a block, between the early return and the connect: below the connect it stops
         // sparing anything, and above the early return it would throw for IMAP accounts and empty
@@ -317,18 +256,9 @@ class SignedOutAccountWiringTest {
     @Test fun `the server move asks one last time, on the far side of the session`() {
         // The widest window of the three, and the only write of the whole file that does not land
         // in this phone's database. `connect` is fetchSession + jmapAccountIdFor +
-        // reconcileLinkedAccounts + getIdentities + getMailboxes, then a thread-members read: the
-        // entry check is several round-trips behind by the time this line runs. A sign-out landing
-        // in that window un-archives the messages ON THE SERVER for an account the user just
-        // removed — in her webmail, on every other client she owns, with no Undo — and the re-file
-        // guard below then refuses the local half, so the app keeps no trace of what it did.
-        // "Irréversible d'abord": this one is not optional because the two others exist.
         //
         // Pinned from the recently-mutated marks so the block states the order that matters: the
         // marks and the #99 rescue stay AHEAD of the guard (they protect the rows during the very
-        // move this guard authorises), and the guard stays OUTSIDE the runCatching that follows —
-        // folded inside it, its refusal would be swallowed with the move's own failures and the
-        // pass would carry on as if the move had merely failed.
         assertEquals(
             "unarchiveThreadsOnReply no longer asks whether the account still exists immediately " +
                 "before client.move. The entry check is a session and several round-trips behind " +
@@ -347,9 +277,6 @@ class SignedOutAccountWiringTest {
     @Test fun `the re-file asks again once the server has answered the move`() {
         // The entry check is no proxy for this one: `connect` plus the `Email/set` move are several
         // round-trips wide, and a sign-out landing inside that window leaves `upsertAll` writing
-        // Inbox rows under the removed id — recreated AFTER the sign-out's orphan sweep has run,
-        // and visible under a "deleted account" label until the next process start. That is the
-        // reported symptom itself, on a path #121 never walked.
         //
         // Pinned from the move's own `getOrNull` so the guard is fixed on the far side of the
         // server call and immediately before the write: dropped below `emailDao.upsertAll(refiled)`
@@ -421,17 +348,9 @@ class SignedOutAccountWiringTest {
     @Test fun `the unified pass skips the signed-out account instead of abandoning the whole pass`() {
         // WYSIWYG: letting the cancellation out leaves InboxViewModel with refreshing = true and
         // nothing to reset it (the list is only re-pointed when the CURRENT account was the one
-        // signed out), so the spinner turns for ever over a sync that no longer exists. Pinned as
-        // a whole block: a `throw gone` or a `failures += gone` slipped in here would put back the
-        // spinner or raise the offline banner for a deliberate gesture.
         //
         // And WHAT the line claims is delegated to [accountGoneCause], executed by
         // [AccountGoneCauseTest]: the guards read the store with `accounts()`, which answers an
-        // unreadable blob with an empty list, so this arm also fires when nobody signed anything
-        // out. The arguments are pinned, not just the call: a hard-coded `false` would put the lie
-        // straight back, and `passKind` is this line's OWN word — this pass is a walk over the
-        // accounts, it has read "mid-walk" since #121, and a shared sentence must not flatten it
-        // into the push path's "mid-pass".
         assertEquals(
             "the AccountGoneException arm of refreshAllInboxes is no longer, line for line, what " +
                 "this was written against — it must stay ABOVE the cancellation catch, it must " +
@@ -481,13 +400,6 @@ class SignedOutAccountWiringTest {
     @Test fun `MailRepository does not re-declare the guard under its own name`() {
         // A lint that pins CALL SITES and not what they BIND TO is blind to shadowing, and this
         // file is where that costs the most: `AccountStillConfigured.kt` is in the SAME PACKAGE, so
-        // a `private fun checkAccountStillConfigured(…)` declared anywhere in this class needs no
-        // import to remove and no call site to touch — Kotlin resolves a member of the implicit
-        // receiver ahead of a top-level declaration of the package, and all THIRTEEN sites silently
-        // start calling the lenient copy. Every rule above stays green: the lines are identical,
-        // their order is identical, the count is identical, no `try` is open, and
-        // `SignedOutAccountStopsWritingTest` keeps executing the top-level function in its own
-        // rig — the one production no longer calls.
         //
         // It is the same family of blindness as the hole this file was extended for: what is not
         // pinned is invisible. So the declaration itself is pinned, once, for all thirteen sites.

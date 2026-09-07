@@ -7,17 +7,6 @@ import org.junit.Test
 
 /**
  * Which messages repeat their subject INSIDE the entity that gets encrypted (RFC 9788 § 3), and
- * which repeat nothing — [protectedSubject].
- *
- * The decision has to live in a pure function because the only place that needs it,
- * `ComposeViewModel.buildPgpEntity`, cannot be executed here: it is an `AndroidViewModel`, there is
- * no Robolectric and no instrumented test in this module. Written as an `if` at the call site, the
- * two failures below would be invisible to every test in this repo:
- *
- *  - `== PgpMode.ENCRYPT` instead of `.encrypts` — the unsigned encrypting mode silently stops
- *    protecting its subject, which is the exact defect that property exists for;
- *  - SIGN slipping in — a signed-only entity IS what the recipient reads, so an inner `Subject:`
- *    there is a header a client may show instead of the envelope's, with no ciphertext behind it.
  */
 class ProtectedSubjectTest {
 

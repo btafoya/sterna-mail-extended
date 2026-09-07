@@ -18,22 +18,6 @@ import org.junit.Test
 
 /**
  * The latest-messages widget's push, RUN — not read as source. What is pinned here is not that the
- * app watches the mail, it is WHEN it agrees to: never while no cell is placed, from the moment one
- * is, and no longer once the last one goes — plus how much a single Room invalidation is allowed to
- * cost the home screen, and which changes may never be swallowed on the way.
- *
- * The gate is the expensive half. `observeRecentUnifiedInbox(…)` is a Room query observing `emails`
- * AND `snoozed`, so it re-runs on every page of every sync; collected for the life of the process
- * it is paid by every install, and the large majority will never place this widget. So the tests
- * below assert on what the collaborator was ASKED and when it was SUBSCRIBED, the way
- * [UnreadWidgetPushTest] does next door — a returned value would say nothing about the subscription
- * that produced it.
- *
- * The fake is HOT and never completes, on purpose. A `flowOf(…)` is finished the instant it is
- * read, and a finished inner flow makes `flatMapLatest`, `flatMapMerge` and `flatMapConcat`
- * indistinguishable — the real query never ends, so a subscription the shipped code failed to drop
- * stays alive and goes on arriving. [Reader.push] is that arrival, aimed at a flow handed out
- * earlier.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class RecentMailWidgetPushTest {
@@ -64,9 +48,6 @@ class RecentMailWidgetPushTest {
 
     /**
      * Stands in for `MailRepository.observeRecentUnifiedInbox(limit)`, and records two facts a
-     * single counter would conflate: that the factory was CALLED, and that the flow it handed back
-     * was actually COLLECTED. Each subscription starts on a read of its own (`r0`, `r1`, …), so the
-     * collected values also say WHICH subscription produced what.
      */
     private class Reader(private val initial: (Int) -> RecentInbox) {
         val asked = mutableListOf<String>()
@@ -102,8 +83,6 @@ class RecentMailWidgetPushTest {
 
     /**
      * The rule this file exists for: an install with no latest-messages cell on any home screen
-     * must not observe the inbox AT ALL. Not "observe and ignore", not "observe and draw nothing" —
-     * never ask.
      */
     @Test fun `no widget placed means the inbox is never even asked for`() = runTest {
         val reader = Reader { read(row("r$it")) }
@@ -154,10 +133,6 @@ class RecentMailWidgetPushTest {
 
     /**
      * The claim [kotlinx.coroutines.flow.flatMapLatest] makes, executed rather than believed: the
-     * subscription is DROPPED when the last cell goes, not merely superseded. With `flatMapMerge`
-     * the app would keep an observed query alive for a widget that no longer exists, re-running it
-     * on every write to the mail table for as long as the process lives — and nothing on any screen
-     * would say so.
      */
     @Test fun `the last widget removed really stops the collection`() = runTest {
         val reader = Reader { read(row("r$it")) }
@@ -207,8 +182,6 @@ class RecentMailWidgetPushTest {
 
     /**
      * The gate's ceiling: an answer that has not CHANGED must not re-subscribe. Presence is fed by
-     * callbacks that can repeat, and each repeat would otherwise cancel and rebuild the observed
-     * query for a state of affairs that is exactly what it already was.
      */
     @Test fun `the same answer twice does not re-subscribe the inbox`() = runTest {
         val reader = Reader { read(row("r$it")) }
@@ -228,17 +201,6 @@ class RecentMailWidgetPushTest {
 
     /**
      * THE SAME READ TWICE IS ONE REDRAW. Nothing upstream says so: Room invalidates per TABLE,
-     * so a sync writing a page of some other folder's mail re-runs this query and hands back the
-     * identical answer.
-     *
-     * A redraw is not free — `getAppWidgetIds` over binder, the notification-content setting
-     * re-read from DataStore, the account blob decoded, the query run again, then `updateAppWidget`
-     * and `notifyAppWidgetViewDataChanged` the launcher re-inflates on — and every repeat redrew
-     * rows already on the cell.
-     *
-     * The [Reader] above cannot show this: it hands back a [MutableStateFlow], which drops a value
-     * equal to the one it holds all by itself. The repetition being defended against comes from
-     * Room, so it is written here as a flow that really does repeat.
      */
     @Test fun `the same read arriving twice is drawn once`() = runTest {
         val first = read(row("a"), row("b"))
@@ -264,21 +226,6 @@ class RecentMailWidgetPushTest {
 
     /**
      * THE TWO EMPTIES ARE NOT THE SAME EMPTY, and this is the test the first version of this
-     * pane did not have.
-     *
-     * `RecentMailWidgetContent.cell` draws an empty inbox as "No messages" and an unreadable one —
-     * no account, a blob that would not decode, an account whose inbox id is still unknown — as the
-     * app's own name, which claims nothing. `configured` is the whole difference.
-     *
-     * The de-duplication above sits on the value that travels, so the value has to carry it. On
-     * rows alone these two reads are the same empty list: someone whose inbox was empty and who
-     * then removes their last account would be left with a cell still affirming "No messages", and
-     * someone who adds a first account to an empty mailbox would be left on the app's name forever.
-     *
-     * It is written HERE and not against `UnifiedInbox.recentRows`, which is where the two values
-     * are produced: that function is exercised on its own in `core:data`, where the value BEFORE the
-     * empty one is never empty, so it crosses this de-duplication only in the composition — which
-     * is the composition the app ships.
      */
     @Test fun `an empty inbox and no account at all are two different redraws`() = runTest {
         val seen = mutableListOf<RecentInbox>()
@@ -302,20 +249,6 @@ class RecentMailWidgetPushTest {
 
     /**
      * THE ROWS DO NOT MOVE AND THE CELL MUST STILL BE REDRAWN — the defect this pane closes.
-     *
-     * `RecentMailWidgetContent.accountColors` paints a coloured dot per line only above
-     * [AllInboxesView.existsFor], i.e. from two accounts up; below it the map is empty and no line
-     * has a dot. So crossing that bound changes every single line on the home screen, in both
-     * directions, WITHOUT changing the mail: an account that owns none of the 25 latest rows leaves
-     * `RecentInbox` byte-identical when it arrives or goes. `configured` does not save it either —
-     * it is "at least one account", and it is `true` on both sides of the bound.
-     *
-     * The de-duplication therefore had two equal values and swallowed the emission. With
-     * `updatePeriodMillis="0"` nothing else was coming: on a quiet mailbox the cell showed dots for
-     * an account that had been removed, or none for one that had just arrived, for days.
-     *
-     * The expected emissions are written out in full and NOT recomputed from `existsFor` here —
-     * a test that re-derived the bound would stay green with the shipped bound inverted.
      */
     @Test fun `crossing the two-account bound redraws, on rows that did not move`() = runTest {
         val reader = Reader { read(row("r$it")) }
@@ -347,19 +280,6 @@ class RecentMailWidgetPushTest {
 
     /**
      * THE PRICE OF THE ARM ABOVE, and the reason it carries a BOUND and not the account list.
-     *
-     * `saveAccounts` is the choke point of some twenty-seven writes — a refreshed OAuth token, a
-     * colour, identities discovered on a sync — and every one of them republishes `accountsFlow`.
-     * A trigger that compared the accounts themselves would redraw the cell on all of them, each
-     * time paying a `getAppWidgetIds` binder call, a DataStore read, the account blob decoded, the
-     * query run again and a re-inflation in the launcher, for a cell whose lines are unchanged.
-     *
-     * And nothing may be RE-SUBSCRIBED: the inbox read stays keyed on the folder scopes
-     * (`UnifiedInbox.recentRows`), so an account list that moves must not cancel and rebuild the
-     * observed Room query.
-     *
-     * A recolour is deliberately not redrawn from here: `AccountsViewModel.setColor` forgets the
-     * snapshot and refreshes at the gesture.
      */
     @Test fun `an account list that does not cross the bound costs nothing`() = runTest {
         val reader = Reader { read(row("r$it")) }
@@ -396,14 +316,6 @@ class RecentMailWidgetPushTest {
     }
     /**
      * ONE ACCOUNT IS NOT AN ABSENCE OF ACCOUNTS, and this test exists because the arm added for
-     * the colour dots reads a BOUND: on a single-account install — the large majority — that bound
-     * is `false` for the whole life of the process.
-     *
-     * An arm that only spoke above the bound (`filter { it }`, `dropWhile { !it }`) would leave
-     * [kotlinx.coroutines.flow.combine] waiting on a value that never comes, and the cell would stop
-     * following the mail ENTIRELY for everyone with one account: the defect measured at the bench on
-     * 2026-08-18 — a message read in the app keeps its unread dot on the home screen — back whole,
-     * and with `updatePeriodMillis="0"` nothing else would come to clear it.
      */
     @Test fun `a single account still follows the mail`() = runTest {
         val reader = Reader { read(row("r$it")) }
@@ -430,14 +342,6 @@ class RecentMailWidgetPushTest {
 
     /**
      * THE GATE GOVERNS BOTH ARMS, and this is the half a combine placed outside [flatMapLatest]
-     * would lose. Such a combine RETAINS the last value of each arm, and the gated arm never
-     * completes — it only falls silent — so an account added or removed after the last cell was
-     * taken off the home screen would pair a stale read with a fresh bound, get past the
-     * de-duplication, and ask for a redraw on behalf of a widget that does not exist.
-     *
-     * The cost is one `getAppWidgetIds` binder call and a forgotten snapshot, which is small. What
-     * is not small is the claim: this file says "nothing at all while no widget is placed", and the
-     * wiring lint next door prices the whole gate on it. The sentence has to stay true.
      */
     @Test fun `an account list that moves while no cell is placed redraws nothing`() = runTest {
         val reader = Reader { read(row("r$it")) }

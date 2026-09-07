@@ -14,22 +14,6 @@ import org.junit.Test
 
 /**
  * `cc` and `bcc` (RFC 8621 §4.1.2) must be ASKED FOR by every fetch whose rows are cached.
- *
- * `EmailDao.upsertAll` is an `@Upsert`: it replaces the whole row. The list views fetch a message
- * with a short property set and cache what comes back, so a set that omits `cc`/`bcc` does not
- * merely fail to fill the two columns — it ERASES what another path (the body fetch, a draft just
- * saved) had written there. A pull-to-refresh or a page of the window walk is enough, and nothing
- * on screen says anything: reopening the draft then shows an empty Cc row, folded shut.
- *
- * The three list-view property sets are separate literals in [JmapClient]. Each is exercised here
- * against a mock server ON ITS OWN, so amputating any single one turns a test red — an aggregate
- * check alone would let a reader think one failing path is the only one to look at.
- *
- * Same known limit as [ReplyToOnTheWireTest]: the list of paths is written by hand. It catches a
- * property dropped from an existing path, not a NEW fetch path added tomorrow without them.
- *
- * Deliberately absent: `crawlHeaders` and `searchEmails`, which write no `emails` row and so
- * cannot erase a column, and `getEmailHeaders`, which asks for raw headers.
  */
 class CopiesOnTheWireTest {
 
@@ -166,8 +150,6 @@ class CopiesOnTheWireTest {
 
     /**
      * Asked for AND decoded, order and display names included: these lists are what a reopened
-     * draft and a reply-all are rebuilt from, and a Bcc decoded into `cc` mails a hidden address
-     * to everyone.
      */
     @Test fun `the returned copies reach the model in their own fields`() {
         val server = MockWebServer()

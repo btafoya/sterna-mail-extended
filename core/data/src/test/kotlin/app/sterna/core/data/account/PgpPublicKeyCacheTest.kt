@@ -6,8 +6,6 @@ import org.junit.Test
 
 /**
  * EXECUTES the three decisions the public-key cache is made of. Expectations are written by hand —
- * nothing here re-derives the rule it is checking, so inverting any of the three shipped conditions
- * turns a test red.
  */
 class PgpPublicKeyCacheTest {
 

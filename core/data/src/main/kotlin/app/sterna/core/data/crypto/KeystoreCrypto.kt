@@ -10,8 +10,6 @@ import javax.crypto.spec.GCMParameterSpec
 
 /**
  * Encrypts/decrypts small secrets (account passwords) with an AES-256-GCM key
- * held in the Android KeyStore. The key never leaves the secure store; we only
- * persist the IV + ciphertext.
  */
 internal object KeystoreCrypto {
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
@@ -22,8 +20,6 @@ internal object KeystoreCrypto {
 
     /**
      * Returns IV (12 bytes) prepended to the ciphertext. [aad] (additional authenticated
-     * data) is not encrypted but is bound into the GCM tag, so a blob authenticated with one
-     * [aad] (e.g. an account id) cannot be relocated to another slot and still decrypt.
      */
     fun encrypt(plaintext: ByteArray, aad: ByteArray? = null): ByteArray {
         val cipher = Cipher.getInstance(TRANSFORMATION)

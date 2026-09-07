@@ -7,18 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `ComposeScreen.kt` and `SternaApp.kt` as text and
- * proves nothing about what happens on screen. Same instrument and disclaimer as
- * `NavHostSourceRulesTest`, which reads the same navigation file for a different rule.
- *
- * [DraftDeleteOfferedTest] runs WHEN the button appears. What it cannot see is WHAT IT DOES, and
- * that is the decision this fix turns on. `repo.discardDraft` is one line away, is already called
- * from this very ViewModel, and DESTROYS: `Email/set destroy` over JMAP, `\Deleted` + `EXPUNGE`
- * over IMAP — no Trash, no Undo. Wired to it, the button would work, look right, and give the word
- * "Delete" two different meanings inside one app. What is wanted is the list's gesture: a move to
- * the Trash through the shared inbox ViewModel, with its held-back destroy and its Undo snackbar.
- *
- * That is a wiring guarantee, and neither `ComposeScreen` (a composable) nor `InboxViewModel` (an
- * `AndroidViewModel`) can be instantiated in a JVM test here.
  */
 class ComposeDeleteWiringTest {
 
@@ -59,17 +47,6 @@ class ComposeDeleteWiringTest {
 
     /**
      * **The SAME rule for the draft the phone is keeping** (#95), and it was not held: that
-     * branch ended on `ComposeState.Done`, so the screen played the tern's flight — 300 ms of
-     * animation written for a message that went OUT — and then popped to `"inbox"` instead of the
-     * Drafts list the composer was opened from. A deletion is not a departure, and the rule above
-     * has said so since #127; it simply could not see this branch, which closes through the
-     * ViewModel rather than through the navigation handler.
-     *
-     * So the deletion says when it is over and the screen leaves the way `onCancel` leaves — the
-     * bare `popBackStack()` this file already pins on the route. Not `onDone`: that one is the
-     * flight AND the pop to the inbox, both wrong here. And not a pop fired from the tap either:
-     * the destroy must be made durable, the server copy evicted and the row consumed before the
-     * screen goes, and a failure keeps the screen up with its banner.
      */
     @Test fun `deleting the draft the phone is keeping does not fly the tern away either`() {
         val screen = code(COMPOSE_SCREEN).lines().map { it.trim() }
@@ -104,17 +81,6 @@ class ComposeDeleteWiringTest {
 
     /**
      * **The BINDING, whole line — the mutation every rule in this file was blind to.**
-     *
-     * `val editingLocalDraftId by viewModel.attachmentStatus.collectAsStateWithLifecycle()` has the
-     * same type (`StateFlow<String?>`), compiles, and leaves this whole file green: every other rule
-     * pins EXPRESSIONS CONTAINING the identifier — the fourth argument of `draftDeleteOffered`, the
-     * two `if (editingLocalDraftId != null) {` branches — and none of them pins where the value comes
-     * from. Under it the trash is never offered on a draft the phone is keeping (the correction is
-     * undone outright), and on the one state where that flow is non-null — a preload that failed —
-     * the button appears over a composer holding no lease and does nothing.
-     *
-     * Same instrument as `SenderRuleFromReaderTest`'s "that list must be the ViewModel's": the line,
-     * not a substring of it.
      */
     @Test fun `the delete gesture is bound to the lease itself, and to the kept-copy verdict`() {
         val screen = code(COMPOSE_SCREEN).lines().map { it.trim() }
@@ -204,27 +170,6 @@ class ComposeDeleteWiringTest {
 
     /**
      * **One title, two BODIES, and which one is drawn is pinned WHOLE-LINE** (#95).
-     *
-     * `compose_delete_draft_body` says the draft "goes to the Trash, or is deleted if this account
-     * has no Trash folder", and behind it sits the list's move-to-Trash with its Undo snackbar.
-     * Over a draft the PHONE is keeping, every word of that is false: no server has ever seen the
-     * row, there is no Trash for it to go to, no Undo behind it, and the row and its staged files
-     * go at once. Drawn there, the app promises a way back that does not exist — on the one dialog
-     * whose whole job is to say what is about to be lost.
-     *
-     * And the local body may not go the other way either: it says NOTHING about a copy on the
-     * server. A draft this phone never read whole KEEPS the server copy it replaced
-     * (`planForEmptiedLocalDraft`, `bodyIsLossy`), so "it exists nowhere else" would be a lie in
-     * exactly that case — which is why no `outbox_*` string may be borrowed here, and the rule
-     * above already forbids it.
-     *
-     * **Which is why the kept copy is SAID HERE, before the finger** (#95). Saying it afterwards
-     * was the whole defect: the dialog announced "this draft hasn't reached the server … this can't
-     * be undone", the row went, the mask over the server copy lifted, and the draft from BEFORE the
-     * edit came back at the top of Drafts — with, for only correction, a toast naming a gesture
-     * (emptying) the user had not made. The sentence is `compose_emptied_draft_server_copy_kept`,
-     * reworded to name no gesture because it now serves two, and the decision to draw it is
-     * [emptiedLocalDraftKeepsServerCopy], executed by `EmptiedLocalDraftTest`.
      */
     @Test fun `the confirmation names the body that is true of the draft in hand`() {
         val text = bodySlot().let { slot -> callArguments(slot, "Text").single() }
@@ -262,14 +207,6 @@ class ComposeDeleteWiringTest {
 
     /**
      * **The confirming button's two branches, WHOLE, and they are two different gestures.**
-     *
-     * A SERVER draft is moved to the Trash by the list's own ViewModel, through `onDeleteDraft` and
-     * the navigation guard — unchanged, and the rule above still pins it. A draft the phone is
-     * KEEPING has no server row for that gesture to act on: `inboxViewModel.delete(email)` would be
-     * handed a null and do nothing, silently, while the dialog closed like a success. Its deletion
-     * is the composer's own — `deleteEditingLocalDraft`, the emptying gesture of #95 × #69 reached
-     * by a button instead of by an empty save, which destroys the replaced server copy under its
-     * proofs and only then takes the row and its files.
      */
     @Test fun `the confirming button sends a kept draft to the composer's own deletion`() {
         val click = confirmOnClick()
@@ -296,41 +233,6 @@ class ComposeDeleteWiringTest {
 
     /**
      * The body of this confirmation must SCROLL, because Material's `text` slot is a
-     * height-bounded box with no scrolling of its own: a bare `Text` in it is CLIPPED — not
-     * ellipsised, not scrollable, just cut, with nothing on screen saying more text existed.
-     *
-     * Measured, 2026-08-07, Moto G (Android 9, 720×1280), `font_scale 2.0`, `de`: the body stopped
-     * at "…getippt hast, wird". What went off screen is "nicht gespeichert." — the sentence that
-     * says anything typed since the composer opened is NOT saved (#127). A reader who cannot see
-     * it confirms the delete believing her keystrokes are kept, and they are not: silent loss, on
-     * the one dialog whose whole job is to warn about it. German also stacks the two action
-     * labels, which eats another line of body.
-     *
-     * Shortening the string (commit 00e7b35a) lowered the odds of the cut; it did not remove it.
-     * This is the Kotlin half, and it is the same defect [app.sterna.ui.SenderRuleDialogFitTest]
-     * closed on the two per-sender rule dialogs — same instrument, and three rules, each one put
-     * here by a mutation that survived the two before it:
-     *
-     *  1. the slot draws exactly ONE `Text`, and it is the one holding
-     *     `R.string.compose_delete_draft_body`. Counting the modifier line anywhere in the slot
-     *     was green over a `Column { Text(body); Text("", modifier = …scroll…) }`: the modifier
-     *     lands on a sibling, the body is bare, the cut is back. That shape is exactly what a
-     *     second sentence added to this slot would grow into;
-     *  2. that `Text` carries the WHOLE line
-     *     `modifier = Modifier.verticalScroll(rememberScrollState()),`, counted to exactly 1 by
-     *     line equality. Never `"verticalScroll" in body`: a substring is blind to any mutation
-     *     that LENGTHENS the line, and `verticalScroll(rememberScrollState(), enabled = false)`
-     *     scrolls nothing;
-     *  3. nothing else bounds the text — `maxLines`, `overflow`, and `softWrap`. The first two clip
-     *     the sentence again under a scroll that has nothing left to scroll. `softWrap = false` is
-     *     worse and survived rules 1 and 2 untouched: the body stops wrapping, becomes one single
-     *     line clipped at the dialog's edge ("Wandert in den Papierkorb ode…"), in all nine
-     *     languages and at every font size, and a vertical scroll cannot reach what overflowed
-     *     sideways.
-     *
-     * SOURCE LINT, like every other rule in this file: it reads `ComposeScreen.kt` as text and
-     * proves NOTHING about what the screen does. There is no Robolectric and no `compose-ui-test`
-     * here; only the bench can say the sentence is whole.
      */
     @Test fun `the confirmation body scrolls instead of being clipped`() {
         val slot = bodySlot()
@@ -434,12 +336,6 @@ class ComposeDeleteWiringTest {
 
     /**
      * The `text = { … }` slot of the confirmation dialog, braces balanced.
-     *
-     * Anchored, and it has to be: `indexOf("text = ")` also matches inside `context = …`, so the
-     * day a `val context = LocalContext.current` appears in this block the extraction would start
-     * there, find no closing comma at depth 0 and silently assert over the whole rest of the
-     * dialog. [SLOT] therefore refuses a `text` preceded by a word character or a dot, and this
-     * function fails LOUDLY on none and on more than one rather than picking.
      */
     private fun bodySlot(): String {
         val dialog = confirmationBlock()

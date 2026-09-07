@@ -7,18 +7,6 @@ import org.junit.Test
 
 /**
  * `OutgoingMime.buildBodyEntity` with and without a protected subject (RFC 9788 § 3).
- *
- * Two properties, and the first one is the expensive one:
- *
- *  - WITHOUT a protected subject the four branches emit the bytes they emitted before protected
- *    headers existed. Every ordinary message in the app goes through this function, so a header
- *    line leaking into the null path would land in all of them — and on a SIGNED message it would
- *    land inside the signed bytes. That is why the expectations below are whole entities written
- *    out by hand, not spot checks;
- *  - WITH one, the `Subject:` field sits ABOVE the top-level `Content-Type` (inside the header
- *    block `MimeParser.headerBlockOf` stops at) and `protected-headers="v1"` marks that
- *    Content-Type and NO other. A sub-part wearing the parameter claims its own headers are the
- *    protected ones; the entity has exactly one protected header block.
  */
 class ProtectedHeadersEntityTest {
 

@@ -12,16 +12,6 @@ import org.junit.Test
 
 /**
  * The four-state background of a message row (#141, #103): selected, current (open in the reading
- * pane beside the list), unread, read — plus the return-from-message flash laid over whichever of
- * the four applies.
- *
- * [rowBackground] is a pure function, so it is *run* here rather than read: every case pins the
- * arguments it was called with and the colour that came back. The schemes are built from sentinel
- * colours (values that cannot be mistaken for one another) instead of real Material tones, so a
- * swapped role comes out as a plain inequality and not as a near-miss between two greys.
- *
- * The opacity cases use the app's real schemes as well: the swipe reveal is drawn *under* the row
- * (InboxScreen), so a translucent row background would let it bleed through for the whole gesture.
  */
 class RowBackgroundTest {
 
@@ -117,9 +107,6 @@ class RowBackgroundTest {
 
     /**
      * The reader who turns the tint off gets the OLD list back, not a third look: an unread row
-     * is plain `surface`, the same colour a read row has always been, and the bold text is once
-     * more the only difference. Run on the same sentinel scheme as everything above, so a row that
-     * quietly kept `surfaceContainerHighest` comes out as a plain inequality.
      */
     @Test fun `with the tint off an unread row is painted like a read one`() {
         assertEquals(

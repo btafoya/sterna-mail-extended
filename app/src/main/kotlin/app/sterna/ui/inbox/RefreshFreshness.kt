@@ -3,8 +3,6 @@ package app.sterna.ui.inbox
 /*
  * "Has this very view just been reconciled?" (#178). Persisted, because the case defended is the
  * cold start, which an in-memory register covers not at all. The key carries the account id next
- * to the folder id (#92 / #121), and an unwritable entry is refused: the error is taken on the side
- * that fetches too much.
  */
 
 /** How long a successful reconcile answers for its view. 30 s is the gesture being defended: leave

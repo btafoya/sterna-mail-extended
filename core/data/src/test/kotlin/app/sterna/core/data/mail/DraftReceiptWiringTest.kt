@@ -6,23 +6,6 @@ import org.junit.Test
 
 /**
  * THIS TEST READS SOURCE TEXT — the last resort, exactly as [DraftAddressingWiringTest] does:
- * `MailRepository` needs Room, a `Context` and a socket, so no JVM test can run the wiring below.
- * The DECISIONS it guards are EXECUTED elsewhere — [DraftSaveTest] runs
- * `draftReceiptRequestIsCarried`, [ReadReceiptHeaderTest] runs the parser,
- * [ReadReceiptImapSourceTest] runs the IMAP read — and what nothing else can see is whether these
- * call sites still hand those decisions the right ARGUMENTS. So whole lines are compared, never a
- * `contains`: `contains` is blind to any mutation that lengthens a line.
- *
- * What it exists for (D2 of the read-receipt work): re-saving a draft destroys the server copy.
- * That copy is the only thing holding a `Disposition-Notification-To` header, because the reopened
- * composer shows the checkbox clear. Each line below, changed alone, brings that loss back while
- * every executable test stays green:
- * - `receiptRequestIsCarried = receiptIsCarried` → `= true` re-authorises every destroy;
- * - `replacement = requestReceipt` → a literal `false` makes every original look dropped, or a
- *   literal `true` makes every one look carried;
- * - `?: return null` → `?: return false` turns "I could not read it" into "it asked for nothing";
- * - the `refusesReceiptHeader` line, without which a server that rejects the property answers
- *   null for every message and every original is destroyed as one that asked for nothing.
  */
 class DraftReceiptWiringTest {
 
@@ -101,8 +84,6 @@ class DraftReceiptWiringTest {
 
     /**
      * NOT a closed list of the bail-outs, and deliberately: an assertion that pins how MANY
-     * `?: return` lines there are makes ADDING a missing guard fail the test, i.e. it makes the
-     * fix more expensive than the defect. What is pinned is the rule every bail-out must obey.
      */
     @Test fun everyBailOutOfTheImapReadAnswersUnknownAndNeverANo() {
         val body = bodyOf("imapDraftReceiptRequested")

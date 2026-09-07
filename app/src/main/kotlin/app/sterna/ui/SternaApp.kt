@@ -365,10 +365,6 @@ private fun MainNavHost(
             val pane by inboxViewModel.readingPane.collectAsStateWithLifecycle()
             // Half of the width conversion (#103): the window narrowed under a message in the pane,
             // so the anchor goes back to the `message/…` route. The only navigation this app plays
-            // at a recreation, driven by the STATE and never by the intent. What matters in the
-            // three calls is that onEmailOpened runs at all; withResumed because a restored entry is
-            // at most STARTED until its transition ends, and navigateOnce would then lose the
-            // conversion in silence.
             val anchor = pane.anchor
             if (PaneConversion.paneToReader(panes != null, anchor != null) && anchor != null) {
                 LaunchedEffect(anchor) {

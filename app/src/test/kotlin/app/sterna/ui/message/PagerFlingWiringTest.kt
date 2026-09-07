@@ -7,51 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads the sources as text and proves nothing about what
- * happens on screen. Same instrument and disclaimer as [BodySideScrollWiringTest], down to pinning
- * the function bodies WHOLE, the way that file pins its touch handler line for line.
- *
- * [PagerFlingDistanceTest] runs both decisions itself — the floor and the travel machine — but
- * nothing in a JVM test can compose a pager, touch it, fling it and watch which velocity reaches
- * the library. Everything between those two pure functions and the pager is therefore silent, and
- * each of these edits leaves the whole suite green while the reader is broken:
- *
- *  1. `flingBehavior = …` dropped from the `HorizontalPager` call. The pager falls back to the
- *     library's own rule, which is velocity-only, and a 10-20 dp brush of the thumb changes message
- *     again (report of 2026-08-18). The decision function keeps answering perfectly, to nobody;
- *  2. `.then(pagerTravel.modifier)` dropped from the pager's `modifier`. Nothing then ever writes
- *     a travel, so the guard reads 0 px for the life of the screen and NO flick can change message
- *     — the opposite accident, and the one the bench pass measured on the first cut of this fix
- *     (a deliberate 40 dp flick, 0 changes out of 4);
- *  3. the RESULT of the decision not carried to the delegate:
- *     `performFling(if (allowed == 0f) initialVelocity else allowed, …)`. `allowed` is still
- *     computed, from the right arguments, and still used — so it compiles without so much as a
- *     warning — and the fix is inert in exactly the case it exists for: the brief nudge turns the
- *     page again, 100% of the time;
- *  4. the dp→px conversion lost — `25f` written where `MIN_FLING_DISTANCE_DP.dp.toPx()` belongs.
- *     Every executing test still passes, because they all supply their own floor in px; the floor
- *     shipped on a device is then divided by the density, 12.5 dp on a 2.0 bench, and the
- *     accidental page turn survives the fix;
- *  5. the delegate built with `snapPositionalThreshold = 0f` instead of the library's defaults. The
- *     SLOW path — the one this fix deliberately drops sub-floor gestures into — then commits the
- *     page at any non-zero offset, so the nudge comes back through the other door, and through the
- *     one constant this branch was told not to touch;
- *  6. the observer fed the wrong thing: `change.position.y` for `.x`, `!it.pressed` for
- *     `it.pressed`, `event.type == PointerEventType.Release` for `Press`, or a `change.consume()`
- *     slipped in. The first three make the travel meaningless while `advanceTravel` keeps passing
- *     its own tests; the last steals the gesture on the Initial pass, ahead of the pager, the body
- *     WebView's interop handle and everything #152 / #97 / #10 settled about who owns a drag;
- *  7. THE THREE JOINING LINES, which are the ones that have already broken once on this branch and
- *     which no executing test reaches: `val travelPx: Float get() = state.downX` (a Float for a
- *     Float, no warning, and the guard is handed the absolute touch-down x — over the floor almost
- *     everywhere, so every flick passes and the report is back); `private var state` turned into a
- *     `mutableStateOf` or shared; and `remember` dropped from `val pagerTravel = …` in
- *     MessageScreen, which hands out a fresh holder on every recomposition, so the observer writes
- *     into a dead object, the guard reads 0 px for ever and NO swipe changes message. The first two
- *     are why PagerTouchTravel is pinned WHOLE rather than at its loop, the third is why the
- *     `remember` line is pinned on its own.
- *
- * It therefore compares whole text, and every assertion here is an EQUALITY: a `contains` is blind
- * to any mutation that LENGTHENS the line it pins, and 3, 5 and 6 above are exactly that mutation.
  */
 class PagerFlingWiringTest {
 

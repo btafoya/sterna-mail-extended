@@ -6,13 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. `MailRepository` needs Room, an Android `Context` and a live
- * JMAP session, so it cannot be built in a JVM test; the drop itself is EXECUTED by
- * [SyncWindowDropsCursorsTest] and only the plug is read here — whole lines, never a fragment,
- * because a `contains` on a fragment is blind to any mutation that LENGTHENS the line.
- *
- * Two facts are pinned: that the per-account drop is per account (not the global reset beside it),
- * and that the branch it aims at is the one it is described as aiming at — no cursor means the full
- * query, which is the only place the sync window reaches the network.
  */
 class SyncCursorDropWiringTest {
 
@@ -30,12 +23,6 @@ class SyncCursorDropWiringTest {
 
     /**
      * The function's body, WHOLE, line by line — not the presence of the lines it should contain.
-     *
-     * A presence check cannot see what was added: `if (accountId != accountStore.currentId())
-     * return`, slipped in above the drop, leaves every pinned line exactly where it was, reads like
-     * an optimisation, and makes the setting inert for every account that is not the current one.
-     * Nothing executable can catch it either — `MailRepository` cannot be built in a JVM test. So
-     * the body is pinned entire, and any edit to it costs a deliberate edit here.
      */
     private fun assertBody(function: String, expected: String) {
         val actual = bodyLines(function).filter { it.isNotEmpty() }
@@ -122,10 +109,6 @@ class SyncCursorDropWiringTest {
         //
         // Why the page and not only the target. `requestPageSize(wanted, capacity)` caps what
         // ONE request asks for by what the server admits — so a background pass carrying 50 makes
-        // every request ask for 50 even on a server that takes 500. The target being right then
-        // costs a round trip per fifty messages: a 20 000-message folder is 400 sequential
-        // requests, and that pass is the FIRST one to run after the setting changed, because the
-        // cursor has just fallen.
         //
         // The client call gained an `onPage` hand-off (the streaming volet): the rest of that
         // arrangement — write per page, reconcile once, only on a finished walk — is pinned by

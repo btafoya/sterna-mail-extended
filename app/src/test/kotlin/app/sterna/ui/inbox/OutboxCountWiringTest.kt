@@ -7,32 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
- * [ConversationScopeWiringTest]: it reads source files as text, proves nothing about what appears on
- * screen, and would still pass if the code it points at were broken inside.
- *
- * It exists because #70's fix is a WIRING fix, and nothing else in the suite can hold it.
- * `OutboxQueuedCountTest` proves what `OutboxLogic.queuedCount` and `OutboxLogic.activeCount`
- * COMPUTE, and that the two disagree for the length of the grace. It says nothing about which of
- * them each indicator is plugged into — which is the entire change. Point the menu entry back at
- * `outboxCount` and #70 is reverted with the whole suite green; point the toolbar dot at
- * `outboxQueuedCount` and #82 is reopened, likewise green. Neither is reachable from a JVM test:
- * `InboxScreen` is a composable and `InboxViewModel` is an `AndroidViewModel` — no Robolectric, no
- * instrumented tests here — so reading the source is what is left.
- *
- * Verified against the mutations it exists for, one rule failing per mutation: the menu entry's
- * badge rewired back to `outboxCount`, the toolbar badge rewired to `outboxQueuedCount`,
- * `MailRepository.outboxQueuedCount` rewired to `OutboxLogic.badgeCount`, `outboxFlow` losing its
- * filter, and `outboxFlow` gaining a second exclusion beside the shared predicate.
- *
- * What it does NOT do:
- *  - it reads names, so it can only say a call is WRITTEN, never that it works. What the two counts
- *    answer is `OutboxQueuedCountTest`'s job, against real rows and a real SQLite engine;
- *  - it cannot see through an indirection: rename `outboxQueuedCount` to something that forwards to
- *    the graced count and every rule here is satisfied. It pins the shape the plausible mistake
- *    takes — the one-word edit at a call site — not every conceivable one;
- *  - the two shape rules on the repository are deliberately tight (the exact expression, whitespace
- *    apart). A correct refactor that rewrites either expression will redden them. That direction of
- *    error is loud and one line to fix; the other direction is a fix that silently comes undone.
  */
 class OutboxCountWiringTest {
 
@@ -170,14 +144,6 @@ class OutboxCountWiringTest {
 
     /**
      * The lines of [file] that are code, with their comments taken off — a line whose first
-     * non-blank character opens a comment is dropped whole, and a trailing `//` cuts the rest of its
-     * line, the cut only being taken outside a double-quoted run.
-     *
-     * The cut is what makes these rules mean anything, and here it is load-bearing rather than
-     * theoretical: the comment above the Outbox menu entry names `outboxCount` twice, precisely to
-     * say which count must NOT be used. Left in, the rule that forbids that name would fail on
-     * correct code — and, the other way round, a deleted call whose name survives in a comment would
-     * read as present.
      */
     private fun codeLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val code = line.trimStart()
@@ -207,15 +173,6 @@ class OutboxCountWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text: everything up to the
-     * first line indented no deeper than the declaration, once the declaration's own brackets have
-     * closed. Both repository functions here are expression-bodied, so what ends them is the NEXT
-     * declaration rather than a closing brace — while the ViewModel's two properties wrap their
-     * `stateIn(...)` over five lines and close on a `)` at the declaration's own indent, which is
-     * why the terminator only applies once the brackets balance. Stopping at the indent alone would
-     * hand every rule the first line of a declaration and call it a body.
-     *
-     * Fails loudly when the declaration is not found: a rename must break these rules rather than
-     * satisfy them silently against an empty string.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)
@@ -281,8 +238,6 @@ class OutboxCountWiringTest {
 
         /**
          * The list, pinned by SHAPE and not by presence: `isWaitingInOutbox` being named somewhere
-         * in the body says nothing about it being the only thing filtering, and "the only thing" is
-         * the guarantee — the count and the list are the same rows or they are not.
          */
         private val OUTBOX_FLOW = Regex(
             """outboxDao\.observeAll\(\s*\)\s*\.map\s*\{\s*rows\s*->\s*rows\.filter\s*\{\s*""" +

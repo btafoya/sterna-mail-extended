@@ -7,28 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads two source files as text and proves nothing about
- * what is drawn. Same instrument and disclaimer as [UnreadTintWiringTest].
- *
- * [NotificationSettingsStateTest] runs the decision itself (nothing until all five stored values
- * have answered). What no test in this module can run is the PLUMBING: `SettingsViewModel` is an
- * `AndroidViewModel` reaching into the application container, and `NotificationsScreen` is Compose
- * code — no Robolectric, no `compose-ui-test`, no `androidTest` here, and adding one is a
- * dependency decision. Three silent edits this file exists to catch (#57):
- *
- *  1. an `initialValue` other than `null` in the view model: the gate is back to publishing a
- *     default before DataStore answers, and the executable test still passes;
- *  2. the screen drawing its content outside the non-null branch, or the null branch left empty:
- *     the radio rows come back for a frame with the default selected — and they are tappable, so
- *     the tap that lands there writes that default over the reader's stored choice;
- *  3. a row wired to a value other than the one it names: the row that says "Neither sender nor
- *     subject" writing "Sender + subject" when tapped would make #57 permanent instead of a frame
- *     of bad luck. An independent audit found these six lines held by nothing;
- *  4. quiet-hours start and end crossed on their way to the two pickers — the last wiring mistake
- *     the pure function's test cannot see, since it stops at the view model's door.
- *
- * Every rule compares WHOLE lines (trimmed, nothing else), never a `contains` for something it
- * expects to find: a substring check is blind to any mutation that LENGTHENS the line. `contains`
- * appears only where this file screens for something that must NOT be there.
  */
 class NotificationsGateWiringTest {
 
@@ -132,16 +110,6 @@ class NotificationsGateWiringTest {
 
     /**
      * The gate above is worth nothing if the row that says "Neither sender nor subject" writes
-     * "Sender + subject" when it is tapped: #57 would stop being a frame of bad luck and become
-     * permanent. Eight lines carry that — four `selected =` and four `onClick =` — and they were
-     * held by nothing at all until this rule. Same for delivery: swapping the two `onClick`s turns
-     * the battery saver on when the reader asks for instant mail.
-     *
-     * The block is pinned from the section's opening line to its closing brace, so a fifth row
-     * appended after the last `)` is a mismatch here rather than a row nothing watches: that is
-     * exactly the hole the body-preview row would have fallen into. The ORDER is pinned with it,
-     * and it carries meaning — the rows run from the most talkative position to the most discreet,
-     * so a reader can read the list as a scale rather than as four unrelated choices.
      */
     @Test fun `each notification-content row shows and writes its own value`() {
         assertBlockIn(

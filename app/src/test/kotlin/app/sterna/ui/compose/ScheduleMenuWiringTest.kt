@@ -7,21 +7,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads a source file as text, same instrument and
- * disclaimer as [OutgoingDateWiringTest]. [PresetMillisAtTapTest] RUNS the decision; nothing a JVM
- * test can execute proves the composer actually ASKS it, `ComposeScreen` being a composable and
- * this module carrying neither Robolectric nor instrumented tests. So the call site is pinned here,
- * as WHOLE lines — a `contains` on a fragment is blind to any mutation that lengthens the line
- * (three found that way on 2026-08-04).
- *
- * What is pinned, and why each line is load-bearing: the "send later" preset menu drew its instants
- * during composition and the tap scheduled what it had captured. Composed at 5:55 PM, tapped at
- * 6:05, "This evening, 6 PM" reached `ScheduledSends.enqueue` as a past instant — coerced to a zero
- * delay, i.e. sent AT ONCE, while the banner said it was scheduled. A send has no way back.
- *
- * The shape of the fix is the free "Pick date and time" dialog's, three hundred lines above in the
- * same file: decide again inside the tap, and close only on the path that schedules. Deciding is
- * not re-computing: the three ABSOLUTE entries keep the instant they were drawn for, which is why
- * that instant must reach the tap (`drawnAt`) instead of being dropped.
  */
 class ScheduleMenuWiringTest {
 

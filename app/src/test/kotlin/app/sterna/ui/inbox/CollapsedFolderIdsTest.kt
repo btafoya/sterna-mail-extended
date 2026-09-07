@@ -6,16 +6,6 @@ import org.junit.Test
 
 /**
  * The resolution — registry vs default — EXECUTED. It is the single place the stored per-folder
- * choice and [defaultCollapsedFolderIds] become the set [mailboxTree] folds, and it is a function
- * precisely so a test can run it: in the drawer it would sit inside a Composable, which nothing in
- * this module can run.
- *
- * Values are pinned in full, never recomputed from the arguments under test: re-deriving the rule
- * here would keep this file green with the shipped condition inverted.
- *
- * The third argument is the account's answer to "can a folder row here badge unread at all"
- * (`MailRepository.folderRowsBadgeUnread`, false on IMAP). It reaches the DEFAULT and nothing else;
- * the cases at the bottom of this file are what says so.
  */
 class CollapsedFolderIdsTest {
 
@@ -74,8 +64,6 @@ class CollapsedFolderIdsTest {
 
     /**
      * The trap this branch has already paid for once, seen from the default. `false` is not
-     * "not stored": it is the user having opened that folder by hand, and it has to win over a
-     * default that would fold it — at every launch, for ever.
      */
     @Test fun `false in the registry keeps open a folder the default would fold`() {
         assertEquals(
@@ -109,13 +97,6 @@ class CollapsedFolderIdsTest {
 
     /**
      * The heart of V5, and the thing it must NOT break. Suspending the default on an account
-     * with no badges is one line; collapsing this resolution into "the set of folded folders"
-     * while doing it is the trap this branch has already paid for once, and on IMAP it would be
-     * worse, not better — the ids are paths, the fold is remembered per path, and the memory was
-     * promised publicly on 2026-08-31 for every account.
-     *
-     * The registry keeps winning in BOTH directions with no badge in sight: a `true` still
-     * folds, a `false` still opens. Only the third bullet — the untouched folder — changes.
      */
     @Test fun `with no badge on any row, a folder the user FOLDED stays folded`() {
         assertEquals(
@@ -131,8 +112,6 @@ class CollapsedFolderIdsTest {
 
     /**
      * The mutation this case exists for: `if (!rowsBadgeUnread) return choices.keys`. It reads
-     * like "obey the registry and nothing else" and it folds every folder the user OPENED by hand.
-     * Every other case in this file stays green under it.
      */
     @Test fun `with no badge on any row, a folder the user OPENED stays open`() {
         assertEquals(
@@ -145,8 +124,6 @@ class CollapsedFolderIdsTest {
 
     /**
      * The one behaviour V5 changes, pinned against its own control: the SAME list and the SAME
-     * empty registry, answered both ways. `Travail` has a child, so with a badge available it
-     * starts folded; with none, nobody has decided anything about it and nothing may fold it.
      */
     @Test fun `an untouched folder takes the default, and a badge-less account has none`() {
         assertEquals(
@@ -167,8 +144,6 @@ class CollapsedFolderIdsTest {
 
     /**
      * A fold decided on a folder that is momentarily out of the drawn list survives on this
-     * account too — the registry is untouched by V5, and the id is handed back although
-     * [defaultCollapsedFolderIds] answers nothing at all here.
      */
     @Test fun `with no badge on any row, a folded id the list does not hold still survives`() {
         assertEquals(

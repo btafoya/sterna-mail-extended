@@ -17,15 +17,6 @@ import java.util.Locale
 
 /**
  * ONE row of the latest-messages widget, as the launcher will draw it: six fields, all decided.
- *
- * It carries no account id, no mailbox id and no message id — those travel in [RecentRowTap],
- * beside this type and never inside it: under the app lock a row must name nothing, and the cheapest
- * way to hold that is for the drawn shape to be unable to carry a name.
- *
- * [accountColor] is the one exception, a colour NAMING NOBODY; the guard on it is the TYPE, not
- * the lint next door. [monogram] is the second: null under the lock and at NONE, and elsewhere the
- * [primary] line is already the sender's name in full. And [RecentRowMonogram.slot] is NOT the
- * address: two small indices, computed from it and not invertible.
  */
 internal data class RecentWidgetRow(
     val primary: String,
@@ -66,10 +57,6 @@ internal data class RecentWidgetSnapshot(val cell: RecentWidgetCell, val rows: L
 
 /**
  * The latest-messages widget's whole decision, kept apart from Android so it can be EXECUTED in a
- * JVM test. Every drawn line goes through [MailNotificationText.widgetRow]: a `row.fromName`
- * written straight into a `RemoteViews` would be the content setting and the app lock no longer
- * governing the home screen. And no address book, which would show a name the message never
- * carried.
  */
 internal object RecentMailWidgetContent {
 
@@ -94,10 +81,6 @@ internal object RecentMailWidgetContent {
 
     /**
      * The dot each account's rows wear, by account id — and an EMPTY map whenever no dot should be
-     * drawn. One account, no dot: the bound is [AllInboxesView.existsFor], one account meaning the
-     * same dot on every row, which tells nothing apart while looking like a marker that does. No
-     * colour chosen, no dot: inventing one would put a colour on the home screen the account editor
-     * never shows. Accounts the map does not mention draw no dot, not a default one.
      */
     fun accountColors(accounts: List<StoredAccount>): Map<String, Int> =
         if (!AllInboxesView.existsFor(accounts)) emptyMap()
@@ -134,10 +117,6 @@ internal object RecentMailWidgetContent {
             unread = !row.seen,
             // The badge is drawn only where the row ALREADY names its sender, and that answer
             // comes from the rule above — the only place that has seen the app lock fold the
-            // position onto NONE. Two conditions, and they stay two: `namesSender` is a promise,
-            // [listMonogram] a taste (#144), and folded into one the promise disappears inside the
-            // preference. The letter follows the DISPLAYED name and the colour the ADDRESS, exactly
-            // as the list does, or the same person wears two colours.
             monogram = if (!listMonogram || !drawn.namesSender) null else RecentRowMonogram(
                 initial = initialOf(row.fromName.orEmpty(), sender(row, unknownSender)),
                 slot = monogramSlot(seed(row, unknownSender)),
@@ -208,9 +187,6 @@ internal object RecentMailWidgetContent {
 
     /**
      * What a badge's COLOUR is derived from: the address, else the name shown, else the stand-in —
-     * the message list's own order. NOT [sender]: an address is stable while a display name is
-     * whatever the last server wrote, so seeding on the name repaints a correspondent the reader had
-     * learnt to recognise. BLANK counts as absent, or a stored empty string becomes a shared seed.
      */
     private fun seed(row: RecentEmailRow, unknownSender: String): String =
         row.fromEmail?.takeIf { it.isNotBlank() }

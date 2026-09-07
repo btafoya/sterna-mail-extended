@@ -79,8 +79,6 @@ class StoredAccountReferenceRecordTest {
 
     /**
      * The SMALLEST record a device can hold — the three fields that have no default and nothing
-     * else. It decoding is the whole no-default check: any field of [StoredAccount] that is not
-     * optional makes this fail, without anybody having to list the fields.
      */
     private val minimalAccount =
         """{"id":"a1","server":"https://mail.example.org","username":"alex"}"""
@@ -91,10 +89,6 @@ class StoredAccountReferenceRecordTest {
 
     /**
      * A whole record as a configured IMAP account has it: every persisted enum at once, and every
-     * one of them on a NON-DEFAULT member on purpose. If a key stopped being read (renamed in
-     * [StoredAccount], so `ignoreUnknownKeys` drops it), the field would come back holding its
-     * default and the value assertions below would catch it — a record built out of default values
-     * could not tell "read" from "silently ignored" apart.
      */
     private val wholeAccount =
         """{"id":"a1","server":"https://mail.example.org","username":"alex",""" +
@@ -139,8 +133,6 @@ class StoredAccountReferenceRecordTest {
 
     /**
      * The rename catcher. Sets, not lists: the DECLARATION ORDER of an enum is not persisted
-     * (kotlinx writes the name, never the ordinal), so reordering must not fail here — only a name
-     * appearing or disappearing must.
      */
     @Test fun `every enum name a device may have on disk is still a member, and every member is covered`() {
         enumFields.forEach { field ->
@@ -172,14 +164,6 @@ class StoredAccountReferenceRecordTest {
 
     /**
      * Exhaustive over the ENUMS, not only over their members — the hole the check above cannot
-     * see. [enumFields] is a hand-written list of keys, so a FIFTH enum-valued field added to
-     * `StoredAccount` tomorrow would be covered by nothing here: its members would go onto users'
-     * disks unpinned, and the first "rename symbol" on one of them would empty every account list
-     * on every device. That is the original trigger, rebuilt underneath this file.
-     *
-     * So the keys are DERIVED from the generated serializer's descriptor — the same description
-     * kotlinx decodes by — and compared with the ones covered. Nothing to remember, nothing to
-     * update by convention.
      */
     @Test fun `every enum-valued key of the stored record is covered by this file`() {
         assertEquals(
@@ -215,10 +199,6 @@ class StoredAccountReferenceRecordTest {
 
     /**
      * THE DRAMA ITSELF, executed for every persisted enum and not only for `SyncWindow`
-     * ([SyncWindowStoredNameTest] plays it for that one). What makes a renamed member a disaster
-     * rather than a nuisance is that the accounts are ONE blob: the record that carries the unknown
-     * name takes its neighbours down with it, and the store answers the whole thing with an empty
-     * list. Two accounts in, one of them perfectly good, zero out.
      */
     @Test fun `one impossible name in one record takes the WHOLE account list down`() {
         enumFields.forEach { field ->
@@ -247,8 +227,6 @@ class StoredAccountReferenceRecordTest {
 
     /**
      * The same names, EXECUTED: one record per member, decoded through the store's parser. The
-     * assertion above compares two sets of strings; this one proves those strings really are what
-     * comes back off disk, so neither is standing in for the other.
      */
     @Test fun `every name on disk decodes, one reference record each`() {
         enumFields.forEach { field ->
@@ -273,9 +251,6 @@ class StoredAccountReferenceRecordTest {
 
     /**
      * THE ANTI-VACUITY CHECK, and the reason the rest of this file means anything. If a key were
-     * renamed in [StoredAccount], `ignoreUnknownKeys = true` would make every record above decode
-     * happily while the stored value was thrown away — and every assertion here would pass over a
-     * field nobody reads any more. A key that IS read rejects a name that is not a member.
      */
     @Test fun `each key is genuinely read, so an impossible name is refused and not shrugged off`() {
         enumFields.forEach { field ->
@@ -298,8 +273,6 @@ class StoredAccountReferenceRecordTest {
 
     /**
      * The no-default catcher, and it needs no list of fields: a record with only the three
-     * mandatory keys is what most of the stored records effectively are, and every optional field
-     * must fill itself in.
      */
     @Test fun `a record holding only the three mandatory fields still decodes`() {
         val decoded = runCatching { json.decodeFromString(StoredAccount.serializer(), minimalAccount) }
@@ -329,9 +302,6 @@ class StoredAccountReferenceRecordTest {
 
     /**
      * The other direction, so the check above cannot pass by being vacuous: these three, and
-     * exactly these three, are the keys whose absence is fatal. Computed by removing one key at a
-     * time from the reference record, never by reading the class. Sorted, because the order of the
-     * keys in a JSON object is not part of anything.
      */
     @Test fun `and exactly three account keys are fatal when absent`() {
         assertEquals(
@@ -385,11 +355,6 @@ class StoredAccountReferenceRecordTest {
 
     /**
      * A SOURCE READ, deliberately, and the only one here: `AccountStore` needs a `Context` and the
-     * Keystore and cannot be built in this module, so the parser above is a copy of its declaration.
-     * A copy is worth nothing unless the original is pinned — and the two options that would break
-     * every conclusion in this file (`coerceInputValues`, an enum default) are single words added to
-     * that one line. Whole trimmed line, never a `contains`: a fragment check is blind to anything
-     * appended to it.
      */
     @Test fun `the store still parses with the codec these records were read with`() {
         assertEquals(
@@ -409,12 +374,6 @@ class StoredAccountReferenceRecordTest {
 
     /**
      * THE SECOND DECODER OF THE SAME RECORDS. `SettingsBackupCodec` reads `List<StoredAccount>`
-     * out of an exported backup file with a `Json` of its own, and what it returns goes straight
-     * into the store (`SettingsViewModel` → `AccountStore.importAccounts` → `saveAccounts`). A
-     * `coerceInputValues = true` added THERE never touches `AccountStore` and passes every other
-     * test in this file, while an unknown enum name silently becomes the field's default — an IMAP
-     * account imported back as `protocol = JMAP`, and then saved that way. Today the codec answers
-     * an unreadable backup with `null` ("not a valid backup"), which is the honest outcome.
      */
     @Test fun `the backup codec still refuses a name it cannot resolve instead of substituting one`() {
         assertEquals(
@@ -440,10 +399,6 @@ class StoredAccountReferenceRecordTest {
 
     /**
      * [count] consecutive CODE lines of [path] from the single one starting with [prefix], trimmed;
-     * comments and blanks dropped first. Whole lines and a contiguous block, never a `contains`: a
-     * fragment check is blind to anything appended to the line, and a per-line check is blind to a
-     * statement moved. A prefix matching anything but exactly one line returns a message, so an
-     * assertion can never pass by matching nothing. (Same shape as [AccountStoreGateWiringTest]'s.)
      */
     private fun codeBlock(path: String, prefix: String, count: Int): List<String> {
         val root = generateSequence(java.io.File("").absoluteFile) { it.parentFile }

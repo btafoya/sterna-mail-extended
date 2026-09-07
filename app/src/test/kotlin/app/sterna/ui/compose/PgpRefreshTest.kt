@@ -6,12 +6,6 @@ import org.junit.Test
 
 /**
  * What the padlock settles on when the composer re-checks OpenPGP (#35), and — the part that was
- * missing — what it owes the user when it has to give a mode up.
- *
- * The composer re-checks on open, when a restored message puts its own mode back, and on every
- * "From" switch. Dropping a mode is sometimes right (nothing here can encrypt), but doing it in
- * silence is not: the toggle is not even drawn when OpenPGP is unavailable, so a message the user
- * had encrypted came back with no padlock and no explanation, looking like an ordinary mail.
  */
 class PgpRefreshTest {
     private fun refresh(
@@ -64,9 +58,6 @@ class PgpRefreshTest {
     //
     // Reopening a signed/encrypted message runs two checks around one restore, and which of them
     // lands first is not fixed: with the provider merely unreachable the first check waits for it
-    // and resumes AFTER the restore, while with OpenPGP absent from the account it short-circuits
-    // and finishes BEFORE. That is what made the padlock survive or vanish by accident of timing.
-    // Both sequences must now end the same way, and say the same thing once.
 
     /** Replay a run of checks over [start], returning the mode left and every reason given aloud. */
     private fun checks(start: PgpMode, times: Int): Pair<PgpMode, List<PgpDropReason>> {

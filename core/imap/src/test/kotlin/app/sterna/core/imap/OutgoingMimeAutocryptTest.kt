@@ -7,12 +7,6 @@ import org.junit.Test
 
 /**
  * The `Autocrypt:` header as [OutgoingMime.build] writes it — the ONE insertion point, and the one
- * that covers four routes at once: SMTP submission, the Sent APPEND, the Drafts APPEND, and the
- * JMAP signed/encrypted send (which builds its raw message with this same builder).
- *
- * The load-bearing assertion in this file is the last one: a message that carries a pre-built
- * PGP/MIME entity must hand the signer **the same octets** whether or not an Autocrypt header is
- * emitted. Every signature this app has ever produced covers those bytes.
  */
 class OutgoingMimeAutocryptTest {
 

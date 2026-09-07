@@ -5,15 +5,6 @@ import org.junit.Test
 
 /**
  * Executes [attachmentFileName] against pairs written by hand — never by re-running the rule.
- *
- * What it pins is the one thing [safeFileName] alone cannot do: an attachment reaches the picker
- * WITH ITS EXTENSION. `safeFileName` caps the whole string at 80 code units, and a part named with
- * a long sentence ending in `.pdf` therefore arrives as `aaa…aaa`, or — one character luckier —
- * as `aaa….pd`. Either way the document lands in her Downloads with no type: on Android the
- * extension IS the type, so it opens in nothing and she cannot tell what it was.
- *
- * The rest pins the edges of the split: which dot counts, when what follows it is an extension at
- * all, and that neither side can smuggle a path character through.
  */
 class AttachmentFileNameTest {
 
@@ -23,8 +14,6 @@ class AttachmentFileNameTest {
 
     /**
      * The reason this function exists. 100 letters and `.pdf`: the trunk alone pays the cap and
-     * the extension survives. Handed to `safeFileName` whole, the answer is 80 letters and nothing
-     * else.
      */
     @Test fun `a long name is cut, and keeps its extension`() {
         assertEquals("a".repeat(80) + ".pdf", attachmentFileName("a".repeat(100) + ".pdf"))

@@ -12,21 +12,6 @@ import org.junit.Test
 
 /**
  * The device-grant wait, EXECUTED — the first test in this repo that runs it at all.
- *
- * The defect (#55, Kagi Mail, 1.5.0): every `DeviceTokenResult.Failed` ended the wait, and
- * `Failed("network_error")` is what `OAuthClient` answers when the exchange reached NO SERVER at
- * all. One poll going out on a dropped connection killed a sign-in whose device code was good for
- * another half hour, and the screen said "Couldn't reach the server while waiting for approval."
- * seconds after showing the code.
- *
- * The clock is virtual ([runTest] + `now = { currentTime }`): a thirty-minute deadline measured
- * against a real one is not a test, and the CADENCE — what stops a retry loop being a burst — can
- * only be read off a clock the test owns.
- *
- * Every scenario below is a LITERAL list of results and a LITERAL expected verdict. A test that
- * re-derives which results should keep the loop going is a copy of the shipped condition, and the
- * condition could be inverted underneath it without a red — the failure mode this repo has caught
- * three times.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class DeviceGrantPollTest {
@@ -38,10 +23,6 @@ class DeviceGrantPollTest {
 
     /**
      * Replays [script] in order, then [thenForever] for as long as it is asked — and records the
-     * virtual instant of every question, which is how the cadence is read.
-     *
-     * Running off the end of a script with no [thenForever] is an error, not a quiet `Pending`:
-     * "the wait stopped when it should have" is half of what several scenarios below assert.
      */
     private class ScriptedPoll(
         private val script: List<DeviceTokenResult>,
@@ -139,13 +120,6 @@ class DeviceGrantPollTest {
 
     /**
      * And the third way a server talks: `slow_down` is an ANSWER, so a wait made of nothing else
-     * ran out against a server that was there all along.
-     *
-     * Rate limiting is the nominal case of RFC 8628 § 3.5, not an exotic one. A server that
-     * answers `slow_down` for half an hour and never gets approved would otherwise reach the
-     * deadline with everReachedAServer still false, and the screen would tell its user "Couldn't
-     * reach the server… check your connection" about the server that had just spent thirty minutes
-     * replying to her — the exact sentence #55 exists to stop showing to the wrong person.
      */
     @Test fun `a wait answered only by slow down runs out as an expiry`() = runTest {
         val bench = ScriptedPoll(emptyList(), thenForever = DeviceTokenResult.SlowDown)
@@ -167,8 +141,6 @@ class DeviceGrantPollTest {
 
     /**
      * The cadence, and the reason the `delay` sits at the HEAD of the loop. Moved to the foot it
-     * would send the first poll out instantly and — now that an unreachable poll no longer ends the
-     * wait — turn a server that is down into a burst hammering it for thirty minutes.
      */
     @Test fun `each poll waits its full interval before going out`() = runTest {
         val bench = ScriptedPoll(
@@ -191,13 +163,6 @@ class DeviceGrantPollTest {
 
     /**
      * A server may legally answer `"interval": 0` — the field is optional in RFC 8628 § 3.2 and a
-     * missing or zero value is not a licence to hammer the token endpoint. `delay(0)` bounds
-     * nothing, so without a floor INSIDE this loop the wait becomes a burst of POSTs running for
-     * the whole half hour of the device code — and #55 made that worse, because a burst used to die
-     * on its first `network_error` and now no longer does.
-     *
-     * The floor is asserted on the CLOCK, not on the variable: the interval is a private local,
-     * and what a server sees is the spacing of the requests.
      */
     @Test fun `an interval of zero is still paced at one second`() = runTest {
         val bench = ScriptedPoll(
@@ -240,8 +205,6 @@ class DeviceGrantPollTest {
 
     /**
      * The risk this fix is closest to. Now that an unreachable poll keeps the loop going, a
-     * `catch (Throwable)` anywhere inside it would turn leaving the screen into a coroutine polling
-     * for the rest of the device code's half hour, behind a screen that is gone.
      */
     @Test fun `cancellation leaves the wait instead of becoming a verdict`() = runTest {
         val outcome = runCatching {

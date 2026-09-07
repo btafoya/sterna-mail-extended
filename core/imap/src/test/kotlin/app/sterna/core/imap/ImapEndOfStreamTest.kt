@@ -9,15 +9,6 @@ import java.io.InputStream
 
 /**
  * THE END OF A STREAM IS NOT A BLANK LINE (#156).
- *
- * `readResponse` used to answer `tokens` three different ways — on `-1`, on CR and on LF — so a
- * peer that had closed and a lone CRLF both came back as `emptyList()`, and nothing in the result
- * told them apart. Every `while (true)` in `ImapSession` therefore re-read a finished stream
- * forever: two accounts in IDLE burned one core each in the background, 419 mAh, the SoC at 91 °C.
- *
- * The decision is EXECUTED here, on real streams, never restated: what is asserted is what the
- * parser returns or throws, not what its source says. The one source assertion lives at the bottom
- * and is the belt, not the braces.
  */
 class ImapEndOfStreamTest {
 
@@ -39,8 +30,6 @@ class ImapEndOfStreamTest {
 
     /**
      * A1b — and it throws EVERY time, without going back to the stream ONCE. `peek()` keeps the
-     * `-1` in `peeked` (which is `NONE` = -2 when empty), so a hundred calls past the end cost a
-     * single read: the exception is free, and the count says so to the byte.
      */
     @Test
     fun `every later call throws too, without reading the stream again`() {
@@ -92,8 +81,6 @@ class ImapEndOfStreamTest {
 
     /**
      * A3 — the case the fix must NOT swallow. A lone CRLF is a blank line, and a blank line is an
-     * answer: the parser hands back an empty list and the NEXT response is still there to be read.
-     * Servers really do send them, and `command()` skips them by design.
      */
     @Test
     fun `a blank line is still a blank line, and the response after it is still read`() {
@@ -117,17 +104,6 @@ class ImapEndOfStreamTest {
 
 /**
  * The other half of the same rule, and it does not live in the parser: the CALLER must go on
- * skipping blank lines.
- *
- * The tidy-up this fix invites, and the reason this class exists: "now that the end of the
- * stream throws, an empty response can only be a dead connection" — so `if (resp.isEmpty())
- * throw`. It is false. Since #156 an empty response is EXACTLY one thing: the blank line of a
- * server that is alive and well. Servers do send them (after a literal, as a keep-alive), and that
- * mutation would tear down and rebuild the connection on every command that met one.
- *
- * Nothing else in the suite covers it: no scripted responder emits a blank line, and the `\r\n\r\n`
- * elsewhere in the repo all sit INSIDE literals, which are length-delimited and never reach this
- * loop.
  */
 class ImapBlankLineOnTheWireTest {
 
@@ -181,8 +157,6 @@ class ImapBlankLineOnTheWireTest {
 
 /**
  * SOURCE LINT (A9), the belt to the braces above: the `return tokens` that swallowed a closed
- * connection must not come back. Whole lines, never `contains`: a substring check is blind to
- * every mutation that LENGTHENS the line.
  */
 class ImapEndOfStreamLintTest {
 
@@ -210,8 +184,6 @@ class ImapEndOfStreamLintTest {
 
 /**
  * An [InputStream] that counts the calls and the bytes that reach the wire — the instrumented
- * stream `ImapParser`'s `internal` constructor makes reachable from this source set. It answers
- * nothing of its own: what it measures is how hard the parser pulls.
  */
 internal class CountingStream(private val delegate: InputStream) : InputStream() {
     /** Number of read calls, of either shape. */

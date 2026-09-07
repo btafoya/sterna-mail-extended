@@ -11,10 +11,6 @@ import java.io.File
 
 /**
  * The reading-mode decision (#149), EXECUTED. The reader's composables cannot be instantiated in a
- * JVM test, so the decision itself lives in [readerBody], [showRemoteImages] and
- * [buildHtmlDocument] — all `internal`, which is what lets this file run them — and is pinned here
- * against literal expected values, not against the rule re-implemented in the test, which would
- * stay green with the shipped condition inverted.
  */
 class ReaderBodyTest {
 
@@ -23,9 +19,6 @@ class ReaderBodyTest {
 
     /**
      * What the reader says when there is no body, standing in for the localised string — and
-     * deliberately NOT the shipped English text. Asserting "(no content)" would pass just as well
-     * against a literal left hard-coded in [readerBody], i.e. against a reader that says it in
-     * English to the eight users out of nine who read the app in another language.
      */
     private val noContent = "NO-CONTENT-SENTINEL"
 
@@ -136,10 +129,6 @@ class ReaderBodyTest {
     //
     // `Email.htmlContent()` / `Email.textContent()` filter nothing: a part that exists with an empty
     // value hands back "", which is not null, so each step of the cascade claimed the body and
-    // skipped the fallback that alone knows what to say when there is nothing. HTML mode rendered a
-    // white screen while plain-text mode said "no content" — the two modes contradicting each other
-    // on the same message. The preview fallback had the same defect one level down: it tested null,
-    // and the server computes the preview FROM the body, so an empty body gives "" and `<p></p>`.
     //
     // The string is passed IN, and every expectation below pins the SENTINEL that was passed, not
     // the shipped English text: an assertion on "(no content)" would be satisfied by a literal left
@@ -318,9 +307,6 @@ class ReaderBodyTest {
     //
     // The entry is a promise that the screen will change. On a mailing-list post or a git
     // notification — mail with no text/html part at all, i.e. the mail of the very people who turn
-    // the setting on — both modes build the SAME <pre>, and "Show HTML" changed nothing but its own
-    // label. Every case below EXECUTES the predicate against a literal message; none of them
-    // recomputes the rule.
 
     @Test
     fun `a message carrying both a text part and an HTML part is worth switching`() {
@@ -382,10 +368,6 @@ class ReaderBodyTest {
     fun `an empty text part is NOT worth switching, because both modes now say the same thing`() {
         // This test used to assert the opposite, and it was pinning the bug (#corps-vide): HTML
         // mode rendered the empty part as the body (a white screen) while plain-text mode refused
-        // a blank body and fell to the preview, so the two modes "differed" and the entry was
-        // offered. Now that a blank part is not a body in either mode, both render the same thing —
-        // and offering a switch towards an identical rendering is exactly the dead action
-        // [readingModesDiffer] exists to prevent.
         val withPreview = Email(
             id = "1",
             textBody = listOf(part("t", "text/plain")),
@@ -448,9 +430,6 @@ class ReaderBodyTest {
 
     // buildHtmlDocument defangs the message's own `prefers-color-scheme: dark` and inlines its cid:
     // images. Both undo MARKUP, and HTML-escaping touches neither ':' nor '-', so applied to a body
-    // we painted ourselves they mutilate the reader's own text — in the mode whose whole promise is
-    // to show the text as it is. One test per rewrite: they share a single guard in the shipped
-    // code, and a single test would only ever show whichever assertion comes first.
     private val light = EmailTheme(background = "#ffffff", text = "#111111", link = "#0b5fff", dark = false)
     private val images = mapOf("logo" to "data:image/png;base64,AAAA")
 
@@ -494,18 +473,6 @@ class ReaderBodyTest {
 
     /**
      * SOURCE CHECK, and the weakest thing in this file. The reader decides the remote-image
-     * question TWICE — once at the pager level for the overflow menu, once at the page level for
-     * the WebView — and neither site can be reached from a JVM test. What is pinned here is not
-     * that a call exists but the ARGUMENTS both sites pass: a site that kept computing its own
-     * `manualShow || senderAllowed` would leave a menu offering "Show images" over a body that has
-     * none. The decision itself is executed by the two tests above.
-     *
-     * The pattern matches the WHOLE line, on purpose. Unanchored, it stayed green under
-     * `val showRemote = showRemoteImages(plainText, manualShow, senderAllowed) || true`, which makes
-     * `blockRemote` always false: remote images fetched for every message and every sender, plain
-     * text included, so the tracking pixels fire on open and the per-sender allowlist decides
-     * nothing. A source check blind to anything APPENDED to the line it reads is the recurring
-     * defect of this repo.
      */
     @Test
     fun `both remote-image sites hand the same three terms to the same decision`() {
@@ -532,16 +499,6 @@ class ReaderBodyTest {
 
     /**
      * SOURCE CHECKS, and the weakest things in this file after the one above: both guards are `if`s
-     * inside the overflow menu, a Composable no JVM test can instantiate. What is pinned is the
-     * ARGUMENTS and the VARIABLE each guard reads, not that a call exists — the decision behind the
-     * first is EXECUTED by the six tests above.
-     *
-     * Two methods, not one, because the two failures are not the same defect: a menu entry that
-     * does nothing, and a menu that offers "Show images" and "Stop showing images from this sender"
-     * at the same time. In one method the first assertion to fail hides the other defect entirely.
-     *
-     * Every pattern matches the WHOLE line: unanchored, `if (!imageMode) {` stays green under
-     * `if (!imageMode || true) {`, which is this very defect written the other way round.
      */
     @Test
     fun `the menu offers the reading-mode entry only where the two modes differ`() {
@@ -570,13 +527,6 @@ class ReaderBodyTest {
 
     /**
      * SOURCE CHECK, same weakness as the two above, for the string this branch adds. Both
-     * Composable sites — the overflow menu and the page — must resolve `message_no_content` and
-     * hand THAT to the decision; neither can be reached from a JVM test.
-     *
-     * What it closes: `noContent` has no default in [buildHtmlDocument], so a site cannot silently
-     * omit it, but it CAN pass `""` — and "" is what puts `<p></p>` back on the screen, in
-     * production only, with every test in this file still green. And the page's `remember` key must
-     * carry it too, or a locale change would keep the previously built document.
      */
     @Test
     fun `both Composable sites resolve the no-content string and hand it to the document`() {

@@ -7,11 +7,6 @@ import org.junit.Test
 
 /**
  * [sourceCouldNotBeRead], EXECUTED — the verdict standing between an IMAP source that never came
- * back and a composer that would open blank, look usable, and destroy the server original on send.
- *
- * Every case below is a hand-written pair (input → verdict): the test never recomputes the rule it
- * is checking, so inverting the shipped function, or weakening it to `isEmpty()`, has to turn a
- * line red here.
  */
 class SourceCouldNotBeReadTest {
 
@@ -25,12 +20,6 @@ class SourceCouldNotBeReadTest {
 
     /**
      * The case that forbids `isEmpty()`, and it is a DELIBERATE over-refusal, not an observed
-     * producer: every producer known today hands back exactly "" (`ImapParser.readLiteral` returns
-     * "" after draining an oversized literal, ImapParser-151 — it does not leave a CRLF
-     * behind). Nothing found so far yields a whitespace-only source; the guard refuses it anyway,
-     * because it must stay at least as strong as [receiptRequestedInSource], which treats
-     * present-but-unreadable as an unknown, and because a bare line ending names no header and no
-     * address. Pinning it here is what keeps a later `isEmpty()` from looking harmless.
      */
     @Test fun aSourceOfNothingButALineEndingCouldNotBeRead() {
         assertTrue(
@@ -61,9 +50,6 @@ class SourceCouldNotBeReadTest {
 
     /**
      * THE control that forbids refusing too much: a draft with an empty text body is ordinary
-     * mail — a subject and recipients typed, nothing written yet — and it must keep opening. A
-     * guard that judged the parsed body instead of the source would swallow this one, and every
-     * such draft would become unopenable in exchange for the defect above.
      */
     @Test fun headersAloneWithAnEmptyBodyCanBeRead() {
         assertFalse(
@@ -86,28 +72,6 @@ class SourceCouldNotBeReadTest {
 
 /**
  * THIS TEST READS SOURCE TEXT — the last resort, exactly as [DraftReceiptWiringTest] does:
- * `MailRepository` needs Room, a `Context` and a socket, so no JVM test can call `openEmailImap`.
- * The DECISION is EXECUTED next door by [SourceCouldNotBeReadTest]; what nothing else can see is
- * whether the call site still asks it, with the right ARGUMENT, and EARLY ENOUGH. So whole lines
- * are compared, never a `contains`: `contains` is blind to any mutation that lengthens a line.
- *
- * What it exists for: a draft whose source comes back "" opens blank but usable — subject and
- * recipients repainted from the cache — and `reopenedDraftIsLossy` is handed `(false, 0, 0, null)`,
- * i.e. "a plain draft", which authorises destroying the server original behind an empty message.
- * Each mutation below, alone, brings that loss back while every executable test stays green:
- * - the refusal deleted, or moved BELOW `MimeParser.parseBody(raw)` where the parse of "" has
- *   already produced the empty body the composer will show;
- * - `sourceCouldNotBeRead(raw)` → `sourceCouldNotBeRead(body.text)`, which refuses every draft
- *   whose text body is empty and lets the unreadable source through;
- * - the refusal NESTED inside `if (markRead) { … }`, which spares the composer's own path
- *   exactly — `fetchEmail` (the reply/forward/draft-reopen door) calls this function with
- *   `markRead = false` — and reopens the defect whole;
- * - an `.ifBlank { … }` hung on the fetch line itself, which would turn the unknown back into a
- *   value before the guard ever sees it.
- *
- * The trimmed-line assertions cannot see either of the last two: [codeLinesNaming] trims, so
- * nesting is invisible to it by construction, and no assertion looked at the fetch line at all.
- * Hence the two below that read the RAW indentation and the whole fetch line.
  */
 class SourceRefusalWiringTest {
 
@@ -145,14 +109,6 @@ class SourceRefusalWiringTest {
 
     /**
      * The line right UNDER the guard, and nothing else. A "does openEmailImap contain a
-     * `throw MessageUnavailableException(` somewhere" check is worthless here: the function
-     * carried two of them before this work, so it was green on `main` and would stay green with
-     * the guard deleted. What has to be pinned is the throw THIS guard raises —
-     * `MessageUnavailableException` is reused on purpose, because the reader
-     * (status_message_unavailable) and the composer (compose_draft_load_failed) already turn it
-     * into a translated sentence, so the fix moves no string and no translation. A
-     * `ContentTooLargeException` here would say "too large" to the user and tell the composer
-     * something else entirely.
      */
     @Test fun theRefusalIsRaisedAsTheUnavailableMessageTheReadersAlreadyTranslate() {
         val lines = bodyOf("openEmailImap").lines().map { it.trim() }
@@ -167,11 +123,6 @@ class SourceRefusalWiringTest {
 
     /**
      * THE hole every trimmed-line assertion is blind to: wrapping the guard in
-     * `if (markRead) { … }` leaves it word for word where it is, one level deeper, and disarms it
-     * on the one path that costs the data — `fetchEmail` (MailRepository) opens the
-     * composer's copy with `markRead = false`. Indentation is the only witness, and it is compared
-     * to the PARSE's own indentation rather than to a literal eight spaces: a reformat of the whole
-     * function must not turn this red, only a change of block must.
      */
     @Test fun theRefusalSitsInTheSameBlockAsTheParse() {
         val lines = bodyOf("openEmailImap").lines()
@@ -188,8 +139,6 @@ class SourceRefusalWiringTest {
 
     /**
      * And the fetch line itself, whole. Nothing else pinned it, so an `.ifBlank { "" }` — or
-     * an `.ifBlank { cachedBodyText }` — hung on the end of it would answer the guard with a value
-     * that is no longer blank, and the refusal would never fire on a source that never arrived.
      */
     @Test fun theSourceIsTakenFromTheServerAndHandedOnUntouched() {
         assertEquals(

@@ -17,13 +17,6 @@ internal fun span(selection: TextRange): Span = Span(selection.min, selection.ma
 
 /**
  * The body as the text field draws it: the text cut at EVERY span boundary, and one `SpanStyle` per
- * segment carrying every family active there. Per segment, not per span: two overlapping spans that
- * each carry a `textDecoration` do not combine on their own. A link (#131) is laid ON TOP, since
- * `AnnotatedString` stacks styles.
- *
- * The list markers are NOT here: [bodyTransformation] lays them over the ANSWER of this function, so
- * the offsets below are the model's own. [linkColor] is an ARGUMENT so this stays a pure function a
- * JVM test can execute, and the colour cannot silently become a hard-coded blue.
  */
 fun toAnnotatedString(rich: RichBody, linkColor: Color): AnnotatedString {
     if (rich.isPlain) return AnnotatedString(rich.text)
@@ -57,13 +50,6 @@ fun toAnnotatedString(rich: RichBody, linkColor: Color): AnnotatedString {
 
 /**
  * [text] with the body's styling laid on it, ready for the TEXT LAYER — the only place a span may live
- * (#131).
- * Not in the field's VALUE: Compose's editing buffer cannot hold a span, and `EditProcessor.reset`
- * compares the whole `AnnotatedString` on every recomposition, so one span makes every keystroke a
- * "text changed" — the input is restarted, autocorrect stops, and a composing IME breaks outright.
- *
- * No span and no link means the argument comes STRAIGHT BACK. And a [rich] drifted from [text] for
- * one frame draws nothing rather than mismapping the caret.
  */
 fun styledBody(text: AnnotatedString, rich: RichBody, linkColor: Color): AnnotatedString = when {
     rich.ranges.isEmpty() && rich.links.isEmpty() -> text

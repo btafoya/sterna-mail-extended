@@ -7,20 +7,6 @@ import java.util.Base64
 
 /**
  * The whitespace that separates two adjacent RFC 2047 encoded-words (Codeberg #123): "Réunion de
- * rentrée" arriving on screen as "Réunion de ren trée".
- *
- * An encoded-word may not exceed 75 octets, so a sender with a long accented subject has no
- * choice but to cut it into several words, and a header line has to fold as well. RFC 2047 §6.2
- * says the whitespace between two adjacent encoded-words is IGNORED, precisely so those cuts stay
- * invisible. Sterna kept it, so every cut the sender made became a space inside a word.
- *
- * The rule is narrow and the two neighbouring behaviours are what these tests really protect:
- * whitespace next to PLAIN text is real text and must survive, and a space the sender encoded
- * INSIDE a word is content, not a separator. Only the gap between two `=?…?=` runs disappears.
- *
- * [decodeWords] is the app's only encoded-word decoder, so the three shapes that reach it are all
- * driven here: a subject and a display name off a real socket, and an attachment filename through
- * the MIME reader.
  */
 class EncodedWordSeparatorTest {
 
@@ -103,10 +89,6 @@ class EncodedWordSeparatorTest {
 
     /**
      * A word whose payload is not decodable survives verbatim (that fallback predates this fix
-     * and is deliberate), and the separators around it still go: §6.2 ignores the whitespace on
-     * the SYNTAX, at parse time, so what the screen shows must not depend on whether a payload
-     * happened to be well-formed base64. Anything else would make the same header render two
-     * different ways for reasons the reader cannot see.
      */
     @Test fun `a word that will not decode keeps its text and still separates`() {
         val broken = "=?utf-8?B?A?=" // a lone base64 char: not a decodable unit

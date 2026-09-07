@@ -8,18 +8,6 @@ import org.junit.Test
 
 /**
  * A submission that dies in the MIDDLE of a multi-line response.
- *
- * `read()` used to treat the two halves of one response differently: no first line at all threw,
- * but a connection cut after a `250-` continuation quietly returned that continuation. `expect()`
- * only compares a prefix, so `"250-AUTH PLAIN".startsWith("250")` made a truncated response pass
- * for a successful one — the EHLO capabilities were then read off a PARTIAL list, and the failure
- * surfaced much later on a step that was not the cause.
- *
- * ONE read is the exception, and it is the one whose cut is irreversible: the acknowledgement of
- * the message BODY, where a `250-` already means the server took the message (J2 below).
- *
- * The server here ANNOUNCES and CUTS; the client is the shipped one, unchanged for the tests. What
- * is asserted is the exception the caller gets and the commands that actually left the client.
  */
 class SmtpCutConnectionTest {
 
@@ -54,16 +42,6 @@ class SmtpCutConnectionTest {
 
     /**
      * J2 — the cut lands inside the 250 that acknowledges the message BODY, after a continuation
-     * line. THE OTHER WAY ROUND from every case above, and this test used to assert the opposite.
-     *
-     * RFC 5321 § 4.2.1: every line of a reply carries the same code, so a server that has written
-     * `250-…` has already accepted the message. Failing here would leave `OutboxWorker` to retry a
-     * send the server went on to queue, and the recipient would get it TWICE — the one outcome
-     * nothing later can take back, and the one `SMTP_BLOCKING_READ` exists to prevent.
-     *
-     * `delivered` is deliberately not asserted: a cut on the dot is taken before the fixture
-     * records the body. What is asserted is the normal return, and that the dialogue reached the
-     * body at all — so this really is the acknowledgement that was cut.
      */
     @Test
     fun `a cut inside the 250 that acknowledges the body is a successful send`() {
@@ -82,17 +60,6 @@ class SmtpCutConnectionTest {
 
     /**
      * J2-witness — the same two-line acknowledgement, complete this time.
-     *
-     * Without it the green above proves nothing: a `send()` that swallowed every failure, or that
-     * never reached the body at all, would pass J2 just as well. Here the dot really was written
-     * and the server really took the message, which only `delivered` can state.
-     *
-     * What it does NOT witness, and what nothing here can: that the client read the
-     * acknowledgement to its LAST line. `delivered` is set by the fixture before it answers
-     * (`FakeSmtpServer`), and the connection ends on this reply — a client that gave up after the
-     * first line would leave the second one unread, with nobody left to trip over it. That claim is
-     * only pinned on the reads that have a next command behind them (J4, J5, and the multi-line
-     * `354` of DATA).
      */
     @Test
     fun `a complete multi-line acknowledgement of the body queues the message`() {
@@ -117,10 +84,6 @@ class SmtpCutConnectionTest {
 
     /**
      * J2b — the cut lands BEFORE a single line of the body's acknowledgement.
-     *
-     * The tolerance above stops here: nothing was said, so nothing was accepted. Reading that as a
-     * success would mark as sent a message the server never took, and it would be lost — as
-     * irreversible as sending it twice, in the other direction.
      */
     @Test
     fun `a cut before any line of the body acknowledgement is still a failed send`() {
@@ -141,8 +104,6 @@ class SmtpCutConnectionTest {
 
     /**
      * J2c — a cut acknowledgement whose code is a REFUSAL. The code decides, not the fact that a
-     * line was read: `421-…` is a server closing the channel, and a send it never queued must not
-     * be reported as delivered.
      */
     @Test
     fun `a cut 421 answering the body is a failed send, quoting the line`() {
@@ -193,9 +154,6 @@ class SmtpCutConnectionTest {
             val issued = server.issued()
             // AUTH PLAIN was announced on a CONTINUATION line of the EHLO response: choosing it
             // proves every line was accumulated. Reaching MAIL FROM proves only that the reader is
-            // not DESYNCHRONISED — every continuation was consumed. WHICH line read() hands back is
-            // a different claim, and it is pinned by the multi-line error case below, where the
-            // lines of one response differ by more than their code.
             assertEquals(
                 "expected exactly one AUTH command between EHLO and MAIL FROM, got $issued",
                 1,
@@ -218,12 +176,6 @@ class SmtpCutConnectionTest {
 
     /**
      * J5 — a REAL EHLO, eight continuation lines before the final one. Gmail and Stalwart answer
-     * with six to ten; every other fixture in this suite stops at three, so a loop that gave up
-     * after a couple of lines would hand back a `250-…` continuation as the response — the original
-     * bug, on every real server — without a single test noticing.
-     *
-     * `AUTH PLAIN` sits on the FIFTH line on purpose: it is only reachable by a loop that ran to
-     * the end.
      */
     @Test
     fun `an eight-line EHLO is read to its last line, capability and all`() {
@@ -266,12 +218,6 @@ class SmtpCutConnectionTest {
 
     /**
      * J6 — the FINAL line, not merely "a line of the response".
-     *
-     * Every line of an SMTP response carries the same code, so a `read()` that returned the FIRST
-     * line instead of the last would desynchronise nothing and pass every prefix test in this file.
-     * The only thing that tells them apart is the TEXT, and the only place the text reaches the
-     * caller is an error message. Hence a refusal spread over two lines whose codes are identical
-     * and whose texts are not.
      */
     @Test
     fun `the line handed back is the last one, which is the one the error message quotes`() {
@@ -300,8 +246,6 @@ class SmtpCutConnectionTest {
 
 /**
  * SOURCE LINT (J11), the belt to the braces of the four tests above: the `break` that swallowed a
- * cut connection must not come back. Whole lines, never `contains`: a substring check is blind to
- * every mutation that LENGTHENS the line.
  */
 class SmtpCutLintTest {
 
@@ -321,9 +265,6 @@ class SmtpCutLintTest {
 
     /**
      * The same belt for `readBodyAck`, whose two reads are NOT the same rule: the first throws like
-     * everywhere else, the second gives the line back. Which of the two is tolerant decides between
-     * a message sent twice and a message lost, and moving the `?: return line` up one line is a
-     * one-token edit that only J2b would notice.
      */
     @Test
     fun `readBodyAck throws on the first line and yields on a later one`() {

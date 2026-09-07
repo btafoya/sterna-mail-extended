@@ -7,43 +7,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
- * [SwipeCommitWiringTest] and [ActionFailureWiringTest]: it reads `InboxScreen.kt` and
- * `InboxViewModel.kt` as text and proves nothing about what appears on screen. What the decision
- * ANSWERS is executed in [SwipeRewindTest], against [needsSwipeRewind] itself; this file holds the
- * half nothing can execute — a composable and an `AndroidViewModel`, neither instantiable in a JVM
- * test.
- *
- * The defect it closes: in airplane mode a "delete" swipe flew the row off the screen and the row
- * never came back. `commitSwipe` plays the WHOLE take-off — `offsetX` to the edge, `lift` to 1
- * (rise, tilt, alpha 0) — and only then calls `onSwipe`; its reduced-motion branch calls `onSwipe`
- * first and parks the row at the edge. Either way the row is invisible before the write is
- * attempted. Nothing ever reset those `Animatable`s, and the list key is stable
- * (`"account|id"`), so the `refresh()` on failure re-emits the row into the SAME composition,
- * still parked. The message never left the table: the repo is network-first, so the local drop is
- * downstream of the call that failed. The screen alone was lying.
- *
- * Which row, exactly — because two of the three surfaces pinned below do NOT rewind, and saying
- * so here is cheaper than letting the next reader infer it from the rules:
- *
- *  - a FLAT row of the browse list: the case above, and the one this fix is for;
- *  - a SEARCH result: `dropSearchResults` takes it out at the gesture and `restoreSearchResults`
- *    puts it back on failure, so it returns as a FRESH composition with its animations at 0. The
- *    rewind there is a no-op that only clears the key;
- *  - a CHILD of an unfolded conversation: `hidingThreadMembers` filters it out of `_threadMembers`
- *    before the call, so its sub-composition is already gone when the failure lands — its effect
- *    cannot run. That the child stays off the row until the next write, or a fold and unfold, is
- *    written and deliberate in `InboxViewModel.hidingThreadMembers`'s own comment; it is NOT this
- *    fix's to change. The site is wired and pinned anyway for the one thing it does do: hand the
- *    key back, on the fold-unfold that brings the child home.
- *
- * A folded CONVERSATION is a fourth case and a different call entirely (`threadSwipeRemove`),
- * untouched here.
- *
- * So: the view model reports the row, the row rewinds and clears itself. Everything below is
- * pinned WHOLE — whole lines, whole blocks, compared by equality — never by `contains`: a
- * `contains` rule is blind to every mutation that makes a line LONGER, which is the shape this
- * fix would come undone in (`+ emptySet()`, `&& false`, a fourth reset dropped). A legitimate
- * refactor reddens this file; that direction of error is loud and one line to fix.
  */
 class SwipeRewindWiringTest {
 
@@ -255,8 +218,6 @@ class SwipeRewindWiringTest {
 
     /**
      * The code lines of the `.onFailure { … }` arm of `swipeRemove`, trimmed, comments already off.
-     * Fails loudly when the declaration or the arm is gone, so a rename reddens these rules rather
-     * than satisfying them against an empty string.
      */
     private fun failureArmLines(): List<String> {
         val text = code(INBOX_VIEW_MODEL)
@@ -271,12 +232,6 @@ class SwipeRewindWiringTest {
 
     /**
      * The whole `name = …` argument of a call, from the line that opens it to the line where its
-     * brackets close again, that last line INCLUDED — trailing comma and all.
-     *
-     * The last line is the point, and so is the comma. A rule that stopped at the closing paren
-     * would be blind to `&& somethingElse` tacked on the end, and one that searched for a call
-     * inside the argument would be blind to anything wrapping it — both of which only ever make
-     * the text LONGER, which is what a `contains` cannot see.
      */
     private fun argument(callText: String, name: String): String {
         val lines = callText.lines()
@@ -336,10 +291,6 @@ class SwipeRewindWiringTest {
 
     /**
      * The lines of [file] that are code, with their comments taken off — a line whose first
-     * non-blank character opens a comment is dropped whole, and a trailing `//` cuts the rest of
-     * its line, the cut only being taken outside a double-quoted run. Load-bearing here: the
-     * comments around this code quote the animation it undoes, and left in they would answer for
-     * the code.
      */
     private fun codeLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val start = line.trimStart()
@@ -368,8 +319,6 @@ class SwipeRewindWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text: everything up to the
-     * first line indented no deeper than the declaration, once the declaration's own brackets have
-     * closed.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)

@@ -34,8 +34,6 @@ data class LinkDialogFields(
     val text: String,
     /**
      * Whether the label may be typed. False whenever characters are already involved — a
-     * selection, or a link being edited: the words are in the body, and letting the box rewrite
-     * them would be a second, invisible way to edit the message.
      */
     val textEditable: Boolean,
     /** Whether "remove the link" has anything to remove. */
@@ -63,13 +61,6 @@ fun linkDialogFields(body: RichBody, selection: Span): LinkDialogFields {
 
 /**
  * What OK produces: [url] through the guard, then `setLink` — or `null` when the guard refuses it,
- * which puts the error under the field and keeps the dialog open.
- *
- * [normalizeLinkUrl] HERE and not in `setLink`: the model stores what it is given, and this is one
- * of the two borders where a raw string becomes a URL.
- *
- * An empty label is the ADDRESS ITSELF: without it the fourth arm of `setLink` gives back the body
- * unchanged and the dialog closes with nothing said. It only bites on that arm.
  */
 fun linkApplied(body: RichBody, selection: Span, url: String, text: String): RichBody? {
     val normalised = normalizeLinkUrl(url) ?: return null
@@ -78,10 +69,6 @@ fun linkApplied(body: RichBody, selection: Span, url: String, text: String): Ric
 
 /**
  * The dialog itself: an address, a label, and three buttons. [onApply] receives the body OK made,
- * [onRemove] the body with the link taken off, and both close the dialog.
- *
- * Material `TextField`s, never `BasicTextField`: three source lints count the composer's own
- * `BasicTextField(` call sites, and this dialog is not one of them — hence its own file too.
  */
 @Composable
 fun LinkDialog(

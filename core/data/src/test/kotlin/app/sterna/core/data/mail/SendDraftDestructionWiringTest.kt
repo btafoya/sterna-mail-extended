@@ -5,31 +5,6 @@ import org.junit.Test
 
 /**
  * THIS TEST READS SOURCE TEXT — the last resort, in exactly [DraftAddressingWiringTest]'s form
- * and for its reason: `MailRepository.enqueueSend` needs Room and a socket, so no JVM test can run
- * the wiring below. The DECISION it plugs in is executed by [SendReplacesDraftTest] (and its rule
- * by [DraftSaveTest]); this pins only WHERE it is plugged in, whole lines — `contains` is blind to
- * any mutation that lengthens a line.
- *
- * What it exists for: `performSend` destroys, unconditionally, whatever draft id its outbox row
- * carries. So the ONE place the id gets onto a row — `enqueueSend`, the choke point of the
- * immediate send, the scheduled send and every retry — must write it only against proof. Each
- * word below, changed alone, brings the loss back while every executable test stays green:
- * - `draftEmailId = replaceableDraftId` → `= draftEmailId` re-authorises every destroy — the
- *   whole defect, restored in four characters;
- * - the lambda `{ id -> sendCarriesDraftAddressing(credentials, id, ccTrimmed, bccTrimmed) }` →
- *   `{ true }` deletes the proof itself: offline, cache purged, message gone from the folder,
- *   everything becomes "addressing carried", the id is written and the original destroyed. That
- *   mutation leaves `sendCarriesDraftAddressing` dead code and NOTHING else in this repository
- *   notices (there is no `allWarningsAsErrors`) — hence the middle line is pinned as hard as the
- *   two around it, and BOTH its address arguments with it: dropping `bccTrimmed` (as shipped until
- *   2026-08-25) leaves the draft of every message with a Cci in Drafts for ever;
- * - `bodyIsLossy: Boolean = true` → `= false` in the DECLARATION, which no lint on a body can
- *   see: it silently re-arms every call site that forgets the parameter;
- * - `!= MailProtocol.IMAP) return true` → `==` skips the IMAP envelope read and destroys a draft
- *   whose Cc the composer never saw;
- * - `replacement = draftReplacementAddressing(cc, bcc)` → `cc.toSet()` stops counting a blind
- *   copy that the envelope's `RCPT TO` has just DELIVERED, so the proof can never be met and the
- *   original is never expunged.
  */
 class SendDraftDestructionWiringTest {
 

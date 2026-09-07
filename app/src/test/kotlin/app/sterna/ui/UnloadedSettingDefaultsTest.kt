@@ -11,44 +11,6 @@ import java.io.File
 
 /**
  * Three settings that DRIVE AN ACTION rather than merely show a value, and the value each one
- * carries during the frames before DataStore has answered.
- *
- * A swipe that lands in that window commits whatever `swipeConfig` says, and a link tapped in it
- * opens with or without the confirmation `confirmLinks` says. Seeding either flow with the
- * repository's default means the reader who chose "None", or who asked to be shown a link's
- * destination first, gets the opposite for as long as the read takes. The fix is not a new state:
- * it is that the waiting value must be the INERT one — `NONE`/`NONE` deletes nothing, `true` asks
- * before opening — so that losing the race costs a gesture, never a message or a page load.
- *
- * The guard already held by accident of data dependency; this file is what makes it WRITTEN.
- *
- * Two instruments, because neither is enough on its own:
- *
- *  1. the VALUES, executed. Expectations are hard-coded, never recomputed from the constants under
- *     test: a test that derives what it expects is a copy of the decision and stays green when the
- *     decision is inverted;
- *  2. the WIRING, as a source lint, from the constant all the way to the screen. `InboxViewModel`
- *     and `MessageViewModel` are `AndroidViewModel`s reaching into the application container, and
- *     the screens are Compose code — there is no Robolectric and no `androidTest` in this module,
- *     so nothing here can construct either and read a value. Reading the source as text is what is
- *     left.
- *
- * The second half of that thread is not decoration. A `StateFlow` is also a `Flow`, so
- * `collectAsStateWithLifecycle(initialValue = false)` resolves at the collection site and puts the
- * original defect back one file further along, out of reach of every rule that stops at the view
- * model's door. It matters most in the reader, where `MessagePage` builds a `MessageViewModel` PER
- * PAGE of the pager (see `MessageScreen.kt`): the loading window for `confirmLinks` reopens on
- * every message swiped through, not once at startup.
- *
- * What this does NOT prove: that `SwipeableEmailRow` honours a `NONE` action (that is
- * [app.sterna.ui.inbox.SwipeCommitTest]'s and the screen's business), or that `MessageScreen`'s
- * `if (confirmLinks)` branch still guards the right call. It reads names and argument text, so it
- * can only say a value is WRITTEN where it is written.
- *
- * Every rule below compares WHOLE lines (trimmed, nothing else), never a `contains` for something
- * it expects to find: a substring check is blind to any mutation that LENGTHENS the line, and
- * `initialValue = SWIPE_CONFIG_UNLOADED.copy(left = SwipeAction.DELETE),` is exactly such a
- * mutation. `contains` appears once, where this file screens for something that must be ABSENT.
  */
 class UnloadedSettingDefaultsTest {
 
@@ -81,9 +43,6 @@ class UnloadedSettingDefaultsTest {
 
     /**
      * The third one (#149), and the one that is TWO answers to one unread value: what is rendered,
-     * and what the remote images are decided against. Only the second belongs here — the values are
-     * executed through the two decision functions in `ReaderBodyTest`, this pins the constant those
-     * read.
      */
     @Test fun `an unknown reading mode counts as text for the remote images`() {
         assertTrue(
@@ -131,10 +90,6 @@ class UnloadedSettingDefaultsTest {
 
     /**
      * The reading-mode setting reaches the reader UNRESOLVED — as a nullable, with `null` meaning
-     * "not read yet" — and that is the whole mechanism (#149). Seed it with the repository's default
-     * here and the null disappears one file too early: the image decision then answers "HTML" during
-     * a window in which nothing knows, `plainTextForImages` is never handed a null again, and the
-     * test that executes it goes on passing over a case the app can no longer reach.
      */
     @Test fun `the reader takes the reading-mode setting unresolved, null and all`() {
         assertBlock(
@@ -152,8 +107,6 @@ class UnloadedSettingDefaultsTest {
 
     /**
      * The negative screen for that one: the reader must not name the stored default at all. Its own
-     * waiting value is `null`, and the default belongs to `plainTextForBody`, which is executed by a
-     * test. `initialValue = PLAIN_TEXT_DEFAULT` compiles, looks careful, and is the defect.
      */
     @Test fun `the repository's reading-mode default is not restated in the message view model`() {
         val offenders = codeLines(MESSAGE_VIEW_MODEL).filter { "PLAIN_TEXT_DEFAULT" in it }
@@ -168,9 +121,6 @@ class UnloadedSettingDefaultsTest {
 
     /**
      * Both reading sites of the pager — the fixed toolbar's menu and the page's body — resolve the
-     * pair the SAME way, and each keeps the two answers apart. `MessageScreen` is Compose code and
-     * nothing here can run it; what is pinned is the whole line, twice, because a site that handed
-     * `plainText` (the rendered mode) to the image call would be right until the frame that is not.
      */
     @Test fun `both reader sites resolve the setting into two separate answers`() {
         listOf(
@@ -182,11 +132,6 @@ class UnloadedSettingDefaultsTest {
 
     /**
      * The negative screen — a `contains`, deliberately: it looks for what must be absent.
-     *
-     * The literal it forbids was a SECOND COPY of the repository's own defaults
-     * (`SettingsRepository.swipeRightAction` / `swipeLeftAction`), free to drift from them. The
-     * point of the inert pair is that the app no longer restates a default it does not own: what
-     * it says while waiting is "not read yet", not "probably this".
      */
     @Test fun `the repository's swipe defaults are not restated in the inbox view model`() {
         val offenders = codeLines(INBOX_VIEW_MODEL).filter { "SwipeAction.TOGGLE_READ" in it || "SwipeAction.DELETE" in it }
@@ -224,11 +169,6 @@ class UnloadedSettingDefaultsTest {
 
     /**
      * Pins one WHOLE line that must appear in [file] EXACTLY ONCE.
-     *
-     * Counting, rather than locating: for a one-line rule "present" and "present once" are
-     * different facts, and only the second forbids a duplicate collection of the same flow wired
-     * differently. Zero and two both fail, with the neighbourhood ([near]) printed so the failure
-     * says which of the two happened.
      */
     private fun assertSoleLine(file: File, expected: String, what: String, near: String) {
         val lines = codeLines(file)
@@ -247,11 +187,6 @@ class UnloadedSettingDefaultsTest {
 
     /**
      * Pins one WHOLE line that must appear in [file] exactly [times] times.
-     *
-     * [assertSoleLine] with a count, for the rules that cover a decision taken at more than one
-     * site: the reader resolves the reading mode twice, once for the pager's menu and once for the
-     * page, and a rule satisfied by "at least one" is green with the second site left behind — which
-     * is the state in which the menu and the body disagree about what is on screen.
      */
     private fun assertLineCount(file: File, expected: String, times: Int, what: String) {
         val lines = codeLines(file)

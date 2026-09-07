@@ -5,26 +5,6 @@ import org.junit.Test
 
 /**
  * WHAT THIS FILE IS WORTH, first, because it is easy to over-read. It proves the SHAPE of
- * `AccountStore.kt`, not its behaviour: it reads the shipped source and compares whole lines. It
- * exists only because nothing in this module can build an `AccountStore` (it needs a `Context` and
- * the Keystore, and there is no Robolectric here). The behaviour is proved next door, by
- * [AccountBlobGateTest], which EXECUTES the decision. Neither file is enough alone: the gate can be
- * perfect and wired to nothing, and the wiring can be perfect around a gate that never refuses.
- *
- * What it caught. A counter-expertise found two rewrites that restored the permanent account loss
- * with every behavioural test still green:
- *
- *  1. `AccountBlobGate { emptyList() }` — a decoder that cannot fail. The gate then never refuses
- *     anything, and `accounts()` reads empty on EVERY install, not only broken ones. The gate's own
- *     tests build their own gate and never see the store's.
- *  2. moving the `putString` out of the guarded lambda. That one is now impossible rather than
- *     merely detected: the bytes to store are produced inside [AccountBlobGate.writeGuarded] and
- *     exist nowhere else, so taking the write outside means re-encoding the list by hand — a new
- *     statement, which the block below also shows.
- *
- * Whole trimmed lines, compared as a CONTIGUOUS block, never `contains` and never one line in
- * isolation: a fragment check is blind to anything appended to the line (bitten twice on
- * 2026-08-04), and a per-line check is blind to a statement moved one line down.
  */
 class AccountStoreGateWiringTest {
 
@@ -60,9 +40,6 @@ class AccountStoreGateWiringTest {
     @Test fun `accountsUnreadable re-reads storage before it answers`() {
         // The startup screen (RootState.AccountsUnreadable) is drawn from this one boolean, so a
         // stale answer is a user held on an alert screen after the fixing update — or, the other
-        // way round, invited to add an account the store will refuse to save. Returning
-        // `gate.blobUnreadable` WITHOUT the read above it is exactly that: the flag then describes
-        // whichever call happened to touch the store last.
         assertEquals(
             "accountsUnreadable() no longer re-reads the blob before reporting, so the startup " +
                 "routing runs on a flag left over from an earlier moment.",
@@ -161,9 +138,6 @@ class AccountStoreGateWiringTest {
     @Test fun `both creation routes go through the one add-or-refresh helper`() {
         // The duplicate-account defect in one place: the two writing routes (six creation flows
         // above them) resolve the account already stored under this identity and REFRESH it,
-        // instead of minting a second record around a fresh UUID. It has to live here rather than
-        // in a ViewModel: the routes read the account list BEFORE their network validation and
-        // persist AFTER it, so a guard up there leaves a window where two adds both see "absent".
         assertEquals(
             "AccountStore.addOrRefresh changed shape. Either the existing login is no longer " +
                 "resolved (adding the same mailbox twice puts a second identical line in " +
@@ -210,11 +184,6 @@ class AccountStoreGateWiringTest {
     @Test fun `addOAuth stores the host it was handed, not the OAuth document's`() {
         // The one line the whole of #55 turns on, and nothing else in this tree holds it. Rewritten
         // as `server = documentHost.ifBlank { server }.trim(),` it reads like tidying up and files
-        // the OAuth account under the document host again — the reported defect, whole. It is
-        // invisible from everywhere else because the two keys then COINCIDE: `inherited` becomes
-        // the account's own key, so the recognition path added for older versions turns into a
-        // no-op without one behavioural assertion moving. `AccountStore` needs a Context and the
-        // Keystore and no JVM test in this module can build one, so the shape is the only hold.
         assertEquals(
             "addOAuth no longer stores the server it was handed. Filed under the OAuth document's " +
                 "host, the same mailbox added by password and then by OAuth makes two accounts " +
@@ -255,10 +224,6 @@ class AccountStoreGateWiringTest {
 
     /**
      * [count] consecutive CODE lines of `AccountStore.kt` from the single one starting with
-     * [prefix], trimmed. Comments and blank lines are dropped first — a mutation cannot hide in a
-     * comment, and pinning prose would make this file fail on every reword. A prefix that matches
-     * anything other than exactly one line returns a message instead, so an assertion can never
-     * pass by matching nothing.
      */
     private fun accountStoreBlock(prefix: String, count: Int): List<String> {
         val path = "core/data/src/main/kotlin/app/sterna/core/data/account/AccountStore.kt"

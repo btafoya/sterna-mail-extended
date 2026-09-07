@@ -14,12 +14,6 @@ import java.io.File
 
 /**
  * The add-account walk's decisions, EXECUTED with pinned arguments and expected values written out
- * in full — never recomputed from the rule under test, which is the copy that stays green when the
- * shipped condition is inverted.
- *
- * These are the decisions the screen delegates to; that the screen actually runs THEM is a
- * separate, weaker instrument (the source lint in `ImapDiscoveryWiringTest`), because this module
- * can render no composable.
  */
 class ConnectWalkTest {
 
@@ -629,25 +623,6 @@ class ConnectWalkTest {
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [ConnectStatusWiringTest]: `ConnectScreen` is a composable and this module has neither
- * Robolectric nor instrumented tests, so nothing here can be composed. What [clearingIsDue]
- * DECIDES is executed in [ConnectWalkTest]; what is held here is that the screen's clearing seam
- * asks it, with which marker, and that NOTHING ELSE runs in that seam.
- *
- * THE DEFECT, measured at the bench (emu, Android 16, release, airplane mode): address step,
- * a valid address typed, tap on Continue, "Could not connect: You're offline…" on screen. Rotate
- * portrait→landscape→portrait and the sentence is absent from all three uiautomator trees (checked
- * down to the last element of the column, "Continue"), while the typed address survives. The
- * rotation recreates the composition, `LaunchedEffect(walkStep)` restarts on a step already
- * cleared for, and `clearFinishedAttempt()` puts the state back to Idle. An ordinary recomposition
- * (keyboard up, keyboard down) keeps the sentence — the rotation alone threw the answer away.
- *
- * THE SEAM IS PINNED WHOLE, statement by statement, and not as a run of lines somewhere in the
- * file. Indentation alone does NOT protect against a wrap, whatever a comment may once have said
- * here: an early `return@LaunchedEffect`, or an `if` without braces on the line above, undoes the
- * guard while every line of it stays exactly where it was — an audit found precisely that mutation
- * alive against a run-of-lines pin. What the body may contain is therefore closed, not just what
- * it must contain.
  */
 class ConnectWalkRotationWiringTest {
 
@@ -728,12 +703,6 @@ class ConnectWalkRotationWiringTest {
 
     /**
      * The block opened by [opener] must contain EXACTLY [statements], raw and in order — comments
-     * and blank lines aside, nothing more and nothing less. The block ends at the first line that
-     * is the opener's indentation followed by `}`.
-     *
-     * This is the difference between "these lines are there" and "only these lines run". A pin
-     * on a run of consecutive lines is blind to anything inserted BEFORE the run, which is where a
-     * `return@LaunchedEffect` goes.
      */
     private fun assertSeamBody(opener: String, statements: List<String>, why: String) {
         val lines = source().lines()

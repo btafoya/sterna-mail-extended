@@ -11,17 +11,6 @@ import java.io.File
 
 /**
  * The two pure decisions behind prefilling the IMAP form from the autoconfig cascade — EXECUTED,
- * with pinned arguments, never re-read from the source:
- *
- *  - [shouldDiscoverImapSettings]: whether the cascade may set out at all. The rules that matter
- *    most are the refusals — an armed provider chip outranks the cascade, OAuth has no fields to
- *    fill, a single hand-typed host disarms it, offline it must not even start;
- *  - [presetFilledWith]: what the verdict may write. Per side, atomically, and NEVER over a
- *    hand-typed host — nor a discovered port/security slid under one.
- *
- * Every discovered value in the fixture differs from [PresetForm]'s defaults ("993"/TLS,
- * "465"/TLS) on purpose: a mutation that forgets to write one field must be distinguishable from
- * a form that already held it.
  */
 class ImapDiscoveryTest {
 
@@ -135,9 +124,6 @@ class ImapDiscoveryTest {
         )
         // The other two JMAP routes, spelled out: the condition is "the IMAP form is the one on
         // screen", NOT "the route is not JMAP_AUTODISCOVER". With only the autodiscover route ever
-        // passed, `route != JMAP_AUTODISCOVER` is a mutation nothing here could see.
-        // (OUTLOOK_OAUTH is deliberately absent: connectRoute only ever yields it under an OAuth
-        // preset, which the oauth/selected conditions refuse anyway — a state this pair cannot be in.)
         assertFalse(
             "JMAP with an API token is still a JMAP form: no IMAP fields for the verdict to land in.",
             shouldDiscoverImapSettings(
@@ -297,18 +283,6 @@ class ImapDiscoveryTest {
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [ImapAuthRejectedWiringTest]: `ConnectViewModel` is an `AndroidViewModel` on the app container
- * and `ConnectScreen` is a composable, so this module (no Robolectric, no instrumented tests) can
- * run neither. The decisions are EXECUTED above ([ImapDiscoveryTest]); what is held here is that
- * the screen and the ViewModel actually run THOSE decisions and the REAL cascade, by reading the
- * source.
- *
- * Every pin is a WHOLE LINE, trimmed, compared by strict equality, and required to occur
- * exactly once — never `contains` on a fragment, which is blind to any mutation that lengthens
- * the line (three prior bites in this repo, two on irreversible server writes).
- *
- * What this does NOT hold: that the lines run, in what order, or what the coroutine around them
- * does. The guard's own semantics and the fill's are what the executed tests above prove.
  */
 class ImapDiscoveryWiringTest {
 

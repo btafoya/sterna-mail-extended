@@ -16,21 +16,6 @@ import org.junit.Test
 
 /**
  * The widget's push, RUN — not read as source. What is pinned here is not that the app counts
- * unread mail, it is WHEN it agrees to: never while no widget is placed, from the moment one is,
- * and no longer once the last one goes.
- *
- * That gate is the expensive half of this pane. `observeUnifiedInboxUnreadByAccount()` is a `combine` of two
- * global Room aggregates; collected for the life of the process it is paid by every user, and the
- * large majority will never put this widget on a home screen. So the tests below assert on what the
- * collaborator was ASKED and when it was SUBSCRIBED, the way `UnifiedInboxUnreadTest` asserts on
- * the scopes handed to its counter — a returned value would say nothing about the subscription that
- * produced it.
- *
- * The fake is HOT and never completes, on purpose. A `flowOf(…)` is finished the instant it is
- * read, and a finished inner flow makes `flatMapLatest`, `flatMapMerge` and `flatMapConcat`
- * indistinguishable — the real counter never ends, so a subscription the shipped code failed to
- * drop stays alive and keeps arriving. [Counter.push] is that arrival, aimed at a flow handed out
- * earlier.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class UnreadWidgetPushTest {
@@ -43,9 +28,6 @@ class UnreadWidgetPushTest {
 
     /**
      * Stands in for `MailRepository.observeUnifiedInboxUnreadByAccount()`, and records two
-     * different facts that a single counter would conflate: that the factory was CALLED, and that
-     * the flow it handed back was actually COLLECTED. Each subscription starts on a breakdown of
-     * its own (100, 200, …), so the collected list also says WHICH subscription produced what.
      */
     private class Counter(
         private val initial: (Int) -> Map<String, Int> = { mapOf(ACCOUNT to 100 * (it + 1)) },
@@ -83,8 +65,6 @@ class UnreadWidgetPushTest {
 
     /**
      * The rule this whole file exists for: an install with no widget on any home screen must not
-     * subscribe the unified count AT ALL. Not "subscribe and ignore", not "subscribe and draw
-     * nothing" — never ask.
      */
     @Test fun `no widget placed means the count is never even asked for`() = runTest {
         val counter = Counter()
@@ -130,9 +110,6 @@ class UnreadWidgetPushTest {
 
     /**
      * The claim [kotlinx.coroutines.flow.flatMapLatest] makes, executed rather than believed: the
-     * subscription is DROPPED when the last cell goes, not merely superseded. With `flatMapMerge`
-     * the app would keep counting mail for a widget that no longer exists, on every write to the
-     * database, for as long as the process lives — and nothing on screen would ever say so.
      */
     @Test fun `the last widget removed really stops the collection`() = runTest {
         val counter = Counter()
@@ -182,8 +159,6 @@ class UnreadWidgetPushTest {
 
     /**
      * The gate's ceiling: an answer that has not CHANGED must not re-subscribe. The presence flow
-     * is fed by callbacks that can repeat, and each repeat would otherwise cancel and rebuild those
-     * two Room aggregates for a state of affairs that is exactly what it already was.
      */
     @Test fun `the same answer twice does not re-subscribe the count`() = runTest {
         val counter = Counter()
@@ -203,17 +178,6 @@ class UnreadWidgetPushTest {
 
     /**
      * THE SAME BREAKDOWN TWICE IS ONE DRAW. Nothing upstream says so: the real counter is a
-     * `combine` of two Room flows, and a single write makes both legs re-emit, so one message
-     * marked read arrives here as the same map two or more times over. A `Map` compares by
-     * value, which is what keeps this rule true now that the payload is no longer an integer.
-     *
-     * A draw is not free — `getAppWidgetIds` over binder, the account blob decoded from JSON, a
-     * `PendingIntent.getActivity(FLAG_UPDATE_CURRENT)`, and an `updateAppWidget` the launcher
-     * re-inflates on — and every one of those repeats redrew digits that were already on the cell.
-     *
-     * The counter fake above cannot show this: it hands back a [MutableStateFlow], which drops a
-     * value equal to the one it holds all by itself. The repetition being defended against comes
-     * from the two legs of a `combine`, so it is written here as a flow that really does repeat.
      */
     @Test fun `the same count arriving twice is drawn once`() = runTest {
         val seen = mutableListOf<Map<String, Int>>()
@@ -239,21 +203,6 @@ class UnreadWidgetPushTest {
 
     /**
      * THE NUMBERS DO NOT MOVE AND THE CELL MUST STILL BE REDRAWN — the defect this pane closes.
-     *
-     * [UnreadWidgetContent.of] calls the cell "All inboxes" only above [AllInboxesView.existsFor],
-     * i.e. from two accounts up, and below it the label is the single account's own inbox name;
-     * [UnreadWidgetTap] sends a tap to two different places on the same bound. So crossing it
-     * rewrites the cell in both directions WITHOUT touching the mail — and the breakdown cannot
-     * report it, because it is keyed on `UnifiedInbox.countedInboxes`, which drops any account
-     * whose `inboxId` is still null. An IMPORTED account is written exactly like that and stays so
-     * until someone signs it in: it is in the list, and absent from the map.
-     *
-     * The de-duplication therefore had two equal maps and swallowed the emission. With
-     * `updatePeriodMillis="0"` nothing else was coming: on a quiet mailbox the cell went on saying
-     * "All inboxes" — and opening it — for days after the second account was removed.
-     *
-     * The expected emissions are written out in full and NOT recomputed from `existsFor` here —
-     * a test that re-derived the bound would stay green with the shipped bound inverted.
      */
     @Test fun `crossing the two-account bound redraws, on a count that did not move`() = runTest {
         val counter = Counter()
@@ -286,16 +235,6 @@ class UnreadWidgetPushTest {
 
     /**
      * THE OTHER BOUND, and the one a boolean arm would lose: NO ACCOUNT AT ALL versus ONE.
-     *
-     * [UnreadWidgetContent.of] has THREE arms, not two — "All inboxes", the single account's inbox
-     * name, and the app's own name with a zero when there is no account. `existsFor` is `false` on
-     * both sides of the 0/1 bound, so a trigger that compared only that boolean would leave the
-     * cell showing the app's name after a first account arrived, and a mailbox name nobody owns
-     * after the last one left.
-     *
-     * The map is EMPTY from end to end here, which is not a contrivance: an account with no
-     * `inboxId` contributes no entry, so "no account" and "one imported account" produce the same
-     * empty breakdown — the emission has nothing else to be told apart by.
      */
     @Test fun `the first account arriving and the last one leaving are redraws too`() = runTest {
         val counter = Counter { emptyMap() }
@@ -327,25 +266,6 @@ class UnreadWidgetPushTest {
 
     /**
      * THE THIRD PAIR, AND THE ONE THE TWO TESTS ABOVE CANNOT SEE: no account at all versus two.
-     *
-     * The bound has three states, so it has three distinctions to keep, and the two crossings
-     * played above both pass THROUGH the single-account state. Nothing else in this file runs
-     * 0 → 2 in one step, so `NO_ACCOUNT` and `ALL_INBOXES` could be the SAME value and the whole
-     * suite would stay green — with the cell left on the app's own name and a zero, opening the app
-     * bare, where it must say "All inboxes" and open that list.
-     *
-     * And that one step is real, not a contrivance of the test: `AccountStore.importAccounts`
-     * ends in a single `saveAccounts(existing + added)`, so restoring a two-account backup onto an
-     * install that had none republishes the list ONCE, already at two. Every imported record is
-     * written with `inboxId = null`, so `UnifiedInbox.countedInboxes` drops both and the breakdown
-     * is the empty map on either side: this emission has nothing but the bound to be told apart by,
-     * and swallowed it leaves that cell wrong for days (`updatePeriodMillis="0"`).
-     *
-     * The way back is pinned for the same reason, whichever gesture takes the list from two
-     * straight to none: it is the same pair, and a bound that conflated them would lose it too.
-     *
-     * The expected emissions are written out in full and NOT recomputed from `existsFor` here —
-     * a test that re-derived the bound would stay green with the shipped bound inverted.
      */
     @Test fun `no account becoming two in one step redraws, and back`() = runTest {
         val counter = Counter { emptyMap() }
@@ -378,16 +298,6 @@ class UnreadWidgetPushTest {
 
     /**
      * THE PRICE OF THE ARM ABOVE, and the reason it carries a BOUND and not the account list.
-     *
-     * `saveAccounts` is the choke point of some twenty-seven writes — a refreshed OAuth token, a
-     * colour, identities discovered on a sync — and every one of them republishes `accountsFlow`.
-     * A trigger that compared the accounts themselves would redraw the cell on all of them, each
-     * time paying a `getAppWidgetIds` binder call, the account blob decoded, a
-     * `PendingIntent.getActivity(FLAG_UPDATE_CURRENT)` and a re-inflation in the launcher, for a
-     * cell whose label and digits are unchanged.
-     *
-     * And nothing may be RE-SUBSCRIBED: the breakdown stays keyed on `UnifiedInbox.countedInboxes`,
-     * so an account list that moves must not cancel and rebuild two global Room aggregates.
      */
     @Test fun `an account list that does not cross the bound costs nothing`() = runTest {
         val counter = Counter()
@@ -425,14 +335,6 @@ class UnreadWidgetPushTest {
 
     /**
      * ONE ACCOUNT IS NOT AN ABSENCE OF ACCOUNTS, and this test exists because the arm added for
-     * the label reads a BOUND: on a single-account install — the large majority — that bound never
-     * changes for the whole life of the process.
-     *
-     * An arm that only spoke above the bound (`filter { it }`, `dropWhile { !it }`) would leave
-     * [kotlinx.coroutines.flow.combine] waiting on a value that never comes, and the cell would
-     * stop following the mail ENTIRELY for everyone with one account: the number frozen on the
-     * home screen, which is the defect this whole file was written to close, and with
-     * `updatePeriodMillis="0"` nothing would come to clear it.
      */
     @Test fun `a single account still follows the mail`() = runTest {
         val counter = Counter()
@@ -461,15 +363,6 @@ class UnreadWidgetPushTest {
 
     /**
      * THE GATE GOVERNS BOTH ARMS, and this is the half a combine placed outside
-     * [kotlinx.coroutines.flow.flatMapLatest] would lose. Such a combine RETAINS the last value of
-     * each arm, and the gated arm never completes — it only falls silent — so an account added or
-     * removed after the last cell was taken off the home screen would pair a stale breakdown with
-     * a fresh bound, get past the de-duplication, and ask for a redraw on behalf of a widget that
-     * does not exist.
-     *
-     * The cost is one `getAppWidgetIds` binder call, which is small. What is not small is the
-     * claim: this file says "nothing at all while no widget is placed", and the wiring lint next
-     * door prices the whole gate on it. The sentence has to stay true.
      */
     @Test fun `an account list that moves while no cell is placed redraws nothing`() = runTest {
         val counter = Counter()

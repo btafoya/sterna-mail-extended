@@ -10,8 +10,6 @@ import org.junit.Test
 
 /**
  * The decision itself: given the size a message announces for a part, do we agree to pull it
- * into memory? No network, no server — that is the point, the refusal has to be decidable from
- * the message alone, before any round-trip.
  */
 class DownloadLimitsTest {
 

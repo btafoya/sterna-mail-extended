@@ -15,9 +15,6 @@ class ImapParserTest {
 
     /**
      * The same entry point taking the WIRE BYTES. The `String` overload cannot express the case
-     * that matters here: it encodes what it is given as UTF-8, so a lone 0xE9 — a latin-1 "é",
-     * perfectly legal in an 8-bit body — is unrepresentable, and the charset defect was
-     * therefore untestable through it.
      */
     private fun parseBytes(raw: ByteArray): List<Any?> =
         ImapParser(ByteArrayInputStream(raw)).readResponse()
@@ -67,12 +64,6 @@ class ImapParserTest {
 
     /**
      * A literal is a byte container: every octet comes back as the char of the same value, so
-     * `toByteArray(ISO_8859_1)` reproduces the wire exactly.
-     *
-     * This is the whole defect in one assertion. Decoded as UTF-8, a lone 0xE9 is malformed, the
-     * JVM's REPLACE action turns it into U+FFFD and the octet is gone — before any reader has
-     * looked at the part's `charset=`, and with nothing left for it to look at. Every 8-bit body
-     * and every `8bit`/`binary` attachment goes through this one line.
      */
     @Test
     fun aLiteralKeepsEveryByteVerbatim() {
@@ -105,16 +96,6 @@ class ImapParserTest {
 
     /**
      * A hostile server announces a literal past [MAX_LITERAL]. The parser must REFUSE IT WITHOUT
-     * ALLOCATING IT, drain it, and LEAVE THE STREAM IN PHASE — the next response must still be
-     * readable, or one absurd `{n}` desynchronises the connection for good.
-     *
-     * The stream deliberately does NOT end here: the oversize data is GENERATED as it is read (a
-     * 33 MiB array in the fixture would be the very allocation under test), the response closes
-     * normally, and another response follows. So the end-of-stream guard of #156 is out of scope,
-     * and what is asserted is the old contract, whole: empty section, connection still in sync.
-     *
-     * The non-allocation witness is that this test TERMINATES: a parser that buffered the
-     * announced size would die of OutOfMemoryError before reaching any assertion.
      */
     @Test
     fun oversizeLiteralIsRefusedNotAllocated() {
@@ -142,8 +123,6 @@ class ImapParserTest {
 
     /**
      * The other half of [MAX_LITERAL]: what is UNDER the cap comes back WHOLE. 100 000 bytes is a
-     * plain message body, and it is the only assertion that fails if the cap is lowered — an
-     * oversize fixture stays "oversize" whatever the cap becomes, so it can never see that.
      */
     @Test
     fun literalUnderTheCapComesBackWhole() {
@@ -219,10 +198,6 @@ class ImapParserTest {
 
     /**
      * An ENVELOPE address part sent as a literal (`{n}`) keeps CR/LF verbatim: literals are
-     * length-delimited, so unlike a quoted-string they are not line-bounded. That makes a
-     * hostile server's `From` mailbox a CR/LF carrier all the way into `ImapMessage.fromEmail`
-     * (`"$mailbox@$host"`), which is cached and later reused as a recipient by the notification
-     * quick reply. The wire-level guard therefore has to live at the send sink, not here.
      */
     @Test
     fun envelopeAddressLiteralKeepsCrlf() {
@@ -247,10 +222,6 @@ class ImapParserTest {
 
     /**
      * A section item name is ONE atom, brackets and everything inside them included. Cut on the
-     * space or the parenthesis, `BODY[HEADER.FIELDS (REFERENCES)] {5}` used to tokenise as the
-     * atom `BODY[HEADER.FIELDS`, the list `(REFERENCES)`, the atom `]` and then the literal — and
-     * a reader pairing keys with the item that follows them would take the LIST as the value of
-     * the header item, and the literal as the value of `]`, without one error.
      */
     @Test
     fun aHeaderFieldsSectionIsOneAtom() {
@@ -280,8 +251,6 @@ class ImapParserTest {
 
     /**
      * A `[` never closed does not run past the line: the atom stops at the CRLF, and the next
-     * line is read as its own response. Placed OUTSIDE a list on purpose — an unclosed list at the
-     * end of a line is `readList`'s affair, not the atom's.
      */
     @Test
     fun anUnclosedBracketStopsAtTheEndOfTheLine() {
@@ -294,8 +263,6 @@ class ImapParserTest {
 
     /**
      * A `[` never closed inside a list leaves the list its `)`: the parenthesis that answers no
-     * `(` opened inside the brackets ends the atom, and the list closes as it should. Without
-     * this the atom would swallow the `)`, and the list would run to the end of the line.
      */
     @Test
     fun anUnclosedBracketLeavesTheListItsClosingParenthesis() {

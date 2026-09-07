@@ -6,14 +6,6 @@ import org.junit.Test
 
 /**
  * THIS TEST READS SOURCE TEXT — the last resort, as [DraftAddressingWiringTest] does and for the
- * same reason: `MailRepository` needs Room, a `Context` and a socket, so no JVM test can build one.
- * The DECISIONS are executed by [LocalDraftSaveTest]; this pins only WHERE they are plugged in, and
- * it pins WHOLE LINES — `contains` is blind to any mutation that lengthens a line.
- *
- * What it exists for (#95): the local write has to be in the COMMON TRUNK, ahead of both protocol
- * branches. `saveDraft` executing one line of network before writing the row would leave every
- * executed test green — the orchestration would still be correct, it would just never run on the
- * path the app takes.
  */
 class LocalDraftSaveWiringTest {
 
@@ -30,8 +22,6 @@ class LocalDraftSaveWiringTest {
 
     /**
      * The parameter list of `fun [function]` in the `mail` file [file], comments cut and lines
-     * trimmed — from the `fun …(` line down to the line that closes it. Read through
-     * [DaoQuerySource] like every other source rule here; nothing new opens a file.
      */
     private fun declarationOf(file: String, function: String): List<String> {
         val lines = DaoQuerySource.mailSource(file).lines()
@@ -109,16 +99,9 @@ class LocalDraftSaveWiringTest {
     @Test fun `the things saveDraftLocalFirst is given are the real store, whole lines`() {
         // `record` is the newest of them and the easiest to drop: a save that fails offline
         // leaves the row for the upload worker, and if the attempt is not written down the row's
-        // `notBeforeMillis` never moves. `LocalDraftDao.pending` then hands it back at once, and
-        // against a server that is REFUSING rather than absent the worker retries as fast as it is
-        // allowed to, on battery, for as long as the refusal lasts.
         //
         // And two that are about the draft ALREADY saved:
         //  - `existing` is what tells the orchestration whether this save created the row it is
-        //    about. Handed `null`, a failed staging rolls back a row a PREVIOUS save wrote, i.e.
-        //    deletes the text and the staged bytes of a draft that was safely on the phone;
-        //  - `schedule` is what makes the promise of the volet true at all. Without it a draft
-        //    saved with no network waits for the next START of the app, and nothing says so.
         val body = codeOf(bodyOf("saveDraft"))
         val at = body.indexOfFirst { it == "return saveDraftLocalFirst(" }
         assertTrue("MailRepository.saveDraft no longer calls saveDraftLocalFirst( — follow it", at >= 0)
@@ -151,10 +134,6 @@ class LocalDraftSaveWiringTest {
     @Test fun `the booking seam does not suspend, and the signature says so`() {
         // THE guard the whole cancelled path rests on, and it had no witness at all: put
         // `suspend` back on `schedule` and everything stays green, because the harness's fake never
-        // suspends. On a phone it would: from a cancelled coroutine every suspension point throws,
-        // so a suspending booking seam books NOTHING on the one path that exists to book — the
-        // composer closing mid-upload. The compiler is what enforces it (a `localDraftDao.…` added
-        // in that lambda would not compile), and this is what stops the type being widened.
         //
         // WHOLE LINES: `schedule: suspend (LocalDraftUploadJob) -> Unit,` is a LONGER line, so
         // any `contains`-style check would be blind to exactly the mutation this exists for.
@@ -183,16 +162,9 @@ class LocalDraftSaveWiringTest {
     @Test fun `every value the composer hands over is on the row, argument by argument`() {
         // THE mutation that survived the first pass: `bodyIsLossy = bodyIsLossy` → `= false`
         // compiles and leaves the whole suite green. `uploadDraft` reads its verdict off the ROW
-        // now, so a false there tells draftReplacementIsFaithful that a draft the composer could
-        // only show as flattened text reproduces its HTML original — and finishDraftSave destroys
-        // that original, body, inline images and calendar parts included. That is exactly the loss
-        // the #63 guard exists to prevent, with every guard still green.
         //
         // The row builder is EXECUTED by LocalDraftSaveTest (every argument of localDraftRow lands
         // on the entity, and the entity is what both uploads read). What no JVM test can execute is
-        // this call: `saveDraft` needs Room, a Context and a socket. So the call is pinned as
-        // source, WHOLE LINES and all of them at once — `contains` would be blind to
-        // `bodyIsLossy = bodyIsLossy && false`, which lengthens the line.
         val body = codeOf(bodyOf("saveDraft"))
         val at = body.indexOfFirst { it == "val row = localDraftRow(" }
         assertTrue("MailRepository.saveDraft no longer builds its row with localDraftRow", at >= 0)
@@ -229,9 +201,6 @@ class LocalDraftSaveWiringTest {
                 "composerBodyWasLost = composerBodyWasLost,",
                 // …and the EMPTINESS of what was TYPED, which travels beside it and not
                 // inside `body` (#131). `body` is the plain-text projection now, and a bullet on
-                // an empty composer projects to `"- "`: read there, the lost-body guard stands
-                // down and those two characters replace the only copy of the draft. Dropped from
-                // this call, `localDraftRow`'s default answers `body.isBlank()` — the defect.
                 "typedBodyIsBlank = typedBodyIsBlank,",
                 "requestReceipt = requestReceipt,",
                 "existing = existing,",
@@ -364,14 +333,6 @@ class LocalDraftSaveWiringTest {
     @Test fun `parking an edited row writes the state and NOTHING else`() {
         // The whole body, in order. Two things it must not do, and both were in the first draft
         // of this fix:
-        //  - it must not force `attemptCount` to MAX_ATTEMPTS. That was a ruse to make
-        //    OutboxLogic.stateAfterEdit keep the row parked — needed only while the parked state
-        //    WAS `FAILED`. With a state of its own the row is no longer EDITING, so the reopen path
-        //    (releaseOutboxEdit, revertEditingExhaustedToFailed) never looks at it at all;
-        //  - it must not overwrite `lastError`. A row that really failed to send BEFORE it was
-        //    reopened keeps the cause of that failure — it happened, and Retry is still offered.
-        // `setState` is the statement that touches one column; `update(row.copy(...))` rewrites the
-        // whole row and is how either value gets clobbered again.
         assertEquals(
             "parkOutboxEdit must flip the state of an EDITING row and touch no other column:",
             listOf(

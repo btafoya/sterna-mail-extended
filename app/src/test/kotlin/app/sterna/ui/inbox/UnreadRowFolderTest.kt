@@ -8,21 +8,6 @@ import org.junit.Test
 
 /**
  * WHICH FOLDER a row of the unread view came from — the whole of issue #169, and nothing else.
- *
- * The report is "the same message appears two or three times". It does, and the rows are right: on
- * IMAP a message's identity contains its folder (`imap:$acc:$mbox:$uid`), so one object filed in the
- * Inbox and in the Archive is two rows of `emails`. The unread view pages every folder of the
- * account, the Inbox view pages one — hence the asymmetry the reporter sees. Deduplicating was
- * rejected: a single row would stand for N real messages and a "delete" swipe on it would be a
- * silent multi-folder delete. What was missing is the NAME of the folder each row is in.
- *
- * These tests EXECUTE [unreadRowFolder]. The folder list and the rows are literals, and the expected
- * answer is written out — they never re-derive the rule to decide what to assert, so inverting any
- * condition in the shipped function reddens one of them.
- *
- * They say nothing about what is DRAWN. That the returned [Mailbox] reaches the chip through
- * [mailboxDisplayName] is `InboxScreen` composition, out of reach of a JVM test; that wiring is
- * pinned as text in `UnreadRowFolderWiringLintTest`.
  */
 class UnreadRowFolderTest {
 
@@ -56,9 +41,6 @@ class UnreadRowFolderTest {
 
     /**
      * The test that carries the value. Two rows of ONE object, one per folder it is filed in —
-     * exactly what the reporter sees stacked in the list — must come back as two DIFFERENT folders
-     * with two different names. A function that answered the same folder for both, or null for
-     * both, leaves the list saying what it says today: the same thing, twice, unexplained.
      */
     @Test
     fun `the same message filed in two folders names each folder`() {
@@ -103,8 +85,6 @@ class UnreadRowFolderTest {
 
     /**
      * A folder the user made has no role, and [mailboxDisplayName] hands back its raw name. Unread
-     * mail filed there is unread mail: it is in the view, it is on screen, it gets named like the
-     * rest. Skipping it would leave exactly the rows a reader cannot place unlabelled.
      */
     @Test
     fun `a folder with no role is named too`() {
@@ -122,13 +102,6 @@ class UnreadRowFolderTest {
 
     /**
      * A COLLAPSED CONVERSATION names nothing, and this is the row the chip could lie about.
-     * Conversation view is the DEFAULT: a thread with an unread message in the Inbox and another in
-     * the Archive is drawn ONCE, off its newest message. `email` is then the representative alone,
-     * and stamping its folder on the row asserts a single origin for something that has several —
-     * hiding the reader's unread Inbox message behind the word "Archive". #169 loses nothing:
-     * the stacked rows the reporter sees each stand for exactly one message, and a row that counts
-     * 1 keeps its folder. IMAP folds into conversations too (`imapThreadKey`), so a collapsed IMAP
-     * row is silent exactly as a JMAP one is — this test's representative is an IMAP row.
      */
     @Test
     fun `a row standing for several messages names no folder at all`() {
@@ -181,8 +154,6 @@ class UnreadRowFolderTest {
 
     /**
      * A search hit carries the folder it was crawled in, which the server may have contradicted
-     * since — the same reason [rowFolderRole] refuses it. Here it only costs a wrong word rather
-     * than a lost message, and it is still a wrong word.
      */
     @Test
     fun `a search hit names nothing, its folder is frozen at crawl time`() {
@@ -200,9 +171,6 @@ class UnreadRowFolderTest {
 
     /**
      * The #31/#121 guard, and the one this file exists to hold: [MailUi.mailboxes] is ONE
-     * account's list and is not qualified by account, while servers number mailboxes per account.
-     * The row below belongs to another account and its `mailboxId` EXISTS in that list — a lookup
-     * without the guard finds it and prints "Archive" under a row filed who knows where.
      */
     @Test
     fun `a row of another account names nothing, even when its folder id exists here`() {

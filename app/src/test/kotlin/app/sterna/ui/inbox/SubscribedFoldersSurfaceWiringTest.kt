@@ -6,24 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — the instrument of [app.sterna.ui.settings] copied once more.
- * The rule itself is EXECUTED next door ([VisibleFoldersTest], [SubscribedFolderSurfacesTest]);
- * what no JVM test in this module can run is Compose code and an `AndroidViewModel` reaching into
- * the app container, and that is exactly where the four surfaces are wired.
- *
- * Whole lines are compared, never `contains`: a `contains` check is blind to every mutation that
- * LENGTHENS the line, and three regressions have walked through that hole in this repo.
- *
- * What it is here to catch:
- *  1. the drawer drawing the WHOLE list again (the filter silently does nothing);
- *  2. the picker being handed a pre-filtered list for BOTH of its uses of it, which costs a child
- *     the parent segment of its displayed path (#109);
- *  3. the path label resolving against the offered targets instead of the whole list;
- *  4. `MailUi.mailboxes` being replaced by the filtered list — `subfolderIdsOf` reads it, and a
- *     folder delete that misses a hidden child leaves orphaned mail behind (data loss);
- *  5. #91's parked notification folder being judged against the filtered list, or replayed every
- *     time the setting changes; and the Inbox fallback losing one of its two causes — a folder
- *     DELETED (#89) or one the setting just hid (#174, arbitration of 2026-08-25);
- *  6. the filter migrating to the repository, where it would poison every reader of the folder list.
  */
 class SubscribedFoldersSurfaceWiringTest {
 
@@ -134,16 +116,6 @@ class SubscribedFoldersSurfaceWiringTest {
 
     /**
      * WHICH account each surface asks. Nothing else in this file reaches these two flows, and a
-     * source lint is all there is: `InboxViewModel` cannot be instantiated on this bench.
-     *
-     * Two mutations survive everything else without these blocks, and both are silent:
-     *
-     *  - `showOnlySubscribedFor(curId, accounts)` in the picker's flow — from the unified inbox a
-     *    message of account B would be offered B's folders under A's setting, so B's hidden folders
-     *    come back as move destinations, or A's tick hides folders on an account that never asked;
-     *  - `accounts.any { it.showOnlySubscribedFolders }` in the drawer's flow — one account ticking
-     *    the box hides folders in EVERY account. That is the very defect
-     *    `ShowOnlySubscribedFoldersTest` closes for the WRITE; this is its reading half.
      */
     @Test fun `each surface reads the setting of the account it is showing`() {
         assertEquals(
@@ -230,21 +202,6 @@ class SubscribedFoldersSurfaceWiringTest {
 
     /**
      * The Inbox fallback, and WHAT it is judged against — the 2026-08-25 arbitration, which
-     * reverses what #174 first shipped ("hidden is not deleted") under rule 3, WYSIWYG: the bench
-     * left the screen titled `Vieux`, showing `Vieux`, while the setting said only subscribed
-     * folders are shown and neither the drawer nor "move to" would still offer it. A trap, too:
-     * no way back in without unticking the box.
-     *
-     * The decision itself is [selectionIsUnreachable]'s and is EXECUTED next door
-     * ([SelectionIsUnreachableTest]). What only a source lint can hold here is that it is fed BOTH
-     * causes — the folder list and the setting — from the recorded snapshot rather than from a
-     * second collection of [mailboxes], which would replay #91's parked notification folder.
-     *
-     * Two mutations this is the only thing standing between:
-     *  - the fallback judged on `visibleFolders(folders, onlySubscribed)` instead, which spends
-     *    both of [selectionIsGone]'s conservative guards on the filtered list;
-     *  - `combine(folderSnapshot, showOnlySubscribed)` reduced back to the folder list alone,
-     *    which is exactly the shipped defect: ticking the box makes no folder list arrive.
      */
     @Test fun `the Inbox fallback follows the folder list AND the setting`() {
         assertEquals(

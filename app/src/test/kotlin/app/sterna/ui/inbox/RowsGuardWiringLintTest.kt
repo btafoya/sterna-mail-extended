@@ -7,17 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxScreen.kt` as text and proves nothing about
- * what the app does. [RowsGuardTest] is the real test of this volet: it EXECUTES every rule of
- * [advanceRowsGuard] and pins the values. Read it first.
- *
- * This file exists only for what no JVM test here can reach: the two `when` branches that SPEND the
- * guard's answer. `InboxScreen` is a `@Composable` over an `AndroidViewModel` and `LazyPagingItems`
- * cannot be driven without the `paging-testing` artifact, which this project does not depend on (a
- * new dependency is not a decision an implementation branch takes). So the spend is held as text.
- *
- * Every rule below compares WHOLE trimmed lines against an expected list, never a fragment. A
- * `contains` / `in` on a fragment is blind to any mutation that LENGTHENS the line, which has been
- * found three times in this repo.
  */
 class RowsGuardWiringLintTest {
 
@@ -42,10 +31,6 @@ class RowsGuardWiringLintTest {
                 "empty and the tern to speak — #63's decision.) The indicator lines found were:",
             // The arm CATCHES wider than it DRAWS, deliberately. It catches on refreshLoading ||
             // staleRows — that is what this rule is about — and falling through would hand the
-            // centre to the scenes below mid-fetch. What it DRAWS is narrower: `ringShowing` is
-            // rememberGracedIndicator(refreshLoading && !staleRows), on the same functions as the
-            // tern, so a change of view keeps the centre empty (and a fetch too short to see is
-            // held back by the grace, #178). RefreshIndicatorWiringLintTest pins that predicate.
             listOf("refreshLoading || staleRows -> if (ringShowing) LoadingRing(Modifier.align(Alignment.Center)) else Unit"),
             codeLines(INBOX_SCREEN).map { it.trim() }.filter { it.startsWith("refreshLoading") && "LoadingRing" in it },
         )

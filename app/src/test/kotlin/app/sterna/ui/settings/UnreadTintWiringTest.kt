@@ -7,29 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads four source files as text and proves nothing about
- * what is drawn. Same instrument and disclaimer as [app.sterna.ui.message.ReplyBarWiringTest].
- *
- * `SettingsBackupUnreadTintTest` runs the decision (the default, the key, the backup field), and
- * `RowBackgroundTest` / `ChipFillTest` run the two pure functions the switch feeds. Neither can see
- * the PLUMBING: `MainActivity`, the CompositionLocal, the view model and the Appearance screen are
- * all Compose or Android code, and this module has no Robolectric, no `compose-ui-test`, no
- * `androidTest` — adding one is a dependency decision, not a test decision. Four silent edits:
- *
- * 1. **the default written out as a literal.** It exists in THREE copies — the repository, the
- *     activity's `initial =` and the CompositionLocal's fallback. A `false` in either of the last
- *     two paints the whole list flat for the first frames after launch (or for good, under any
- *     provider-less preview) while every value test still reads `UNREAD_TINT_DEFAULT` and passes;
- *  2. the switch missing from the Appearance screen, or greyed out / hidden behind an `if`: the
- *     setting exists and is unreachable, or worse, says it is off while it is on
- *     (`SettingsScreenHonestyTest`'s lesson, paid for once already);
- *  3. the switch wired to the wrong string keys — a row that says "Preview" and toggles the tint;
- *  4. the setting missing from the backup snapshot or the restore: it exports as if it did not
- *     exist, and an import silently turns the tint back on.
- *
- * Every rule compares a WHOLE line (leading and trailing blanks removed, nothing else), never a
- * `contains` for something it expects to find: a substring check is blind to any mutation that
- * LENGTHENS the line — `initial = UNREAD_TINT_DEFAULT && false` contains the constant. `contains`
- * appears only where this file screens for something that must NOT be there.
  */
 class UnreadTintWiringTest {
 
@@ -186,9 +163,6 @@ class UnreadTintWiringTest {
 
     /**
      * The body of `SettingsSection(stringResource(R.string.settings_message_list_section)) {`, and
-     * only it: the block is closed by counting braces, not by waiting for the next section. Stopping
-     * at the next `SettingsSection(` swallowed everything down to the Reading screen — a switch
-     * dropped anywhere in three hundred unrelated lines would have satisfied the rule below.
      */
     private fun messageListSection(): List<String> {
         val lines = codeLines(SETTINGS_SCREEN)

@@ -6,19 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
- *
- * The two gesture rules of volet 6 are EXECUTED next door ([DrawerGestureTest]) on literal
- * arguments. What no JVM test in this module can run is the Compose screen that FEEDS them:
- * `InboxScreen` is a Composable and there is no Compose harness here. That gap is not theoretical
- * — it was measured on 2026-09-02: with `drawerCanOpen = !permanentDrawer` replaced by a flat
- * `drawerCanOpen = true` at all three call sites, the whole suite stayed green while, from
- * 1 200 dp, the start-edge strip went on swallowing action swipes and every row went on handing
- * dead directions to a drawer that cannot move.
- *
- * So this file pins the ARGUMENTS, not the calls: a rule that only saw `rowKeepsDrag(` would be
- * satisfied by the mutation above. Whole trimmed lines are compared, never `contains` — a
- * `contains` is blind to any mutation that LENGTHENS the line, which has caught this repo out
- * three times.
  */
 class PermanentDrawerWiringLintTest {
 
@@ -137,22 +124,6 @@ class PermanentDrawerWiringLintTest {
 
     /**
      * The drawer's whole STATE, pinned at both call sites — the two envelopes must be handed the
-     * same thing, argument for argument.
-     *
-     * Sixteen arguments travel into [DrawerContent], and until now exactly one of them
-     * (`collapsedFolders`) was pinned, next door. Every other one could be rewritten in ONE branch,
-     * compile, and leave this whole file plus [CollapsedFoldersSurfaceWiringTest] green — on the
-     * window size the mutated branch owns, and only there. Two that are silent and that the user
-     * sees:
-     *
-     *  - `folderRowsBadgeUnread = true` in the permanent branch re-arms #185's fold-by-default on
-     *    an IMAP account, where no folder row can badge unread at all: a newly created folder folds
-     *    itself and the mail it hides is announced nowhere;
-     *  - `watchedFolders = emptySet()` makes every "watch this folder" checkbox in the drawer lie
-     *    on a wide window — ticked folders drawn unticked, and a tick that reads as a first one.
-     *
-     * So the whole argument list is compared, as a contiguous block of whole lines, twice against
-     * the SAME literal — which is the rule itself: one content, two envelopes, one state.
      */
     @Test fun `both envelopes hand the drawer content the same state, argument for argument`() {
         val call = listOf(
@@ -197,8 +168,6 @@ class PermanentDrawerWiringLintTest {
 
         /**
          * The single line equal to [needle] and the one after it — or, with [back], the line
-         * [back] before it and [needle] itself. Empty when [needle] is not there exactly once, so
-         * a rename reddens the rule that uses it instead of satisfying it against nothing.
          */
         fun adjacentPair(lines: List<String>, needle: String, back: Int = 0): List<String> {
             val hits = lines.indices.filter { lines[it] == needle }

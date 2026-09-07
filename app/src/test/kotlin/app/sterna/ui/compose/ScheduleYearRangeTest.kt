@@ -10,19 +10,6 @@ import org.junit.Test
 
 /**
  * The first year the "pick date and time" calendar draws (#161), decided by [scheduleFirstYear].
- *
- * Measured on `emu`, 2026-08-20 23:18 UTC: composer → send later → "Pick date and time" → year
- * chevron, and the list started at 1900 — `Navigate to year 1900` was in the dump. The greying
- * held (1900..2025 came back `enabled=false` and tapping 1900 did nothing), so nothing could be
- * scheduled into the past; the damage was the hundred and twenty-six dead years standing between
- * the chevron and 2026. Material's `DatePickerDefaults.YearRange` is 1900..2100 and it, not the
- * `SelectableDates` object, decides what is DRAWN — hence a bound of our own on the range itself.
- *
- * Every case hands the clock in and pins a LITERAL year, and three of the four sit on a New
- * Year's boundary with a non-zero offset: the trap is that "the current year" has two answers at
- * once around midnight on 31 December, and reading it anywhere but the device's zone gives the
- * wrong one — either the year the user is still living in disappears from the list, or a year that
- * is over is offered.
  */
 class ScheduleYearRangeTest {
     private val paris = ZoneId.of("Europe/Paris")

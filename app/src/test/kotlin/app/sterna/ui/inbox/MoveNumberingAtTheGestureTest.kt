@@ -7,26 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
- * [BulkSelectionWiringTest]: it reads the ViewModels as text and proves nothing about what happens
- * on screen.
- *
- * What it holds: the bulk gestures read the IMAP numbering of their source folders AT THE GESTURE
- * and carry it into the batch (Codeberg #99). The decision itself is executed next door, in
- * `core/data`'s `MoveNeedsTheNumberingStatedNowTest`, against a real service on a socket; the
- * repository's end of the wiring is pinned by `ImapMoveUnderNumberingTest`. Neither can see
- * whether the ViewModel still hands anything over — the map defaults to empty, which means
- * "nothing frozen", which refuses everything — so a dropped argument here does not fail to
- * compile and does not fail either of them.
- *
- * And the read must not slide down into the batch lambda. `bulkBatched` runs it later, after
- * `resolveSelectionTargets`, after a `hidingThreadMembers`, and per ACCOUNT; between the tap and
- * that point a background pass may have seen the folder renumbered and written the new number to
- * the store. Read there, the guard would oppose the new number to itself, conclude SAME, and the
- * `UID MOVE` would go out on UIDs that now name other messages — which is the defect, entire, with
- * every executable test still green.
- *
- * Everything is pinned as WHOLE LINES compared as a LIST, never `in` / `contains`: a substring
- * rule is blind to anything appended to what it matched.
  */
 class MoveNumberingAtTheGestureTest {
 
@@ -95,8 +75,6 @@ class MoveNumberingAtTheGestureTest {
 
     /**
      * The two spam gestures. On IMAP `reportSpamAll` / `notSpamAll` are `moveAllToMailbox` under
-     * another name, so they need the same freeze — and having neither is not a degraded guard, it
-     * is a button that fails every single time while the server has already been told `\Seen`.
      */
     @Test fun `the spam gestures freeze the numbering before they delegate`() {
         mapOf(
@@ -152,11 +130,6 @@ class MoveNumberingAtTheGestureTest {
 
     /**
      * The helper itself. It must ask the REPOSITORY (which answers null on JMAP, where an id
-     * survives anything a mailbox can go through), resolve the folder from the id exactly as
-     * `MailRepository`'s `groupBy` does — `ImapMailService.mailboxOf`, not the cached row's
-     * `mailboxId`, which is written by the sync and can disagree — and read once per
-     * (account, folder) rather than once per message: a select-all of 2 000 messages would
-     * otherwise be 2 000 database reads before a single command goes out.
      */
     @Test fun `the numbering is read per source folder, from the repository, off the id`() {
         val body = body(INBOX_VIEW_MODEL, "selectionNumbering")
@@ -203,15 +176,6 @@ class MoveNumberingAtTheGestureTest {
 
     /**
      * "Delete every message from this sender" is the only bulk path in the app that goes through a
-     * CONFIRMATION, so it is the one where the gap between reading the ids and moving them is
-     * widest — the dialog stays up for as long as the user looks at it.
-     *
-     * WHICH END OF THAT GAP the freeze sits at is the whole point, and it was wrong first time:
-     * frozen at the confirmation, a background pass that saw the folder renumbered while the
-     * dialog was up has already called `UidValidityStore.invalidate`, which RECORDS the new
-     * number. The read then answers post-renumbering, the guard opposes it to itself, concludes
-     * SAME, and the `UID MOVE` goes out on the stale ids held in `PendingDelete`. So the freeze
-     * belongs in `askDelete`, beside the ids it belongs to.
      */
     @Test fun `the sender delete freezes the numbering where it reads the ids`() {
         val body = body(SENDER_VIEW_MODEL, "askDelete")
@@ -258,14 +222,6 @@ class MoveNumberingAtTheGestureTest {
 
     /**
      * THE BLIND SPOT that got the first delivery rejected: every rule above looks at a gesture
-     * it already knows about, so a bulk mover called from somewhere ELSE simply was not looked at.
-     * `reportSpamSelected` / `notSpamSelected` were exactly that — plain `repo.reportSpamAll(c, ids)`
-     * calls, no numbering, therefore refused 100 % of the time on IMAP once the guard landed, with
-     * `markReadOnMoveOutOfInbox` having already flagged the messages `\Seen` on the server.
-     *
-     * So: every call of the five bulk movers anywhere in `app/src/main`, pinned WHOLE, as a closed
-     * list. A new caller — a widget, a notification action, a shortcut — fails here until it says
-     * what it freezes. That is the point; do not add a line without adding the freeze.
      */
     @Test fun `every caller of a bulk mover in the app hands over a frozen numbering`() {
         val calls = appSources().flatMap { file ->

@@ -11,8 +11,6 @@ import kotlinx.coroutines.flow.first
 
 /**
  * Fires a message scheduled for a future time. WorkManager persists and fires this; the message
- * lives in Room so only its row id is carried. At fire time it deposits the message into the
- * persistent outbox and drops the scheduled row — delivery and retry are [OutboxWorker]'s.
  */
 class ScheduledSendWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -37,11 +35,6 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
             }
             // Unproven ⇒ nothing is destroyed and nothing is written. retry() and not success():
             // the "Scheduled" screen is still announcing this send, so success() would leave the row
-            // on screen with no job behind it, for good.
-            // …and it is not free: a retry bumps runAttemptCount, the counter the catch below
-            // reads against MAX_ATTEMPTS, so an account unreadable for a few minutes spends the
-            // give-up budget with no delivery attempted. That arm notifies before it clears the
-            // row, which is what makes this the cheaper end of the trade.
             return Result.retry()
         }
         return try {

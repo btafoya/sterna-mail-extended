@@ -44,10 +44,6 @@ internal data class ToneRamp(val container: Color, val onContainer: Color)
 
 /**
  * The tonal ranges badge colours are drawn from — one per accent family of the ACTIVE scheme.
- * Badges used to be a private hue wheel computed without reference to the palette, the one surface
- * Material You never reached (#85). It returns exactly [MONOGRAM_FAMILIES] ramps, pinned by a test:
- * the number is also the modulus [monogramSlot] reduces a seed by, so a drift would index a badge
- * outside the palette.
  */
 internal fun ColorScheme.monogramRamps(): List<ToneRamp> = listOf(
     ToneRamp(primaryContainer, onPrimaryContainer),
@@ -57,10 +53,6 @@ internal fun ColorScheme.monogramRamps(): List<ToneRamp> = listOf(
 
 /**
  * Tones taken along each ramp: six, from 0.32 to 0.90 — 18 badges over the three families. Both ends
- * are chosen, not rounded to: 0.32 keeps the palest badge above what the old hue wheel managed, and
- * 0.90 avoids the deep end where the families converge on near-black. Six is where the measurements
- * stop paying — the ceiling is the palette's, Material You exposing three accent hues, and it is
- * lower than the old wheel's, which is the real cost.
  */
 private const val TONE_COUNT = 6
 private const val FIRST_TONE = 0.32f
@@ -68,9 +60,6 @@ private const val TONE_GAP = 0.116f
 
 /**
  * A stable badge colour for [seed], expressed in the tones of the palette in use. Trade-off one,
- * reaching everyone: 18 badges where the old wheel had 360 values. Trade-off two, reaching only
- * whoever chose it: a monochrome palette gives three families of one hue, so badges are told apart
- * by lightness alone. Not to be confused with [accountColorOf], the accent a user picks by hand.
  */
 internal fun monogramColor(seed: String, ramps: List<ToneRamp>): Color =
     monogramColor(monogramSlot(seed, ramps.size), ramps)
@@ -80,9 +69,6 @@ internal const val MONOGRAM_FAMILIES = 3
 
 /**
  * Which of the 18 badges the palette offers: an address reduced to two small indices. It exists so
- * the home-screen widget can draw the same badge as the list — the widget paints into a Bitmap
- * outside any composition, and the row it paints into is forbidden from carrying a sender's address
- * that far, where a pair of numbers naming one of 18 values identifies nobody.
  */
 internal data class MonogramSlot(val family: Int, val tone: Int)
 

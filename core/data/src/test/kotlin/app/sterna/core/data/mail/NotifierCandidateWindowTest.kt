@@ -14,19 +14,6 @@ import java.time.Instant
 
 /**
  * The agreement between the two ends of a notification pass: what the read REMEMBERS has to cover
- * everything the notifier's age floor can still let through.
- *
- * Both ends are executed, neither is restated: the reads are the shipped `EmailDao.receivedSince`
- * and `EmailDao.idsReceivedSince` run against SQLite, the floor is the shipped [notifyFloor] /
- * [announceableAt] that `NewMailNotifier.newSince` applies. Rows are built by the shipped
- * [toEntity], so their `sortKey` comes from `receivedAt` the way the app derives it — the whole
- * agreement rests on those two being one instant, and setting them by hand would assume exactly
- * what can break.
- *
- * The bench is deliberately LARGER than [NOTIFY_CANDIDATE_MAX]. An earlier version of this file
- * worked on eleven rows: it could not observe anything the cap does, which is precisely how a cap
- * that truncated the baseline passed review here. The invariant below is stated on the BASELINE —
- * the capped candidate read is allowed to shed rows, the baseline is not.
  */
 class NotifierCandidateWindowTest {
     private lateinit var db: Connection

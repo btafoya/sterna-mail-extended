@@ -40,23 +40,12 @@ object PgpProviders {
 
     /**
      * Whether picking [picked] must drop every account's OpenPGP signing key, given the provider
-     * [inUse] at the moment of the tap. `inUse == null` is NOT a switch — the caller does not know
-     * what is in use, and clearing a signing key is irreversible. Erasing on `null` is the defect
-     * this function was extracted to make executable: a tap landing before the screen had resolved
-     * anything wiped every account's keys for a choice that changed nothing.
      */
     fun switchErasesKeys(inUse: String?, picked: String): Boolean =
         inUse != null && inUse != picked
 
     /**
      * The package to write down as the chosen provider. It exists for the user who has exactly ONE
-     * OpenPGP app: no row is offered, so nothing would ever be stored, and the day they install a
-     * second app Sterna would change provider without a word, their signing key then an id the new
-     * provider never emitted.
-     *
-     * A [stored] choice is NEVER rewritten, and this is the dangerous half: [resolve] falls back
-     * to the default whenever the chosen package is momentarily absent. Never an erasure either:
-     * pinning writes down the provider ALREADY in use.
      */
     fun providerToPin(stored: String?, resolved: String?): String? =
         if (stored == null) resolved else null

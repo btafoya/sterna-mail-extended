@@ -16,13 +16,6 @@ import app.sterna.core.data.settings.ThemeMode
 
 /**
  * The OLED decision, kept out of the composable so it can be executed in a test.
- *
- * Two things it has to get right, and both are invisible from inside [SternaTheme]:
- *  - it takes the scheme **already chosen**, so the compression covers the brand palette and
- *    `dynamicDarkColorScheme` alike — otherwise turning Material You on would silently cancel the
- *    black setting;
- *  - it branches on the **resolved** [darkTheme], not on the theme mode: `ThemeMode.SYSTEM` on a
- *    system in light mode must leave the light scheme completely alone.
  */
 internal fun applyPureBlack(
     scheme: ColorScheme,
@@ -32,15 +25,6 @@ internal fun applyPureBlack(
 
 /**
  * Material 3 theme.
- *
- * By default it uses Sterna Mail's own brand palette — [ArcticColorScheme] (light)
- * and [PelagicColorScheme] (dark) — so the app looks the same, recognisably
- * "Sterna", on every device. Material You [dynamicColor] (wallpaper-derived) is an
- * opt-in: a deliberate brand identity matters more for a privacy-first tool than
- * per-device wallpaper harmony, but users who prefer the system look can turn it on.
- *
- * [themeMode] selects whether to follow the system setting or force light / dark. [pureBlack] puts
- * the dark theme on true black for OLED panels ([pulledToBlack]); it is inert in light theme.
  */
 @Composable
 fun SternaTheme(

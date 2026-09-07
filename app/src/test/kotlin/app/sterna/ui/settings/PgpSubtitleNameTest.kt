@@ -5,21 +5,6 @@ import org.junit.Test
 
 /**
  * Two halves of one sentence — the "Use OpenPGP" subtitle, which with a single provider installed
- * is the only place on the account screen that names the app signing and decrypting the mail (the
- * picker row appears from two on).
- *
- * The decisions ARE executed: [pgpProviderDisplayName] says what an OpenPGP app is called when it
- * declares no name of its own — the fallback that really reaches the screen — and
- * [pgpSubtitleProviderName] says what the sentence gets. Both are run here on values written by
- * hand, never derived from the code under test.
- *
- * The second half cannot be: the call site is a `@Composable` inside `PgpAccountSection`, which
- * needs a `Context`, a `PackageManager` and an `AccountsViewModel` (Application + Keystore-backed
- * store + DataStore), and there is no Robolectric here. So it is pinned by reading the shipped
- * source and comparing whole trimmed lines — a last resort, and it pins the ARGUMENTS, because the
- * defect it guards is precisely the wrong one being passed: handing the raw package name would put
- * `org.sufficientlysecure.keychain` on the screen, and handing nothing would leave the sentence
- * naming no app at all.
  */
 class PgpSubtitleNameTest {
 
@@ -33,9 +18,6 @@ class PgpSubtitleNameTest {
 
     /**
      * THE FALLBACK THE READER ACTUALLY MEETS, and the one mutation that used to pass unseen:
-     * `?: "OpenKeychain"` in place of `?: packageName` reads like a tidy-up and puts one particular
-     * app back on the screen of someone signing with another — #151, restored, in every language at
-     * once, without touching a single string resource.
      */
     @Test fun `an app that declares no name is called by its package, never by another app's name`() {
         assertEquals(
@@ -66,9 +48,6 @@ class PgpSubtitleNameTest {
 
     /**
      * A STATE PRODUCTION DOES NOT PRODUCE, and this test says so rather than pretending to guard
-     * the screen: `pgpProviderLabel` never returns null, and the branch that calls this is drawn
-     * only when `pgpAvailable` is true, which the view model publishes with the provider in use.
-     * The nullable type still owes an answer, and it may not be an app name.
      */
     @Test fun `with nothing resolved at all the sentence names the standard, never an app`() {
         assertEquals(

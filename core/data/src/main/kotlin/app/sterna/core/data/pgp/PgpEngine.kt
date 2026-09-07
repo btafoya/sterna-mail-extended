@@ -11,10 +11,6 @@ enum class PgpMode { OFF, SIGN, ENCRYPT, ENCRYPT_UNSIGNED }
 
 /**
  * "Does this mode turn the body into ciphertext?" — draft-keep, outbox-at-rest blanking and
- * recipient-key lookup all key off this alone (`draftSaveAllowed`, `outboxPayload`, `keysReady`).
- *
- * A new encrypting mode MUST route through here, not `== PgpMode.ENCRYPT` at call sites — that
- * has silently leaked plaintext before. Distinct from `!= PgpMode.OFF` (scheduling gate).
  */
 val PgpMode.encrypts: Boolean get() = this == PgpMode.ENCRYPT || this == PgpMode.ENCRYPT_UNSIGNED
 
@@ -83,8 +79,6 @@ class PgpDecrypted(
 
 /**
  * Message-level OpenPGP operations, kept behind an interface so core modules stay free of
- * crypto/provider deps. Methods accept `interactionResult` to retry after
- * [PgpResult.UserInteractionRequired].
  */
 interface PgpEngine {
     /** True when an OpenPGP provider is installed and its service can be bound. */
@@ -98,11 +92,6 @@ interface PgpEngine {
 
     /**
      * This account's OWN public key for [keyId]: minimized (signatures stripped, user ids
-     * narrowed to [ownAddress]), in BINARY with no armor — the sole encoder is
-     * `pgpPublicKeyCacheValue` in the account package.
-     *
-     * [ownAddress] must be the account's own address, else a multi-identity keyring leaks every
-     * user id in the `Autocrypt:` header sent to every correspondent.
      */
     suspend fun getPublicKey(
         keyId: Long,
@@ -112,10 +101,6 @@ interface PgpEngine {
 
     /**
      * File a CORRESPONDENT's public key under [peerId], from a message's `Autocrypt` header.
-     * [effectiveDateMillis] is that message's date — an old message must not overwrite a newer key.
-     *
-     * No `interactionResult`: runs while opening a message, from a screen-less repository —
-     * every non-Success answer is dropped silently. Never mutual: `prefer-encrypt` is discarded.
      */
     suspend fun updateAutocryptPeer(
         peerId: String,

@@ -7,30 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxViewModel.kt`, `InboxScreen.kt`,
- * `SternaApp.kt`, `LocalDraftRows.kt` and `EmailListItem.kt` as text and proves nothing about what
- * the app does. [LocalDraftRowsTest] is the
- * real test of this volet — read it first: it EXECUTES every decision (which folder shows the
- * phone's own drafts, which server row a local one hides, what a local row looks like, what a
- * gesture may do to it) and pins the values.
- *
- * This file exists for the one thing no JVM test here can reach: **WHERE** the local rows are
- * inserted. `InboxViewModel` is an `AndroidViewModel` and `Paging`'s `PagingData` cannot be read
- * back without the `paging-testing` artifact, which this project does not depend on (a new
- * dependency is not a decision an implementation branch takes). So the placement is held as text.
- *
- * **Why the placement is the load-bearing part.** `MessageScreen` pages
- * `InboxViewModel.pagedEmails` literally (`SternaApp.kt` hands it over as `listSource`). A local
- * draft id inserted UPSTREAM of `cachedIn` therefore lands in the READER's pager too: a sideways
- * swipe opens a page that cannot load, and a swipe-to-delete from there calls `repo.delete`, which
- * on IMAP deletes nothing and returns `trash` — the screen says "deleted" and offers an Undo over an
- * untouched message. Downstream of `cachedIn`, in a property only `InboxScreen` collects, the reader
- * never sees it (Paging re-applies downstream operators per collector).
- *
- * Every rule below compares a WHOLE ordered body — every code line of the declaration, in order —
- * never a fragment and never a filtered subset. A `contains` is blind to any mutation that LENGTHENS
- * a line (three times in this repo), and a filtered comparison is blind to a line being MOVED, which
- * is exactly the mutation this file is here to catch. The price is that reformatting these two
- * declarations reddens this test; that direction of error is loud and one line to fix.
  */
 class LocalDraftListWiringLintTest {
 
@@ -71,10 +47,6 @@ class LocalDraftListWiringLintTest {
     fun `the merge hides the replaced server row before it puts the local ones on top`() {
         // Held as text because `PagingData` cannot be read back without the `paging-testing`
         // artifact. What the pure tests DO execute is every decision this body calls
-        // (hidesServerRow, headerInsertionOrder, replacedServerIds); what only this can see is that
-        // the body still calls them. Dropping the filter line is a mutation nothing else notices:
-        // the reopened draft is then listed twice, and the copy the user reaches for is the one the
-        // upload is about to destroy.
         assertEquals(
             "withLocalDrafts must be exactly these five lines, in this order. Body was:\n" +
                 functionBody(LOCAL_DRAFT_ROWS, "internal fun withLocalDrafts(").joinToString("\n"),
@@ -178,11 +150,6 @@ class LocalDraftListWiringLintTest {
     fun `the swipe is refused where the gesture is armed, not after the row has flown off`() {
         // THE most expensive line of this branch. performSwipe's refusal is a belt, and it
         // arrives too late to be anything else: commitSwipe animates offsetX to the screen edge and
-        // lift to 1 (rise, tilt, alpha 0) and only THEN calls onSwipe, and its no-motion branch
-        // snaps the row to the same edge. Left swipe is DELETE by default, so a local draft left
-        // swipeable is destroyed on screen exactly as a real deletion is — no snackbar, no Undo —
-        // over a row still in the table. What the decision ANSWERS is executed in LocalDraftRowsTest;
-        // what only this can see is that the row's `gesturesEnabled` is what asks it.
         assertEquals(
             "The row must arm its swipe through rowGesturesEnabled(email.id, selectionActive), " +
                 "whole and once. '!selectionActive' alone is the shipped defect; dropping " +
@@ -192,10 +159,6 @@ class LocalDraftListWiringLintTest {
         )
         // …and the block has to READ the flag it is keyed on. Passing `gesturesEnabled` is half
         // the guard: a pointerInput key only RESTARTS the block, it never stops it running, so a
-        // block that does not return early stays fully armed with gesturesEnabled = false. That one
-        // line carries BOTH refusals — no swipe on a draft only this phone holds (#95) and no swipe
-        // during multi-select (#126) — and SwipeCommitWiringTest pins the KEY LIST of this same
-        // pointerInput, never its body, so deleting the line leaves that rule green.
         assertEquals(
             "The row's swipe block must refuse on its FIRST line, before the tracker and the " +
                 "awaitPointerEventScope loop: a guard placed after the loop is armed is never " +
@@ -210,12 +173,6 @@ class LocalDraftListWiringLintTest {
     fun `a local draft row is drawn no star to tap, at all three links`() {
         // The star is a tap on EVERY row, TalkBack included, and it is not routed through
         // performSwipe: toggleFlag over a local id touches nothing on IMAP (the star never fills)
-        // and raises "Action failed" on JMAP.
-        // Read as a WHOLE SLICE, opener to `} else null,` included, and that is the whole point
-        // of this rule: filtering on lines that START WITH `onToggleFavourite` sees the opening
-        // line and nothing else, so rewriting the else arm into `} else { { … } }` hands every
-        // local draft a live star back while this rule stays green. The closing line is reached by
-        // INDEX, never by matching its text: `} else null,` is also how onToggleExpand ends.
         val row = member(INBOX_SCREEN, "emailRow")
         val at = row.indexOfFirst { it.startsWith("onToggleFavourite") }
         assertTrue(
@@ -256,10 +213,6 @@ class LocalDraftListWiringLintTest {
         )
         // Link 3 of 3 — where the `null` ACTS. Only this condition decides whether a star exists
         // at all; a live lambda arriving here draws a ☆ that TalkBack announces as a button and
-        // that can never fill. Every mention of the parameter is compared, WHOLE and in order: the
-        // declaration, the condition, the tap. A line ADDED counts as much as a line changed, which
-        // is what catches a `val onToggleFavourite = onToggleFavourite ?: {}` slipped in above an
-        // otherwise untouched condition.
         assertEquals(
             "EmailListItem must declare onToggleFavourite nullable and defaulting to null (the " +
                 "search list draws this same row), gate the star on 'if (onToggleFavourite != " +
@@ -278,11 +231,6 @@ class LocalDraftListWiringLintTest {
     fun `the upstream role map is shared without an expiring replay either`() {
         // The ban on `replayExpirationMillis = 0` is not the downstream line's alone. The same
         // setting on the UPSTREAM does the same damage through it: on the way back to the screen
-        // folderRoles restarts at emptyMap, the local-row flow reads no Drafts role for the folder
-        // on screen and emits an empty LocalDraftRows — the phone's own drafts blink out of the
-        // list, and the server draft they were hiding comes back in their place. What the rows
-        // themselves answer is executed in LocalDraftRowsTest; the sharing of the map they are
-        // scoped by exists only here.
         assertEquals(
             "InboxViewModel.folderRoles must stay scoped off accountsFlow and shared with " +
                 "WhileSubscribed(5_000) and NO replayExpirationMillis. Compared whole and in " +
@@ -332,9 +280,6 @@ class LocalDraftListWiringLintTest {
     fun `the not-uploaded pill is pinned at all three links, arguments included`() {
         // The mutation this exists for is not a deleted call, it is a changed ARGUMENT:
         // `showNotUploadedBadge = false` at any one of the three links compiles, leaves every other
-        // rule here green, and silently takes the pill off every row — which is the whole visible
-        // half of this branch. The chip's own definition and its fill are pinned elsewhere
-        // (EmailListItemChipFillWiringTest) and neither of those notices this.
         assertEquals(
             "The row renderer must ask the SAME predicate the gesture sites ask, on the row's own " +
                 "id: a row cannot be drawn as uploaded and treated as inert, or the other way " +
@@ -368,12 +313,6 @@ class LocalDraftListWiringLintTest {
 
     /**
      * The whole body of the member `val` [name] in [file], one trimmed code line per entry, IN
-     * ORDER: the declaration line, then every line indented deeper than it (or opening with an
-     * operator, which is how Kotlin continues a line). Stops at the next declaration at the same
-     * indentation.
-     *
-     * Fails loudly when the member is not there, so a rename reddens these rules instead of
-     * satisfying them against an empty list.
      */
     private fun member(file: File, name: String): List<String> {
         val lines = codeLines(file)

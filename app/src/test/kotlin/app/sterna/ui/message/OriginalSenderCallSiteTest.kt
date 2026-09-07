@@ -6,27 +6,11 @@ import java.io.File
 
 /**
  * [OriginalSenderToShowTest] executes the decision; this pins that the decision is still WIRED to
- * the screen, and what the screen calls the line (#160).
- *
- * The gap it closes, found by an independent review: delete `OriginalSenderGroup(originalSender)`
- * and the line vanishes from every phone while the whole suite stays green. So does passing
- * `emptyList()` instead of the message's `from` — the "same address as the sender" refusal then
- * never fires and the panel names the alias twice.
- *
- * Read out of the shipped source because a `@Composable` cannot be built on a JVM bench: this
- * module has neither Robolectric nor instrumentation (same instrument, and the same last-resort
- * reasoning, as [ReadReceiptCoverSubjectCallSiteTest]).
- *
- * Whole trimmed lines compared by list equality — never `contains`, which is blind to every
- * mutation that LENGTHENS the line. Comment lines are dropped, so prose can neither satisfy a rule
- * nor break one.
  */
 class OriginalSenderCallSiteTest {
 
     /**
      * Every code line of the reader that names `originalSender`, whole and in order: the decision
-     * called with BOTH its arguments, the panel's parameter, the group that paints it, and the
-     * declaration itself. A fifth line, or any of these four rewritten, fails here.
      */
     @Test fun `the reader decides the origin line once, and hands it to the panel`() {
         assertEquals(
@@ -60,14 +44,6 @@ class OriginalSenderCallSiteTest {
 
     /**
      * The LABEL, whole. Nothing verifies that a message was ever relayed: the header is a plain
-     * text field any sender can put on any message, and the one refusal in
-     * [originalSenderToShow] — "same address as the From" — is precisely the one a forgery does not
-     * trip (`From: security@paypa1.example` with `X-Original-From: PayPal <service@paypal.com>`).
-     *
-     * So the label says so. Repository rule 3: between lowering the wording and raising the code,
-     * the wording comes down — it is honest, and it costs one translation string. A bare "Original
-     * sender" is an assertion this code cannot keep, on the one screen written to help spot a
-     * forgery.
      */
     @Test fun `the label does not claim the origin was verified`() {
         assertEquals(

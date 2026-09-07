@@ -9,8 +9,6 @@ import org.junit.Test
 
 /**
  * The account editor now has two ways to save: the button at the bottom and the Save offered by the
- * exit dialog (#34). Both go through [accountSaveFields] / [canSaveAccount], so these cover what
- * that shared decision writes — the point being that the exit route cannot drift from the button.
  */
 class AccountEditorSaveTest {
 

@@ -51,8 +51,6 @@ internal fun draftReplacementIsFaithful(
 
 /**
  * Whether reopening a saved draft lost something the server copy still holds; `true` keeps the
- * original (#63). [hasHtmlBody] is `draftHtmlIsLossy`, not "has HTML at all" (#131); [receiptHeader]
- * asks presence, not parseability — an unknown keeps the original.
  */
 fun reopenedDraftIsLossy(
     hasHtmlBody: Boolean,

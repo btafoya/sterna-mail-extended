@@ -8,19 +8,6 @@ import org.junit.Test
 
 /**
  * The two hops the styling of a stored message takes through this layer (#131), and neither is
- * visible anywhere else:
- *
- *  1. the QUEUE → the composer: `outboxDraftOf` projects an outbox row into the draft a reopen is
- *     built from. EXECUTED here. What the composer then makes of that html is `composeDraftOf`'s
- *     (`app`, `SendOutboxTest`); a row whose html never reaches it decides the same thing.
- *  2. the row → the JMAP SERVER: `uploadDraft` builds the `Email/set` create from the row.
- *     SOURCE LINT, the last resort — that call needs Room, a session and a socket, so no JVM test
- *     can execute it. What the client makes of the argument is pinned on the wire
- *     (`app.sterna.core.jmap.DraftHtmlOnTheWireTest`); that the ROW's value is what it receives can
- *     be pinned only here.
- *
- * Both are silent when they break: the message goes out and is stored whole, only stripped of
- * the styling the composer showed while writing it.
  */
 class QueuedDraftKeepsItsStylingTest {
 

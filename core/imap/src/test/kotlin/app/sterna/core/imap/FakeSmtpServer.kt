@@ -13,12 +13,6 @@ import java.util.Collections
 
 /**
  * A one-connection, scripted SMTP submission server on loopback — the `SmtpClient` sibling of
- * [FakeImapServer]. `send()` takes host and port from [MailServerConfig] and opens no TLS when the
- * security is [MailSecurity.NONE], so a server here observes the **exact command sequence** the
- * shipped client writes, with nothing changed in production code to accommodate it.
- *
- * The server never decides what the client should do: it only ANNOUNCES capabilities ([authLine])
- * and answers. Tests assert on [commands], the lines that actually left the client.
  */
 internal class FakeSmtpServer(
     /** The `AUTH` capability to advertise in the EHLO response (e.g. `"AUTH PLAIN LOGIN"`), or none. */
@@ -27,36 +21,14 @@ internal class FakeSmtpServer(
     private val multiline: Boolean = false,
     /**
      * Full override for one command: a non-null result is written verbatim (one entry per line,
-     * CRLF added) instead of the canned reply. Not for `DATA` itself — the dot-terminated body mode
-     * is driven by the canned path — but it IS consulted for [END_OF_DATA], the dot that ends the
-     * body, whose reply is the one read a submission may legitimately wait minutes for.
-     *
-     * An empty list answers nothing at all and leaves the connection open: the server that accepts
-     * and then goes quiet mid-dialogue. A `Thread.sleep` in here delays a reply (the shape
-     * `AllUidsTest` already uses on the IMAP side).
      */
     private val respond: (String) -> List<String>? = { null },
     /**
      * The greeting, called once the connection is accepted. `null` (the default) writes the canned
-     * `220`; a lambda returning `null` accepts the connection and then says **nothing at all**,
-     * holding it open — the mute server, which no other hook here can express ([cutAfter] closes,
-     * and [respond] is only reached once a command has been read). A `Thread.sleep` in it delays
-     * the greeting instead of withholding it.
      */
     private val greeting: (() -> List<String>?)? = null,
     /**
      * Write these lines and then **stop answering, for good** — the one thing [respond] cannot do.
-     * Returning `listOf("250-x")` from [respond] leaves the connection open and silent, which the
-     * client now ends by timing out (`SmtpTimeoutTest`) rather than by seeing an EOF: a cut and a
-     * silence are different failures, and this hook is the one that produces a cut.
-     *
-     * Called with the line that triggered the reply: a command as written by the client, or
-     * [END_OF_DATA] for the dot that terminates the message body. An empty list cuts before a
-     * single byte of the response is written.
-     *
-     * The cut is a half-close (`shutdownOutput`): the client gets its EOF, and whatever it writes
-     * afterwards is still received and recorded in [commands] — that is the witness of a client
-     * that carried on talking to a server that had already gone. Wait for it with [awaitDone].
      */
     private val cutAfter: (String) -> List<String>? = { null },
 ) : Closeable {
@@ -68,12 +40,6 @@ internal class FakeSmtpServer(
 
     /**
      * The DATA payload of the accepted message, or null when nothing was accepted.
-     *
-     * **Line endings here prove NOTHING about the ones the client wrote.** This is rebuilt
-     * from `BufferedReader.readLine()`, which ends a line on a bare LF, on a bare CR and on CRLF
-     * alike, and the loop below glues `\r\n` back on. A client writing an entity full of bare LFs
-     * therefore lands in [delivered] perfectly conforming, and a witness for the CRLF defect built
-     * on it is green on both sides of the fix. Assert on [wire] for that, and on this for content.
      */
     @Volatile
     var delivered: String? = null
@@ -84,12 +50,6 @@ internal class FakeSmtpServer(
 
     /**
      * The raw octets the client put on the socket, greeting to `QUIT`, exactly as written.
-     *
-     * The one view of the session in which a bare LF is still a bare LF: [commands] and [delivered]
-     * both come out of a [BufferedReader], which normalises the very bytes an SMTP conformance
-     * test is about (RFC 5321 § 2.3.8: lines end with CRLF, and CR and LF appear nowhere else;
-     * § 4.5.3.1: 1000 octets a line, CRLF included). Read it after [awaitDone] — it is filled by
-     * the serving thread.
      */
     val wire: ByteArray get() = synchronized(wireBytes) { wireBytes.toByteArray() }
 
@@ -129,8 +89,6 @@ internal class FakeSmtpServer(
 
                 /**
                  * Honour [cutAfter] for [trigger]: write the partial response, half-close, then keep
-                 * recording whatever the client still writes until it goes quiet ([QUIET_MS]) or
-                 * closes. Returns true when the session was cut and the serve loop must end.
                  */
                 fun cut(trigger: String): Boolean {
                     val partial = cutAfter(trigger) ?: return false
@@ -252,10 +210,6 @@ internal class FakeSmtpServer(
 
     /**
      * Block until the served connection is finished. After a cut this is what makes [issued]
-     * race-free: the client may write one more command between the EOF and the exception surfacing,
-     * and a test that asserted before the server had read it would call that silence a pass.
-     *
-     * A join that merely EXPIRES would hand the test a list still being mutated, silently: fail.
      */
     fun awaitDone(timeoutMs: Long = 10_000) {
         thread.join(timeoutMs)
@@ -276,9 +230,6 @@ internal class FakeSmtpServer(
     companion object {
         /**
          * An address, not a bare word, and that is the whole point: a real SMTP username is an
-         * address, and a fixture without an '@' cannot tell apart ANY per-account mangling of it.
-         * With `USER = "tester"`, `config.username.substringBefore('@')` at the AUTH call site left
-         * the suite green while breaking every account that logs in with its address.
          */
         const val USER = "tester@example.org"
         const val PASSWORD = "correct-horse-battery-staple-correct-horse-battery-staple-0123456789"

@@ -6,8 +6,6 @@ import org.junit.Test
 
 /**
  * The `Email/query` filter (RFC 8621 §4.4.1). The combination is what can go wrong: the
- * recipient's OR must be ONE condition of the outer AND, never flattened into it — that would
- * turn "from Alex AND to the team" into "from Alex OR to the team" and widen every search.
  */
 class SearchFilterTest {
 
@@ -60,8 +58,6 @@ class SearchFilterTest {
 
     /**
      * The exact JSON, keyword included: `$flagged` is the JMAP name of IMAP's `\Flagged`
-     * (RFC 8621 §4.1.1), and a server handed `flagged`, `\Flagged` or `$Flagged` would answer
-     * an empty result set rather than an error — a filter that silently finds nothing.
      */
     @Test
     fun `flagged alone becomes a hasKeyword condition on the flagged keyword`() {

@@ -11,43 +11,11 @@ import org.junit.Test
 
 /**
  * A full re-query must not delete the mail that arrives WHILE it runs (Codeberg #165).
- *
- * The defect, executed: the walk pages by anchor and never comes back up, so a message pushed into
- * the folder after the first request is named by NO page. The reconcile at the end deletes every
- * cached row outside the pages — so it deletes that message — and on JMAP a sync cursor is stored
- * immediately afterwards, the deltas resume, and it never comes back. It is the TOP of the list
- * that goes, structurally: the newest mail is exactly what lands during a walk.
- *
- * And the race does NOT stop when the walk does, which is what the first shape of this fix got
- * wrong. `EmailDao.reconcileMailboxRows` re-reads the folder itself, inside its `@Transaction`,
- * after everything the caller can see: a write committing in that last millisecond is in the
- * reconcile's own read, in no page, and in no keep set. So the fix is a BOUND on what may be
- * evicted ([evictableCachedIds]), applied to that later read, and not an addition to the keep set.
- * `a row that commits between the bound and the reconcile's own read` below is that case.
- *
- * The decisions under test are the shipped ones, EXECUTED: [fullQueryWriteThrough] for the order,
- * [reconcilableWindowIds] for JMAP's keep rule, [evictableCachedIds] for the bound and
- * [reconcileEvictions] for the complement. Nothing here restates what to keep or what to evict —
- * the tests write into a fake folder at chosen moments and then look at what the folder holds.
- *
- * Every fixture has THREE pages, so a middle page exists, and the concurrent write lands BETWEEN
- * two pages: a one-page fixture cannot tell "before the walk" from "during the walk", which is the
- * only interval this volet is about.
- *
- * What no test here can reach is `MailRepository` and Room. That the two walks really hand over
- * an inventory of THEIR folder, and that `EmailDao` really applies it as a bound, is source-pinned
- * by [FullQueryStreamingWiringTest] (JMAP + the DAO bodies) and [ImapWindowWiringTest] (IMAP), and
- * run against real SQLite by [ReconcileMailboxSqlTest].
  */
 class ReconcileSparesWhatArrivedDuringTheWalkTest {
 
     /**
      * One folder as this path leaves it: a cache of ids, a record of the arguments the reconcile
-     * was handed, and a count of how many times its inventory was read.
-     *
-     * [reconcile] models the shipped DAO in the one respect this volet turns on: it reads the
-     * cache AT RECONCILE TIME, not when the caller computed the bound. [duringReconcile] is the
-     * third party whose transaction commits in between — the millisecond a keep set cannot cover.
      */
     private class Folder(cached: List<String> = emptyList()) {
         val cache = LinkedHashSet(cached)
@@ -97,10 +65,6 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
 
     /**
      * A walk that hands [pages] over one at a time and answers with every id it handed over, or
-     * throws [failWith] instead of finishing its [failAfter]th page. [between] runs after each page
-     * has been written: that is where a third party gets to touch the folder mid-walk.
-     *
-     * It decides nothing — it accumulates exactly what it was given.
      */
     private fun walkOf(
         pages: List<List<String>>,
@@ -170,10 +134,6 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
     @Test fun `a row that commits between the bound and the reconcile's own read survives too`() {
         // The half a keep set cannot cover, and the reason this fix is a bound. `reconcileMailbox`
         // is @Transaction and `reconcileMailboxRows` re-reads the folder itself (`idsForMailbox`),
-        // so the set it evicts is computed from a read the caller never sees. A message whose write
-        // commits in that gap is in that read, in no page, in no keep set and in no spare set: with
-        // the union this file was first written against, it was deleted, then made permanent by
-        // `putSyncState`. The window had gone from minutes to a millisecond and was still open.
         val folder = Folder(cached = listOf("older"))
         folder.duringReconcile = { folder.thirdPartyWrites("commits-during-reconcile") }
 
@@ -244,9 +204,6 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
     @Test fun `the reconcile is handed the folder as it stood BEFORE the walk, as its bound`() {
         // Not "the folder is intact" — the ARGUMENT. A folder can end up intact for reasons that
         // have nothing to do with this volet (an empty keep set is refused elsewhere, a spare set
-        // may be protecting the row), and this pins the value that actually travelled. The
-        // walk's own pages must NOT be in it: an inventory taken after the walk contains them, and
-        // contains everything that raced the walk too, so it bounds nothing.
         val folder = Folder(cached = listOf("stale", "mid2"))
 
         writeThrough(folder, walkOf(threePages, between = arrivesAfterPage2(folder, "arrived-1")))

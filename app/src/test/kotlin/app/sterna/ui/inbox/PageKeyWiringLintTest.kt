@@ -7,50 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `SettingsRepository.kt` and `InboxViewModel.kt` as
- * text. It proves nothing about what the app does, and it would still pass if everything it points at
- * were broken inside. [PageKeyFlowTest] is the real test of the fix — read it first: it EXECUTES
- * [pageKeyFlow] and counts what it emits, member by member.
- *
- * Two sections, for the two things that fix has which no JVM test can reach.
- *
- * **1. The two settings flows are deduped.** `SettingsRepository.sortOrder` and `.conversationView`
- * are `dataStore.data.map { … }`, and DataStore republishes the WHOLE `Preferences` on every write,
- * whatever key was touched. Left undeduped they re-emit their old value on every unrelated setting
- * write, and every consumer of them — not just the list — is handed a change that is not one.
- * Reaching that from a JVM test would need a `SettingsRepository`, which needs a `Context` and a real
- * DataStore file: the `app` module has no `androidTest`, no Robolectric and no instrumented suite.
- *
- * **2. The six flows are wired to the right parameters.** This section exists because extracting the
- * key builder into [pageKeyFlow] turned an expression written IN PLACE into a call with six flow
- * parameters — among them two `Flow<Boolean>` and two `Flow<String?>`, interchangeable to the
- * compiler. [PageKeyFlowTest] proves the DECISION, passing its own flows; it never reads
- * `InboxViewModel`, so it cannot see what the real call site hands over. Two mutations compile and
- * leave the whole suite green without this section:
- *  - `currentAccountId = selectionAccountId` — a `StateFlow<String?>` that is null until something is
- *    selected and never moves when the account changes. Two same-server JMAP accounts whose inboxes
- *    share a mailbox id then build an EQUAL key, the dedupe swallows it, the pager is not rebuilt, and
- *    the screen keeps showing the neighbour account's mail with the neighbour's credentials in the
- *    `RemoteMediator`. Codeberg #121 back, in silence;
- *  - the two `Flow<Boolean>` swapped — the list filters unread by the conversation setting and
- *    collapses threads by the unread filter.
- * `InboxViewModel` is an `AndroidViewModel`: not instantiable here, so reading the source is what is
- * left.
- *
- * Every rule compares a WHOLE unit — a whole declaration, a whole `name = argument` pair — never a
- * fragment. A `contains` on a piece is blind to any mutation that LENGTHENS it, which has bitten this
- * repo three times, and here it is not theoretical: `currentAccountId = selectionAccountId` CONTAINS
- * `currentAccountId =`, so a rule on the parameter name alone would wave the first mutation through.
- * The price is that a legitimate reformat reddens this test. That direction of error is loud and one
- * line to fix; the other direction is a fix that silently comes undone.
- *
- * Deliberately does NOT reuse the `codeLines()` helper the other source lints here carry: that one
- * drops any line whose first non-blank character is `*`, which also drops a continuation line written
- * operator-first — exactly the shape a guard chained on the next line takes. The reader below carries
- * the block-comment state across lines instead. The eleven existing copies of that helper are out of
- * scope and stay as they are.
- *
- * Scope, stated plainly: only the TWO settings flows. `SettingsRepository` holds twenty-seven flows in
- * the same shape; deduping them all is a different change and is not this one.
  */
 class PageKeyWiringLintTest {
 
@@ -122,18 +78,6 @@ class PageKeyWiringLintTest {
 
     /**
      * SOURCE LINT, and the guard on the destructive half of Codeberg #126.
-     *
-     * What the list SHOWS and what "Select all" TAKES have to be the same set, and the only way to
-     * be sure of that is for both to ask one function. [ListUnreadOnlyTest] runs that function; this
-     * rule is the only thing that can see whether the two call sites use it, because `pagedEmails`
-     * and `selectAll` both live in an `AndroidViewModel`.
-     *
-     * The mutation it exists for is `listUnreadOnly(selection.value, unreadOnly.value)` →
-     * `unreadOnly.value` in `selectAll`. It compiles, it reads like the line that was there for
-     * years, and every other test in this module stays green: the list draws twelve unread rows
-     * while `selectableIds` is asked for the folders UNFILTERED, and "Select all" then "Delete"
-     * moves every read message of the Inbox, the Archive and each user folder to the Trash — mail
-     * nobody was shown. Whole lines, because a fragment match cannot tell the two apart.
      */
     @Test
     fun `the list's unread filter is decided once, and the selection asks the same question`() {
@@ -158,24 +102,6 @@ class PageKeyWiringLintTest {
 
     /**
      * SOURCE LINT. The rule above pins that the unread view's scope is HANDED to the paging key;
-     * this one pins that anything ever puts a value in what the scope is derived from. Drop the one
-     * line in the `mailboxes` `onEach` that records the folder list and every other rule here stays
-     * green while the view pages an empty scope list for ever — `pagedMailbox` answers
-     * `PagingData.empty()`, so the screen is simply blank and nothing fails.
-     *
-     * The scope stopped being a written value in #174: it is derived from this record AND from
-     * the account's "subscribed folders only" setting, because ticking that box has to re-scope the
-     * view while the [mailboxes] flow — which carries side effects (#89, #91) — is still collected
-     * exactly once. So what is pinned here is the RECORD's writers, and the derivation below them.
-     *
-     * Whole assignments, arguments included. `store.currentId() to folders` would compile and read
-     * plausibly, and it is the #121 mistake: the folder list in hand belongs to the account the flow
-     * was scoped to, and `store.currentId()` is whatever the store says NOW. Recording the list
-     * WITHOUT its account is the same mistake one hop later — the derivation would have to re-read
-     * the current account, and pair it with the previous account's folder ids.
-     *
-     * It must also stay TWO. A third writer is a third resolution, and the clearing one exists
-     * only because `onAccountChanged` holds the previous account's folder list.
      */
     @Test
     fun `the unread scope has exactly two writers, and each says what it writes`() {
@@ -204,19 +130,6 @@ class PageKeyWiringLintTest {
 
     /**
      * SOURCE LINT, and a LAST RESORT — read this before trusting it.
-     *
-     * What it pins is the DECISION of the `Sel.Unread` branch of `pagedEmails`: which scope list the
-     * pager is built from, and that its unread filter is the literal `true` rather than the toolbar's
-     * toggle. That decision cannot be executed here — `pagedEmails` is a property of an
-     * `AndroidViewModel`, and the pager under it needs Room. What CAN be executed is the scope the
-     * branch is handed ([unreadViewScopes], run in `UnreadViewScopesTest`) and the key it is handed it
-     * through ([pageKeyFlow], run in `PageKeyFlowTest`); this rule is the one link between them that
-     * no JVM test can reach, and it is written as a whole ARGUMENT LIST, never as "the call exists".
-     *
-     * The forced `true` is the point. This view is called "Unread": with the funnel off, `key.unreadOnly`
-     * is false and the very same screen lists the account's whole mail under that name (WYSIWYG). The
-     * mutation `unreadOnly = true` → `key.unreadOnly` compiles, changes nothing anywhere else, and is
-     * exactly the defect — so it has to redden something, and this is the only thing it can redden.
      */
     @Test
     fun `each multi-folder pager is built from its own scope list, and the unread one forces the filter`() {
@@ -247,12 +160,6 @@ class PageKeyWiringLintTest {
 
     /**
      * The arguments of the single `pageKeyFlow(` call in `InboxViewModel.kt`, one string per argument,
-     * whitespace collapsed — so a call the formatter spreads over eight lines reads the same as one
-     * written on a line. Split on the commas that sit at the call's own bracket depth, so a nested
-     * call's arguments could not be mistaken for the call's own.
-     *
-     * Fails loudly on anything but exactly one call: a second one would have to be told apart here
-     * rather than silently picked.
      */
     private fun pageKeyFlowArguments(): List<String> {
         val text = codeText(INBOX_VIEW_MODEL).joinToString("\n")
@@ -267,9 +174,6 @@ class PageKeyWiringLintTest {
 
     /**
      * The arguments of EVERY `repo.pagedMailbox(` call in `InboxViewModel.kt`, one list per call, in
-     * source order. Fails loudly on anything but exactly two: the unified inbox's and the unread
-     * scope's. A third would be a third multi-folder view, which has to be judged here rather than
-     * silently ignored.
      */
     private fun pagedMailboxCalls(): List<List<String>> {
         val text = codeText(INBOX_VIEW_MODEL).joinToString("\n")
@@ -318,17 +222,6 @@ class PageKeyWiringLintTest {
 
     /**
      * The declaration of `val` [name] in [file], comments removed and whitespace collapsed to single
-     * spaces: from its own line up to the line where its brackets balance AND the next line is not a
-     * continuation of it.
-     *
-     * The continuation clause is not decoration. `conversationView` fits on one line, so its brackets
-     * balance there and a reader that stopped on balance alone would hand back the declaration WITHOUT
-     * the `.distinctUntilChanged()` chained underneath — the guard this test exists to hold, reported
-     * missing while it is right there. Which is the same blindness, one layer up, as the `codeLines()`
-     * helper that drops any line starting with an operator.
-     *
-     * Fails loudly when the declaration is not found: a rename must redden these rules rather than
-     * satisfy them against an empty string.
      */
     private fun declaration(file: File, name: String): String {
         val lines = codeText(file)
@@ -359,12 +252,6 @@ class PageKeyWiringLintTest {
 
     /**
      * [file]'s non-blank lines with every comment taken out.
-     *
-     * Written as a scanner over the whole file rather than a per-line test, because the per-line
-     * shortcut is what makes the other lints here blind: dropping a line because it STARTS with `*`
-     * also drops a `.distinctUntilChanged()`-shaped continuation, and a guard chained on the next line
-     * is precisely such a continuation. So the block-comment state is carried across lines, and a `//`
-     * is only honoured outside a double-quoted string.
      */
     private fun codeText(file: File): List<String> {
         val out = mutableListOf<String>()
@@ -418,8 +305,6 @@ class PageKeyWiringLintTest {
 
         /**
          * The seven pairs the call site must spell. Whole pairs, and the ORDER is not compared: naming
-         * every argument is what makes the call readable, and a reordered named call is the same call.
-         * What is compared is that each parameter gets its own flow and no other.
          */
         private val EXPECTED_ARGUMENTS = listOf(
             "selection = selection",

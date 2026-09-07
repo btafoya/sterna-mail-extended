@@ -6,16 +6,6 @@ import org.junit.Test
 
 /**
  * The tap's destination, RUN — not read as source, not recomputed here. Every expectation below is
- * a literal [WidgetTapTarget], so a shipped rule whose arms were swapped or collapsed disagrees
- * with this file instead of agreeing with it.
- *
- * The rule matters because the widget sits where the app cannot explain itself. "the counter should
- * open All Inboxes" is what was published to the reporter of #112, and it holds wherever that view
- * exists — the drawer posts the entry only from two accounts up. Asking for it below that is the
- * widget ordering a screen the app does not have.
- *
- * What the tap does with the answer (an `Intent`, a `PendingIntent`, `MainActivity`) cannot run
- * in this suite; it is pinned by [UnreadWidgetTapWiringLintTest].
  */
 class UnreadWidgetTapTest {
 
@@ -45,8 +35,6 @@ class UnreadWidgetTapTest {
 
     /**
      * The arm the whole file exists for. Asserted on the VALUE returned, not on the absence of
-     * one: "not UnifiedInbox" would be satisfied by anything at all, including a third arm nobody
-     * handles.
      */
     @Test fun `a single account opens the app as it is, never the unified inbox`() {
         assertEquals(

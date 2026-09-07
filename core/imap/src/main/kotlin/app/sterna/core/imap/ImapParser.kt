@@ -4,13 +4,6 @@ import java.io.InputStream
 
     /**
      * Streaming parser for IMAP server responses. Reads one response at a time and returns it as a
-     * tree of tokens: [String] (atom / quoted / literal), [List] for parenthesised groups, or `null`
-     * for NIL. Literals (`{n}`) are read inline so binary/multiline data is preserved.
-     *
-     * THE CHARSET CONVENTION, stated once for the whole file: a token is a FAITHFUL BYTE CONTAINER,
-     * not text. Every byte off the wire becomes exactly one char of the same value (ISO-8859-1), so
-     * the original octets can always be recovered. What a token MEANS — modified UTF-7 for a mailbox
-     * name, `charset=` for a body, RFC 2047 for a header — is decided by the reader that knows.
      */
 internal class ImapParser(private val input: InputStream) {
     private var peeked = NONE
@@ -31,20 +24,6 @@ internal class ImapParser(private val input: InputStream) {
 
         /**
          * Read one full response line (following any literals) into a token list.
-         *
-         * [maxTokens] bounds what is KEPT, not what is read: past it the line is still consumed to its
-         * end — the stream must stay in sync — but the surplus is discarded as it goes, and an atom
-         * past the cap is skipped byte by byte without ever being built (#99).
-         *
-         * THE END OF THE STREAM IS A FAILURE, NOT AN ANSWER (#156). `-1` used to return `tokens`
-         * like the two line endings do, so a closed peer and a blank line both came back as
-         * `emptyList()` and the `while (true)` loops of [ImapSession] re-read a finished stream for
-         * ever: two accounts in IDLE burned a core each, 419 mAh, the SoC at 91 °C. So EOF throws,
-         * here and only here — `socket.isClosed` means "WE closed", and a read timeout cannot state it
-         * either, a closed peer answering `-1` at once. A lone CRLF still returns `emptyList()`, and
-         * no sub-reader guards EOF itself: their partial result comes back through this loop.
-         *
-         * @throws ImapException when the peer has closed, wherever the EOF falls.
          */
     fun readResponse(maxTokens: Int = Int.MAX_VALUE): List<Any?> {
         val tokens = mutableListOf<Any?>()
@@ -146,13 +125,6 @@ internal class ImapParser(private val input: InputStream) {
 
         /**
          * Consume one atom off the stream, appending it to [into] when a caller wants it built.
-         *
-         * An atom ends on a space, a parenthesis or the end of the line — EXCEPT inside a section
-         * name. `BODY[HEADER.FIELDS (REFERENCES)]` is ONE item (RFC 3501 §6.4.5): cut on the space it
-         * came out as three tokens, and a reader pairing each key with the token after it paired the
-         * header item with a LIST. So from a `[` that FOLLOWS something (never a bare `[UIDVALIDITY 1]`
-         * response code) to the matching `]`, everything is the atom. Still bounded by the line: a
-         * `]` that never comes ends the atom at the CRLF, as a plain atom always did.
          */
     private fun consumeAtom(into: StringBuilder?) {
         var seen = 0 // chars consumed so far — a `[` is a section only after at least one

@@ -52,10 +52,6 @@ class MainActivity : AppCompatActivity() {
             consumeOAuthRedirect()
             // Sweep the orphaned composer resumes. With no saved state there is no
             // `rememberSaveable` left that could consume any slot, so every file still sitting
-            // there is the leftover of a crash whose screen never came back — the only moment that
-            // can be said without guessing. ALL of them: one file per composer entry, and a
-            // sweep that knew a single name would leave the others' cleartext under filesDir.
-            // Not on every recreation: a rotation DOES come back to that composer.
             ComposerResumeSlot.sweep(filesDir)
         }
         val settings = application.container.settingsRepository
@@ -115,10 +111,6 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Hand an OAuth authorization-code redirect (#55) to the app-scoped driver, and strip it from
-     * the retained intent once taken. One-shot like the two payloads above, and for a sharper
-     * reason: an authorization code is redeemable exactly once, so a re-read would hand the driver a
-     * return it has already consumed and put that error on screen right after the account was added.
-     * A mailto: or a share on the same intent keeps its own.
      */
     private fun consumeOAuthRedirect() {
         val current = intent ?: return
@@ -129,8 +121,6 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Drop a consumed one-shot payload from the retained intent. Belt and braces next to the
-     * [onCreate] guard, and kept per-payload so consuming one can never cancel a genuinely pending
-     * other.
      */
     private fun stripEmailOpenPayload() {
         val i = intent ?: return
@@ -141,8 +131,6 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * The same one-shot strip for the home-screen widget's request (#112), and its OWN function on
-     * purpose: folded into [stripEmailOpenPayload], opening a message would also discard a widget
-     * tap that had just arrived, and the reverse holds too.
      */
     private fun stripUnifiedOpenPayload() {
         val i = intent ?: return
@@ -192,11 +180,6 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * A system "Share" opens the compose screen: shared text and subject prefill the fields, and any
-     * shared files are stashed for the compose screen to attach (#45).
-     *
-     * Only `content:` URIs are taken. The resolver would happily open a `file:` URI with OUR
-     * permissions and no grant involved, so any app could hand us a path inside our own private
-     * directory and have it pre-attached to a draft.
      */
     private fun parseShare(intent: Intent?): MailtoDraft? {
         if (intent == null) return null
@@ -231,8 +214,6 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * With app lock on, mark the window FLAG_SECURE so message bodies stay out of the recents
-     * thumbnail and screenshots — otherwise the lock overlay hides the live UI but the OS still
-     * snapshots it.
      */
     private fun applySecureFlag() {
         if (application.container.appLock.isEnabled) {
@@ -249,8 +230,6 @@ class MainActivity : AppCompatActivity() {
 
         /**
          * Open the cross-account unified inbox — set by the home-screen widget (#112), and only
-         * when the app actually HAS that view. With one account or none the widget sends no extra
-         * and the app opens where it already opens.
          */
         const val EXTRA_OPEN_UNIFIED = "app.sterna.OPEN_UNIFIED"
     }
@@ -267,8 +246,6 @@ data class MailtoDraft(
 
 /**
  * The message a tapped new-mail notification should open, and the context it lives in: its account
- * (#31) and the folder it sits in (#91), so the list underneath ends up where the message is.
- * Either may be null for a notification posted by an older version.
  */
 data class EmailOpenTarget(
     val emailId: String,

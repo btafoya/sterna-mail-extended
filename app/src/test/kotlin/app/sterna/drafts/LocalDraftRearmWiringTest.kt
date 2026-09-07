@@ -7,13 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT. `AppContainer` builds Room, WorkManager and a `Context`, and a `CoroutineWorker`
- * cannot be instantiated on the JVM either — so nothing here is reachable by an executed test. What
- * IS executed lives in `core/data`: `localDraftUploadJobs` decides which rows a startup re-arms and
- * with what delay, `uploadLocalDraftOnce` decides what one attempt does with its outcome.
- *
- * This pins the two things those functions cannot see: that the startup calls them at all, and that
- * the worker does with their answer what they said. WHOLE LINES, in order — a `contains` is blind
- * to a lengthened line and to a line moved inside a condition.
  */
 class LocalDraftRearmWiringTest {
 
@@ -30,11 +23,6 @@ class LocalDraftRearmWiringTest {
     @Test fun `startup re-arms the drafts the phone is still holding, one account at a time`() {
         // Two orders in one block, and both matter:
         //  - the rescue runs BEFORE the scheduling, or a row stranded in UPLOADING by a process
-        //    death is still UPLOADING when the queue is read and gets a work item that will find
-        //    it already in flight;
-        //  - it runs PER ACCOUNT. `revertUploadingToPending` is scoped for a reason: a global
-        //    UPDATE would reach another account's row, whose upload may be genuinely in flight in
-        //    this very process rather than left behind by a death.
         val lines = linesOf(APPLICATION)
         assertEquals(
             "AppContainer must re-arm the local drafts at startup, exactly as it re-arms the outbox:",
@@ -111,20 +99,9 @@ class LocalDraftRearmWiringTest {
     @Test fun `the worker gives up on nothing and deletes nothing`() {
         // THE difference with OutboxWorker, and the reason this is a second worker rather than a
         // flag on that one: no MAX_ATTEMPTS, no parked state, and above all no delete. A draft
-        // whose upload has failed a hundred times is a draft, not a failure.
-        // THE WHOLE BODY, from the signature to its closing brace, and that is a correction:
-        // anchored in the middle with `before = 0`, the first four lines were pinned by nothing at
-        // all — and INTERVERTING the two input keys there (`KEY_ACCOUNT` read into `id`) compiles,
-        // makes `credentials(accountId)` answer null for every draft, and stops every draft on the
-        // phone from ever reaching the server, in silence and with no failure anywhere.
         val lines = linesOf(WORKER)
         // And the re-booking goes through `uploadLocalDraftRebooking`, which is not decoration:
         // when WorkManager STOPS this worker mid-upload the coroutine is cancelled, every
-        // suspending call throws from that instant — the repository's `recordAttempt` included —
-        // so nothing is written on the row and, done inline as it used to be, nothing books a
-        // wake-up either. The draft then sits in UPLOADING until the app is killed and started
-        // again. That branch is executed by LocalDraftUploadTest; this pins that the worker is
-        // where it runs, and that the queue is what it books on.
         assertEquals(
             "the worker must read BOTH halves of the row's key from the data it was given, ask the " +
                 "repository for the verdict, and hand the re-booking decision the queue — " +

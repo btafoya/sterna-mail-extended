@@ -4,9 +4,6 @@ import kotlinx.serialization.Serializable
 
 /**
  * A JMAP Quota object (RFC 9425 "JMAP for Quotas"): how much of a server-side
- * resource the account uses against its limit. [resourceType] is "octets"
- * (storage bytes) or "count" (number of messages); [limit] is null when the
- * resource is unlimited.
  */
 @Serializable
 data class Quota(

@@ -7,27 +7,6 @@ import java.io.File
 
 /**
  * The DECISION is executed here, not read. [sweepStagedAttachments] answers the one question the
- * composer cannot answer for itself: of the chips on screen, which ones still have bytes behind
- * them?
- *
- * The chips can outlive their bytes. `ComposeViewModel.stageOutgoing` writes a picked file into
- * `cacheDir/outgoing`, and `cacheDir` is the one directory Android hands to the user (Settings →
- * Apps → Sterna → Storage → Clear cache) and evicts on its own under storage pressure. The composer
- * stays open through that, the chip stays drawn, and the first thing that notices is Save — a red
- * banner with a raw English detail in nine locales, and no draft written.
- *
- * THE GUARD IS THE WHOLE TEST. A part in `_attachments` has a `partId` ONLY when it was staged
- * locally — IMAP, or JMAP with PGP on (`ComposeViewModel`). Plain JMAP uploads a blob and
- * comes back with `partId = null, blobId = …` (`MailRepository.uploadAttachment`), and a reopened
- * draft's parts are rebuilt from the same descriptors (`localDraftUploadAttachments`). A sweep that
- * asked the filesystem about EVERY part would answer "gone" for every one of those and empty the
- * attachment list of a JMAP composer that has lost nothing at all. Hence [existenceProbes]: the
- * rules below pin not only the verdict but WHICH FILES WERE ASKED ABOUT, so an implementation that
- * gets the right answer by probing everything and being lucky does not pass.
- *
- * WHAT THIS DOES NOT COVER: that anything ever calls this function (that is the wiring lint's job,
- * [StagedAttachmentSweepWiringTest]), that `File::exists` is the predicate the app passes, and
- * anything at all about what the screen draws.
  */
 class StagedAttachmentSweepTest {
 
@@ -86,8 +65,6 @@ class StagedAttachmentSweepTest {
 
     /**
      * THE ONE THAT MUST NEVER GO GREEN BY ACCIDENT. The predicate says no to everything, exactly
-     * as a filesystem does when handed a blob id; the blob part must still be kept, and must never
-     * have been handed to the predicate in the first place.
      */
     @Test
     fun `a JMAP blob part is kept and never asked about`() {
@@ -107,8 +84,6 @@ class StagedAttachmentSweepTest {
 
     /**
      * The same guard, for the shape that would survive a null check: a `partId` that is a bare
-     * server-side part identifier rather than a path. `File("2").exists()` is a question about the
-     * working directory, and its answer is no.
      */
     @Test
     fun `a part id that is not a path under outgoing is kept and never asked about`() {
@@ -125,16 +100,6 @@ class StagedAttachmentSweepTest {
 
     /**
      * AN INLINE PART THE BODY POINTS AT IS NEVER SWEPT, file or no file. On a forward, an inline
-     * image is staged like any other attachment and enters the list with `disposition = "inline"`
-     * and a `cid`, and the forwarded HTML block that carries `<img src="cid:…">` is built ONCE
-     * (`ComposeViewModel`, from `carriedCids`) and reused as-is at send. Taking the part off
-     * the list therefore does not take the `cid:` out of the body: the message goes out with a
-     * broken image. Before this sweep existed the send REFUSED (`persistAttachments`, "refuse
-     * rather than shorten") and nothing left the phone, which is the state kept here — the chip
-     * stays, and the refusal at send is what the user meets, exactly as before.
-     *
-     * And it is kept WITHOUT asking the filesystem, like a JMAP blob: the answer would not change
-     * the verdict, so the question is not put.
      */
     @Test
     fun `an inline part with a cid is kept and never asked about`() {

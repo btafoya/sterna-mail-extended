@@ -53,11 +53,6 @@ import app.sterna.ui.components.LoadingRing
 
 /**
  * "Mail by sender": for the current account, how many messages this phone holds from each
- * address, and how many of those are unread.
- *
- * Numbers, and two actions. No score, no ranking by anything but volume, no line singled out,
- * no colour that means "bad": the screen reports what is there and the reader decides. Every
- * figure comes from one local SQL query — nothing about this screen is sent anywhere.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -184,10 +179,6 @@ fun MailBySenderScreen(
                 }
                 // Keyed on the address AS STORED, with no transformation. Two lines are two SQL
                 // groups, so their LOWER(fromEmail) differ, so their fromEmail differ — the key
-                // is already unique. Lowercasing it here reintroduces the collision the grouping
-                // does not have: SQLite's lower() is ASCII-only and Kotlin's lowercase() is not,
-                // so two spellings differing by a non-ASCII capital are two rows and would become
-                // one key, which makes LazyColumn throw and takes the screen with it.
                 items(state.rows, key = { it.email }) { row ->
                     SenderRow(
                         row = row,
@@ -261,19 +252,12 @@ fun MailBySenderScreen(
     if (ruleFor != null) {
         // The same dialog the reader gets, word for word, because it is the same write: a rule on
         // the server, permanent, with no Undo behind it. The menu entry's label already says what
-        // it does; what only the dialog can say is sender_volume_block_body — that nothing already
-        // received moves, and where the rule can be changed or removed. A list row has nowhere to
-        // put that sentence, which is why the gesture waits for a dialog before writing anything.
         AlertDialog(
             onDismissRequest = { confirmRule = null },
             title = { Text(stringResource(R.string.sender_volume_block_title, ruleFor.email)) },
             text = {
                 // The body SCROLLS, as the reader's copy of this dialog does. Material's text
                 // slot is a height-bounded box with no scrolling of its own, and a bare Text in
-                // it is CLIPPED — not ellipsised, just cut, with nothing saying more exists. At
-                // the largest font scale this sentence was measured cut mid-word, losing exactly
-                // the half that says nothing already received moves and where the rule can be
-                // removed again.
                 Text(
                     stringResource(
                         R.string.sender_volume_block_body,
@@ -286,10 +270,6 @@ fun MailBySenderScreen(
             confirmButton = {
                 // A verb, not the menu entry's sentence, and for the reason measured on the
                 // reader's copy of this dialog: with the sentence here the label wrapped and
-                // Cancel was drawn INSIDE this button, one tap landing on both, on a permanent
-                // server-side write. The mechanism behind that is a hypothesis about Material's
-                // action row (its sources are not available here); the measurement is not. The
-                // menu entry keeps sender_volume_block, where the whole sentence fits and belongs.
                 TextButton(onClick = { confirmRule = null; viewModel.blockSender(ruleFor) }) {
                     Text(stringResource(R.string.sender_volume_block_confirm))
                 }
@@ -303,9 +283,6 @@ fun MailBySenderScreen(
 
 /**
  * One sender: avatar, name over address, the two counts, and the row menu.
- *
- * The unread line is omitted at zero rather than printed as "0 unread" — an absent line is the
- * honest rendering of "nothing to say", and it keeps the eye on the rows that carry a number.
  */
 @Composable
 private fun SenderRow(
@@ -362,9 +339,6 @@ private fun SenderRow(
             ) {
                 // Which entries exist, and which of them can be tapped, is senderMenuEntries()'s
                 // decision — a plain function a JVM test runs. An entry is ABSENT only when this
-                // account cannot perform the gesture at all, or when THIS ROW is an address no
-                // rule may target (one's own, or none); "not right now" is a greyed entry, never
-                // a missing one.
                 val entries =
                     senderMenuEntries(canDelete, canBlock, blocked, working, row.email, ownAddresses)
                 entries.forEach { entry ->

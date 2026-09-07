@@ -12,28 +12,6 @@ import java.io.IOException
 
 /**
  * [numberingStampsOfRows] EXECUTED — the decision that manufactures the stamp THE TWO #99 GUARDS
- * OPPOSE (the held-back destroy, and the move between accounts), and which nothing ran until this
- * test.
- *
- * Not every stamp in the app: `MailRepository.recordedUidValidity` makes a SECOND one, at
- * FOLDER level, opposed just as late (`MailBySenderViewModel.askDelete` → `PendingDelete.numbering`
- * → `repo.deleteAll(credentials, ids, pending.numbering)`, pinned by
- * `MoveNumberingAtTheGestureTest`). Covering this function covers the ROW stamp, nothing else.
- *
- * What was uncovered, and what each mutation costs the user:
- *
- * - `credentials.protocol != MailProtocol.IMAP` → `==`: an empty map on every IMAP account. Every
- *   stamp then reads as absent, an absent stamp PASSES by construction at both guards, and the
- *   bulk delete destroys the line that was swapped under the tick while the cross-account move
- *   sends it to the other account — with no Undo there to take it back.
- * - `it.id to it.uidValidity` → `it.id to null`: the same damage, on 100% of IMAP rows, with the
- *   protocol test still reading exactly as it does today.
- *
- * Neither is visible from source text, which is why the decision was lifted out of
- * `MailRepository` (Room + `Context` + an `LruCache` in a property initialiser: not instantiable
- * in a JVM test). The remaining half — that the repository still DELEGATES here, with the account
- * id and the chunk — cannot be executed and is pinned as whole lines by
- * [NumberingStampsSourceTest].
  */
 class NumberingStampsTest {
 
@@ -117,9 +95,6 @@ class NumberingStampsTest {
 
     /**
      * The whole point of the chunk, at the size that breaks: a select-all of a Trash. Below
-     * Android 12 SQLite refuses past 999 bound variables, and this read is outside any
-     * `runCatching` — unbounded, the delete does not fail, it crashes, and nothing on screen says
-     * why.
      */
     @Test fun `a selection of more than 999 ids is read in bounded chunks, whole`() = runBlocking {
         val ids = (1..1201).map { "imap:acc:INBOX:$it" }
@@ -142,18 +117,6 @@ class NumberingStampsTest {
 
     /**
      * A READ THAT THROWS MUST TAKE THE WHOLE GESTURE DOWN WITH IT, and the reason is the exact
-     * opposite of what a defensive reflex suggests.
-     *
-     * `emailDao.numberingOfRows` is a Room `@Query`: it throws on I/O, on a locked database, and
-     * on the very bound-variable refusal the chunk exists to avoid. Swallowing that
-     * (`runCatching { read(chunk) }.getOrDefault(emptyList())`) compiles, reads as prudence, and
-     * answers an EMPTY map — which is not "no stamps", it is "no stamps to oppose": an absent
-     * stamp PASSES by construction at both #99 guards. The crash, which the user sees and reports,
-     * would become a silent bypass: the line swapped under the tick destroyed, or sent to the
-     * other account with no Undo to take it back.
-     *
-     * This runs what the KDoc of [numberingStampsOfRows] promises — the read sits OUTSIDE any
-     * `runCatching`.
      */
     @Test fun `a read that fails is not swallowed into an empty map`() {
         val boom = object {

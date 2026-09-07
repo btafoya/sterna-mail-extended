@@ -14,21 +14,6 @@ import java.sql.DriverManager
 
 /**
  * **v20 → v21** ([MIGRATION_20_21]): `emails` gains `ccJson` and `bccJson`, the recipients put in
- * copy (see [EmailEntity.ccJson], [EmailEntity.bccJson]).
- *
- * Built like [ReplyToMigrationSqlTest]: the REAL [androidx.room.migration.Migration] objects are
- * executed against a real SQLite engine (JDBC, in memory) through a tiny [SupportSQLiteDatabase]
- * proxy, starting from the PUBLISHED v15 schema and chained up to a real v20 — never from a copy
- * of the statements, so this test cannot drift from the code that ships.
- *
- * The stake is not the columns. `SternaDatabase` ends its builder with
- * `fallbackToDestructiveMigration()`: a schema bump whose migration is missing or wrong makes Room
- * DROP the whole database — the outbox included, i.e. mail written and never sent, and the
- * snoozed rows. So the seed deliberately holds a queued outbox row and a snooze, and every table's
- * row count is compared before and after.
- *
- * **Two** columns, and each is asserted on its own: adding only one of them is the mutation this
- * class exists to catch, and it is not caught by anything that merely checks "the migration ran".
  */
 class CopiesMigrationSqlTest {
     private lateinit var db: Connection
@@ -157,8 +142,6 @@ class CopiesMigrationSqlTest {
 
     /**
      * A REAL v20 database: the published v15 schema, populated, then carried forward by the very
-     * migration objects that ship — 15→16 … 19→20 — and populated again in the tables those
-     * migrations create.
      */
     private fun seedV20() {
         seedPublishedV15()
@@ -194,9 +177,6 @@ class CopiesMigrationSqlTest {
 
     /**
      * The DECLARED shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`,
-     * not just its name. Room's `TableInfo.Column.equals` compares the affinity, the nullability
-     * and the default, so a column of the right name and the wrong type fails `validateMigration`
-     * at open time — a crash on every launch, whose only way out is a reinstall.
      */
     private fun columnShapes(table: String): Map<String, Triple<String, Int, String?>> {
         val shapes = mutableMapOf<String, Triple<String, Int, String?>>()
@@ -247,8 +227,6 @@ class CopiesMigrationSqlTest {
 
     /**
      * Each column on its own line, named in its own assertion. Adding one of the two and forgetting
-     * the other is the plausible slip, and Room answers it with a destructive fallback: the entity
-     * declares both, the schema holds one, `validateMigration` fails and the database is dropped.
      */
     @Test fun v20to21_addsTheCcColumnAndTheBccColumn_separately() {
         seedV20()
@@ -336,8 +314,6 @@ class CopiesMigrationSqlTest {
 
     /**
      * The four addressing columns are four distinct stores. Written with four DIFFERENT address
-     * lists on purpose: a test whose To, Cc and Bcc look alike cannot tell a column that holds the
-     * wrong one from a column that holds the right one.
      */
     @Test fun v20to21_theFourAddressColumnsStayFourSeparateStores() {
         seedV20()
@@ -391,12 +367,6 @@ class CopiesMigrationSqlTest {
 
     /**
      * Chains the migrations Room is really given ([SternaDatabase.ALL_MIGRATIONS]) over a published
-     * install, and looks at where they arrive.
-     *
-     * A migration object that works perfectly and is absent from that array never runs: Room finds
-     * no path, `fallbackToDestructiveMigration()` takes over and `dropAllTables()` empties the
-     * database — the outbox with it. So the step objects are taken FROM the registered array, in
-     * ascending order, and the chain must be unbroken.
      */
     @Test fun theRegisteredMigrationsCarryAPublishedInstallAllTheWayToTheCopyColumns() {
         seedPublishedV15()

@@ -6,14 +6,6 @@ import org.junit.Test
 
 /**
  * The addresses that ARE the user on one account — the list every "is this me?" refusal is
- * decided against.
- *
- * It has a test of its own, and not merely a caller that passes one in, because the decisions
- * that consume it ([app.sterna.core.data.filter.blockableSender] and the two menus above it) are
- * all executed over lists the tests build themselves. A right decision over a wrong list is a
- * green suite and a rule offered against your own alias: changing one `it.email` into `it.name`
- * where this list is made leaves the address of every identity out, keeps only the login, and no
- * other test in the repository can see it.
  */
 class AccountAddressesTest {
 

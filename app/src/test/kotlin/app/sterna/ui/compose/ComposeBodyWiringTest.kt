@@ -7,16 +7,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as
- * [ReplyQuoteConsumedWiringTest]: `ComposeScreen` is a composable, there is no Robolectric and no
- * compose-ui-test here, so nothing can EXECUTE the body field's callbacks. The decisions they call
- * are executed elsewhere (`RichBodyTest` runs `remapAfterEdit`, `toggle`, `clear`, `stylesAt`,
- * `toggleBlock`; [RichBodyStyleTest] runs `toAnnotatedString`; [RichBodyMarkersTest] runs
- * `markedText`, `listKindAt`, `styledBody` and `bodyTransformation`); this file pins the WIRING as
- * whole trimmed lines
- * (#131). A `contains` on a fragment is blind to a mutation that lengthens the line.
- *
- * What it cannot see: that the callbacks fire, that the bar shows, that `pending` reaches the
- * next keystroke. That is the bench's.
  */
 class ComposeBodyWiringTest {
 
@@ -44,12 +34,6 @@ class ComposeBodyWiringTest {
 
     /**
      * (a bis) ONE remap, and BOTH halves of its answer taken.
-     *
-     * The mutation this exists for is a deletion: `blocks = remapped.blocks` dropped leaves the
-     * suite green (`remapAfterEdit` is executed by `RichBodyTest` and still answers the right
-     * blocks) and every list in the editor dies on the next keystroke, silently. A SECOND
-     * `remapAfterEdit(` call instead of the shared `remapped` is the other shape: the same edit
-     * diffed twice, two answers, and nothing says which one the screen took.
      */
     @Test fun `the one remap hands back the styling, the blocks and the links`() {
         assertPinned(
@@ -111,14 +95,6 @@ class ComposeBodyWiringTest {
 
     /**
      * (d) The last link of every reopen (#131): the prefill's styling reaching the editor.
-     *
-     * `ranges = emptyMap()` here — which is what these two lines said until #131 — throws away
-     * everything the four reopen routes just went to the trouble of parsing (`draftFieldsOf`,
-     * `localDraftPrefill`, `composeDraftOf`, the undo record), on all of them at once, with every
-     * one of their own tests still green: the styling exists right up to the screen and dies on
-     * the last statement. And the BASELINE is not decoration either: left empty, a reopened styled
-     * draft counts as edited the moment it opens and the leave guard asks about changes nobody
-     * made.
      */
     @Test fun `the prefill's styling lands on the editor and on its baseline`() {
         assertPinned(
@@ -158,10 +134,6 @@ class ComposeBodyWiringTest {
 
     /**
      * (d bis) The bar's link button, and the dialog's answer coming back.
-     *
-     * `linkApplied` and `linkDialogFields` are EXECUTED by [LinkDialogTest]; that the button is
-     * lit by the same answer the dialog opens on, and that the dialog's body reaches the editor
-     * whole, is visible nowhere but here.
      */
     @Test fun `the link button is lit by linkAt, and opens the dialog`() {
         assertPinned(
@@ -230,12 +202,6 @@ class ComposeBodyWiringTest {
 
     /**
      * (e) The leave guard compares the WHOLE body, blocks included. `RichBody.equals` is what
-     * decides (executed by `RichBodyTest` and by [ComposeDirtyTest]); what nothing else can see is
-     * whether the screen still hands it the lists it is holding.
-     *
-     * `RichBody(body.text, ranges)` on either side compiles — the third parameter defaults —
-     * and turning a paragraph into a list would then be no edit at all: the back gesture leaves
-     * without a word and the list is gone.
      */
     @Test fun `the leave guard is given the blocks on both sides`() {
         assertPinned(
@@ -249,8 +215,6 @@ class ComposeBodyWiringTest {
 
     /**
      * (f) The markers are drawn in the TEXT LAYER, by the transformation, and from the live
-     * `blocks`. Not one marker character may enter `body.text`: the dirty check, the save, the
-     * send and the HTML all read that string, and a `• ` inside it would be typed into the draft.
      */
     @Test fun `the list markers are drawn by the field's visual transformation`() {
         assertPinned(
@@ -304,28 +268,10 @@ class ComposeBodyWiringTest {
 
     /**
      * (f bis) THE rule this whole branch exists for: NOT ONE SPAN IN THE FIELD'S VALUE.
-     *
-     * Compose's editing buffer cannot hold a span — `EditingBuffer.toAnnotatedString()` is
-     * `AnnotatedString(toString())`, so what the buffer gives back is always bare text. And
-     * `EditProcessor.reset` compares the WHOLE `AnnotatedString`, not its text. So the moment the
-     * value carries one span, every keystroke on that body is classed as a text change, the
-     * composing region is dropped, and `TextInputServiceAndroid` calls `restartInput()`.
-     *
-     * This is why the rule is written as "no line of code may NAME these", and not as "the
-     * value line looks right": `body.copy(annotatedString = …)`, `buildAnnotatedString { … }`
-     * assigned into the value, an `AnnotatedString` built two lines above and passed in — all
-     * three cost the same thing and none of them is the old line.
-     *
-     * Handing `composition` back untouched (`onValueChange` does) is NECESSARY BUT NOT
-     * SUFFICIENT: the value has to carry no span, or Compose throws that composition away itself
-     * before the IME ever sees it.
      */
     @Test fun `no span is ever laid on the value the body field is handed`() {
         // CASE-INSENSITIVE, and that is the whole reach of this rule: `annotatedString =`,
         // `toAnnotatedString(`, `AnnotatedString(` and `buildAnnotatedString {` are four spellings
-        // of the same mistake, and three of them are NOT the old line, so the whole-line pin above
-        // would let them through. No line of code on this screen has any business naming the type
-        // at all — the styling lives in `RichBodyStyle.kt` now.
         val offenders = lines().filter { "annotatedstring" in it.lowercase() }
         assertEquals(
             "no line of CODE in $SCREEN may name an ANNOTATED STRING, in any spelling: a span " +

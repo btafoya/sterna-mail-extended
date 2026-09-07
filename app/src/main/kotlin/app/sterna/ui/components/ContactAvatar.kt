@@ -20,13 +20,6 @@ val ContactAvatarSize = 40.dp
 
 /**
  * A contact's picture when the address book has one, their monogram otherwise.
- *
- * The slot is laid out at [ContactAvatarSize] straight away and the monogram is drawn while the
- * photo is being decoded, so a row keeps exactly the same height whether the contact has a photo,
- * comes from a source that has none, or is still loading: the list never jumps as pictures arrive.
- *
- * The monogram is the shared [Monogram], so a given person keeps the same colour and initial here,
- * in the message list and in the reader.
  */
 @Composable
 fun ContactAvatar(

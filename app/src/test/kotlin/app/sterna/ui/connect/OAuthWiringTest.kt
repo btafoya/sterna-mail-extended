@@ -7,42 +7,11 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [ConnectPrimingWiringTest]: it reads a file as text and proves nothing about what runs.
- * `ConnectViewModel` is an `AndroidViewModel` wired to the app container, so this module (no
- * Robolectric, no instrumented tests) cannot instantiate it, and no test in this repo executes the
- * OAuth screen. The DECISIONS it defers to are covered for real, by execution: which sentence a
- * failure gets, and which one a wait that ran out gets, in [OAuthErrorMessagesTest]; how long the
- * device-grant wait goes on — the loop `pollForToken` used to hold itself — in [DeviceGrantPollTest].
- * What is left to hold is that the screen actually defers to them, and reading the source is the
- * only way to hold that.
- *
- * The rule: when an OAuth sign-in fails, the screen must say what the server said. Three sentences
- * used to be written here instead — "Sign-in was declined or cancelled." for every terminal poll
- * outcome, "This server doesn't support OAuth sign-in" for a server that does, and "Couldn't start
- * OAuth sign-in" for a refusal that named itself — and the server's own reason was dropped. The
- * choice of sentence now belongs to `oauthFailureSpec` / `oauthDiscoveryFailure`, and this file
- * makes the old shape impossible to write back without a red test.
- *
- * WHAT IT DOES NOT SAY. It does not prove that `oauthFailureMessage` is handed the right
- * failure, nor that `getString` renders anything, nor that any of it is reached at runtime — the
- * rules below are text. It does not read `OutlookSignIn`, which still picks a sentence of its own,
- * nor `settings/AccountsViewModel`. A green run here means "the old form is not in the file", not
- * "the screen is right".
- *
- * HOW IT COMPARES. Required shapes are matched as WHOLE trimmed lines, with anchored regexes: a
- * `contains` on a fragment is blind to any mutation that LENGTHENS the line (appending
- * `?: R.string.connect_oauth_denied` to a compliant call, say), and that blindness has cost this
- * repo real defects. Forbidden tokens are the one place a substring search is sound — nothing a
- * mutation appends can remove the token it is looking for.
  */
 class OAuthWiringTest {
 
     /**
      * The mutation this exists to kill: `connect_oauth_denied` back in `pollForToken`, which is
-     * the exact line that made every refusal — `invalid_client`, `invalid_grant`, `http_400`, a
-     * dead network — read as "you cancelled". It is a legitimate sentence; it is not this file's
-     * to choose. The only place allowed to reach for it is the fallback arm of `oauthFailureSpec`,
-     * where it applies to a failure that named nothing at all.
      */
     @Test fun `the screen never picks the declined sentence itself`() {
         val offenders = source().lines().withIndex()
@@ -61,13 +30,6 @@ class OAuthWiringTest {
 
     /**
      * A refusal carries the server's `error` (and, for Microsoft, an AADSTS code); the branch must
-     * hand that whole failure to the shared mapper rather than render a sentence of its own.
-     *
-     * The arm MOVED, and this rule moved with it. `pollForToken` no longer matches on
-     * `DeviceTokenResult` at all — the loop lives in `pollDeviceGrant`, which answers a
-     * [DevicePollVerdict] — so what is read here is the `is DevicePollVerdict.Refused ->` arm, and
-     * the failure it must route is `verdict.failure`. The other end of the wait, `RanOut`, has a
-     * rule of its own below.
      */
     @Test fun `the poll failure says what the server said`() {
         val branch = failedBranch()
@@ -90,13 +52,6 @@ class OAuthWiringTest {
 
     /**
      * A wait that ran out has two endings — the code expired under polls that were being answered,
-     * or nothing was ever reached — and WHICH SENTENCE that is belongs to `oauthRanOutMessage`,
-     * executed in [OAuthErrorMessagesTest]. Written as an `if` in this arm it was held by nothing at
-     * all: the two resources could be swapped and the suite stayed green, putting "The sign-in
-     * request expired. Try again." back in front of someone who never reached a server.
-     *
-     * The argument is pinned, not just the call: `oauthRanOutMessage(true)` also *calls* the
-     * function and is exactly how the distinction is thrown away again.
      */
     @Test fun `the deadline's sentence is not this screen's to choose`() {
         val body = functionBody("pollForToken")
@@ -120,8 +75,6 @@ class OAuthWiringTest {
 
     /**
      * Discovery's two failures are different facts — no OAuth at all, versus OAuth without a
-     * device-authorization endpoint — and telling them apart is `oauthDiscoveryFailure`'s job. The
-     * screen asking for a string by name is how they became one sentence in the first place.
      */
     @Test fun `discovery chooses its own sentence`() {
         val body = functionBody("connectOAuth")
@@ -147,8 +100,6 @@ class OAuthWiringTest {
 
     /**
      * The lines of the `is DevicePollVerdict.Refused ->` arm of `pollForToken`, trimmed: from the
-     * arm itself to the line that closes it, by counting braces — the same raw counting as
-     * [ConnectPrimingWiringTest], sound only while the file's string literals carry no braces.
      */
     private fun failedBranch(): List<String> {
         val lines = functionBody("pollForToken").lines()

@@ -44,15 +44,6 @@ data class ScheduledSendDraft(
 
 /**
  * The scheduled [row] read back into the fields `saveDraft` takes — the same splitting
- * [app.sterna.send.ScheduledSendWorker] does at fire time, the row being stored as text and a cancel
- * that parsed it differently filing a draft addressed differently from the queued message.
- *
- * `htmlBody` is carried since #131, so a styled message keeps its bold while a forward's html is
- * flattened to text. The row's html is NOT stored as it stands: it is what the SEND built, and a
- * draft carrying it would reopen as text one save later. `draftEmailId` / `draftUidValidity` are
- * NOT carried: naming the server draft would let the save DESTROY it while the deposit flattens the
- * body, and a duplicate in Drafts is recoverable where a destroyed original is not.
- * [fromName]/[fromEmail] are carried, or the draft goes back under the login's address (#31).
  */
 fun draftFromScheduledSend(row: ScheduledSendEntity): ScheduledSendDraft {
     // The html first, the stored text as the fallback, and the draft's own html derived from what
@@ -77,10 +68,6 @@ fun draftFromScheduledSend(row: ScheduledSendEntity): ScheduledSendDraft {
 
 /**
  * What to say for a save's [outcome], `null` meaning the account was gone before a save was tried.
- * [DraftSaveOutcome.KEPT_ON_DEVICE] is a SUCCESS here: reading it as a failure would keep the
- * scheduled row, so the message would GO OUT at its hour after the user cancelled it.
- * [DraftSaveOutcome.ORIGINAL_KEPT] is one too, there being no original of ours to spare.
- * Exhaustive over the enum: a fourth outcome must fail to compile here.
  */
 fun scheduledCancelReport(outcome: DraftSaveOutcome?): ScheduledCancelReport = when (outcome) {
     null -> ScheduledCancelReport.ACCOUNT_GONE
@@ -98,24 +85,6 @@ fun scheduledCancelDropsTheRow(report: ScheduledCancelReport): Boolean =
 
 /**
  * Cancel the scheduled send [id]: file it in Drafts, and ONLY THEN drop its row and its job (#170).
- *
- * Two orders, and together they are the whole correction. [saveDraft] BEFORE the destruction, the
- * scheduled row being the only copy of the message: deleted first, a deposit that throws leaves it
- * on neither side. [deleteRow] BEFORE [dropWorker], the delete being committed when it returns while
- * `cancelUniqueWork` is asynchronous: a row that outlives its job is re-armed at every process start
- * and goes out anyway. Pinned as source text by `ScheduledCancelDropOrderTest`.
- *
- * What reaches [ScheduledCancelReport.NOT_CANCELLED] is narrow: `saveDraft` does NOT throw for a
- * transport failure, offline and a refused server both answering KEPT_ON_DEVICE.
- *
- * Sheltered from cancellation, both halves together: the user leaves this screen at once, and a
- * cancellation between deposit and delete would leave the message in Drafts AND still scheduled.
- * The boundary is read BEFORE the shelter, when nothing is written yet.
- *
- * [credentials] is asked for the account of the ROW, the screen not being filtered by account.
- * And a `null` from it is NOT proof that the account is gone — it also answers null for a secret
- * that would not decode — which is why [accountIsGone] is asked separately: destroying the row on an
- * unproven null reproduces #170 with a snackbar claiming a false cause.
  */
 suspend fun <C> cancelScheduledSend(
     id: Long,

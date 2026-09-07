@@ -14,9 +14,6 @@ import org.junit.Test
 
 /**
  * Quick setup used to be four pieces of screen state that could disagree: the Outlook chip armed a
- * flag with no way to disarm it, so the server fields vanished for good, and the flag survived a
- * switch to JMAP and sent that form to the Microsoft sign-in (#105). These cover the decision that
- * replaced them — chip taps, protocol changes, and where Connect ends up.
  */
 class ConnectPresetTest {
 

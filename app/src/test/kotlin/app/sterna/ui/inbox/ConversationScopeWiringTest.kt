@@ -7,44 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument as [app.sterna.ui.NavHostSourceRulesTest],
- * and the same disclaimer: it reads source files as text, proves nothing about what happens on
- * screen, and would still pass if the code it points at were broken inside.
- *
- * It exists because the guarantee it guards is a WIRING guarantee, and nothing else can hold it.
- * `ConversationScope` decides which folders a conversation covers, and the whole fix is that the
- * chip and the unfold are handed ONE value — the scope the list on screen was built with — and read
- * it the SAME way, live. `ConversationScopeTest` pins the decision but resolves the folders itself;
- * `ThreadMemberStreamTest` pins the live reading but is handed its scope by the test. Both stay
- * green while either call site quietly stops using the recorded value. `InboxViewModel` is not
- * instantiable in a JVM test — no Robolectric, no instrumented tests here — so reading the source
- * is what is left.
- *
- * Verified against the mutations it exists for, one rule failing per mutation: scoping the unfold
- * with `emptyList()`, re-reading the selection at unfold time, giving the chip's pagers
- * `emptyList()` instead of the resolution their own flow produced, resolving the Sent folder a
- * second time, reading the members once instead of observing them, feeding the stream an empty
- * snooze set instead of the observed table, unwrapping one caller of the mask, HANDING ONE OF THOSE
- * CALLERS AN EMPTY SET, deleting a real call and leaving a trailing comment that names it, dropping
- * the recording of the conversation's order at the tap, and keeping that order in the ViewModel
- * where nothing can exercise it.
- *
- * What it does NOT do, stated plainly because the previous version of this paragraph got it wrong:
- *
- *  - It does not check that the value recorded is the value the pager used, only that it is
- *    recorded where the pager is built and read where the unfold is scoped.
- *  - It reads names, so it can only ever say that a call is WRITTEN, never that it works. The two
- *    mutations that matter most here were only ever caught once the behaviour underneath was given
- *    a real test (`ThreadMemberStreamTest`) or the decision was moved somewhere runnable
- *    (`ThreadOrders`). When a rule here is the ONLY thing holding a guarantee, that is a gap to
- *    close, not a result.
- *  - One rule points at `MailRepository`, a module away, and is pinned by SHAPE alone: emptying
- *    those queries out was reasoned about, not run, because the mutation cannot be applied from
- *    here. The real test belongs in core:data, against a database.
- *  - Its cost used to be described as "a false failure, not a false pass". That was untrue: the
- *    reader dropped comment lines but kept TRAILING comments, so deleting a real call and leaving
- *    `// theCall` anywhere in the same body satisfied both the presence rules and the counts.
- *    Comments are now cut before anything is matched ([codeLines]) — with that direction of error
- *    (cutting too much) being the loud one, which is the trade this file can actually afford.
  */
 class ConversationScopeWiringTest {
 
@@ -119,20 +81,9 @@ class ConversationScopeWiringTest {
     @Test fun `the queries the unfold is read through are readings of tables, not constants`() {
         // One notch below the rule above, and out of its reach: the ViewModel can be handing the
         // stream exactly the right calls while those calls answer nothing. Empty either of them out
-        // — a flow of an empty collection — and every rule in this file stays green, and so do the
-        // flow tests, which bring their own reading. What dies is invisible from here: an emptied
-        // $MEMBER_QUERY lists nothing under a chip that counts three, and an emptied $SNOOZE_SOURCE
-        // takes the whole snooze half with it — a snoozed message stays listed under a chip that
-        // excludes it, and a child snoozed from the selection bar comes back under the reader's
-        // thumb the moment the mask goes down.
         //
         // A source rule is a poor instrument for that and this one claims no more than it does:
         // both queries live in core:data, where they can be RUN against a real database, and that
-        // is where they belong (neither has a test today — see the report). What is pinned here is
-        // the shape the mutation takes: a body that mentions none of the arguments it was given, or
-        // that hands back a constant empty flow, is not answering about anything.
-        // Past the `=`, so the SIGNATURE does not answer for the body: the parameters are named
-        // there whatever the function then does with them, and that is the mutation itself.
         val members = body(MAIL_REPOSITORY, MEMBER_QUERY.substringAfter('.'))
             .substringAfter(" =", missingDelimiterValue = "")
         val ignored = listOf("accountId", "mailboxIds", "threadKey").filterNot { it in members }
@@ -260,9 +211,6 @@ class ConversationScopeWiringTest {
     @Test fun `every path that takes a member off the unfolded rows wraps its call in the mask`() {
         // The rule above checks the wrapper EXISTS and goes through the mask; it says nothing about
         // it being used. Unwrap a single caller — leave the op bare — and everything stays green
-        // while that gesture's child lands back under the reader's thumb for the length of the
-        // network call, which is the one thing the mask is for. So: the callers, by name, and how
-        // many there are. A new path that removes a member has to come here and say so.
         val missing = MASKED_PATHS.map { it.first }
             .filterNot { "$SCOPED_HIDE(" in body(INBOX_VIEW_MODEL, it) }
         assertEquals(
@@ -309,9 +257,6 @@ class ConversationScopeWiringTest {
     @Test fun `opening a message inside a conversation records the order the row is showing`() {
         // The CALL SITE, which is all this rule can see. What the call then does with the order is
         // [ThreadOrders]'s, and is pinned by running it (ThreadMemberStreamTest): this rule alone
-        // stayed green when the recording itself was dropped from the ViewModel — the tap still got
-        // its order back, so the opening page was still right, while the store the reading view
-        // reads stayed empty and the swipe inside a conversation quietly died.
         val screen = code(INBOX_SCREEN)
         val calls = Regex("""${Regex.escape(RECORD_ORDER)}\(""").findAll(screen).count()
         assertEquals(
@@ -409,19 +354,6 @@ class ConversationScopeWiringTest {
 
     /**
      * The lines of [file] that are code, WITH THEIR COMMENTS TAKEN OFF: a line whose first non-blank
-     * character opens a comment is dropped whole, and a trailing `//` cuts the rest of its line.
-     *
-     * The cut is what makes these rules mean anything. Trailing comments used to be left in, on the
-     * grounds that a `//` can sit inside a string and cutting there would hide code — but every rule
-     * below asks whether a name APPEARS, so a comment that merely mentions the call satisfies both
-     * the presence tests and the counts. Delete a real call, leave `// hidingThreadMembers` anywhere
-     * in the same body, and the file goes green over the defect it exists to catch. That is a false
-     * PASS, and a false pass is the only kind of failure a lint like this cannot survive.
-     *
-     * So the string case is handled instead of avoided ([withoutTrailingComment]): the cut is only
-     * taken at a `//` outside a double-quoted run. What is left is a residual risk of cutting too
-     * much — a raw string spanning lines, whose middle lines carry no visible quote at all — and
-     * that direction is a false failure, loud and fixable, not a rule that quietly stops looking.
      */
     private fun codeLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val code = line.trimStart()
@@ -450,16 +382,11 @@ class ConversationScopeWiringTest {
 
     /**
      * [file]'s code as ONE string. Rules match over this rather than line by line: a call that fits
-     * on one line today is one indent away from being wrapped by the formatter, and a rule that
-     * reddens on a correct reformat is a rule the next reader learns to edit rather than to trust.
-     * `\s` spans newlines, so the same regex reads both shapes.
      */
     private fun code(file: File): String = codeLines(file).joinToString("\n")
 
     /**
      * The argument texts of every call to [name] in [text], parentheses balanced — so `f(a) { … }`
-     * and a call wrapped over four lines read the same. The declaration of a generic helper
-     * (`fun <T> name(`) is not a call and is skipped.
      */
     private fun callArguments(text: String, name: String): List<String> =
         Regex("""(?<!fun <T> )${Regex.escape(name)}\(""").findAll(text).map { match ->
@@ -478,16 +405,6 @@ class ConversationScopeWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text: everything up to the
-     * first line indented no deeper than the declaration — the closing brace of a block form, the
-     * next declaration after an expression form. Comment lines are dropped ([codeLines]).
-     *
-     * The terminator only applies ONCE THE BODY HAS STARTED, at the `{` or `=` that opens it. A
-     * function wrapping its parameters over several lines closes them with a `)` at the
-     * declaration's own indent, and stopping there would hand every rule a signature and call it a
-     * body — which is what the first draft of this file did, silently, for the repository's half.
-     *
-     * Fails loudly when the declaration is not found: renaming it must break these rules rather
-     * than silently satisfy them against an empty string.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)
@@ -563,11 +480,6 @@ class ConversationScopeWiringTest {
 
         /**
          * The paths that take a member off the unfolded rows, and must therefore mask it — the
-         * swipe of one message, the held-back destroy, and the two selection-bar batches — each
-         * with the messages it must mask: the ones it is itself taking away, never fewer.
-         *
-         * The argument is half the rule. A call site handed `emptySet()` still exists, is still
-         * counted, and masks nothing at all.
          */
         private val MASKED_PATHS: List<Pair<String, Regex>> = listOf(
             // Every message whose row it evicts.

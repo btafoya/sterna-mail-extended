@@ -7,31 +7,6 @@ import java.io.File
 
 /**
  * SOURCE AND RESOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [app.sterna.ui.inbox.ConversationScopeWiringTest]: it reads files as text, proves nothing about
- * what is drawn, and would still pass if the screen were broken inside. Compose rendering is not
- * testable in this module (no Robolectric, no instrumented tests), so reading the source is what
- * is left to hold a rule about what the screen says.
- *
- * The rule: the subtitle says WHERE THE THREAD COMES FROM on each protocol — from the server on
- * JMAP (`threadId`), rebuilt from the message headers on IMAP (`imapThreadKey`, the root of
- * `References`, else `In-Reply-To`, else `Message-ID`). The Conversations switches used to hide a
- * protocol fact behind a condition — a note and two greyed switches shown only when EVERY account
- * was IMAP. Adding one JMAP account re-enabled the switches and removed the note, while the IMAP
- * mail sitting on the very same unified list behaved as before and nothing said so. The mixed
- * case, the common one, was the silent one.
- *
- * So: the fact belongs in the permanent subtitle, in every language, and the switches must not
- * change state with the account set. Putting `enabled = !imapOnly` back has to fail here.
- *
- * What it does NOT do: it does not check that the subtitle is legible, correctly translated, or
- * even displayed — only that the screen no longer couples the switches to the accounts, and that
- * every language's subtitle names both protocols.
- *
- * The wording rule is stricter than it looks and is meant to be: requiring the literals "JMAP" and
- * "IMAP" constrains the SHAPE of every translated sentence, not just its content. A translator who
- * says the same thing without naming the two protocols fails here. That is the trade accepted —
- * the whole statement is where the thread comes from on each protocol, and there is no way to
- * read a paraphrase for that meaning from a test.
  */
 class SettingsScreenHonestyTest {
 
@@ -119,17 +94,6 @@ class SettingsScreenHonestyTest {
 
     /**
      * The `SettingsSection` block that holds the Conversations settings, as text: from the line
-     * naming `settings_conversation_section` to the line that closes it at the same indent.
-     *
-     * Fails loudly when the section is not found — renaming it must break these rules rather than
-     * satisfy them against an empty string.
-     *
-     * THE BOUNDARY IS THE INDENTATION, which is what a source lint has to work with and is worth
-     * knowing when reading a failure: a reformatter that breaks the opening call across lines, or
-     * reindents the block, moves where this stops. The `check` below is the guard against the bad
-     * outcome — rules passing over an empty section — but it cannot tell a section that legitimately
-     * shrank from one this stopped reading early. If that day comes, teach it to brace-match rather
-     * than widen it.
      */
     private fun conversationSection(): String {
         val lines = codeLines(SETTINGS_SCREEN)
@@ -152,8 +116,6 @@ class SettingsScreenHonestyTest {
 
     /**
      * The line that opens the block the section sits in — the nearest preceding code line indented
-     * LESS than the section itself. That is where a condition around the whole section would be
-     * written, and no rule inside the section can see one.
      */
     private fun enclosingLine(): String {
         val lines = codeLines(SETTINGS_SCREEN)

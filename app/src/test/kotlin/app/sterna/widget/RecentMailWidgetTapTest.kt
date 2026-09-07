@@ -12,12 +12,6 @@ import java.util.Locale
 
 /**
  * WHAT A TAPPED ROW ASKS FOR, RUN — the three identifiers, as literals, never recomputed here.
- *
- * A widget list cannot hand the launcher one `PendingIntent` per row: there is a TEMPLATE on the
- * list and a fill-in `Intent` per row, and the fill-in carries extras alone. Those extras are the
- * whole of what a tap means, so they are decided by [RecentMailWidgetTap] with no Android type in
- * sight and pinned here; the plumbing that spends them is pinned by [RecentMailRowTapWiringLintTest],
- * because `Intent`, `PendingIntent` and `RemoteViews` cannot be built in this suite.
  */
 class RecentMailWidgetTapTest {
 
@@ -43,9 +37,6 @@ class RecentMailWidgetTapTest {
 
     /**
      * ALL THREE. The message id alone opens a message; the account is what makes that id mean
-     * anything at all (a JMAP id is unique inside its account, #31), and the folder is what puts
-     * the list underneath where the message lives, so Back lands in a list that holds it (#91).
-     * Dropping either of the last two compiles and reads fine on a one-account phone.
      */
     @Test fun `a tap carries the message, its account and its folder`() {
         assertEquals(
@@ -58,11 +49,6 @@ class RecentMailWidgetTapTest {
 
     /**
      * BLANK IS ABSENT, on both of the two that may be. `MainActivity.parseEmailOpen` already
-     * reads these two as `getStringExtra(…)?.ifBlank { null }`, and `SternaApp` hands the folder
-     * half on only when BOTH are non-null — so a blank travelling as a blank would be a request to
-     * show the folder `""` of the account `""`, which no account store answers and no test on that
-     * route covers. Deciding it here, once, keeps that route reading exactly what it reads from a
-     * notification.
      */
     @Test fun `a blank folder id is carried as absent, not as a blank`() {
         assertEquals(
@@ -98,8 +84,6 @@ class RecentMailWidgetTapTest {
 
     /**
      * EACH LINE'S OWN. The projection is where a tap and a drawn line are married, and an index
-     * off by one there is the defect nobody can see: the home screen names one message and opens
-     * another, and only the person who taps finds out.
      */
     @Test fun `a snapshot pairs every line with its own message`() {
         val snapshot = RecentMailWidgetContent.snapshot(
@@ -146,9 +130,6 @@ class RecentMailWidgetTapTest {
 
     /**
      * AND THE LOCK DOES NOT TOUCH IT. What a tap opens is not what a cell says: the app is
-     * entered through its own lock screen, so a row that names nobody still opens the message it
-     * stands for. Silencing the tap under the lock would be a widget whose rows do nothing at all,
-     * for the readers who most need it to look ordinary.
      */
     @Test fun `the app lock silences the line, not what it opens`() {
         val snapshot = RecentMailWidgetContent.snapshot(

@@ -10,28 +10,11 @@ import java.sql.DriverManager
 
 /**
  * The upgrade purge of the cached message bodies: ONCE per threshold crossed, and nothing on any
- * launch that crosses none.
- *
- * Both halves matter and they pull in opposite directions. Not purging at that threshold leaves
- * a new reader feature invisible on the mail already in the cache — which, thanks to the
- * prefetch, is the twenty newest messages of the inbox, i.e. the newsletters this lot is about.
- * Purging on every version bump throws away every body on the first start after each update, for
- * ever: every message read again becomes a network round trip, and nothing already read opens
- * offline. The threshold buys the first without signing up for the second.
  */
 class BodyCacheUpgradeTest {
 
     /**
      * THE THRESHOLD ITSELF, written out as a literal — the parade `IncognitoImeOptionsTest`
-     * already uses. Every other test in this file says `BODY_CACHE_PURGE_VERSION` on both sides
-     * of its assertion, so the constant can be moved to any value at all and the whole file stays
-     * green: the rules are about the SHAPE of the decision, not about which release needs it.
-     *
-     * Measured: raising it to 169 kept the suite green while moving the purge one release late —
-     * so nobody purges on the arrival of 1.4.8, the release that taught the reader to look for
-     * the unsubscribe headers, and the feature is invisible on precisely the cached newsletters
-     * it was written for. 168 = the release after 1.4.7 (versionCode 167). A fact about a past
-     * upgrade: it does not move when the version does.
      */
     @Test fun `the threshold is the release that needed it, by number`() {
         assertEquals(168, BODY_CACHE_PURGE_VERSION)
@@ -39,14 +22,6 @@ class BodyCacheUpgradeTest {
 
     /**
      * THE SECOND THRESHOLD, same parade, same reason. Every rule below is about the SHAPE of the
-     * decision and would stay green at any value; this is the only test that says WHICH release.
-     *
-     * 170 = the `versionCode` of the cut that CARRIES #148, `versionCode` being 169 (1.4.9) as
-     * this is written. Not "the next number": if #148 slips to 171 with no 170 published, 169 →
-     * 171 crosses 170 anyway and purges. The case that kills the fix is an INTERLEAVED release —
-     * a corrective 1.4.10 taking 170 without #148: the 1.4.9 user purges for nothing, records 170,
-     * receives #148 in 171, crosses no threshold and never sees the banner. `/release` must check
-     * this literal against the `versionCode` of the cut that actually ships #148, and move both.
      */
     @Test fun `the second threshold is the release that needs it, by number`() {
         assertEquals(170, BODY_CACHE_PURGE_VERSION_2)
@@ -54,9 +29,6 @@ class BodyCacheUpgradeTest {
 
     /**
      * Bare literal on both sides, like its two elders. 172 = the `versionCode` of the cut that
-     * CARRIES #160, `versionCode` being 171 (1.5.1) as this is written. The case that kills the
-     * fix is an INTERLEAVED release — a corrective taking 172 without #160: the 1.5.1 user purges
-     * for nothing, records 172, and no threshold is left to cross when #160 does ship.
      */
     @Test fun `the third threshold is the release that needs it, by number`() {
         assertEquals(172, BODY_CACHE_PURGE_VERSION_3)
@@ -80,14 +52,6 @@ class BodyCacheUpgradeTest {
 
     /**
      * THE BUG. Every version bump used to purge, for ever: `currentVersion > purgedForVersion`.
-     * A purge is the answer to ONE need, not to the act of updating.
-     *
-     * This test used to loop 169..171 and claim "after 168, never again". That premise is what
-     * the second threshold changed: 170 has a need of its own. And 171 → 172 was an example
-     * here until the THIRD threshold took 172, which is the same lesson a second time — an
-     * example is only "crosses nothing" until a release needs that number. What survives — and is
-     * the whole point — is that a version bump which crosses NO threshold purges nothing, whatever
-     * the gap between the two numbers.
      */
     @Test fun `a version bump that crosses no threshold never purges`() {
         assertNull(
@@ -100,13 +64,6 @@ class BodyCacheUpgradeTest {
 
     /**
      * THE DEFECT THIS SECOND THRESHOLD ANSWERS, in bare literals on both sides — no constant,
-     * so moving the constant cannot keep this green.
-     *
-     * Whoever ran 1.4.9 carries `purgedForVersion = 169`: past the only threshold there was, so
-     * nothing crossed again, ever. Their cached bodies are `Email` rows serialised by a build that
-     * did not know `dispositionNotificationTo`, and `openMessage` serves the cache before reading
-     * anything off the message — so the read-receipt banner cannot offer itself on the mail it was
-     * written for, and the prefetch keeps exactly those twenty messages warm.
      */
     @Test fun `the 1_4_9 install purges on arriving at the read-receipt release`() {
         assertEquals(
@@ -118,12 +75,6 @@ class BodyCacheUpgradeTest {
 
     /**
      * THE DEFECT THE THIRD THRESHOLD ANSWERS, in bare literals on both sides.
-     *
-     * Whoever runs 1.5.1 carries `purgedForVersion = 171`: past BOTH earlier thresholds, so
-     * nothing crossed again, ever. Their cached bodies are `Email` rows serialised by a build that
-     * did not know `originalSender` — it deserialises to null without a word — and `openMessage`
-     * serves the cache before touching the network, so the "Original sender" line cannot appear on
-     * the mail it was written for. The prefetch keeps precisely those twenty inbox messages warm.
      */
     @Test fun `the 1_5_1 install purges on arriving at the origin-sender release`() {
         assertEquals(
@@ -154,12 +105,6 @@ class BodyCacheUpgradeTest {
 
     /**
      * Once per threshold. Having purged for 170, nothing purges again for 170 — at 170, at 171,
-     * or ever.
-     *
-     * The third assertion used to be `170 → 999`, i.e. "or ever" full stop. The third threshold
-     * is what changes that premise: 999 is past 172, so it purges once more, for 172 and not for
-     * 170. "Never again for THIS threshold" is the invariant; "never again at all" never was one.
-     * `the third threshold purges once and never again` states the same thing for 172.
      */
     @Test fun `the second threshold purges once and never again`() {
         assertNull(bodyCachePurgeVersion(purgedForVersion = 170, currentVersion = 170))
@@ -209,12 +154,6 @@ class BodyCacheUpgradeTest {
 
     /**
      * What the purge is allowed to delete, executed against real in-memory SQLite and built
-     * from the very statement the DAO ships (and the very schema the migrations create).
-     *
-     * The bodies are a cache: dropping them costs one refetch per message read. The message list
-     * is not — it is what the app shows when it is offline, and rebuilding it means a full resync
-     * of every folder. One clause too few in this statement, run automatically at the first
-     * launch after an update, would be indistinguishable from data loss.
      */
     @Test fun `the purge empties the body cache and touches nothing else`() {
         Class.forName("org.sqlite.JDBC")
@@ -248,12 +187,6 @@ class BodyCacheUpgradeTest {
 
     /**
      * The life of one install, played out: restarts, then update after update. One purge per
-     * threshold CROSSED — at 168, at 170 and at 172 — and nothing on any other launch: not between the
-     * two, not on a repeat of the same version, not after the last one.
-     *
-     * The launch list and the expected purges are bare literals. Recomputing the rule here to
-     * decide what to expect would make this test a copy of the decision, green whichever way the
-     * condition is written.
      */
     @Test fun `the purge happens exactly once per threshold over the life of an install`() {
         var recorded = 0

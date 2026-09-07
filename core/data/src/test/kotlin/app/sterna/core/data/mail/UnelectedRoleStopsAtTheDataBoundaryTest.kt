@@ -11,17 +11,6 @@ import org.junit.Test
 
 /**
  * Where the `~trash` mark STOPS — [MailboxEntity.toMailbox], EXECUTED.
- *
- * A folder that claimed the trash and lost it (a personal `Trash` plus a shared `Shared/…/Trash`)
- * is stored with a marked role so search and the FTS crawl skip it. That mark must not reach the
- * app: `ui.inbox.InboxScreen` gates "New subfolder", "Rename" and "Delete" of a folder's ⋮ menu on
- * `mailbox.role == null` — the one place in the app that tells "no role" apart from "a role I do
- * not know" — and it read `~trash` as a role, leaving the user's shared trash with a one-line menu,
- * no rename and no delete. The search fix must not cost a folder its menu.
- *
- * `toMailbox()` is that crossing: its only two call sites are `MailRepository.observeMailboxes`,
- * which is what every screen sees. Every expectation below is a literal; the shipped mapper is
- * called with pinned arguments and nothing here recomputes the erasure rule.
  */
 class UnelectedRoleStopsAtTheDataBoundaryTest {
 
@@ -59,9 +48,6 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
 
     /**
      * The gesture this buys back. `InboxScreen` shows New subfolder / Rename / Delete only when
-     * the mailbox it was handed has `role == null`; those three branches are the only writes of
-     * `folderToAddChild` / `folderToRename` / `folderToDelete` in the app. Run the condition on the
-     * model the repository actually hands it for a losing shared trash.
      */
     @Test fun theFolderMenuStillOffersSubfolderRenameAndDeleteOnALosingSharedTrash() {
         val onScreen = row("~trash").toMailbox()
@@ -93,11 +79,6 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
 
     /**
      * The ONE field that now differs from the role-less row this used to be equal to, and why it
-     * had to: the drawer is the only way back into a folder that lost its claim (it is out of search
-     * by an older, deliberate decision), and "subscribed folders only" (#174) hides a folder that is
-     * unsubscribed, role-less and no routing target — which is precisely this one.
-     *
-     * The rest of the row is pinned above, field by field; only [Mailbox.lostRoleClaim] parts ways.
      */
     @Test fun theLostClaimIsTheSINGLEDifferenceFromTheRoleLessRow() {
         val marked = row("~trash").toMailbox()
@@ -109,9 +90,6 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
 
     /**
      * The case that closes the defect: a `Junk` and a `Spam` on one IMAP account, one of them
-     * elected. The loser crosses with NO role — nothing about its icon, its menu or its
-     * destinations changes — and with the claim carried as a boolean, which is all the drawer needs
-     * to keep listing it.
      */
     @Test fun aLosingJunkCrossesWithNoRoleAndACarriedClaim() {
         val loser = row("~junk").toMailbox()

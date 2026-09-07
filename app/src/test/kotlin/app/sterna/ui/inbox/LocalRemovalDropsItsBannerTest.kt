@@ -7,32 +7,6 @@ import java.io.File
 
 /**
  * A message removed FROM SterNA must take its own notification banner with it.
- *
- * The report: a banner is posted, the user deletes / archives / moves that message in the app, and
- * the banner stays in the status bar — for good on IMAP (`FolderRefresh.departedIds` is empty by
- * construction there, so `confirmDepartures` never sees the departure), late (8–60 s, background
- * only) on JMAP, and never at all on JMAP once `markReadOnDelete` is on. Touching what is left
- * reopens a message that is not there any more. Nothing in the tree cancelled a banner from a LOCAL
- * gesture: the only two `Notifications.dismiss` callers are the "mark read" paths.
- *
- * The fix does it beside the sync rather than through it — `departedIds` may only ever be fed
- * from an AUTHORITATIVE signal (see `Notifications.departuresToCancel`'s KDoc) — by remembering the
- * (account, id) couple AS IT WAS AT THE GESTURE and taking the banners down when the Undo window
- * closes unused.
- *
- * Two instruments, on purpose:
- *
- *  - [undoBannerKeys] is the DECISION, and it is EXECUTED below. It is the only thing that says
- *    which banner a gesture takes down, and the two ways to get it wrong are silent: the id of the
- *    gesture (IMAP ids ARE `imap:account:folder:uid`, so a move rewrites them and the Undo writes a
- *    third one — only the captured id names the banner), and the account qualifying it (#92: two
- *    accounts on one server are routinely handed the same message id, and a bare id cancels the
- *    neighbour's banner).
- *  - the rest is a SOURCE LINT, same instrument and same disclaimer as [SelectionTargetsWiringTest]
- *    and [BulkSelectionWiringTest]: `InboxViewModel` is an `AndroidViewModel` no JVM test here can
- *    instantiate (no Robolectric, no instrumented tests), so WHERE the deadline is posted is read as
- *    text. Whole lines, compared as lists, never `in`/`contains` — a substring rule is blind to
- *    every mutation that lengthens the line it matched.
  */
 class LocalRemovalDropsItsBannerTest {
 
@@ -40,9 +14,6 @@ class LocalRemovalDropsItsBannerTest {
 
     /**
      * The id is the one CAPTURED AT THE GESTURE, i.e. `UndoEntry.emailId` — not the source folder,
-     * not the destination. On IMAP the id contains the folder, so the message wears a different id
-     * after the move and a third one after an Undo; the banner on screen only ever answers to the
-     * one that was live when it was posted.
      */
     @Test fun `the key carries the id the gesture was performed with`() {
         val entry = UndoEntry("imap:accA:INBOX:12", "accA", "imap:accA:INBOX", "imap:accA:Trash")
@@ -51,8 +22,6 @@ class LocalRemovalDropsItsBannerTest {
 
     /**
      * And the account of THAT entry. A thread swipe or a selection spans accounts; each entry's
-     * banner lives on its own account's shade, and an id qualified with the wrong account cancels a
-     * banner nobody asked to lose.
      */
     @Test fun `each entry keeps its own account`() {
         val entries = listOf(
@@ -72,9 +41,6 @@ class LocalRemovalDropsItsBannerTest {
 
     /**
      * A null account is NOT an account to invent. `UndoEntry.accountId` is nullable and the
-     * dismissal adapter resolves null through `store.load()` (the current account) exactly as every
-     * other key path does; filling it in here with a guess would aim the cancel at a shade the
-     * gesture never touched.
      */
     @Test fun `a null account stays null`() {
         assertEquals(listOf(EmailKey(null, "m1")), undoBannerKeys(listOf(UndoEntry("m1", null, "mbA"))))
@@ -88,13 +54,6 @@ class LocalRemovalDropsItsBannerTest {
 
     /**
      * The three sites are exactly the three that offer an Undo, and the deadline is posted THERE,
-     * on the line right after the offer — so the pair is pinned whole, in order.
-     *
-     * `swipeRemove` is the one that matters most: it is network-first, so offline the op fails, the
-     * row comes back and there was no departure at all. A deadline posted before the acknowledgement
-     * would take the banner down for a gesture that never happened, and the two errors are not
-     * symmetrical — one banner too many is a banner the user dismisses, one banner too few is mail
-     * that was never announced.
      */
     @Test fun `the swipe posts its deadline in the success arm, right after the Undo it belongs to`() {
         val body = bodyAt(INBOX_VIEW_MODEL, "private fun swipeRemove(")
@@ -151,21 +110,6 @@ class LocalRemovalDropsItsBannerTest {
 
     /**
      * The deadline is a `viewModelScope` coroutine, and its body is pinned as a SEQUENCE — every
-     * line, in the order the source has them, never a set of independent greps recollés in the
-     * order of the expectation. Three of these lines can be moved without breaking any rule that
-     * only asks whether they EXIST, and each move inverts the whole promise:
-     *
-     *  - `dismissBanners(keys)` lifted above the `delay`: the banner falls AT THE GESTURE, and no
-     *    Undo can ever keep it. The branch would then do the exact opposite of what it says;
-     *  - `_undo.value = null` written unconditionally: a SECOND gesture performed inside the window
-     *    gets its own Undo window wiped by the first one's deadline. Identity (`===`) on the very
-     *    action this deadline was posted for, and nothing else;
-     *  - the clear dropped altogether: the bar is `Indefinite` now, so it would hang for good.
-     *
-     * NOT an effect of the screen: `clearUndo()` has ONE caller, the "no Undo" branch of the
-     * snackbar in `InboxScreen.kt`, and when the list leaves the composition the `LaunchedEffect` is
-     * cancelled and NEITHER branch runs. Hung there, the banner of a message deleted just before
-     * leaving the list never comes down at all — the very defect this branch closes.
      */
     @Test fun `the deadline waits, closes its own window, then dismisses — in that order`() {
         val body = bodyAt(INBOX_VIEW_MODEL, "private fun scheduleUndoneDeparture()")
@@ -191,10 +135,6 @@ class LocalRemovalDropsItsBannerTest {
 
     /**
      * And the window has a VALUE, not just a name. `UNDO_BANNER_DISMISS_MS = 0L` is one character
-     * and passes every rule that pins the identifier: the banner would fall the instant the server
-     * acknowledged, with the Undo bar still on screen offering something that can no longer work.
-     *
-     * Pinned whole, so a rewrite that keeps `6_000L` in the line and appends to it is caught too.
      */
     @Test fun `the window is a real value, not just a name`() {
         assertEquals(
@@ -207,19 +147,6 @@ class LocalRemovalDropsItsBannerTest {
 
     /**
      * ONE clock, and it is the ViewModel's.
-     *
-     * The bar used to be `SnackbarDuration.Short` while the deadline was a `delay` started at the
-     * server acknowledgement: two independent clocks, and three reachable paths pull them apart —
-     * a rotation restarts `LaunchedEffect(undo)` and gives the bar four fresh seconds, the
-     * "Time to take action" accessibility setting stretches a `Short` through
-     * `getRecommendedTimeoutMillis` (up to a minute or two), and the single `SnackbarHostState`
-     * queues this bar behind four `Indefinite` ones. In all three the user presses Undo AFTER the
-     * deadline fired: the message comes back into the folder with no banner, and on JMAP its id is
-     * already in `NewMailNotifier`'s baseline, so it is never announced again.
-     *
-     * So the bar stops deciding: `Indefinite`, and the ViewModel clears `_undo` when the window
-     * closes — `LaunchedEffect` is keyed on `undo`, so the bar goes with it. The window shown IS
-     * the window that exists.
      */
     @Test fun `the Undo bar does not run a clock of its own`() {
         val body = bodyAt(INBOX_SCREEN, "LaunchedEffect(undo) {")
@@ -244,8 +171,6 @@ class LocalRemovalDropsItsBannerTest {
 
     /**
      * Undo cancels the deadline, and nothing else does. Without this, the user presses Undo, the
-     * message comes back into the folder — and its banner is taken down a second later anyway, so a
-     * message that IS there is announced nowhere.
      */
     @Test fun `Undo cancels the deadline`() {
         val body = bodyAt(INBOX_VIEW_MODEL, "fun undo()")
@@ -259,10 +184,6 @@ class LocalRemovalDropsItsBannerTest {
 
     /**
      * And `clearUndo()` carries neither the deadline nor its cancellation. It is the screen's
-     * "the snackbar went away" branch: hanging the dismissal there is mutation M2 (the banner
-     * survives whenever the list leaves the composition first), and hanging the CANCELLATION there
-     * would take the deadline down every time the bar simply timed out — i.e. exactly when it must
-     * fire.
      */
     @Test fun `clearUndo carries neither the deadline nor its cancellation`() {
         val body = bodyAt(INBOX_VIEW_MODEL, "fun clearUndo()")
@@ -332,11 +253,6 @@ class LocalRemovalDropsItsBannerTest {
 
     /**
      * The declaration [declaration] in [file] and its body, as text. Matched on the DECLARATION and
-     * not on a bare name: `InboxViewModel.kt` declares `val undo: StateFlow<UndoAction?>` before
-     * `fun undo()`, and a name-based reader silently hands back the flow.
-     *
-     * Fails loudly when the declaration is not found — a rename must break these rules rather than
-     * satisfy them against an empty string.
      */
     private fun bodyAt(file: File, declaration: String): String {
         val lines = codeLines(file)

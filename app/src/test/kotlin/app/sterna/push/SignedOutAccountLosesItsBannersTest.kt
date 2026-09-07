@@ -6,17 +6,6 @@ import java.io.File
 
 /**
  * Volet B of "a banner nobody can act on": the sign-out has to take the account's banners with it.
- *
- * Volet A stopped a signed-out account's banner from falling under Delete / Mark as read, because
- * without credentials no server action runs and nothing may claim it did. The side effect it left
- * open is closed here: such a banner never falls by itself either — `NewMailNotifier.notifyDiff`
- * needs non-null credentials and `AccountStore.allCredentials()` is a `mapNotNull { credentials(…) }`,
- * so a signed-out account enters NO background pass at all. The banners would stand for ever.
- *
- * Two halves, and only the first one runs: [Notifications.accountGroupIds] is the decision and is
- * executed below; the call site is an `AndroidViewModel` with no Robolectric in this module, so it
- * is pinned as source text, whole line by whole line. Never `contains`: a `contains` is blind to
- * every mutation that LENGTHENS the line.
  */
 class SignedOutAccountLosesItsBannersTest {
 
@@ -110,10 +99,6 @@ class SignedOutAccountLosesItsBannersTest {
 
     /**
      * SOURCE LINT — the call site. `AccountsViewModel` is an `AndroidViewModel` and this module
-     * has neither Robolectric nor instrumented tests, so what is held here is the WIRING: the whole
-     * line, and the LIST it walks. A pin naming only the call would be blind to `store.accounts()`
-     * put in place of `removed`, which is the same defect with the sign is flipped — every account
-     * on the phone loses its shade because one was signed out.
      */
     @Test fun `sign-out cancels the banners of exactly the accounts it removed`() {
         val body = bodyOf(ACCOUNTS_VM, "signOut")
@@ -180,10 +165,6 @@ class SignedOutAccountLosesItsBannersTest {
 
     /**
      * SOURCE LINT over two very short bodies, and here is why it is not a copy of the decision:
-     * a summary is told apart from a child ONLY by FLAG_GROUP_SUMMARY or by its own id, and
-     * NEITHER travels in the `(id, group)` pairs the decision is handed. So no executed test can
-     * ever see that distinction being put back — the tests above would stay green while the
-     * summary survived every sign-out. It has to be forbidden as text.
      */
     @Test fun `neither the decision nor its wiring may tell the summary apart from a child`() {
         val decision = bodyOf(NOTIFICATIONS, "accountGroupIds")
@@ -235,8 +216,6 @@ class SignedOutAccountLosesItsBannersTest {
 
     /**
      * The code lines of [body] naming [needle], comments and blank lines dropped. An empty
-     * [needle] therefore enumerates the body WHOLE, which is the only pin a mutation cannot slip
-     * a new line past.
      */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }

@@ -216,12 +216,6 @@ class SaveScopeCaptionTest {
 
     /**
      * Does [caption] promise that the settings it talks about take effect, rather than merely being
-     * stored? The vocabulary is per language because there is no way to ask a sentence what it
-     * means, only what it says.
-     *
-     * Substring matching is deliberate HERE and only here: this is a NEGATIVE rule, and lengthening
-     * a sentence can only add substrings, never remove one. The source lint above is the opposite
-     * case and compares whole lines.
      */
     private fun promisesImmediateEffect(locale: String, caption: String): Boolean {
         val banned = IMMEDIACY[locale] ?: error(
@@ -234,11 +228,6 @@ class SaveScopeCaptionTest {
 
     /**
      * Which of the four things a caption must say are missing from [caption], in a fixed order.
-     *
-     * [saveLabel] and [identitiesLabel] are the SAME locale's own strings, so this rule holds nine
-     * translations without containing any: it asks each language to reuse two words it already
-     * ships. The connective list is the one thing that has to be written per language, and it is
-     * the price of catching a sentence reversed into its opposite — no negative rule can.
      */
     private fun missingAnchors(
         locale: String,
@@ -258,9 +247,6 @@ class SaveScopeCaptionTest {
         return buildList {
             // BOTH the label and the word "button": in English and Italian the Save label IS the
             // bare verb, so "Saves the account name…" / "Salva il nome…" contains it by accident
-            // while naming no subject at all — which is the exact sentence this anchor exists to
-            // reject. Asking for the noun too is what makes the rule mean the same thing in the
-            // nine languages.
             if (saveLabel.lowercase() !in text || buttonWords.none { it in text }) add(NAMES_SAVE_BUTTON)
             if (identitiesLabel.lowercase() !in text) add(NAMES_IDENTITIES)
             if (SENTENCE_END.findAll(caption).count() < 2) add(TWO_SENTENCES)
@@ -371,12 +357,6 @@ class SaveScopeCaptionTest {
 
         /**
          * Ways each language says "takes effect now" — the one thing this caption must not say.
-         *
-         * STEMS, NOT INFLECTED FORMS. These languages decline and conjugate: a list holding
-         * `obowiązują` says nothing about `obowiązywać`, and one holding `greifen` says nothing
-         * about `gelten`. Every entry here is cut back to the shortest form that still means only
-         * what it is meant to mean; a false positive is a false failure, which is the safe way for
-         * this to be wrong.
          */
         val IMMEDIACY = mapOf(
             "values" to listOf("immediat", "appl", "take effect", "takes effect", "taking effect", "at once", "instant", "right away", "straight away", "in effect"),
@@ -392,10 +372,6 @@ class SaveScopeCaptionTest {
 
         /**
          * WRITTEN BEFORE [IMMEDIACY] WAS TOUCHED, and deliberately not from it: these are the
-         * sentences a translator would plausibly write if they believed the setting took effect,
-         * not sentences assembled out of the ban list. Two of them are the exact leaks an audit
-         * found in the first version — German `gelten`, Polish `obowiązywać … od zaraz` — which is
-         * what a witness is for: a list that only catches its own words catches nothing.
          */
         val WITNESS = mapOf(
             "values" to "The other settings on this screen take effect straight away.",

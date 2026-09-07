@@ -45,9 +45,6 @@ data class ImapFolder(
     val delimiter: String,
         /**
          * The role this folder CLAIMED and did not get, another folder of the same listing carrying
-         * it already; null whenever [role] is non-null. A statement of fact: this module decides
-         * nothing from it, and `:core:data` is what turns a lost `trash`/`junk` into a marked role so
-         * a second trash stays out of search while remaining an ordinary folder everywhere else.
          */
     val unelectedRole: String? = null,
         /** What the server answered about this folder's subscription (`LSUB` / `LIST (SUBSCRIBED)`),
@@ -79,11 +76,6 @@ data class ImapMessage(
     val cc: List<ImapAddress> = emptyList(),
         /**
          * Envelope `Bcc` (index 7): the blind copies. Practically always empty on a received
-         * message, and empty on the mail THIS app SENT, built with [BlindCopies.OMITTED]. The
-         * drafts this app APPENDs are the one exception and DO carry a `Bcc:`: the envelope mirrors
-         * what was appended, and that header is the only place a Bcc survives a save, a draft being
-         * reopened from the server's copy. Its own list, never merged into [cc]: that merge is how
-         * a blind copy stops being blind.
          */
     val bcc: List<ImapAddress> = emptyList(),
     /** Epoch millis from the envelope date (0 if unparseable). */
@@ -117,28 +109,12 @@ data class ImapMailboxStatus(
     val uidNext: Long,
         /**
          * Whether [exists] is a number THE SERVER STATED, or merely the value it is initialised to.
-         * `SELECT` is required to answer `* n EXISTS` (RFC 3501 §6.3.1); when it does not, [exists]
-         * stays 0 and reads exactly like an empty folder, so a walk built on it comes back with no UID
-         * and the reconcile DELETES every cached row. False by default, the refusing value: a fact
-         * that must be asserted to license a delete cannot be forgotten into existence.
          */
     val existsObserved: Boolean = false,
 )
 
     /**
      * What a move reported about where the mail landed — the answer to `UID MOVE`, or to the
-     * `UID COPY` it falls back to. [uids] is the source→destination mapping `COPYUID` reported
-     * (RFC 4315 §3, RFC 6851 §4.3), empty when the server reported none: the move still happened.
-     *
-     * [destinationUidValidity] is that same `COPYUID`'s first token — a FROZEN fact, the numbering in
-     * force when those UIDs were assigned. Nothing else in a move learns it, a `UID MOVE` not
-     * SELECTing its destination, so on a Trash the user never opened it is the ONLY number an Undo
-     * can oppose (Codeberg #99). Null when no `COPYUID` came back, and when chunks disagreed.
-     *
-     * [confirmedGone] is the SOURCE side: the handed-in UIDs this session holds a server's word for.
-     * Empty means "nothing is confirmed", NEVER "nothing moved" — a `UID MOVE` naming an
-     * already-gone UID is a no-op answered `OK`, so what is IN the set is proved and what is out is
-     * unknown. Read the other way round it destroys working moves on a whole class of servers.
      */
 data class ImapMoved(
     val uids: Map<Long, Long>,

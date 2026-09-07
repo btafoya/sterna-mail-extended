@@ -10,29 +10,6 @@ import java.io.File
 
 /**
  * An account whose folder list has never been synced, and the one question that decides whether
- * the screen may state a total: does the incompleteness REACH the answer?
- *
- * An IMAP search only ever walks the folders the drawer has cached. With none cached it falls back
- * to the inbox alone — a fraction of the account — and with not even an inbox id it walks nowhere
- * at all. Neither may come back wearing "3 results" or, worse, the flat "No results" the empty
- * state asserts as a fact.
- *
- * [SearchableFoldersTest] pins the two decisions taken along the way, each on its own. What is
- * pinned HERE is that they are still wired to each other in [MailRepository.search]: the verdict is
- * computed from the CACHED folder list, not from the list that was actually walked. Swapping those
- * two identifiers is a one-word change, it compiles, every other test stays green, and every
- * never-synced account starts calling a partial walk a total.
- *
- * Half of that can be asserted by calling the code and half cannot, so the class does both:
- *
- *  - the composition of the two pure decisions is CALLED, output into input, exactly as the
- *    repository chains them;
- *  - the wiring between them is READ OUT OF THE SHIPPED SOURCE, for the same reason
- *    [DaoQuerySource] reads DAO annotations: the code cannot be called from a JVM test.
- *    `MailRepository` takes an `AccountStore`, which takes an Android `Context` and opens shared
- *    preferences in its constructor — there is no Robolectric and no instrumentation in this bench,
- *    so the repository cannot be built here at all. Reading the source is what is left; it fails
- *    loudly if the function is renamed or reshaped, rather than quietly validating a copy.
  */
 class SearchNeverSyncedAccountTest {
 
@@ -55,8 +32,6 @@ class SearchNeverSyncedAccountTest {
 
     /**
      * The half-synced case, which looks nothing like "no folders" in the database and behaves
-     * exactly like it: the only folders cached are the two a search refuses to walk. The cached
-     * list is not empty, the searchable list is — and the fallback runs on the inbox again.
      */
     @Test fun `an account whose only cached folders are Trash and Junk is in the same position`() {
         val known = searchableFolderIds(folders("t" to "trash", "j" to "junk", "s" to "Spam"))
@@ -77,9 +52,6 @@ class SearchNeverSyncedAccountTest {
 
     /**
      * The one that cannot be called: the walk runs on the FALLBACK list, and the verdict is
-     * computed on the CACHED one. Feed the verdict the fallback instead and it sees a non-empty
-     * folder list, so an account that was searched in its inbox alone reports "2 results" as a
-     * fact about the whole account.
      */
     @Test fun `the completeness verdict is computed from the cached folder list, not from the walked one`() {
         val source = imapSearchBranch()
@@ -105,8 +77,6 @@ class SearchNeverSyncedAccountTest {
 
     /**
      * The far end of the same fallback: not even an inbox id, so the search looked nowhere. The
-     * early return has to carry the incompleteness itself — it never reaches [imapSearchComplete].
-     * An `emptyList()` returned complete here is a search that never ran, printed as "No results".
      */
     @Test fun `an account with nowhere to search answers incomplete rather than empty`() {
         assertTrue(
@@ -117,8 +87,6 @@ class SearchNeverSyncedAccountTest {
 
     /**
      * The body of `search(credentials, query, limit)` — up to the unified `search(accounts, …)`
-     * that follows it. Both markers are asserted, so a rename fails the test instead of silently
-     * handing back an empty slice that every `contains` would then fail on for the wrong reason.
      */
     private fun imapSearchBranch(): String {
         val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt").readText()

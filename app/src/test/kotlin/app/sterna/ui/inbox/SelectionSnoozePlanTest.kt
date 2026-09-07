@@ -7,25 +7,11 @@ import org.junit.Test
 
 /**
  * [planSelectionSnooze] — who can be snoozed at all, executed rather than re-derived.
- *
- * A snooze is not a server write: it writes a row in the local `snoozed` table and arms a worker.
- * `SnoozeWorker` then resolves the message back through the local `emails` table — and a row that
- * only ever existed on screen (a search hit with no cached row, `folderTrusted = false`) is not in
- * it. The reminder is written, the worker fires, nothing is found, nothing rings, and the `snoozed`
- * row is deleted on the way, so the message also vanishes from "Snoozed" (bench, 2026-08-08).
- *
- * Hence: such a row is refused and left completely untouched, for the caller to count as an attempt
- * AND as a failure, so the screen says so. The expectations below are written out by hand — a test
- * that re-applies the rule to decide what it expects would stay green with the rule inverted.
  */
 class SelectionSnoozePlanTest {
 
     /**
      * A fully filled row — every optional field of [Email] the partition could be tempted to read
-     * carries a value. A row this rich is what a search hit actually looks like, and a bare
-     * `Email(id, accountId, mailboxId, subject)` is what lets a predicate on ANY other field pass a
-     * whole suite unseen: it is false everywhere, so nothing moves. See [sparse] for the other half
-     * of that guard.
      */
     private fun target(id: String, trusted: Boolean, account: String? = "accA", mailbox: String? = "mbA") =
         SelectionTarget(
@@ -48,21 +34,12 @@ class SelectionSnoozePlanTest {
 
     /**
      * The same row stripped to nothing but its ids. Paired with [target] in the mixed case below,
-     * it closes the guard from both sides: a predicate that snoozes on "has content" lets the rich
-     * REFUSED row through, and one that refuses on "has no content" holds the bare SNOOZED row
-     * back. Only `folderTrusted` splits these six rows the way the assertions demand.
      */
     private fun sparse(id: String, trusted: Boolean) =
         SelectionTarget(Email(id = id), folderTrusted = trusted)
 
     /**
      * The reported case, interleaved: the cached rows are snoozed, the rows drawn by the search are
-     * refused, each part in the order it was selected. Both parts are pinned by COMPOSITION — the
-     * ids AND the trust flag — because two parts of the right sizes can still hold the wrong rows.
-     *
-     * `m2` is a FULLY filled untrusted row and `m3` a BARE trusted one, on purpose: the flag is
-     * then the only property of these four rows that predicts the answer, so a partition widened
-     * with any other field of [Email] lands one of them on the wrong side and reddens here.
      */
     @Test
     fun `a mixed selection snoozes the cached rows and refuses the rest`() {
@@ -109,8 +86,6 @@ class SelectionSnoozePlanTest {
 
     /**
      * The same id in both trust states — the two rows a merge of the cache and the search snapshot
-     * can produce for one message. Played in BOTH orders: a decision that lets the first row seen
-     * settle the message would give the right answer in one order by accident.
      */
     @Test
     fun `the same id trusted and untrusted lands in both parts, in either order`() {

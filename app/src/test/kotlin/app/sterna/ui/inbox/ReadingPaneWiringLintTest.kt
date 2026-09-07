@@ -6,18 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
- *
- * [ReadingPaneRuleTest] next door EXECUTES [ReadingPaneRule] — `open`, `close`, the session
- * transitions — on literal arguments. What no JVM test in this module can run is the WIRING that
- * hands that session to the reader: [ReadingPane] is a `@Composable`, and the `app` module has no
- * Compose harness at all (no Robolectric, no `androidTest`, no `app/src/androidTest` directory).
- * So the rule is proved and its branching was not: until this file, no test under `app/src/test`
- * named `ReadingPane.kt` at all, and the two mutations the messages below describe were invisible
- * to the whole suite.
- *
- * What it does NOT prove: it pins TWO LINES OF WIRING, neither the composable nor its rendering.
- * Whole trimmed lines are compared, never `contains` — a `contains` is blind to any mutation that
- * LENGTHENS the line, which has caught this repo out three times.
  */
 class ReadingPaneWiringLintTest {
 
@@ -78,8 +66,6 @@ class ReadingPaneWiringLintTest {
 
         /**
          * The single line equal to [needle] and the one after it. Empty when [needle] is not
-         * there exactly once, so a rename reddens the rule that uses it instead of satisfying it
-         * against nothing.
          */
         fun adjacentPair(lines: List<String>, needle: String): List<String> {
             val at = lines.indices.filter { lines[it] == needle }.singleOrNull() ?: return emptyList()

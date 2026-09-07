@@ -36,8 +36,6 @@ fun UnsubscribeOptions.preferredAction(): UnsubscribeAction? = when {
 
 /**
  * Not the same shape per gesture: ONE_CLICK names the HOST, who receives the POST being the whole
- * disclosure; OPEN_PAGE names the WHOLE URL, path and query being agreed to as well. Null means the
- * destination cannot be stated, and then nothing is offered.
  */
 fun UnsubscribeOptions.confirmationTarget(action: UnsubscribeAction): String? = when (action) {
     UnsubscribeAction.ONE_CLICK -> oneClickUrl?.let { UnsubscribeHeader.hostOf(it) }
@@ -58,8 +56,6 @@ object UnsubscribeHeader {
 
     /**
      * Null when there is nothing usable: an unreadable header is never an error on screen. Bare URIs
-     * are accepted, being emitted in the wild; the FIRST of each kind wins. `http:` is REJECTED (D4),
-     * not demoted: an unsubscribe over cleartext broadcasts that this address is live.
      */
     fun parse(listUnsubscribe: String?, listUnsubscribePost: String?): UnsubscribeOptions? {
         if (listUnsubscribe.isNullOrBlank()) return null

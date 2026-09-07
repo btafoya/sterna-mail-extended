@@ -2,17 +2,11 @@ package app.sterna.core.imap
 
 /**
  * Real OpenPGP public keys, exported minimized and base64'd exactly the way the app stores them
- * ([app.sterna.core.data.account.pgpPublicKeyCacheValue] uses `Base64.getEncoder()`, RFC 4648, no
- * line breaks). Frozen here as literals: the folding rule is about SIZE, and a size invented by the
- * test would prove nothing about the sizes that actually travel.
  */
 internal object AutocryptKeys {
 
     /**
      * An RSA-4096 key (sign + encrypt subkey), minimized: **1 163 octets, 1552 base64
-     * characters**. This is the case the whole volet exists for — `Autocrypt: ` plus this value
-     * is far past RFC 5322 §2.1.1's 998-octet line, and **no bench can show it**: the four
-     * benches carry ed25519 keys, which fit on one line.
      */
     const val RSA_4096: String =
         "mQINBGqYiFgBEACyMmikxS2dso/tpI7t2nLIowWrYKaMYyQ5q9uEWAX1YZAAv9hU6SSE5Fo6QRQJ1V/V212U1C/K8UUVdhbH" +
@@ -35,8 +29,6 @@ internal object AutocryptKeys {
 
     /**
      * An ed25519 key with its cv25519 encryption subkey, minimized: **417 octets, 556 base64
-     * characters** — the shape every bench key has. It fits on a single line, and the folder must
-     * leave it alone.
      */
     const val ED25519: String =
         "mDMEapiIYBYJKwYBBAHaRw8BAQdAL6yHkgUz0dB5Md2pqMoWVneaOOKidIZAO6BWV4tDQDi0JEF1dG9jcnlwdCBTaG9ydCA8" +

@@ -7,11 +7,6 @@ import java.io.File
 
 /**
  * The one decision behind the centred loading ring (#63), RUN — plus a source lint holding the two
- * indicators the reader shows on a single tap, which no test in this module can render.
- *
- * The expected values below are written out as literals on purpose. A test that recomputes
- * `if (motionOn) …` to decide what it expects is a copy of the rule: invert the shipped condition
- * and it stays green.
  */
 class LoadingRingTest {
 
@@ -43,15 +38,6 @@ class LoadingRingTest {
 
     /**
      * SOURCE LINT. `LoadingRing` cannot be rendered here — no Robolectric and no
-     * `compose-ui-test` in this module — so what is held is its SIGNATURE (the fourteen callers that
-     * pass no stroke get Material 3's own default), that it reads the setting, hands it to the
-     * decision above, composes the animated Material 3 indicator ONLY on the `null` answer (the
-     * pattern of `TernRefreshIndicator`), and wraps the RESTING one in the Box that repairs what it
-     * announces. Restating the condition inside the composable would leave the decision tests above
-     * proving nothing about the app.
-     *
-     * Whole trimmed lines, in order, comments stripped: the semantics live in the arguments, so a
-     * `contains` on the function name would be met by any of the wrong forms.
      */
     @Test fun `the composable routes through the decision, and animates only on null`() {
         assertBlock(
@@ -106,10 +92,6 @@ class LoadingRingTest {
 
     /**
      * One tap on a message shows these two in turn: the whole-screen one while the message is
-     * fetched, then the 24 dp one over the header while the body lays out. Either one left as a
-     * raw `CircularProgressIndicator` puts the unreadable fragment back on the very screen the
-     * reporter photographed, so both are pinned WHOLE — never with `in`, which is blind to
-     * anything appended to the line.
      */
     @Test fun `the reader's fetch indicator is the app's ring`() {
         assertBlock(
@@ -148,15 +130,6 @@ class LoadingRingTest {
 
     /**
      * SOURCE LINT, and the widest one: twenty sites now draw a [LoadingRing] instead of a raw
-     * `CircularProgressIndicator`, and six of them are held by the tests above and
-     * by the wiring tests (`RootRefreshWiringTest`, `NotificationsGateWiringTest`,
-     * `MailBySenderWiringTest`). These are the other fourteen. None can be rendered in this module, so
-     * each is pinned by its WHOLE trimmed source line — never `in`/`contains`, which is blind to
-     * anything appended — and by the line having to appear EXACTLY ONCE in its file.
-     *
-     * Line numbers are deliberately not part of the key: they move, the text is what identifies the
-     * site. A site whose surrounding code legitimately changed updates its entry here; a site that
-     * silently went back to Material 3's own indicator cannot.
      */
     @Test fun `every converted loading indicator is still the app's ring`() {
         val damaged = RING_SITES.mapNotNull { site ->
@@ -183,10 +156,6 @@ class LoadingRingTest {
 
     /**
      * The four tests below EXECUTE [fullSizeIndicatorSites] on synthetic sources. The table in §4
-     * only sees a site it already knows about; nothing there — and nothing anywhere else in this
-     * module before today — stopped a NEW `CircularProgressIndicator(` from being written full
-     * size on a screen. That happened three times in this one cut (ConnectScreen twice,
-     * ComposeScreen once), suite green each time, which is why the sweep exists.
      */
     @Test fun `a bare indicator is a full-size site`() {
         assertEquals(
@@ -281,8 +250,6 @@ class LoadingRingTest {
 
     /**
      * SOURCE LINT, run over the whole of `app/src/main/kotlin/`. §4 pins the sites we know; this
-     * one refuses the sites nobody has thought of yet, which is the only thing that closes the
-     * relapse.
      */
     @Test fun `no screen draws a full-size Material 3 indicator of its own`() {
         val root = repoRoot()
@@ -315,8 +282,6 @@ class LoadingRingTest {
 
     /**
      * Compares [expected] against the same number of consecutive CODE lines of [path], starting at
-     * the single line beginning with [prefix]. Whole trimmed lines, in order: a `contains` check
-     * cannot see anything appended to a line, and a per-line check cannot see a statement moved.
      */
     private fun assertBlock(path: String, prefix: String, expected: List<String>, why: String) {
         val code = codeLines(path)
@@ -360,13 +325,6 @@ class LoadingRingTest {
 
         /**
          * Where the line is drawn between the centred ring the reporter filmed and the small
-         * indicators that keep Material 3's arc on purpose. The biggest small one left in the app
-         * is the 24 dp spinner of `SettingsScreen`, alone in its column while a device-flow sign-in
-         * runs, so 24 is inside; Material 3's own default, and every centred ring, is 40.
-         *
-         * It was 28 while the inbox's paging-append footer was still raw at that size. That footer
-         * is a [LoadingRing] now, so nothing in the app needs 28 to pass any more, and the ceiling
-         * comes down with it: 28 dp is a full-size site again.
          */
         const val MAX_SMALL_DP = 24.0
 
@@ -377,17 +335,6 @@ class LoadingRingTest {
 
         /**
          * THE RULE, as a pure function: the 1-based line numbers of every full-size
-         * `CircularProgressIndicator(` in [source].
-         *
-         * A call is small — and left alone — when its argument list constrains it to
-         * [MAX_SMALL_DP] or less. The arguments are read by BALANCING parentheses from the call's
-         * own `(`, not off the line it starts on: most small indicators in this app are written
-         * over four or five lines, and a per-line reading would call every one of them full size.
-         * Comments and literals are blanked first, so neither prose nor a string can meet the rule
-         * or unbalance it.
-         *
-         * A size the lint cannot read as a dp literal counts as full size. That is deliberate: the
-         * false positive costs one literal, the false negative costs an unreadable loading screen.
          */
         fun fullSizeIndicatorSites(source: String): List<Int> {
             val code = codeMask(source)
@@ -457,13 +404,6 @@ class LoadingRingTest {
 
         /**
          * The fourteen converted sites nothing else holds. The six left out are held elsewhere and
-         * are deliberately NOT repeated here: MessageScreen's fetch and body-layout rings (the two
-         * tests above), SternaApp's two root rings (RootRefreshWiringTest), the notifications gate
-         * (NotificationsGateWiringTest) and the by-sender list (MailBySenderWiringTest).
-         *
-         * The last four arrived AFTER the conversion of #63 and were still raw Material 3
-         * indicators: two on the connect walk, two in the composer. They are the reason §5 exists —
-         * the table only ever holds what someone thought to add to it.
          */
         val RING_SITES = listOf(
             RingSite(
@@ -477,14 +417,6 @@ class LoadingRingTest {
                     "reporter's screenshot)",
                 // The condition gained `|| staleRows` (the stale-rows guard, RowsGuard.kt): the same
                 // ring, at the same place, now also REACHED when Paging is still presenting the
-                // PREVIOUS folder's snapshot and nothing else is claiming the centre — reached, but
-                // no longer drawn there: what draws is `ringShowing`, fed refreshLoading &&
-                // !staleRows, so a change of view leaves the centre empty. The pinned line itself is
-                // unchanged, and the WIDGET is what this entry guards — RowsGuardWiringLintTest
-                // pins the condition, RefreshIndicatorWiringLintTest the predicate that draws.
-                // 2026-08-29 (#178): the drawing — not the widget — is now held back by the
-                // same grace as the tern (`ringShowing`, rememberGracedIndicator). The WIDGET
-                // this entry guards is unchanged: it is still LoadingRing at the same place.
                 "refreshLoading || staleRows -> if (ringShowing) LoadingRing(Modifier.align(Alignment.Center)) else Unit",
             ),
             RingSite(

@@ -6,19 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `ComposeViewModel.kt` and `ComposeScreen.kt` as
- * text and compares whole trimmed lines. It proves nothing about what runs.
- *
- * It exists because neither file can be built here: `ComposeViewModel` is an `AndroidViewModel`
- * and `ComposeScreen` is a composable, there is no Robolectric and no instrumented test in this
- * module. The DECISIONS both of them make are pure functions with tests that EXECUTE them
- * ([PgpEncryptArgsTest], [DraftSaveAllowedTest], and `PgpModeEncryptsTest` in core:data); what
- * nothing can see is whether these two files still ASK them. That is all this file adds — and it
- * is not enough on its own, exactly as `pgpEncryptArgs` being perfect is not enough if the send
- * site builds its own key array beside it.
- *
- * Whole lines and CONTIGUOUS blocks, never `contains`: a `contains` check is blind to every
- * mutation that lengthens the line it looks at (bitten twice on 2026-08-04), and a per-line check
- * is blind to a statement slipped in between two.
  */
 class PgpModeWiringTest {
 
@@ -43,11 +30,6 @@ class PgpModeWiringTest {
     @Test fun `the send reads the mode once and hands that one value to the entity builder`() {
         // Choosing the branch and choosing the signer are separated by pgp.findKeys, a suspension
         // that round-trips to the provider — and the mode moves under it: deriveAutoMode drops an
-        // untouched encrypt-by-default lock to OFF as soon as a recipient turns out to have no
-        // key, and the address fields stay editable while a send is in flight. Read a second time
-        // inside buildPgpEntity, that read can answer OFF, and the message leaves UNSIGNED while
-        // the composer had said "encrypted and signed". One read, passed down as an argument, is
-        // what makes that impossible rather than unlikely.
         assertEquals(
             "the send no longer captures the mode once for the whole message.",
             listOf("val mode = _pgpMode.value", "val pgpEntity = if (mode != PgpMode.OFF) {"),
@@ -75,12 +57,6 @@ class PgpModeWiringTest {
     @Test fun `the send hands the entity builder the subject the pure function decided`() {
         // protectedSubject(mode, subject) is executed by ProtectedSubjectTest, and
         // ProtectedHeadersEntityTest executes what buildBodyEntity does with its answer. Between
-        // the two there is one line, and nothing in this repo can run it. Written as
-        // `subject` instead of `protectedSubject(mode, subject)`, every SIGNED-only message grows
-        // a Subject: header inside the very bytes the signature covers, and a message sent with no
-        // subject claims its subject is the empty string — both suites stay green throughout.
-        // Written as `protectedSubject(_pgpMode.value, subject)`, the mode is read a second time
-        // after the provider round-trip, which is the defect the test above exists for.
         assertEquals(
             "the send site no longer passes protectedSubject(mode, subject) to buildPgpEntity. " +
                 "Whatever it passes now is invisible to every executing test here: this class " +
@@ -99,11 +75,6 @@ class PgpModeWiringTest {
     @Test fun `the entity builder is handed that subject, and not the default`() {
         // The joint has TWO lines, not one. The test above pins the first (send site to
         // buildPgpEntity); this pins the second, and it is the more dangerous of the two because
-        // `protectedSubject` on OutgoingMime.buildBodyEntity is a DEFAULTED parameter. Delete the
-        // argument line below and the call still compiles, still type-checks, still passes every
-        // test in this repo — and no encrypted message carries a protected subject ever again. The
-        // feature dies in silence, with ProtectedSubjectTest and ProtectedHeadersEntityTest both
-        // green, because each of them executes one END of a wire nothing walks.
         assertEquals(
             "the PGP entity is no longer built with the subject the send decided. Passing " +
                 "anything else here — or nothing, which is what the default argument makes easy " +
@@ -126,9 +97,6 @@ class PgpModeWiringTest {
     @Test fun `the short tap is still the three-stop cycle, and cannot walk into the unsigned mode`() {
         // nextPgpMode is pure and DraftSaveAllowedTest executes it — but nothing executes the line
         // that calls it. Rewrite this one line to hand setPgpMode ENCRYPT_UNSIGNED after SIGN and
-        // every test in the repo stays green, while two taps from plain now send mail that proves
-        // nothing about who wrote it, which nobody asked for. The long-press menu is the only way
-        // into that mode; this line is what keeps it that way.
         assertEquals(
             "the lock's short tap no longer walks nextPgpMode's cycle verbatim.",
             listOf("fun cyclePgpMode() = setPgpMode(nextPgpMode(_pgpMode.value))"),
@@ -139,10 +107,6 @@ class PgpModeWiringTest {
     @Test fun `each mode is bound to the face it was given, and no other`() {
         // The COMPLEMENT of PgpModeIconFacesTest, which executes pgpModeIcon and measures that the
         // four faces it returns are four distinct drawings. That measurement is blind to WHICH mode
-        // wears WHICH face: swap the faces of OFF and ENCRYPT and the four drawings are still
-        // pairwise distinct, so it stays green while the composer draws a closed padlock on a
-        // plaintext message. Only the four pairings below say who wears what, and they can only be
-        // pinned as text — a test that recomputed the expected face would be a copy of this file.
         assertEquals(
             "pgpModeIcon changed. If two modes now draw the same icon, the composer shows the " +
                 "same padlock for a signed and an unsigned message and there is no other " +
@@ -188,9 +152,6 @@ class PgpModeWiringTest {
     @Test fun `the compose screen asks whether the mode encrypts, never which mode it is`() {
         // Three sites in that file read it: the Send gate (keysReady), the per-recipient red flag
         // (missingKeyFor) and the "the subject is not encrypted" note. Each one written as
-        // `== PgpMode.ENCRYPT` again silently drops the unsigned mode: the note disappears, the
-        // recipients with no key stop being flagged, and Send is offered on a message that cannot
-        // be encrypted to them.
         //
         // This is an ABSENCE over the whole file, so it says nothing about a site that stops
         // reading the mode at all. It is the cheapest guard that survives a lengthened line.
@@ -204,11 +165,6 @@ class PgpModeWiringTest {
     @Test fun `the bar draws the mode in force and each menu row draws its own`() {
         // pgpModeIcon moved out of ComposeScreen, and with it the only pin that read this file's
         // two call sites. What they PASS is the whole point and no other test can see it: write
-        // `pgpModeIcon(pgpMode)` in the menu row and all four entries wear the icon of the current
-        // mode; write `pgpModeIcon(entry)` in the bar and it never changes. Either way the four
-        // faces stay four distinct drawings, so PgpModeIconFacesTest measures them and stays green
-        // while the composer shows one face for another message's promise — which is the defect
-        // the bench reported, only worse.
         //
         // The bar reads `pgpMode` (what is in force), the menu row reads `entry` (the row's own
         // mode), in that order down the file. Two calls, no more: a third would be a face drawn
@@ -231,8 +187,6 @@ class PgpModeWiringTest {
 
     /**
      * [count] CONSECUTIVE code lines of [path] from the single one starting with [prefix]. A prefix
-     * matching anything but exactly one line returns a message instead, so an assertion can never
-     * pass by matching nothing.
      */
     private fun block(path: String, prefix: String, count: Int): List<String> {
         val lines = code(path)

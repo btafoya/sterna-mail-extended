@@ -13,12 +13,6 @@ import java.io.File
 
 /**
  * What the Outbox screen SAYS about each row, and what the Inbox banner is about.
- *
- * The first half EXECUTES the decisions ([outboxStateLabel], [outboxStateShowsReason],
- * [outboxStateIsError], [OutboxLogic.needsFailureBanner]) — every state's answer written out in
- * full, never recomputed from the shipped rule. The second half is a SOURCE LINT and says so: a
- * composable cannot be run here (no Robolectric, no instrumented tests in this module), so that the
- * screen still ASKS those functions is read as text and proves nothing about what is drawn.
  */
 class OutboxStateWordingTest {
 
@@ -30,8 +24,6 @@ class OutboxStateWordingTest {
 
     /**
      * Every state's sentence, written out. The pairs are pinned in full rather than checked one
-     * by one: the defect being fixed is a state falling through an `else ->` into somebody else's
-     * words, and only a complete list can see a state that has quietly lost its own branch.
      */
     @Test fun `each outbox state has its own sentence`() {
         assertEquals(
@@ -50,9 +42,6 @@ class OutboxStateWordingTest {
 
     /**
      * The frame the waiting row's complement is printed in, EXECUTED — the source lint one
-     * screen down pins that the composable calls this function, never which string it answers.
-     * Answering R.string.outbox_state_failed here would put "Failed: …" back over a row that is
-     * queued and waiting, in nine languages, and every other test in this file would stay green.
      */
     @Test fun `the waiting row's complement is framed as history, not as a failure`() {
         assertEquals(
@@ -67,8 +56,6 @@ class OutboxStateWordingTest {
 
     /**
      * THE sentence of this fix. A row saved as a draft on the phone must say so, on its own, and
-     * must not be dressed as a failure: "Failed: saved as a draft on this device, not sent" is what
-     * the previous attempt printed in nine languages, over a save that did exactly what was asked.
      */
     @Test fun `the row a kept-on-device save leaves behind says it was saved, not that it failed`() {
         assertEquals(
@@ -97,9 +84,6 @@ class OutboxStateWordingTest {
 
     /**
      * THE sentence of the interrupted-send fix. A delivery whose run was killed may ALREADY have
-     * reached the server, and the row is parked exactly because this phone cannot tell. Every word
-     * on the line has to survive both outcomes: it may not say the send failed, and it may not say
-     * the message was not sent.
      */
     @Test fun `the row a killed delivery leaves behind says it may already be gone, never that it failed`() {
         assertEquals(
@@ -129,12 +113,6 @@ class OutboxStateWordingTest {
 
     /**
      * THE SENTENCE OF THE DESTRUCTIVE ACTION, state by state, written out by hand. The delete
-     * confirmation is read at the one moment the only copy of a message is destroyed, and its
-     * default body OPENS with "It hasn't been sent" — the exact claim this fix forbids over a row
-     * whose delivery may have got through. Told the message never left, the reader deletes it.
-     *
-     * The pairs are pinned in full, like the sentences above: a state quietly losing its branch
-     * here is invisible one assertion at a time, and every state but one shares the same answer.
      */
     @Test fun `the row a killed delivery leaves behind is not told it was never sent, when it is deleted`() {
         assertEquals(
@@ -178,17 +156,6 @@ class OutboxStateWordingTest {
 
     /**
      * THE PREDICATE OF THIS FIX, state by state and BOTH ways, written out by hand — never
-     * recomputed from the shipped rule, which would make the rule its own witness.
-     *
-     * A row that waits and carries a reason (a delivery the server refused on attempts 1 to 4, an
-     * arming that never happened) must print it as an extra line: pressing Retry against a silent
-     * screen is what this closes. And every other answer here is a guard:
-     *  - with NO reason, a waiting row prints nothing at all. Offline, the CONNECTED constraint
-     *    means no attempt ever runs, so QUEUED rows with a null lastError are the MAJORITY of what
-     *    is seen — an empty complement, or "couldn't send", would be the normal case;
-     *  - KEPT_AS_DRAFT and INTERRUPTED are not waiting: the first keeps the reason of a failure
-     *    that happened before it was saved as a draft (#95 × #70), the second has a whole sentence
-     *    of its own about a delivery that may have got through. Neither may borrow this line.
      */
     @Test fun `only a waiting row that carries a reason says why it is still there`() {
         assertEquals(
@@ -241,10 +208,6 @@ class OutboxStateWordingTest {
 
     /**
      * THE SENTENCE OF THE INTERRUPTED-EDIT FIX. A queued row closed over a lost body is parked
-     * FAILED with `OutboxLogic.EDIT_INTERRUPTED` in `lastError` — a SENTINEL, because a sentence
-     * stored in the row would stay in the language of the day it was written. The screen must
-     * translate it, and must go on printing the server's own words (#183) and the fallback for a
-     * row with no reason at all.
      */
     @Test fun `the reason a failed row prints is translated from its sentinel, never stored`() {
         assertEquals(
@@ -296,10 +259,6 @@ class OutboxStateWordingTest {
 
     /**
      * SOURCE LINT. `OutboxScreen` is a composable; nothing here can render it. What is pinned is
-     * that every reading of a row's state goes through the pure functions above — WHOLE LINES and
-     * ALL of them, in order, because the mutation this exists for is a `when (item.state)` written
-     * back into the composable with `KEPT_AS_DRAFT` falling into the failed branch, and that edit
-     * neither shortens a line nor removes a name.
      */
     @Test fun `the Outbox screen only ever asks those functions about a row's state`() {
         val lines = codeLines(OUTBOX_SCREEN)
@@ -345,10 +304,6 @@ class OutboxStateWordingTest {
 
     /**
      * SOURCE LINT, same disclaimer. The COLOUR of the waiting row's complement, pinned as WHOLE
-     * LINES in sequence: `MaterialTheme.colorScheme.error` at that one place paints a row that is
-     * waiting for the network in the colour of failure, and nothing would ever repaint it — the
-     * message has not failed, it has not left yet. The typography line is pinned with it, since a
-     * complement raised to the state sentence's weight is the same claim by another means.
      */
     @Test fun `the waiting row's complement is not painted as a failure`() {
         val lines = codeLines(OUTBOX_SCREEN).map { it.trim() }
@@ -378,9 +333,6 @@ class OutboxStateWordingTest {
         )
         // And WHERE it sits, which no assertion above constrains: the block must come BEFORE
         // the row's button Row. Slid inside it, the complement is laid out as a fourth item on
-        // that end-aligned line and pushes Retry and Delete out of the card — an unreachable
-        // Delete on the one screen where a message exists nowhere else — and every executable
-        // test in this file stays green, because nothing here reads the layout.
         val buttons = lines.indexOf(
             "Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {",
         )
@@ -395,14 +347,6 @@ class OutboxStateWordingTest {
 
     /**
      * SOURCE LINT, same disclaimer as above: the dialog is a composable and nothing here renders
-     * it. What is pinned is that the delete confirmation ASKS [outboxDeleteBody] which body this
-     * row is owed — reverting the slot to a bare `stringResource(R.string.outbox_delete_body)`
-     * compiles, reads fine, and puts "It hasn't been sent" back over a row that may already have
-     * been sent, in nine languages, on the one action that cannot be undone.
-     *
-     * WHOLE LINES in sequence: the state is read from the list already collected by the screen, so
-     * the mutation that matters (dropping the lookup, or wiring the dialog to the id alone) neither
-     * shortens a line nor removes a name.
      */
     @Test fun `the delete confirmation asks which body the row awaiting confirmation is owed`() {
         val lines = codeLines(OUTBOX_SCREEN).map { it.trim() }
@@ -428,9 +372,6 @@ class OutboxStateWordingTest {
 
     /**
      * SOURCE LINT, same disclaimer: `InboxViewModel` is an `AndroidViewModel` and cannot be built
-     * here. The banner's flow must ask [OutboxLogic.needsFailureBanner] and nothing else — a second
-     * clause ORed onto it (`|| it.state == OutboxState.KEPT_AS_DRAFT`) LENGTHENS the line, so the
-     * whole line is compared rather than searched.
      */
     @Test fun `the Inbox failure banner is raised through the one rule`() {
         val lines = codeLines(INBOX_VIEW_MODEL).map { it.trim() }

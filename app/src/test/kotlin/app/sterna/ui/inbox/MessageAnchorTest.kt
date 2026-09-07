@@ -8,10 +8,6 @@ import org.junit.Test
 
 /**
  * [MessageAnchor] is the quintuplet of the `message/…` route, and on a narrow window it must
- * produce the route text the "inbox" destination built by hand before #103 — otherwise a tap on
- * a phone opens something else than it did yesterday. The four witnesses below are those strings,
- * copied LITERALLY from `SternaApp.kt` on `main` (with `Uri.encode` replaced by the identity):
- * they are the reason this test exists, not a restatement of `toRoute`.
  */
 class MessageAnchorTest {
 

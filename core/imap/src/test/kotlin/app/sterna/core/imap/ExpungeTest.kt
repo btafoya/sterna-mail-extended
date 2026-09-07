@@ -11,20 +11,6 @@ import java.util.Collections
 
 /**
  * How a permanent purge behaves on a server WITHOUT the UIDPLUS extension, driven against a
- * scripted server on loopback (Codeberg #99).
- *
- * The user's scenario: a Trash that another client — or the user, months ago — has left messages
- * flagged `\Deleted` in. "Empty trash" must not take those with it. `UID EXPUNGE <set>` says
- * "erase exactly these" and is the only command that can promise that; it belongs to UIDPLUS
- * (RFC 4315), which not every server implements. The bare `EXPUNGE` that used to stand in for it
- * erases the folder's whole `\Deleted` set, so it destroyed mail nobody had designated — once per
- * chunk, i.e. up to fifty times over a folder-wide "Empty trash".
- *
- * These tests pin the shipped policy, [purgeWithoutUidPlus] =
- * [PurgeWithoutUidPlus.EXPUNGE_WHEN_ONLY_OURS]: ask the server what is flagged, erase only when
- * the answer holds nothing but our own. Flipping that one line is meant to flip assertions here
- * with it — a purge policy is not something to change without also stating, in a test, what it
- * now does.
  */
 class ExpungeTest {
 
@@ -39,15 +25,6 @@ class ExpungeTest {
 
     /**
      * A server that either implements UIDPLUS or does not, and — crucially — really keeps track
-     * of what is flagged `\Deleted` instead of reciting a canned answer: `UID STORE +FLAGS` adds
-     * to the set, `UID SEARCH DELETED` reports it, a bare `EXPUNGE` empties it. Anything the test
-     * puts in [flaggedByOthers] is in the folder before this session ever connects, exactly as a
-     * message flagged from Thunderbird would be.
-     *
-     * [advertiseAtLogin] puts the capability list in the LOGIN completion's `[CAPABILITY …]`
-     * response code (what Dovecot, Gmail and Stalwart all do) instead of waiting for a
-     * `CAPABILITY` command. [forgetsFlagsFor] drops ids from what the server reports as flagged,
-     * standing in for a message that has meanwhile gone or had its flag cleared elsewhere.
      */
     private fun scriptedServer(
         uidPlus: Boolean,
@@ -103,8 +80,6 @@ class ExpungeTest {
 
     /**
      * The defect itself. Somebody else has a message flagged in this Trash; the purge must leave
-     * it alone, which on a server with no `UID EXPUNGE` means not erasing anything at all — and
-     * not once per chunk either, which is what used to happen.
      */
     @Test
     fun `a foreign flagged message stops the purge, over every chunk`() {
@@ -147,8 +122,6 @@ class ExpungeTest {
 
     /**
      * The question belongs to the operation, not to the chunk: one `UID SEARCH DELETED` and one
-     * `CAPABILITY` for a purge that takes several `UID STORE`s. This is what stops a folder-wide
-     * command — and now a folder-wide question — from being repeated fifty times.
      */
     @Test
     fun `the server is questioned once for a purge spanning several chunks`() {
@@ -174,8 +147,6 @@ class ExpungeTest {
 
     /**
      * A STRICT SUBSET is a yes. The server reports fewer flagged messages than we flagged — one
-     * had already gone, or another client cleared its flag — so every id an `EXPUNGE` could
-     * reach is still one of ours. Refusing here would leave the Trash un-emptied for no gain.
      */
     @Test
     fun `a subset of our own flags still allows the purge`() {
@@ -207,8 +178,6 @@ class ExpungeTest {
 
     /**
      * The cap on the answer. A folder holding far more flagged messages than we flagged must be
-     * a refusal, and must not be read into memory whole to find that out: the search is capped at
-     * one more than our own count, and a truncated answer can never fit inside a set our size.
      */
     @Test
     fun `a folder full of foreign flags refuses the purge`() {
@@ -228,8 +197,6 @@ class ExpungeTest {
 
     /**
      * Stopping short of the erase does not mean stopping short of the flagging: every message the
-     * caller named is flagged `\Deleted`, and no other. Under a refusal that flag is all the
-     * server is left with, so it had better cover exactly the right messages.
      */
     @Test
     fun `every named message is flagged deleted, and only those`() {
@@ -268,8 +235,6 @@ class ExpungeTest {
 
     /**
      * A `UID EXPUNGE` refused by a server that DOES advertise UIDPLUS is a failure, not a cue to
-     * reach for the folder-wide command. The destroy worker retries; a repeated destroy costs
-     * nothing, whereas the old recovery cost other people's mail.
      */
     @Test
     fun `a refused UID EXPUNGE fails instead of falling back to the folder`() {
@@ -362,8 +327,6 @@ class ExpungeTest {
 
     /**
      * The same fallback, the same danger: a server with neither MOVE nor UIDPLUS made the copy
-     * path expunge the whole source folder, once per chunk. With somebody else's message flagged
-     * in that folder, it must now erase nothing.
      */
     @Test
     fun `a move falling back to copy spares a folder flagged by somebody else`() {
@@ -457,9 +420,6 @@ class ExpungeTest {
 
     /**
      * The fallback is for a server that has no MOVE extension, and for nothing else. A server that
-     * ADVERTISES MOVE and still refuses the command is reporting a real error — over quota here —
-     * so the refusal must travel up untouched instead of being answered with a copy, a `\Deleted`
-     * flag and a purge of the source folder, which for "delete" is the inbox.
      */
     @Test
     fun `a refused move is not answered with a copy when the server advertises MOVE`() {
@@ -491,9 +451,6 @@ class ExpungeTest {
 
     /**
      * The other half of the same decision, and the path that must NOT move: no MOVE in the
-     * capability list, so the very same refusal still takes the copy fallback — servers that
-     * answer `UID MOVE` with a flat refusal because they have never heard of it are why the
-     * fallback exists.
      */
     @Test
     fun `a refused move still falls back to copy when the server does not advertise MOVE`() {
@@ -521,14 +478,6 @@ class ExpungeTest {
 
     /**
      * The socket died with the UID MOVE: no tagged completion was ever read, so the server was
-     * never heard refusing anything and the failure is rethrown as it came — no capability is
-     * asked about, no copy is set up. This server volunteers no capability list, so its cache is
-     * cold and the probe could not have been answered either; the twin below takes that excuse
-     * away.
-     *
-     * Driven against a really half-closed socket, which keeps recording what the client writes
-     * after the EOF (see [FakeImapServer.cutAfter]) — so a `UID COPY` attempted at a server that
-     * has already gone still lands in [FakeImapServer.issued] and is seen here.
      */
     @Test(timeout = 60_000)
     fun `a move cut mid-command takes no copy fallback on a refusal it never heard`() {
@@ -567,9 +516,6 @@ class ExpungeTest {
 
     /**
      * The same cut, on the production shape: the capability list arrived with the LOGIN completion
-     * and carries no MOVE, so the cache is hot and "does this server advertise MOVE?" is answered
-     * out of memory, instantly, on a socket that has gone. Nothing about the probe can stand in for
-     * "the connection died" any more; what does is that no tagged completion was ever read.
      */
     @Test(timeout = 60_000)
     fun `a move cut mid-command takes no copy fallback when the login advertised no MOVE`() {
@@ -601,14 +547,6 @@ class ExpungeTest {
 
     /**
      * Not a refusal but a SILENCE. [ImapSession.command] wraps neither its write nor its read, so
-     * a UID MOVE that runs out the operation's read budget comes back as a `SocketTimeoutException`
-     * from the socket layer, carrying no tagged status at all — and a server that went quiet is one
-     * whose mail stays exactly where it is, because it may have carried the move out before going
-     * quiet.
-     *
-     * This fixture ADVERTISES MOVE, so it is refused by the capability half of the decision as
-     * well and proves little on its own; the socket is alive here, so the probe would have been
-     * answered. The version that bites is the one below it, where the list carries no MOVE.
      */
     @Test(timeout = 60_000)
     fun `a move that runs out its read budget is not answered with a copy`() {
@@ -641,12 +579,6 @@ class ExpungeTest {
 
     /**
      * The same silence, on the server this is developed against: one that publishes its capability
-     * list in the LOGIN completion — Stalwart does, and it carries no MOVE. The list is in hand
-     * before the first command, so the capability probe behind a failed `UID MOVE` cannot fail
-     * either, and nothing but the type of the failure tells "this server has never heard of MOVE"
-     * from "this MOVE was never answered". A server that went quiet may perfectly well have
-     * PERFORMED the move: copying and then erasing the source duplicates the mail and deletes the
-     * originals out of what, for "delete", is the inbox.
      */
     @Test(timeout = 60_000)
     fun `a move that goes unanswered takes no copy fallback when the login advertised no MOVE`() {
@@ -682,19 +614,6 @@ class ExpungeTest {
 
     /**
      * The last unguarded corner of the decision, and the one the rewritten cut-socket tests above
-     * gave up: what an UNANSWERABLE capability probe means once a refusal HAS been heard. The two
-     * halves of the guard fail differently — the tagged-status half now returns before the probe
-     * is ever sent, so nothing else in this file reaches the `getOrDefault` behind it.
-     *
-     * The server refuses the `UID MOVE` with a tagged NO, so the fallback is entitled to ask its
-     * second question — and then refuses the `CAPABILITY` that carries it. A probe that comes back
-     * refused has NOT established that this server lacks MOVE, and answering an unestablished
-     * absence with `UID COPY` + `\Deleted` + a purge of the source is the destructive side of the
-     * error. So the original refusal is rethrown, and the client stops there.
-     *
-     * Only the FIRST capability question after the move is refused: the count below is what
-     * bites. Reading the unanswerable probe as "no MOVE here" would send the operation on to the
-     * UIDPLUS question, which this server would answer, and the copy would follow.
      */
     @Test(timeout = 60_000)
     fun `a refused move takes no copy fallback when the capability probe is refused too`() {

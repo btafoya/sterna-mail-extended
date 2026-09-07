@@ -6,22 +6,11 @@ import java.io.File
 
 /**
  * [AttachedMessageTest] executes the decision; this pins that the decision is still WIRED: the
- * tap on a `message/rfc822` part turns off the viewer-app path before it writes anything, the
- * sheet is collected by the reader, and the path that shows an attached message never touches
- * the disk nor an Intent.
- *
- * Read out of the shipped source because neither `MessageViewModel` nor a `@Composable` can be
- * built on a JVM bench (same last resort, same reasoning, as [OriginalSenderCallSiteTest]).
- *
- * Whole trimmed lines compared by list equality — never `contains` on a fragment, which is
- * blind to every mutation that LENGTHENS the line. Comment lines are dropped.
  */
 class AttachedMessageCallSiteTest {
 
     /**
      * The one code line of the view model that names [isAttachedMessage], whole: the type it
-     * decides on is the part's, and it turns into the sheet and returns — before the status
-     * line, before the download-to-cache launch.
      */
     @Test fun `the tap hands a message-rfc822 part to the sheet and stops there`() {
         assertEquals(
@@ -34,8 +23,6 @@ class AttachedMessageCallSiteTest {
 
     /**
      * And it routes AFTER the double-tap guard is taken, not before it: the line above is pinned
-     * whole, but not its place, and moved above `openingAttachment = true` it would let a second
-     * tap start a second download.
      */
     @Test fun `the route is taken with the double-tap guard already held`() {
         val lines = codeLines(viewModel().readText())
@@ -47,8 +34,6 @@ class AttachedMessageCallSiteTest {
 
     /**
      * Closing the sheet stops the download behind it. Without the cancel, a `Loaded` landing after
-     * a dismiss — or after the page moved to another message — reopens the sheet on its own, with
-     * the previous message's attachment.
      */
     @Test fun `closing the sheet cancels the download behind it`() {
         assertEquals(
@@ -83,8 +68,6 @@ class AttachedMessageCallSiteTest {
 
     /**
      * Nothing is written to disk on this path, and no app is asked to open anything: the
-     * attached message is parsed in memory and shown. `cacheAttachment`, `FileProvider` and
-     * `Intent(` are the three ways the viewer-app path leaves the process.
      */
     @Test fun `showing an attached message writes nothing and starts nothing`() {
         val body = openAttachedMessageBody()
@@ -97,8 +80,6 @@ class AttachedMessageCallSiteTest {
 
     /**
      * The code lines of `openAttachedMessage`, from its declaration to the next member function
-     * declared at class level. Fails loudly when the function is gone rather than passing on an
-     * empty list.
      */
     private fun openAttachedMessageBody(): List<String> {
         val lines = viewModel().readText().lines()

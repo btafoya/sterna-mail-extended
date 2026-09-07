@@ -13,16 +13,6 @@ import org.junit.Test
 
 /**
  * Cancelling a scheduled send must not destroy the message (#170).
- *
- * Scheduling writes NO draft, so the `scheduled_sends` row is the only copy of the text: the X on
- * the "Scheduled" screen used to drop the job and delete that row, and the message was gone with no
- * confirmation and no undo. Everything here is EXECUTED — the decision is a pure suspending
- * function over seams, so the order of the writes, the classification of each save outcome and the
- * fields handed to `saveDraft` are run, not read.
- *
- * NOT covered here: that `MailRepository.saveDraft` really files a draft (pinned in `core:data`),
- * that the ViewModel is wired to these seams at all (`ScheduledCancelScopeWiringTest` reads the one
- * thing nothing in this module can instantiate), and anything on a device.
  */
 class ScheduledSendCancelTest {
 
@@ -259,9 +249,6 @@ class ScheduledSendCancelTest {
     @Test fun `the deposit takes its text and its styling out of the same part`() {
         // The witness the test above cannot be: there the row's two columns say the same words,
         // so `body = row.textBody` passes it. Here they DIFFER — which a row is free to do — and
-        // the deposit must file ONE message: the html is what was read, so its text is the text
-        // filed, and the styling filed is measured on those very letters. Filed the other way, the
-        // draft that comes back is the text column with somebody else's bold laid over it.
         val draft = draftFromScheduledSend(
             row(htmlBody = "<b>see</b> you there", textBody = "ok"),
         )

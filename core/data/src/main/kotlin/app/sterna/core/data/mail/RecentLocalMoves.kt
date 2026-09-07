@@ -4,8 +4,6 @@ import java.util.concurrent.ConcurrentHashMap
 
 /** Ids of messages this app itself just moved into another folder, stamped at the server ack. The
  *  notifier diffs every watched folder against a persisted baseline, so such a message would
- *  otherwise look like new mail; the ids still enter the baseline, so they cannot announce later.
- *  The TTL must outlast a pass folding the id into that baseline — the fallback worker runs every
  *  ~30 min, hence 45 minutes. Keyed by account + id: JMAP ids are per account (#92). */
 class RecentLocalMoves(
     private val ttlMs: Long = DEFAULT_TTL_MS,

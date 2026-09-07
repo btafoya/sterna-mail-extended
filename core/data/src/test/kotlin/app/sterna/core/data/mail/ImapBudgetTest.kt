@@ -9,10 +9,6 @@ import java.net.SocketTimeoutException
 
 /**
  * The deadline arithmetic every IMAP call in the app goes through (Codeberg #99).
- *
- * Two things are checked here that an integration test cannot show: that a call WITHOUT a
- * budget is left exactly as blocking as it always was, and that the connect cannot be paid for
- * twice — the retry draws on the same deadline instead of restarting it.
  */
 class ImapBudgetTest {
 
@@ -83,9 +79,6 @@ class ImapBudgetTest {
 
     // There was a second test here, and it was a fake: it recomposed `deadline(effective(…))`
     // itself and checked a subtraction, i.e. it re-derived the rule it was meant to be watching and
-    // touched neither `runWithRetry`, nor `ImapReadBudget`, nor a socket. What it pretended to prove
-    // — that a budget installed on a coroutine reaches `soTimeout` — is proven by
-    // [ImapAmbientBudgetReachesTheSocketTest], which drives a real service against a mute server.
 
     @Test fun `an absurd budget cannot wrap around into a timeout`() {
         // Int arithmetic on millis is where a "very long" budget silently becomes a negative

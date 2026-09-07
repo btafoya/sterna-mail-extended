@@ -5,21 +5,6 @@ import org.junit.Test
 
 /**
  * Where the move's numbering guard is PLUGGED IN — the source-text half of
- * [MoveNeedsTheNumberingStatedNowTest], and the twin of the wiring half of
- * [ImapDestroyUnderNumberingTest] (Codeberg #99).
- *
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It exists because `MailRepository` needs Room and a
- * `Context`, so nothing in this module can run it; the DECISION it guards is executed next door,
- * on a real [ImapMailService] driven onto a socket. What no executable test in this module can
- * say is whether the five call sites still HAND the guard anything: dropping the argument
- * compiles — `ImapMailService.move` defaults it to null — and `onMailbox` then falls back on
- * `expectedUidValidity ?: recorded`, so the SELECT compares the folder's current number with
- * itself, concludes SAME, and the `UID MOVE` goes out on UIDs that may name other messages. That
- * is the defect entire, and it is silent, legal Kotlin.
- *
- * Everything is pinned as WHOLE LINES compared as a LIST, never `in` / `contains`: a substring
- * rule is blind to anything appended to what it matched, and "one more argument" is exactly the
- * shape of the mutations that matter here.
  */
 class ImapMoveUnderNumberingTest {
 
@@ -33,15 +18,6 @@ class ImapMoveUnderNumberingTest {
 
     /**
      * The same, for a needle that has to catch SYNONYMS.
-     *
-     * Why it exists, found by a mutation that survived the whole suite: inserting
-     * `val expectedUidValidity = expectedUidValidity ?: recordedNumbering(credentials.id, source)`
-     * into `imapMoveGroup` reopens the defect entire — every batch then travels under the number
-     * read AT EXECUTION, the one a background pass recorded AFTER the renumbering, which the guard
-     * compares with itself. And it slipped under a rule pinned to the string
-     * `"recordedUidValidity"`, because `MailRepository.recordedNumbering` is the SAME accessor
-     * under another name, and Kotlin's shadowing left the `imap.moveBatch(…)` line byte-identical.
-     * So the forbidden thing is stated as what it IS — a numbering read, whatever it is called.
      */
     private fun codeLinesNaming(body: String, needle: Regex): List<String> =
         codeLinesOf(body).filter { needle.containsMatchIn(it) }
@@ -52,15 +28,6 @@ class ImapMoveUnderNumberingTest {
 
     /**
      * Any mention of a numbering, under any spelling: `recordedUidValidity`, `recordedNumbering`,
-     * `expectedUidValidity`, a local called `numbering`. Rules using it pin the WHOLE list of
-     * lines that match, so the legitimate ones are named and a new one cannot slip in.
-     *
-     * `validity|frozen|recorded` and not just `numbering|uidvalidity`: the needle has to catch
-     * the value under a name nobody has thought of yet, because the rules built on it are
-     * closed lists and a line that does not MATCH is a line no list can miss. A `validityOf(`
-     * accessor, a `frozenValidity` field, a `val frozen = …` local re-read at execution — each
-     * reopens the defect and each slipped past the narrow needle. Verified not to widen any of
-     * the closed lists below: every guarded body matches exactly the same lines it did before.
      */
     private val anyNumbering = Regex("(?i)(numbering|validity|frozen|recorded)")
 
@@ -68,20 +35,6 @@ class ImapMoveUnderNumberingTest {
 
     /**
      * `archive` and `moveToMailbox` each read the numbering ON THE SPOT, for the folder the message
-     * is in RIGHT NOW — which is also the folder the move will SELECT. There is no window to close
-     * here, unlike the draft paths: the id is read from the cache and the move goes out in the same
-     * call, with no user confirmation and no worker in between. (`delete` used to be read here too;
-     * it has a window of its own now, and its own rule below.)
-     *
-     * The read is the repository's own [MailRepository.recordedUidValidity], never
-     * `imap.recordedUidValidity(` — a closed-list rule in [ImapDestroyUnderNumberingTest] ("the
-     * accessor really asks IMAP for the folder's numbering") pins that string to exactly three
-     * lines of the file, and it does not widen.
-     *
-     * And the folder it names must be the SOURCE, `mb`. Naming the destination instead reads as
-     * a typo and is the worst of both worlds: the destination's numbering is compared with the
-     * source's stated one, so the move is refused whenever they differ and licensed whenever two
-     * unrelated folders happen to share a number.
      */
     @Test fun `the single-message movers oppose the source folder's recorded numbering`() {
         val expected = mapOf(
@@ -104,29 +57,6 @@ class ImapMoveUnderNumberingTest {
 
     /**
      * `delete` IS THE BIN, AND IT IS ALSO THE SECOND HALF OF A MOVE BETWEEN ACCOUNTS (#189).
-     *
-     * Called from a swipe it has no window: the id comes off the cache and the `UID MOVE` goes out
-     * in the same call, so the folder's own record is the right thing to oppose. Called from
-     * `moveToAccount` it is the step that BINS THE ORIGINAL on account A, minutes of network after
-     * the user ticked the row — and by then the folder's record is worthless: the first iteration
-     * of the loop that met the renumbering has already realigned it, so opposing it compares the
-     * new number with itself, agrees, and bins whatever holds that uid now. There is no Undo on
-     * that path.
-     *
-     * So the shape is `numbering ?: recorded`, where `numbering` is what `numberingToOppose`
-     * chose, and it is the shape both mistakes break:
-     *
-     *  - `recordedUidValidity(credentials, mb)` alone — the caller's stamp is dropped and the
-     *    cross-account move bins a message nobody ticked, in silence;
-     *  - `numbering` alone — every ordinary swipe-to-delete carries `NothingFrozen`, which is
-     *    `Select(null)`, and `mayDestroyUnderStatedNumbering(null, 42)` is FALSE, so deleting a
-     *    message would fail 100 % of the time on IMAP. The fallback is not a convenience, it is
-     *    what keeps the ordinary gesture working.
-     *
-     * AND THE THIRD CASE, which `Long?` could not say (#189): `Frozen(null)` is a row that WAS
-     * ticked and carries no numbering. It reaches `numberingToOppose` as a REFUSAL, raised here
-     * before the `UID MOVE` — never folded into the fallback above, which is the reader's and the
-     * swipe's. [FrozenNumberingRefusalTest] runs that decision and pins this consumption.
      */
     @Test fun `the bin opposes the stamp it was handed, falling back on the folder's record`() {
         val body = bodyOf("delete")
@@ -170,17 +100,6 @@ class ImapMoveUnderNumberingTest {
 
     /**
      * The undo of a move is a move, and it is the one that puts the message BACK: it selects the
-     * folder the forward move landed it in, and the UIDs it carries are the ones `COPYUID`
-     * reported then. A renumbering between the two — or a server that simply stops stating a
-     * numbering — and those UIDs name whatever the destination folder now holds.
-     *
-     * And it opposes that folder's numbering FROM THE FREEZE, never from a read. The first
-     * delivery read it (`recordedUidValidity(credentials, currentFolder)`) and the read cannot
-     * work: a `UID MOVE` does not SELECT its destination, and nothing else in this flow does
-     * either, so on a Trash the user has never opened the read answers null and Undo after an
-     * ordinary delete is REFUSED. What is opposed is what `COPYUID` stated when it handed back
-     * these very UIDs, carried in `lastImapMove` — see
-     * [UndoMovesUnderTheNumberingCopyUidStatedTest], which runs it.
      */
     @Test fun `the restore opposes the frozen numbering of the folder it takes the mail out of`() {
         val body = bodyOf("restoreAll")
@@ -239,26 +158,6 @@ class ImapMoveUnderNumberingTest {
 
     /**
      * THE UNDO ABSORBS A REFUSED MOVE-BACK, AND THE APP LAYER DEPENDS ON IT WITHOUT SAYING SO.
-     *
-     * `restoreAll` wraps each move-back in `runCatching { … }.getOrNull() ?: return@forEach`, so a
-     * refusal — the server stating no numbering for the folder the mail sits in
-     * (`ImapNumberingUnconfirmed`) — leaves that route unrestored and comes back to the caller as
-     * an id in the RETURNED set, never as an exception. That is the whole reason
-     * `InboxViewModel.undo()` shows the translated `status_restore_failed` and not the refusal's
-     * own English sentence.
-     *
-     * Removing the wrapper reads like a cleanup — the return value already says what failed, so
-     * why swallow — and it is the one edit that turns a partly-refused Undo into a whole-screen
-     * lie: `undo()`'s `onFailure` fills the red `SyncErrorBanner` over the list, so ONE route
-     * giving up would report the entire Undo as failed, over the routes that came home. The
-     * per-route count and the `status_restore_failed` snackbar it feeds are the truthful report,
-     * and they exist only because the refusal stops here. (The banner's wording is `main`'s
-     * business since `afbfcef7` — it resolves a string resource now, so the refusal's own English
-     * sentence can no longer reach it either. That is a second lock on one of the two doors, not
-     * a reason to unlock this one.)
-     *
-     * Both absorptions are pinned, IMAP and JMAP, as a closed list: they are the same decision on
-     * the two protocols and dropping either one has the same consequence.
      */
     @Test fun `a move-back that is refused stops here, and never reaches the banner`() {
         val body = bodyOf("restoreAll")
@@ -281,20 +180,6 @@ class ImapMoveUnderNumberingTest {
 
     /**
      * WHAT IS FROZEN, at the four sites that write an Undo landing: the numbering the move's own
-     * `COPYUID` stated for the DESTINATION — `landed.destinationUidValidity`, and nothing else.
-     *
-     * A closed list over the whole file, because the mistake this catches is a NEW call site: the
-     * three plausible wrong fills all compile and all read fine — `null` (the Undo is refused for
-     * good), the source folder's `recordedUidValidity(credentials, mb)` (two unrelated folders'
-     * numbers compared, so the Undo is licensed exactly when they happen to collide), and a read
-     * of the destination's recorded number (null on any folder never SELECTed, which is the
-     * defect this branch exists to fix).
-     *
-     * Anchored on the WRITE, `lastImapMove[`, not on the type `ImapLoc(`: a fifth site written
-     * as `lastImapMove[id] = loc.copy(uidValidity = somethingElse)` names no constructor and would
-     * have walked straight through a list keyed on the type without changing a single pinned line.
-     * The map is what the Undo reads, so every mention of the map is what the list must cover —
-     * including its one READ, in `restoreAll`, pinned here with the writes.
      */
     @Test fun `every undo landing freezes the numbering COPYUID stated for the destination`() {
         val source = DaoQuerySource.mailSource("MailRepository")
@@ -319,10 +204,6 @@ class ImapMoveUnderNumberingTest {
 
     /**
      * On the batch path the numbering ARRIVES; it is not read here. The bulk gestures are the ones
-     * with something in between — a selection the user confirmed, a `resetSyncState()`+`refresh()`
-     * on the way — so the value belongs to the moment of the GESTURE, and a read at execution
-     * would answer the number a refresh recorded after the renumbering. Same rule, and the same
-     * reason, as `imapDestroyGroup`.
      */
     @Test fun `the batch move takes the numbering it is handed, and reads none of its own`() {
         val body = bodyOf("imapMoveGroup")
@@ -356,13 +237,6 @@ class ImapMoveUnderNumberingTest {
 
     /**
      * And the refusal must feed `failed` WITHOUT a catch of its own. `ImapNumberingUnconfirmed`
-     * is not an `ImapException`, but `runCatching` catches `Throwable`, so the refused group lands
-     * in `failed` exactly as a dead socket does — and `failed` is what makes the caller re-query,
-     * so the messages come back instead of vanishing from a list they never left on the server.
-     *
-     * This is also why no `catch (unconfirmed: ImapNumberingUnconfirmed)` may be added here: a
-     * closed-list rule in [ImapDestroyUnderNumberingTest] holds the file to exactly one, on the
-     * draft path, and a second one written here would swallow the refusal on the destroy path too.
      */
     @Test fun `a refused batch move fails its ids instead of counting them moved`() {
         val body = bodyOf("imapMoveGroup")
@@ -383,12 +257,6 @@ class ImapMoveUnderNumberingTest {
 
     /**
      * The three bulk gestures, each handing its group's own numbering down. The key is the
-     * `groupBy` key — the source folder as the id encodes it — so a selection spanning two folders
-     * opposes two different numbers, which is the only correct answer: a UIDVALIDITY is a property
-     * of ONE folder.
-     *
-     * `expectedUidValidity[dest]` or a single `Long?` for the whole selection would read as a
-     * simplification and be wrong in the same way for every multi-folder selection.
      */
     @Test fun `each bulk gesture hands the batch its own source folder's numbering`() {
         val expected = mapOf(
@@ -418,13 +286,6 @@ class ImapMoveUnderNumberingTest {
 
     /**
      * THE BLIND SPOT that got the first delivery rejected: the rules above each look at a mover
-     * they already know about, so a mover called from somewhere ELSE was simply never looked at.
-     * `reportSpamAll` and `notSpamAll` are `moveAllToMailbox` under another name and passed it
-     * nothing — the default `emptyMap()` gives `null` per folder, `mayDestroyUnderStatedNumbering`
-     * answers false, and the selection bar's spam button failed 100 % of the time on IMAP with
-     * `markReadOnMoveOutOfInbox` having already flagged the messages `\Seen` on the server.
-     *
-     * So: every call of a bulk mover ANYWHERE in the repository, pinned whole, as a closed list.
      */
     @Test fun `every caller of a bulk mover inside the repository hands the numbering on`() {
         val calls = codeLinesNaming(
@@ -446,8 +307,6 @@ class ImapMoveUnderNumberingTest {
 
     /**
      * The parameter itself, pinned on each declaration — the map must stay a map keyed by source
-     * folder, and it must stay OPTIONAL only in the sense of defaulting to "nothing frozen", which
-     * refuses. A default of anything else would be a licence.
      */
     @Test fun `the bulk gestures take a per-source-folder numbering, defaulting to nothing`() {
         listOf("archiveAll", "moveAllToMailbox", "deleteAll", "reportSpamAll", "notSpamAll").forEach { function ->

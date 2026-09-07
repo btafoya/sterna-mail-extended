@@ -11,11 +11,6 @@ import org.junit.Test
 
 /**
  * EXECUTES the guard's decision, call by call, the way a recomposition sequence would.
- *
- * The screen bug this pins: on a folder or account switch the header flips at once but
- * `LazyPagingItems` keeps presenting the PREVIOUS snapshot until the new `PagingData` inserts its
- * first page, so `listRows.itemCount` is the old folder's and the rows branch wins. `staleRows` is
- * what holds the centred indicator over those rows until Paging has actually swapped them.
  */
 class RowsGuardTest {
 
@@ -179,11 +174,6 @@ class RowsGuardTest {
 
     // ─────────────────────────────────────────────────────────────────────────────────────────
     // Belonging, not movement. The bench pass of 2026-08-29 (emulator, debug) still saw the
-    // defect on three gestures — folder A → B 1 try in 4, the same offline 1 in 3, an account
-    // switch 1 in 2 — because every disarming rule above answers "something moved / a load ran /
-    // time passed", and the OLD generation can satisfy all three on its own. These run the one
-    // signal that answers "whose rows ARE these".
-    // ─────────────────────────────────────────────────────────────────────────────────────────
 
     /** A presented row, account-and-folder qualified the way the pager's SQL guarantees. */
     private fun row(accountId: String, mailboxId: String, id: String = "e1") =
@@ -191,10 +181,6 @@ class RowsGuardTest {
 
     /**
      * One recomposition, wired like `InboxScreen`: the SAME presented snapshot feeds the signature
-     * and the belonging test, and both pure functions are EXECUTED here rather than restated.
-     *
-     * [rows] is the snapshot `itemSnapshotList.items` hands over; [count] is Paging's `itemCount`,
-     * which the screen reads separately and which may exceed the snapshot, so it stays explicit.
      */
     private fun step(
         prev: RowsGuard,

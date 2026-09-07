@@ -11,17 +11,6 @@ import java.util.Base64
 
 /**
  * The bytes of an RFC 8098 read receipt, and the outbox row that carries it.
- *
- * Everything here is EXECUTED. [readReceiptEntity] and [readReceiptMail] are pure functions taking
- * their boundary as an argument, so the whole entity is a literal that can be pinned character for
- * character — which is the point of a receipt: it is read by a stranger's software, and a client
- * that fails to recognise it shows the reader's correspondent a mail with a mysterious attachment.
- *
- * What is NOT covered here is the hand-over to `enqueueSend`. `MailRepository.sendReadReceipt`
- * copies the fields of the returned [ReadReceiptMail] into named arguments one by one, and no JVM
- * test can execute that line (the repository needs Room, a `Context` and a socket). The last two
- * tests in this file are a SOURCE LINT that pins those arguments as WHOLE LINES; that is the
- * weaker instrument and it is used only because nothing stronger reaches there.
  */
 class ReadReceiptMailTest {
 
@@ -29,20 +18,6 @@ class ReadReceiptMailTest {
 
     /**
      * The whole entity, pinned as one literal.
-     *
-     * Nothing here is recomputed from the code under test: not the boundary (an argument), not
-     * the base64 (typed out), not the field order. Invert any decision in [readReceiptEntity] and
-     * this string stops matching — which is what an assertion on a payload is for.
-     *
-     * The parts that matter to a receiving client, and why:
-     *  - `report-type=disposition-notification` — without it this is a plain two-part mail and no
-     *    client anywhere treats it as a receipt.
-     *  - `message/disposition-notification` as the SECOND part, `text/plain` first — RFC 8098 §3
-     *    puts the human-readable explanation first, and clients show part one to the person.
-     *  - `Reporting-UA` / `Final-Recipient` / `Original-Message-ID` / `Disposition`, in that order:
-     *    RFC 8098 §3.1's ABNF fixes it, and a field out of order is a field a strict parser drops.
-     *  - `manual-action/MDN-sent-manually; displayed` — a person tapped this, nothing fired on its
-     *    own, and what is claimed is that the message was DISPLAYED. Nothing here knows more.
      */
     @Test fun `the entity is a multipart report with a human part and a machine part`() {
         val entity = readReceiptEntity(
@@ -75,9 +50,6 @@ class ReadReceiptMailTest {
 
     /**
      * `Reporting-UA` names the product and NOTHING else. The classic form of the field is
-     * `machine.example.com; Foomail 97` — a host name would tell a stranger which machine read
-     * their mail, and a version number would tie this file to `versionName`, one more thing to
-     * bump and silently wrong the day it is not.
      */
     @Test fun `the reporting UA names no host and no version`() {
         assertEquals("Sterna Mail", READ_RECEIPT_UA)
@@ -92,11 +64,6 @@ class ReadReceiptMailTest {
 
     /**
      * A `Message-ID` read out of a received message arrives WITH its angle brackets — that is how
-     * RFC 5322 writes the header — and the field must carry exactly one pair, not two.
-     *
-     * `Original-Message-ID: <<abc@sender.example>>` is not a `msg-id`. A strict parser is entitled
-     * to drop the field, and some drop the part it is in, which is the whole notification. No test
-     * data carried a bracket before this one, so removing the strip left everything green.
      */
     @Test fun `a message id arrives wrapped in angle brackets and is not wrapped twice`() {
         val entity = readReceiptEntity("B", "hi", "ann@example.org", "<abc@sender.example>")
@@ -121,20 +88,6 @@ class ReadReceiptMailTest {
 
     /**
      * A hostile `Message-ID` cannot add a field of its own.
-     *
-     * The value is copied out of a message a stranger wrote and lands in a header-shaped line. With
-     * the CR and LF still in it, this exact string turns one field into three: a second
-     * `Disposition` claiming the mail was DELETED unread and sent automatically, right after the
-     * honest one — a lie told to a correspondent, in the reader's name, from her address.
-     *
-     * The assertion counts the lines of the notification part rather than searching for the
-     * injected text: a `contains` is blind to any mutation that lengthens the line, and there is
-     * more than one string an injection could carry.
-     *
-     * And the surviving line must still be a `msg-id`. Flattening the CRLF is what stops the
-     * injection, but it leaves the attacker's own brackets inside the value; those go too, so the
-     * field stays syntactically one identifier — an inert one — rather than something a strict
-     * parser may throw away along with the whole notification.
      */
     @Test fun `a hostile message id cannot inject a second disposition`() {
         val entity = readReceiptEntity(
@@ -186,11 +139,6 @@ class ReadReceiptMailTest {
 
     /**
      * The human-readable part carries text taken from a stranger's subject line, and it cannot end
-     * the part it sits in: base64 has no line the boundary delimiter could be mistaken for.
-     *
-     * The text used here is the attack written out — a closing delimiter followed by a whole extra
-     * part. Concatenated raw it would end the report after one part and append a second
-     * `Disposition`; base64'd it is 3 parts of nothing.
      */
     @Test fun `hostile human text cannot close the part or open another`() {
         val hostile = "hello\r\n--B--\r\nContent-Type: message/disposition-notification\r\n\r\n" +
@@ -212,11 +160,6 @@ class ReadReceiptMailTest {
 
     /**
      * A body long enough to be folded is folded with CRLF and nothing else.
-     *
-     * The trap is a `.replace("\n", "\r\n")` laid over the encoder: it runs on separators
-     * that are ALREADY CRLF and turns every one of them into `\r\r\n`, a bare CR inside a
-     * base64 body. `OutgoingMime` carried exactly that until it was fixed; the two spellings are
-     * deliberately identical so there is one way to write this in the repo, not two.
      */
     @Test fun `a folded body carries no bare carriage return`() {
         val entity = readReceiptEntity("B", "x".repeat(400), "ann@example.org", null)
@@ -251,11 +194,6 @@ class ReadReceiptMailTest {
 
     /**
      * ONE function decides the wording, and the proof is executed: the body of the outbox row, the
-     * text base64'd inside the entity and what [readReceiptPreview] returns are the same string.
-     *
-     * A banner that names one text while another leaves is worse than a banner that names nothing —
-     * and this is a message about the reader, sent from the reader's address, to somebody she may
-     * not want to tell anything.
      */
     @Test fun `the text shown, the text in the row and the text in the entity are one string`() {
         val mail = mail(subject = "Quarterly report")!!
@@ -305,12 +243,6 @@ class ReadReceiptMailTest {
 
     /**
      * NONE of this is translated, and none of it may become so.
-     *
-     * A receipt is read by a correspondent whose language this phone cannot know, and parsed by
-     * their client. The house precedent is [UNSUBSCRIBE_SUBJECT], which used to be the reader's
-     * own interface label — so a French account sent "Se désabonner" to a robot matching on
-     * English. This checks the other direction of the same mistake: that nobody has "tidied" these
-     * strings into `strings.xml`, where the nine translations would immediately claim them.
      */
     @Test fun `none of the receipt wording is a translatable resource`() {
         val strings = locate("app/src/main/res/values/strings.xml").readText()
@@ -356,9 +288,6 @@ class ReadReceiptMailTest {
 
     /**
      * The account's own identity travels with the receipt (issue #31): a delegated sub-account is
-     * submitted through its LOGIN, so without this the sender gets a receipt from an address they
-     * never wrote to, about a message they will not recognise. The same address is what the
-     * notification reports as the mailbox that received.
      */
     @Test fun `the account identity is carried, and is what the notification reports`() {
         val mail = readReceiptMail(
@@ -383,11 +312,6 @@ class ReadReceiptMailTest {
 
     /**
      * THE ADDRESS THAT RECEIVED wins — it is a parameter, not a guess.
-     *
-     * An account can hold several aliases. Only one of them was written to, and the receipt has to
-     * name that one in three places at once: the sentence the correspondent reads, the
-     * `Final-Recipient` field their client parses, and the `From` it comes back from. Naming
-     * another tells a stranger "you wrote to this mailbox" about a mailbox they never used.
      */
     @Test fun `the address the message arrived at is what the receipt reports`() {
         // The three addresses are deliberately DIFFERENT. An alias that received without having
@@ -424,8 +348,6 @@ class ReadReceiptMailTest {
 
     /**
      * When the caller does not know which address received, the identity's own answers, then the
-     * login. A receipt naming the account's default alias is worse than one naming the right alias,
-     * and better than none — but it is the LAST answer, never the first.
      */
     @Test fun `an unknown delivery address falls back to the identity, then to the login`() {
         val viaIdentity = readReceiptMail(
@@ -452,10 +374,6 @@ class ReadReceiptMailTest {
 
     /**
      * The identity is CHOSEN by the address that received, not taken as the first one stored.
-     *
-     * `identities.first()` is the composer's default, nothing more. A receipt for a message sent to
-     * the second alias used to leave from the first — telling a correspondent that a mailbox they
-     * never wrote to had read their mail.
      */
     @Test fun `the identity is the one whose address received the message`() {
         val identities = listOf(
@@ -498,10 +416,6 @@ class ReadReceiptMailTest {
 
     /**
      * What `sendReadReceipt` hands back to the banner is what it queued, read off the row.
-     *
-     * The banner cannot reach `readReceiptMail` (it is `internal` to this module) and must not
-     * rebuild the wording: deriving "the address that received" a second time is exactly how the
-     * banner ends up naming one address while another leaves.
      */
     @Test fun `the row hands its own strings back for the banner`() {
         val mail = mail()!!
@@ -512,12 +426,6 @@ class ReadReceiptMailTest {
 
     /**
      * The sender is NOT learned into the contact suggestions.
-     *
-     * Every other caller of `enqueueSend` learns its recipients, because the user wrote to
-     * somebody. Here she wrote to nobody: she opened a message and let its sender know. Learning
-     * that address would build "people you write to" out of whoever writes to HER — a newsletter, a
-     * notification robot, a stranger's first mail. The decision is a VALUE on the row so that it
-     * is executed here, not a call that happens to be absent somewhere.
      */
     @Test fun `a receipt teaches nothing to the contact suggestions`() {
         assertEquals(false, mail()!!.learnRecipients)
@@ -530,12 +438,6 @@ class ReadReceiptMailTest {
 
     /**
      * An empty address list must produce NOTHING, and must not throw.
-     *
-     * [ReadReceiptHeader.recipients] answers with an empty list for a header that is absent, blank,
-     * `<>`, or a word that is not an address — all of them things a real message carries. And
-     * `enqueueSend` opens with `require(recipients.isNotEmpty())`, which throws. So the case has to
-     * die here, before anything is built: a reader who opened an odd message did nothing that
-     * deserves an exception.
      */
     @Test fun `nothing to answer builds nothing and throws nothing`() {
         assertNull(mail(receiptTo = emptyList()))
@@ -549,15 +451,6 @@ class ReadReceiptMailTest {
 
     /**
      * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `MailRepository.kt` as text and proves nothing
-     * about what the outbox receives.
-     *
-     * What it closes is the one gap everything above leaves open: between the [ReadReceiptMail]
-     * this file pins and the outbox there are eight named arguments copied by hand.
-     * `subject = mail.body, body = mail.subject` compiles and keeps every assertion above green;
-     * so does dropping `prebuiltEntity`, which sends the human half alone and no receipt at all;
-     * so does dropping `learnRecipients`, whose default is `true`. Each is pinned as a WHOLE LINE,
-     * never a `contains` on a fragment — a fragment match is blind to anything appended to the
-     * line.
      */
     @Test fun `the repository hands each field to the argument of the same name`() {
         val lines = sendReadReceiptBody().lines().map { it.trim() }
@@ -570,10 +463,6 @@ class ReadReceiptMailTest {
         )
         // …and WHAT it is called with, line by line. Checking only that the call exists leaves
         // three edits that compile, keep everything green, and ship a broken receipt every time:
-        // `originalMessageId = null` (no Original-Message-ID at all); the two `String?` arguments
-        // `originalSubject`/`originalMessageId` swapped (the subject becomes "Read receipt:
-        // abc@sender.example" and the machine-readable field carries the subject); and a boundary
-        // that is a constant — or "--" — so every receipt goes out with delimiters nothing parses.
         listOf(
             "receiptTo = receiptTo,",
             "originalSubject = originalSubject,",
@@ -609,13 +498,6 @@ class ReadReceiptMailTest {
 
     /**
      * SOURCE LINT, its own test — deliberately not folded into the one above. A failed assertion
-     * ends its method, so several unrelated pins stacked in one test hide each other: the first to
-     * break is the only one anybody sees, and the rest are never exercised again until it is fixed.
-     *
-     * The boundary is drawn per receipt at the call site. Freeze it to a constant and every receipt
-     * ships identical delimiters; make it short — `"--"` compiles — and every receipt ships
-     * delimiters no parser can find the end of. Neither shows anywhere else: [readReceiptEntity]
-     * takes the boundary as an argument precisely so it does not draw one.
      */
     @Test fun `the boundary is drawn fresh for each receipt`() {
         val lines = sendReadReceiptBody().lines().map { it.trim() }
@@ -648,9 +530,6 @@ class ReadReceiptMailTest {
 
     /**
      * SOURCE LINT, its own test. The empty-list guard is `?: return null` on the builder's result —
-     * the one thing standing between a malformed `Disposition-Notification-To:` and
-     * `require(recipients.isNotEmpty())` throwing in the reader's face. Turn it into `!!` and every
-     * test above stays green.
      */
     @Test fun `nothing to answer returns before the outbox is touched`() {
         val lines = sendReadReceiptBody().lines().map { it.trim() }

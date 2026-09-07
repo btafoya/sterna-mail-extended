@@ -10,14 +10,6 @@ import org.junit.Test
 
 /**
  * [foldTopLevelQuotes] EXECUTED — it is a pure String→String function precisely so this file can
- * run the DECISION instead of reading the source that contains it.
- *
- * Every body below is written out by hand. Nothing here recomputes "is this a top-level
- * blockquote": a test that re-derived the rule to pick what to replay would stay green with the
- * shipped condition inverted.
- *
- * The property that matters most is the last one: folding may not LOSE body. Not folding is a
- * cosmetic miss; dropping a paragraph of the message is the one failure this branch cannot have.
  */
 class QuoteFoldTest {
 
@@ -316,8 +308,6 @@ class QuoteFoldTest {
 
     /**
      * Remove the two literal strings the fold is allowed to insert. Deliberately NOT a re-run of
-     * the folding rule: it deletes fixed markup, so it cannot agree with a wrong implementation
-     * about WHERE that markup belongs.
      */
     private fun stripWrapper(s: String): String =
         s.replace(Regex("""<details class="s-quote"><summary>.*?</summary>""", RegexOption.DOT_MATCHES_ALL), "")

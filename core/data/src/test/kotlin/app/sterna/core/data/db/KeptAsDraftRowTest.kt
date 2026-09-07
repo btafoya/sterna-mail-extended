@@ -12,17 +12,6 @@ import java.sql.DriverManager
 
 /**
  * The row a "save as a draft" left behind, run against a REAL SQLite engine through the
- * statements the app ships (#95 × #70).
- *
- * The state itself is decided by a pure function ([draftSaveParksTheQueuedRowAs], executed in
- * `LocalDraftSaveTest`) and the screen rules are pure too. What neither can see is SQL: the three
- * outbox statements that run WITHOUT anyone looking — at every launch, before any screen exists —
- * are `@Query` annotations, and an annotation is not callable from a JVM test. They are therefore
- * read out of the shipped [OutboxDao] by [DaoQuerySource] and EXECUTED here, so "the worker never
- * takes this row" is a fact about the statement the phone runs and not about a copy of it.
- *
- * The failure this guards is silent and irreversible: the message the user asked to keep as a
- * draft goes out on the next launch, with no undo window, in the version they had BEFORE the edit.
  */
 class KeptAsDraftRowTest {
 
@@ -49,18 +38,6 @@ class KeptAsDraftRowTest {
 
     /**
      * The startup re-arm ([OutboxDao.unfinished], read by `SternaApplication` at every launch and
-     * fed straight to the send worker) must not hand this row back.
-     *
-     * The whole set is asserted, not just the absence of the parked row: `unfinished()` is what
-     * calls the worker back onto a row, so both directions matter — a state wrongly added here is a
-     * worker run nobody asked for, one wrongly removed is a row nobody will ever look at again.
-     *
-     * The set is UNCHANGED by the interrupted-send fix; what changed is what `SENDING` is doing
-     * in it, and the old wording of this message ("still on its way") is now false. It is re-armed
-     * so the worker can come and PARK it, not so the worker can deliver it.
-     *
-     * The test iterates [OutboxState.entries], so [OutboxState.INTERRUPTED] is inserted and judged
-     * here without a line of its own: it has to be absent from the result, and it is.
      */
     @Test fun `the startup re-arm picks up the three states a worker still has something to do with`() {
         OutboxState.entries.forEach { insert(it) }
@@ -83,12 +60,6 @@ class KeptAsDraftRowTest {
 
     /**
      * The other startup path: the mid-edit recovery. Both statements only ever name `EDITING`, and
-     * that is exactly why parking at SAVE time (rather than leaving the row EDITING and hoping)
-     * is what closes the hole — a parked row is no longer EDITING, so neither statement can see it.
-     *
-     * The EDITING row itself now comes out of the sweep as FAILED — parked with the
-     * interrupted-edit reason (`EditInterruptedRowTest`), no longer requeued — and that is what
-     * the third state below says. What this test holds is the two $parked rows, whatever their count.
      */
     @Test fun `the mid-edit recovery leaves a row saved as a draft exactly where it is`() {
         insert(parked, attemptCount = 0)

@@ -9,15 +9,6 @@ import java.sql.DriverManager
 
 /**
  * The OTHER half of "a second trash never surfaces in search": the index build itself
- * ([app.sterna.core.data.db.EmailFtsDao.insertFromEmails]) must not write the row in the first
- * place. [LocalSearchFolderFilterSqlTest] pins the query-side filter, which hides a row that IS in
- * the index; this pins the crawl, which decides whether it goes in.
- *
- * Both matter, and neither covers the other: the query filter needs the folder cache to still know
- * the role at search time, while a row that was never inserted cannot come back at all — which is
- * the reported symptom, mail in a shared trash that survived a cache purge.
- *
- * The statement executed here is read out of the shipped DAO by [DaoQuerySource], not retyped.
  */
 class IndexCrawlSkipsUnelectedTrashSqlTest {
     private lateinit var db: Connection
@@ -122,9 +113,6 @@ class IndexCrawlSkipsUnelectedTrashSqlTest {
 
     /**
      * The case this branch exists for: the SECOND trash, the one that lost the role and is stored
-     * marked (`~trash`). On the code this fixes it was role-less, the crawl indexed it, and the
-     * mail thrown into a shared trash came back in search — through a cache purge, because nothing
-     * re-seeds a row out of the index.
      */
     @Test fun theCrawlSkipsAnUnelectedTrashAndAnUnelectedJunk() {
         folder("mb-inbox", role = "inbox")
@@ -142,8 +130,6 @@ class IndexCrawlSkipsUnelectedTrashSqlTest {
 
     /**
      * The witness: the mark is not a wildcard that swallows every folder it touches. A lost claim
-     * on another role, or a role that merely begins with the mark, is an ordinary folder and its
-     * mail is indexed — without this, a filter that excluded far too much would pass the case above.
      */
     @Test fun theCrawlStillIndexesAFolderMarkedForAnythingElse() {
         folder("mb-sent", role = "~sent")

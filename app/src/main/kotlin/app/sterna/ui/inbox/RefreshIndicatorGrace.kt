@@ -34,8 +34,6 @@ private fun showAt(run: RefreshRun): Long =
 
 /** Start a stretch at [now], or extend the one already running. A refresh starting on top of a
  *  stretch in flight extends it: restarting grace and floor on each would, given how readily the
- * app cancels and replaces refreshes, keep the indicator about to appear for ever. A stretch
- *  ended but still drawn is reopened, not replaced, or the floor is defeated at the one moment it
  *  is for. One ended and not drawn is replaced; `instant` is promoted, never demoted. */
 internal fun startRefreshRun(previous: RefreshRun?, now: Long, instant: Boolean): RefreshRun = when {
     previous == null -> RefreshRun(startedAt = now, instant = instant)

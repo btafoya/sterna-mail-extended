@@ -6,33 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST, and a LAST RESORT — read [UnreadRefreshTargetsTest] first.
- * That one EXECUTES the decision this file can only read: which folders a pull-to-refresh in the
- * "unread" view sends to the server. `InboxViewModel` is an `AndroidViewModel`, `MailRepository`
- * needs Room and a socket, so the wiring between the two cannot be run here at all.
- *
- * Four things it pins, each of them a one-word mutation that compiles and leaves the rest of the
- * suite green:
- *
- *  - the SET handed over. `extraFolderIds = unreadScopes.value.map { it.second }.toSet()` reads
- *    plausibly and is the #121 defect: a sibling account's folder id sent to this account's server,
- *    and the inbox synced twice on top;
- *  - the LIMIT. `limit = window.limit` reads like consistency with `refreshFolder` and is a heap
- *    fault: this call syncs N folders in one pass and holds every envelope until the last one is
- *    read, so the account's window ("Everything" = 10 000) times a dozen folders is what lands on
- *    the heap at once. The number is pinned by NAME here and by VALUE below, because a pin on one
- *    without the other proves nothing;
- *  - that the branch never touches the view's own state. Not "does not assign": the body must not
- *    NAME `selection` or `meta` at all. A rule looking for `selection.value =` waves through
- *    `selection.emit(...)` (this function suspends), `tryEmit`, `update {}` and a bare
- *    `showInbox()` — every one of which drops the reader into the Inbox folder on the first pull,
- *    which is the view throwing out the person who opened it;
- *  - the #50 hook, and WHICH mailbox it fires for. Dropped, unarchive-on-reply stops for as long as
- *    the reader stays in this view, silently, while `refreshFolder` and `refreshUnified` keep doing
- *    it; aimed by position (`refreshes.firstOrNull()`) it writes another folder's notification
- *    baseline and re-files that folder's threads.
- *
- * Every rule compares a WHOLE unit — the whole argument list, the whole set of mentions — never a
- * fragment: a `contains` is blind to any mutation that LENGTHENS what it looks at.
  */
 class UnreadRefreshWiringLintTest {
 
@@ -69,10 +42,6 @@ class UnreadRefreshWiringLintTest {
 
     /**
      * The value that travels down the line above, EXECUTED — the same weld
-     * `SyncWindowIsWhatTheRefreshSendsTest` makes for `refreshFolder`, in the other direction: there
-     * the number must be the user's window, here it must not be. A pin on the name alone would let
-     * `UNREAD_SCOPE_FOLDER_LIMIT = 10_000` through, and a pin on the value alone would not notice
-     * the constant no longer being what the call passes.
      */
     @Test
     fun `the per-folder limit is the repository's own default, not a window`() {
@@ -89,11 +58,6 @@ class UnreadRefreshWiringLintTest {
 
     /**
      * The rule that keeps the reader where they are, written as a rule about NAMING rather than
-     * about assigning. `selection.value = Sel.Folder(...)` is only the most obvious spelling: this
-     * function suspends, so `selection.emit(...)` compiles here, and `tryEmit`, `update { }` and a
-     * plain `showInbox()` are three more — a rule per syntax is a rule short of the next syntax.
-     * `meta` goes with it: it is a folder view's header and would name a folder this list is not
-     * showing. The refresh's job is to fill the cache the pager reads; the pager reacts on its own.
      */
     @Test
     fun `the unread refresh never names the view's own state`() {
@@ -141,8 +105,6 @@ class UnreadRefreshWiringLintTest {
 
     /**
      * The body of `refreshUnreadScope`, comments removed and whitespace collapsed: from the header
-     * up to the brace that balances its first `{`. Fails loudly when the header is gone, so a rename
-     * reddens these rules instead of satisfying them against an empty string.
      */
     private fun refreshUnreadScopeBody(): String {
         val text = codeText(INBOX_VIEW_MODEL)
@@ -203,8 +165,6 @@ class UnreadRefreshWiringLintTest {
 
     /**
      * [file] as ONE line of code: comments out, runs of whitespace collapsed — so a call the
-     * formatter spreads over five lines reads the same as one written on a line. A scanner over the
-     * whole file, not a per-line filter: a `//` inside a string literal is not a comment.
      */
     private fun codeText(file: File): String {
         val code = StringBuilder()

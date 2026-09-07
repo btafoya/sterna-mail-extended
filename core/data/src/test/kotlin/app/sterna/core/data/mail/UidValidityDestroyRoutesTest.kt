@@ -5,24 +5,11 @@ import org.junit.Test
 
 /**
  * How a held-back destroy splits into requests — the decision `InboxViewModel.foldersToDestroy`
- * hands to `MessageDestroyWorker.FolderDestroy`, EXECUTED here rather than read as text (Codeberg
- * #99).
- *
- * It lives in `UidValidity` for the reason written on [UidValidity.imapDestroyPlan] and
- * [UidValidity.imapUndoRoutes]: the ViewModel needs an `Application` and the repository needs Room
- * and a `Context`, so a grouping left in either is a grouping nothing can run — and a decision
- * nothing runs is a decision a mutation walks through.
- *
- * What every assertion below pins is the ARGUMENTS: which ids travel together, in which order,
- * and under which number. That a call exists proves nothing about what is passed to it.
  */
 class UidValidityDestroyRoutesTest {
 
     /**
      * THE CASE THE OLD GROUPING GOT WRONG. Two rows of ONE folder, read either side of a
-     * renumbering — the list keeps showing both, because nothing prunes stale rows on IMAP — and a
-     * single `UID STORE` + `UID EXPUNGE` can oppose only ONE number. Merged, the older ids go out
-     * under the newer number and expunge whatever now holds those UIDs; that is #99 itself.
      */
     @Test fun `one folder read under two numberings becomes two requests, each with its own number`() {
         val numbering = mapOf("old-a" to 42L, "fresh" to 77L, "old-b" to 42L)
@@ -44,9 +31,6 @@ class UidValidityDestroyRoutesTest {
 
     /**
      * The witness for JMAP, where every numbering is null: the split must collapse back to exactly
-     * the by-folder grouping it replaced. This path serves both protocols, and a JMAP destroy that
-     * suddenly came out as N requests instead of one would re-check each wave against the server
-     * separately (#122) for no reason at all.
      */
     @Test fun `a selection with no numbering at all is one request per folder, ids in order`() {
         val routes = UidValidity.imapDestroyRoutes(
@@ -64,8 +48,6 @@ class UidValidityDestroyRoutesTest {
 
     /**
      * A row the cache no longer holds answers nothing, and "nothing" is NOT the same key as a
-     * number: it must not be folded in with the ids that do have one, because the request it ends
-     * up in destroys nothing at all (`UidValidity.mayDestroy`) and would take the others with it.
      */
     @Test fun `an id whose row says nothing is routed apart, opposing nothing`() {
         val numbering = mapOf("known" to 42L)

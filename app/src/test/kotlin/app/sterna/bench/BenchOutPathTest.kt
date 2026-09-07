@@ -6,15 +6,6 @@ import org.junit.Test
 
 /**
  * EXECUTES [isBenchOutPathAllowed] against pinned arguments — it does not read the rule, it runs it.
- *
- * The neighbouring [BenchProvisionSourceTest] can only read the receiver as text (that source set
- * is behind `-PtestApp` and no test task compiles it). This one is the other half: the decision
- * itself lives in `src/benchShared/kotlin`, plain Kotlin with no Android import, so the verdict
- * here is the real one. Invert the rule and these cases go red.
- *
- * The paths below are written out ONE BY ONE, as literals. Deriving them from [BENCH_OUT_DIR]
- * (or from any part of the predicate) would make this test a copy of the decision: it would follow
- * the rule wherever the rule went and stay green under a mutation of it.
  */
 class BenchOutPathTest {
 

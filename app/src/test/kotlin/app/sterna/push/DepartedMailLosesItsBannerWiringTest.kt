@@ -6,15 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, and a narrow one: nothing in this chain can be instantiated in a JVM test
- * ([NewMailNotifier] and [FetchAndNotify] need an Application, a NotificationManager and a
- * repository). The DECISION it carries is executed next door in [DepartedBannerDecisionTest];
- * what is pinned here is the CHAIN, whole line by whole line — `contains` is blind to any
- * mutation that lengthens a line.
- *
- * Codeberg #134: delete a message from Thunderbird and Sterna's banner kept announcing it, and
- * re-opened it on tap. The chain that closes it: the sync says which ids the SERVER dropped from
- * the folder → the refresh carries them on the folder → the diff pass cancels exactly their
- * banners and refreshes the group summary. Break any link and the banner survives the deletion.
  */
 class DepartedMailLosesItsBannerWiringTest {
 
@@ -93,10 +84,6 @@ class DepartedMailLosesItsBannerWiringTest {
     @Test fun `no banner is taken down before the server says the message really left`() {
         // The dangerous half of #134, found by the counter-expertise. `MailRepository`'s own KDoc
         // says the first queryChanges run from a pre-change queryState can report an email as
-        // `removed` for a mere FLAG change, and the only spare against that (isRecentlyMutated)
-        // knows about LOCAL mutations only. So a star or a label put on an UNREAD message from
-        // Thunderbird arrives here as a departure, protected by nothing — and cancelling it hides
-        // live, unread mail for good. The delta names candidates; the server decides.
         val body = bodyOf(NOTIFIER, "notifyDiff")
         assertEquals(
             "the notifier must ask the REPOSITORY — the layer that talks to the server — never " +

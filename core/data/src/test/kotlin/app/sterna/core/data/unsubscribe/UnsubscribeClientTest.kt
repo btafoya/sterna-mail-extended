@@ -12,12 +12,6 @@ import org.junit.Test
 
 /**
  * What the one-click unsubscribe puts on the wire, and — more importantly — what it refuses to do.
- *
- * The tests run against a local [MockWebServer], which speaks plain http, through
- * [UnsubscribeClient.post]; the https-only gate is exercised separately through the public
- * [UnsubscribeClient.oneClick]. The client under test is built by
- * [defaultUnsubscribeHttpClient] — the production one, redirect policy included — so the refusal
- * proved here is the shipped behaviour and not a setting the test invented.
  */
 class UnsubscribeClientTest {
     private lateinit var server: MockWebServer
@@ -25,11 +19,6 @@ class UnsubscribeClientTest {
 
     /**
      * Connectivity as the app layer reports it, and a count of when the client asked for it.
-     *
-     * A mutable field read through a lambda, deliberately: in production the lambda answers
-     * `hasUsableNetwork` at the moment the POST fails, so the tests below flip this **between two
-     * calls on the same client** — a client that captured the answer once could not tell them
-     * apart. [connectivityReads] is what pins that the question is asked on failure and only then.
      */
     private var online = true
     private var connectivityReads = 0
@@ -70,14 +59,6 @@ class UnsubscribeClientTest {
 
     /**
      * The URL is used VERBATIM — path and query string, byte for byte (decision D6).
-     *
-     * The subscriber token lives in the query on most large senders, and `LinkCleaner`, which
-     * strips tracking parameters everywhere else in the app, is deliberately not applied here:
-     * the parameter that looks like tracking IS the thing that identifies which subscription to
-     * end. Strip it and the request either fails or, far more often, answers 200 and unsubscribes
-     * nobody — while the reader is told it went through. This is the one invariant of the feature
-     * that fails silently in the right direction, so it is asserted on the bytes the server saw
-     * rather than stated in a comment.
      */
     @Test fun `the whole url is sent, query string included`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(200))
@@ -91,9 +72,6 @@ class UnsubscribeClientTest {
 
     /**
      * The invariant this whole class exists for. The POST goes to a domain named by the sender
-     * of an email; carrying the account's credentials there would hand them to a stranger. There
-     * is no global interceptor in the project, so this holds as long as nobody routes the call
-     * through `JmapClient.postWithRetry`, which demands a token.
      */
     @Test fun `no Authorization header is ever sent`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(200))
@@ -107,9 +85,6 @@ class UnsubscribeClientTest {
 
     /**
      * A 3xx is a FAILURE, and the decisive assertion is the second one: OkHttp follows a
-     * 301/302/303 by re-issuing the call as a GET, which would turn the one request that loads
-     * nothing into exactly the page fetch — with its IP address, its User-Agent and its pixel —
-     * that this feature exists to avoid (decision D3). Nothing may leave after the redirect.
      */
     @Test fun `a redirect is refused and no second request leaves`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", "/somewhere-else"))
@@ -170,9 +145,6 @@ class UnsubscribeClientTest {
 
     /**
      * The witness that [UnsubscribeClient.oneClick] does not short-circuit its https branch: an
-     * https URL nothing is listening on comes back as OFFLINE, which only a real connection
-     * attempt — through the real client, mapped by [oneClickFailure] — can produce. A version
-     * that answered REFUSED without trying would pass every other test in this file.
      */
     @Test fun `an https url that cannot be reached is reported as no network`() = runBlocking {
         online = false // the case where "no network" is the true sentence; see the table below
@@ -231,23 +203,6 @@ class UnsubscribeClientTest {
 
     /**
      * THE DECISION TABLE, executed rather than described (F2, found on the bench on 02/08: a POST
-     * to a domain that does not resolve said "No network. Try again later." on a Pixel 7 that had
-     * just synced its inbox).
-     *
-     * | transport exception | device online? | verdict     |
-     * |---------------------|----------------|-------------|
-     * | DNS / socket / IO   | no             | OFFLINE     |
-     * | DNS / socket / IO   | yes            | UNREACHABLE |
-     * | anything else       | either         | REFUSED     |
-     *
-     * The reasoning that turns "no such host" into "you are offline" is sound for the MAIL server —
-     * the reader chose it, and it answers whenever the phone works. It is wrong for a host named by
-     * the sender of an email: a dead unsubscribe endpoint (expired domain, discontinued list) fails
-     * exactly the same way, and there the honest sentence names their server, not the reader's
-     * connection.
-     *
-     * Both columns matter and both are asserted here: an implementation that always says OFFLINE
-     * (the shipped bug) fails the second column, one that always says UNREACHABLE fails the first.
      */
     @Test fun `a dead transport blames the sender's host, unless the device really is offline`() {
         val transport = listOf(
@@ -288,15 +243,6 @@ class UnsubscribeClientTest {
 
     /**
      * The wiring, as far as a JVM test can follow it: connectivity is asked **at the moment of the
-     * failure**, on every attempt, and is not a value the client captured when it was built.
-     *
-     * Two calls on the SAME client, one field flipped between them: a client holding a boolean
-     * (or a lambda it called once and remembered) answers the same thing twice and fails here.
-     * The count is the other half — one question per failed attempt, no more.
-     *
-     * What this canNOT reach: that `MessageViewModel` hands over `hasUsableNetwork(app)` rather
-     * than a constant. That call needs an `Application` and a `ConnectivityManager`, and the app
-     * module has neither Robolectric nor instrumentation — see the report; it is a bench check.
      */
     @Test fun `connectivity is answered at each failure, never captured once`() = runBlocking {
         // Port 1 is privileged and unbound: the connection dies on the transport immediately.
@@ -322,8 +268,6 @@ class UnsubscribeClientTest {
 
     /**
      * And it is asked ONLY on failure: a response that came back is proof the link works, so
-     * reading `ConnectivityManager` there would be a pointless system call on the happy path — and
-     * a connectivity answer that could never change any verdict.
      */
     @Test fun `connectivity is not consulted when the server answers`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(200))

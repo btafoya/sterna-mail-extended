@@ -20,8 +20,6 @@ data class OAuthProvider(
     companion object {
         /** Outlook / Microsoft (personal + work/school) over IMAP+SMTP with XOAUTH2. Requires a
          *  registered public Azure app (Entra ID → App registrations): Authentication → "Allow
-         *  public client flows" = Yes (device-code grant); delegated permissions
-         *  https://outlook.office.com/IMAP.AccessAsUser.All, .../SMTP.Send, offline_access. Drop
          *  that registration's (public, non-secret) client id into [clientId]. */
         val MICROSOFT = OAuthProvider(
             id = "microsoft",

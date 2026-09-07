@@ -194,10 +194,6 @@ class AppContainer(context: Context) {
         //
         // Gated on a widget being PLACED: collecting the unified total for the life of every
         // process subscribes two global Room aggregates on behalf of the majority who never place
-        // one. rethrowIfCancelled: a failed draw is a stale cell, but the app scope being cancelled
-        // is not one more failed draw. accountsFlow is the SECOND arm, and it is what makes the
-        // cell's LABEL and its tap target follow an account arriving or leaving — both being decided
-        // on the account count while the breakdown drops an account whose inboxId is still null.
         //
         appScope.launch {
             UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext), accountStore.accountsFlow) {
@@ -214,11 +210,6 @@ class AppContainer(context: Context) {
         //
         // Its own launch and its own gate: RecentMailWidgetPresence is seeded from THIS provider's
         // cells, and sharing the counter's would let each widget decide the other's freshness.
-        // forget() BEFORE refresh(): the row factory falls back to the last snapshot it read when
-        // its own read times out. The emitted rows are not drawn — the cell is projected by
-        // RecentMailWidgetDraw.read, which consults the content setting and the app lock.
-        // accountsFlow is the SECOND arm, the coloured dots existing only above
-        // AllInboxesView.existsFor.
         appScope.launch {
             RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext), accountStore.accountsFlow) {
                 mailRepository.observeRecentUnifiedInbox(RecentMailWidgetDraw.ROW_LIMIT)

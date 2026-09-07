@@ -6,13 +6,6 @@ import org.junit.Test
 
 /**
  * The IMAP half of the unsubscribe headers, read off a real message source — the same message
- * `openEmailImap` already has in hand, so this costs no round trip and no change to any FETCH
- * command (a `BODY.PEEK[HEADER.FIELDS (…)]` would break `ImapParser`'s tokenisation and return an
- * empty string with no error at all).
- *
- * The result is then handed to the SAME [UnsubscribeHeader.parse] the JMAP path uses, which is
- * what keeps a tortured header from meaning two different things depending on the protocol — so
- * the crossing is asserted here too, not just the reading.
  */
 class UnsubscribeImapSourceTest {
 
@@ -53,8 +46,6 @@ class UnsubscribeImapSourceTest {
 
     /**
      * A folded header, which is the common shape for two URIs: read as ONE value, then split by
-     * the shared parser. Reading it unfolded would hand the parser half a header and lose the
-     * `mailto:` fallback without a word.
      */
     @Test fun `a folded header comes back whole and parses into both gestures`() {
         val (list, post) = unsubscribeHeadersOf(
@@ -89,8 +80,6 @@ class UnsubscribeImapSourceTest {
 
     /**
      * A header in the BODY is not a header. Worth pinning: an unsubscribe URL quoted inside a
-     * forwarded message would otherwise put a button on the reader that acts on somebody else's
-     * subscription.
      */
     @Test fun `a header-looking line inside the body is not read`() {
         val (list, _) = unsubscribeHeadersOf(

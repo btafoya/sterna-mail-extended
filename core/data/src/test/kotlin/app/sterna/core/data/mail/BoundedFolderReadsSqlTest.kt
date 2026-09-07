@@ -11,16 +11,6 @@ import java.sql.ResultSet
 
 /**
  * The four folder reads that used to materialise a whole mailbox, and the one thing that makes
- * their fix real: **the bound is in the statement**.
- *
- * Every query here is read out of the shipped DAO by [DaoQuerySource] and EXECUTED against
- * in-memory SQLite, so "the newest twenty" cannot be satisfied by a Kotlin `take(20)` over a
- * folder-wide `SELECT *` — the bench holds more rows than any bound, and a statement without its
- * `LIMIT` hands them all back here. That is the whole difference this file exists to see: the old
- * code returned exactly the same LIST as the new one, and only differed in what it read.
- *
- * The call sites are pinned at the bottom, whole line at a time: a bound that lives in a statement
- * nobody calls is no bound.
  */
 class BoundedFolderReadsSqlTest {
     private lateinit var db: Connection
@@ -66,8 +56,6 @@ class BoundedFolderReadsSqlTest {
 
     /**
      * Run one shipped DAO statement, binding its named parameters from [args] BY TYPE — a bound
-     * that compares `sortKey >= ?` has to receive an integer, and a test that bound everything as
-     * text would silently compare a number to a string and pass on nothing.
      */
     internal fun <T> query(function: String, args: Map<String, Any>, read: (ResultSet) -> T): List<T> {
         val (sql, order) = DaoQuerySource.bindOrder(DaoQuerySource.emailDaoQuery(function))
@@ -241,9 +229,6 @@ class BoundedFolderReadsSqlTest {
     @Test fun `equal sortKeys are broken by id, so the frontier is a function of the rows`() {
         // Three rows share a sortKey and the LIMIT cuts through them. Without `, id DESC` SQLite
         // answers from the physical order — and this table is rewritten at every sync, so the row
-        // that falls off the frontier changes with no row having changed. That is a message
-        // leaving a read and coming back into it, which is the whole failure mode this volet is
-        // about. The same lesson is written in SyncEvictions.kt for the same data.
         listOf("c", "a", "b").forEach { insert("tie-$it", sortKey = 500) }
         insert("newer", sortKey = 900)
         assertEquals(listOf("newer", "tie-c", "tie-b"), newestIds(3))
@@ -288,8 +273,6 @@ class BoundedFolderReadsSqlTest {
 
     /**
      * [forbidden] is per call site, not a blanket list: `prefetchInboxBodies` legitimately filters
-     * the twenty ids it already holds, and a rule that also forbade that would be turned off the
-     * first time it cried wolf.
      */
     private fun assertNoUnboundedRead(function: String, vararg forbidden: String = arrayOf("getByMailbox", ".take(")) {
         val body = DaoQuerySource.mailFunctionBody("MailRepository", function)
@@ -356,10 +339,6 @@ class BoundedFolderReadsSqlTest {
     @Test fun `the memory nets stay the size of memory nets`() {
         // Order of magnitude, not the exact figure: these two are the ONLY thing standing between
         // a deep folder and an OutOfMemoryError once the sync window is unpinned, and both are
-        // reachable by editing one digit of a private constant no call-site rule can see.
-        // PREFETCH_COUNT = 5000 passes every other test in this file.
-        // Deliberately NOT UNREAD_RESOLVE_MAX: how many unread a "mark all read" resolves is a
-        // product decision, not a memory net, and pinning it here would freeze the wrong thing.
         val prefetch = Regex("""private const val PREFETCH_COUNT = (\d[\d_]*)""")
             .find(DaoQuerySource.mailSource("MailRepository"))
             ?.groupValues?.get(1)?.replace("_", "")?.toInt()

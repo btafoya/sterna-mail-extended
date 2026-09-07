@@ -12,12 +12,6 @@ import org.junit.Test
 
 /**
  * The sender-initials switch of the message list (#144): its default, its stored key, and its trip
- * through a settings backup. Same five checks and the same reasons as [SettingsBackupUnreadTintTest]
- * — a setting that silently fails to restore is worse than one that does not exist, and a default
- * that can be flipped with the suite green is worse still.
- *
- * The decision is RUN here, not described: [listMonogramFrom] is handed real `Preferences`, so the
- * elvis and the key are both exercised rather than read as text.
  */
 class SettingsBackupListMonogramTest {
 

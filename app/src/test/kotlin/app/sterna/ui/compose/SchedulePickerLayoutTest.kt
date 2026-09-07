@@ -6,19 +6,6 @@ import org.junit.Test
 
 /**
  * Which face the two "pick date and time" pickers show (#161), decided by [schedulePickerAsInput]
- * — the clock's dial and the calendar's month grid, or Material's keyboard entry. One rule for
- * both, so the cases below are the cases of both.
- *
- * Why this is not cosmetic: measured on `emu`, 2026-08-20 at 23:28 UTC, in LANDSCAPE
- * (`ROTATION_90`, 914×411 dp), the dial's right HALF was off screen and the digits still drawn (12,
- * 11, 10, 9, 8, 7, 6) landed on top of the AM/PM selector — "8" over "PM". The `uiautomator` dump
- * was down to `[12, 28, AM, Cancel, OK]`: `PM` had no node at all, so half the day was unreachable,
- * and two hour positions of twelve were left. Nothing on screen said a word; only Cancel and OK
- * stayed usable.
- *
- * The numbers below are `Configuration.screenHeightDp` FIRST, `screenWidthDp` second, in that
- * order, because that is the order Material's own comparison reads them in and swapping the two
- * arguments inverts every case here while keeping the same function name in the call.
  */
 class SchedulePickerLayoutTest {
 
@@ -51,9 +38,6 @@ class SchedulePickerLayoutTest {
     @Test fun `one dp either side of the frontier, because the four benches are nowhere near it`() {
         // The cases that pin the comparison itself rather than the two obvious orientations.
         // Every other case here is hundreds of dp from the boundary, so an OFFSET slipped into the
-        // rule — `screenHeightDp + 100 < screenWidthDp`, say — would leave them all green while a
-        // nearly-square screen in landscape (an unfolded foldable, a tablet) kept the dial that
-        // Material has already laid out Horizontally, and the clipping would be back.
         assertTrue(
             "one dp shorter than it is wide is already landscape to Material, and already the " +
                 "horizontal dial an AlertDialog cannot hold.",

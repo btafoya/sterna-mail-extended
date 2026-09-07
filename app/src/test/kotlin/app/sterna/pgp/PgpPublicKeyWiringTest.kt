@@ -6,18 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads two view models as text and proves nothing about what
- * runs — [app.sterna.core.data.account.PgpPublicKeyCacheTest] is what EXECUTES the decisions.
- *
- * It exists because neither class can be built here: both are `AndroidViewModel`s reaching into
- * `application.container`, there is no Robolectric in this module and no instrumented test. What
- * the pure functions cannot see is what these two FEED them and what they do with the answer, so
- * that is what is pinned: whole contiguous lines, arguments included.
- *
- * Whole lines as a block, never `contains`: a `contains` check is blind to anything appended to
- * a line, and a per-line check is blind to a statement slipped between two.
- *
- * WHAT IT DOES NOT COVER: that either method is ever reached at runtime, that the provider answers,
- * or anything at all about the bytes that come back.
  */
 class PgpPublicKeyWiringTest {
 

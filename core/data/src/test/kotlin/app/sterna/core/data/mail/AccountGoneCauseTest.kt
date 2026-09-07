@@ -5,20 +5,6 @@ import org.junit.Test
 
 /**
  * EXECUTES the choice of what an [AccountGoneException] is allowed to claim, and pins the sentence
- * of BOTH call sites by value. The wiring — that the two catches call this instead of writing their
- * own sentence, and with which arguments — is held by the two source lints that already guard those
- * arms: [SignedOutAccountWiringTest] for `MailRepository.refreshAllInboxes`, and
- * `app.sterna.push.SignedOutAccountLeavesNoPushErrorTest` for `FetchAndNotify.run`. Neither class
- * can be built in a JVM test and `android.util.Log` is not mocked, so nothing here observes a
- * printed line.
- *
- * The expected strings are written out in full, never recomputed from the same `if`: a test that
- * rebuilds the rule to decide what to expect passes on an inverted rule too.
- *
- * The id under test is a REAL UUID, not a short stand-in. `AccountStore` ids are
- * `UUID.randomUUID().toString()`, and the obvious "don't dump a full id in logcat" edit
- * (`accountId.take(5)`) is invisible to a test whose id is five characters long — it would leave
- * the line unable to name the account it is about, which is the whole point of printing it.
  */
 class AccountGoneCauseTest {
 
@@ -44,8 +30,6 @@ class AccountGoneCauseTest {
 
     /**
      * The whole point of the volet: `accounts()` answers an unreadable blob with an empty list, so
-     * the exception fires with nobody having signed anything out. The line must say the account
-     * data could not be READ — and still name the account, whole.
      */
     @Test fun `an unreadable account list is not reported as a sign-out`() {
         assertEquals(

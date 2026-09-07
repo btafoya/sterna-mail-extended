@@ -35,8 +35,6 @@ abstract class SternaDatabase : RoomDatabase() {
     companion object {
         /**
          * The migrations Room is actually handed — absent here means it never runs, and
-         * `fallbackToDestructiveMigration` turns a missing step into dropping every table. The
-         * three user-data tables (outbox, snoozed, local_drafts) are migrated additively.
          */
         internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_9_10, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,

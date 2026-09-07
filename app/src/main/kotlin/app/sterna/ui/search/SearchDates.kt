@@ -7,12 +7,6 @@ import java.time.ZoneOffset
 
 /**
  * Date bounds live in the DEVICE's time zone, not UTC.
- *
- * Material's date picker hands the picked day back as UTC midnight — a calendar day, not an
- * instant. Sending that straight to the server made "since 1 June" mean 1 June 00:00 UTC, which
- * east of Greenwich is already 1 June 02:00 at home (that morning's mail silently dropped) and
- * west of it is still 31 May (the previous evening's mail wrongly kept). The picked day is turned
- * into the local day it names instead.
  */
 fun searchAfterBound(pickedUtcMillis: Long, zone: ZoneId = ZoneId.systemDefault()): Long =
     pickedDay(pickedUtcMillis).atStartOfDay(zone).toInstant().toEpochMilli()

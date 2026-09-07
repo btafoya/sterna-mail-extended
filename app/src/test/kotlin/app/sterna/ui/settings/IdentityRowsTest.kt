@@ -9,9 +9,6 @@ import org.junit.Test
 
 /**
  * The Identities editor opens on the default sender and folds the rest away. These cover the
- * opening rule (default, fallback, single row), the collapsed row's signature summary, the fact
- * that folding is a plain display toggle, and the signature preview that shows the "-- " delimiter
- * the field itself never holds (#90).
  */
 class IdentityRowsTest {
 

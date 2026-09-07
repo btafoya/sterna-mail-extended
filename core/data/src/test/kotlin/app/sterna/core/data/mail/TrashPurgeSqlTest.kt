@@ -11,12 +11,6 @@ import java.sql.DriverManager
 
 /**
  * The storage side of the Empty-trash snapshot (Codeberg #99), against real in-memory SQLite:
- * the table `PurgeSnapshotDao` reads and writes, built from the very constant the 17→18
- * migration executes, and the same statements the DAO declares.
- *
- * What it pins down: a purge only ever sees the ids of its own confirmation and its own
- * account; draining it in waves terminates; an undo erases the destroy list; an abandoned
- * snapshot is swept instead of lingering.
  */
 class TrashPurgeSqlTest {
     private lateinit var db: Connection
@@ -89,10 +83,6 @@ class TrashPurgeSqlTest {
 
     /**
      * A message leaving its folder, run through the DAO's OWN statement
-     * ([PURGE_SNAPSHOT_UNLIST_SQL]) rather than a copy of it: a Room DAO cannot be instantiated
-     * in a JVM unit test here, so the shipped string is executed directly. Room expands
-     * `IN (:emailIds)` into one placeholder per id at runtime; that expansion, and the `:name`
-     * to `?` binding, is all this reproduces.
      */
     private fun unlist(accountId: String, emailIds: List<String>) {
         val sql = PURGE_SNAPSHOT_UNLIST_SQL

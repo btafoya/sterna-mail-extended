@@ -6,37 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `SettingsComponents.kt` and `SettingsScreen.kt` as
- * text and proves nothing about what is drawn. [RevealIconOfferedTest] runs the decision; this file
- * pins the PLUMBING around it, which nothing in this module can execute: `SettingTextField` is a
- * composable, and there is no Robolectric, no `compose-ui-test` and no `androidTest` here (adding
- * one is a dependency decision, not a test decision).
- *
- * Five silent edits it exists to catch, all of them green under any value test:
- *
- *  1. the decision computed and then ignored — `trailingIcon = if (isPassword)` left in place while
- *     `revealIconOffered` sits unused next to it. That is #118, unchanged;
- *  2. the remember key dropped (`remember { mutableStateOf(false) }`). The reveal state then
- *     outlives the field's content: reveal, clear the field, type again, and the new secret is
- *     drawn in CLEAR TEXT on a settings screen. The key falls on both sides of empty, so clearing
- *     re-arms the mask and so does the first keystroke after that;
- *  3. the mask made conditional, or the icon and its contentDescription desynchronised — an eye
- *     that says "show password" while it is hiding it;
- * 4. `isPassword = true` dropped at the ONE call site that types a secret (`SettingsScreen.kt`).
- *     The whole of this file's cleverness is about an eye; the flag that decides whether the field
- *     is masked AT ALL lives elsewhere, and flipping it types the API token in permanent clear;
- *  5. a line ADDED to the field that renders `value` a second time (`supportingText = { Text(value)
- *     }`, a `placeholder`, …): the secret printed under its own masked field, forever. Every other
- *     rule here filters for a line it expects, so an inserted line is invisible to all of them.
- *
- * The guarantee this file holds is narrower than "a freshly typed secret is always masked", and
- * deliberately so: the reveal survives typing (that is the point of an eye), and replacing a whole
- * selection in one `onValueChange` never passes through the empty string, so an open eye stays open.
- * What is guaranteed is: clearing the field re-arms the mask, and the next keystroke is masked.
- *
- * Every rule compares WHOLE LINES (trimmed, nothing else), never `"fragment" in line`: a containment
- * check is blind to every mutation that LENGTHENS the line — `if (revealIconOffered(isPassword,
- * value) || true)` contains the call. `contains` is used only where this file screens for something
- * that must NOT be there.
  */
 class SecretFieldRevealWiringTest {
 
@@ -175,9 +144,6 @@ class SecretFieldRevealWiringTest {
 
     /**
      * The body of `if (account.authType != AuthType.OAUTH) {` on the account screen, closed by
-     * counting braces — a line number would rot on the next edit of that screen. The guard itself is
-     * not this branch's business (touching it overwrites an OAuth refresh token), it is only the
-     * landmark that locates the field.
      */
     private fun passwordFieldBlock(): List<String> {
         val lines = screenLines()

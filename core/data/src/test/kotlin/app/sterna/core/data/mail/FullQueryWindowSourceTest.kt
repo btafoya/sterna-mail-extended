@@ -8,19 +8,6 @@ import org.junit.Test
 
 /**
  * Dropping an account's cursors opens the full-query branch — and TWO of the four paths that can
- * walk into it carry a hardcoded 50 that has nothing to do with the user's setting: the push/worker
- * pass (`MailRepository.refreshAccountFolders`, `limit = 50`, reached from `FetchAndNotify.run`)
- * and the unified inbox (`MailRepository.refreshAllInboxes`, `limit = 50`, reached from
- * `InboxViewModel.refreshUnified`). Only `refreshFolder` reads `store.syncWindow(...)`.
- *
- * That branch ends in `EmailDao.replaceMailbox`, which DELETES what it is not given, and then
- * re-arms the cursor. So whoever gets there FIRST decides how much of the folder survives, and the
- * deltas that resume afterwards never fetch backwards.
- *
- * The decision under test is the shipped one, [fullQueryWindowTarget], executed. [Folder] below is
- * a stand-in for the two COLLABORATORS — the server walk and `replaceMailbox` — and decides
- * nothing: it takes the target it is handed, keeps exactly what came back, and re-arms. Written
- * that way on purpose: a fake that re-derived the target would pass whatever the shipped rule said.
  */
 class FullQueryWindowSourceTest {
 
@@ -77,11 +64,6 @@ class FullQueryWindowSourceTest {
         //
         // Rewritten by the volet that unbounded `ALL`, and for one reason only: a folder of
         // `ALL.limit + 200` cannot be built any more — the addition overflows and `(1..size)` is
-        // empty, so the test would have gone RED comparing `Int.MAX_VALUE` to 0. (An earlier note
-        // here said it would have passed for the wrong reason; that was wrong, and the correction
-        // is worth keeping visible.) There is no folder deeper than the widest window now, so the
-        // two halves are stated separately: a BOUNDED window still truncates its folder to the
-        // window, and the unbounded one brings the folder back whole.
         val bounded = folderOf(size = SyncWindow.COUNT_500.limit + 200)
         bounded.cursor = null
         bounded.fullQuery(fullQueryWindowTarget(SyncWindow.COUNT_500.limit, backgroundLimit))
@@ -151,9 +133,6 @@ class FullQueryWindowSourceTest {
     @Test fun `a background pass asks the SERVER's page size, not its own fifty`() {
         // The second half of the same defect. The target was read off the account and the PAGE
         // was not, so a push or unified pass carrying 50 asked for fifty messages per request on a
-        // server admitting five hundred. That pass is the first to run after the setting changed
-        // (the cursor has just fallen), and on an unbounded window it is the one that walks the
-        // whole folder: 20 000 messages became 400 sequential round trips instead of 40.
         val sizing = fullQuerySizing(
             accountWindow = SyncWindow.ALL.limit,
             requestedByCaller = backgroundLimit,

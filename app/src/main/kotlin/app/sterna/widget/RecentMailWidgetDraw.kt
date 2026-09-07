@@ -16,13 +16,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * ONE read, and everything the two ends of the cell spend it on: the rows, the palette they are drawn
- * in, and the tones of a monogram badge. They travel together because the two ends draw at DIFFERENT
- * MOMENTS, and a colour fetched separately at each is a second read by another name.
- *
- * The colours are nullable, and null is an answer; the palette carries a null of its own meaning
- * "post no colour, the resources hold the right one". Never defaulted: a `?:` along this path
- * bakes a literal colour into a `RemoteViews` with no `-night` resource behind it. NOT a field on
- * [RecentWidgetSnapshot], whose type is the output of the rule deciding what a row may SAY.
  */
 internal data class RecentWidgetDrawing(val snapshot: RecentWidgetSnapshot, val colours: WidgetColours?)
 
@@ -86,12 +79,6 @@ internal object RecentMailWidgetDraw {
 
     /**
      * Draw the frame of every cell in [ids] and ask the launcher to pull the rows again. One
-     * `RemoteViews` per cell, the adapter being an intent carrying the cell's own id.
-     *
-     * The background is set with `setBackgroundResource`, never `setBackgroundColor`, which would
-     * leave the cell square among rounded neighbours. A null palette posts NO COLOUR AT ALL: the
-     * two lines it guards are frozen into a cached `RemoteViews`, and skipped, the frame keeps
-     * resources the launcher re-resolves through `values-night` at every inflation.
      */
     fun draw(app: Application, ids: IntArray, drawing: RecentWidgetDrawing) {
         if (ids.isEmpty()) return
@@ -121,8 +108,6 @@ internal object RecentMailWidgetDraw {
 
     /** Read and draw every placed cell. `updatePeriodMillis="0"` means the system asks at placement,
      *  at boot and after an update and at no other time, so without this a message that arrived an
-     * hour ago would be missing. [withTimeoutOrNull], not `withTimeout`: the caller treats a
-     *  CancellationException as a sign-out, so a slow draw would cancel the pass delivering the
      *  mail. [placedIds] is asked first, so nothing here opens Room for the majority. */
     suspend fun refresh(context: Context) {
         val app = context.applicationContext as? Application ?: return
@@ -143,19 +128,6 @@ internal object RecentMailWidgetDraw {
 
     /**
      * The ONE `PendingIntent` behind every row of a cell — a TEMPLATE, the only shape the platform
-     * offers: the list is given this, each row a fill-in [Intent] of extras.
-     *
-     * The ACTION is load-bearing. A `PendingIntent`'s identity ignores extras, and every new-mail
-     * notification builds a `MainActivity` intent with neither action nor data, told apart by a
-     * request code hashed over the whole `Int` range: without an action of its own this template is
-     * filterEquals-identical to all of them, and the first colliding `childId` has its extras
-     * rewritten by `FLAG_UPDATE_CURRENT`, so a banner then opens another message.
-     *
-     * And it is MUTABLE, deliberately, a fill-in being the launcher writing into this one. Two
-     * things bound it, both pinned by a source lint: an explicit component, and an action of its own.
-     * What is NOT a bound, though it reads like one: "[rowFillIn] adds extras and nothing else"
-     * says nothing about what a holder may fill in — what costs nothing is that `MainActivity` is
-     * exported with a LAUNCHER filter. Do not spend `FLAG_MUTABLE` on a third one.
      */
     private fun rowTapTemplate(context: Context): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
@@ -171,8 +143,6 @@ internal object RecentMailWidgetDraw {
 
     /** What ONE row adds to the template when it is touched: the identity of its message, and
      *  strictly nothing else — the three extras a tapped notification already carries, so a row opens
-     * by that route and inherits its guards. No guard is added here and none re-stated (#159).
-     * No action, no data, no component: anything beyond extras is a caller writing into what this
      *  app starts. */
     fun rowFillIn(tap: RecentRowTap): Intent {
         val intent = Intent()

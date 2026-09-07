@@ -12,8 +12,6 @@ import java.util.Base64
 
 /**
  * Executes the two decisions behind the attached-message sheet: which attachment opens as one
- * ([isAttachedMessage]) and what the sheet shows of it ([attachedMessageOf]). Pure JVM, no
- * Android: the bytes go in exactly as `downloadAttachment` hands them over.
  */
 class AttachedMessageTest {
 

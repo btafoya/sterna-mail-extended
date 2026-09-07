@@ -6,14 +6,6 @@ import org.junit.Test
 
 /**
  * The drawer's fold/unfold choice (per account, persisted), EXECUTED: the write `AccountStore`
- * delegates to, run on real arguments. Nothing here re-derives the rule from the source it checks,
- * so inverting the shipped condition turns this file red.
- *
- * Why it is a function at all rather than a one-liner inside the store: nothing in this module can
- * build an `AccountStore` (a `Context` and the Keystore, no Robolectric here), so a write folded
- * into it is reachable by a source lint and by nothing else — and a lint cannot run the two parts
- * that decide anything: WHICH account the fold belongs to, and WHAT `false` writes. The wiring into
- * the store is pinned next door by [CollapsedFoldersStoreWiringTest].
  */
 class CollapsedFoldersTest {
 
@@ -44,9 +36,6 @@ class CollapsedFoldersTest {
 
     /**
      * THE test of this branch. The registry is the EXPLICIT choice per folder, so unfolding must
-     * WRITE `false`; dropping the key would say "nobody decided", and the drawer's default would
-     * then be free to fold that folder again on the next launch — the memory would hold in one
-     * direction only. Stored as a `Set` of the folded ones, that is the only thing it CAN do.
      */
     @Test fun `unfolding WRITES false, it does not drop the key`() {
         val after = withCollapsedFolder(
@@ -119,12 +108,6 @@ class CollapsedFoldersTest {
 
     /**
      * THE defect of this half. On IMAP a folder's id is its PATH, so renaming it CHANGES the id
-     * (`MailRepository.renameFolder`): the watch flags have been re-keyed for that reason since
-     * #16, and this registry had not. The `false` the user wrote — "I opened this folder by hand"
-     * — stayed behind under the old path, the renamed row had no key at all, and the DEFAULT folded
-     * it: the folder closed itself the moment it was renamed.
-     *
-     * Re-keying is not re-deciding: the boolean is carried across untouched, both ways.
      */
     @Test fun `an IMAP rename re-keys the folder AND its descendants, keeping their values`() {
         val after = withRenamedCollapsedFolder(
@@ -147,8 +130,6 @@ class CollapsedFoldersTest {
 
     /**
      * The prefix is `oldId + delimiter`, never `oldId`. `Travailleur` starts with `Travail` and
-     * is NOT under it — re-keying it would move a fold onto a folder nobody renamed, and on the
-     * next launch two different folders would answer to keys that describe neither.
      */
     @Test fun `a folder whose name merely STARTS with the old one is left alone`() {
         val after = withRenamedCollapsedFolder(
@@ -231,10 +212,6 @@ class CollapsedFoldersTest {
 
     /**
      * There is no migration and there must not be one: the account list is one `@Serializable` blob
-     * and every record on every phone was written before this field. The whole compatibility story
-     * is the default, and the only way to prove it is to DECODE a record that does not carry the
-     * key — `StoredAccount()` in Kotlin applies the same default without going through the parser,
-     * and would pass just as well if the field were `@Required`.
      */
     private val json = Json { ignoreUnknownKeys = true }
 

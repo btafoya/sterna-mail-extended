@@ -7,16 +7,6 @@ import java.util.concurrent.atomic.AtomicLong
 
 /**
  * A folder renumbered under a pending destroy (Codeberg #99).
- *
- * An IMAP UID identifies a message only inside one numbering. When the server renumbers a folder
- * — a migration, a rebuilt index, a restore — it bumps UIDVALIDITY, and the *shifting* kind of
- * renumbering makes a vacated UID mean ANOTHER MESSAGE rather than nothing. A held-back "Empty
- * trash" that comes back hours later (the destroy worker waits for connectivity: the gap is
- * unbounded) would then destroy by numbers that no longer designate what the user confirmed.
- *
- * The property proved here is negative and therefore stated on the wire: when the numbering does
- * not match, NO command naming a UID leaves the client. Reading the exception is not enough —
- * what matters is that nothing was destroyed before it was thrown.
  */
 class UidValidityTest {
 
@@ -102,8 +92,6 @@ class UidValidityTest {
 
     /**
      * A server that reports no UIDVALIDITY at all cannot be checked either way. Refusing there
-     * would break the folder outright on a non-conforming server, which is the wrong direction
-     * for a guard whose job is to be conservative about DESTROYING.
      */
     @Test fun `a server announcing no numbering is not turned into a refusal`() {
         FakeImapServer { tag, line ->

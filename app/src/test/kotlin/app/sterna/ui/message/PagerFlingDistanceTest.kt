@@ -5,28 +5,6 @@ import org.junit.Test
 
 /**
  * How far the FINGER must have travelled before a flick may change message.
- *
- * Reported 2026-08-18: a brief, fast nudge — 10 to 20 dp in 25 to 40 ms — turns the page. The
- * pager was mounted with no `flingBehavior`, so the rule was the library's, and the library's rule
- * is speed alone: above `MinFlingVelocityDp` (400 dp/s) it snaps to the next page whatever the
- * offset, zero included. `androidx.viewpager.widget.ViewPager` wanted BOTH that speed AND 25 dp of
- * travel; the floor under test here is that lost 25 dp.
- *
- * WHICH travel, because the first cut of this fix got it wrong and the bench pass caught it: the
- * pager's own `currentPageOffsetFraction × pageSize` is what the pager has SCROLLED, i.e. the
- * finger's travel minus the touch slop and minus whatever the body WebView's interop handle held
- * back — 15 to 25 dp short on a 360 dp bench, where a deliberate 40 dp flick then changed nothing,
- * 0 times out of 4. So the quantity is the finger's own `x_up − x_down`, and [advanceTravel], the
- * little machine that records it, is executed here alongside the floor itself.
- *
- * Everything is in px, as the pointer reports it — the composable converts the dp — and every
- * expected value below is a LITERAL: a test that re-derives the floor is a copy of the rule, not a
- * check on it.
- *
- * What this file proves stops at the two pure functions. Whether the machine is FED the right
- * event, the right coordinate and the right booleans, whether the guard is handed the travel and
- * not some other Float, and whether the holder survives a recomposition, are all invisible here and
- * held only by the source lint of [PagerFlingWiringTest].
  */
 class PagerFlingDistanceTest {
 
@@ -46,9 +24,6 @@ class PagerFlingDistanceTest {
     @Test fun `the floor is androidx ViewPager's own 25 dp`() {
         // Pinned as a number because nothing else can see it: this file works in px, and the dp→px
         // conversion happens in the composable. 25 dp is ViewPager's MIN_DISTANCE_FOR_FLING, the
-        // condition Compose dropped when it kept the 400 dp/s. Lower it and the reported nudge —
-        // 10 to 20 dp — walks straight back under the guard; raise it and the 40 dp flick the
-        // bench measured stops working, which is the no-go this branch came back from.
         assertEquals(25, MIN_FLING_DISTANCE_DP)
     }
 
@@ -175,9 +150,6 @@ class PagerFlingDistanceTest {
     @Test fun `a press after a gesture that was never closed starts a fresh origin`() {
         // The cancelled gesture: the shade, or the system back gesture, takes the touch and no
         // "nothing is pressed any more" event ever reaches this machine, so fingerDown is still
-        // true and a travel of 60 px is still on the books. The NEXT press must not be measured
-        // from that stale origin — 500 − 200 = 300 px would sail over the floor and turn the page
-        // on a 10 dp nudge, the reported defect back through a side door.
         assertEquals(
             PointerTravel(downX = 500f, travelPx = 0f, fingerDown = true),
             advanceTravel(

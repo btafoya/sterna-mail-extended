@@ -6,16 +6,6 @@ import org.junit.Test
 
 /**
  * THIS TEST READS SOURCE TEXT — the last resort, exactly as [ChunkedIdReadsSourceTest] says:
- * `MailRepository` needs Room and a `Context`, so no JVM test can run the wiring below. The
- * DECISION it guards is executed by [DestroyableIdsTest]; this pins only WHERE that decision is
- * plugged in, and it pins the WHOLE LINE of each load-bearing call — `contains` is blind to any
- * mutation that lengthens a line, which is how three of these rules were defeated before.
- *
- * What it exists for (Codeberg #122): the destroy carries ids frozen at the confirmation, and a
- * JMAP id does NOT change when the message changes folder. Another client rescuing a message out
- * of the Trash during the (unbounded) hold-back was therefore destroyed IN ITS NEW FOLDER —
- * nowhere left to recover it from. Every wave must ask the server where its ids are and destroy
- * only those still exactly where the user confirmed them.
  */
 class DestroyChecksTheFolderWiringTest {
 
@@ -42,22 +32,6 @@ class DestroyChecksTheFolderWiringTest {
 
     /**
      * The door the fix of #122 left open: the destroy of ONE draft. `destroyDraft`'s JMAP branch
-     * ended on a naked `jmapDestroyAll(connect(credentials), listOf(emailId))` — no folder asked
-     * for, nothing opposed — on the argument that a JMAP id survives everything a folder can go
-     * through. That property is the CAUSE of #122, not its alibi: the id still names the message
-     * after another client (or a server-side rule) has moved the draft out of Drafts, so the
-     * destroy takes it out of the folder it was moved INTO, where the user could still see it.
-     *
-     * Since #95 the draft's upload is deferred, so this destroy fires from `finishDraftSave` in a
-     * headless worker whenever the network comes back: the window between "the composer read the
-     * id" and "the destroy goes out" is measured in days, not milliseconds.
-     *
-     * The expected folder is the draft's own — [draftDestroyFolder], run by [DraftDestroyFolderTest]
-     * — read through `draftMailboxOf`, which is what the "emptied local draft" route already
-     * opposes to its own destroy of the same server copy. Going through `destroyAll` itself is what
-     * makes the check the SAME one: it re-branches on protocol, asks the server where the id is,
-     * spares what is not in that folder alone, and logs the refusal. A refusal is silent here — the
-     * result is dropped, exactly like the three IMAP refusals of this path.
      */
     @Test fun aDraftIsDestroyedThroughTheSameCheck_neverStraightOnTheWire() {
         val body = bodyOf("destroyDraft")
@@ -142,10 +116,6 @@ class DestroyChecksTheFolderWiringTest {
     @Test fun aPurgeThatSparedAnythingPutsTheListBackInFrontOfTheServer() {
         // The other half of #122, and the half an Empty trash was missing: a spared message is
         // alive on the server but its row was evicted when the purge was confirmed, and it never
-        // LEFT the Trash, so no delta will ever report it as new. Without this the user simply
-        // never sees again a message Sterna decided not to destroy. `MessageDestroyWorker` does
-        // exactly this on a selection destroy's `failed`; the purge returns only a count, so the
-        // re-query has to be triggered here.
         val body = bodyOf("purgeSnapshot")
         assertEquals(
             "every wave's refusals must be noticed — spared ids come back in BulkResult.failed",
@@ -163,9 +133,6 @@ class DestroyChecksTheFolderWiringTest {
     @Test fun aSparedWaveSaysSoInTheSyncLog() {
         // A guard doing its job and a server that never reports `mailboxIds` at all look IDENTICAL
         // from outside: both spare, both destroy nothing. The second would be total and permanent,
-        // on both entry points, and undiagnosable on a device. One line, in the sync journal,
-        // carrying the account, the folder, the count and the ids — count first, so a truncated
-        // logcat still says how many.
         val body = bodyOf("destroyAll")
         assertEquals(
             "the spared ids must be logged, and only when there are some",

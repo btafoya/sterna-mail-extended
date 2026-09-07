@@ -8,8 +8,6 @@ import androidx.room.PrimaryKey
 
 /**
  * Full-text search index over mail, separate from [EmailEntity] so it can outlive the display
- * cache's pruning. `unicode61` with `remove_diacritics=1`, not `=2`: the latter needs SQLite
- * 3.27+/2019 and CRASHES older devices at table-build time ("unknown tokenizer", #71).
  */
 @Fts4(
     tokenizer = FtsOptions.TOKENIZER_UNICODE61,

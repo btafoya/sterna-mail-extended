@@ -9,31 +9,6 @@ import java.io.File
 
 /**
  * The frozen numbering (#99, V2) on the app side of the queue: composer → outbox row → scheduled
- * row → worker → composer again.
- *
- * `DraftNumberingFreezeWiringTest` states WHERE the number is read (once, beside the draft's id).
- * This one states that it then TRAVELS with the message everywhere `draftEmailId` travels, because
- * the draft is destroyed at DELIVERY: a send made offline leaves when the network returns, and a
- * scheduled one at its hour. A number looked up then is the one a background sync recorded after
- * the folder was renumbered — compared with itself it reads "same", and the `UID EXPUNGE` destroys
- * whatever message now holds those UIDs in Drafts.
- *
- * Two halves, deliberately different in kind:
- *
- *  1. **Executed.** [app.sterna.send.composeDraftOf] is a pure function, so the hand-over a queued
- *     message goes through when it is reopened is RUN here. Re-editing enqueues a BRAND-NEW row
- *     from the composer's state: a number this mapping drops is not "missing from the screen", it
- *     is a draft that will never be destroyed, i.e. a duplicate left in Drafts at every save.
- *
- *  2. **Read as source text — the last resort**, as [ReadReceiptWiringTest] does for the receipt:
- *     nothing in this module can instantiate `ComposeViewModel` (an `AndroidViewModel`, no
- *     Robolectric) or run a `WorkManager` worker. Arguments are parsed out of each call and
- *     compared WHOLE, never `contains` — a substring rule is blind to any mutation that lengthens
- *     the line.
- *
- * NOT covered: that the value written to SQLite is read back (that is the migration test), that
- * the repository does anything with it (pinned in `core:data`), and the on-device behaviour —
- * reopening a queued message and sending it must leave exactly one copy in Drafts.
  */
 class DraftNumberingCarriedWiringTest {
 
@@ -132,12 +107,6 @@ class DraftNumberingCarriedWiringTest {
 
     /**
      * The four arguments the composer must hand `sendDraftTarget`, by name and whole — both send
-     * sites. The numbering is only frozen if BOTH pairs go in: drop
-     * `replacedServerDraftUidValidity` and a draft reopened off this phone's own store names the
-     * server copy it replaces with no numbering at all, so an IMAP destroy silently deletes
-     * nothing; drop `replacedServerDraftId` and nothing names that copy any more, which is the
-     * whole of the defect. The ANSWER to these arguments is executed in
-     * `core:data` (`SendDraftTargetTest`), not restated here.
      */
     private val SEND_TARGET = mapOf(
         "editingDraftId" to "editingDraftId",
@@ -183,12 +152,6 @@ class DraftNumberingCarriedWiringTest {
     @Test fun `the outbox screen reopens through the pure mapping, never by building a draft itself`() {
         // The second consumer of `composeDraftOf`, and the one nothing in this repository read:
         // the Outbox screen's Edit. An inline `SendOutbox.ComposeDraft(...)` written here can copy
-        // the other thirteen fields and leave this one out — it compiles, it reads as harmless, and
-        // every rule in this suite stays green while every reopened queued message goes back with
-        // nothing frozen: the draft it replaces is never destroyed again, so Drafts keeps a
-        // duplicate at each send, with nothing on screen saying so. Calling the pure function
-        // cannot drop a field; a construction site can, which is why the shape is pinned and not
-        // only the value.
         assertEquals(
             "OutboxViewModel must hand the row to `composeDraftOf` and reopen with its result, " +
                 "whole line — the mapping the executed rules above run",
@@ -215,10 +178,6 @@ class DraftNumberingCarriedWiringTest {
     @Test fun `nothing in the composer assigns that field anything else`() {
         // Whole lines, in order, across the WHOLE class: `= null` at either site is a draft left
         // behind for ever, and a third assignment smuggled in anywhere is a number nobody froze.
-        // The two `editingDraftUidValidity = editingDraftUidValidity,` are NOT writes: they are the
-        // named argument the two send sites hand `sendDraftTarget`, pinned whole here as well so
-        // that a `= null` slipped into either one is read as what it is — the deferred destroy that
-        // finds nothing.
         val assignments = codeLines(COMPOSE_VIEW_MODEL.readText())
             .filter { it.startsWith("editingDraftUidValidity =") }
         assertEquals(

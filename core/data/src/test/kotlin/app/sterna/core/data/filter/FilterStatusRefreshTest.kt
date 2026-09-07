@@ -9,13 +9,6 @@ import java.io.File
 
 /**
  * The decisions the filters and responder screens make ON TOP of [filterScriptWarning]: what a
- * status read that FAILED does to what is on screen ([refreshedFilterWarning]), which red line
- * goes above the Save button when saving would switch another script off ([foreignScriptNotice]),
- * and whether the empty rule list is worth a sentence of its own ([showsNoRulesNote]).
- *
- * Both are executed here, not read out of the source: they are plain functions, so there is no
- * excuse for a lint. The screens that call them are a composable and two `Application`-bound view
- * models, which is exactly why the decision was lifted out of them.
  */
 class FilterStatusRefreshTest {
 
@@ -91,10 +84,6 @@ class FilterStatusRefreshTest {
 
     /**
      * The case the whole nullable return exists for, end to end, as measured on the server:
-     * responder ON (rules already suspended, screen silent because the prediction is not made to
-     * somebody who has done the thing predicted) → the user switches it OFF and saves → the server
-     * leaves NO script active at all, so the rules are dead → the read that follows the save
-     * fails. The screen must not go quiet: quiet is what it was when the rules were fine.
      */
     @Test
     fun `switching the responder off and losing the read does not silence the screen`() {
@@ -253,12 +242,6 @@ class FilterStatusRefreshTest {
 
     /**
      * THE E1 WITNESS. The line used to be chosen on the mere EXISTENCE of a `vacation` script,
-     * and existence is not activity: an account whose active script is a third one (`roundcube`,
-     * `managesieve`) with an idle `vacation` beside it was told its auto-reply was running and
-     * would be stopped — while what Save was really about to switch off was the other script.
-     *
-     * The two arguments differ here, which is the only reason this case can fail: pass the same
-     * boolean twice and the state is unreachable.
      */
     @Test
     fun `an idle vacation script beside another active one accuses nobody`() {
@@ -275,9 +258,6 @@ class FilterStatusRefreshTest {
 
     /**
      * THE E2 CASE. The refusal to write can come from our own `sterna` script being
-     * unparseable, and that cause reached the screen folded into `foreignActive` — so the screen
-     * showed a sentence about somebody else's script, or about the auto-reply, and never once
-     * about the content Save is going to replace. It goes FIRST.
      */
     @Test
     fun `an unreadable script of our own is named before anything else`() {
@@ -316,10 +296,6 @@ class FilterStatusRefreshTest {
 
     /**
      * THE E3 CASE. While the user is away, RULES_NOT_RUNNING is true BECAUSE the responder is
-     * running — and the screen was printing "you can put your rules back in Settings → Filters" on
-     * the very screen whose switch reads ON. Following that path presses Save on the filters
-     * screen, which activates Sterna's script, which switches the auto-reply off. The sentence
-     * said nothing of the sort.
      */
     @Test
     fun `the remedy is not offered while the responder is on`() {
@@ -344,14 +320,6 @@ class FilterStatusRefreshTest {
     fun `the prediction is the same sentence whatever the switch says`() {
         // Both switch positions are REACHED on screen, contrary to what this test used to claim.
         // The warning is only ever PRODUCED with the responder off (filterScriptWarning refuses to
-        // predict to somebody who has already done the thing predicted), but production and
-        // display are not the same moment: VacationViewModel computes filterWarning at load and
-        // after a save, and `setEnabled` (VacationViewModel.kt) only copies `enabled`. So the
-        // instant the user flips the switch to ON without saving, SettingsScreen is calling
-        // vacationFilterLine(RESPONDER_WILL_SUSPEND_RULES, responderEnabled = true) — a prediction
-        // sitting above a switch that reads ON. The sentence is about the switch rather than about
-        // a remedy, so it stays the same one and says nothing false in that state; that is the
-        // behaviour pinned here, not an unreachable pair.
         for (enabled in listOf(true, false)) {
             assertEquals(
                 VacationFilterLine.RESPONDER_WILL_SUSPEND_RULES,
@@ -377,10 +345,6 @@ class FilterStatusRefreshTest {
 
     /**
      * THE CONTRADICTION. Over an unreadable `sterna` script the rule list is empty *because
-     * nothing could be read out of it*, and the screen printed, one line under the other: "Sterna
-     * Mail cannot read this account's filter script; saving will replace it." then "No rules yet.
-     * Add one to filter incoming mail on the server." The second sentence is the false one, and it
-     * is the reassuring one.
      */
     @Test
     fun `an unreadable script does not also claim there are no rules`() {
@@ -415,21 +379,6 @@ class FilterStatusRefreshTest {
 
     /**
      * Everything above executes the decision; this one cannot. `MailRepository` opens shared
-     * preferences in its constructor and needs a JMAP session, so no JVM test builds one — and a
-     * decision that is right but fed a constant is worth nothing. Measured, not supposed: a
-     * mutation campaign replaced the foreign-script question with `false` in
-     * `loadFilterScriptStatus` and the whole suite stayed green.
-     *
-     * So the ARGUMENTS are pinned, and only the ones no executed test can reach: which scripts the
-     * question is asked of, that the answer travels into BOTH the states this function can return,
-     * and that a failed read is `null` while an IMAP account or a server without Sieve is not.
-     *
-     * What a `contains` — or a `Regex` counted over the body — does NOT prove: both are
-     * satisfied by every mutation that makes the line LONGER. `&& false` appended to any of the
-     * three questions below leaves the asserted text exactly where it was, and that is how three
-     * mutations crossed the first version of this lint with the suite green. Each of those lines
-     * is therefore compared WHOLE, the way
-     * `MailBySenderWiringTest.the dialog is bound to the row it was opened over` does.
      */
     @Test fun `the status read fills the foreign flag from the other scripts, and fails to null`() {
         val body = loadFilterScriptStatusBody()
@@ -493,10 +442,6 @@ class FilterStatusRefreshTest {
 
     /**
      * Every WHOLE line of [body] declaring `val [name]`, trimmed, comments dropped.
-     *
-     * The instrument of `MailBySenderWiringTest`: the line, never a substring of it. A list, not a
-     * single value, so that a second declaration of the same name fails the comparison rather than
-     * hiding behind the first.
      */
     private fun declarationsOf(body: String, name: String): List<String> =
         codeLines(body).filter { it.substringBefore(" =") == "val $name" }

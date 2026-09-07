@@ -6,28 +6,11 @@ import java.io.File
 
 /**
  * [DeliveredToInHeaderTest] executes the decision; this pins that the decision is still WIRED to
- * the open message's header, that the header still PAINTS it, and what the label says (#180).
- *
- * The two gaps it closes, neither of which any pure test can see:
- *  · pass `emptyList()` as the second argument (or drop it) and the multi-alias guard stops
- *    guarding — the line then appears on every single-address account;
- *  · delete the `Text` from the header's Column and the line vanishes from every phone.
- * The whole suite stays green through both.
- *
- * Read out of the shipped source because a `@Composable` cannot be built on a JVM bench: this
- * module has neither Robolectric nor instrumentation (same instrument, and the same last-resort
- * reasoning, as [OriginalSenderCallSiteTest]).
- *
- * Whole trimmed lines compared by list equality — never `contains`, which is blind to every
- * mutation that LENGTHENS the line. Comment lines are dropped, so prose can neither satisfy a rule
- * nor break one.
  */
 class DeliveredToInHeaderCallSiteTest {
 
     /**
      * The decision is taken ONCE, at `MessageContent`'s call to `ConversationBody`, and it is
-     * taken with the account's own addresses. Both code lines that name it, whole and in order:
-     * the call, then the declaration.
      */
     @Test fun `the reader decides the arrival line once, with the account's own addresses`() {
         assertEquals(
@@ -48,14 +31,6 @@ class DeliveredToInHeaderCallSiteTest {
 
     /**
      * And the decided line still travels — parameter by parameter — down to a `Text` in the
-     * header's Column, UNDER THE DATE. Every line that carries it, whole and in order: the call
-     * site, the two parameter declarations it passes through, the hand-off between them, the
-     * date's own `Text`, and only then the painting.
-     *
-     * The date is in the filter on purpose. Filtering on `deliveredToLine` alone pins that the
-     * block exists, not WHERE: move the whole `if (deliveredToLine != null) { Text(...) }` above
-     * the sender's name, or out of the Column altogether, and the filtered list is unchanged. The
-     * promise is a third line under the date, so the date is what the order is measured against.
      */
     @Test fun `the decision reaches the header and is painted under the date`() {
         assertEquals(
@@ -79,13 +54,6 @@ class DeliveredToInHeaderCallSiteTest {
 
     /**
      * D6 — the flow that FEEDS all of the above, pinned WHOLE. The reader is a pager across
-     * accounts, so this value is refilled per message; refilled with the wrong expression it is
-     * silently the previous account's, or silently truncated.
-     *
-     * Whole lines, by list equality, and that is the point: the neighbouring pin on
-     * `_accountAddresses` (SenderRuleFromReaderTest) tests a SUBSTRING, so appending `.take(1)`
-     * lengthens the line and sails through. Not reproduced here. (That neighbour is left alone on
-     * purpose — it is not this branch's to fix.)
      */
     @Test fun `the identity addresses are refilled, from the identities alone, for every message`() {
         assertEquals(
@@ -104,9 +72,6 @@ class DeliveredToInHeaderCallSiteTest {
 
     /**
      * The LABEL and its address are ONE translated string with a format argument, on the shape
-     * of `list_to_recipients` which this same header already uses. Punctuation and word order
-     * belong to the translation: concatenating a label and an address at runtime hands nine
-     * languages an English sentence structure.
      */
     @Test fun `the English label names the address through a format argument`() {
         assertEquals(

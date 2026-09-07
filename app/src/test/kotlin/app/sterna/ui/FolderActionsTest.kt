@@ -6,9 +6,6 @@ import org.junit.Test
 
 /**
  * Which folders drop which actions (Codeberg #82). Drafts and Sent drop the incoming-mail-only
- * group (Snooze, Report spam, Mark all read): you do not snooze a draft, nor report your own sent
- * message as spam, nor mark as read a folder where unread state is meaningless. Snooze alone goes
- * further and is dropped in Spam and Trash too, where nothing is waiting to be dealt with.
  */
 class FolderActionsTest {
 

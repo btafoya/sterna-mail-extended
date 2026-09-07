@@ -5,24 +5,6 @@ import org.junit.Test
 
 /**
  * WHAT THE BODY FETCHES ACTUALLY PUT ON THE WIRE — the three of them, line for line.
- *
- * `BODY.PEEK[…]`, never `BODY[…]`. A bare `BODY` fetch sets `\Seen` on the server (RFC 3501
- * §6.4.5): the message leaves the unread list, on every device the account is open on, and no
- * command exists that undoes "the user read this". On the preview path the read is made BY A
- * NOTIFICATION, so the mail would be marked read at the moment it is announced.
- *
- * Nothing held that word before this file. The two existing fetches were written with `.PEEK` and
- * stayed that way by luck: the only mention of it in the test tree was a COMMENT, and the fake
- * server answers `line.startsWith("UID FETCH")` without ever looking at the rest of the command.
- * Dropping `.PEEK` from either of them left the whole suite green.
- *
- * Whole lines, compared with assertEquals — never `contains("PEEK")`. A containment check is
- * blind to every mutation that makes the line LONGER, which is most of them: it cannot see a second
- * item added to the fetch, a `<0.8192>` dropped (the line only gets shorter... and a partial that
- * became `<0.20000000>`), nor a `BODY.PEEK[]` fetching the whole message next to the section.
- *
- * The list is the WHOLE conversation, so a second round trip that nobody asked for shows up as an
- * extra line rather than passing unnoticed.
  */
 class BodyPeekOnTheWireTest {
 
@@ -84,10 +66,6 @@ class BodyPeekOnTheWireTest {
 
     /**
      * THE UNPROVEN CLAIM, proven: a PARTIAL fetch has never been made by this app, and the code
-     * carries a warning that `ImapParser` stops on parentheses — which is why a `BODY.PEEK[HEADER.
-     * FIELDS (…)]` would come back as an empty string with no error at all. `<0.8192>` has no
-     * parentheses, and the answer names the item `BODY[1]<0>`; this asserts that the reader really
-     * does recognise that atom and hand back the octets, rather than silently returning nothing.
      */
     @Test fun `the partial answer is recognised, and its octets come back`() {
         var fetched: String? = null
@@ -100,9 +78,6 @@ class BodyPeekOnTheWireTest {
 
     /**
      * "At most 8 KiB" must be TRUE, not merely REQUESTED. `<0.8192>` is a request; nothing above
-     * enforces it — a literal is read up to 32 MiB and the body item is taken by prefix, so a server
-     * that ignores the partial (or answers `BODY[]`) would otherwise have a whole 20 MB message
-     * decoded and shaped before anything threw it away, inside a foreground service.
      */
     @Test fun `an over-long answer is cut to the bound the client asked for`() {
         val huge = "A".repeat(20_000)
@@ -128,9 +103,6 @@ class BodyPeekOnTheWireTest {
 
     /**
      * A server that answers something else must yield NOTHING. The item list opens with `UID 7`,
-     * and the reader used to take the atom at index 0 when it found no body item — so this answer
-     * produced the string "UID", which on this path would be posted to a lock screen as the opening
-     * line of somebody's mail.
      */
     @Test fun `a FETCH with no body item yields nothing at all`() {
         var fetched: String? = null
@@ -143,11 +115,6 @@ class BodyPeekOnTheWireTest {
 
     /**
      * `BODY[] NIL` — the item is THERE and names nothing. `ImapParser` tokenises NIL as a Kotlin
-     * `null` (ImapParser), so `bodyItem`'s `as? String` yields null and the read answers "",
-     * exactly as for an answer with no body item at all. Written down because that "" is what the
-     * guard above `MimeParser.parseBody` judges: a source of "" is an UNKNOWN, never an empty
-     * message. This asserts the VALUE the wire produces; it does not prove the guard, which is
-     * executed in `core:data` (SourceCouldNotBeReadTest).
      */
     @Test fun `a source answered as BODY NIL yields nothing`() {
         var fetched: String? = null

@@ -8,15 +8,6 @@ import org.junit.Test
 
 /**
  * Whether a tapped notification is allowed to switch the list to the message's own folder (#91)
- * when the account shows its SUBSCRIBED folders only (#174) — the decision, [notificationFolderToShow],
- * EXECUTED, and fed by the real [NotificationFolderSwitch.resolve] rather than by a hand-written
- * stand-in for it.
- *
- * The rule it defends is one rule for two routes: one cannot end up parked in a folder no list
- * offers, whether the setting hid it under one's feet or a notification walked one into it.
- *
- * Nothing here recomputes "subscribed, or a role, or a visible descendant". Every expectation is
- * a literal id or a literal null.
  */
 class NotificationFolderToShowTest {
 

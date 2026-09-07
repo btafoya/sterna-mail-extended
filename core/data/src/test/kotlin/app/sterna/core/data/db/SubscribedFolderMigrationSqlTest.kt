@@ -12,26 +12,6 @@ import java.sql.DriverManager
 
 /**
  * **v25 → v26** ([MIGRATION_25_26]): `mailboxes` gains `isSubscribed`, what the server answered
- * about the folder's subscription ([MailboxEntity.isSubscribed], Codeberg #174).
- *
- * Built like [DraftNumberingMigrationSqlTest]: the REAL [androidx.room.migration.Migration] objects
- * are executed against a real SQLite engine (JDBC, in memory) through a tiny
- * [SupportSQLiteDatabase] proxy, from the PUBLISHED v15 schema chained up to a real v25 — never
- * from a copy of the statements, so this test cannot drift from the code that ships.
- *
- * The column is `INTEGER NOT NULL DEFAULT 1`, and the `1` is the whole decision, not SQLite
- * paperwork: a row cached before this step has no idea whether its folder is subscribed, and the
- * unknown must never hide a folder. `DEFAULT 0` would take every folder of every existing install
- * out of the drawer at the first launch after the update, on no evidence at all.
- *
- * And the step has to be REGISTERED, not merely written. `SternaDatabase` ends its builder with
- * `fallbackToDestructiveMigration()`, so a v26 declared with no 25→26 path in
- * [SternaDatabase.ALL_MIGRATIONS] does not degrade anything: Room DROPS every table — `outbox`,
- * `scheduled_sends` and `local_drafts` included, i.e. mail the user wrote that never left the
- * phone. That is what [theRegisteredMigrationsCarryAPublishedInstallToTheSubscriptionColumn]
- * guards, by chaining the array Room is really handed instead of the objects this file names.
- * (The line that HANDS that array to Room is checked by
- * `DraftNumberingMigrationSqlTest.theBuilderReallyHandsThatArrayToRoom`.)
  */
 class SubscribedFolderMigrationSqlTest {
     private lateinit var db: Connection
@@ -171,8 +151,6 @@ class SubscribedFolderMigrationSqlTest {
 
     /**
      * A REAL v25 database: the published v15 schema, populated, then carried forward by the very
-     * migration objects that ship — 15→16 … 24→25 — and populated again in the tables those
-     * migrations create.
      */
     private fun seedV25() {
         seedPublishedV15()
@@ -223,9 +201,6 @@ class SubscribedFolderMigrationSqlTest {
 
     /**
      * The DECLARED shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`.
-     * Room's `TableInfo.Column.equals` compares the affinity and the nullability at open time, so a
-     * column of the right name and the wrong type fails `validateMigration` on every launch, and
-     * the user's only way out is a reinstall — which takes the outbox with it.
      */
     private fun columnShapes(table: String): Map<String, Triple<String, Int, String?>> {
         val shapes = mutableMapOf<String, Triple<String, Int, String?>>()
@@ -298,9 +273,6 @@ class SubscribedFolderMigrationSqlTest {
 
     /**
      * The decision this migration carries. A folder cached before v26 was cached by a build that
-     * never asked the server about subscription: what it reads back is not "unsubscribed", it is
-     * "unknown" — and the unknown never hides anything. `DEFAULT 0` would empty the drawer of every
-     * install on the first launch after the update, on no evidence at all.
      */
     @Test fun aFolderCachedBeforeTheStepReadsBackSubscribed() {
         seedV25()
@@ -326,9 +298,6 @@ class SubscribedFolderMigrationSqlTest {
 
         // The entity field is a non-null `Boolean`, and SQLite requires a DEFAULT to add a NOT NULL
         // column to a populated table. Room compares defaults at open time only when the ENTITY
-        // declares one via `@ColumnInfo(defaultValue = …)` — a Kotlin default is not one
-        // (b/136515305) — so "1" here is safe, while the wrong affinity or nullability would fail
-        // `validateMigration` on every launch.
         assertEquals(Triple("INTEGER", 1, "1"), columnShapes("mailboxes")["isSubscribed"])
         // The witnesses: a nullable column beside it, and a non-null one with no default.
         assertEquals(Triple("TEXT", 0, null), columnShapes("mailboxes")["role"])
@@ -352,14 +321,6 @@ class SubscribedFolderMigrationSqlTest {
 
     /**
      * Chains the migrations Room is really given ([SternaDatabase.ALL_MIGRATIONS]) over a published
-     * install, and looks at where they arrive.
-     *
-     * A migration object that works perfectly and is absent from that array never runs: Room finds
-     * no path from the installed version to the declared one, `fallbackToDestructiveMigration()`
-     * takes over and `dropAllTables()` empties the database — `outbox`, `scheduled_sends` and
-     * `local_drafts` with it, i.e. mail and drafts the user wrote that never left the phone. So the
-     * step objects are taken FROM the registered array, in ascending order, and the chain must be
-     * unbroken.
      */
     @Test fun theRegisteredMigrationsCarryAPublishedInstallToTheSubscriptionColumn() {
         seedPublishedV15()

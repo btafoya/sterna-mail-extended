@@ -10,16 +10,6 @@ import java.io.File
 
 /**
  * The delegated-account settings screen (issue #31): the two pure rules that decide WHICH account
- * the `sharedAccount/{id}` route may show and WHICH route a shortcut opens, plus source lints over
- * the screen they feed and the two entries into the settings graph.
- *
- * The tests at the top EXECUTE [sharedAccountFor] and [settingsRouteFor]; inverting either guard
- * makes them red. The ones below READ source text, which is a last resort and is admitted as one:
- * this
- * module has no Robolectric, a `@Composable` cannot be invoked here, and the wiring of a tap to a
- * view-model call is exactly what the batch is about. What a source lint proves is that the CALL
- * with THOSE ARGUMENTS is written; it proves nothing about what happens on screen, and it breaks on
- * innocent reformatting. That is the price of reading text instead of running it.
  */
 class SharedAccountScreenTest {
 
@@ -62,10 +52,6 @@ class SharedAccountScreenTest {
 
     /**
      * THE GUARD OF THE BATCH, read as whole statements. The tests above execute [sharedAccountFor];
-     * nothing but this pins the fact that the SCREEN asks it. Look the id up here instead
-     * (`accounts.firstOrNull { it.id == accountId }`) and the helper becomes dead code while the
-     * route opens on a LOGIN: title = the login's address, subtitle "Shared account", and both
-     * writes below landing on the login's row.
      */
     @Test fun `the screen resolves its account through the shared-account guard`() {
         assertEquals(
@@ -80,8 +66,6 @@ class SharedAccountScreenTest {
 
     /**
      * What each row OPENS on: the value the account already holds, never a constant. A switch
-     * hard-coded to `true` shows "on" for an already-silent mailbox, and the first tap then writes
-     * `false` while looking inert — the user believes she is turning off what was off.
      */
     @Test fun `both rows open on the value the account already holds`() {
         assertEquals(
@@ -96,12 +80,6 @@ class SharedAccountScreenTest {
 
     /**
      * Read in ABSENCE over the SCREEN'S BODY — the composable's signature to the end of the file.
-     * The pure resolvers above it are left out on purpose: they legitimately look an id up in the
-     * list, and they are EXECUTED by the tests at the top of this class.
-     *
-     * Every token here is reachable FROM UI CODE. A token that exists nowhere in the app (the
-     * first version of this list forbade `setPassword`, and a store-only method) reads as a
-     * guarantee and protects nothing.
      */
     @Test fun `the screen holds none of the writes that belong to a login`() {
         val found = FORBIDDEN.filter { it in screenBody() }
@@ -114,9 +92,6 @@ class SharedAccountScreenTest {
 
     /**
      * The colour section, statement by statement — whole lines, never a substring: a `contains` is
-     * blind to any argument ADDED to a line, which is the exact shape the defect would take
-     * (`setColor(account.loginKey(), argb)`). The account id the route was opened with is what both
-     * writes must carry.
      */
     @Test fun `the colour swatches write the shared account's own id`() {
         assertEquals(
@@ -142,9 +117,6 @@ class SharedAccountScreenTest {
 
     /**
      * The notifications section, same reading. Pins the toggle's write AND the whole condition of
-     * the "not watched" note with its THREE arguments: `account.isLinked` first, so a delegated
-     * account (always linked) never shows a note that would tell it to go and turn on a setting
-     * that changes nothing for it.
      */
     @Test fun `the notifications toggle writes the shared account's own id and asks for all three`() {
         assertEquals(
@@ -193,18 +165,6 @@ class SharedAccountScreenTest {
 
     /**
      * SOURCE LINT over the TWO entries into the settings graph, read as whole statements.
-     *
-     * Why it exists: the graph never re-reads [StoredAccount.isShared] — it only ever sees a route
-     * string — so the decision has to be taken at both entries, and the second one is invisible to
-     * every executable test in this module. The drawer's deep link IS the start destination (the
-     * hub is not composed at all on that path), so `onOpenAccount` is never traversed there;
-     * wiring only the tap would send a shared mailbox's chip to the login editor, which is worse
-     * than the state this batch fixes.
-     *
-     * What it does NOT prove: nothing about what renders, nothing about the values passed at run
-     * time, nothing about the guard inside `navigateOnce`. It proves that the call is WRITTEN with
-     * THOSE arguments, and it breaks on innocent reformatting. Whole statements, never a
-     * substring: a `contains` is blind to an argument ADDED to a line.
      */
     @Test fun `both entries into the settings graph ask settingsRouteFor`() {
         assertEquals(
@@ -239,20 +199,6 @@ class SharedAccountScreenTest {
 
     /**
      * SOURCE LINT tying each ROUTE STRING to the composable that serves it, and to the argument it
-     * reads on the way — the one link in this batch that no executable test in this module can
-     * reach, and the one whose two failure modes are both silent.
-     *
-     * Swap the screen this route opens and the drawer's chip for a shared mailbox lands on the full
-     * login editor, password field included, whose save writes under [StoredAccount.loginKey] and
-     * overwrites the secret shared by every account grouped under that login. Rename the path
-     * argument by one word (`sharedAccount/{accountId}`) and `getString("id")` returns null,
-     * `.orEmpty()` makes it blank, the guard resolves to nothing: a blank screen with a back arrow.
-     * Both compile, and every other test in the repo stays green through either.
-     *
-     * Whole statements, never a substring, and the placeholder name is INSIDE the first pinned
-     * statement rather than in the marker: renaming it must fail on a diff, not on a missing marker.
-     * What this does NOT prove: nothing renders here, no argument is read at run time, and it breaks
-     * on innocent reformatting. It proves those calls are WRITTEN, with THOSE arguments.
      */
     @Test fun `the shared route opens the shared screen with the id it carries`() {
         assertEquals(
@@ -269,13 +215,6 @@ class SharedAccountScreenTest {
 
     /**
      * The BELT on the other route, pinned in BOTH branches (same reading, same limits as above):
-     * the condition is the SAME pure function the route strings are built from, never a second
-     * wording of it, and inverting it is exactly the mutation that sends a shared mailbox into the
-     * login editor while every other test in the repo stays green.
-     *
-     * Its own test rather than a second assertion next to the shared route's: JUnit stops at the
-     * first failing assertion, so a method holding both would have hidden whichever mutation landed
-     * second — which is how this pair was measured.
      */
     @Test fun `the account route keeps a shared mailbox off the login editor`() {
         assertEquals(
@@ -319,29 +258,6 @@ class SharedAccountScreenTest {
 
     /**
      * SOURCE LINT over the accounts list, read as whole statements: the list builds its rows with
-     * [StoredAccount.accountsScreenRows] and hands each row's OWN `underLogin` to the row's
-     * `indented` flag.
-     *
-     * Why it exists: `AccountsScreen` is a `@Composable` with a view model, so this module cannot
-     * invoke it; the ordering rule itself IS executed, by SharedAccountTest in core:data. What is
-     * invisible to every executable test here is that the screen ASKS that rule — filter the list
-     * in place again (`accounts.filter { !it.importPending }`) and every core:data test stays green
-     * while shared mailboxes lose their rows once more, which is the whole defect of this batch.
-     *
-     * It also pins the two values a DELEGATED row is drawn with, because `username` is the wrong
-     * answer for both and it is a plausible-looking one: a sub-account carries its LOGIN's address
-     * there (`StoredAccount.kt`, `AccountStore` copies it at discovery). `email = account.username`
-     * printed the login's own address under the shared mailbox's name — the same address twice on
-     * two consecutive rows — and `seed = account.username` handed the monogram of a colourless
-     * shared mailbox the LOGIN's seed, so the same mailbox came out one colour here and another in
-     * the drawer, which derives it from the label (`InboxScreen.kt`). Non-shared rows keep
-     * `username` on purpose: those colours are already on screen.
-     *
-     * What it does NOT prove: nothing about what renders, nothing about the indent actually being
-     * drawn, nothing about the tap. It proves those calls are WRITTEN with THOSE arguments, and it
-     * breaks on innocent reformatting. `indented = row.underLogin` is pinned as a whole statement
-     * for one reason: `indented = true` and `indented = false` are both a working screen with a
-     * silent lie in it, and a substring match on "indented" would accept either.
      */
     @Test fun `the accounts list draws the rows the ordering rule gives it`() {
         assertEquals(
@@ -363,23 +279,6 @@ class SharedAccountScreenTest {
 
     /**
      * SOURCE LINT over the INDENT ITSELF, in [AccountRow]'s own file — the other half of the lint
-     * above, which only pins that the screen PASSES `indented`.
-     *
-     * Why it exists: with the subtitle now saying "Shared account" rather than an address, the
-     * start padding is the only thing on screen tying a shared mailbox to the login above it, and
-     * it is invisible to every test this repo can run — no Robolectric, no Compose test. Flatten it
-     * (`start = 16.dp`) and the two rows read as unrelated accounts; SWAP the branches and the
-     * screen indents the logins under their own shared mailboxes, which is a confident lie. Both
-     * compile, and every other test in the repo stays green through either.
-     *
-     * Whole statements, never a substring: the condition AND both values live on one line, so a
-     * `contains` on "indented" or on "32.dp" would accept the swap. The `.padding(` call is pinned
-     * with it so the value cannot drift onto some other modifier.
-     *
-     * What it does NOT prove: NOTHING about the real rendering. No dp is measured here, no row is
-     * laid out, and a change of `AccountRow`'s Row for another container would not be seen. It
-     * proves that line is WRITTEN, with those two values and that condition, and it breaks on
-     * innocent reformatting.
      */
     @Test fun `a shared mailbox's row is drawn further from the left edge than its login`() {
         assertEquals(
@@ -393,8 +292,6 @@ class SharedAccountScreenTest {
 
     /**
      * The first [count] statements after [marker]: trimmed lines, comments and blanks dropped.
-     * Fails LOUDLY when the marker is not there exactly once, so renaming or duplicating a section
-     * cannot quietly turn either rule above into a no-op.
      */
     private fun statementsAfter(file: String, marker: String, count: Int): List<String> {
         val lines = source(file).lines()
@@ -408,8 +305,6 @@ class SharedAccountScreenTest {
 
     /**
      * The composable's own text: from its signature to the end of the file, so the absence lint
-     * reads what the SCREEN does, not what the pure helpers above it are allowed to do. Fails
-     * loudly when the signature is not there exactly once.
      */
     private fun screenBody(): String {
         val lines = source(SCREEN).lines()

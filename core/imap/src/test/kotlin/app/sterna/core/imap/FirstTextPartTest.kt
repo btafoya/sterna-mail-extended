@@ -7,16 +7,6 @@ import java.io.ByteArrayInputStream
 
 /**
  * WHICH SECTION a notification preview is about to read out of somebody's mailbox, decided from the
- * BODYSTRUCTURE the server already sent — executed, never restated.
- *
- * The structures below are written in the server's own syntax and parsed by the shipped
- * [ImapParser], so what the decision is handed here is the token tree it is handed in production.
- * A test that built the tree by hand would be free to build one no server sends.
- *
- * The rule under test is "the first text/… part", and the mutation it exists against is "the
- * first part": on a mail whose first part is a PDF or an inline image, that mutation puts base64 on
- * the lock screen, and on a `multipart/mixed` read at the top level it puts a `--boundary` line
- * there. Several cases below therefore lead with a NON-text part on purpose.
  */
 class FirstTextPartTest {
 
@@ -56,9 +46,6 @@ class FirstTextPartTest {
 
     /**
      * THE MUTATION CASE, and the one the app already answers elsewhere: `MimeParser.walk` calls a
-     * part with a filename or an `attachment` disposition a FILE. Reading it here as the message
-     * would put the contents of `notes.txt` in the notification, next to the sender who did not
-     * write it there.
      */
     @Test fun `a text part that is an attachment is not the message`() {
         assertEquals(
@@ -193,9 +180,6 @@ class FirstTextPartTest {
 
     /**
      * The wiring, end to end: the structure is asked for by every envelope fetch already, so the
-     * part must arrive ON the message without a second command. Nothing else in [ImapMessage] moves
-     * — the fields the lists and the cache read are asserted beside it, because "additive" is the
-     * claim that made this safe to add.
      */
     @Test fun `an envelope fetch carries the text part, with no further command`() {
         val server = FakeImapServer { tag, line ->

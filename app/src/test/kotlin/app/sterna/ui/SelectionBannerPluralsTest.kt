@@ -6,21 +6,6 @@ import java.io.File
 
 /**
  * RESOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
- * [TranslationParityTest]: it reads the string resources as text, and a JVM test cannot call
- * `getQuantityString` to see the sentence the user gets.
- *
- * It guards the one thing that would quietly reinstate the defect these plurals were added for
- * (a bulk delete of three messages saying "Message deleted"): a plural FORM with no number in it.
- * `one` is the trap. In English it covers exactly 1, so "Message deleted" reads fine there and a
- * translator copies the shape — but the CLDR `one` category of Russian and Polish also covers 21,
- * 31 and 101, so a form without `%1${'$'}d` prints "Письмо удалено" for twenty-one deleted messages.
- *
- * So every `<item>` of every `status_selection_*` plural, in all nine languages, carries `%1${'$'}d`.
- *
- * The CATEGORIES are checked here too, and nowhere else: [TranslationParityTest] compares block
- * NAMES, so it never opens a `<plurals>` — drop `<item quantity="few">` from `values-pl` and its
- * whole suite stays green while Android falls back to `other` and prints
- * "2 wiadomości usuniętych" for two.
  */
 class SelectionBannerPluralsTest {
 
@@ -80,8 +65,6 @@ class SelectionBannerPluralsTest {
 
         /**
          * The CLDR categories each language must carry, following the same reading of them as the
-         * six plurals already shipped (commit 32198222). A language absent from this map is not
-         * checked — the map is the promise, not the file listing.
          */
         val CATEGORIES = mapOf(
             "values" to listOf("one", "other"),

@@ -10,8 +10,6 @@ import java.time.ZoneOffset
 
 /**
  * The `UID SEARCH` key list is the whole IMAP advanced search: a wrong space, a missing quote or
- * a locale-dependent month name and the server answers BAD (or, worse, answers something else).
- * There is no IMAP server in the bench, so these assertions are the only proof before the device.
  */
 class ImapSearchCommandTest {
 
@@ -51,8 +49,6 @@ class ImapSearchCommandTest {
 
     /**
      * `FLAGGED` is a standard `SEARCH` key (RFC 3501 §6.4.4) taking no argument: the SERVER
-     * answers it. This is the whole reason the flagged filter is not built like the attachment
-     * one — see the walk test for the client-side consequence.
      */
     @Test
     fun `flagged alone becomes a bare FLAGGED key`() {
@@ -99,11 +95,6 @@ class ImapSearchCommandTest {
 
     /**
      * The witness for the key this builder no longer has. A `HEADER "Message-ID"` key was how a
-     * draft kept on the phone used to be looked for, and Stalwart answers every shape of it with an
-     * empty `* SEARCH` while answering `HEADER "Subject"` perfectly — a "no" that cannot be told
-     * apart from "not there", so a second copy of the same text was appended. The question moved to
-     * `UID SEARCH ALL` plus an envelope read; this states that no criteria combination can put a
-     * `HEADER` key back on the wire by accident.
      */
     @Test
     fun `no combination of criteria emits a HEADER key`() {

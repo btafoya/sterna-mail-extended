@@ -6,36 +6,11 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
- * [RecentMailWidgetWiringLintTest] next door, and it exists for exactly the same reason: there is
- * no Robolectric in this repository, so a `RemoteViews` cannot be built, let alone executed, by
- * this suite. [WidgetThemeTest] EXECUTES the two rules that decide the colours — `widgetIsDark` and
- * `widgetPalette` — and proves them right by handing them their inputs itself. That says nothing at
- * all about whether the shipped cell goes and asks for them.
- *
- * That gap is the whole defect this pane closes: the counter's colours used to live in
- * `res/values` + `res/values-night`, so the cell followed the SYSTEM's day/night mode and ignored
- * the app's own theme setting and its OLED option. Replacing any line below with a constant puts
- * that back, and no other test in this module would notice.
- *
- * WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
- * LENGTHENS the line. The price is that reformatting a pinned call reddens this test — loud, and
- * one line to fix.
  */
 class UnreadWidgetPaletteWiringLintTest {
 
     /**
      * `setBackgroundResource`, NEVER `setBackgroundColor`.
-     *
-     * `RemoteViews.setInt(id, "setBackgroundColor", …)` calls `View.setBackgroundColor(int)`, which
-     * REPLACES the shape drawable with a flat fill: the cell comes out SQUARE, a rectangle of solid
-     * colour sitting among rounded neighbours, and every corner rule in this package stays green
-     * while it happens. That is why the background travels as one of three pre-built drawables and
-     * why [WidgetThemeReader.background] is the only thing that names them.
-     *
-     * The two `setTextColor` lines are the other half: without them the figure and the label keep
-     * the colours the layout froze into them at compile time, so a cell drawn on the app's dark
-     * surface would carry the light theme's near-black text on it — unreadable, and only ever
-     * visible on a home screen.
      */
     @Test fun `the drawn cell is painted from the palette, and keeps its rounded corner`() {
         assertEquals(
@@ -78,13 +53,6 @@ class UnreadWidgetPaletteWiringLintTest {
 
     /**
      * The three settings are READ, every draw, and the wallpaper scheme stays CONDITIONED on the
-     * one that opts into it.
-     *
-     * Each is one line and each is trivially replaceable by a constant. `val pureBlack = false` is
-     * the OLED setting ceasing to exist for the home screen while the settings screen goes on
-     * showing it switched on. And dropping the `dynamicColor &&` guard is the defect this pane
-     * fixes, turned inside out: the cell would follow Material You on a reader whose app does not,
-     * because Material You here is opt-in and OFF by default.
      */
     @Test fun `the cell's colours are read from the app's own settings, never assumed`() {
         assertEquals(
@@ -133,23 +101,6 @@ class UnreadWidgetPaletteWiringLintTest {
 
     /**
      * THE READ IS BOUNDED, AND IT MAY ANSWER "NOTHING" — the two things this reader buys, and
-     * both of them are one line away from being lost to a refactor.
-     *
-     * 1. BOUNDED, with [kotlinx.coroutines.withTimeoutOrNull] and NEVER `withTimeout`. Three
-     *    DataStore `first()` calls that answer late used to be unbounded on two paths that must
-     *    not stretch: `UnreadWidgetProvider.onUpdate` bounds its COUNT and then calls `draw`, so
-     *    this read fell outside the bound and inside the `goAsync()` window, whose `PendingResult`
-     *    never finishing gets the process killed by the system; and `UnreadWidgetDraw.refresh`
-     *    runs at the tail of `FetchAndNotify.run`, whose `runCatching { … }.rethrowIfCancelled()`
-     *    would turn a `withTimeout`'s `CancellationException` into a cancelled DELIVERY pass.
-     * 2. NULLABLE, on TWO paths and for one reason: nothing is known, or nothing needs saying.
-     *    The timeout's null is the honest fallback (the behaviour before this pane: the
-     *    resources); [widgetFollowsResources]'s null is the stronger claim, that the palette and
-     *    the resources would draw the same pixels, so posting nothing costs no colour and keeps
-     *    the cell following the system's dusk switch by itself.
-     *
-     * `withTimeout` must appear NOWHERE in this file. It is eight characters from the right
-     * call and its failure mode is a dead process or a mail pass cancelled — neither visible here.
      */
     @Test fun `the palette read is bounded, cancels nothing, and is allowed to answer nothing`() {
         val body = body(READER, "suspend fun colours(app: Application)")
@@ -221,12 +172,6 @@ class UnreadWidgetPaletteWiringLintTest {
 
     /**
      * The draw READS the palette and HANDS it to the render — the join between the two rules above.
-     *
-     * Both of them can be perfectly correct while nothing calls them: `render` would go on drawing
-     * a cell whose colours come from the layout's compile-time resources, which is precisely the
-     * state this pane found the widget in. And the read belongs HERE, not inside `render`:
-     * `render` is not suspending and never read anything, so a settings read pushed down into it
-     * would have to block a binder thread the launcher is waiting on.
      */
     @Test fun `the draw reads the palette and hands it to the render`() {
         assertEquals(
@@ -260,18 +205,6 @@ class UnreadWidgetPaletteWiringLintTest {
 
     /**
      * THE ENLARGED LAYOUT IS PAINTED FROM THE SAME PALETTE, and this pane is the only thing
-     * that says so.
-     *
-     * `@layout/widget_unread_accounts` and its rows name `@color/widget_row_primary` and
-     * `@color/widget_unread_count` — the very resources #117 was about. The map form hands the
-     * launcher TWO layouts for one cell, so a palette posted on the small one alone is a cell that
-     * CHANGES THEME as the user drags it larger: the app forced to light, the small cell obeying
-     * and the enlarged one going dark with the phone. Painting one and not the other is worse than
-     * painting neither.
-     *
-     * The rows are painted inside the same `if (palette != null)` decision as the container. A
-     * row painted while the container is left to the resources is this theme's text on the other
-     * theme's surface, and it is only ever visible on a home screen.
      */
     @Test fun `the enlarged cell is painted from the same palette as the small one`() {
         assertEquals(
@@ -334,9 +267,6 @@ class UnreadWidgetPaletteWiringLintTest {
 
         /**
          * The signature, pinned as one string because THREE things live on it and each is a
-         * separate regression: the return type is NULLABLE (null = the read never answered, so
-         * nothing at all is known), the read is BOUNDED, and it is bounded with
-         * `withTimeoutOrNull` rather than `withTimeout`.
          */
         const val SIGNATURE =
             "suspend fun colours(app: Application): WidgetColours? = " +
@@ -344,10 +274,6 @@ class UnreadWidgetPaletteWiringLintTest {
 
         /**
          * The second of the two null paths: the app does not diverge from the system.
-         *
-         * It decides the PALETTE FIELD and no longer short-circuits the function. As a
-         * `return@withTimeoutOrNull null` it also cancelled the badge tones, which have no
-         * compiled resource to fall back on — and this is the DEFAULT row of the three settings.
          */
         const val FOLLOWS_RESOURCES =
             "palette = if (widgetFollowsResources(themeMode, pureBlack, dynamicColor)) null"

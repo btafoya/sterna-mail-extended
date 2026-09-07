@@ -8,18 +8,6 @@ import java.io.File
 
 /**
  * SOURCE LINT for the plug, with the value it carries EXECUTED beside it. `InboxViewModel` is an
- * `AndroidViewModel` and this module has neither Robolectric nor instrumented tests, so the one
- * line that turns the setting into a request cannot be run here — only read.
- *
- * Why a lint at all when [SyncWindow] is pinned in `core:data`: **a test that pins a constant
- * does not prove anything reads it.** `refreshFolder` is where the account's window becomes the
- * `limit` of a refresh, and a number written in its place — 1 000, 50, `PAGE_SIZE` — would leave
- * every constant test green while "Everything" quietly meant something else again. That is the
- * mutation this file exists for, and it is the shape the old defect had.
- *
- * The body is pinned WHOLE, not by presence of lines: an inserted
- * `val limit = minOf(window.limit, 1000)` reads like prudence and leaves every other line where it
- * was.
  */
 class SyncWindowIsWhatTheRefreshSendsTest {
 

@@ -14,23 +14,6 @@ import kotlin.math.abs
 
 /**
  * The OLED scheme: [pulledToBlack] takes a dark [ColorScheme] and puts the page itself on true
- * black, while the raised surfaces — dialogs, menus, app bars, sheets, the drawer, the swipe
- * revealer — are *compressed* toward black rather than flattened onto it.
- *
- * That distinction is the whole file. Material 3 draws no border on an [androidx.compose.material3.AlertDialog]:
- * its edge exists only because `surfaceContainerHigh` is lighter than what is behind it. Setting the
- * six container roles to [Color.Black] would make ~42 call sites (25 dialogs, 13 app bars, 10 menus)
- * dissolve into the background, and would have to be repaired by hand, one border at a time. So the
- * tests below never ask "is it dark enough"; they ask "is it still *distinguishable*".
- *
- * Distances are measured as the **largest per-channel gap on 0-255**, never as a WCAG contrast
- * ratio: near black the `+0.05` in the WCAG formula dominates and every pair of near-black colours
- * reports ~1.1:1 whatever the compression, so a threshold built on it would pass for any factor,
- * including a full flattening. The thresholds here are hand-picked absolute gaps.
- *
- * Pinned hex values are written as literals. The compression is deliberately *not* recomputed here
- * with the same `lerp` expression the production code uses: a test that re-derives the rule it is
- * checking passes just as happily on an inverted rule.
  */
 class PulledToBlackTest {
 
@@ -39,8 +22,6 @@ class PulledToBlackTest {
 
     /**
      * A dark scheme that shares nothing with [PelagicColorScheme] — it stands in for
-     * `dynamicDarkColorScheme(context)`, which is built from the wallpaper and is a different
-     * object with different greys on every phone.
      */
     private val schemaTiers: ColorScheme = darkColorScheme(
         background = Color(0xFF101010),
@@ -121,13 +102,6 @@ class PulledToBlackTest {
 
     /**
      * The yardstick, and it is the app's own: the weakest edge it already ships in the ordinary dark
-     * theme — a `DropdownMenu` (`surfaceContainer`) over the dark page. Nothing this transformation
-     * produces may sit closer to its background than that, or the OLED setting would be handing the
-     * user something *worse* than the theme they left.
-     *
-     * Measured in emitted light, never in per-channel gaps: sRGB is linear below 8/255, so a gap
-     * of 15 channels near black is eight times less light than the same 15 mid-scale. A per-channel
-     * threshold flatters the bottom of the ladder — exactly where this transformation lands.
      */
     private val plancher: Float =
         pelagic.surfaceContainer.luminance() - pelagic.surface.luminance()
@@ -158,8 +132,6 @@ class PulledToBlackTest {
 
     /**
      * The other side of the bracket. The rule above forbids compressing too far; nothing in it
-     * forbids compressing by nothing at all, which would make the whole setting a no-op on every
-     * raised surface while still claiming to darken them.
      */
     @Test
     fun `les conteneurs sont reellement assombris`() {
@@ -191,10 +163,6 @@ class PulledToBlackTest {
 
     /**
      * Every role a [ColorScheme] carries, read off its own `toString`. Enumerating the ones that
-     * must not move is what a reader writes and what a reader forgets: a list of eleven leaves the
-     * other thirty-odd unguarded, and slipping `onSurfaceVariant` into the compression would take
-     * secondary text from 10:1 down to 2.4:1 on black with nothing to notice it. Asking the scheme
-     * itself closes the set.
      */
     private fun rolesOf(s: ColorScheme): Map<String, String> =
         Regex("""(\w+)=(Color\([^)]*\))""").findAll(s.toString())
@@ -292,13 +260,6 @@ class PulledToBlackTest {
 
     /**
      * SOURCE RULE, and the only thing that can see the defect the two tests above cannot.
-     *
-     * They call [applyPureBlack] directly, so they prove the function accepts any scheme — which its
-     * signature already said. What decides whether Material You is covered is *where the call sits*:
-     * on the result of the whole `when`, or inside its brand-palette branch. Move it into the branch
-     * and the wallpaper scheme stops being compressed, silently, with every test still green. Nothing
-     * in this repo executes a composable, so the position is pinned by reading the line, WHOLE — a
-     * substring check is blind to anything appended to it.
      */
     @Test
     fun `la compression est posee sur le resultat du when, pas dans une de ses branches`() {

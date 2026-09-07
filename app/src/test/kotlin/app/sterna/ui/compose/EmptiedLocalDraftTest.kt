@@ -14,16 +14,6 @@ import org.junit.Test
 
 /**
  * Emptying a draft the phone kept for a server draft it could not replace yet (#95 × #69), as the
- * two decisions RUN — not as a lint watching a call happen.
- *
- * The defect: emptying such a draft consumed the local row and nothing else. The row was the only
- * thing naming the server draft, and while it existed that draft was masked out of Drafts; taking
- * it away lifted the mask, and the version from BEFORE the edit came back at the top of Drafts, for
- * good.
- *
- * Nothing here recomputes the rule to choose what it replays: every case hands fixed column
- * values in and pins the VALUES that come out — the id, the folder and the numbering, which are
- * exactly the three things whose absence makes a destroy do nothing in silence.
  */
 class EmptiedLocalDraftTest {
 
@@ -293,11 +283,6 @@ class EmptiedLocalDraftTest {
     @Test fun `the back gesture during the destroy does not leave the row behind`() {
         // The twin's shelter, for the twin's reason (`commitThenConsumeLocalDraft`), and this
         // volet is what makes the hole reachable by ONE tap: the delete runs in viewModelScope, and
-        // that scope dies with the NavBackStackEntry the moment the screen is popped — the back
-        // gesture, in the second the destroy is being made durable. Cancelled between the destroy
-        // and the consume, the server copy is destroyed AND the local row survives: the next launch
-        // reverts it to PENDING and the upload worker files the deleted draft in the server's
-        // Drafts, brand new, for good.
         val done = mutableListOf<String>()
         runBlocking {
             val screen = Job()
@@ -453,8 +438,6 @@ class EmptiedLocalDraftTest {
 
     /**
      * The "From" picker covers every account and the local row belongs to exactly one. These four
-     * cases EXECUTE the choice; nothing here recomputes it — each hands two fixed account ids and a
-     * store that answers for whichever it is asked about, and pins WHAT came back and WHO was asked.
      */
     @Test fun `the destroy runs under the account the row was leased under, not the one written as`() {
         val asked = mutableListOf<String>()

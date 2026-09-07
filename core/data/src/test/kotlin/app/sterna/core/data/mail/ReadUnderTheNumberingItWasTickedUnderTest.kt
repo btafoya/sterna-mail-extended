@@ -15,29 +15,11 @@ import org.junit.Test
 
 /**
  * The READ half of the numbering guard, RUN against a real [ImapMailService] on a scripted socket
- * — the twin of [MoveNeedsTheNumberingStatedNowTest], which does the same for the move (#99, #189).
- *
- * THE SITUATION IT REPRODUCES, and it is the whole point of the volet. The folder is renumbered
- * while the "move to another account" loop is running. The FIRST iteration meets the renumbering,
- * `onMailbox` invalidates, and the folder's RECORDED number is realigned to the server's. From
- * then on the record and the server agree — so every path that re-reads the record opposes the new
- * number to itself, concludes SAME, and sails through. The only fact that still disagrees is the
- * number each row carried WHEN IT WAS TICKED, and that number has to travel all the way to the
- * wire or it decides nothing.
- *
- * So every case below is scripted with the RECORD ALREADY REALIGNED (77) and the server stating
- * that same 77. A read that opposes the record cannot fail here; only one that opposes the stamp
- * it was handed can. That is what makes this a test of the ARGUMENT and not of the call.
  */
 class ReadUnderTheNumberingItWasTickedUnderTest {
 
     /**
      * NOT ONE OCTET. The refusal has to land here, on the read, because [crossAccountMove] runs
-     * the read BEFORE the write on the other account: refused here the move is a `Failed` and
-     * nothing at all was written. Refused only at the Trash — which is what happens when the read
-     * opposes nothing — the copy is already appended on B under an APPEND that is never replayed,
-     * and the user is left with a permanent duplicate of a message she never pointed at, with no
-     * Undo on this path.
      */
     @Test fun `the numbering of the tick is what is opposed, and a renumbered folder is not read`() {
         val store = RememberedNumbering()
@@ -120,22 +102,6 @@ class ReadUnderTheNumberingItWasTickedUnderTest {
 
     /**
      * And a read that carries NOTHING keeps the behaviour every ordinary reader depends on: the
-     * fallback on the folder's recorded number, inside [ImapMailService] `onMailbox`.
-     *
-     * This is why the stamp is carried as `Long?` DOWN HERE and not made mandatory. Opening a
-     * message, viewing its headers, saving it as `.eml` and retrying an OpenPGP interaction all
-     * read the source with nothing frozen — a row cached before the numbering column existed, or
-     * one evicted and re-cached, carries no stamp at all — and refusing them would be "this app can
-     * no longer show mail".
-     *
-     * AND A "FROZEN BUT ABSENT" NEVER ARRIVES HERE (#189). Since the move between accounts
-     * carries a `FrozenNumbering`, `MailRepository.fetchRawSource` refuses `Frozen(null)` upstream
-     * of this layer and hands `ImapMailService` a number only when there is one to hand. So the
-     * `null` this test drives is exclusively "no tick froze anything", the fallback below is
-     * exclusively that case's, and this test no longer certifies the defect it used to sit beside.
-     * `ImapMailService` and `core/imap` are unchanged: the refusal is posted before them, never
-     * inside `onMailbox`, where a throw would be replayed by `withSession` and confused with
-     * `ImapUidValidityChanged` — which invalidates the folder.
      */
     @Test fun `a read that freezes nothing falls back on the record, exactly as before`() {
         val store = RememberedNumbering()

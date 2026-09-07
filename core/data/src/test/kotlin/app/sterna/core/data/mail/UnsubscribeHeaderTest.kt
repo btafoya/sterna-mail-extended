@@ -6,13 +6,6 @@ import org.junit.Test
 
 /**
  * Every rule of [UnsubscribeHeader.parse], one at a time, plus the witness for each — because
- * every rule here decides something the user cannot see: whether a request leaves the phone at
- * all, and if so, of what kind.
- *
- * The three outcomes are NOT interchangeable. `oneClickUrl` sends one POST and loads nothing;
- * `pageUrl` opens a browser and hands a stranger an IP address; `mailto` writes a mail. A parser
- * that quietly promoted the second into the first would turn the feature into the tracking page
- * load it exists to avoid — and would look perfectly fine on screen.
  */
 class UnsubscribeHeaderTest {
 
@@ -199,9 +192,6 @@ class UnsubscribeHeaderTest {
 
     /**
      * `<https://>` parses to a scheme and nothing else. It used to be offered like any other URL,
-     * and the confirmation — the one place the app says who is about to be contacted — came out as
-     * "Sterna will send an unsubscribe request to ." A gesture whose destination we cannot state
-     * is not a gesture we may propose: no banner, no menu entry, no dialog.
      */
     @Test fun `an https uri with no host is not offered at all`() {
         listOf("<https://>", "<https:///u/abc>", "<https://?token=xyz>").forEach { header ->
@@ -224,8 +214,6 @@ class UnsubscribeHeaderTest {
 
     /**
      * Only FOLDING whitespace goes. A `mailto:` body is free text the sender wrote, spaces
-     * included; stripping every blank turned `?body=please remove me` into `pleaseremoveme` and
-     * sent a list a word it does not recognise — silently, since the mail leaves all the same.
      */
     @Test fun `a space inside a mailto parameter survives`() {
         val options = UnsubscribeHeader.parse(

@@ -5,38 +5,12 @@ import org.junit.Test
 
 /**
  * WHAT THIS FILE IS WORTH. It proves the SHAPE of the two `AccountsViewModel` methods behind the
- * OpenPGP-app row, by reading the shipped source and comparing whole trimmed lines. It is not a
- * behaviour test: an `AndroidViewModel` needs an `Application`, a real `AccountStore` (Context +
- * Keystore) and a DataStore, and there is no Robolectric here.
- *
- * The decisions themselves ARE executed, next door in `app.sterna.pgp.PgpProviderChoiceTest`:
- * `PgpProviders.resolve` says which provider is in use, `PgpProviders.switchErasesKeys` says
- * whether picking one destroys the accounts' signing keys. This file only pins that the view model
- * calls them, with those arguments, in that order — which is the half no execution here can see,
- * and where three mutations used to pass unnoticed:
- *
- *  1. dropping `settings.setPgpProvider(packageName)`: the choice is never persisted (it holds
- *     until the screen is left) and the keys are cleared anyway.
- *  2. `_pgpProviders.value = installed.take(1)`: the row never appears on a phone with two
- *     providers, so the whole point of the change is gone.
- *  3. reading what is in use from `_pgpProviderInUse.value` (screen state) instead of from
- *     storage: a tap landing before the screen resolved anything reads "nothing in use" and wipes
- *     every account's signing key for a choice that changed nothing.
- *
- * Whole lines, as CONTIGUOUS blocks: a `contains` check is blind to anything appended to a line,
- * and a per-line check is blind to a statement slipped between two — which is all it takes to
- * publish the provider list before the resolution that must accompany it.
  */
 class PgpProviderChoiceWiringTest {
 
     @Test fun `discovery runs off the main thread and publishes both values together`() {
         // The two assignments are consecutive and come after every suspension in the method.
         // Move `_pgpProviders.value = installed` above the resolution and the row is drawn, with
-        // two providers to choose from, while nothing is in use yet.
-        // The last line pins the provider in use when nothing is stored yet, and it is written
-        // through `settings.` on purpose: the view model's OWN setPgpProvider would run the
-        // switch-of-keyring path and clear every account's signing key for a provider that has
-        // not changed. It also comes AFTER the two assignments, so pinning cannot reorder them.
         assertEquals(
             "refreshPgpAvailable changed shape. Either the package-manager query left " +
                 "Dispatchers.IO (it is a binder round trip, and viewModelScope is the main " +

@@ -14,25 +14,6 @@ import java.sql.SQLException
 
 /**
  * **v23 → v24** ([MIGRATION_23_24]): the `local_drafts` table (#95), where a draft saved without a
- * network waits for one.
- *
- * Built like [ReadReceiptMigrationSqlTest]: the REAL [androidx.room.migration.Migration] objects are
- * executed against a real SQLite engine (JDBC, in memory) through a tiny [SupportSQLiteDatabase]
- * proxy, from the PUBLISHED v15 schema chained up to a real v23 — never from a copy of the
- * statements, so this test cannot drift from the code that ships.
- *
- * What is at stake is NOT the new table, which is empty and which nobody would miss on the day of
- * the upgrade. It is the two tables that already hold UNSENT MAIL. `SternaDatabase` ends its builder
- * with `fallbackToDestructiveMigration()`: a step that is wrong, or merely absent from
- * [SternaDatabase.ALL_MIGRATIONS], has Room drop EVERY table — the outbox and the scheduled sends
- * with it. So the seed holds a queued outbox row and a scheduled send, and every table's row count
- * is compared before and after.
- *
- * The shape of the new table is asserted twice over, once by reading `PRAGMA table_info` and once by
- * EXECUTING the constraints it declares (two accounts holding the same draft id; a draft with no
- * body). Room's `TableInfo` comparison, which is what actually refuses a wrong shape, only runs on a
- * device — a JVM test that merely read the pragma would be pinning a description of the table
- * instead of what the table does.
  */
 class LocalDraftsMigrationSqlTest {
     private lateinit var db: Connection
@@ -77,11 +58,6 @@ class LocalDraftsMigrationSqlTest {
 
     /**
      * Every table a v23 database holds rows in, so "nothing was lost" can be measured, not hoped.
-     *
-     * `local_drafts` is deliberately NOT here: at v23 it does not exist, and this list is what a
-     * row count is taken over on both sides of the step. The NEXT migration's test — copied from
-     * this one, as this one was copied from [ReadReceiptMigrationSqlTest] — must add it, and seed a
-     * row in it, or it stops proving anything about the drafts a user is holding.
      */
     private val allTables = listOf(
         "emails", "email_bodies", "snoozed", "mailboxes", "outbox", "scheduled_sends",
@@ -168,8 +144,6 @@ class LocalDraftsMigrationSqlTest {
 
     /**
      * A REAL v23 database: the published v15 schema, populated, then carried forward by the very
-     * migration objects that ship — 15→16 … 22→23 — and populated again in the tables those
-     * migrations create.
      */
     private fun seedV23() {
         seedPublishedV15()
@@ -208,9 +182,6 @@ class LocalDraftsMigrationSqlTest {
 
     /**
      * The DECLARED shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`.
-     * Room's `TableInfo.Column.equals` compares the affinity and the nullability at open time, so a
-     * column of the right name and the wrong type fails `validateMigration` on every launch, and
-     * the user's only way out is a reinstall — which takes the outbox with it.
      */
     private fun columnShapes(table: String): Map<String, Triple<String, Int, String?>> {
         val shapes = mutableMapOf<String, Triple<String, Int, String?>>()
@@ -438,12 +409,6 @@ class LocalDraftsMigrationSqlTest {
 
     /**
      * Chains the migrations Room is really given ([SternaDatabase.ALL_MIGRATIONS]) over a published
-     * install, and looks at where they arrive.
-     *
-     * A migration object that works perfectly and is absent from that array never runs: Room finds
-     * no path, `fallbackToDestructiveMigration()` takes over and `dropAllTables()` empties the
-     * database — the outbox and the scheduled sends with it. So the step objects are taken FROM the
-     * registered array, in ascending order, and the chain must be unbroken.
      */
     @Test fun theRegisteredMigrationsCarryAPublishedInstallAllTheWayToTheLocalDraftsTable() {
         seedPublishedV15()

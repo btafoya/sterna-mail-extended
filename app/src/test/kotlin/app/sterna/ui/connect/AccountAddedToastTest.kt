@@ -10,22 +10,11 @@ import java.io.File
 
 /**
  * EXECUTES the sentence an add ends on, it does not read the routes that show it.
- *
- * Adding an account that is already installed no longer mints a second one: the store refreshes
- * the record it finds and hands its id back. What the reader sees of that had to change too — two
- * routes said "Account added" over an account nobody added, four said nothing at all — and WHICH
- * sentence is [accountAddedToast]'s decision, taken out of the six routes on purpose: none of them
- * can be built in this module (an Application, a container, a repository), so a branch written
- * inside one is held by nothing and its two resources could be swapped in silence.
- *
- * Every expectation below is a literal pair written by hand; nothing here re-derives the rule.
  */
 class AccountAddedToastTest {
 
     /**
      * The witness this whole file rests on. If the two resource ids were the same number — the
-     * shape a unit test takes when it runs against defaulted resources — every assertion below
-     * would pass whatever the function did, including the version that never says "already there".
      */
     @Test fun `the two sentences are different resources, or nothing here can fail`() {
         assertNotEquals(
@@ -49,8 +38,6 @@ class AccountAddedToastTest {
 
     /**
      * The same, with the OTHER resource: the argument is what is pinned, not "some string". A body
-     * that always answered `R.string.connect_account_added` on a create would satisfy the test
-     * above and put "Account added" in front of an Outlook sign-in.
      */
     @Test fun `the sentence a create gets is the one the route passed in`() {
         val chosen: Int? = accountAddedToast(created = true, createdRes = R.string.connect_outlook_added)
@@ -84,8 +71,6 @@ class AccountAddedToastTest {
 
     /**
      * And on the silent routes too. This is the case that was invisible: the sign-in came back,
-     * the screen navigated on, and nothing on it said that the address typed was already installed
-     * — so the reader repeats the add, or goes looking for the second account.
      */
     @Test fun `a re-add speaks even on a route that says nothing when it creates`() {
         val chosen: Int? = accountAddedToast(created = false, createdRes = null)
@@ -100,11 +85,6 @@ class AccountAddedToastTest {
 
 /**
  * RESOURCE LINT — the sentence exists in the nine languages the app ships, and carries something.
- * Same instrument and same idiom as [app.sterna.ui.PendingDeletionLabelTest]: it reads the XML as
- * text and proves nothing about display.
- *
- * It does not judge the translations, nor that any screen shows them; it only refuses the state
- * where a re-add in Polish or Russian resolves to nothing and the reader is told nothing again.
  */
 class AccountRefreshedStringTest {
 

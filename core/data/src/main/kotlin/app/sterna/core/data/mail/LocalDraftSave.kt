@@ -23,8 +23,6 @@ internal data class LocalDraftTarget(val id: String, val existing: LocalDraftEnt
 
 /**
  * Found by both keys: a [LOCAL_DRAFT_ID_PREFIX] id re-saves onto its own row, a server id is looked
- * up by `replacesEmailId` rather than minting an extra row, APPEND and destroy per save. Both
- * lookups are account-scoped by their callers (#31): ids collide between accounts of one server.
  */
 internal suspend fun localDraftTarget(
     replacesEmailId: String?,
@@ -49,8 +47,6 @@ internal fun serverDraftReplacedBy(replacesEmailId: String?): String? =
 
 /**
  * A fresh `Message-ID` every save, whatever [existing] carries: it names the version of the text, and
- * a name shared with v1 makes the deferred upload of v2 find v1 in Drafts, skip the APPEND and
- * consume the row, leaving v2 nowhere. [existing] is taken and not read on purpose.
  */
 internal fun localDraftMessageId(
     @Suppress("UNUSED_PARAMETER") existing: LocalDraftEntity?,
@@ -74,9 +70,6 @@ internal suspend fun localDraftUidValidity(
 
 /**
  * A body the composer says it lost never writes over one already stored: a composer back from an
- * activity recreation still lights Save, and the empty body it carries would be a silent, definitive
- * deletion. The guard arms on [composerBodyWasLost] alone, never on the row's `bodyIsLossy`, true
- * for every server draft reopened with HTML (#63) and so refusing to empty one by hand, in silence.
  */
 internal fun localDraftBodyToWrite(
     body: String,
@@ -122,8 +115,6 @@ internal fun localDraftHtmlToWrite(
 
 /**
  * [existing]'s id and creation time survive; its `Message-ID` does not (see [localDraftMessageId]).
- * A malformed address is refused here, before the row exists: left to the upload instead,
- * `saveDraftLocalFirst`'s catch would read a typing mistake as a network outage (#95).
  */
 @Suppress("LongParameterList")
 internal fun localDraftRow(
@@ -192,9 +183,6 @@ internal fun localDraftAddresses(column: String?): List<String> =
 
 /**
  * Built from the row and not from the composer's arguments, so the `Message-ID` on the wire cannot
- * be dropped at a call site. Every address token goes through [asGroupWhenItCannotBeAnAddrSpec]
- * first and the CRLF check runs on the result. JMAP has no equivalent — the server mints the
- * `Message-ID`, so a JMAP re-upload cannot be de-duplicated by header. Stated, not fixed.
  */
 internal fun localDraftOutgoing(
     row: LocalDraftEntity,
@@ -226,9 +214,6 @@ internal fun localDraftOutgoing(
 
 /**
  * A token that cannot be an `addr-spec` goes out as RFC 5322 group syntax naming nobody, so
- * `undisclosed-recipients` becomes `undisclosed-recipients:;`. It exists because the bare atom comes
- * back as `cc = NIL`, the second open reads "addressing proved empty", and the save expunges the copy
- * that held the header. Not `isValidEmail`, which rejects the valid `a@b` and would rewrite it away.
  */
 private fun asGroupWhenItCannotBeAnAddrSpec(token: String): String {
     val name = token.removeSuffix(":")
@@ -245,8 +230,6 @@ const val LOCAL_DRAFT_FILES_DIR: String = "local-drafts"
 
 /**
  * Refuses rather than shortens (#70): a part whose bytes cannot be read throws, where staging fewer
- * writes a row a later upload sends amputated, silently, weeks on. Its own directory, not the
- * outbox's: an outbox item's files die with the send, a draft's wait as long as the draft.
  */
 internal fun stageLocalDraftAttachments(dir: File, attachments: List<EmailBodyPart>): List<OutboxAttachment> {
     if (attachments.isEmpty()) return emptyList()
@@ -278,9 +261,6 @@ internal fun stageLocalDraftAttachments(dir: File, attachments: List<EmailBodyPa
 
 /**
  * The text at once, and nothing of [existing] taken away. A first save goes down in
- * [LocalDraftState.STAGING] saying "[]", which every reader of the queue skips, so a kill before the
- * files are copied uploads nothing amputated. A re-save keeps the descriptors and state of the row
- * it lands on — copied over with "[]", a kill there loses the files it was leaving with.
  */
 internal fun localDraftStagingRow(row: LocalDraftEntity, existing: LocalDraftEntity?): LocalDraftEntity =
     if (existing == null) {
@@ -291,13 +271,6 @@ internal fun localDraftStagingRow(row: LocalDraftEntity, existing: LocalDraftEnt
 
 /**
  * The order is the whole fix: [upsert] through [localDraftStagingRow], [stage], [upsert] again
- * describing the staged files in [LocalDraftState.PENDING] — uploadable at that instant and not
- * before — then [upload], and only on success [discard]; on failure [schedule] and [record].
- *
- * Only a save that created its own row rolls back: [discard] is `deleteById` plus the per-draft
- * directory, so run unconditionally it deleted an earlier save's text and bytes whenever Android
- * evicted `cacheDir`. An upload failure is swallowed into [DraftSaveOutcome.KEPT_ON_DEVICE] and
- * nothing on that path calls `finishDraftSave`, so the replaced draft stays intact.
  */
 @Suppress("LongParameterList")
 internal suspend fun saveDraftLocalFirst(

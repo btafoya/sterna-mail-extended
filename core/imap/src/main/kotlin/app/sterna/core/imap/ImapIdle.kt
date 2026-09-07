@@ -4,10 +4,6 @@ import java.io.Closeable
 
 /**
  * Holds an IMAP connection in IDLE on a mailbox to push new-mail notifications.
- * Runs its own daemon thread because IDLE blocks. It refreshes IDLE within the
- * RFC 2177 ~29-minute server limit, calls [onChanged] when mail arrives, and calls
- * [onClosed] once if the connection drops unexpectedly (so the owner can reconnect).
- * [close] tears the connection down without calling [onClosed].
  */
 class ImapIdleConnection(
     private val client: ImapClient,

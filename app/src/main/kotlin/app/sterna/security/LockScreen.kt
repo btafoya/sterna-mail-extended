@@ -44,8 +44,6 @@ fun canAuthenticate(context: Context): Boolean =
 
 /**
  * Full-screen lock shown over the app while [AppLock] reports locked. Prompts the
- * device biometric (with PIN/pattern/password fallback) on appearance; a button
- * lets the user retry if they dismiss it.
  */
 @Composable
 fun LockScreen(onUnlocked: () -> Unit) {

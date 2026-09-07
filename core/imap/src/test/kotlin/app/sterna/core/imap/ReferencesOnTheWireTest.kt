@@ -7,25 +7,11 @@ import org.junit.Test
 
 /**
  * THE `References` HEADER TRAVELS WITH THE LIST PAGE — what the four list fetches put on the wire,
- * and how the extra item they get back is read into [ImapMessage.references].
- *
- * The ENVELOPE carries `Message-ID` and `In-Reply-To` but not `References`, and a thread rebuilt
- * on the client is rooted at the FIRST id of `References`. So every list fetch asks for one more
- * item, `BODY.PEEK[HEADER.FIELDS (REFERENCES)]`, and the answer comes back as a header block —
- * `References: <a>\r\n <b>\r\n\r\n`, folded wherever the sender's MTA felt like it.
- *
- * `BODY.PEEK`, never `BODY`: a bare section fetch sets `\Seen` (RFC 3501 §6.4.5), and this is
- * the LIST path — the slip would mark every message of every page read.
- *
- * Whole lines compared with assertEquals, as [PreviewPageOnTheWireTest] does: a containment
- * check is blind to any mutation that makes the line LONGER.
  */
 class ReferencesOnTheWireTest {
 
     /**
      * One `FETCH` answer line for [uid]: the list items every fixture of this module carries,
-     * plus [item] verbatim at the end — the `BODY[HEADER.FIELDS (REFERENCES)] …` pair under test,
-     * spelled exactly as the test wants the server to spell it.
      */
     private fun fetchLine(seq: Int, uid: Long, item: String): String =
         "* $seq FETCH (UID $uid FLAGS (\\Seen) INTERNALDATE \"01-Jun-2026 10:00:00 +0000\" " +
@@ -124,8 +110,6 @@ class ReferencesOnTheWireTest {
 
     /**
      * A block carrying MORE than the one header asked for: only `References` is read, by name. A
-     * reader that took the first header line of the block would hand the parent (`In-Reply-To`)
-     * over as the References, and the thread would be rooted at the parent instead of the root.
      */
     @Test fun `a block with several headers reads References alone, not In-Reply-To`() {
         val got = page(
@@ -145,8 +129,6 @@ class ReferencesOnTheWireTest {
 
     /**
      * The same block with bare `\n` line ends (no `\r`), and a folded `References`: the header
-     * is still found by name and unfolded. A reader that split on `\r\n` alone would see ONE
-     * line, `In-Reply-To: …`, and read no References at all — or the parent as the root.
      */
     @Test fun `a block with bare LF line ends and a folded References is read the same`() {
         val got = page(
@@ -163,8 +145,6 @@ class ReferencesOnTheWireTest {
 
     /**
      * The body readers do not take the header item for a body. No body fetch asks for it, but they
-     * match their item by the prefix `BODY` — so a server that volunteered the header block FIRST
-     * would otherwise have it handed over as the message's text.
      */
     @Test fun `a body fetch answered with the header item first still reads the body`() {
         var fetched = ""
@@ -183,8 +163,6 @@ class ReferencesOnTheWireTest {
 
     /**
      * (d) The four list fetches — [ImapSession.fetchByUid], [ImapSession.fetchPage],
-     * [ImapSession.walkFolder], [ImapSession.fetchUids] — each ask for the header item, and
-     * PEEK it. The body fetches are not here on purpose: they do not change.
      */
     @Test fun `the four list fetches ask for References, and peek it`() {
         val issued = conversation({ tag, _ ->

@@ -7,8 +7,6 @@ import org.junit.Test
 
 /**
  * What a mail notification is allowed to reveal at each position of the notification-content
- * setting. The same rule now serves the arriving-mail path and a snooze waking up, which used
- * to post with the defaults and so showed sender and subject regardless (Codeberg #84).
  */
 class MailNotificationTextTest {
 
@@ -62,9 +60,6 @@ class MailNotificationTextTest {
 
     /**
      * The rule the group summary depends on. [Notifications.updateGroupSummary] rebuilds the
-     * account's summary by copying EXTRA_TITLE and EXTRA_TEXT off the live children, so anything
-     * that reaches `text` is repeated in the summary — on the lock screen, in a line the reader
-     * cannot expand or collapse. The expanded line is the only place the preview may appear.
      */
     @Test fun `the preview never reaches the collapsed line`() {
         NotificationContent.entries.forEach { content ->
@@ -94,9 +89,6 @@ class MailNotificationTextTest {
 
     /**
      * A body arrives with the blank of the format it was written in: quoted-printable soft breaks,
-     * a plain-text part wrapped at 72 columns, tabs out of a signature. Every run of blank becomes
-     * one space, so the expanded line reads as a sentence instead of as a ragged column, and so the
-     * separator below is the ONLY newline in it.
      */
     @Test fun `the preview is flattened to a single line`() {
         val raw = "Dear Alex,\n\nthe results\tare in.\r\n  Please call    the surgery."
@@ -114,10 +106,6 @@ class MailNotificationTextTest {
 
     /**
      * The cap, and where it is: in here, because the preview will come from two protocols and this
-     * pure function is their only shared crossing. Uncapped, a 4 000-character body travels whole
-     * in the notification's extras, where any authorised NotificationListenerService reads it — and
-     * where the shade shows a handful of lines of it anyway. 256 is what the server already returns
-     * as a preview on the other protocol, so two accounts side by side look alike.
      */
     @Test fun `the preview is capped at 256 characters, with nothing added`() {
         val body = "a".repeat(4_000)
@@ -148,9 +136,6 @@ class MailNotificationTextTest {
 
     /**
      * The other three positions were settled with a reporter (#25, #84) and are what a reader who
-     * has never opened the setting gets. A preview handed to them must change nothing at all:
-     * whoever produces previews will hand one over for every notification, not only for the
-     * position that asked for one.
      */
     @Test fun `handing a preview to the three quieter positions changes nothing`() {
         listOf(
@@ -173,12 +158,6 @@ class MailNotificationTextTest {
 
     /**
      * A send that failed is announced by a banner of its own, and it used to name the message
-     * unconditionally: reply from the shade with the setting on "Sender only", let the send fail,
-     * and "Re: <the real subject>" arrived at IMPORTANCE_HIGH, collapsed line and lock screen
-     * alike — the one thing the user had asked never to show there.
-     *
-     * The table is written out position by position rather than derived: a test that recomputes
-     * the rule to decide what it expects agrees with any rule at all, including the inverted one.
      */
     @Test fun `what a failed send may name, position by position`() {
         val expected = mapOf(

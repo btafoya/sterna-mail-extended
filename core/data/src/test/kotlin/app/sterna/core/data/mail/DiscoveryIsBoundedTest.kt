@@ -17,25 +17,6 @@ import java.io.IOException
 
 /**
  * [discoverJmapAmong]: what the sign-in screen waits for, which hosts get the password, and which
- * host is kept.
- *
- * The defect this pins: the four candidates of `Jmap.autodiscoverHosts` were probed ONE AFTER
- * ANOTHER, each with the JMAP client's 20 s connect + 30 s read, so an address on a domain with
- * no JMAP at all spun for up to 200 s before saying anything.
- *
- * Three things must not be traded away for that speed, and most of these tests exist for them:
- *  - the password must not be handed to guessed subdomains that the old loop never reached;
- *  - the host that is kept is decided by RANK, never by latency — it is written into the account
- *    and is only correctable by typing everything in again;
- *  - "wrong password" must not be said while a candidate is still being asked.
- *
- * The budget bounds what the USER waits for. A real probe is a blocking OkHttp `execute()` that
- * ignores cancellation, so the fake probe here can be made deaf too ([Bench] `deaf`): a fake that
- * only ever uses a cancellable `delay()` cannot see the difference between "we stopped waiting"
- * and "we asked them to stop", and that difference is the whole defect.
- *
- * The clock is virtual ([runTest]): a budget driven by the real network is not a deterministic
- * test, and MockWebServer would only move the non-determinism into a port.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class DiscoveryIsBoundedTest {
@@ -50,10 +31,6 @@ class DiscoveryIsBoundedTest {
 
     /**
      * A probe that answers [answers] after the stated virtual delay and records which hosts were
-     * actually ASKED — i.e. which of them received the password. Hosts listed in [deaf] ignore
-     * cancellation while they wait, like the blocking call the real probe makes.
-     *
-     * [getValue] on purpose: every host must be spelled out, so no test can lean on a default.
      */
     private class Bench(
         private val answers: Map<String, Pair<Long, HostProbe>>,
@@ -318,10 +295,6 @@ class DiscoveryIsBoundedTest {
 
     /**
      * Every guessed rank at once, so the rule cannot be satisfied by a boundary that merely
-     * happens to exclude rank 3 — the rank the reporter's domain refused on. `rank != 3` and
-     * `rank <= 1` both restore #188 on a `mail.<domain>` sitting behind a WAF or an HTTP auth,
-     * which answers 401 exactly like `api.yandex.ru` answered 403, and both leave every other
-     * test in this file green.
      */
     @Test
     fun `no guessed rank is her password, whichever one refuses`() = runTest {
@@ -390,8 +363,6 @@ class DiscoveryIsBoundedTest {
 
     /**
      * The whole of one host's turn, which is what production actually calls: nothing between
-     * `fetchSession` and a [HostProbe] is spelled at the call site, because that call site cannot be
-     * reached from a JVM test.
      */
     @Test
     fun `one host's answer, failure and cancellation all go through the same door`() = runTest {
@@ -415,9 +386,6 @@ class DiscoveryIsBoundedTest {
 
     /**
      * Cancellation is not something a host said. Leaving the sign-in screen cancels the probes, and
-     * classifying that as "this candidate answered nothing" is how the old loop kept going: it
-     * caught `Throwable`, recorded a silent host, and moved on to the next one on a screen that was
-     * already gone. Rethrowing here makes it impossible for any call site to record it instead.
      */
     @Test
     fun `a cancelled probe is not a host that stayed silent`() {

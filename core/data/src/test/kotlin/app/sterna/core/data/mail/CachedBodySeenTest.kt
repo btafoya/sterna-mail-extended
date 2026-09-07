@@ -13,24 +13,6 @@ import org.junit.Test
 
 /**
  * The read state of a message body served from a cache (issue #148).
- *
- * A body row is written on the FIRST open, while the message is still unread, so the `$seen` it
- * carries is frozen at `false` forever. Reopening a message then handed the reader a body claiming
- * it had never been read, and the read-receipt question — which fires on the unread → read
- * transition — was asked again on every open, on a message already read on the server AND in the
- * `emails` table. A witness taken at the bench bounds it: a message that arrived already read and
- * was never opened (no cached body) asks nothing, so the guard is right and the cache is what lies
- * to it.
- *
- * Two halves, deliberately different in kind:
- *
- *  1. **Executed.** [reconcileCachedSeen] is a pure function, so the decision is RUN here, case by
- *     case, with each expected answer written out by hand. Nothing below recomputes the rule to
- *     choose what it expects: invert the shipped condition and these must go red.
- *  2. **Read as source text — the last resort.** `MailRepository` needs Room, a `Context` and a
- *     socket, so no JVM test can execute the two cache paths of `openMessage`. What is pinned is
- *     therefore the ARGUMENTS of each call, parsed out and compared whole — never a `contains`,
- *     which is blind to any mutation that lengthens the line.
  */
 class CachedBodySeenTest {
 
@@ -223,11 +205,6 @@ class CachedBodySeenTest {
 
     /**
      * The argument text of every `[call]…)` in [body], whitespace-normalised, in source order.
-     * Comments are cut first, so prose naming an argument can neither satisfy a rule nor break one.
-     *
-     * Whole, and not searched for: `"rowSeen = emailDao.seenOf(accountId, emailId)" in body` passes
-     * just as well when the shipped line reads `rowSeen = emailDao.seenOf(accountId, emailId) ?:
-     * true`, which is the one answer B34 forbids.
      */
     private fun callsOf(body: String, call: String): List<String> {
         val code = codeOf(body)
@@ -246,13 +223,6 @@ class CachedBodySeenTest {
 
     /**
      * The expression every `return` of [body] hands back, whole and in source order — labelled
-     * returns (`return@…`, which leave a lambda and not the function) left out.
-     *
-     * Why this exists next to [callsOf]: the arguments of a call say what was ASKED, never what
-     * is handed to the caller. `reconcileCachedSeen(cached = cached, rowSeen = …)` on one line and
-     * `return cached` on the next satisfies every rule written about the call and ships the bug
-     * intact. Whole, again, and not a `contains`: a mutation that lengthens the expression must
-     * change what is compared.
      */
     private fun returnsOf(body: String): List<String> {
         val code = codeOf(body)

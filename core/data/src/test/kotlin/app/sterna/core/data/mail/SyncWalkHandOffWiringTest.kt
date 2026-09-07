@@ -7,28 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT for the ONE line of each paginated walk that carries a page to its writer, and the
- * only thing standing between a refused write and a walk that keeps going anyway.
- *
- * The mutation this exists to kill, found by a counter-expertise and NOT caught by anything else in
- * the repository:
- *
- * ```
- * -            if (fresh.isNotEmpty()) onPage(fresh)
- * +            if (fresh.isNotEmpty()) runCatching { onPage(fresh) }
- * ```
- *
- * With it, the sign-out guard still throws and still writes nothing — every executed test stays
- * green — but the refusal never reaches the walk: it reads the folder to the end for an account
- * that no longer exists, holding a single IMAP connection for minutes, and then RECONCILES and
- * stores a cursor under the removed id. That is half of the reported symptom back.
- *
- * Nothing executable can see it: the tests that exercise these walks feed them their own page
- * hand-off, and `SignedOutAccountStopsWritingTest` runs its own `Walk` class. The two lines below
- * are shipped code that no JVM test traverses, in two modules whose sources nothing else reads.
- *
- * Two facts per walk, because whole-line equality alone is not enough: the hand-off is EXACTLY this
- * line, and it sits directly in the loop — a `try {` opened anywhere above it inside the loop
- * changes nothing on the line itself but swallows the same refusal one level out.
  */
 class SyncWalkHandOffWiringTest {
 

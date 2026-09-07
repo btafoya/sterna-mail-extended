@@ -5,13 +5,6 @@ import org.junit.Test
 
 /**
  * [composerMaySendBody], EXECUTED — the decision itself, not the text that contains it.
- *
- * Every expectation below is written down as a literal. Nothing here recomputes the rule to
- * choose what it replays: a test that re-derives `!(lost && blank)` to pick its own answer is a copy
- * of the code, and the shipped condition could then be inverted with every line of it still green.
- *
- * WHAT IT DOES NOT COVER: that anything CALLS this — `ComposeViewModel` cannot be instantiated in
- * this module. The two call sites are pinned as source in `LocalDraftReopenWiringTest`.
  */
 class LostBodySendTest {
 
@@ -46,8 +39,6 @@ class LostBodySendTest {
 
     /**
      * THE OTHER HALF, and the one a rule written on the flag alone would lose: the flag is raised
-     * once and NEVER lowered, so weighed on its own it locks the composer out for good — the user
-     * retypes her message, taps Send, and is refused on a screen holding the text she just wrote.
      */
     @Test fun `a body typed back after the loss sends`() {
         assertEquals(
@@ -61,8 +52,6 @@ class LostBodySendTest {
 
     /**
      * And an empty body that was never lost is a message, not an accident: a mail with a subject
-     * and no text, or one carrying only attachments. Refusing it would be a second defect wearing
-     * the same wording.
      */
     @Test fun `an empty body nobody lost sends`() {
         assertEquals(
@@ -105,10 +94,6 @@ class LostBodySendTest {
 
     /**
      * THE SECOND DEFECT, and it was in the shipped sentence, not in the condition: refused on the
-     * route this guard exists to protect, the app said "Type it again." — and following that
-     * instruction is the ONE action that destroys the text. Three characters make the body
-     * non-blank, the guard opens, `commitThenConsumeLocalDraft` deletes the row that still holds
-     * the last body that reached the disk, and the message leaves as the signature.
      */
     @Test fun `a composer holding a stored draft is told to reopen it, not to retype`() {
         assertEquals(
@@ -123,11 +108,6 @@ class LostBodySendTest {
 
     /**
      * And the term is ALL THREE stores, which is why this case exists on its own: a SERVER draft
-     * reopened online whose body this composer lost is untouched on the server — the send that
-     * would have replaced it is the one being refused — so it reopens whole as well, and so does
-     * the QUEUED OUTBOX ROW behind Outbox → Edit, parked `EDITING` with the text it was queued
-     * with. A rule reading `_editingLocalDraftId` alone answers RETYPE on all of them, i.e. the
-     * advice that sends her to retype text she still has.
      */
     @Test fun `a stored draft is a stored draft, wherever it is stored`() {
         assertEquals(
@@ -141,8 +121,6 @@ class LostBodySendTest {
 
     /**
      * …and "type it again" stays RIGHT where it is true: a composer that never held a draft has
-     * nothing to reopen, and nothing to destroy either. Telling that user to close the screen and
-     * open a draft would send her looking for something that does not exist.
      */
     @Test fun `a composer holding no draft at all is told to retype`() {
         assertEquals(
@@ -155,8 +133,6 @@ class LostBodySendTest {
 
     /**
      * The wording is asked only of a send that is REFUSED. `null` is the send going on, and it must
-     * stay null on every accepted case — a wording returned there is a notice shown over a message
-     * that is leaving.
      */
     @Test fun `an accepted send has nothing to say`() {
         assertEquals(null, lostBodySendWording(bodyWasLost = true, body = "typed again", holdsStoredDraft = true))
@@ -172,8 +148,6 @@ class LostBodySendTest {
 
     /**
      * The whole table of the wording, literals again — the eight corners of three booleans, with
-     * the blank readings beside them. Inverting the `holdsStoredDraft` branch, or answering a
-     * wording where the send is accepted, has to move a VALUE here.
      */
     @Test fun `the wording table, whole`() {
         val cases = listOf(
@@ -206,10 +180,6 @@ class LostBodySendTest {
 
     /**
      * THE DEFECT THIS TIME, and it was reached by the CAUTIOUS gesture: a queued message
-     * reopened by Outbox → Edit, redrawn empty over a resume slot that lost the body, and saved as
-     * a draft rather than sent. `saveDraft` asked nothing, wrote the empty draft, and
-     * `consumeEditingOutbox()` then deleted the queued row and its durable attachment directory —
-     * the only copy of the text.
      */
     @Test fun `saving an empty composer over a queued row destroys it`() {
         assertEquals(
@@ -233,8 +203,6 @@ class LostBodySendTest {
 
     /**
      * FIRST TERM ALONE WOULD BE A TRAP: the lost-body flag is raised once and never lowered, so
-     * a rule that ignored the body would refuse to save the message the user has just retyped —
-     * over a queued row, i.e. exactly where losing it costs the most.
      */
     @Test fun `a body typed back after the loss saves`() {
         assertEquals(
@@ -248,12 +216,6 @@ class LostBodySendTest {
 
     /**
      * …and the body is read WHOLE, never a first line of it. A message retyped starting with a
-     * newline — Enter, then the text — is a body, and any reading that stops at the first line
-     * calls it blank. The flag is never lowered, so on this route that user could never save her
-     * reprise again: the trap the second term exists to prevent, reintroduced one line lower.
-     * This is a SURVIVING mutation made to fail (`body.substringBefore('\n')` left every other
-     * case in this file green): it is a real reading of a real body, not a test written to close a
-     * mutant.
      */
     @Test fun `a body typed back below a blank first line saves`() {
         assertEquals(
@@ -281,10 +243,6 @@ class LostBodySendTest {
 
     /**
      * THIRD TERM, and the reason it is not written wider: with no queued row behind the screen
-     * this save destroys NOTHING. The phone's own draft row is held by `localDraftBodyToWrite`,
-     * which will not write an empty body over the stored one; the server draft by
-     * `unlessBodyIsLossy`, since `editingDraftLossy` is true the moment the body is lost. Refusing
-     * here would take away the last chance to keep a subject or a recipient just typed.
      */
     @Test fun `a save that has no queued row behind it destroys nothing`() {
         assertEquals(
@@ -299,8 +257,6 @@ class LostBodySendTest {
 
     /**
      * The whole table, literals again — the eight corners of three booleans with the blank readings
-     * beside them. TRUE in one corner only, and any term dropped from the condition has to move a
-     * VALUE in this list.
      */
     @Test fun `the save table, whole`() {
         val cases = listOf(
@@ -335,10 +291,6 @@ class LostBodySendTest {
 
     /**
      * THE DEFECT THIS TIME, and it was reached by following the app's own advice. The send route
-     * refuses a lost body over a queued row with "Close this screen and reopen the message" — and
-     * closing ran `abandon()` → `releaseOutboxEdit`, which put the row back to QUEUED and re-armed
-     * it at 0: the message left in under a second (2/2 on the bench), the very message the sentence
-     * had just told her to reopen. Closing over a lost, empty body must PARK the row, never queue it.
      */
     @Test fun `closing a composer that lost its body and holds nothing parks the queued row`() {
         assertEquals(
@@ -363,8 +315,6 @@ class LostBodySendTest {
 
     /**
      * The flag alone would be a trap: it is never lowered, so a rule on it alone would park the
-     * row on EVERY close after a loss — including "Discard changes" over a message she has retyped,
-     * which today gives the row back whole (#70) and must go on doing so.
      */
     @Test fun `a body typed back after the loss goes back to the queue on close, as before`() {
         assertEquals(
@@ -393,8 +343,6 @@ class LostBodySendTest {
 
     /**
      * The whole table, literals again — the four corners with the blank readings beside them. TRUE
-     * in one corner only, and it is the SAME corner the send refuses and the save refuses: the three
-     * gestures read one loss, stated once in [composerMaySendBody].
      */
     @Test fun `the close table, whole`() {
         val cases = listOf(

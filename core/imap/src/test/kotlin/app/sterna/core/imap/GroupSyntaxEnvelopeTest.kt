@@ -5,17 +5,6 @@ import org.junit.Test
 
 /**
  * RFC 5322 group syntax in an envelope address slot — `Cc: undisclosed-recipients:;` and its
- * kin — read off a real socket and, for the decision itself, run directly.
- *
- * An EMPTY group is a field that carries a name and no address. Both of its delimiters used to be
- * dropped, so the field arrived empty: a draft the server holds with nothing but
- * `Cc: undisclosed-recipients:;` reopened with an empty Cc, the copy line collapsed and "Save
- * draft" greyed out — the composer could no longer save the draft the server had.
- *
- * The four slots sit next to each other — reply-to (4), to (5), cc (6), bcc (7) — and only the
- * call sites know which is which, so every socket case here leaves the other three at their
- * distinct defaults and asserts them: a test that cannot tell slot 6 from slot 7 would let a
- * blind copy be published as a visible one.
  */
 class GroupSyntaxEnvelopeTest {
 
@@ -143,14 +132,6 @@ class GroupSyntaxEnvelopeTest {
 
     /**
      * A group start with nothing after it: no member follows, so the name is carried.
-     *
-     * HYPOTHETICAL, and named so since the bench denied the premise this used to state: no
-     * server here has been seen to hand a half-spelled group over. `emu`/Stalwart, 2026-08-26,
-     * answers `cc = NIL` for the bare atom `Cc: undisclosed-recipients` — nothing arrives at all —
-     * which is why the APPEND now writes the group form itself (`localDraftOutgoing`, `core/data`).
-     * The reading is kept as a defence: dropping an unmatched start would empty the field, and an
-     * empty field is "addressing proved empty" for `copiedAddressesOrNull`, which lets the save
-     * expunge the copy that still held the token.
      */
     @Test
     fun `a group start with no end is carried as a name`() {

@@ -7,29 +7,11 @@ import java.io.File
 
 /**
  * SOURCE LINT, and the last resort it is meant to be: nothing in this chain can be built on the
- * JVM ([NewMailNotifier] and [Notifications] need an Application and a NotificationManager,
- * [FetchAndNotify] needs a repository with a socket behind it). Every DECISION it carries is
- * EXECUTED next door — the pre-pass in [NotificationPreviewGatheringTest], what a position may
- * reveal in [MailNotificationTextTest] — and none of it is restated here.
- *
- * What is left is the wiring, which is exactly what a green suite would not notice going wrong:
- * an opening line that never reaches the notification, a fetch that slides into the posting loop,
- * a preview gathered for a reader who asked for none. Whole lines, compared — `contains` is blind
- * to any mutation that LENGTHENS a line.
  */
 class PreviewReachesTheNotificationWiringTest {
 
     /**
      * THE ORDER, AND THE ONLY WAY THIS FEATURE CAN LOSE MAIL.
-     *
-     * The pre-pass is one call, handed the whole batch, and the posting is what [postGatheredFirst]
-     * does after it — there is no fetch inside a `forEach` over the new mail. A round trip in that
-     * loop would drop an exception into a half-announced batch, skip the [seed] at the bottom of
-     * the function, and leave the folder's baseline where it was: the next pass re-announces
-     * everything, and a re-announcement MOVES MAIL server-side through `unarchiveThreadsOnReply`.
-     *
-     * That the gathering happens before the first post, and that nothing escapes it, is executed
-     * in [NotificationPreviewGatheringTest]. This says the shipped notifier goes through it.
      */
     @Test fun `the openings are gathered in one pre-pass, not inside the posting loop`() {
         val body = bodyOf(NOTIFIER, "notifyDiff")
@@ -62,15 +44,6 @@ class PreviewReachesTheNotificationWiringTest {
 
     /**
      * WHAT ACTUALLY CLOSES THE PERIL, stated as a check rather than as reasoning: between the
-     * moment the gathering returns and the moment the baseline is advanced there is NO SUSPENSION
-     * POINT, so nothing can be cancelled in between and leave a batch announced but not remembered.
-     *
-     * That property rests on one word: `post` is a plain function type, not a suspending one. Make
-     * it `suspend` and the posting loop becomes cancellable halfway through, with the [seed] below
-     * it never reached — the folder then re-announces everything on the next pass, and a
-     * re-announcement MOVES MAIL server-side through `unarchiveThreadsOnReply`. Everything the
-     * shipped notifier calls after the gathering is likewise non-suspending
-     * (`Notifications.notifyNewMail`, `cancelChild`, `updateGroupSummary`, `seed`).
      */
     @Test fun `nothing between the gathering and the baseline may suspend`() {
         val signature = PREVIEWS.readText()
@@ -96,18 +69,6 @@ class PreviewReachesTheNotificationWiringTest {
 
     /**
      * EVERY ARGUMENT OF THE PRE-PASS, IN ORDER, WHOLE LINES — because the two that matter most
-     * are POSITIONAL, and a positional argument is invisible to an assertion that searches for a
-     * needle it already expects.
-     *
-     * The two, both of which COMPILE if replaced and neither of which looks wrong on screen:
-     *
-     *  - `content` → `NotificationContent.BODY_PREVIEW`: the reader who asked for "no details" —
-     *    the one who reported the leak — then pays up to six SELECTs and six 8 KiB BODY.PEEKs per
-     *    announcement, and the bodies of their mail cross the network for a string `resolve`
-     *    throws away. The executed test of the gate proves the gate; only this proves it is WIRED;
-     *  - `newMail.map { it.id }` → `emails.map { it.id }`: the six reads are then spent on the
-     *    first six rows of a page of up to fifty, most of them already announced, so the opening
-     *    line almost never appears and the radio is paid for nothing.
      */
     @Test fun `every argument of the pre-pass is pinned, positional ones included`() {
         assertEquals(
@@ -137,11 +98,6 @@ class PreviewReachesTheNotificationWiringTest {
 
     /**
      * ONE BUDGET FOR THE ACCOUNT'S WHOLE PASS, made OUTSIDE the folder loop.
-     *
-     * [NewMailNotifier.notifyDiff] is called once per folder, and its `previewBudget` parameter
-     * defaults to one of its own — right for a single-folder caller, and four times over budget
-     * for a fan-out. An account watching three extra folders would spend 4 × 6 reads and up to
-     * 4 × 4 s of blocking IMAP work under its single mutex, on one radio wake-up.
      */
     @Test fun `the account pass makes one budget and shares it between its folders`() {
         val lines = codeLinesOf(bodyOf(FETCH_AND_NOTIFY, "run"))
@@ -168,8 +124,6 @@ class PreviewReachesTheNotificationWiringTest {
 
     /**
      * The opening travels ON the message, so the two paths that post a mail notification — a
-     * folder diff and a snooze waking up — read it from one field, and the privacy setting keeps
-     * deciding on its own whether it is ever shown.
      */
     @Test fun `the gathered opening is carried on the message that is posted`() {
         assertEquals(
@@ -213,8 +167,6 @@ class PreviewReachesTheNotificationWiringTest {
 
     /**
      * Codeberg #84 stands: the poster's user settings still have NO defaults, and this change
-     * added no parameter that a caller could forget. The opening rides on the message instead, so
-     * there is nothing new to omit.
      */
     @Test fun `the poster still takes its user settings without defaults`() {
         val signature = NOTIFICATIONS.readText()
@@ -239,9 +191,6 @@ class PreviewReachesTheNotificationWiringTest {
 
     /**
      * The snooze wake-up posts through the same function and so shows an opening line at the same
-     * one position — it is re-posting a mail notification, and a reader who asked for the body
-     * asked for it there too. It reads the stored `preview` of the row it woke up, and fetches
-     * nothing: a wake-up is not a sync.
      */
     @Test fun `the snooze wake-up still reads the real settings, and gathers nothing`() {
         val body = bodyOf(SNOOZE_WORKER, "doWork")
@@ -265,8 +214,6 @@ class PreviewReachesTheNotificationWiringTest {
 
     /**
      * The conveyance reaches the notifier. Dropped between the refresh and the diff, the pre-pass
-     * would find no source for any message and IMAP would silently never show an opening line —
-     * with every test above still green, because each of them is handed its sources by hand.
      */
     @Test fun `the refresh hands the notifier the sources it learned`() {
         assertEquals(
@@ -278,11 +225,6 @@ class PreviewReachesTheNotificationWiringTest {
 
     /**
      * The code lines of the call opened by the line that ENDS with [opener], through to the line
-     * that closes it — parentheses counted.
-     *
-     * Compared as a list, so the arguments are judged IN ORDER and as whole lines: a positional
-     * argument swapped for another expression of the same type is a different line here, where a
-     * needle-filtered assertion never sees it at all.
      */
     private fun callLines(body: String, opener: String): List<String> {
         val lines = codeLinesOf(body)

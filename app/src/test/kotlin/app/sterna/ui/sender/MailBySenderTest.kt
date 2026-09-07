@@ -12,9 +12,6 @@ import org.junit.Test
 
 /**
  * The decisions the "Mail by sender" screen makes, taken out of the ViewModel so a JVM test can
- * RUN them: what the header number is, whether a Trash can be named, and whether the row menu may
- * offer the rule at all. (`MailBySenderViewModel` is an `AndroidViewModel`; there is no
- * Robolectric and no instrumented test in this repo.)
  */
 class MailBySenderTest {
 
@@ -85,11 +82,6 @@ class MailBySenderTest {
     @Test fun `an account with no Trash keeps the delete and still loses the rule`() {
         // The delete used to be withheld here (`canDeleteFrom`, now gone): with no bin, deleteAll
         // failed the whole batch. It resolves or creates one now, exactly as the single-message
-        // delete does, so the entry is drawn whatever the folder list says — and the ONLY reading
-        // of that list left is the Sieve rule's, which needs the bin to be NAMEABLE and is
-        // unaffected. Both are run here, on the same two accounts, because the pair is what was
-        // confused. (That `load()` passes `canDelete = true` is MailBySenderWiringTest's: an
-        // AndroidViewModel is out of a JVM test's reach.)
         val noTrash = listOf(Mailbox(id = "m1", name = "Inbox", role = "inbox"))
         // A bin the cache cannot name — its parent is missing — which is a perfectly good
         // destination for a move and no path a Sieve script can file into.
@@ -284,9 +276,6 @@ class MailBySenderTest {
     @Test fun `the row that IS the account does not offer to file the account's own mail away`() {
         // Believed unreachable from this screen and it is not (banc-1.4.8.md § 5.3): the counting
         // query drops Sent, Drafts, Trash and Junk, so a message from oneself filed in an
-        // ORDINARY folder — sent to oneself, echoed back by a mailing list — is counted like any
-        // other and gets a row. That row was offering "send future mail from me to the Trash",
-        // and on this screen the entry writes at the FIRST tap, with no dialog in between.
         assertEquals(
             "the account's own row keeps the two gestures that are about mail already here, and " +
                 "loses the one that is about mail to come",
@@ -343,9 +332,6 @@ class MailBySenderTest {
     @Test fun `the rule comes before the delete, and the delete is last`() {
         // The aggregate excludes the Trash. Delete first and the sender's total falls to zero,
         // its ROW DISAPPEARS, and the "never again" gesture — which lives on that row — becomes
-        // unreachable for that sender: the address then has to be retyped by hand in Filters.
-        // Nothing on screen says the order, and the menu used to propose the destructive one
-        // first, against the convention the project already writes down in InboxScreen ("#48").
         val entries = menu(canDelete = true, canBlock = true, blocked = false, working = false)
         assertEquals(
             "the rule must be offered BEFORE the delete that can take its row away, and the " +
@@ -368,10 +354,6 @@ class MailBySenderTest {
     @Test fun `every row offers to look, first`() {
         // The most visible gap in the walk-through: one confirms a NUMBER and never a content.
         // The entry needs nothing of the account — no Trash, no Sieve, no round trip — so it is
-        // there for every row of every account, and it leads the menu. What it opens is a SEARCH
-        // and not this row's own messages, which is why the label says "search this sender": the
-        // search asks the server, across every account, and answered 80 where the row counted 40
-        // (banc-1.4.8.md § 4). Nothing here pins that wording — only the string key is pinned.
         listOf(true, false).forEach { canDelete ->
             listOf(true, false).forEach { canBlock ->
                 val entries = menu(canDelete, canBlock, blocked = false, working = false)
@@ -418,8 +400,6 @@ class MailBySenderTest {
 
     /**
      * The three cases as `confirmDelete` builds them: the batch it handed over is `ids`, and the
-     * rejected set is the `BulkResult`'s own — including the one it fabricates when `deleteAll`
-     * throws, `BulkResult(emptySet(), ids.toSet())`, which is a total failure and must read as one.
      */
     private fun said(ids: List<String>, result: MailRepository.BulkResult) =
         deleteMessageRes(ids.size, result.failed.size)
@@ -555,30 +535,6 @@ class MailBySenderTest {
 
     /**
      * The two rules above pin WHICH string each refusal shows. Neither of them has ever looked
-     * at what that string SAYS, and that is where the defect lived: both sentences claimed
-     * "Another filter script is active on this account" while the boolean behind them,
-     * `FilterRulesState.Loaded.foreignActiveScript`, is `otherActiveScript || unreadable` — three
-     * situations, and the sentence was true in one of them:
-     *
-     *  1. a genuinely foreign active script (the webmail's own) — true;
-     *  2. OUR `sterna` script, present and unreadable, with nothing else active — the sentence
-     *     sends the reader hunting in her webmail for a third-party script that does not exist;
-     *  3. the account's `vacation` script, switched on by her own holiday responder — not
-     *     "another" script, HERS, and this is the ordinary case: turning the responder on is
-     *     enough to make the gesture disappear.
-     *
-     * At this point the code cannot tell the three apart, and it is not going to learn to: the
-     * fold IS the guard that stops both writes. So the words come down to what is true in all
-     * three — Sterna is not managing this account's filter script right now, therefore no rule can
-     * be added from here — and name no cause at all. In particular the holiday responder is not
-     * named here: nothing at this layer knows it is the one.
-     *
-     * WHY THIS IS A POSITIVE ASSERTION ON THE WHOLE SENTENCE, and not `!contains("Another")`.
-     * A negative rule on the offending word is green for "A different filter script is active on
-     * this account" — the same false claim, the same reader sent to the same wrong place, lint
-     * satisfied. The only rule that cannot be walked around by rewording the lie is one that
-     * states the whole truthful sentence. The cost is stated too: any deliberate edit of these two
-     * sentences fails here and must be re-read against the three cases above. That is the point.
      */
     @Test fun `both refusals say only what is true in all three causes of the fold`() {
         val strings = englishStrings()
@@ -601,12 +557,6 @@ class MailBySenderTest {
 
     /**
      * `values/strings.xml`, name → text as the app renders it (`\'` is XML escaping, not part of
-     * the sentence).
-     *
-     * Read as text because what a JVM test cannot reach is the VALUES, not the ids: `R` resolves
-     * perfectly well here — the rule above asserts on `R.string.sender_volume_foreign_script` —
-     * but it resolves to an integer, and turning that integer into a sentence needs resources at
-     * runtime, i.e. an instrumented test or Robolectric, and this repo has neither.
      */
     private fun englishStrings(): Map<String, String> {
         val res = generateSequence(java.io.File("").absoluteFile) { it.parentFile }

@@ -11,18 +11,6 @@ import java.io.File
 
 /**
  * The shape the unsubscribe strip takes, and the one property that matters beyond looks: the
- * three ordinary shapes are the same height.
- *
- * Height is not a taste here. The measured height of the reader's header is part of the key of
- * the `remember` that builds the body's HTML document, so a strip that changes size cancels the
- * body load in flight — and the strip sits in the header, which is exactly where an unsubscribe
- * happens. Before this, every unsubscribe reloaded the message.
- *
- * What a JVM test CAN do is run [unsubscribeStripBody] and hold it against
- * [offeredUnsubscribeAction]; what it cannot do is measure Compose, so the last test is a source
- * lint and says so. It pins the ARGUMENTS — the height floor, the icon's size and tint, which
- * shape draws a button — because a rule that only checks that `TextButton(` appears is satisfied
- * by any strip that happens to contain one.
  */
 class UnsubscribeStripTest {
 
@@ -82,8 +70,6 @@ class UnsubscribeStripTest {
 
     /**
      * SOURCE LINT, NOT A MEASUREMENT. Compose is not run here; these rules read the strip as text
-     * and would still pass if it laid out wrong. What they hold is what a reviewer cannot see: the
-     * height floor, and that the two shapes drawing less than a button still sit on it.
      */
     @Test fun `the strip is a button with a height floor, and no sentence at rest`() {
         val strip = stripSource()

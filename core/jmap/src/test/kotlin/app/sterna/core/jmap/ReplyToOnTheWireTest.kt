@@ -14,36 +14,6 @@ import org.junit.Test
 
 /**
  * `replyTo` (RFC 8621 §4.1.2, RFC 5322 §3.6.2), from the request bytes to the decoded model.
- *
- * A sender that sets `Reply-To` is saying "answer elsewhere" — a mailing list, a `no-reply@`
- * doubled by a `support@`, a ticketing alias. The chain from that header to the reply screen has
- * the same three places to go silently inert as the unsubscribe headers
- * ([UnsubscribeHeadersOnTheWireTest]), and all three look, on screen, like "this sender set no
- * Reply-To":
- *  1. the property is never asked for on the wire — nothing distinguishes it from a message that
- *     carries none;
- *  2. it is asked for but not deserialised (`DefaultJson` is `ignoreUnknownKeys = true`, so
- *     kotlinx drops the server's answer without a word);
- * 3. it is asked for by SOME fetch paths only. `EmailDao.upsertAll` is an `@Upsert`: it
- *     replaces the whole row. A path that caches a message without having asked for `replyTo`
- *     therefore ERASES the value another path had just written, and the column goes back to null
- *     with nothing on screen to show for it.
- *
- * Hence the guard below: every client call whose result is kept must carry the property. The
- * paths are named one by one, with the repository line that keeps them AND which table it writes
- * — three write an `emails` row (only those three can erase), two write the body cache
- * `email_bodies`, whose rows are the whole serialised [Email]. Each is EXERCISED against a mock
- * server: the assertion reads the octets that actually left, not the source that produced them.
- *
- * What this guard does NOT do: the list of paths is written by hand here. It catches a property
- * removed from a path that exists; it cannot catch a NEW fetch path added tomorrow without
- * `replyTo`. `core:jmap` sees neither `MailRepository` nor the DAO, so there is nothing to derive
- * it from. Known limit, not an oversight.
- *
- * Deliberately absent: `crawlHeaders` and `searchEmails`. Neither writes an `emails` row
- * (`MailRepository` writes the FTS table `email_fts`, `MailRepository` only
- * returns hits to the search screen), so neither can erase the column, and a header property they
- * do not need is bytes paid on every crawl page for nothing.
  */
 class ReplyToOnTheWireTest {
 
@@ -51,8 +21,6 @@ class ReplyToOnTheWireTest {
 
     /**
      * A client call whose answer ends up in the `emails` table, with the mock exchange it needs.
-     * [cachedAt] is the `emailDao.upsertAll` that makes it a caching path — the whole reason it
-     * appears in this list.
      */
     private class CachingPath(
         val name: String,

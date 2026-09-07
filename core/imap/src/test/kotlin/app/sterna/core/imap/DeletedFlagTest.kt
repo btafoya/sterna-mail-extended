@@ -8,18 +8,6 @@ import java.util.Collections
 
 /**
  * A message flagged `\Deleted` must not appear in any list, driven against a scripted server on
- * loopback (Codeberg #99).
- *
- * IMAP deletion has two steps: a client flags `\Deleted`, and an EXPUNGE — from any client —
- * finishes the job. In between, the message is still returned by every FETCH. Sterna reaches that
- * in-between state on purpose now: a purge on a server without UIDPLUS stops at the flag whenever
- * expunging would also destroy somebody else's message. Without this filter those messages would
- * be re-fetched on the next sync and walk straight back into the folder the user had just
- * emptied, which reads as "Empty trash did nothing". They are also flagged from other clients,
- * which is how a Thunderbird user's Trash looks to Sterna today.
- *
- * The rule lives in one place — the FETCH funnel every list goes through — and these tests hold
- * it to the line that matters most: hiding is not deleting.
  */
 class DeletedFlagTest {
 
@@ -97,8 +85,6 @@ class DeletedFlagTest {
 
     /**
      * HIDING IS NOT DELETING. The Empty-trash snapshot enumerates with `UID SEARCH ALL`, which is
-     * not a FETCH and never sees this filter: a Trash where every message is already flagged is
-     * invisible on screen and still entirely destroyable.
      */
     @Test
     fun `the purge still enumerates what the list hides`() {

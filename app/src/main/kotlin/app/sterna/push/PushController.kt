@@ -37,18 +37,11 @@ sealed interface PushStatus {
 
 /**
  * Single decision point for push transports (#17): [apply] kicks the UnifiedPush state machine and
- * runs the foreground service only while some account still needs a direct connection. Selection is
- * automatic and never user-facing.
  */
 object PushController {
 
     /**
      * The last selection the inbox list made: true if that was the unified inbox. Read by
-     * [shouldResetBaseline] alone, and false is the safe answer.
-     *
-     * Its initial value is NOT the cold start's answer, the drawer reopening on the view you left
-     * (#179), so `RootViewModel.refresh()` seeds it BEFORE it arms: on the direct branch the flag
-     * is read later, on the service's own coroutine.
      */
     @Volatile
     var unifiedInboxVisible: Boolean = false
@@ -144,8 +137,6 @@ object PushController {
 
     /**
      * Third renouncement, and the only one that had something in its hands: the handle is taken out
-     * of the connection map and closed. Left in place, the account would read "Direct" while
-     * nothing listens and nothing polls it either (#130).
      */
     fun retiredHandleDroppedLine(loginId: String, gen: Int, current: Int): String =
         "Stale push connection dropped for login $loginId (generation $gen, service is at $current), nothing rescheduled"
@@ -178,8 +169,6 @@ object PushController {
 
     /**
      * Recompute every account's transport and (re)arm accordingly. [userInitiated] silently reseeds
-     * the inbox baseline of the account whose inbox is on screen ([shouldResetBaseline]); background
-     * triggers pass false so gap mail is diffed.
      */
     fun apply(context: Context, userInitiated: Boolean) {
         val appContext = context.applicationContext as Application
@@ -228,12 +217,6 @@ object PushController {
 
 /**
  * May a user-initiated arm swallow this account's inbox backlog into the baseline instead of
- * announcing it? Only for the inbox the user is actually looking at. Arming push is not a
- * per-account event, and one arm reseeding every watched account meant another account's pending
- * mail was absorbed and never rang again.
- *
- * The two errors are opposite and both live: reseed too widely and mail goes unannounced, too
- * narrowly and the app empties weeks of backlog into the shade.
  */
 internal fun shouldResetBaseline(
     accountId: String,

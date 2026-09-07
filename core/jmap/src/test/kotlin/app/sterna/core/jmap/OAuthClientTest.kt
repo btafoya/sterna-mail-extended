@@ -136,9 +136,6 @@ class OAuthClientTest {
     //
     // The trigger is a response the parser cannot finish, NOT the `"expires_in": "3600"` a
     // lenient-looking provider sends: this Json coerces that one to the property default without
-    // complaining (verified — the test that assumed it threw stayed green while the tokens were
-    // never at risk). A truncated body, a proxy's HTML error page with a JSON content type, a
-    // number where a string belongs: those throw, and those carry the payload.
 
     @Test fun refresh_doesNotPutTheTokensInTheErrorOfAMalformedResponse() {
         server.enqueue(
@@ -178,8 +175,6 @@ class OAuthClientTest {
 
     /**
      * A body this client cannot read is NOT a transport failure. The poll used to wrap the whole
-     * exchange, decode included, so a proxy's HTML error page served with a 200 came back as
-     * `network_error` — and the screen sent the reader to check a connection that was working.
      */
     @Test fun pollDeviceToken_doesNotCallAnUnreadableAnswerANetworkFailure() {
         server.enqueue(
@@ -270,16 +265,9 @@ class OAuthClientTest {
     //
     // OkHttp follows a 307/308 by re-issuing the SAME method with the SAME body (verified against
     // okhttp 4.12: on a 307 the second server receives
-    // `grant_type=refresh_token&refresh_token=SECRET-RT` verbatim), and a 301/302/303 by turning
-    // the POST into a bodyless GET whose answer the caller then parses as a token grant. The first
-    // hands the redirect target the long-lived refresh token outright; the second lets it choose
-    // the access token the app will use.
     //
     // Every test below goes through `client`, i.e. the PUBLIC OAuthClient() constructor. The
     // internal constructor takes an injected client, so a test that hands in its own would only
-    // assert OkHttp's behaviour and would stay green with production wired to the shared,
-    // redirect-following client. The wiring IS the fix, so the public constructor is the only
-    // entry point these may use.
 
     private fun startSecondServer(): MockWebServer = MockWebServer().apply { start() }
 
@@ -389,19 +377,9 @@ class OAuthClientTest {
     //
     // Discovery is a GET carrying no secret, and a deployment whose
     // /.well-known/oauth-authorization-server sits behind a proxy or a vhost answers a 3xx there.
-    // Refusing it would not look like a redirect to anyone: ConnectViewModel swallows the failure
-    // and shows connect_oauth_unsupported, i.e. "your server does not support this" (#54, #137).
-    // So this one MUST stay followed, and this test is what fails if the fix overreaches.
 
     /**
      * The hop itself: the fetch must still be CARRIED to the redirect target, and the document
-     * that comes back must be the one that is judged.
-     *
-     * Here the document names `idp.example`, which is neither the host asked nor under the
-     * address' domain, so its endpoints are BLANKED — that half is the guard, pinned next door.
-     * What this test owns is `second.requestCount == 1`: the redirect was followed and the
-     * document was read. Making it green by moving the second server's endpoints on-domain would
-     * throw away the only witness that discovery still follows a 3xx (#54, #137).
      */
     @Test fun discoverMetadata_stillFollowsARedirect() = runBlocking {
         val second = startSecondServer()
@@ -473,9 +451,6 @@ class OAuthClientTest {
     //
     // The three pieces that decide anything here are PURE FUNCTIONS, and these tests EXECUTE them
     // with pinned arguments. Nothing below re-derives the rule to choose what to replay: the PKCE
-    // vector is the RFC's own, and every query and form parameter is read back BY NAME and compared
-    // to a literal — never a `contains` on the whole line, which is blind to any mutation that only
-    // makes the line longer.
 
     /** `application/x-www-form-urlencoded` decoding — what RFC 6749 §3.1 says both sides speak. */
     private fun formFields(encoded: String): Map<String, String> =
@@ -488,8 +463,6 @@ class OAuthClientTest {
 
     /**
      * RFC 7636 appendix B, verbatim. The verifier and the challenge are the RFC's, not ours: a
-     * derivation that re-encoded the digest with padding, hashed the UTF-16 bytes, or used the
-     * standard (non-URL) alphabet cannot pass this, and no test here recomputes it.
      */
     @Test fun pkce_pinsTheRfc7636AppendixBVector() {
         assertEquals(
@@ -501,10 +474,6 @@ class OAuthClientTest {
 
     /**
      * The draw itself, not just its shape. "two draws differ" and "the alphabet is right" are
-     * both satisfied by `java.util.Random(1)` — and a predictable verifier makes PKCE decorative:
-     * whoever intercepts the code coming back through the browser can compute the verifier and
-     * redeem it. So the SOURCE is read and its type executed against, and the field is declared
-     * `SecureRandom` so that swapping it no longer even compiles.
      */
     @Test fun pkce_drawsFromACryptographicSource() {
         val source: java.util.Random = Pkce.random
@@ -577,12 +546,6 @@ class OAuthClientTest {
 
     /**
      * The BYTES on the wire, not the value a decoder gives back.
-     *
-     * Reading the query back with a decoder that is the exact inverse of the encoder proves only
-     * that the pair is consistent with itself: `URLEncoder` writes a space as `+`, and a server
-     * decoding the query per RFC 3986 then reads ONE scope named `…core+offline_access` and
-     * refuses the sign-in. So the whole string is pinned, literally, and the values include the
-     * characters that decide a query's shape (`&`, `=`).
      */
     @Test fun authorizationUrl_isPinnedAsSentAndEncodesHostileValues() {
         val url = buildAuthorizationUrl(
@@ -614,9 +577,6 @@ class OAuthClientTest {
 
     /**
      * RFC 6749 §3.1: a parameter must not appear twice. The endpoint can be TYPED IN, so it can
-     * arrive already carrying `client_id` or `state`; `addEncodedQueryParameter` appends, and the
-     * server then arbitrates — often keeping the first occurrence, the one we do not control.
-     * Ours win, everything else the endpoint carried survives.
      */
     @Test fun authorizationUrl_ourParametersReplaceTheOnesTheEndpointCarried() {
         val url = buildAuthorizationUrl(
@@ -636,8 +596,6 @@ class OAuthClientTest {
 
     /**
      * https only (#2). This URL goes to a browser: over cleartext the code coming back is
-     * readable and rewritable by anything on the path. Nothing is built — the caller cannot end up
-     * holding a half-usable URL it might still open.
      */
     @Test fun authorizationUrl_refusesAnEndpointThatIsNotHttps() {
         listOf(
@@ -802,9 +760,6 @@ class OAuthClientTest {
 
     /**
      * The whole string is pinned, literally, and NOT recomputed here: a test that rebuilds the URL
-     * with the same rule the code uses is a copy of the decision, and stays green when the decision
-     * is inverted. `?` and not `&`: a hint appended by hand to a bare URL lands in the PATH, and
-     * the approval page 404s instead of opening.
      */
     @Test fun loginHint_isAddedAsAQueryToABareUrl() {
         assertEquals(
@@ -833,8 +788,6 @@ class OAuthClientTest {
 
     /**
      * A URL we cannot read comes back WORD FOR WORD — not null, not "", not truncated, and not
-     * an exception. This URL is the server's, not ours: a sign-in that opens a page still asking
-     * for the address is a sign-in, a button that opens nothing is not.
      */
     @Test fun loginHint_givesAnUnreadableUrlBackVerbatim() {
         assertEquals(
@@ -847,8 +800,6 @@ class OAuthClientTest {
 
     /**
      * The server wins. RFC 6749 §3.1 forbids a parameter twice, and a second `login_hint` would
-     * leave the server to arbitrate between the two — usually in favour of the first, the one we
-     * did not write. So the URL comes back untouched, encoding and all.
      */
     @Test fun loginHint_neverDoublesAHintTheServerAlreadyWrote() {
         assertEquals(
@@ -867,11 +818,6 @@ class OAuthClientTest {
 
     /**
      * `URLEncoder` writes a space as `+` — and, read back per RFC 3986, an address typed with a
-     * space in it arrives as a DIFFERENT address, one carrying a plus. `nina+qa@example.com` alone
-     * does not see that: `URLEncoder` percent-encodes a literal `+` exactly like [percentEncode]
-     * does, and this test stayed green under a `URLEncoder` mutant until the space and the `~`
-     * were added. The two characters that tell RFC 3986 from form encoding are pinned here:
-     * a space is `%20` and never `+`, and `~` is unreserved and stays a `~` (`URLEncoder`: `%7E`).
      */
     @Test fun loginHint_percentEncodesAndNeverFormEncodes() {
         assertEquals(
@@ -901,10 +847,6 @@ class OAuthClientTest {
 
     /**
      * NOT over cleartext. `toHttpUrlOrNull` takes `http://` as happily as `https://`, and the
-     * hint is an IDENTITY: before this branch a cleartext verification URL carried none, with it
-     * the user's full address would travel in the clear, into every proxy log and browser history
-     * on the path. That is the same refusal issue #2 settled for the whole app. The URL itself is
-     * NOT refused — it is the server's, and the sign-in still works — only the hint is withheld.
      */
     @Test fun loginHint_refusesToPutAnIdentityOnACleartextUrl() {
         assertEquals(
@@ -915,8 +857,6 @@ class OAuthClientTest {
 
     /**
      * The whole URL is rebuilt through `HttpUrl`, so what the SERVER wrote in its own query has to
-     * survive byte for byte: a `code=` the approval page cannot read back is a page that cannot be
-     * completed. A `+` in the server's own value is the one okhttp could plausibly touch.
      */
     @Test fun loginHint_leavesTheServersOwnQueryBytesAlone() {
         assertEquals(
@@ -950,9 +890,6 @@ class OAuthClientTest {
     //
     // The discovery GET follows 3xx on purpose (above), and what comes back names the three
     // endpoints that the device code, the authorization code, the PKCE verifier and — for the
-    // whole life of the account — the REFRESH TOKEN are POSTed to. `AccountStore.addOAuth`
-    // engraves that token endpoint on the login record and discovery is never replayed, so a
-    // document naming a third party is not one failed sign-in: it is a permanent forward.
     //
     // The decision is `oauthEndpointAllowed`, a PURE FUNCTION, and the tests below EXECUTE it
     // with pinned literal arguments. Nothing here re-derives the rule to choose what it expects:
@@ -1061,8 +998,6 @@ class OAuthClientTest {
 
     /**
      * The neighbour case, and it is the BENCH's own deployment: the host asked is not the host
-     * that serves OAuth, but both are under the address' domain. Refusing this makes every such
-     * account unaddable, which is a worse defect than the one being fixed.
      */
     @Test fun discoverMetadata_keepsASiblingHostUnderTheAddressDomain() = runBlocking {
         server.enqueue(
@@ -1106,15 +1041,6 @@ class OAuthClientTest {
 
     /**
      * Acceptance coming from THE HOST THAT WAS ASKED, alone: the address' domain here is
-     * unrelated, so only the queried host can let these endpoints through.
-     *
-     * This is what pins that the queried host is read off the URL actually built
-     * (`Jmap.oauthMetadataUrlFor(host).toHttpUrlOrNull()?.host`) and not off [host] verbatim —
-     * `host` may arrive as a bare host OR as a full URL, and passing the raw string to the guard
-     * leaves it comparing a URL to a hostname, i.e. refusing the server that just answered.
-     *
-     * The endpoints are named https:// on that same host and port. Nothing is fetched from them
-     * here, so the mock server's own http:// scheme is not in the way.
      */
     @Test fun discoverMetadata_keepsEndpointsOnTheHostThatWasAsked() = runBlocking {
         val asked = "https://${server.hostName}:${server.port}"
@@ -1217,8 +1143,6 @@ class OAuthClientTest {
 
     /**
      * The token endpoint ALONE must raise the fact. Written because a document that also names
-     * an off-domain authorization or device endpoint would raise it through those instead, and a
-     * guard that only looked at the other two would pass every test in this file.
      */
     @Test fun discoverMetadata_raisesTheFactOnTheTokenEndpointAlone() = runBlocking {
         server.enqueue(
@@ -1236,8 +1160,6 @@ class OAuthClientTest {
 
     /**
      * And the mirror: a token endpoint kept, a DEVICE endpoint sent elsewhere, no authorization
-     * endpoint at all. Nothing is left to sign in with, and the reason is a third party — this is
-     * the shape that tells `connect_oauth_elsewhere` from `connect_oauth_flow_unsupported`.
      */
     @Test fun discoverMetadata_raisesTheFactWhileTheTokenEndpointSurvives() = runBlocking {
         server.enqueue(

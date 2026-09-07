@@ -18,8 +18,6 @@ import org.junit.Test
 
 /**
  * The undo-send contract the "Annuler" affordance relies on: undoing must both run the drop action
- * (so nothing stays parked in the Outbox) and hand the exact draft back via [SendOutbox.restored]
- * (so compose can reopen it intact). Unconfined runs the undo action's launch synchronously.
  */
 class SendOutboxTest {
     private val job = SupervisorJob()
@@ -83,9 +81,6 @@ class SendOutboxTest {
 
     /**
      * The undo round trip must hand the verdict back exactly as it went in, both senses: a lossy
-     * send undone and re-sent must still refuse the destroy, and a clean one must still buy it.
-     * (Never seen red — [SendOutbox] holds the draft whole — it pins the contract against a future
-     * hold/restore that rebuilds the draft field by field and forgets this one.)
      */
     @Test fun `undoing a send brings the fidelity verdict back unchanged`() {
         for (lossy in listOf(true, false)) {
@@ -122,9 +117,6 @@ class SendOutboxTest {
     @Test fun `a queued message hands over the body and the spans of ONE part`() {
         // The witness the test above cannot be: there the row's two columns say the same words,
         // so `body = draft.body` — the text column — passes it. Here they DIFFER, which a row is
-        // free to do (an older build wrote the text, a save was interrupted). The spans are
-        // measured on the html; laid over the text column they cover other letters, and re-editing
-        // enqueues a new row from exactly that.
         val reopened = composeDraftOf(queued(htmlBody = "<b>see</b> you there", body = "ok"))
 
         assertEquals(
@@ -148,10 +140,6 @@ class SendOutboxTest {
 
     /**
      * ROUTE 2 OF 4 — the QUEUED outbox row, reopened by Outbox → Edit.
-     *
-     * Re-editing enqueues a NEW row from the composer's state: a link dropped in this hand-over
-     * is not merely missing from the screen, it is REMOVED from the message that finally goes out,
-     * with the words still there and nothing saying the address left.
      */
     @Test fun `a queued message this app linked reopens with its link`() {
         val reopened = composeDraftOf(queued(htmlBody = """see <a href="https://x">you</a> there"""))
@@ -196,9 +184,6 @@ class SendOutboxTest {
 
     /**
      * A message reopened from a PERSISTED outbox row reopens as lossy: the row has no column
-     * for the verdict, so the verdict did not survive — and an unknown must forbid the destroy,
-     * never authorise it. The id itself still travels (re-sending still replaces the draft when
-     * a later save can prove itself); it is only the destroy that the unknown refuses.
      */
     @Test fun `a message reopened from a persisted outbox row comes back with an unknown, lossy, verdict`() {
         val reopened = composeDraftOf(

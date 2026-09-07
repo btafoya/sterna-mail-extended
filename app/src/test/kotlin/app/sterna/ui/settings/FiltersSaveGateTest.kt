@@ -7,8 +7,6 @@ import org.junit.Test
 
 /**
  * The Save button of the filters screen, as plain logic so it can be executed rather than read —
- * same treatment as [pendingExitStep], for the same reason: it is a rule about when a screen may
- * act, and it was wrong in the one state that mattered.
  */
 class FiltersSaveGateTest {
 
@@ -52,9 +50,6 @@ class FiltersSaveGateTest {
     @Test fun `the confirmation is a step added, never a door closed`() {
         // Measured: scriptUnreadable and rulesNotRunning cannot both be true (FilterScriptStatus
         // returns null on `enabledRuleCount == 0`, and an unreadable script yields no rule). This
-        // pins the answer for the race between the two reads anyway, because the safe answer must
-        // not depend on that: the question is asked AND the button stays reachable, so the return
-        // from holiday still has its one remedy.
         assertEquals(FiltersSaveStep.CONFIRM_OVERWRITE, filtersSaveStep(scriptUnreadable = true))
         assertTrue(
             "an unreadable script must not grey out Save — that would state the problem and lock " +

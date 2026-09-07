@@ -6,25 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT on the TWO ends of the Sent-folder copy, same instrument and same disclaimer as
- * [SmtpSubmissionCallSiteTest]: it reads `MailRepository.performDelivery` and `ImapMailService.send`
- * as text. Neither is runnable here — `performDelivery` needs a whole `MailRepository` (a dozen
- * DAOs, a JMAP client, an `ImapMailService`), and `send` needs a real account, a real socket and a
- * token refresher.
- *
- * [SentCopyUploadTest] runs the decision; these two tests pin the only path that can reach it.
- * Both ends can be short-circuited on their own, and every executable test in the four modules
- * stays green either way:
- *
- *  - the CALLER handing `imap.send` the folder straight from `mailboxDao.idForRole(...)` again;
- *  - the CALLEE ignoring the null it is handed (`sentMailbox ?: "Sent"`, an APPEND moved out of
- *    the `if`) — the setting then commands nothing at all.
- *
- * The second test also pins the `runCatching` on that APPEND, which is not about this setting and
- * is the more expensive of the two to lose: a refused archive (quota, a read-only Sent) would fail
- * the whole delivery, `OutboxWorker` would replay it, and the RECIPIENT would get the message twice.
- *
- * Whole trimmed lines, in order, never a `contains`: the mutations that matter here LENGTHEN the
- * line (an extra `?:`, a second decision squeezed in), and a fragment check cannot see that.
  */
 class SentCopyCallSiteTest {
 

@@ -10,15 +10,6 @@ import org.junit.Test
 
 /**
  * The notification-content position on its way to and from storage (Codeberg #25): its key, its
- * fallback, and its trip through a settings backup. All of it runs the shipped decision — the two
- * lookups were pulled out of the flow and out of `restoreBackup` precisely so they could be, since
- * `SettingsRepository` needs a Context and a DataStore and cannot be built in this module.
- *
- * What it exists to catch is the downgrade, which nothing watched until now. The position travels
- * BY NAME, so a device that goes back to a build predating a position reads a name that build's
- * enum does not have. That must land on a position revealing LESS than the one asked for, never
- * more — falling back to BODY_PREVIEW would put the body of the mail on a lock screen belonging to
- * someone who had chosen the opposite.
  */
 class NotificationContentStoredTest {
 

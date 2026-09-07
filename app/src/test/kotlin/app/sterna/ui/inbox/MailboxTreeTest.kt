@@ -6,13 +6,6 @@ import org.junit.Test
 
 /**
  * The drawer's own tree, RUN — it had no test at all until #174 came to filter what goes into it.
- *
- * This is the WITNESS of that volet, not part of it: it pins the shape of [mailboxTree] and
- * [folderRank] as they shipped, so that "the filter broke the drawer" and "the filter hid the wrong
- * folder" cannot be confused with each other. Nothing here knows about subscription.
- *
- * Each case pins a hard list of (id, depth, hasChildren) triples; none of them recomputes the
- * nesting rule to decide what to expect.
  */
 class MailboxTreeTest {
 

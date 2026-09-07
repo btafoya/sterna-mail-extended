@@ -16,24 +16,6 @@ import org.junit.Test
 
 /**
  * Adding an account primed its cache BEFORE the account existed (#121).
- *
- * All three add paths built `AccountCredentials` without an id — the field defaults to `""` — and
- * handed them to the repository to "validate and prime the inbox". That priming write is
- * account-scoped: `replaceMailbox(credentials.id, …)`, `replaceAll(credentials.id, …)`. So every
- * account ever added first wrote a full page of inbox rows under `accountId = ""`. No account owns
- * that id, so nothing labels those rows and nothing ever refreshes them: they sat frozen in the
- * state they had at sign-up (unread, flagged), twinned with the real rows they share a mailbox id
- * with. That is the duplicate the reporter saw in "All inboxes" — and what Storage was already
- * calling a "removed account".
- *
- * [addAccountThenPrime] is the order that makes it impossible: prove, create, then prime with
- * credentials it stamps itself. These drive it with recording stubs — no Android, no network.
- *
- * The second rule pinned here is what happens when priming FAILS on an account already created:
- * nothing. The account stays. The first version of this fix took it back out, which moved the
- * current account somewhere else and left the folder rows `refresh()` had already written under an
- * id no account owned — the very orphan #121 closes. [FakeAccountStore] models the store's real
- * removal semantics so that regression stays visible here.
  */
 class AccountAddPrimingTest {
 
@@ -46,11 +28,6 @@ class AccountAddPrimingTest {
 
     /**
      * The account list as `AccountStore` really keeps it, in the two respects this test needs:
-     * [add] makes the new account current (`KEY_CURRENT = id`), and [remove] moves current to the
-     * first remaining account whenever the id going away is the current one (AccountStore:514-521).
-     *
-     * [remove] is deliberately never wired into [addAccountThenPrime] — that IS the fix. It stays
-     * here as the witness of what the removal net used to do to a user reading her third account.
      */
     private class FakeAccountStore(vararg initial: String) {
         val accounts = initial.toMutableList()

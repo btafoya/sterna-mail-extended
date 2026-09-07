@@ -21,21 +21,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Handles new-mail notification quick actions (reply / mark read / delete) in the background.
- *
- * Mark as read dismisses the notification unconditionally, what it changes being the server's copy.
- * Delete takes the banner down only when it MOVED something ([bannerDeleteAct]): asked to delete a
- * message the local caches say is already in Trash it does nothing and leaves the banner standing,
- * a banner that does not fall being the statement that nothing was done. It never destroys either
- * way — permanent deletion lives in the list behind its Undo window (#23).
- *
- * That refusal owns the BUTTON, not the banner's lifetime: on a LIVE account a background pass
- * takes the banner down once the server confirms the message gone (#134). Hence the shape below,
- * the dismissal sitting INSIDE the credentials block, so without credentials the banner stays.
- * An account can lose its credentials without passing through sign-out — a sub-account pruned on
- * reconcile (#31), a secret that no longer decrypts — and its banners then stand until swiped away.
- *
- * Reply is like neither: the typed text lives in the broadcast intent and nowhere else, so the
- * notification comes down only once the Outbox has accepted it.
  */
 class NotificationActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -81,12 +66,6 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
     /**
      * The Delete button of a banner, and the question it never asked: would this delete MOVE
-     * anything? False means nothing happened at all, so the banner may not come down.
-     *
-     * The list asks the same thing over the SOCKET, forbidden here: this receiver has ~10 s of
-     * goAsync for everything, and a role lookup against a silent server spends all of it. All three
-     * local reads are GUARDED, and each failure falls to the ORDINARY path — a database that will
-     * not answer is not evidence that a delete would destroy something.
      */
     private suspend fun deleteFromBanner(
         repo: MailRepository,
@@ -128,9 +107,6 @@ class NotificationActionReceiver : BroadcastReceiver() {
             QuickReplyAct.Dismiss -> dismiss(context, accountId, credentials, emailId, notifId)
             // Read here and not before: the setting is only needed on the end that posts a banner.
             // Guarded, and not for tidiness: the DataStore has no corruption handler, so a
-            // truncated file surfaces as a throw from `first()` that onReceive's catch-all would
-            // swallow, leaving the banner unposted — and the typed text lives nowhere else. An
-            // unreadable setting falls back to the QUIETEST position.
             is QuickReplyAct.HandBack -> {
                 val content = runCatching { settings.notificationContent.first() }
                     .getOrDefault(NotificationContent.NONE)
@@ -141,11 +117,6 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
     /**
      * Hand the reply to the Outbox, which is what makes the text durable: sent when there is a
-     * network, retried with backoff, parked as FAILED with the text intact. The network is worth at
-     * most the threading headers and never the text — a reply that goes out with no In-Reply-To
-     * beats one that never goes. Known and accepted: the cached row carries neither Cc nor
-     * Message-Id/References, so a quick reply lands OUTSIDE its thread whenever the server does not
-     * answer within the budget.
      */
     private suspend fun send(
         repo: MailRepository,
@@ -168,13 +139,6 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
     /**
      * The original's threading headers, or null — ABANDONED after [FETCH_BUDGET_MS].
-     *
-     * A `withTimeoutOrNull` around the call itself is not a leash: cancellation is observed only
-     * at a suspension point while fetchEmail BLOCKS its thread, so against a reachable but silent
-     * server the timeout fired into the void, goAsync's ~10 s ran out, and the enqueue that comes
-     * after never ran. So the call goes into a job of its OWN scope and the budget is spent on
-     * await(). Cancelling does not close the socket, so the orphaned thread may block until the OS
-     * gives up — cheaper than a lost message.
      */
     private suspend fun fetchWithinBudget(
         repo: MailRepository,

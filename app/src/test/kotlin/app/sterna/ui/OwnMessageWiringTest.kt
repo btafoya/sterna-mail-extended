@@ -7,24 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
- * `OutboxCountWiringTest`: it reads source files as text and proves nothing about what appears on
- * screen.
- *
- * [ShowsRecipientsTest] runs the decision, but the whole point of #115's fix is that THREE surfaces
- * make it — the list row, the rows of an unfolded conversation, and the reader — and that they make
- * the same one. Any of them can be unplugged in a single line with every behaviour test green, and
- * the result is the incoherence the fix was asked to remove: a row that says "To: Alice" opening
- * onto a header that says "from Alice". `InboxScreen` is a composable and `MessageViewModel` an
- * `AndroidViewModel`; neither is instantiable in a JVM test here, so reading the source is what is
- * left.
- *
- * The rules pin arguments, not just names: `showsRecipients(role, unified = false, ...)` written
- * on the list's top-level row would put the unified inbox — the screen the app opens on — straight
- * back where the report found it.
- *
- * The "(Draft)" chip is wired the same way, from the same rows, through the same folder-role map,
- * and is pinned here rather than in a file of its own: what would be copied over there is the
- * source parser below, not the rules, and two copies of it drift.
  */
 class OwnMessageWiringTest {
 
@@ -73,9 +55,6 @@ class OwnMessageWiringTest {
     @Test fun `the rows of an unfolded conversation are judged by their own folder`() {
         // The THIRD surface. It carried the pre-#115 rule under its own name, which made the list
         // contradict the reader one level down: your own message echoed into the Inbox read
-        // "To: …" as a child, and said the sender's name once tapped. It now makes the same call
-        // as its two neighbours — on the child's OWN folder, since an unfolded conversation spans
-        // the viewed folder(s) plus Sent.
         val screen = code(INBOX_SCREEN)
         assertEquals(
             "showsRecipientsInThread must be called exactly once, for the children of an unfolded " +
@@ -200,10 +179,6 @@ class OwnMessageWiringTest {
     @Test fun `the swipeable row hands the answer on to the row it draws`() {
         // The link nothing else holds: EmailListItem's parameter DEFAULTS to the keyword, so
         // deleting this one line compiles, leaves every behaviour test green (the pure function is
-        // still right) and every other rule here green (none of them reads this body) — while
-        // undoing the whole fix, top-level rows and unfolded children at once. On screen that is
-        // the report exactly as filed: no '(Draft)' in the Drafts folder after the app is killed,
-        // and none ever on an IMAP account.
         assertEquals(
             "SwipeableEmailRow must pass 'showDraftBadge = showDraftBadge,' on to EmailListItem, " +
                 "on one line and exactly once. Without it EmailListItem falls back to its default " +
@@ -290,10 +265,6 @@ class OwnMessageWiringTest {
 
     /**
      * A call's arguments, one entry each, whitespace normalised: split on the commas at the call's
-     * own depth. Comparing arguments WHOLE is the point — a substring rule accepts everything
-     * written after what it matched, and `child.from` mutated to `child.to` or a conjunct appended
-     * to `ui.unified` are exactly the edits that leave one of these surfaces answering differently
-     * from the other two.
      */
     private fun arguments(call: String): List<String> {
         val out = mutableListOf<String>()
@@ -340,9 +311,6 @@ class OwnMessageWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text: everything up to the
-     * first line indented no deeper than the declaration, once the declaration's own brackets have
-     * closed. Fails loudly when the declaration is not found — a rename must break these rules
-     * rather than satisfy them silently against an empty string.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)

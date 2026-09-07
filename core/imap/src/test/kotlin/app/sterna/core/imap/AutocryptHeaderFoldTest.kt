@@ -7,12 +7,6 @@ import org.junit.Test
 
 /**
  * [AutocryptHeader.fold], executed — the one piece of this volet that **no bench can measure**.
- *
- * The four benches carry ed25519 keys ([AutocryptKeys.ED25519], 556 base64 characters): the header
- * fits on one line there, folded or not, so a phone would show a green screen either way. RSA-4096
- * ([AutocryptKeys.RSA_4096], 1 552 characters) is where an unfolded header becomes an RFC 5322
- * §2.1.1 violation — a relay that refuses the message, or a key delivered truncated, which makes
- * encryption to that correspondent impossible.
  */
 class AutocryptHeaderFoldTest {
 

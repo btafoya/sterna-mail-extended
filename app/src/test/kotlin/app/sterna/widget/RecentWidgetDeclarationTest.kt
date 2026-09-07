@@ -9,33 +9,11 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — the latest-messages widget's half of what
- * [UnreadWidgetDeclarationTest] holds for the counter. A widget declaration is not code this module
- * can run: `res/xml`, the merged manifest and the build script only mean anything inside a build,
- * and there is no Robolectric here.
- *
- * The `updatePeriodMillis="0"` rule is NOT here. It lives next door and now sweeps every
- * `appwidget_info_*.xml` of both resource directories, so a third widget is covered on the day it
- * is declared instead of the day someone remembers to copy a test.
- *
- * Every rule below is a whole-line comparison. Never a `contains`: a substring check is blind to
- * every mutation that LENGTHENS the line, which is how the first version of another lint in this
- * repo was walked straight past.
  */
 class RecentWidgetDeclarationTest {
 
     /**
      * THE MOST IMPORTANT LINE OF THE WHOLE WIDGET.
-     *
-     * Listing anything in a widget at `minSdk 26` means a `RemoteViewsService` the widget host
-     * binds — `RemoteViews.RemoteCollectionItems` is API 31+ — and a service any app may bind is a
-     * service that hands out, on demand, the sender and the subject of every message in every
-     * inbox. The notification-content setting and the app lock would still govern what the CELL
-     * draws and govern nothing at all about what a caller reads, and the reader would have no way
-     * of knowing: nothing appears on screen, and the caller declares no permission of its own.
-     *
-     * `android.permission.BIND_REMOTEVIEWS` is a signature permission held by the system, so only
-     * the widget host reaches the factory. The whole element is pinned, not the attribute: an
-     * `android:exported="true"` added beside it is the same hole reopened from the other side.
      */
     @Test fun `the row factory can be bound by the widget host and by nobody else`() {
         assertEquals(
@@ -55,9 +33,6 @@ class RecentWidgetDeclarationTest {
 
     /**
      * The picker's entry name goes through a build placeholder of its OWN, never a literal and
-     * never the counter's. The test app installs beside production (`app.sterna.test`); with a
-     * literal here, or with one placeholder for two widgets, the picker offers entries a bench pass
-     * cannot tell apart — the one failure mode where the maintainer's real mail is a tap away.
      */
     @Test fun `the picker entry is its own placeholder, resolved to a string in production and to a distinct label under -PtestApp`() {
         assertEquals(
@@ -77,9 +52,6 @@ class RecentWidgetDeclarationTest {
 
     /**
      * AND THE TEST LABEL IS INSIDE `if (testApp)` — WHICH THE RULE ABOVE CANNOT SEE. Move the
-     * line one row down, out of the gate, and the list it collects is byte-for-byte identical. The
-     * shipped app would then offer the widget picker an entry called "Latest messages (test)", in
-     * English, to every user in all nine languages.
      */
     @Test fun `the test app's label lives INSIDE the testApp gate, not merely somewhere in the build`() {
         assertEquals(
@@ -100,19 +72,6 @@ class RecentWidgetDeclarationTest {
 
     /**
      * Both layouts must carry text, and they must carry DIFFERENT text.
-     *
-     * The preview (`res/xml-v31`'s `previewLayout`, Android 12+) is what the picker draws before
-     * anyone places anything: the provider does not run for a preview and the row factory is never
-     * bound, so pointing it at the runtime layout would advertise this widget as an empty frame
-     * with the app's name in it.
-     *
-     * The runtime layout is the `initialLayout` — what the system inflates the instant a cell is
-     * dropped, before any read has answered, and that read may take seconds or time out and never
-     * arrive. It must therefore carry text, and that text must claim NOTHING about mail: an
-     * "empty inbox" line there is a statement about someone's mailbox made before a single row was
-     * read, and it is furthest from true in the very state the widget cannot distinguish yet (an
-     * account restored from a backup, an account offline). @string/app_name names the app and
-     * stops there.
      */
     @Test fun `the picker preview advertises the widget, and the runtime layout claims nothing about mail`() {
         assertEquals(
@@ -154,33 +113,6 @@ class RecentWidgetDeclarationTest {
 
     /**
      * THE ROW HAS ONE UNREAD MARK, AND IT IS THE WEIGHT.
-     *
-     * The cell shipped an 8 dp dot; the message list inside the app had already settled the same
-     * question the other way (`EmailListItem`: "Unread is shown by weight (bold) rather than a
-     * status dot"), so a row on the home screen and the row it opens disagreed about the only
-     * piece of state either of them carries. The dot is gone — drawable, view and
-     * contentDescription string — and this rule is what keeps it gone: re-added beside the weight
-     * it would say the same thing twice, on a line whose whole content is a name, a time and
-     * whether it has been read.
-     *
-     * AND THE PREVIEW HAS TO SHOW IT. That layout duplicates the row BY HAND, three times, and
-     * nothing at runtime ever touches it: it is the picture the widget picker draws, and it is the
-     * only thing anyone sees before deciding whether to place the cell at all. Left with three
-     * identical rows it advertises a list where nothing is ever unread — which is exactly the state
-     * the pane just spent its work making visible. One bold row and two plain ones is what the cell
-     * does.
-     *
-     * AND THE HEAD COLUMN STAYS, in all three blocks. The unread dot left the row, but the row
-     * did not lose its ImageView: the ACCOUNT dot took the column and holds it always, VISIBLE or
-     * INVISIBLE and never GONE, so every served line is indented by 16 dp. A preview whose senders
-     * start at the left edge draws a geometry no real row has. Invisible there and not coloured:
-     * the picker is read by someone who may hold a single account, and a coloured dot would promise
-     * a distinction that only exists from two accounts up.
-     *
-     * WHAT THIS CANNOT SEE: whether the runtime row is actually drawn bold. That is a
-     * `StyleSpan` handed to `RemoteViews` in another process; there is no Robolectric here and
-     * `RecentMailWidgetFactory` cannot be run at all. That the three fields go through the call is
-     * pinned in [RecentMailRowTapWiringLintTest]; that it LOOKS right is a bench claim.
      */
     @Test fun `the unread dot is gone from both layouts, and the preview shows the weight instead`() {
         assertEquals(
@@ -239,28 +171,6 @@ class RecentWidgetDeclarationTest {
 
     /**
      * THE SERVED ROW'S BADGE, PINNED WHOLE — the element and not one of its attributes.
-     *
-     * Nothing else in this repository looks at it. [RecentMailRowTapWiringLintTest] reads the row
-     * layout's first three lines only (its root and that root's id), the factory's lint pins the
-     * `RemoteViews` calls in Kotlin, and no test can inflate a layout: there is no Robolectric
-     * here. So `@dimen/widget_recent_monogram` turned into `0dp`, or the `ImageView` deleted
-     * outright, leaves every rule in this package green and every home-screen row bare — while the
-     * picker's preview, which is a hand-made copy, goes on promising three badges.
-     *
-     * Three facts, and each is one line away from being lost:
-     *
-     * - the id, which is what `setImageViewBitmap` and `setViewVisibility` address;
-     * - BOTH sides on `@dimen/widget_recent_monogram`. A literal here, or a zero, is a bitmap
-     *   scaled to something the disc was never rendered at — the badge is drawn at the dimension's
-     *   own pixel size ([WidgetMonogram]) — or no badge at all;
-     * - `importantForAccessibility="no"`. Removed, TalkBack reads the initial out loud, which is
-     *   the sender's name one letter at a time, on a screen where the pixels are deliberately not
-     *   drawn under the lock. The layout's own comment forbids it in writing.
-     *
-     * AND NO `android:src`. The badge is a `Bitmap` posted at runtime, painted in the tones the
-     * read answered with; a compile-time drawable here is a colour this layout chose, and it would
-     * show on exactly the rows that have no badge — under the lock, at NONE, with the initials
-     * switched off, and before any read has answered.
      */
     @Test fun `the served row's badge keeps its own square of the column, and never names itself`() {
         assertEquals(

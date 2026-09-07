@@ -1300,9 +1300,6 @@ fun InboxScreen(
                     current = pane.anchor?.matches(email.accountId, email.id) == true,
                     // LOAD-BEARING BEYOND THIS ROW: one of the guards that make "selection active
                     // while the search results are empty" unreachable — simplify it to `true` and
-                    // "Select all" takes the folder behind an empty result list and deletes it (#126).
-                    // The other half is the swipe guard for a local draft, and it must sit HERE
-                    // (#95): commitSwipe plays the whole take-off before calling onSwipe.
                     gesturesEnabled = rowGesturesEnabled(email.id, selectionActive),
                     unread = row.unread,
                     threadCount = row.threadCount,
@@ -1747,8 +1744,6 @@ fun InboxScreen(
 
 /**
  * The ONE folder drawer, drawn by both envelopes (#103). The carousel's `remember`s belong to the
- * sheet on screen, so an unfolded account list closing itself at 1 200 dp is the honest outcome.
- * [drawerState] is taken by BOTH: close() on the permanent drawer's always-Closed state does nothing.
  */
 @Composable
 private fun DrawerContent(
@@ -2036,10 +2031,6 @@ private fun DrawerContent(
 
 /**
  * The centred ring's own grace, from the SAME functions that hold the tern back (#178) — never a
- * second rule. It lives here rather than in the ViewModel because what it watches is
- * `listRows.loadState` and the rows guard, both of which exist only in composition.
- *
- * `instant = false` always: this ring answers no gesture; the pull's answer is the tern.
  */
 @Composable
 private fun rememberGracedIndicator(active: Boolean): Boolean {
@@ -2067,8 +2058,6 @@ private fun rememberGracedIndicator(active: Boolean): Boolean {
 
 /**
  * Hosts an empty/error state inside a full-screen scrollable so pull-to-refresh still fires:
- * PullToRefreshBox needs a scrollable child to receive the gesture, which a static centered Box
- * does not provide.
  */
 @Composable
 private fun PullableCenter(onClick: (() -> Unit)? = null, content: @Composable BoxScope.() -> Unit) {
@@ -2461,9 +2450,6 @@ private const val SWIPE_SLOP_FACTOR = 1.5f
 
 /**
  * How decisively horizontal a drag must be to arm a swipe: |dx| must reach this multiple of |dy|.
- * A plain 1:1 lead (#97) armed too eagerly — an arc starting with a sideways nudge then curving
- * vertical would fire archive/delete when the user meant to scroll. The same ratio gates the
- * vertical veto below.
  */
 private const val SWIPE_HORIZONTAL_DOMINANCE = 2.0f
 
@@ -2472,9 +2458,6 @@ internal enum class SwipeLock { PENDING, HORIZONTAL, VERTICAL }
 
 /**
  * Three-way direction lock on each accumulated drag delta: VERTICAL abandons to the list's scroll
- * as soon as a meaningful vertical component appears, which is what rejects the arc of #97;
- * HORIZONTAL arms the swipe; PENDING keeps accumulating. Vertical is checked first, so an ambiguous
- * diagonal resolves to scroll and never to a swipe.
  */
 internal fun swipeDirectionLock(dx: Float, dy: Float, slop: Float): SwipeLock {
     val ax = abs(dx)
@@ -2497,16 +2480,12 @@ private fun dismissesRow(action: SwipeAction): Boolean =
 
 /**
  * Whether this row must undo its swipe animation: it is one of the rows the view model reported as
- * "the write did not take" — see [InboxViewModel.swipeRewind]. Account-qualified, never by bare id:
- * two accounts of one server hand out the same message ids (#92), and both call sites hold the pair.
  */
 internal fun needsSwipeRewind(keys: Set<EmailKey>, accountId: String?, emailId: String): Boolean =
     EmailKey(accountId, emailId) in keys
 
 /**
  * Commit a swipe: a dismissing action with motion enabled lifts the row off in a short arc ([lift]
- * 0→1 driving rise/tilt/fade) and only then runs [onSwipe]. Otherwise the row snaps to its edge
- * (dismiss) or back to centre, and the action fires immediately.
  */
 private fun CoroutineScope.commitSwipe(
     action: SwipeAction,
@@ -2548,11 +2527,6 @@ private fun visibleFolderRole(ui: MailUi): String? =
 
 /**
  * The role of the folder THE ROW is filed in — what "delete permanently", "unarchive" and "a tap
- * edits the draft" are decided by. The VIEW's role is the same answer only while every row lives in
- * the folder on screen. [roles] is account-qualified: servers number mailboxes per account
- * (#31/#121), so a bare id would borrow a sibling's role and offer to destroy a message in its Inbox.
- * [folderTrusted] is FALSE for a search hit and is not optional: such a row carries the folder it
- * was crawled in, and believing it makes an "archive" swipe unarchive and strip other folders.
  */
 internal fun rowFolderRole(
     email: Email,
@@ -2566,13 +2540,6 @@ internal fun rowFolderRole(
 
 /**
  * WHERE a row of the unread view comes from — the folder to name under it, or null to say nothing.
- * On IMAP a message's identity CONTAINS its folder, so one object filed in two folders is two rows.
- * They are NOT deduplicated: a single row would stand for N real messages, and a "delete" swipe
- * on it would be a silent multi-folder delete.
- *
- * Null wherever the folder cannot be named honestly: outside the unread view; for a search hit
- * ([folderTrusted] false); for a row of another account, [MailUi.mailboxes] being one account's list
- * and not qualified by it (#31/#121); and when [inViewCount] is not 1.
  */
 internal fun unreadRowFolder(
     email: Email,
@@ -2589,8 +2556,6 @@ internal fun unreadRowFolder(
 
 /**
  * True when [from] is one of the user's own send-as [identities], matched case-insensitively on the
- * bare address — the message was written by the user, so it should show who it went TO rather than
- * the (self) sender. A blank/absent sender is never self-authored.
  */
 internal fun isSelfAuthored(from: List<EmailAddress>, identities: List<StoredIdentity>): Boolean {
     val sender = from.firstOrNull()?.email?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return false
@@ -2599,8 +2564,6 @@ internal fun isSelfAuthored(from: List<EmailAddress>, identities: List<StoredIde
 
 /**
  * The addresses the row's own account can send as. Mirrors AccountStore.identities: a linked
- * sub-account whose own address the session never advertised falls back to its LOGIN's identities
- * (#31), which is what it actually sends as.
  */
 private fun sendAsIdentities(email: Email, accounts: List<StoredAccount>): List<StoredIdentity> {
     val own = accounts.firstOrNull { it.id == email.accountId } ?: return emptyList()
@@ -2617,8 +2580,6 @@ internal enum class RowTap { EDIT_DRAFT, SELECT_THREAD, SELECT_ROW, OPEN }
 
 /**
  * What a tap on the browse/search row does. Order is load-bearing: a local draft ([localDraft], #95)
- * edits first, because the selection would refuse it and the tap would do nothing; then a live
- * selection toggles; then a row filed in Drafts edits (#63); everything else opens the reader.
  */
 internal fun rowTapAction(
     localDraft: Boolean,
@@ -2635,8 +2596,6 @@ internal fun rowTapAction(
 
 /**
  * What a tap on a child of an unfolded conversation does, from the role of ITS OWN folder — the one
- * rule of [rowTapAction], minus what a child never is (a local draft, a search hit, a foldable row).
- * Its selection is settled upstream, so only EDIT_DRAFT and OPEN come out.
  */
 internal fun childTapAction(childRole: String?): RowTap = rowTapAction(localDraft = false, selectionActive = false, expandable = false, fromSearch = false, rowRole = childRole)
 
@@ -2693,8 +2652,6 @@ private fun performThreadSwipe(action: SwipeAction, rep: Email, viewModel: Inbox
 
 /**
  * The inline-expanded members of a conversation, indented under the collapsed row behind a left
- * accent rail. Each child opens the thread reading view anchored on that message; a swipe acts on
- * that one message. Expansion animates unless the system "remove animations" setting is on.
  */
 @Composable
 private fun ThreadChildren(
@@ -2804,9 +2761,6 @@ internal data class MailboxNode(val mailbox: Mailbox, val depth: Int, val hasChi
 
 /**
  * Flatten mailboxes into a depth-first tree. Nesting comes from the JMAP `parentId` or, for IMAP,
- * the path delimiter in the id ([folderParentId], shared with the subscription filter so the two
- * agree on what a parent is); a child whose parent isn't present falls back to top level. Ids in
- * [collapsed] hide their descendants, and the incoming order is preserved within each level.
  */
 internal fun mailboxTree(mailboxes: List<Mailbox>, collapsed: Set<String>): List<MailboxNode> {
     val byId = mailboxes.associateBy { it.id }
@@ -2852,8 +2806,6 @@ private fun folderIcon(role: String?): ImageVector = when (role) {
 
 /**
  * The name to show for a folder. Standard folders — those the server tags with an RFC 8621 /
- * IMAP special-use [role] — get a localized canonical label, so server-specific spellings like
- * "Sent Items" or "Deleted Items" read consistently. Folders the user created keep their raw [name].
  */
 @Composable
 fun mailboxDisplayName(role: String?, name: String): String =
@@ -2884,9 +2836,6 @@ private fun OfflineBanner() {
 
 /**
  * A discreet banner for a refresh that FAILED while the device is online — the error surface, not
- * the offline one, and carrying the failure's own text. Two lines at most, and never mail content:
- * the two guards that keep it that way live in the JMAP client (`postJmap` reports the HTTP status
- * only; `decodeList` re-throws without kotlinx's JSON excerpt).
  */
 @Composable
 private fun SyncErrorBanner(message: String) {

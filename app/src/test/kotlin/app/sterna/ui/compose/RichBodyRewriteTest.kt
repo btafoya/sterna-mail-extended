@@ -9,8 +9,6 @@ import org.junit.Test
 
 /**
  * Changing the sending identity rewrites the signature block of the body as TEXT
- * (`replaceSignatureBlock` / `insertSignatureBlock`); [rewriteRichBody] EXECUTES that rewrite on a
- * rich body and must carry the user's styling across it unmoved (#131).
  */
 class RichBodyRewriteTest {
 

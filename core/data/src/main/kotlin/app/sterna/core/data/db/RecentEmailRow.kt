@@ -2,9 +2,6 @@ package app.sterna.core.data.db
 
 /**
  * One line of the "latest messages" home-screen widget.
- *
- * Deliberately NO `preview`: a widget sits on an UNLOCKED home screen, so the body must
- * never reach it — returning [EmailEntity] instead would put it one `row.preview` away.
  */
 data class RecentEmailRow(
     val id: String,

@@ -19,23 +19,6 @@ import org.junit.Test
 
 /**
  * The read receipt (RFC 8098's `Disposition-Notification-To:`) on the JMAP wire — the OCTETS that
- * leave, read back from a mock server, never the source that produced them.
- *
- * RFC 8621 has no `Email` property for this header: §4.1.2 allows an arbitrary `header:<name>:<form>`
- * property to be SET on create, and `asAddresses` is the form that takes `{name, email}` objects.
- * The model's `headers` list is not an alternative — it is read-only per the RFC.
- *
- * Three requests carry the header and they are written in three places, so each is exercised on its
- * own here:
- *  1. `Email/set` inside [JmapClient.sendEmail] — the ordinary send;
- *  2. `Email/set` inside [JmapClient.saveDraft] — so the draft on the server says what would go out;
- *  3. the blob [JmapClient.importAndSendEmail] uploads — a signed or encrypted message never goes
- *     through 1 at all. Its bytes are built by `OutgoingMime.build`
- *     ([app.sterna.core.imap.OutgoingMimeTest] pins the header there); what is pinned here is that
- *     this method puts those bytes on the wire unchanged, so the header cannot be lost in transit.
- *
- * `EmailSubmission/set` has nothing to do with it: the header belongs to the message, not to the
- * submission. A test below states that too, because writing it there is the plausible wrong guess.
  */
 class ReadReceiptOnTheWireTest {
 
@@ -74,8 +57,6 @@ class ReadReceiptOnTheWireTest {
 
     /**
      * The second request every JMAP send now makes: it reads back what the server did with the
-     * submission it just created (#183). Nothing is refused here, so the send goes through — but the
-     * response must be QUEUED, or the call sits on the read timeout.
      */
     private val submissionGetResponse =
         """{"methodResponses":[

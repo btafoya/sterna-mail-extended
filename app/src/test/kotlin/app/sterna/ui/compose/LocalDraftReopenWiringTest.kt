@@ -7,20 +7,6 @@ import java.io.File
 
 /**
  * Reopening a draft the phone holds and the server has not got (#95) — SOURCE LINT, THE LAST
- * RESORT. It reads `ComposeViewModel.kt` as text and proves nothing about what runs: nothing in
- * this module instantiates that class (an `AndroidViewModel`, no Robolectric here).
- *
- * **Read `LocalDraftReopenTest` (core:data) first.** Every decision this file only *locates* is
- * EXECUTED there: which store an id belongs to (`draftOpenRoute`), what a row projects into the
- * composer's fields (`localDraftPrefill`, id included), and the two ends of the `EDITING` lease
- * (`takeLocalDraftEdit` / `giveLocalDraftEditBack`). What no JVM test here can see is whether this
- * class still ASKS them, and what it hands them.
- *
- * Whole lines and whole bodies, never a `contains`: a substring check is blind to any mutation
- * that LENGTHENS the line (`editingDraftId = fields.editingDraftId ?: draftId` reads as harmless).
- *
- * WHAT IT DOES NOT COVER, plainly: that `prepare` is ever called; that the flows it writes reach
- * any composable; anything about runtime ordering beyond the order the statements are written in.
  */
 class LocalDraftReopenWiringTest {
 
@@ -88,17 +74,6 @@ class LocalDraftReopenWiringTest {
 
     /**
      * The lease this coroutine took, given back BY THIS COROUTINE when the screen goes while the
-     * take is still out (#95). `takeLocalDraftEditOrGiveItBack` is EXECUTED by `LocalDraftReopenTest`
-     * — the shelter, the give-back and the "never twice" are proven there. What nothing but this
-     * rule can see is that the composer still goes through it, and WHAT it hands it.
-     *
-     * The mutation it exists for compiles and reads as a tidy-up: take the lease with a plain
-     * `repo.takeLocalDraftForEdit(...)` and arm the two fields on the next lines, as it was
-     * written. `viewModelScope` dies with the NavBackStackEntry the moment the X or the back
-     * gesture pops the screen, and it can die INSIDE that call — after Room has written EDITING.
-     * The id is then remembered by nobody: `abandon()` releases nothing, `pending` and
-     * `localDraftUploadIsDue` both exclude EDITING, and the draft is never uploaded again until the
-     * app is next started cold. Nothing is logged and nothing is shown.
      */
     @Test fun `the lease is given back by the coroutine that took it`() {
         val body = functionBody(COMPOSE_VIEW_MODEL, "private suspend fun prepareLocalDraft(")
@@ -131,21 +106,6 @@ class LocalDraftReopenWiringTest {
 
     /**
      * Two failures, two sentences, and the difference is the point — not the wording.
-     *
-     * A row that is GONE is gone: the worker consumed it between the list being drawn and the tap
-     * landing, and nothing will bring it back — so "close this screen and open it again" would be
-     * an instruction that cannot work. A row that is BUSY is on the phone, whole, and openable
-     * again in a moment. Answered with one sentence, as one `null` was, the screen could only tell
-     * the user one thing about two situations.
-     *
-     * And BOTH go on `_draftLoadFailed`, never on `_attachmentStatus`: only that flow reaches
-     * `draftReopenView`'s `DeadEnd` and takes the editor off the screen. A verdict posted as a
-     * status line leaves a blank composer with a live Save over a draft this screen does not hold —
-     * which is the second-draft defect, not a wording problem.
-     *
-     * Neither arm may fall through: past the `when` the composer fills its fields from a row it
-     * does not hold, and the Save that follows lands on a fresh row while the worker still owns
-     * the first — two rows, two Message-IDs, two uploads.
      */
     @Test fun `the refused row and the missing row say different things`() {
         val body = functionBody(COMPOSE_VIEW_MODEL, "private suspend fun prepareLocalDraft(")
@@ -195,15 +155,6 @@ class LocalDraftReopenWiringTest {
 
     /**
      * THE WHOLE BODY, line by line and in order — because the cheapest mutation here is a
-     * DELETION at the call site, and every rule that filters on a name is blind to it. Dropping
-     * `_attachments.value = fields.attachments` left the whole suite green: `localDraftPrefill` is
-     * executed by `LocalDraftReopenTest` and still answers the right parts, they simply never reach
-     * the screen. The reopened draft then shows no attachment chips, and the next save writes
-     * `attachmentsJson = "[]"` over the row — the files are gone for good. `bcc = fields.bcc` →
-     * `bcc = ""` is the same defect, and it even compiles on `DraftFields`' own default.
-     *
-     * The price is stated: any honest refactor of this function turns this red, loudly, and takes a
-     * minute to fix. The other direction is a reopen that quietly amputates the draft.
      */
     @Test fun `the whole of prepareLocalDraft, line by line`() {
         val body = functionBody(COMPOSE_VIEW_MODEL, "private suspend fun prepareLocalDraft(")
@@ -277,15 +228,6 @@ class LocalDraftReopenWiringTest {
                 "replacedServerDraftUidValidity = fields.replacedServerDraftUidValidity",
                 // The delete confirmation's warning is armed HERE, from the row's own two terms
                 // and by the same decision the empty save's notice is posted from (#95). Left out,
-                // the dialog goes on promising "this can't be undone" over a row whose server copy
-                // this gesture deliberately keeps.
-                // …and `addressingIsProvenEmpty = true`, which is NOT a claim that the copy
-                // was addressed to nobody: this dialog answers BEFORE the finger and the addressing
-                // cannot be established there without a server read at every reopen. It leaves this
-                // dialog's rule exactly what it was, and the gap is one-way — this dialog only ever
-                // ADDS the "copy on the server stays" line, so `true` can withhold that line for a
-                // copy the gesture then keeps and says so a moment later, and can never promise one
-                // that is about to be destroyed. `false` here is the lie in the other direction.
                 "_deleteKeepsServerCopy.value = emptiedLocalDraftKeepsServerCopy(",
                 "fields.replacedServerDraftId,",
                 "fields.bodyIsLossy,",
@@ -345,12 +287,6 @@ class LocalDraftReopenWiringTest {
     @Test fun `every send raises the sending flag BEFORE its coroutine, not inside it`() {
         // What abandon() reads to decide it must give NOTHING back is this flag, and between the
         // tap and the first dispatch of the coroutine there is a real window: a Compose recomposition
-        // and a back gesture both fit in it. Raised INSIDE the launch, the flag is still false when
-        // the user taps X on a send she has just started — the local draft row goes back to the
-        // upload worker under a message that is on its way (a copy of it lands in the server's
-        // Drafts at the next launch, for good), and the outbox row is handed back to the queue
-        // while the send is deleting it, i.e. the same mail delivered twice (#70). The decision
-        // abandonPlan takes in values is only worth what this line's POSITION is worth.
         val lines = codeLines(codeOf(COMPOSE_VIEW_MODEL.readText()))
         val raised = lines.withIndex().filter { it.value == "_state.value = ComposeState.Sending" }
         assertTrue(
@@ -488,41 +424,6 @@ class LocalDraftReopenWiringTest {
 
     /**
      * **A body this composer LOST is refused in front of BOTH sends** (#95 × the parcel).
-     *
-     * The gesture it stops: a draft composed with no network is a `local_drafts` row and nothing
-     * else — the only copy of the text. Reopened over a saved-state parcel that could not give the
-     * body back, the editor is redrawn empty while `To` and the subject come back intact from their
-     * own saveables, so the screen looks whole and both exits stay lit (`canSend` weighs recipients
-     * and keys, `scheduleSendAllowed` weighs PGP and attachments; neither has ever weighed the
-     * body). One tap ran `commitThenConsumeLocalDraft`, which destroys that row and its staged
-     * files, and what left carried a body cut down to the signature. There is no way back either:
-     * the record kept for the undo window is built AFTER the consume and carries the same empty
-     * body.
-     *
-     * **THE ARGUMENT IS THE WHOLE PROOF, which is why the call line is pinned WHOLE.** Handed
-     * `textBody` — the body `bodiesForSend` returns — the guard reads a string the signature has
-     * already made non-blank, so it never arms once, in any state: dead code that reads exactly
-     * like a working guard. A `contains` check would not see the difference, because the mutation
-     * LENGTHENS the line.
-     *
-     * The SECOND argument that is a whole proof: `holdsStoredDraft` ORs all THREE stores — the
-     * phone's own draft, the server draft, and the queued outbox row reopened by Outbox → Edit. Cut
-     * down to any two, the refusal answers "Type it again." over a copy still sitting whole
-     * somewhere — and retyping is the gesture that sends the text after it: three characters
-     * unblock the guard and the commit consumes the phone's own draft row, or the outbox row that
-     * held the only copy. (The SERVER draft is the one spared: `unlessBodyIsLossy` holds its id
-     * back, so it survives as a duplicate rather than being destroyed.)
-     *
-     * And its POSITION is the other half: in front of `_state.value = ComposeState.Sending` and
-     * in front of the commit. Below either, the composer is already in `Sending` (the X and the
-     * abandon plan then read a send that is not happening) or the row is already destroyed.
-     *
-     * On `scheduleSend` the exit is pinned too — `return false`, not `return`: the screen shows
-     * "Scheduled — <date>" on what that function answers, so a refusal reported as nothing is
-     * announced as a schedule, and contradicted one toast later by the refusal's own notice.
-     *
-     * SOURCE LINT, the last resort — `EXECUTED in LostBodySendTest`, which plays both the refusal
-     * and the wording; nothing in this module can instantiate this class.
      */
     @Test fun `a lost body is refused in front of both sends, on the RAW body`() {
         val send = codeLines(bodyOf(COMPOSE_VIEW_MODEL, "sendInternal"))
@@ -613,30 +514,6 @@ class LocalDraftReopenWiringTest {
 
     /**
      * **The SAVE has a decision of its own, and it is asked ONCE.**
-     *
-     * The gesture it stops is the CAUTIOUS one: a queued message reopened by Outbox → Edit, redrawn
-     * empty over a resume slot that could not give the body back, and saved as a draft rather than
-     * sent. `saveDraft` wrote the empty draft and `consumeEditingOutbox()` then deleted the queued
-     * row and its durable attachment directory — the only copy of the text — while the screen was
-     * telling her, from the send route, to close and reopen the message.
-     *
-     * It is NOT a third `lostBodySendWording(`: that one answers what a refused SEND owes the
-     * reader, it is asked exactly twice (the rule above), and a third call would be a second answer
-     * to the send question. This is another question — "would this save destroy the queued row?" —
-     * so it has its own name, and its own count of ONE: a second call in this file would be a
-     * second answer to THAT question, i.e. two places deciding what a save may take away, and the
-     * rule above would stay green through it.
-     *
-     * **The WHOLE line, arguments included**, because the arguments are the proof and every
-     * mutation that matters LENGTHENS the line: `body` is the RAW body `saveDraft` was handed (a
-     * body through `bodiesForSend` carries the signature, is never blank, and the guard never arms),
-     * and `holdsQueuedRow` is `editingOutboxId != null` and nothing else — widened to the local or
-     * server draft it refuses saves that destroy nothing and costs the user the subject or the
-     * recipient she just typed.
-     *
-     * SOURCE LINT, the last resort — the decision is EXECUTED in `LostBodySendTest`, and its
-     * position inside `saveDraft` (first statement, above the consume) is pinned line by line by
-     * `ComposeViewModelWiringTest`.
      */
     @Test fun `the save asks what it would destroy exactly once, on the raw body and the queued row`() {
         val code = codeLines(codeOf(COMPOSE_VIEW_MODEL.readText()))
@@ -687,16 +564,9 @@ class LocalDraftReopenWiringTest {
                 "} else {",
                 // …and the SERVER route reads the same fidelity verdict this one does: a draft
                 // the composer never read whole keeps its server copy and the screen says so
-                // (emptiedServerDraftIsKept, EmptiedServerDraftTest). Unconditional, the expunge
-                // below took a draft made of one inline image on the first save — draftHasContent
-                // draws it EMPTY, since it counts neither inline images nor calendar parts.
                 "submit(to) { _, _ ->",
                 // The account is resolved by a LOCAL FUN and not into a val up front: a
                 // lossy draft keeps its copy whatever the account says, and resolving an account
-                // removed from the phone during the edit would turn that true notice into a
-                // "could not save" banner over a gesture that failed at nothing. Called only
-                // where an answer is used — and never with a fallback, which is what the
-                // `?: error(...)` line below pins.
                 "fun destroyingCredentials(): AccountCredentials =",
                 "credentialsDestroyingEmptiedServerDraft(",
                 "openedUnderAccountId = originalAccountId,",
@@ -705,11 +575,6 @@ class LocalDraftReopenWiringTest {
                 ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
                 // The second term of the guard, and the whole correction: the addressing
                 // of the copy about to be expunged, PROVEN empty or not proven at all. Read under
-                // the account the draft was OPENED from — `credentials` here reads another
-                // server's Drafts. The `!editingDraftLossy &&` only skips a read whose answer
-                // cannot change the outcome; drop the term itself and a Cc this composer never
-                // managed to display is expunged with the copy that held it (#63 on the emptying
-                // route). `= true` written here is the defect with a parameter bolted on top.
                 "val addressingIsProvenEmpty = !editingDraftLossy &&",
                 "repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
                 "if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {",
@@ -773,11 +638,6 @@ class LocalDraftReopenWiringTest {
                 "bodyIsLossy = editingDraftLossy,",
                 // The second keeping term, read here for the same reason `mailboxId` is: it
                 // takes a server read, and the decision stays pure. Under the account the ROW was
-                // leased under. `= true` written here is the emptying destroying a Cc this phone
-                // never managed to read, which is #63 on the gesture that leaves no duplicate.
-                // And the two guards stay in FRONT of the read: unlike `mailboxId` this one
-                // leaves the phone, and this gesture is the one reached with no network (#95).
-                // Neither skips anything the guard could have used — both hand over "not proven".
                 "addressingIsProvenEmpty = serverDraft != null && !editingDraftLossy &&",
                 "repo.emptiedDraftAddressingIsProvenEmpty(credentials, serverDraft),",
                 ")",
@@ -813,35 +673,6 @@ class LocalDraftReopenWiringTest {
 
     /**
      * **Deleting a draft the phone is keeping is the EMPTYING, reached by a button** (#95 × #69).
-     * There is no second route to destruction here and there must never be one: the rule above
-     * pins what `destroyReplacedServerDraft` carries — the folder, the frozen numbering, the lossy
-     * verdict that KEEPS a server copy this phone never read whole, and the order of the three
-     * acts — and every one of those proofs is lost the moment this gesture goes anywhere else.
-     *
-     * The body, and each line is a defect prevented:
-     *
-     *  · the lease is READ, never blanked ([heldEditingLocalDraft]) — refused while a send is in
-     *    flight (INV-6) and refused on a row the close has already given back (#127), which is the
-     * only half of a one-shot take this gesture needs. Blanking it here is the defect
-     *    `abandonPlan` was written to end, one gesture further along: the composer then answers "I
-     *    hold no row" to everything downstream and a failure leaves the row `EDITING` with nobody
-     *    left to release it — a ghost no startup sweep takes back, which the first reopen-and-close
-     *    hands to the upload worker: the draft that was just deleted, filed in the server's Drafts;
-     * · `destroyReplacedServerDraft`, never `consumeEditingLocalDraft` on its own. That one
-     *    takes the row and its files and nothing else — and while the row exists it is the ONLY
-     *    thing naming the server draft it replaced (`replacedServerIds` / `hidesServerRow`).
-     *    Consumed alone, the mask lifts and the draft the user has just deleted comes back at the
-     *    top of Drafts carrying the text from before her edit, for good;
-     * · the row goes back to the upload worker on a failure and to NOBODY on a success, and
-     *    that is [localDraftLeaseAfterDelete], executed by `EmptiedLocalDraftTest` — handed the
-     *    lease AS IT STANDS when the gesture ends (`_editingLocalDraftId.value`), never the id
-     *    captured at the start, or the close that gave the row back in the meantime is undone;
-     * · `_localDraftDeleted`, never `ComposeState.Done`: Done flies the tern away — 300 ms of
-     *    animation for a message that went OUT — and lands on the inbox instead of the Drafts list
-     *    (`ComposeDeleteWiringTest` holds the screen's end of that).
-     *
-     * SOURCE LINT, the last resort: `ComposeViewModel` is an `AndroidViewModel` and nothing here
-     * instantiates it. `EmptiedLocalDraftTest` executes what this can only locate.
      */
     @Test fun `deleting a kept draft is the emptying gesture, reached by a button`() {
         assertEquals(
@@ -917,30 +748,6 @@ class LocalDraftReopenWiringTest {
 
     /**
      * **A save gives the row back too, and until this line nothing did** (#95 × #31).
-     * `abandon()` is the only other release in the class and only the CANCEL of the screen calls
-     * it; a save leaves on `ComposeState.Done` without passing through, on the understanding that
-     * the save rewrote the row itself. It did — unless the "From" picker was moved to another
-     * account, which it may be for any draft, since the picker covers every account on the phone.
-     * Then `unlessDraftBelongsElsewhere` answers `SendDraftTarget(null, null)`, `localDraftTarget`
-     * mints a NEW row under the account being written as, and the row that was reopened stays
-     * `EDITING` for ever — the startup sweep leaves `EDITING` alone, on purpose. It sits at the top
-     * of its own account's Drafts under its "not on the server yet" pill, masking the server draft
-     * it names, and it never goes up. Nothing is said, nothing is logged.
-     *
-     * **Why HERE and not in `saveDraft`'s lambda.** `submit` has exactly three callers, all of
-     * them inside `saveDraft` — and `send()` / `scheduleSend()` do NOT come through it, each having
-     * its own `viewModelScope.launch`. The second assertion below holds the COUNT and the order
-     * of those calls, not the function they sit in: it is a tripwire on that fact, never a proof
-     * of it. So the risk `abandonPlan(sending = true)` closes elsewhere,
-     * re-arming the upload of a row a send in flight is already consuming, cannot arise at this
-     * point; that is the reason the branching is here and not one level up. On both empty-save
-     * routes the lease is already null when the `finally` is reached (`abandon(emptying = true)`
-     * does not clear it — that is its whole object — and `consumeEditingLocalDraft` does).
-     *
-     * SOURCE LINT, the last resort: `ComposeViewModel` is an `AndroidViewModel` and nothing in this
-     * module instantiates it. `SendDraftTargetTest` (core:data) EXECUTES the decision this file can
-     * only locate — the four cases of `localDraftLeaseAfterSave` — so inverting the shipped
-     * decision goes red there, not here.
      */
     @Test fun `a save that went through gives the phone's own row back`() {
         assertEquals(
@@ -996,18 +803,6 @@ class LocalDraftReopenWiringTest {
 
     /**
      * M56's only executioner. `destroyDurably` cannot be executed anywhere: WorkManager is not
-     * instantiable in a JVM test, and this is the last resort — whole lines, never a `contains`.
-     *
-     * What it forbids by pinning: `enqueueUniqueWork(destroyWorkName(accountId), REPLACE, …)`, the
-     * shape of the neighbouring `schedule`. Written here it hands this gesture the ACCOUNT'S ONE
-     * work slot, and REPLACE then throws away whatever is already in it — a permanent delete the
-     * user confirmed seconds earlier and is still inside the undo window of. Nothing fails, nothing
-     * is logged: the mail she believes deleted simply stays, or this draft's destroy is the one
-     * dropped, depending on which arrived first.
-     *
-     * And the `.await()`: the caller's very next act destroys the only local trace of what is being
-     * destroyed, so "enqueued" has to mean "written to disk". A bare `enqueue` returns before that
-     * write, and a process death in the window loses the order with nothing left naming the draft.
      */
     @Test fun `the emptied draft's destroy never takes the account's one work slot`() {
         assertEquals(
@@ -1022,14 +817,6 @@ class LocalDraftReopenWiringTest {
 
     /**
      * M55's second half. `draftDestroyFolder` is EXECUTED by `DraftDestroyFolderTest` (core:data)
-     * — read that first: which of the two answers wins, and what the fallback is worth, are proven
-     * there. What no test can reach is `MailRepository` itself (Room, a Context, a socket), so this
-     * pins WHICH values it feeds the decision.
-     *
-     * `draftsRoleMailboxId = null` written here compiles, keeps every suite green, and is the whole
-     * defect: a draft whose cache line went in a purge then resolves no folder, the caller enqueues
-     * nothing, the local row is consumed anyway, and the emptied draft comes back with its pre-edit
-     * text for good.
      */
     @Test fun `the draft's destroy folder is decided by the pure function, fed both answers`() {
         assertEquals(
@@ -1156,19 +943,6 @@ class LocalDraftReopenWiringTest {
 
     /**
      * **The DECLARATION of `abandon`, whole — not its body.** The rule above reads the body, and
-     * a body-reader starts at the first `{` after the closing parenthesis: the parameter list, and
-     * therefore its DEFAULT VALUE, is outside every window this file otherwise looks at.
-     *
-     * The mutation is one character and it compiled with the whole suite green:
-     * `fun abandon(emptying: Boolean = false)` → `= true`. `abandonPlan` is executed by
-     * `SendDraftTargetTest`, which always passes `emptying` explicitly, so nothing saw it. Shipped,
-     * EVERY normal close — the X, the back gesture, "Discard" — would stop giving the row back: it
-     * stays `EDITING`, `LocalDraftDao.pending` and `localDraftUploadIsDue` both exclude it, and the
-     * draft keeps its "not on the server yet" pill at the top of Drafts and NEVER GETS THERE until
-     * the next cold start. That is defect n° 2 of the issue, put back by the parameter itself.
-     *
-     * Which is why the call sites are pinned beside it: the whole point of the default is that
-     * the ordinary close does not name it, so the two are one decision.
      */
     @Test fun `the emptying flag is off by default, and only the emptied save turns it on`() {
         assertEquals(
@@ -1240,8 +1014,6 @@ class LocalDraftReopenWiringTest {
 
     /**
      * The declaration line of [opener] in [file] and its EXPRESSION body — from the `=` that ends
-     * the declaration down to the line that balances the call it opens. `bodyOf` cannot be used on
-     * one: there is no brace to find, and it would walk on to the next function's.
      */
     private fun expressionBodyOf(file: File, opener: String): List<String> {
         val lines = codeOf(file.readText()).lines().map { it.trim() }.filter { it.isNotEmpty() }
@@ -1313,17 +1085,6 @@ class LocalDraftReopenWiringTest {
 
         /**
          * The head of the two calls to `lostBodySendWording`, and the arguments each hands it —
-         * WHOLE lines, because the arguments ARE the proof, and every mutation that matters here
-         * LENGTHENS the line a `contains` would still accept:
-         *
-         *  - `textBody` slipped in place of the raw body is a body the signature has already made
-         *    non-blank, i.e. a guard that can never arm — and since #131 the raw body is a
-         *    `RichBody`, so the guard reads its `.text`: the user's own characters, styling aside;
-         *  - `holdsStoredDraft` short of ANY of its three terms answers "type it again" over a
-         *    store that still holds the text — a SERVER draft sitting intact in Drafts, or the
-         *    QUEUED OUTBOX ROW parked `EDITING` behind Outbox → Edit — which is the instruction
-         *    that loses it, since retyping unblocks the guard and the commit then consumes the
-         *    store. (The server draft survives as a duplicate: `unlessBodyIsLossy` spares it.)
          */
         const val LOST_BODY_HEAD = "val lostBody = lostBodySendWording("
         const val LOST_BODY_LOST = "bodyWasLost = composerBodyWasLost,"
@@ -1335,9 +1096,6 @@ class LocalDraftReopenWiringTest {
 
         /**
          * …and the sentence the refusal owes the reader, which is TWO sentences and not one: a tap
-         * that does nothing is tapped again, and a tap answered with "Type it again." over a stored
-         * draft is answered with the only gesture that destroys the text. The `when` is pinned whole,
-         * both branches, so a wording wired to the wrong string is a changed line here.
          */
         val LOST_BODY_NOTICE = listOf(
             "_notices.tryEmit(",
@@ -1350,9 +1108,6 @@ class LocalDraftReopenWiringTest {
 
         /**
          * …and the SAVE route's guard, whole, for the same reason: the arguments ARE the proof.
-         * `body` is the raw body `saveDraft` was handed; `holdsQueuedRow` is the outbox row alone,
-         * the only store a save DESTROYS (the phone's own row is held by `localDraftBodyToWrite`,
-         * the server copy by `unlessBodyIsLossy`).
          */
         const val SAVE_LOST_BODY_GUARD =
             "if (lostBodySaveDestroysQueuedRow(bodyWasLost = composerBodyWasLost, body = body.text, " +

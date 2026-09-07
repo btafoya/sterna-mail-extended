@@ -7,16 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT. `WorkManager` needs a `Context` and this module has neither Robolectric nor
- * instrumented tests, so `ScheduledSends.enqueue` cannot be executed by anything we own — the
- * policy it hands WorkManager, and the argument the startup re-arm passes it, are only ever
- * readable as text. The decision this volet actually makes (which rows get a job, and with what
- * delay) is EXECUTED in `core:data`, by `ScheduledSendRearmTest`; this file only pins the wiring
- * that carries it. The twin for the outbox is `OutboxRearmWiringTest`, and the shape is
- * deliberately the same.
- *
- * WHOLE LINES, in order: a `contains` is blind to a lengthened line and to a line moved inside a
- * condition, and the three mutations here (flipping the policy, flipping the DEFAULT in the
- * signature, dropping the argument at the call site) all leave the file compiling.
  */
 class ScheduledSendRearmWiringTest {
 
@@ -99,9 +89,6 @@ class ScheduledSendRearmWiringTest {
         )
         // AND THE BLOCK IS STILL INSIDE `init {`. The assertion above proves the six lines exist
         // in the file, never that anything runs them: lifted verbatim into a `private fun` that
-        // nobody calls, every line above matches, the suite stays green and the defect is back in
-        // full. A function declaration between `init {` and the block is what that mutation leaves
-        // behind, so that is what is refused here.
         val initAt = lines.indexOf("init {")
         val reArmAt = lines.indexOf("scheduledSendJobs(mailRepository.scheduledSends(), System.currentTimeMillis())")
         assertTrue("the re-arm must sit inside AppContainer's `init {`, which is what runs it", initAt in 0 until reArmAt)
@@ -119,10 +106,6 @@ class ScheduledSendRearmWiringTest {
     @Test fun `the composer books its scheduled send with the hour the user picked`() {
         // The call site, whole line and arguments included. This volet moved the delay out of
         // `ScheduledSends.enqueue` and into the seam `core:data` executes, which is what lets a JVM
-        // test decide the overdue case — but it also put an arithmetic expression at a call site no
-        // lint read. Handing `sendAtMillis` straight through (the parameter is a DELAY now, so that
-        // schedules some fifty-five years out) compiles and is silent; so does dropping the third
-        // argument, which sends every scheduled message AT ONCE.
         assertEquals(
             "the composer must convert the instant the user picked into a delay, through the same " +
                 "coerced seam the startup re-arm uses, and must NOT keep an existing booking — a " +

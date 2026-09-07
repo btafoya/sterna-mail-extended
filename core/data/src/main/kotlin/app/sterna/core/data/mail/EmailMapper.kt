@@ -13,9 +13,6 @@ import java.util.Collections
 
 /**
  * The `$draft` keyword of cached list rows, kept in memory only — the `emails` table stores just
- * `seen`/`flagged`. Recorded whenever a live fetch passes through [toEntity], replayed by [toEmail]
- * so a trashed draft can still be flagged "(Draft)" in the list (#69). After process death a row
- * falls back to no flag until the folder's next refresh.
  */
 private const val RECENT_DRAFTS_MAX = 2000
 private val recentDrafts: MutableSet<String> = Collections.synchronizedSet(

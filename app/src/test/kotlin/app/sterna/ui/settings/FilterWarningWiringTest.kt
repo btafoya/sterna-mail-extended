@@ -7,22 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [SettingsScreenHonestyTest]: it reads files as text and proves nothing about what is drawn.
- * The decision itself is executed, not read, in
- * `app.sterna.core.data.filter.FilterScriptWarningTest`; this only holds the wiring around it,
- * which cannot be executed here (a composable, and an Application-bound view model).
- *
- * What it closes, all of them ways the fix could be present and useless:
- * - the warning computed and never displayed;
- * - the two cases mapped to each other's sentence — the statement of fact printed where the
- *   prediction belongs reads as a lie about the present, and the prediction printed where the
- *   fact belongs is a warning about something that has already happened;
- * - the decision reached with the wrong arguments: a warning refreshed from `previous = null`
- *   (which is the M2 bug written back in), or a state folded from a status nobody read.
- *
- * The observations themselves are no longer handed to `filterScriptWarning` here: they travel
- * inside a `FilterScriptStatus`, and the mapping is executed fact by fact in
- * `app.sterna.core.data.filter.FilterStatusRefreshTest` and in [FiltersStatusUpdateTest].
  */
 class FilterWarningWiringTest {
 
@@ -39,9 +23,6 @@ class FilterWarningWiringTest {
     @Test fun `the responder screen chooses that sentence against its own switch`() {
         // E3: the remedy — Save on the filters screen — switches the auto-reply OFF, and during an
         // absence it was offered on the screen whose switch reads ON, saying nothing of the sort.
-        // Which sentence is vacationFilterLine(), executed in FilterStatusRefreshTest; pinned here
-        // is the ARGUMENT, because passing `false` (or the server's copy, or nothing at all) puts
-        // the remedy straight back under a running responder with every executed test still green.
         val source = text(SETTINGS_SCREEN)
         assertTrue(
             "the responder screen must ask 'vacationFilterLine(state.filterWarning, " +
@@ -113,10 +94,6 @@ class FilterWarningWiringTest {
     @Test fun `both write paths of the filters screen go through the confirmation decision`() {
         // The failure mode this closes is not "the confirmation is missing" but "the confirmation
         // is on the button only": the exit dialog's Save writes the same script, is reached by the
-        // back gesture and by the title-bar arrow, and a door hung on one of the two is no door.
-        // The decision itself is executed in FiltersSaveGateTest; pinned here are the CALL SITES,
-        // whole lines, because every way of getting this wrong is a line that still contains the
-        // right words: `scriptUnreadable = false`, a second `viewModel.save()` somewhere else.
         val lines = text(FILTERS_SCREEN).lines().map { it.trim() }
         assertEquals(
             "FiltersScreen must consult filtersSaveStep(scriptUnreadable = state.scriptUnreadable) " +
@@ -278,9 +255,6 @@ class FilterWarningWiringTest {
         )
         // WHOLE LINE, not `containsMatchIn`. Measured: `result.scriptUnreadable && false` LENGTHENS
         // the line, so a containment check still matched it and the whole suite stayed green — with
-        // state.scriptUnreadable false for ever after, which is every consequence of that flag gone
-        // at once: no overwrite confirmation, no red line, and "No rules yet" back over a script
-        // this app could not read. This is the repo's "pin the whole line" lesson, again.
         assertEquals(
             "…and WHICH refusal it was: the load must carry `unreadableFromRulesRead = " +
                 "result.scriptUnreadable,` and nothing else on that line. The rules read is the " +

@@ -20,8 +20,6 @@ internal enum class SmtpAuthMechanism { PLAIN, LOGIN }
 
         /**
          * The SASL mechanism names an EHLO response advertised, upper-cased, in the order listed;
-         * empty when there is no `AUTH` capability. Both spellings are handled (`250-AUTH PLAIN` and
-         * `250-AUTH=PLAIN`), tokenised, so a server offering `PLAIN-MD5` does not read as `PLAIN`.
          */
 internal fun advertisedAuthMechanisms(ehloLines: List<String>): List<String> {
     val mechanisms = mutableListOf<String>()
@@ -40,8 +38,6 @@ internal fun advertisedAuthMechanisms(ehloLines: List<String>): List<String> {
 
         /**
          * Which mechanism to authenticate with, given what the server [advertised]. `PLAIN` first
-         * (autistici/inventati rejects `LOGIN` outright, Codeberg #145), then `LOGIN`; a server that
-         * advertises NOTHING gets `LOGIN` tried at it. `null` means none of what it offers fits.
          */
 internal fun chooseAuthMechanism(advertised: List<String>): SmtpAuthMechanism? = when {
     advertised.isEmpty() -> SmtpAuthMechanism.LOGIN
@@ -128,10 +124,6 @@ internal const val SMTP_BLOCKING_READ = 0
 class SmtpClient {
             /**
              * Submit [message] through [config]'s server. [connectTimeoutMs] bounds the TCP connect
-             * (not name resolution — no socket option does); [commandTimeoutMs] bounds every read of
-             * the dialogue and both TLS handshakes, without which a server that went quiet left an
-             * outbox row stuck on "sending". Neither bounds a WRITE: Java exposes no write timeout.
-             * The read that FOLLOWS the body is unbounded on purpose, see [SMTP_BLOCKING_READ].
              */
     suspend fun send(
         config: MailServerConfig,
@@ -183,10 +175,6 @@ class SmtpClient {
 
                     /**
                      * The acknowledgement of the message BODY, and that read alone: [read]'s reader
-                     * with one tolerance. RFC 5321 §4.2.1 gives every line of a reply the same code,
-                     * so a server that wrote `250-…` has already taken the message and refusing a cut
-                     * reply would have `OutboxWorker` send it TWICE. A cut BEFORE any line still
-                     * throws, and [read] keeps its refusal — a cut EHLO read as success is worse.
                      */
             fun readBodyAck(): String {
                 var line = reader.readLine() ?: throw SmtpException("Connection closed")
@@ -321,10 +309,6 @@ class SmtpClient {
 object OutgoingMime {
             /**
              * [blindCopies] says whether the blind-copy recipients are written as a `Bcc:` header.
-             * [BlindCopies.OMITTED] by default, and that default IS the blind copy: what this
-             * returns is fed to SMTP's `DATA` with no header filter in between, so a `Bcc:` written
-             * for a submission hands every hidden recipient to every visible one. The ONE caller
-             * asking for [BlindCopies.WRITTEN] is the Drafts APPEND, whose bytes reach no recipient.
              */
     fun build(m: OutgoingMessage, blindCopies: BlindCopies = BlindCopies.OMITTED): String {
         val date = ZonedDateTime.ofInstant(
@@ -356,9 +340,6 @@ object OutgoingMime {
             append("MIME-Version: 1.0\r\n")
                     // A pre-built entity (PGP/MIME, or a multipart/report receipt) replaces the whole
                     // body. THE SEAM WHERE OCTETS FROM ELSEWHERE ENTER, and the only place that also
-                    // repairs entities already in files/outbox/<id>/: a PGP armor arrives with bare LF
-                    // endings and a hardened relay refuses the DATA outright. [PgpMime.canonicalize]
-                    // and nothing stricter — a bare CR may sit INSIDE what an old signature covers.
             if (m.prebuiltEntity != null) {
                 append(PgpMime.canonicalize(m.prebuiltEntity))
             } else {
@@ -369,10 +350,6 @@ object OutgoingMime {
 
             /**
              * The message's MIME entity WITHOUT the top-level message headers, starting at its own
-             * Content-Type line — split out so the PGP path signs the exact inner entity a normal send
-             * builds. [protectedSubject] repeats the subject INSIDE the entity and marks the top-level
-             * Content-Type `protected-headers="v1"` (RFC 9788 §3); it hides nothing, the real subject
-             * still travelling in the clear. Null must produce the bytes of all four old branches.
              */
     fun buildBodyEntity(m: OutgoingMessage, protectedSubject: String? = null): String {
         return buildString {
@@ -486,27 +463,18 @@ object OutgoingMime {
 
             /**
              * MIME base64: 76-column lines separated by CRLF, which `Base64.getMimeEncoder()` already
-             * produces. NOT `…encodeToString(…).replace("\n", "\r\n")`: that turns each separator
-             * into `\r\r\n`, a bare CR a DATA payload may not contain (RFC 5321 §2.3.8). Parsers shrug
-             * at it, but on a SIGNED message a relay straightening the line changes the signed bytes.
              */
     private fun base64(bytes: ByteArray): String =
         Base64.getMimeEncoder().encodeToString(bytes)
 
             /**
              * Strip CR/LF and other control chars from a structured header value, so an
-             * attacker-influenced address/Message-ID/References cannot smuggle headers or split the
-             * message — reply/forward fields echo values parsed from hostile mail. Public, and ONE
-             * of it: a pre-built entity assembled elsewhere needs this exact filter.
              */
     fun headerSafe(value: String): String =
         value.filterNot { it == '\r' || it == '\n' || it.code < 32 }
 
             /**
              * The addr-spec for a `MAIL FROM:`/`RCPT TO:`. The LAST '<', so a display name containing
-             * '<' cannot hijack the envelope address. The SMTP envelope is a line-oriented dialogue and
-             * so a CR/LF sink like the headers: an address with no angle brackets used to reach the
-             * wire verbatim, and a `\r\n` in it appended a second envelope command.
              */
     internal fun envelopeAddress(address: String): String {
         val lt = address.lastIndexOf('<')

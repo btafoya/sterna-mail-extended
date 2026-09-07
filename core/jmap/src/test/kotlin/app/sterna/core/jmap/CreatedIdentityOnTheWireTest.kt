@@ -19,13 +19,6 @@ import org.junit.Test
 
 /**
  * The OCTETS of `Identity/set` (RFC 8621 §6.4), read back from a mock server — never the source
- * that produced them.
- *
- * Sterna only ever READ identities (`Identity/get`), so an alias the user added in Settings existed
- * on the phone alone and the server refused every send from it (#172). What the create carries is
- * the whole fix: the submission capability (the identity does not live in the mail one), and BOTH
- * `email` and `name` — a create that drops the name posts an alias with no display name, which is
- * a defect no test reading `email` alone would ever see.
  */
 class CreatedIdentityOnTheWireTest {
 

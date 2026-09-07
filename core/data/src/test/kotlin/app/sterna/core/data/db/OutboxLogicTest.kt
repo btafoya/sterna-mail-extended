@@ -25,8 +25,6 @@ class OutboxLogicTest {
 
     /**
      * This assertion used to read the other way round, under the name
-     * `queuedAndSendingAlwaysDue`: SENDING was due like QUEUED. That was not an oversight in the
-     * pinning, it was the decision — and it is the decision that was wrong.
      */
     @Test fun aDeliveryAlreadyBegunIsNeverDueAgain() {
         assertFalse(
@@ -47,12 +45,6 @@ class OutboxLogicTest {
 
     /**
      * What the send worker must do with the row it has just read, state by state. The expected
-     * values are written OUT BY HAND: a test that asks [OutboxLogic.parkOnPickup] what to expect
-     * stays green with the rule inverted, and the whole point here is that inverting it re-delivers
-     * a message.
-     *
-     * Driven off [OutboxState.entries] so a seventh state cannot appear without an answer being
-     * decided for it right here.
      */
     @Test fun onlyADeliveryLeftInFlightIsParkedWhenTheWorkerPicksItUp() {
         assertEquals(
@@ -178,8 +170,6 @@ class OutboxLogicTest {
 
     /**
      * #183: a delivery the SERVER refused is over. Whatever the attempt count, the row is parked —
-     * it must NEVER go back to QUEUED, because the message is already in Sent and every retry adds
-     * a copy there and re-delivers it to any recipient that was valid.
      */
     @Test fun aRefusedDeliveryIsParkedAtOnce() {
         val refused = JmapException("Not delivered to nope@masto.top: 550 5.1.2 Mailbox does not exist.", permanent = true)
@@ -198,12 +188,6 @@ class OutboxLogicTest {
 
     /**
      * THE CHAIN, not the links. Parking a refusal as FAILED is worth nothing on its own:
-     * [OutboxLogic.canEdit] offers Edit on a FAILED row, the user opens it precisely because an
-     * address needs fixing, and closing the composer untouched runs [OutboxLogic.stateAfterEdit] on
-     * whatever count was written. With `attemptCount = 1` that answers QUEUED and the message goes
-     * out AGAIN — a second copy in Sent, and on a partial refusal a second delivery to the
-     * recipient who was valid. So what is pinned here is the whole sequence: refuse → park → reopen
-     * → come back out, and it must still be parked at the end.
      */
     @Test fun aRefusedDeliveryStaysParkedEvenAfterBeingReopened() {
         val refused = JmapException("Not delivered to nope@masto.top: 550 5.1.2 Mailbox does not exist.", permanent = true)
@@ -228,9 +212,6 @@ class OutboxLogicTest {
             )
             // The second door, in the terms the SQL uses: OutboxDao.revertEditingExhaustedToFailed
             // claims EDITING rows at `attemptCount >= MAX_ATTEMPTS` at startup, and the rest are
-            // parked under the interrupted-edit reason (parkAllEditingAsInterrupted). Nothing is
-            // requeued any more; what the cap decides is WHICH reason the row keeps. Asserted as
-            // the comparison, not as the query text.
             assertTrue(
                 "⛔ a refused row stranded in EDITING by a process death must be claimed by the " +
                     "exhausted statement first (attemptCount >= ${OutboxLogic.MAX_ATTEMPTS}), or " +
@@ -243,8 +224,6 @@ class OutboxLogicTest {
 
     /**
      * The counter-test of the ruse above, and it is the expensive one to get wrong: forcing the
-     * cap on an ORDINARY failure would park every send that only needed a second try — offline
-     * sends first of all.
      */
     @Test fun anOrdinaryFailureCountsOneAttemptAndNothingMore() {
         for (failure in listOf(
@@ -269,8 +248,6 @@ class OutboxLogicTest {
 
     /**
      * And the other side of it, which is the easy thing to break: every ORDINARY failure keeps
-     * exactly the behaviour it had. A dropped network or a server hiccup says nothing about whether
-     * the message left, and the retries are what gets a queued send out when the link comes back.
      */
     @Test fun anOrdinaryFailureStillRetriesUntilTheCap() {
         for (failure in listOf(
@@ -296,9 +273,6 @@ class OutboxLogicTest {
 
     /**
      * #70 regression: a reopened item closed untouched returns to QUEUED only while it still has
-     * retries left. The composer close ([MailRepository.releaseOutboxEdit]) decides on this
-     * threshold; the startup recovery ([MailRepository.parkInterruptedOutboxEdits]) parks every
-     * row it finds and uses the same threshold only to let an exhausted row keep its own reason.
      */
     @Test fun aReopenedItemUnderTheRetryCapGoesBackToTheQueue() {
         assertEquals(OutboxState.QUEUED, OutboxLogic.stateAfterEdit(0))
@@ -339,8 +313,6 @@ class OutboxLogicTest {
 
     /**
      * #82: the grace hangs off the row's own deadline and is never restarted. A row put back to
-     * QUEUED after a failed attempt therefore does NOT buy itself another silent half-minute: it
-     * counts at the instant it would have counted anyway.
      */
     @Test fun aRequeuedRowDoesNotGetAFreshGrace() {
         val requeued = OutboxBadgeItem(OutboxState.QUEUED, notBeforeMillis = 5_000) // attempt failed at ~5_100
@@ -351,8 +323,6 @@ class OutboxLogicTest {
 
     /**
      * #82: Retry rewrites the row's deadline (MailRepository.retryOutbox), and that deadline is the
-     * badge's anchor — so a row just retried does not count, by the same rule as a fresh send. The
-     * Outbox screen offers Retry on every row, failed or merely waiting, so this holds for both.
      */
     @Test fun aRowWhoseDeadlineWasJustResetByRetryDoesNotCount() {
         val retriedAt = 100_000L
@@ -413,11 +383,6 @@ class OutboxLogicTest {
 
     /**
      * The three rows below are the ONLY three shapes production ever writes, and the tests that
-     * follow use them rather than free combinations of the two arguments. `ComposeViewModel` builds
-     * an entity for every send that is not `PgpMode.OFF`, and `enqueueSend` stores `null` for OFF —
-     * so "SIGN with no entity" and "ENCRYPT with no entity" do not exist, and a test pinning one is
-     * a test of a state that cannot happen. One did, and it hid a regression: it kept
-     * `canEdit("SIGN", …, false)` green while every real signed row had lost its Edit button.
      */
     private fun signed() = OutboxLogic.isUnreplayablePrebuiltEntity("SIGN", "/outbox/1/prebuilt-entity.mime")
     private fun encrypted() = OutboxLogic.isUnreplayablePrebuiltEntity("ENCRYPT", "/outbox/2/prebuilt-entity.mime")
@@ -431,11 +396,6 @@ class OutboxLogicTest {
 
     /**
      * A read receipt cannot be reopened: nothing can build its entity a second time.
-     *
-     * Reopening throws the entity file away and Send enqueues a fresh row from the composer's
-     * fields — which hold the human-readable half only. The `message/disposition-notification`
-     * part, the thing that makes it a receipt at all, exists nowhere else and no composer writes
-     * one. Edit would quietly turn a receipt into an odd little mail.
      */
     @Test fun aReadReceiptCannotBeReopened() {
         assertEquals(true, receipt())
@@ -446,12 +406,6 @@ class OutboxLogicTest {
 
     /**
      * THE WITNESS, and the regression it caught. A SIGNED row carries a pre-built entity too —
-     * and it keeps Edit, exactly as it has since #70. The composer holds its body, signs it again
-     * at send time, and the new entity is as good as the old one.
-     *
-     * Reading the rule as "carries an entity" instead of "carries an entity nothing can rebuild"
-     * takes Edit away from every signed message in the Outbox, which is a change to a screen this
-     * branch has no business changing.
      */
     @Test fun aSignedItemStillOffersEditAlthoughItCarriesAnEntity() {
         assertEquals("a signed row's entity is one the composer can produce again", false, signed())
@@ -462,12 +416,6 @@ class OutboxLogicTest {
 
     /**
      * WHAT THE OUTBOX COLUMN IS FOR, executed end to end: [OutboxLogic.outboxPgpModeName] writes
-     * it, [OutboxLogic.canEdit] reads it back as text.
-     *
-     * The column does not name the author's choice; it says how the body must be treated at rest,
-     * and there the two encrypting modes are one. Storing "ENCRYPT_UNSIGNED" instead would slip
-     * past `canEdit`'s string comparison and put an Edit button on a row whose body was blanked:
-     * the composer opens EMPTY and Send then queues an empty message over the real one.
      */
     @Test fun anUnsignedEncryptedRowIsFiledAsEncryptedAndOffersNoEdit() {
         assertEquals(

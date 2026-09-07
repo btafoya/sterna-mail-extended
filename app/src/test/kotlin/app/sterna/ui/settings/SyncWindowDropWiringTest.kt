@@ -10,13 +10,6 @@ import java.io.File
 
 /**
  * SOURCE LINT for the plug, plus the decision EXECUTED beside it. `AccountsViewModel` is an
- * `AndroidViewModel` and this module has neither Robolectric nor instrumented tests, so the
- * comparison it branches on is run here as a function and only the branch is read as text — whole
- * lines, never a fragment: a `contains` on a fragment is blind to any mutation that LENGTHENS the
- * line, which is precisely the shape `if (changed) mail.dropSyncCursors(id)` has.
- *
- * What the branch is for: the delta branch of a sync never sends the window, so on a folder that
- * already carries a cursor "Messages to sync" did nothing at all until the cursor fell.
  */
 class SyncWindowDropWiringTest {
 

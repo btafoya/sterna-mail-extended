@@ -13,25 +13,6 @@ import java.time.Instant
 
 /**
  * TWO PASSES, because one pass cannot see this failure.
- *
- * `NewMailNotifier.seed` REPLACES a folder's baseline (`putStringSet`), it does not union it. So a
- * folder's baseline covers exactly what the pass that wrote it was handed, and anything left out is
- * forgotten — for good, every pass. Whatever bounds the baseline therefore has to be a bound a row
- * can only ever fall OUT of, never back into.
- *
- * A row count is not such a bound. It slides down as rows above it leave the folder (a delete, an
- * archive, a move, a ghost sweep), and the rows it slides onto were dropped from the baseline by
- * the pass before. They are then "not in known", they are inside the age floor, and they announce
- * as new mail — mail that has been sitting in the cache all along.
- *
- * And this is not only a wrong notification: the same `newSince` drives
- * `unarchiveThreadsOnReply` (`FetchAndNotify.kt`), an `Email/set` MOVE on the server. A false
- * positive drags mail back out of the Archive the owner had filed. Irreversible-first.
- *
- * So the baseline is seeded from an id-only read bounded by the TIME floor alone, and the row cap
- * belongs to the hydrated candidates the diff walks. Both statements are executed here, out of the
- * shipped DAO, over a bench that is deliberately LARGER than the cap — a bench that never reaches
- * the cap cannot see anything the cap does.
  */
 class NotifierBaselineTwoPassTest {
     private lateinit var db: Connection
@@ -43,8 +24,6 @@ class NotifierBaselineTwoPassTest {
 
         /**
          * Rows in the burst, comfortably over the shipped cap of 500 — and inside the age floor,
-         * which is what makes them announceable. A folder taking 600 messages in a night is a
-         * mailing list, a newsletter dump, or the first sync after a server-side migration.
          */
         const val BURST = 600
 
@@ -96,11 +75,6 @@ class NotifierBaselineTwoPassTest {
 
     /**
      * The DAO statement `MailRepository.notifyRead` assigns to [field], read out of the shipped
-     * body — not a name this file chose.
-     *
-     * This is what makes the two passes below a test of the WIRING and not only of two statements
-     * that happen to have the right shape. Point `baselineIds` back at the capped read — the
-     * defect an audit found here — and this file replays the capped read and says so.
      */
     private fun statementFor(field: String): String {
         val body = DaoQuerySource.mailFunctionBody("MailRepository", "notifyRead")

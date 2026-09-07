@@ -8,39 +8,6 @@ import java.io.File
 
 /**
  * `SECURITY.md` says how many components this app exports. This test makes that sentence answer to
- * the manifest.
- *
- * WHY. The published inventory has drifted TWICE without a word: it was written when there really
- * were two exported components (`MainActivity`, `BootReceiver`), then the unread-counter widget
- * provider was added, then the recent-mail one — the manifest carries FOUR today while the
- * document still reads "Two components are exported". Nothing in the tree confronted the prose
- * with the declaration, so nobody saw either drift. A security document that under-reports its own
- * attack surface is worse than no document: a reader counts two and stops looking.
- *
- * WHY THIS IS NOT A `contains`. The repo has been bitten three times by source lints that assert
- * a FRAGMENT belongs to a file: `"exported" in text` stays green when the line grows, is rewritten,
- * or moves, so it measures the presence of a word and not the truth of a claim. Here a NUMBER is
- * read from each side and the two numbers are compared. The manifest side counts the component tags
- * that actually carry `android:exported="true"`; the prose side reads the English number-word out of
- * the inventory sentence and converts it to an integer, refusing loudly on a word it does not know
- * rather than answering 0 (a silent 0 would turn "Eleven components are exported" into a green run).
- *
- * HOW IT IS BUILT, following [app.sterna.bench.NoPrivateHostInTreeTest]:
- *
- *  - The two decisions are PURE FUNCTIONS, [exportedComponents] and [announcedExportedCount],
- *    EXECUTED against arguments pinned in [theManifestDecisionIsExecutedOnAPinnedFragment] and
- *    [theProseDecisionIsExecutedOnAPinnedFragment]. A test that re-derived either rule to choose
- *    what to feed it would be a copy of the rule.
- *  - The pinned manifest fragment is a hand-written one whose count is known by reading it, and it
- *    is passed through [DeclarationSource.codeLines] like the real one — so the fragment can carry
- *    an `<!-- … exported="true" … -->` comment and prove the prose explaining a rule is not counted
- *    as the rule.
- *  - THE POSITIVE CASES are those fragments: the lint above compares the checkout against itself,
- *    so gutting a decision to `emptyList()` or `0` would leave it comparing two equally wrong
- *    numbers. The pinned fragments are what go red then — verified by mutation, both ways.
- *
- * This test is red on purpose the day it lands: the manifest exports four, the document announces
- * two. Fixing the DOCUMENT is what turns it green — never this test, and never the manifest.
  */
 class SecurityDocExportedCountTest {
 
@@ -71,8 +38,6 @@ class SecurityDocExportedCountTest {
 
     /**
      * THE POSITIVE CASE, manifest half. The decision executed against a fragment written HERE,
-     * whose answer is known by reading it rather than by running the code. Without this, emptying
-     * the function body leaves the lint above comparing 0 to 0.
      */
     @Test
     fun theManifestDecisionIsExecutedOnAPinnedFragment() {
@@ -117,8 +82,6 @@ class SecurityDocExportedCountTest {
 
     /**
      * THE POSITIVE CASE, prose half. Two decoys are planted on purpose: one BEFORE the section and
-     * one AFTER it, both perfectly shaped inventory sentences with a different number. Widening the
-     * search to the whole document therefore answers 9 or 7 instead of 3, and this goes red.
      */
     @Test
     fun theProseDecisionIsExecutedOnAPinnedFragment() {
@@ -149,8 +112,6 @@ class SecurityDocExportedCountTest {
 
     /**
      * The section boundary, the other way round: an inventory sentence that lives only in a LATER
-     * section must not answer for this one. The reader is expected to stop at the next heading and
-     * say so, rather than quietly report a number from somewhere else in the document.
      */
     @Test
     fun theInventoryIsReadOnlyInsideItsOwnSection() {
@@ -175,8 +136,6 @@ class SecurityDocExportedCountTest {
 
     /**
      * A `#` at column 0 inside a fenced code block is a shell comment, not a heading. Without the
-     * fence guard the section ends at that line, the inventory sentence below it is never reached,
-     * and the lint reddens over a doc edit that changed nothing it guards.
      */
     @Test
     fun aHashInsideAFencedBlockDoesNotEndTheSection() {
@@ -260,8 +219,6 @@ class SecurityDocExportedCountTest {
 
         /**
          * The inventory sentence: a bullet opening on an English number-word, "components are
-         * exported". Anchored on the bullet so a number-word in the middle of a paragraph cannot
-         * answer for the inventory.
          */
         val INVENTORY = Regex("^-\\s+([A-Za-z]+)\\s+components?\\s+are\\s+exported\\b")
 
@@ -272,11 +229,6 @@ class SecurityDocExportedCountTest {
 
         /**
          * DECISION 1, pure. The components that really carry `android:exported="true"`, by name,
-         * out of manifest text whose comments are already gone.
-         *
-         * It refuses to answer when the attribute appears on a tag it does not know: an unknown
-         * carrier is a component missing from the count, which is precisely the drift this lint
-         * exists to catch.
          */
         fun exportedComponents(manifestCode: String): List<String> {
             val carriers = COMPONENT_TAG.findAll(manifestCode)
@@ -336,8 +288,6 @@ class SecurityDocExportedCountTest {
 
         /**
          * The inverse, for the failure message. Never a DIGIT above [WORDS]: the sentence
-         * pattern reads a word, so "13 components are exported" would satisfy the instruction and
-         * leave the lint failing on a second, more confusing message.
          */
         fun rewriteInstruction(n: Int): String {
             val word = WORDS.getOrNull(n - 1)?.replaceFirstChar { it.uppercase() }

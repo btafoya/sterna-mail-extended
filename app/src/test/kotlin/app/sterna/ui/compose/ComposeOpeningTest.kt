@@ -7,11 +7,6 @@ import org.junit.Test
 
 /**
  * The one place the compose `mode` navigation argument is read. Before it existed,
- * `ComposeViewModel.prepare` tested the raw string in three places (threading ids, the carried
- * forward, the prefill's `when`), and a mode added to one of them and not the others opened, in
- * silence, a quoted REPLY carrying In-Reply-To — which is what "forward as attachment" would have
- * become. So the decision is EXECUTED here, on every mode, and each assertion says what the user
- * would have seen had it gone the other way.
  */
 class ComposeOpeningTest {
 

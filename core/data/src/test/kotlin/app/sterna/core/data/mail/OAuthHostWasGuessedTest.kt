@@ -6,17 +6,6 @@ import org.junit.Test
 
 /**
  * [oauthHostWasGuessed]: may this OAuth sign-in's host be improved into the one the password path
- * would have stored, or was it dictated by the reader?
- *
- * What it fences off. Resolving the server on every OAuth add fixes #55 for the addresses whose
- * host the app guessed alone, and breaks it for the manual form: there, the OAuth button and the
- * password button read the SAME field, and the password button stores what was typed verbatim
- * (`ConnectViewModel.finishJmapConnect` → `accountStore.add(server, …)`). One reader typing
- * `jmap.example.org` on both buttons would get two accounts — #55 again, out of the fix for #55.
- *
- * Both sides are LITERAL. The candidate list is written out rather than asked from
- * `Jmap.autodiscoverHosts`, and no expected value is re-derived from the shipped condition: a test
- * that recomputes the rule stays green when the rule is inverted.
  */
 class OAuthHostWasGuessedTest {
 

@@ -14,27 +14,6 @@ import org.junit.Test
 
 /**
  * The interceptor RUN, not read (#120).
- *
- * There is one step of this fix that no source lint can hold and that cancels all of it if it is
- * wrong: WHICH request the interceptor finally hands to the input method. Passing the original
- * instead of the wrapper —
- *
- *     return nextHandler.startInputMethod(request)     // instead of (incognito)
- *
- * — leaves every line a lint pins exactly where it is, in exactly the right order. The wrapper is
- * still built, the flag is still added in it, the delegate is still called first. It is simply
- * dropped, the field's own request goes to the keyboard, and nothing anywhere says so: Kotlin only
- * warns "variable is never used", and this build has no allWarningsAsErrors, no detekt, no ktlint.
- *
- * So it is executed here instead. The interceptor is stateless and captures nothing, which is what
- * makes this possible at all: two fakes and a `runBlocking` are enough, with no Compose runtime and
- * no Android framework in sight.
- *
- * WHAT THIS DOES NOT PROVE: that the wrapper's `createInputConnection` delegates correctly, or that
- * the flag reaches a keyboard. Calling `createInputConnection` needs a real `EditorInfo`, and this
- * module mocks no framework class (`testOptions.unitTests.isReturnDefaultValues` is set nowhere) —
- * an `EditorInfo()` here throws "not mocked". That half is pinned by text in
- * [ComposeScreenIncognitoTest] and closed for good only on a bench run.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 class IncognitoInterceptorTest {

@@ -34,10 +34,6 @@ import app.sterna.ui.components.EmptyState
 
 /**
  * First-launch privacy welcome. Communicates Sterna's posture (no ads, no tracking,
- * no Google services, contacts stay on-device) before the add-account flow. Reuses the
- * coastal line-art from [EmptyState]; the illustrations are decorative (no
- * contentDescription). Fully skippable. [onDone] is called when the user finishes the
- * last page ("Get started") or taps "Skip"; the caller persists that it has been seen.
  */
 @Composable
 fun WelcomeScreen(onDone: () -> Unit) {

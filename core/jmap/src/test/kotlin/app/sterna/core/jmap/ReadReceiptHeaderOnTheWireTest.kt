@@ -16,18 +16,6 @@ import org.junit.Test
 
 /**
  * READING `Disposition-Notification-To:` off a JMAP server — the request bytes, which fetches
- * carry the property and which must not, and the two fallbacks kept apart.
- *
- * Not to be confused with [ReadReceiptOnTheWireTest], which pins the `asAddresses` property a
- * SEND writes. This one is the `asText` property an OPEN reads; they are two different properties
- * and only this file may see the second.
- *
- * The three ways this chain goes silently inert, each of which looks like "this sender asked for
- * nothing":
- *  1. the property is not asked for;
- *  2. it is asked for but the model's `@SerialName` does not match, so kotlinx drops the answer
- *     (`ignoreUnknownKeys = true`);
- *  3. the server rejects it and the whole `Email/get` fails — no message opens at all.
  */
 class ReadReceiptHeaderOnTheWireTest {
 
@@ -100,9 +88,6 @@ class ReadReceiptHeaderOnTheWireTest {
 
     /**
      * A folder page, a delta sync, a thread and the two search paths fetch dozens of rows every
-     * time they run. A `header:` property there is dozens of extra lines per scroll, per sync,
-     * for something only an opened message reads — and it would arrive by accident, which is
-     * exactly how a header property gets into a hot path.
      */
     @Test fun `the folder page does NOT ask for it`() = runBlocking {
         server.enqueue(
@@ -186,9 +171,6 @@ class ReadReceiptHeaderOnTheWireTest {
 
     /**
      * A server that answers `invalidArguments` to whichever of the two optional property groups
-     * [refuses] names, and serves the message otherwise. This is a SERVER's rule, not a copy of
-     * the client's decision: it looks at the property names in the payload, which is all a real
-     * strict server does.
      */
     private fun serverRefusing(vararg refuses: String, with: MockResponse = invalidArguments()) {
         server.dispatcher = object : Dispatcher() {
@@ -207,10 +189,6 @@ class ReadReceiptHeaderOnTheWireTest {
 
     /**
      * Every request received since the last drain, in order.
-     *
-     * Drained with a timeout and NOT `repeat(server.requestCount)`: `requestCount` is the total
-     * ever received, so a second read of it would ask for requests already taken and block the
-     * test forever on an empty queue.
      */
     private fun requestBodies(): List<String> =
         generateSequence { server.takeRequest(500, java.util.concurrent.TimeUnit.MILLISECONDS) }
@@ -219,8 +197,6 @@ class ReadReceiptHeaderOnTheWireTest {
 
     /**
      * HALF ONE of the invariant. A server that will not hear of the receipt property keeps its
-     * unsubscribe banner. One guard covering both groups would drop all three properties here and
-     * the banner would be gone for that account for the life of the process.
      */
     @Test fun `a server refusing the receipt property keeps its unsubscribe headers`() = runBlocking {
         serverRefusing("Disposition-Notification")
@@ -244,8 +220,6 @@ class ReadReceiptHeaderOnTheWireTest {
 
     /**
      * HALF TWO, and the one a nested guard gets wrong by default: a server that refuses the
-     * unsubscribe headers keeps the receipt reading. The inner guard is the unsubscribe one, so
-     * this case must still cost the two requests it cost before this property existed.
      */
     @Test fun `a server refusing the unsubscribe headers keeps the receipt property`() = runBlocking {
         serverRefusing("List-Unsubscribe")
@@ -282,12 +256,6 @@ class ReadReceiptHeaderOnTheWireTest {
 
     /**
      * A server may refuse a property it does not know in words RFC 8620 never wrote down: an
-     * invented method-level error, or a plain 500 from a validator that fell over on it. Those
-     * are NOT `isPropertyRejection`, and without a replay the message would simply stop opening
-     * on that account — a mailbox that worked before this property was ever asked for.
-     *
-     * So this guard replays on ANY [JmapException]. Dropping a property that is optional by
-     * construction cannot lose anything; refusing to open mail can.
      */
     @Test fun `a property refused in words the RFC never wrote is still recovered from`() = runBlocking {
         serverRefusing(
@@ -311,9 +279,6 @@ class ReadReceiptHeaderOnTheWireTest {
 
     /**
      * And the price of that width, paid where it must be: when the replay fails too, the reader
-     * is shown the ORIGINAL failure, word for word. A 401 must not come back as whatever the
-     * second attempt happened to answer, and nothing is written down about the property — it was
-     * never the problem.
      */
     @Test fun `a failure that survives the replay reaches the reader unchanged`() = runBlocking {
         // The two attempts fail DIFFERENTLY on purpose: rethrowing the replay's own exception
@@ -339,9 +304,6 @@ class ReadReceiptHeaderOnTheWireTest {
 
     /**
      * [JmapClient.getEmailsWithBody] carries the same nesting inside its batching, and it is
-     * the path that fills the body CACHE — a message opened from the cache would otherwise be
-     * poorer than the same message opened live. Proving the two guards apart on `getEmail` alone
-     * says nothing about it: it is a different call site, written out separately.
      */
     @Test fun `the prefetch keeps its unsubscribe headers when the receipt property is refused`() = runBlocking {
         serverRefusing("Disposition-Notification")
@@ -366,11 +328,6 @@ class ReadReceiptHeaderOnTheWireTest {
 
     /**
      * The verdict is written down only when dropping the property is what MADE the call work.
-     *
-     * Here the server refuses `replyTo` — a mandatory RFC 8621 property neither guard can drop —
-     * so every attempt fails and the message does not open at all. That larger problem must not
-     * leave behind a note saying "this server refuses read-receipt headers": the property was
-     * innocent, and the note would outlive the outage and cost every later draft save its answer.
      */
     @Test fun `a failure that is nobody's property leaves no verdict behind`() = runBlocking {
         serverRefusing("replyTo")
@@ -383,9 +340,6 @@ class ReadReceiptHeaderOnTheWireTest {
 
     /**
      * What the draft save reads. A server that refuses the property answers null for EVERY
-     * message, including a draft that does carry the header — so `null` from such a server means
-     * "unknown", not "asks for nothing". Without this the guard of `saveDraft` would destroy the
-     * server copy holding a receipt request it could not see.
      */
     @Test fun `a refusing server is reported as such, so a null answer is not read as a no`() = runBlocking {
         assertFalse("nothing is known before the first request", client.refusesReceiptHeader(session()))

@@ -7,16 +7,6 @@ import java.nio.charset.Charset
 
 /**
  * The envelope's `Cc` (index 6) and `Bcc` (index 7), read off a real socket.
- *
- * These are read for one caller: the draft save, which destroys the server copy of a draft only
- * when it can show the replacement still carries the addresses the original was addressed to. On
- * IMAP the cache cannot answer that — no cc/bcc column — so this parse IS the evidence, and a
- * wrong slot is not a display glitch: it proves the wrong field and lets the copy that held the
- * Cc be destroyed.
- *
- * The envelope's address slots sit next to each other — from (2), sender (3), reply-to (4),
- * to (5), cc (6), bcc (7) — so every case here puts a DIFFERENT address in each: an assertion
- * that cannot tell index 6 from index 5 is not an assertion.
  */
 class CcBccEnvelopeTest {
 
@@ -29,9 +19,6 @@ class CcBccEnvelopeTest {
 
     /**
      * One message fetched over a real socket, with each envelope address slot spelled out.
-     * Defaults give distinguishable addresses in all six; a test overrides only the slot it is
-     * about. The message-id (index 9) sits beyond bcc and is checked too: it is the parse that
-     * would shift if the two new readers were inserted anywhere but where they belong.
      */
     private fun fetched(
         cc: String = "((\"Copy Cat\" NIL \"copy\" \"masto.top\"))",
@@ -84,9 +71,6 @@ class CcBccEnvelopeTest {
 
     /**
      * THE SLOT, not merely "an address". `to` is the envelope field immediately below cc, and it
-     * is the dangerous neighbour: a draft is normally re-saved with its To unchanged, so a reader
-     * that proved index 5 would report "the addressing survived" on the exact save that is
-     * dropping the Cc — the original defect, wearing the fix's clothes.
      */
     @Test
     fun `the to addresses are not mistaken for the cc`() {
@@ -122,8 +106,6 @@ class CcBccEnvelopeTest {
 
     /**
      * No `Cc` and no `Bcc` — the common case, and the one that MUST be an empty list rather than
-     * anything borrowed: this is the answer that lets a draft's server copy be destroyed, so an
-     * address wrongly showing up here would keep a duplicate for every message that has none.
      */
     @Test
     fun `a message without cc or bcc has empty lists, not borrowed addresses`() {
@@ -151,9 +133,6 @@ class CcBccEnvelopeTest {
 
     /**
      * An internationalised address (RFC 6531, which Stalwart speaks) can only arrive as a literal.
-     * Left as raw octets it would not compare equal to what the composer holds, and the draft
-     * save would read that as "the address was lost" — the safe way round, but a duplicate on
-     * every save. The same treatment `From` and `To` already get.
      */
     @Test
     fun `an EAI cc address is decoded, not left as octets`() {

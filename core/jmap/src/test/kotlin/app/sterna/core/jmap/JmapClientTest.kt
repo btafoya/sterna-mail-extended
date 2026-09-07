@@ -121,9 +121,6 @@ class JmapClientTest {
     @Test fun fetchSession_reAuthenticatesWhenACrossHostRedirectAnswersAnAnonymousSession() = runBlocking {
         // Issue #137. Same shape as the test above — a redirect that crosses origins, so OkHttp
         // dropped the Authorization header — except that the server does NOT answer 401: it
-        // answers 200 with an anonymous session ("username":"", "accounts":{}). Gating the replay
-        // on the status code leaves the caller with mailAccountId() == null and the account is
-        // rejected with "This user has no JMAP mail account.", which blames the user's mailbox.
         val target = MockWebServer()
         target.start()
         try {
@@ -187,9 +184,6 @@ class JmapClientTest {
         //
         // The target is 127.0.0.1:1: no DNS, no handshake, connection refused with the network
         // cable out. If the guard ever goes away, OkHttp follows the hop and the call dies on a
-        // ConnectException instead of surfacing the 302 — that swap of exception type is what
-        // this test watches. Not server.requestCount: the mock never hears about the second
-        // hop either way, so counting it would assert 1 in both worlds and prove nothing.
         server.enqueue(
             MockResponse()
                 .setResponseCode(302)
@@ -356,10 +350,6 @@ class JmapClientTest {
 
     /**
      * Codeberg #174. `isSubscribed` (RFC 8621 §2) has to survive the WHOLE client path — the wire,
-     * `DefaultJson`, `decodeList` — not just a hand-rolled decode, because the drawer will hide a
-     * folder on the strength of it. Both values ride in the same response on purpose: a test that
-     * only played `false` would still pass against `isSubscribed = false` nailed down somewhere.
-     * The Stalwart probe of 2026-08-25 answered exactly this shape, `Sent` unsubscribed included.
      */
     @Test fun getMailboxes_believesWhatTheServerSaidAboutEachFolderSubscription() = runBlocking {
         server.enqueue(MockResponse().setBody(MAILBOX_SUBSCRIPTION_JSON))
@@ -374,9 +364,6 @@ class JmapClientTest {
 
     /**
      * The witness: [MAILBOX_JSON] is a server that never mentions subscription at all, and it must
-     * come back with every folder subscribed. A throw here (a non-defaulted field) would not
-     * degrade the drawer, it would empty it — `Mailbox/get` fails and the account lists nothing.
-     * Do not add the property to that payload; its silence IS the fixture.
      */
     @Test fun getMailboxes_leavesEveryFolderSubscribedWhenTheServerNeverMentionsSubscription() = runBlocking {
         server.enqueue(MockResponse().setBody(MAILBOX_JSON))
@@ -394,9 +381,6 @@ class JmapClientTest {
 
     /**
      * And it costs nothing on the wire: the subscription arrives because `Mailbox/get` asks for NO
-     * property list, which RFC 8621 §2.1 reads as "send them all". Naming any `properties` here
-     * would silently drop `isSubscribed` from the answer and every folder would read subscribed
-     * again; a second method call would be a second round trip we never took.
      */
     @Test fun getMailboxes_asksForNoPropertyListSoTheServerSendsSubscriptionUnasked() = runBlocking {
         server.enqueue(MockResponse().setBody(MAILBOX_SUBSCRIPTION_JSON))
@@ -432,9 +416,6 @@ class JmapClientTest {
 
     /**
      * A search is two method calls in one request, and they do not have to agree: `Email/query`
-     * matched three ids, `Email/get` handed back two of them (server cap, or a message destroyed in
-     * between). Reporting only what came back would let the caller state "2 results" for an account
-     * that held three, so both counts have to leave the client.
      */
     @Test fun searchEmails_reportsWhatTheQueryMatchedApartFromWhatTheGetReturned() = runBlocking {
         server.enqueue(MockResponse().setBody(SEARCH_SHORT_GET_JSON))
@@ -459,8 +440,6 @@ class JmapClientTest {
 
     /**
      * A query response with no `ids` array at all: the server did not say how many matched, and
-     * that must not be reported as "none matched" — a caller reading zero there would present an
-     * empty result as the account's whole answer.
      */
     @Test fun searchEmails_leavesTheMatchCountUnknownWhenTheServerGaveNoIds() = runBlocking {
         server.enqueue(MockResponse().setBody(SEARCH_NO_IDS_JSON))
@@ -485,11 +464,6 @@ class JmapClientTest {
 
     /**
      * What `Mailbox/get` puts in [JmapException.errorType] is the evidence a caller is entitled to
-     * act on, and the sub-account probe of Codeberg #129 discards an account on exactly one value
-     * of it. So the two shapes are pinned here, at the only place that can observe them.
-     *
-     * A JMAP METHOD error (HTTP 200, `["error", {"type": …}]`) carries its type verbatim. This is
-     * the answer the bench saw for an account visible only through a read-only calendar share.
      */
     @Test fun getMailboxes_methodErrorCarriesItsTypeAsErrorType() {
         server.enqueue(MockResponse().setBody(FORBIDDEN_ERROR_JSON))
@@ -504,9 +478,6 @@ class JmapClientTest {
 
     /**
      * A TRANSPORT failure carries no error type — and must not be given one. An expiring Bearer
-     * token, an anti-abuse guard or a corporate proxy all answer HTTP 403, and a client that turned
-     * that into `errorType = "forbidden"` would have the #129 probe delete every sub-account of the
-     * login at once, purging their caches, over a passing authentication incident.
      */
     @Test fun getMailboxes_httpFailureCarriesNoErrorType() {
         server.enqueue(MockResponse().setResponseCode(403).setBody("Forbidden"))
@@ -687,8 +658,6 @@ class JmapClientTest {
 
     /**
      * The same client with a two-second read timeout instead of thirty, so a server that never
-     * answers is an IOException in two seconds. The TIMEOUT is all that changes: the code under
-     * test is the same, and what is being proved is what the send does with that exception.
      */
     private fun impatient(): JmapClient = JmapClient(
         OkHttpClient.Builder().readTimeout(2, TimeUnit.SECONDS).build(),
@@ -726,8 +695,6 @@ class JmapClientTest {
 
     /**
      * The counter-test of the trap. `delivered` is "unknown" for a recipient the server ACCEPTED
-     * — measured against Stalwart, alongside `smtpReply: "250 2.1.5 Queued"` — because a submission
-     * only knows what the queue has done so far. Anything stricter than `== "no"` fails every send.
      */
     @Test fun sendEmail_succeedsWhileDeliveryIsStillUnknown() {
         assertEquals(
@@ -768,16 +735,6 @@ class JmapClientTest {
 
     /**
      * THE DOUBT THAT THROWS, which the four cases above never reach: they all fall on a `null`
-     * INSIDE the read. Here the server reads the verdict request and never answers it, so OkHttp
-     * raises an `IOException` out of it — the most ordinary event there is (the link goes, TLS
-     * breaks, DNS leaves), and it happens AFTER the server has taken the message.
-     *
-     * Without the outer catch such a send becomes a FAILURE, and a non-permanent one: the row goes
-     * back to QUEUED and the message is delivered up to five times over, with five copies in Sent.
-     * That is strictly worse than the silence of #183.
-     *
-     * A DISPATCHER and not a queue, deliberately: OkHttp may retry a failed exchange, and a
-     * queue with nothing left in it would BLOCK the test for ever instead of failing it.
      */
     private fun serverThatNeverAnswersTheVerdictRequest() {
         server.dispatcher = object : Dispatcher() {
@@ -1319,8 +1276,6 @@ class JmapClientTest {
 
     /**
      * Answers every `Email/set` by echoing the ids it carried (as `updated` or `destroyed`), with
-     * a per-request `newState`, so a test can tell WHICH request confirmed WHAT. [failAt] makes
-     * the n-th request an HTTP 500 — a transport failure, not a per-id rejection.
      */
     private class EchoSetDispatcher(
         private val failAt: Int? = null,
@@ -1554,8 +1509,6 @@ class JmapClientTest {
 
     /**
      * A server holding one thread of [threadSize] messages. Answers `Thread/get`, and answers
-     * `Email/get` either from an explicit id list or from a `#ids` back-reference — refusing,
-     * in both cases, any get that would carry more than [maxObjectsInGet] ids.
      */
     private class ThreadDispatcher(
         private val threadSize: Int,
@@ -1594,8 +1547,6 @@ class JmapClientTest {
 
         /**
          * One row per id. A real server returns ONLY the properties the request asked for, and
-         * this one does too for `mailboxIds` — otherwise a test could not tell a request that
-         * asks for it from one that does not, and the property could be dropped unnoticed.
          */
         private fun emailGet(ids: List<String>, callId: String, withMailboxIds: Boolean = true): String =
             if (ids.size > maxObjectsInGet) {
@@ -1652,18 +1603,9 @@ class JmapClientTest {
     //
     // "Messages to sync = All" is 1000 messages; Stalwart advertises maxObjectsInGet = 500. The
     // folder query sends Email/query + a BACK-REFERENCED Email/get in one request, so the get's
-    // id list is whatever the query matched: over the limit the server rejects the whole get
-    // (RFC 8620 §5.1), the call throws, no sync cursor is stored, and the next refresh takes the
-    // same failing path. The folder never syncs again.
 
     /**
      * A mailbox of [folderSize] messages (`e1` newest … `eN` oldest) answering `Email/query` +
-     * back-referenced `Email/get`, and — this is the point — REFUSING the get with
-     * `requestTooLarge` when the query matched more than [maxObjectsInGet] ids, exactly as the
-     * bench probe recorded on Stalwart.
-     *
-     * [failAt] turns the n-th request into an HTTP 500 (a transport failure mid-walk);
-     * [anchorNotFoundAt] makes the n-th request's anchor unknown to the server.
      */
     private class FolderDispatcher(
         private val folderSize: Int,
@@ -1672,25 +1614,10 @@ class JmapClientTest {
         private val anchorNotFoundAt: Int? = null,
         /**
          * Whether that `anchorNotFound` also SHORTENS the folder.
-         *
-         * True is the ordinary case: the anchor was destroyed, so everything past it shifted down
-         * by one and the recovery at `count - 1` lands exactly on the message that followed it.
-         *
-         * False is the case the recovery's deliberate under-shoot exists for: the anchor left the
-         * QUERY while a message arriving at the top kept the list the same length, so `count - 1`
-         * lands on a row the previous page already walked. The walk must then OVERLAP — which is
-         * free only because it de-duplicates.
          */
         private val anchorNotFoundShortensTheFolder: Boolean = true,
         /**
          * How many MORE messages leave the folder in the same instant as the anchor, taken from
-         * just ABOVE it — i.e. of lower index, so everything past the anchor shifts down by
-         * `k + 1` and not by one.
-         *
-         * That is a burst of removals, not an exotic server: a "delete all read", a server-side
-         * rule filing a batch, another client emptying a range. The recovery's one step back
-         * corrects for the anchor alone, so with k > 0 it lands k rows too far and the walk lists
-         * neither those k ids nor any complaint.
          */
         private val alsoRemovedWithTheAnchor: Int = 0,
         /** Ids the query lists but the get does NOT return (destroyed between the two calls). */
@@ -1701,9 +1628,6 @@ class JmapClientTest {
 
         /**
          * The folder as the SERVER holds it, and it changes under the walk: an `anchorNotFound`
-         * means the anchor has LEFT this list, so [anchorNotFoundAt] really removes it. Without
-         * that, every later position still lines up with the original list and a test cannot tell
-         * a correct recovery from one that skips the message the anchor was in front of.
          */
         private val all = (1..folderSize).mapTo(mutableListOf()) { "e$it" }
 
@@ -1767,11 +1691,6 @@ class JmapClientTest {
 
     /**
      * What a walk handed off, page by page, and WHEN — [requestsAtHandOff] is how many requests
-     * had gone out at the instant each page arrived.
-     *
-     * The instant is the half that cannot be got any other way: a walk that accumulated everything
-     * and called back once per page at the very end would produce the same [pages], and only "page
-     * 1 arrived while exactly one request had been sent" tells the two apart.
      */
     private class Handed {
         val pages = mutableListOf<List<String>>()
@@ -1912,9 +1831,6 @@ class JmapClientTest {
     @Test fun queryEmailsWindow_walksAWholeFolderWhenTheWindowIsUnbounded() = runBlocking {
         // 1 200 messages past the cap this lot removed, on a server admitting 500 per get: three
         // requests, every id handed over exactly once, and every request asking for a full page
-        // (`minOf(target - fetched, pageSize)` with target = Int.MAX_VALUE — the subtraction that
-        // must not overflow). The caller reconciles the folder against the ids of the WHOLE walk,
-        // so a walk that stopped at 1 000 here would DELETE the other 200 from the cache.
         val dispatcher = FolderDispatcher(folderSize = 1200, maxObjectsInGet = 500)
         server.dispatcher = dispatcher
         val handed = Handed()
@@ -1978,10 +1894,6 @@ class JmapClientTest {
         //
         // The pages are now written as they land, so the half IS in the cache — and the guard
         // moved with it: the failure propagates UNCAUGHT, so the walk never returns, so the
-        // caller never reaches its reconcile and nothing is deleted (the write-through order is
-        // `MailRepository`'s `fullQueryWriteThrough`, executed by `FullQueryWriteThroughTest`).
-        // What this test still pins is the propagation, which is what the whole arrangement rests
-        // on: a `catch` added here that returned the accumulated ids would put the deletion back.
         val dispatcher = FolderDispatcher(folderSize = 700, maxObjectsInGet = 500, failAt = 2)
         server.dispatcher = dispatcher
         val handed = Handed()
@@ -2011,10 +1923,6 @@ class JmapClientTest {
         //
         // And recover BEHIND where the anchor was, not at it. `anchorNotFound` means the list
         // has lost a row, so every index past the anchor has shifted DOWN by one: asking at the
-        // count we had accumulated lands on the message AFTER the one that followed the anchor,
-        // and that skipped message is not just missed — the caller reconciles the mailbox with
-        // the ids that come back, so it is DELETED from the cache while the server still has it,
-        // and no later delta brings it back. Overlapping instead is free: the walk de-duplicates.
         val dispatcher = FolderDispatcher(folderSize = 700, maxObjectsInGet = 500, anchorNotFoundAt = 2)
         server.dispatcher = dispatcher
         val handed = Handed()
@@ -2039,17 +1947,6 @@ class JmapClientTest {
 
     /**
      * THE HOLE, EXECUTED — a burst of removals under the walk, and the ids that fall out of it.
-     *
-     * This is NOT a regression test for the fix. The fix does not recover these messages and was
-     * never meant to: replaying the walk from a moving list is unbounded work with no stopping
-     * rule, so the volet refuses to RECONCILE instead. What this test pins is that the gap is real
-     * and reachable — the recovery steps back exactly one row, so any second removal above the
-     * anchor is a message the walk never lists although the server still holds it. It stays green
-     * whichever way the fix goes; only its last assertion moves.
-     *
-     * That last assertion is the half that reddens on the pre-fix tree: the walk must now SAY it
-     * paged by position, because that flag is the only thing standing between this gap and a
-     * reconcile that deletes the skipped mail from the cache for good.
      */
     @Test fun queryEmailsWindow_skipsMessagesWhenTheAnchorLeavesWithABurst() = runBlocking {
         // e500 is the anchor. It leaves with e498 and e499 — three rows out of the list in the
@@ -2094,18 +1991,6 @@ class JmapClientTest {
 
     /**
      * The flag is a property of the WHOLE walk, and the walk goes on after the recovery.
-     *
-     * Why this fixture is deeper than every other resume test here: at 700 messages in pages of
-     * 500 the recovery page comes back short, so `nextWindowPageLimit` ends the walk on that very
-     * iteration and the flag is never read again. Nothing in this file would then notice
-     * `resumedByPosition` being reset at the top of the loop — it would become a property of the
-     * LAST page, which is the shape the caller cannot use: a walk that skipped mail on request 2
-     * and paged on normally to request 5 would report a clean walk, the reconcile would run, and
-     * the ids the recovery stepped over would be deleted from the cache with the cursor stored
-     * behind them. That is the original defect, reopened, with the fix still legible in the source.
-     *
-     * So: 2000 messages, four requests, the recovery on the SECOND — and two ordinary anchored
-     * pages after it.
      */
     @Test fun queryEmailsWindow_keepsSayingItResumedAfterTheWalkPagesOnPastTheRecovery() = runBlocking {
         val dispatcher = FolderDispatcher(folderSize = 2000, maxObjectsInGet = 500, anchorNotFoundAt = 2)
@@ -2132,11 +2017,6 @@ class JmapClientTest {
     @Test fun queryEmailsWindow_handsTheOverlapOfARecoveryPageOverOnlyOnce() = runBlocking {
         // The recovery restarts one position BEHIND on purpose, and when the folder did not
         // actually shrink under it, that lands on a row the previous page already carried. The
-        // walk must hand that repeat over ONCE:
-        //  - twice written is only wasteful, but
-        //  - twice COUNTED means the walk stops one message short of the window on every refresh,
-        //    and the reconcile then deletes that message from the cache — the loss the
-        //    under-shoot was chosen to avoid, reintroduced by the accounting.
         val dispatcher = FolderDispatcher(
             folderSize = 700, maxObjectsInGet = 500,
             anchorNotFoundAt = 2, anchorNotFoundShortensTheFolder = false,
@@ -2232,8 +2112,6 @@ class JmapClientTest {
 
         /**
          * What a server says about a submission it ACCEPTED, copied from the bench's Stalwart on
-         * 2026-08-30: `delivered` is "unknown" and the SMTP reply is a 250. This is the normal
-         * shape of a message on its way — a check stricter than `delivered == "no"` fails here.
          */
         const val SUBMISSION_ACCEPTED_JSON = """
             {

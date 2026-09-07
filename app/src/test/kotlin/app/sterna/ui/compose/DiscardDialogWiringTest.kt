@@ -7,28 +7,12 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `ComposeScreen.kt` as text, proves nothing about
- * what appears on screen, and would still pass if the code it points at were broken inside. Same
- * instrument as `SettingsScreenHonestyTest`, and the same reason: `ComposeScreen` is a composable,
- * there is no Robolectric and there are no instrumented tests here.
- *
- * [DiscardWordingTest] and [DiscardChoicesTest] run the two decisions. What neither can see is the
- * one-word edit that turns their answers back into the defect: DRAFT mapped to the old title
- * resource, or the buttons drawn from something other than [discardChoices]. Both leave every
- * behaviour test green.
- *
- * It reads only the `if (showDiscard) { … }` block, so the rest of the file may be reshaped freely.
  */
 class DiscardDialogWiringTest {
 
     @Test fun `the dialog is handed the two live values it decides on`() {
         // The auditors' two one-line mutations, both green until this rule existed:
         //  - `editingDraft = false` at the call site annuls #35 outright — the pure function is
-        //    untouched, every behaviour test passes, and the reporter's screenshot comes back;
-        //  - `mayKeepDraft = true` re-offers "Save draft" while encrypting, which is the exact
-        //    shape of the 1.4.3 plaintext leak (only saveDraft's own refusal then stands between
-        //    the tap and an unencrypted copy on the server).
-        // Pinned as whole expressions, not as names: a rule looking for "discardWording(" is
-        // satisfied by any argument at all.
         val block = discardBlock().replace(Regex("""\s+"""), " ")
         assertTrue(
             "the dialog must take its Save-draft rule from draftSaveAllowed(pgpMode) — the same " +

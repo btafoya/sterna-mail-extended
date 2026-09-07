@@ -8,26 +8,6 @@ import org.junit.Test
 
 /**
  * Which buttons the "you are leaving without saving" dialog offers, and which of them may be tapped
- * (#35, #127).
- *
- * The report, with a screenshot: an unencrypted draft, the dialog titled "Discard message?", and
- * two buttons — [Discard] [Save draft]. Neither goes back to what the user was writing. Tapping
- * outside the dialog did, all along; there was simply nothing on screen that said so, and the one
- * button that reads like a way out is the one that throws the editing away.
- *
- * So Cancel is not optional in any layout, and that is what the first test says. The encrypted
- * layout already had it; the other two did not.
- *
- * The second guarantee here is 1.4.3's, and it is a security one: an encrypted message must never
- * be offered a way to become a draft, because a draft is uploaded exactly as typed. It used to be
- * held by the SHAPE of the composable — the save branch sat inside an `if` — where nothing could
- * run it. Here it is a value, and it can be checked against every input there is.
- *
- * The third is what this dialog was still getting wrong after both of those were fixed: it offered
- * an ENABLED "Save draft" over a composer with nothing in it. `ComposeViewModel.saveDraft` reads
- * [draftHasContent], finds nothing, and DELETES the draft it was opened on — so the button that
- * promises to save destroyed the copy on the server, in silence. The toolbar has always greyed its
- * Save icon on that same value; the dialog had no `enabled` at all.
  */
 class DiscardChoicesTest {
 
@@ -94,10 +74,6 @@ class DiscardChoicesTest {
     @Test fun theDialogOffersASaveExactlyWhenTheToolbarDoes() {
         // The equivalence this test is named after, on BOTH of the toolbar's two conditions, run
         // from the toolbar's own functions rather than restated here:
-        //  - draftSaveAllowed(pgpMode) decides whether the icon is drawn at all;
-        //  - draftHasContent(...) decides whether it is tappable.
-        // The dialog must not offer what the toolbar withholds, nor withhold what it shows. It
-        // used to test only the first, which is why an empty composer got an enabled Save.
         val filled = listOf(
             Triple("", "", "hello") to true,
             Triple("bob@example.org", "", "") to true,

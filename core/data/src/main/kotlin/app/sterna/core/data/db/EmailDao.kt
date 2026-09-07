@@ -15,9 +15,6 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Hides messages snoozed into the future — the list's own predicate
- * ([app.sterna.core.data.mail.notSnoozedSql] for the `emails` table) as a compile-time constant,
- * which a Room `@Query` needs; `SenderVolumeSqlTest` asserts the two are the same text.
- * Correlated on `accountId` too: snoozes are keyed per account (#31).
  */
 const val NOT_SNOOZED_EMAILS_SQL: String =
     "NOT EXISTS (SELECT 1 FROM snoozed WHERE snoozed.emailId = emails.id " +
@@ -26,11 +23,6 @@ const val NOT_SNOOZED_EMAILS_SQL: String =
 
 /**
  * Which cached rows the per-sender screen speaks for — the one clause behind both
- * [SENDER_VOLUMES_SQL] and [SENDER_MESSAGE_IDS_SQL], so the count shown and the set removed are
- * the same set by construction. Scoped by (account, folder) pairs, never by a bare `mailboxId`:
- * servers like Stalwart number mailboxes per account (#121). `role IS NULL OR …` is load-bearing —
- * `role NOT IN (…)` is NULL, hence false, when `role` is NULL, which would exclude the INBOX of a
- * server that types no folder.
  */
 const val SENDER_VOLUME_SCOPE_SQL: String =
     "accountId = :accountId AND fromEmail IS NOT NULL AND fromEmail != '' " +
@@ -40,9 +32,6 @@ const val SENDER_VOLUME_SCOPE_SQL: String =
 
 /**
  * Cached mail per sender, grouped on `LOWER(fromEmail)`: the address is authoritative, the display
- * name is not, and nothing beyond case is normalised (a `+tag` is a different subscription).
- * `name` is a bare column beside a `MAX()`, so SQLite yields the most recent message's name.
- * No `LIMIT`: the header total is the sum of these rows.
  */
 const val SENDER_VOLUMES_SQL: String =
     "SELECT fromEmail AS email, fromName AS name, COUNT(*) AS total, " +
@@ -71,16 +60,12 @@ interface EmailDao {
 
     /**
      * One-shot bounded read of the latest messages across every account's inbox, for the widget
-     * (MailRepository.recentUnifiedSql). [RecentEmailRow], never [EmailEntity]: the entity
-     * carries `preview`, and a body has no business on a lock-screen-visible surface.
      */
     @RawQuery
     suspend fun recentUnified(query: SupportSQLiteQuery): List<RecentEmailRow>
 
     /**
      * [recentUnified] as a Flow (#112). Both entities in [observedEntities]: the shared predicate
-     * carries the snooze filter, so an expiring snooze changes these rows with no write to
-     * `emails`. Room invalidates per table, so the collector de-duplicates (`RecentMailWidgetPush`).
      */
     @RawQuery(observedEntities = [EmailEntity::class, SnoozedEntity::class])
     fun observeRecentUnified(query: SupportSQLiteQuery): Flow<List<RecentEmailRow>>
@@ -107,9 +92,6 @@ interface EmailDao {
 
     // The four per-folder reads below are scoped by accountId as well as mailboxId: servers
     // (e.g. Stalwart) number mailboxes per account, so two accounts' inboxes can share an id
-    // (#31 / #121). Each one that carries a LIMIT breaks its ties on `id` — `ORDER BY sortKey
-    // DESC` alone leaves equal keys to the physical order, which every sync rewrites, so a row on
-    // the LIMIT frontier would come and go with nothing having changed.
 
     /** The newest [limit] ids in one folder — the bound is the statement's, not the caller's. */
     @Query(
@@ -120,8 +102,6 @@ interface EmailDao {
 
     /**
      * The account-qualified keys of a folder's unread messages, newest first, at most [limit].
-     * `seen = 0` is the statement's, not a Kotlin filter: "mark all read" would otherwise read the
-     * whole cache to discard most of it.
      */
     @Query(
         "SELECT accountId, id FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId " +
@@ -131,10 +111,6 @@ interface EmailDao {
 
     /**
      * A folder's rows received at or after [since], newest first, at most [limit] — the candidates
-     * a new-mail notification pass hydrates and diffs. `sortKey = 0` is admitted on purpose: it is
-     * what an unparseable `receivedAt` maps to and the notifier's age floor is lenient about those
-     * ([app.sterna.core.data.mail.NOTIFY_HORIZON_MS]); they sort last, so [limit] sheds them first.
-     * Not what seeds the notifier's baseline — [idsReceivedSince] is.
      */
     @Query(
         "SELECT * FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId " +
@@ -144,9 +120,6 @@ interface EmailDao {
 
     /**
      * The ids [receivedSince] selects from, without its row cap — what a notification pass writes
-     * into the folder's baseline. `NewMailNotifier.seed` replaces a baseline, so a bound a row can
-     * fall out of and back into forgets that row and then announces it; a row count is such a
-     * bound, the instant [since] is not.
      */
     @Query(
         "SELECT id FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId " +
@@ -164,13 +137,6 @@ interface EmailDao {
 
     /**
      * The opening lines this account already holds for [ids] under the numbering [uidValidity] — id
-     * and value both, because the folder read subtracts these ids from its page while both writers
-     * copy these values back onto the rows they write, `@Upsert` replacing the whole row (#187).
-     *
-     * Bound to the numbering (#99): an IMAP row id carries no UIDVALIDITY and the rows survive a
-     * renumbering, so an answer keyed by id alone hands a new message the previous one's opening
-     * line, for ever. `IS`, not `=`, which is never true against the NULL a server stating no
-     * UIDVALIDITY leaves here. [ids] is one page: SQLite caps host variables at 999.
      */
     @Query(
         "SELECT id, preview FROM emails WHERE accountId = :accountId AND id IN (:ids) " +
@@ -186,9 +152,6 @@ interface EmailDao {
 
     /**
      * Prune a mailbox's cached page down to [keepIds] — window eviction, not removal: the messages
-     * are still in that folder on the server. Which is why this must not touch the search index,
-     * unlike [deleteById]/[deleteByIds]: the index outlives the display cache, and un-indexing on
-     * eviction would hollow it out on every scroll.
      */
     @Query("DELETE FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId AND id NOT IN (:keepIds)")
     suspend fun deleteNotIn(accountId: String, mailboxId: String, keepIds: List<String>)
@@ -205,8 +168,6 @@ interface EmailDao {
 
     /**
      * Evict [ids] from the display cache and leave their index rows alone — [deleteNotIn]'s by-id
-     * sibling. Sending them through [deleteByIds] instead un-indexes them, and offline search then
-     * stops covering anything older than the sync window, irreversibly on IMAP.
      */
     suspend fun evictFromCacheKeepingIndex(accountId: String, ids: List<String>) {
         if (ids.isEmpty()) return
@@ -221,13 +182,6 @@ interface EmailDao {
 
     /**
      * Take one message out of this place: cached row and search-index row dropped together in one
-     * transaction, with the recovery for a failed index write outside it. Every removal path funnels
-     * through this or [deleteByIds], so the index cannot outlive the cache — contrast [deleteNotIn]
-     * and [evictFromCacheKeepingIndex], which must not un-index.
-     *
-     * Nothing is caught inside [deleteRowAndIndexById]: SQLite aborts a `SQLITE_BUSY` statement
-     * and continues its transaction, so a swallowed error would commit the cache delete with its
-     * index row standing — a deleted message handed back in search for ever (#71).
      */
     suspend fun deleteById(accountId: String, id: String) {
         try {
@@ -297,8 +251,6 @@ interface EmailDao {
 
     /**
      * Oldest cached row that is its thread's newest within the mailbox (anchor for the next older
-     * page). The cache can hold members far below the contiguous window, and anchoring on one of
-     * those would skip the gap; the oldest representative stays within it.
      */
     @Query(
         "SELECT id FROM emails e WHERE accountId = :accountId AND mailboxId = :mailboxId " +
@@ -338,9 +290,6 @@ interface EmailDao {
 
     /**
      * The IMAP numbering each of [ids] was read under, for a caller that freezes it and opposes it
-     * much later (the held-back destroy, #99). Per row, never per folder: the folder's record is
-     * realigned by any background pass that meets the renumbering. An id with no row comes back
-     * missing, not null-valued: "nothing to oppose".
      */
     @Query("SELECT id, uidValidity FROM emails WHERE accountId = :accountId AND id IN (:ids)")
     suspend fun numberingOfRows(accountId: String, ids: List<String>): List<RowNumbering>
@@ -352,9 +301,6 @@ interface EmailDao {
 
     /**
      * All cached messages of one thread, newest first, scoped to one account and [mailboxIds] (the
-     * view's mailboxes plus Sent), so an expanded conversation never shows another folder's
-     * members. [threadKey] is COALESCE(threadId, id). Observed, like the collapsed row's chip: a
-     * one-shot read left the unfolded messages frozen while the chip stayed live.
      */
     @Query(
         "SELECT * FROM emails WHERE accountId = :accountId AND mailboxId IN (:mailboxIds) " +
@@ -364,8 +310,6 @@ interface EmailDao {
 
     /**
      * Per-folder count of unread THREADS (the conversation-mode drawer badge). Mirrors the
-     * collapsed list's sub-query `g` in MailRepository.conversationSql exactly, so the badge equals
-     * the visible bold rows by construction. The snooze filter correlates on accountId (#31).
      */
     @Query(
         "SELECT accountId, mailboxId, COUNT(*) AS count FROM (" +
@@ -406,20 +350,12 @@ interface EmailDao {
 
     /**
      * Age (and id) of every cached row in one account's mailbox — the input the retention prune
-     * decides on. No `DELETE … WHERE sortKey < cutoff` counterpart (#110): a statement that only
-     * knows the cutoff cannot know the page the server just returned is inside it, and it deleted
-     * the freshly-synced folder out from under the list.
      */
     @Query("SELECT id, sortKey FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId")
     suspend fun retentionRows(accountId: String, mailboxId: String): List<EmailRetentionRow>
 
     /**
      * Replace one account's cached contents of a mailbox with a fresh snapshot. [spareIds] survive
-     * the prune even when the fresh page omits them (see [deleteNotInSparing]).
-     *
-     * The eviction is decided in Kotlin and applied by id in batches, not by handing the whole
-     * page to a `NOT IN (:keepIds)`: SQLite binds at most 999 variables below Android 12 (#29). The
-     * bound is [app.sterna.core.data.mail.MAX_CHANGES], never the sync window, which is a setting.
      */
     @Transaction
     suspend fun replaceMailbox(
@@ -434,13 +370,6 @@ interface EmailDao {
 
     /**
      * The second half of [replaceMailbox] alone: hold nothing beyond [keepIds] (and [spareIds])
-     * without writing first — for the full-query sync through
-     * [app.sterna.core.data.mail.fullQueryWriteThrough], which writes pages as they land and can no
-     * longer name the whole snapshot at write time.
-     *
-     * It deletes on its own, so the caller owes two things: [keepIds] must cover the whole walk,
-     * not its last page, and the walk must have run to completion. `fullQueryWriteThrough` enforces
-     * both; nothing here can check them.
      */
     @Transaction
     suspend fun reconcileMailbox(
@@ -455,13 +384,6 @@ interface EmailDao {
 
     /**
      * The reconcile itself — read the folder, decide the complement once against the whole [keepIds],
-     * evict by batches. Not annotated `@Transaction`, deliberately: both entry points carry it and
-     * Room wraps such a body in `withTransaction`, so calling one from the other would nest
-     * transactions on the one path whose failure mode is deleted mail.
-     *
-     * [evictableIds] bounds what may be deleted — the folder as the caller saw it before its walk;
-     * null means no bound and is not `emptySet()`, which evicts nothing. Applied here because this
-     * body re-reads the folder after the walk (#165).
      */
     suspend fun reconcileMailboxRows(
         accountId: String,
@@ -513,8 +435,6 @@ data class EmailKeyRow(
 
 /**
  * Projection for [EmailDao.senderVolumes]. [email] is the address as stored, [name] the display
- * name of the most recent message. [total] and [unread] count MESSAGES, not conversations, and
- * `seen` is set in bulk by "mark all read", so "unread" never means "never opened".
  */
 data class SenderVolumeRow(
     val email: String,

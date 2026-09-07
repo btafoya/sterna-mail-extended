@@ -2,9 +2,6 @@ package app.sterna.util
 
 /**
  * Lightweight email-format check: a non-empty local part, an `@`, a domain, and a dot-separated
- * extension of at least two characters — so `a@b` and `a@b.c` are rejected but `name@example.com`
- * passes. Deliberately NOT full RFC 5322: just enough to catch typos (missing `@`, missing or
- * one-character TLD). Pure, so it is unit-tested.
  */
 val EMAIL_REGEX = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s.]{2,}$")
 

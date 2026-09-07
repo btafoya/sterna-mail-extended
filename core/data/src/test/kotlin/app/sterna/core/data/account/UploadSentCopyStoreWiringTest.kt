@@ -5,19 +5,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, same instrument and disclaimer as [AccountStoreGateWiringTest]: it reads
- * `AccountStore.kt` as text and proves nothing about a running store. Nothing in this module can
- * build one (it wants a `Context` and the Keystore, and there is no Robolectric here).
- *
- * It exists because the executable half stops at this door. [UploadSentCopyDefaultTest] proves the
- * record decodes to true, `SentCopyUploadTest` runs the decision, `SentCopyCallSiteTest` pins the
- * delivery asking for it — and between the two sits this pair of one-line functions, which nothing
- * executes. `fun uploadSentCopy(id: String) = true` compiles, keeps all of the above green, and
- * makes the setting command nothing at all: the switch moves, the store even stores the value, and
- * every send still uploads its copy. A setter that stops writing is the mirror image, with the
- * choice lost at the next cold start instead.
- *
- * Whole trimmed lines, never a `contains`: what would go wrong here reads as an APPENDED fallback
- * (`?: true` turning into `?: true.also { … }`, a second condition on the setter's `map`).
  */
 class UploadSentCopyStoreWiringTest {
 
@@ -49,10 +36,6 @@ class UploadSentCopyStoreWiringTest {
 
     /**
      * [count] consecutive CODE lines of `AccountStore.kt` from the single one starting with
-     * [prefix], [before] lines earlier when the annotation above it is part of the rule. Comments
-     * and blank lines are dropped first, so no rule can be satisfied by prose; a prefix matching
-     * anything other than exactly one line returns a message, so an assertion never passes by
-     * matching nothing.
      */
     private fun block(prefix: String, count: Int, before: Int = 0): List<String> {
         val path = "core/data/src/main/kotlin/app/sterna/core/data/account/AccountStore.kt"

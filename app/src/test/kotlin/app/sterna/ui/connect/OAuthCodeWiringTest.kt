@@ -7,28 +7,11 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as [OAuthWiringTest].
- * `OAuthCodeSignIn` takes a `MailRepository`, `ConnectViewModel` is an `AndroidViewModel` wired to
- * the app container, `MainActivity` is an activity: none can be instantiated here, and no test in
- * this repo runs them. Every DECISION they act on is covered by execution — the four exchange
- * arguments in [OAuthRedirectTest] (`tokenExchangeFor`), which hosts get probed in
- * [OAuthErrorMessagesTest] (`collectOAuthHosts`) — and what is left is that they act on them,
- * which is text.
- *
- * These rules exist because mutation campaigns proved them necessary: with the pure decisions
- * covered, dropping the intent strip, sending a DEVICE-flow server to the browser, and passing
- * `email`/`accountName` positionally all left the suite green.
- *
- * HOW IT COMPARES. Required shapes are whole trimmed lines compared for EQUALITY: a `contains`
- * on a fragment is blind to any mutation that lengthens the line — `tokenExchangeFor(verdict.copy(
- * request = …), redirectUri)` being exactly that — and that blindness has cost this repo real
- * defects. Forbidden tokens are the one place a substring search is sound.
  */
 class OAuthCodeWiringTest {
 
     /**
      * The exchange posts what [tokenExchangeFor] decided, whole, and nothing it re-derived here.
-     * The call itself is pinned as a whole line: rebuilding the verdict inside the parentheses
-     * keeps the name and changes the provenance, which is the mutation that matters.
      */
     @Test fun `the exchange posts what tokenExchangeFor decided`() {
         val body = functionBody(SIGN_IN, "exchange")
@@ -53,12 +36,6 @@ class OAuthCodeWiringTest {
 
     /**
      * A new sign-in REPLACES the one in flight. An abandoned request (browser opened, Back pressed)
-     * is not completable any more, and a `start()` that returns early because something is armed
-     * locks the user out of OAuth for the life of the process — and reopens the browser panel of
-     * the dead request on the next visit to Add account.
-     *
-     * This is not the one-shot rule, which lives on the RETURN ([AuthorizationRequestSlot]) and
-     * is covered by execution.
      */
     @Test fun `a new sign-in replaces the request in flight`() {
         val body = functionBody(SIGN_IN, "start")
@@ -76,9 +53,6 @@ class OAuthCodeWiringTest {
 
     /**
      * A failure is said out loud, like a success. This driver is app-scoped precisely because the
-     * screen may be gone during the browser trip; a success toasts, and an error that only travels
-     * on a replay-less SharedFlow reaches nobody at all — the sign-in simply never happens and
-     * nothing says why.
      */
     @Test fun `a failure nobody is watching is still said`() {
         val body = functionBody(SIGN_IN, "fail")
@@ -122,9 +96,6 @@ class OAuthCodeWiringTest {
 
     /**
      * A redirect is a one-shot payload, and it must be handed over from BOTH doors: `onNewIntent`
-     * is the live-app path (the activity is singleTask, so the browser's answer re-enters the
-     * running instance), `onCreate` the one after a process death. Losing either loses the whole
-     * sign-in, silently.
      */
     @Test fun `both doors hand the redirect over, and it is dropped once taken`() {
         listOf("onCreate", "onNewIntent").forEach { door ->
@@ -145,17 +116,6 @@ class OAuthCodeWiringTest {
 
     /**
      * WHAT THESE TWO SAY WHEN THE ADD IS OVER. Both are app-scoped drivers whose toast is the only
-     * thing the reader gets — the connect screen may be gone by then — and both used to announce
-     * "Account added" / "Outlook account added" unconditionally. The add now resolves onto an
-     * account already stored under the same identity and refreshes it, so that sentence is a lie
-     * about half the sign-ins: the reader is told she has a new account when the list will show
-     * her exactly the ones she had.
-     *
-     * WHICH sentence is [accountAddedToast]'s, executed in [AccountAddedToastTest]. Neither
-     * driver may name `connect_account_refreshed` itself: written here, the choice sits in a class
-     * this module cannot instantiate — a repository, a scope, a Context — where the two resources
-     * can be swapped without a red test. Whole trimmed lines, in order, so a mutation that
-     * lengthens either one is a different line.
      */
     @Test fun `both app-scoped sign-ins let the shared choice pick the sentence`() {
         listOf(
@@ -229,10 +189,6 @@ class OAuthCodeWiringTest {
         const val HANDS_OVER = "if (chooseOAuthGrant(found) == OAuthGrant.AUTHORIZATION_CODE) {"
         /**
          * The search is now the FALLBACK arm: the address step already asked, under its budget,
-         * and `reusableOAuth` hands its answer over rather than probing a second time (pinned in
-         * [OAuthHandoverWiringTest]). What must not change is that when there IS no answer to
-         * reuse — the manual button, a process death — the same shared search runs, with the same
-         * candidates and the same credentials-free probe.
          */
         const val PROBES =
             "?: collectOAuthHosts(candidates) { container.mailRepository.discoverOAuth(it, addressDomain) }"

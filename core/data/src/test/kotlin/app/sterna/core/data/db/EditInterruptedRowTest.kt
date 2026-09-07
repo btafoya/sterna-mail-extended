@@ -10,24 +10,6 @@ import java.sql.DriverManager
 
 /**
  * The row an INTERRUPTED EDIT leaves behind, run against a REAL SQLite engine through the
- * statement the app ships — the twin of [KeptAsDraftRowTest], for the close instead of the save.
- *
- * The decision to park (`closingParksQueuedRow`, executed in `LostBodySendTest`) and the plan that
- * carries it (`abandonPlan`, executed in `SendDraftTargetTest`) are pure. What neither can see is
- * the WRITE: `OutboxDao.parkEditingAsInterrupted` is a `@Query` annotation, not callable from a
- * JVM test, so it is read out of the shipped DAO by [DaoQuerySource] and EXECUTED here. "The row is
- * parked and nothing else is touched" is then a fact about the statement the phone runs.
- *
- * The failure this guards is the reported one: a queued message reopened over a lost body,
- * closed on the app's own advice, and DELIVERED in under a second because the close put it back in
- * the queue. The parked row must read FAILED at the attempt cap (the proxy `OutboxLogic.stateAfterEdit`
- * keeps it parked on the next close too, #70) with the sentinel reason the Outbox screen translates.
- *
- * The SECOND door is the startup sweep (`MailRepository.parkInterruptedOutboxEdits`): a row left
- * EDITING by a process death used to be put back to QUEUED at the next launch and re-armed at 0, so
- * it left on its own — and the composer restored afterwards could send the same message again.
- * The sweep is replayed here as the repository issues it, both statements in the shipped order,
- * and that order is pinned separately by reading the repository body line by line.
  */
 class EditInterruptedRowTest {
 
@@ -64,8 +46,6 @@ class EditInterruptedRowTest {
 
     /**
      * The sentinel is STORED, in every user's database, from the first version that ships it. It
-     * is pinned as a literal so that renaming the constant is seen for what it is: every row already
-     * parked would stop being translated and print "Failed: edit-interrupted" in nine languages.
      */
     @Test fun `the sentinel is a fixed token, never a translated sentence`() {
         assertEquals("edit-interrupted", OutboxLogic.EDIT_INTERRUPTED)
@@ -188,9 +168,6 @@ class EditInterruptedRowTest {
 
     /**
      * THE ORDER OF THE TWO STATEMENTS is what keeps an exhausted row's own reason (the SQLite
-     * test above shows the consequence; this pins the cause). Both statements name EDITING, so
-     * whichever runs first claims the exhausted rows. The repository body is read line by line,
-     * WHOLE lines: a `contains` would still pass with the two lines swapped.
      */
     @Test fun `the repository issues the exhausted statement first, then parks the rest`() {
         assertEquals(
@@ -210,8 +187,6 @@ class EditInterruptedRowTest {
 
     /**
      * The close-time door, line by line. `MailRepository` cannot be instantiated here, so the ONE
-     * decision its body takes — which write a row gets, by its attempt count — is read as text and
-     * compared whole. The statement itself is executed above; this pins what is handed to it.
      */
     @Test fun `the close-time park writes the cap on a row still under it, and the state alone on one already there`() {
         assertEquals(

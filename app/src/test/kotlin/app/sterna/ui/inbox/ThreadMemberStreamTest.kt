@@ -22,24 +22,6 @@ import org.junit.Test
 
 /**
  * A chip and its unfold must still agree A MINUTE AFTER the row was opened.
- *
- * [app.sterna.core.data.mail.ConversationScopeTest] pins that they agree when both are handed the
- * same folders, at one instant. Nothing pinned what happens next, and next is where the reader saw
- * the defect come back: the chip is a live query — Room re-runs it on every write to `emails` — and
- * the unfold was read once, when the row opened. So a message arriving in a conversation left open
- * (a notification, a refresh, a reply of one's own) moved the number and not the messages, and a
- * folder cache that finished syncing after the tap rebuilt the chip around a Sent folder the
- * unfolded list had never been given. Neither corrected itself while the folder stayed open.
- *
- * The fake here is the `emails` table: one mutable list, read through the SAME scope decision the
- * chip is bound with ([ListScope.folders]). It answers all three questions the screen asks of it —
- * the chip's count, the row's representative, and the members — so every case can move the table or
- * the scope UNDER an already-unfolded row and ask whether the three still say one thing.
- *
- * [screen] is what the reader actually sees, assembled the way [InboxScreen] assembles it: the row
- * draws the representative, and beneath it go the members minus that same message. That last
- * subtraction is the reason this file has to model the row at all — done anywhere but at the draw,
- * on anything but the id the row is drawing, it takes the wrong message out.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ThreadMemberStreamTest {
@@ -66,8 +48,6 @@ class ThreadMemberStreamTest {
 
         /**
          * The message the collapsed row draws: the shipped SQL's `g` sub-query — MAX(sortKey) over
-         * the VIEWED folder(s) only, no Sent. A live value, re-picked on every write, which is the
-         * whole point: it is not the message that was there when the row was unfolded.
          */
         fun representative(scope: ListScope, key: ThreadKey): Email? =
             members(rows.value, key.accountId.orEmpty(), scope.viewedMailboxIds, key.threadId).firstOrNull()
@@ -120,8 +100,6 @@ class ThreadMemberStreamTest {
 
     /**
      * The unfolded row as the reader sees it: the representative on the row, then the members
-     * beneath it — the live reading minus the message the row is drawing, subtracted at the draw
-     * exactly as [InboxScreen] subtracts it.
      */
     private fun Cache.screen(scope: ListScope, drawn: Map<ThreadKey, List<Email>>, k: ThreadKey = key): List<String> {
         val rep = representative(scope, k) ?: return emptyList()
@@ -130,8 +108,6 @@ class ThreadMemberStreamTest {
 
     /**
      * What the screen currently holds, kept up to date by a collection running beside the test —
-     * the [InboxViewModel] collector, in other words. Unconfined so an emission lands the moment
-     * the table or the scope is written, which is the timing every case here is about.
      */
     private fun TestScope.draw(flow: () -> Flow<Map<ThreadKey, List<Email>>>): MutableStateFlow<Map<ThreadKey, List<Email>>> {
         val out = MutableStateFlow<Map<ThreadKey, List<Email>>>(emptyMap())
@@ -346,9 +322,6 @@ class ThreadMemberStreamTest {
     @Test fun `a snoozed member leaves the unfolded row and comes back when the snooze lapses`() = runTest {
         // The chip's SQL excludes snoozed messages, so the list beneath it must too — and, because
         // the snooze is a row in another table, the unfold has to WATCH that table: the members are
-        // read from `emails` alone and nothing there changes when a snooze starts or ends. The
-        // reader's report was the second half: the chip came back up at the due date and the
-        // message never came back under the row.
         val cache = Cache().apply { anAnsweredThread() }
         val scope = MutableStateFlow(ListScope(listOf("inbox"), listOf("accA" to "sentbox")))
         val snoozed = MutableStateFlow(emptySet<EmailKey>())
@@ -491,10 +464,6 @@ class ThreadMemberStreamTest {
 
     /**
      * Neither of the next two cases pins the shipped code — they are WITNESSES, and they are here
-     * because the mutation they describe lives in `MailRepository`, one module down, where nothing
-     * exercises it: emptying either query out leaves this file green (it brings its own readings)
-     * and `ConversationScopeWiringTest` green (it reads names, and the names are still there).
-     * Written out so the next reader can see what is at stake before deciding it is only plumbing.
      */
     @Test fun `an emptied member query lists nothing under a chip that still counts three`() = runTest {
         val cache = Cache().apply { anAnsweredThread() }
@@ -536,12 +505,6 @@ class ThreadMemberStreamTest {
 
     /**
      * [ThreadOrders] is the store the reading view's swipe reads: what the unfolded row was showing
-     * when the reader tapped one of its messages. Building that list is
-     * [ConversationExpansion.threadEntries] and has its own tests; KEEPING it had none, and the two
-     * were one `.also { }` apart inside a ViewModel no JVM test can instantiate. Dropping that
-     * clause left every test in the repository green — the tap still gets its order back, so the
-     * page it opens on is still right — while the store stayed empty and the swipe from message to
-     * message inside a conversation silently fell back to the single message it was handed.
      */
     @Test fun `the order recorded at the tap is the order the reading view pages over`() {
         val orders = ThreadOrders()

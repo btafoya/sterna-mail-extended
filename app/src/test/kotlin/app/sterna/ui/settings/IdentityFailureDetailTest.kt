@@ -5,22 +5,6 @@ import org.junit.Test
 
 /**
  * The decision is EXECUTED here — [failureDetail] is a file-level function in
- * `AccountsViewModel.kt`, plain Kotlin over a String, so it runs in the JVM although the view model
- * around it (Application container, Keystore-backed store) never could.
- *
- * What it guards, measured on the Galaxy S7 on 2026-08-31: the account screen drew
- *
- *     Couldn't add alias.deux@masto.top on the server: invalidProperties: E-mail address not
- *     configured for this account.. The address is saved on this phone only.
- *
- * Two full stops. `R.string.settings_identity_not_created` writes its own after `%2$s` — in all
- * nine languages, so this cannot be fixed in the strings — and the server's sentence already ends
- * with one. The detail is therefore trimmed of its FINAL sentence punctuation on the way in.
- *
- * And of nothing else. The server's sentence is quoted verbatim rather than rewritten (we would
- * have to guess right for every server), so the inner punctuation, the quotes, the case and the
- * length are all left alone: `Unable to resolve host "mail.example.test": No address associated
- * with hostname.` loses one character, the last.
  */
 class IdentityFailureDetailTest {
 

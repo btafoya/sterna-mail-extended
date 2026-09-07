@@ -11,13 +11,6 @@ import java.io.File
 
 /**
  * The per-sender filter rule offered from the message being read (the ⋮ of the SENDER's row in
- * the participants panel).
- *
- * Everything that decides WHETHER the entry is there and whether it can be tapped is
- * [senderRuleEntry], a plain function, and it is RUN here — not read back out of a `@Composable`
- * nobody can instantiate. The last test is a source lint and says so; it pins the ARGUMENTS of
- * the call, because on this feature every mutation that survived kept the call and changed what
- * it was given.
  */
 class SenderRuleFromReaderTest {
 
@@ -36,8 +29,6 @@ class SenderRuleFromReaderTest {
 
     /**
      * The decision, with everything that is not the subject of a given test held at its ordinary
-     * value: the From row of a message from somebody else, on an account that has a Trash and
-     * whose script has been read. Each test overrides exactly what it is about.
      */
     private fun entry(
         isSender: Boolean = true,
@@ -70,9 +61,6 @@ class SenderRuleFromReaderTest {
     @Test fun `the reader is never offered a rule against itself`() {
         // R6, seen on a device (banc-1.4.8.md § 4): a message opened from the Sent folder carries
         // the account's own identity in From, the entry was ACTIVE on it, and the dialog it
-        // opened read "send future mail from alex.rivera@masto.top to the Trash?" — about the
-        // very account reading it. The rule files away every message that account sends itself,
-        // and every reply a mailing list echoes back, marked read, for ever.
         assertEquals(SenderRuleEntry.ABSENT, entry(address = "alex.rivera@masto.top"))
         assertEquals(
             "an alias of the account is just as much oneself",
@@ -170,19 +158,12 @@ class SenderRuleFromReaderTest {
     @Test fun `a script nobody has read yet holds the entry back`() {
         // The other half of R6: "not read" and "the read failed" were ONE null state, and the
         // entry was offered in both. Before the panel's read answers, nothing is known — whether
-        // the server does Sieve at all, whether another script is running, whether this address
-        // is already handled — so an entry drawn then is a promise made on no information, and a
-        // tap on it is answered with "couldn't complete the action". The per-sender screen holds
-        // it absent for exactly that span; this is the parity that was missing.
         assertEquals(SenderRuleEntry.ABSENT, entry(script = SenderScript.Unread))
     }
 
     @Test fun `a read that got no answer leaves the entry offered`() {
         // And this is the state that must NOT be hidden — which is the whole reason the two are
         // told apart. Hiding the entry offline makes an unreachable server look like an IMAP
-        // account, with no word and no retry, while tapping it runs addBlockRule, which reads
-        // AGAIN at the moment of writing and reports what happened. That read is the guard, and
-        // it is what makes this state safe.
         assertEquals(SenderRuleEntry.OFFERED, entry(script = SenderScript.Unreachable))
         assertEquals(
             "…but a Trash that cannot be named is still nothing to offer",
@@ -201,8 +182,6 @@ class SenderRuleFromReaderTest {
 
     /**
      * SOURCE LINT, and the only one here. What it covers cannot be reached from the JVM: the
-     * decision's arguments at the call site, and the fact that the confirmation stands between
-     * the entry and the write.
      */
     @Test fun `the panel calls the decision with the row's own group and address`() {
         val screen = SOURCE.readText()
@@ -254,8 +233,6 @@ class SenderRuleFromReaderTest {
 
     /**
      * Both rules below were written after WATCHING their mutation survive the whole campaign.
-     * Neither breaks anything a test could see: the code compiles, every decision above still
-     * runs, and the feature quietly stops being what it says it is.
      */
     @Test fun `opening the panel is what reads the account's script`() {
         // The mutation that survived: delete the one line that arms the read. The state then
@@ -282,9 +259,6 @@ class SenderRuleFromReaderTest {
     @Test fun `the ViewModel tells 'no answer' apart from 'not asked'`() {
         // The two states R6 collapsed into one, and neither half can be reached from a JVM test.
         // A read that answers Unread where it should answer Unreachable strands the entry on any
-        // network hiccup; a reset to Unreachable offers the gesture on a message whose account
-        // nobody has asked anything about — the defect, back, with every decision above green
-        // because each is handed its state directly.
         val vm = VIEW_MODEL.readText()
         assertTrue(
             "a read that fails must answer SenderScript.Unreachable, and a CANCELLED read must " +
@@ -335,9 +309,6 @@ class SenderRuleFromReaderTest {
         //
         // NOT pinned here, and it took a mutation to notice: WHICH of the dialog's two action
         // slots the write leaves from. The rules below read the file as one string, so swapping
-        // the confirm and dismiss lambdas — the write landing where "Cancel" is drawn — keeps
-        // every one of them true. That rule needs the slot lambdas extracted, so it lives with
-        // the other two-dialog rules, in SenderRuleDialogFitTest.
         val screen = SOURCE.readText()
         assertTrue(
             "the dialog's title must name the address: 'stringResource(R.string." +
@@ -351,9 +322,6 @@ class SenderRuleFromReaderTest {
         )
         // ORDERED. The three ids used to be checked with three unordered `in`: swapping the two
         // argument lines kept all three true, and the sentence that tells the reader how to undo
-        // a permanent server-side rule then pointed at "Filters → Settings" — a path that exists
-        // on no screen, in all nine languages. The per-sender screen carried the same hole twice
-        // (MailBySenderWiringTest, same regex, same reason).
         assertTrue(
             "…and in the order the sentence reads: %1\$s is the settings entry, %2\$s the " +
                 "Filters screen INSIDE it. The two stringResource calls are not interchangeable",
@@ -392,9 +360,6 @@ class SenderRuleFromReaderTest {
     private companion object {
         /**
          * The two arguments of a "Settings → Filters" sentence, IN THAT ORDER, each alone on its
-         * own line — the same rule as `MailBySenderWiringTest.PATH_ARGS`, stated here because
-         * this is a different screen's copy of the same dialog and it had the same hole. Whole
-         * lines: a containment check is blind to anything appended to an argument.
          */
         val PATH_ARGS = Regex(
             """\n[ \t]*stringResource\(R\.string\.inbox_settings\),[ \t]*""" +

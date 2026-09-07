@@ -6,14 +6,6 @@ import org.junit.Test
 
 /**
  * Reading the NEWEST end of a folder, driven against a scripted server on loopback (#95).
- *
- * The caller is the draft de-duplication: before appending a second copy of text a failed upload
- * may already have delivered, it enumerates Drafts and reads the envelopes back. Its copy is the
- * LAST thing appended, so a reader that keeps the head of the folder — which [ImapSession.allUids]
- * deliberately does — looks exactly where the copy is not, and the guard appends a duplicate.
- *
- * `UID SEARCH ALL` and nothing else: `HEADER "Message-ID"` is answered with an empty `* SEARCH`
- * by Stalwart in every shape, which is the defect this replaces.
  */
 class NewestUidsTest {
 
@@ -64,9 +56,6 @@ class NewestUidsTest {
 
     /**
      * A split answer, and the tail is the answer. A server is free to spread its result over
-     * several untagged `SEARCH` lines; a reader that takes only the first — as [ImapSession.
-     * searchUids] does — would here drop precisely the newest drafts, i.e. the copy being looked
-     * for, and the guard would append a duplicate while believing it had looked.
      */
     @Test
     fun `a result split over several untagged lines is read whole, tail included`() {
@@ -161,10 +150,6 @@ class NewestUidsTest {
 
     /**
      * A refused search THROWS. Answering an empty list instead would be an invented fact — "the
-     * folder holds nothing of yours" about a folder nobody could read. It happens to fall on the
-     * safe side here (the caller appends), and it is refused all the same: the two answers must
-     * stay tellable apart, because the day a caller reads them the other way round the mistake is
-     * a draft that exists nowhere.
      */
     @Test
     fun `a server refusing the search fails instead of reporting an empty folder`() {

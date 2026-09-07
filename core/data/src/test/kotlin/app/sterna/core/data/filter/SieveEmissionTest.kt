@@ -5,19 +5,6 @@ import org.junit.Test
 
 /**
  * What this app EMITS as Sieve, held still — because every script already sitting on a server was
- * written by it, and reading one now compares its Sieve to what this codec would write today.
- *
- * **The rule this file exists to enforce: changing the emitted Sieve means bumping the marker to
- * `# STERNA-RULES-V2:`.** Otherwise every script written by an earlier version stops matching what
- * we would write, and the whole installed base is told its filter script contains foreign Sieve.
- *
- * Two instruments, in this order:
- *
- *  - a **golden witness**, executed: the codec is run and its output compared to a script written
- *    out here in full. That is what makes a change legible — the diff shows the Sieve.
- *  - a **source lint**, a last resort on top: the golden covers the branches taken by the rules it
- *    is given, but nothing forces a new emission branch to be added to it. The pinned lines catch
- *    the edit itself, and their failure message carries the V2 rule to whoever made it.
  */
 class SieveEmissionTest {
 
@@ -111,8 +98,6 @@ class SieveEmissionTest {
 
     /**
      * Both requires at once, the flags emitted BEFORE the `fileinto` so the filed copy carries
-     * them, a quote and a backslash escaped in both the value and the folder, and a blank-valued
-     * rule that is kept in the metadata but emits nothing (and does not pull in a `require`).
      */
     @Test fun `moving and flagging emits both requires, escaped`() {
         val rules = listOf(
@@ -164,10 +149,6 @@ class SieveEmissionTest {
 
     /**
      * Whole lines, never substrings: a `contains` is blind to every mutation that makes a line
-     * LONGER, which is most of them.
-     *
-     * A raw string cannot end on a `"` without confusing the closing delimiter, so the lines that
-     * do are written with one trailing space and trimmed back — the compared text is unchanged.
      */
     @Test fun `the Sieve this codec emits is pinned to the marker version`() {
         val source = SourceText.read("core/data/src/main/kotlin/app/sterna/core/data/filter/SieveCodec.kt")
@@ -217,9 +198,6 @@ class SieveEmissionTest {
         )
         // `escape` is emitted Sieve too, and it was the hole: it is the LAST member of the
         // object, so the slice that ends at the next KDoc found nothing and it stayed unpinned.
-        // Measured: adding `.replace("\n", "\\n")` here changes what every future script looks
-        // like — and therefore declares every script already on a server hand-edited — while the
-        // whole suite stayed green.
         assertEquals(
             V2_RULE,
             listOf(
@@ -232,8 +210,6 @@ class SieveEmissionTest {
 
     /**
      * The golden for [SieveCodec] escaping, and the answer to "what about a value with a newline
-     * in it": today, NOTHING — the character goes through untouched and the Sieve runs onto a
-     * second line. Pinned because starting to escape it would be a change to the emitted Sieve.
      */
     @Test fun `a control character in a value is emitted as-is, not escaped`() {
         val rules = listOf(

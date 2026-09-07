@@ -10,11 +10,6 @@ import java.io.File
 
 /**
  * The sweep behind every "clear cache" the app offers, EXECUTED on real directories — the decision
- * itself, not the line that calls it (that is `AttachmentCacheWiringTest`'s job).
- *
- * A downloaded attachment is written into the cache in the clear, an OpenPGP part decrypted
- * included, so what matters here is observed file by file: after the call the bytes are gone from
- * BOTH trees.
  */
 class ClearAttachmentTreesTest {
 

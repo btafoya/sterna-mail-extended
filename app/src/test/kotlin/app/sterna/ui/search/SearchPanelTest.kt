@@ -7,16 +7,6 @@ import org.junit.Test
 
 /**
  * The advanced-filter panel can now be dragged from three places instead of one: its handle, the
- * band above it (title bar and free-text field), and its own body once its scroll has run out.
- *
- * Only the decision taken when the finger LIFTS is testable off-device — the layout and the gesture
- * plumbing are not — but it is also the one worth pinning: it is shared by all three grab points,
- * and the failure it guards against is silent. If one of them ever grew its own copy, the same
- * flick would open the panel from the handle and leave it shut from the title bar, and nobody would
- * find that except a user reporting that "sometimes it doesn't open".
- *
- * A height of 400 stands for the panel's measured height throughout; a velocity is px/s, positive
- * downwards (the direction that pulls the panel out).
  */
 class SearchPanelTest {
 
@@ -75,9 +65,6 @@ class SearchPanelTest {
 
         // Not guarded against, on purpose. It is unreachable — a height of 0 means the panel has
         // not been laid out, and a frame is always laid out before it can be touched — and were it
-        // ever reached the outcome is still coherent rather than stuck: the flick records
-        // "expanded", and the first measurement then puts the panel out at its true height. A guard
-        // returning false here would instead swallow a deliberate gesture.
     }
 
     // ---- what the panel takes from a drag, and what it hands back ----

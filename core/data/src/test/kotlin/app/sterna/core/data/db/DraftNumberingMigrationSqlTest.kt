@@ -13,34 +13,6 @@ import java.sql.DriverManager
 
 /**
  * **v22 → v23** ([MIGRATION_22_23]): `outbox` and `scheduled_sends` each gain `draftUidValidity`,
- * the IMAP numbering the composer read `draftEmailId` under
- * ([OutboxEntity.draftUidValidity], [ScheduledSendEntity.draftUidValidity]).
- *
- * Built like [ReadReceiptMigrationSqlTest]: the REAL [androidx.room.migration.Migration] objects are
- * executed against a real SQLite engine (JDBC, in memory) through a tiny [SupportSQLiteDatabase]
- * proxy, from the PUBLISHED v15 schema chained up to a real v22 — never from a copy of the
- * statements, so this test cannot drift from the code that ships.
- *
- * Same two tables, same stake as the step before it: they hold UNSENT MAIL. `SternaDatabase` ends
- * its builder with `fallbackToDestructiveMigration()`, so a step that is missing, wrong, or merely
- * absent from [SternaDatabase.ALL_MIGRATIONS] has Room drop every table — the queued sends and the
- * scheduled ones with them. So the seed holds a QUEUED outbox row and a scheduled send, and every
- * table's row count is compared before and after.
- *
- * **Two** tables, each asserted on its own. `outbox` alone is the plausible slip and it is
- * invisible until it destroys something: a scheduled send would reach the outbox with nothing
- * frozen, hours later, and the delivery would fall back to whatever numbering it could find.
- *
- * And the column is NULLABLE WITH NO DEFAULT, read back as `NULL` on every row queued before it.
- * That is deliberate and it is the safe half of the trade: `null` destroys nothing, whereas
- * backfilling the folder's current numbering would license an expunge under a number nobody froze.
- *
- * And **v24 → v25** ([MIGRATION_24_25]), at the bottom of the file: `emails` gains `uidValidity`,
- * the IMAP numbering each cached row was READ under ([EmailEntity.uidValidity], #99). Same engine,
- * same seed, same stake, and the same shape of column — nullable, no default, no backfill, because
- * `null` destroys nothing while an invented number licenses an expunge. A step missing from
- * [SternaDatabase.ALL_MIGRATIONS] drops every table, `local_drafts` now included, i.e. a third
- * store of text the user typed.
  */
 class DraftNumberingMigrationSqlTest {
     private lateinit var db: Connection
@@ -172,8 +144,6 @@ class DraftNumberingMigrationSqlTest {
 
     /**
      * A REAL v22 database: the published v15 schema, populated, then carried forward by the very
-     * migration objects that ship — 15→16 … 21→22 — and populated again in the tables those
-     * migrations create.
      */
     private fun seedV22() {
         seedPublishedV15()
@@ -229,9 +199,6 @@ class DraftNumberingMigrationSqlTest {
 
     /**
      * The DECLARED shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`.
-     * Room's `TableInfo.Column.equals` compares the affinity and the nullability at open time, so a
-     * column of the right name and the wrong type fails `validateMigration` on every launch, and
-     * the user's only way out is a reinstall — which takes the outbox with it.
      */
     private fun columnShapes(table: String): Map<String, Triple<String, Int, String?>> {
         val shapes = mutableMapOf<String, Triple<String, Int, String?>>()
@@ -412,12 +379,6 @@ class DraftNumberingMigrationSqlTest {
 
     /**
      * Chains the migrations Room is really given ([SternaDatabase.ALL_MIGRATIONS]) over a published
-     * install, and looks at where they arrive.
-     *
-     * A migration object that works perfectly and is absent from that array never runs: Room finds
-     * no path, `fallbackToDestructiveMigration()` takes over and `dropAllTables()` empties the
-     * database — the outbox and the scheduled sends with it. So the step objects are taken FROM the
-     * registered array, in ascending order, and the chain must be unbroken.
      */
     @Test fun theRegisteredMigrationsCarryAPublishedInstallAllTheWayToTheFrozenNumbering() {
         seedPublishedV15()
@@ -464,19 +425,6 @@ class DraftNumberingMigrationSqlTest {
 
     /**
      * SOURCE LINT, and the one line every migration in this file depends on: the builder must
-     * actually HAND [SternaDatabase.ALL_MIGRATIONS] to `addMigrations`.
-     *
-     * Four migration suites now chain that array by hand and state in prose that it is "the array
-     * the builder passes to addMigrations" — nobody checked. Delete `.addMigrations(*ALL_MIGRATIONS)`
-     * from the builder and the whole suite stays green: the array is still correct, still tested,
-     * still reachable, and never given to Room. Every install then finds no path from its version,
-     * `fallbackToDestructiveMigration()` takes over and `dropAllTables()` empties the database —
-     * the outbox and the scheduled sends with it, i.e. mail the user wrote that never left.
-     *
-     * That makes it the line this whole change hangs on: without it the only effect of adding a
-     * migration is the erasure. Read as source text because `Room.databaseBuilder` needs a
-     * `Context`, so no JVM test can build the database and ask it. Whole line, comments cut: a
-     * `contains` is blind to `.addMigrations()` called with something else.
      */
     @Test fun theBuilderReallyHandsThatArrayToRoom() {
         val code = STERNA_DATABASE.readText().lines().map { it.trim() }
@@ -570,9 +518,6 @@ class DraftNumberingMigrationSqlTest {
 
         // NULL, deliberately, and NOT backfilled with the folder's current numbering: nobody
         // knows which numbering those rows were read under, and inventing one would license exactly
-        // the expunge this column exists to refuse. `null` destroys nothing
-        // (`UidValidity.mayDestroy`). 0 would be worse than useless — it is "the server announced
-        // none", which would look like an answer while meaning "unknown".
         assertNull(longOrNull("SELECT `uidValidity` FROM `emails` WHERE `id` = 'e1'"))
         assertEquals(2, count("SELECT COUNT(*) FROM `emails` WHERE `uidValidity` IS NULL"))
     }

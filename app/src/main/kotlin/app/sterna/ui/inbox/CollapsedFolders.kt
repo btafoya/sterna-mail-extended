@@ -5,9 +5,6 @@ import app.sterna.core.jmap.model.Mailbox
 
 /**
  * What a folder nobody has touched does — the default half of the fold decision (#185).
- * With [rowsBadgeUnread] false nothing folds: those rows carry no unread count, and folding is
- * honest only because [drawerUnreadCount] badges what it hides. Otherwise a folder folds when the
- * user made it — the three guards [visibleFolders] runs, never `role == null` alone — and something
  * calls it its parent. [mailboxes] must be the list the drawer draws. */
 internal fun defaultCollapsedFolderIds(mailboxes: List<Mailbox>, rowsBadgeUnread: Boolean): Set<String> {
     if (!rowsBadgeUnread) return emptySet()

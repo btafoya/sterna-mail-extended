@@ -19,9 +19,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The rows of the latest-messages widget, served to the launcher. A list in a widget NEEDS this
- * service at minSdk 26, `RemoteCollectionItems` being API 31+. And the manifest guards it with
- * `android:permission="android.permission.BIND_REMOTEVIEWS"`, held by the system alone: without it
- * any installed app could bind this service and read the sender and subject of every message.
  */
 class RecentMailWidgetService : RemoteViewsService() {
 
@@ -54,8 +51,6 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
 
     /** The launcher's "refetch" — called on a binder thread and allowed to block, which is what makes
      * a database read legal here. [withTimeoutOrNull] and not `withTimeout`, whose
-     *  CancellationException lands on a thread the launcher is waiting on; on a read that does not
-     * answer the rows already held are KEPT, never an empty list, which says the mail is gone.
      * Nothing escapes: an exception from a binder callback takes the process with it. */
     override fun onDataSetChanged() {
         val app = context.applicationContext as? Application ?: return
@@ -146,9 +141,6 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
 
     /**
      * The disc this row wears, or null — two ways of having none, and they differ. `row.monogram ==
-     * null` is the CONTENT rule's answer, under the app lock and at NONE; `monogramRamps == null` is
-     * the COLOUR read's. Not a default ramp: a badge is a bitmap with no `values-night` behind it
-     * to make a wrong colour merely stale, so the row goes one refresh without its disc.
      */
     private fun monogramFor(row: RecentWidgetRow): Bitmap? {
         val monogram = row.monogram ?: return null
@@ -158,13 +150,6 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
 
     /**
      * [text] in bold when the row is unread — this cell's ONLY unread mark, and the message list's.
-     * All three fields go through it: sender, subject and date (DESIGN.md:58). Under SENDER_ONLY
-     * the second line is the generic stand-in and is bolded like the rest: it occupies the SUBJECT'S
-     * PLACE, and the weight states the read state.
-     *
-     * `RemoteViews` has no way to set a typeface, so the weight travels INSIDE the text as a
-     * `StyleSpan`, a `ParcelableSpan` that survives the binder hop. Not two alternating TextViews
-     * switched by visibility. Nothing in this suite executes this function.
      */
     private fun weighted(text: String, unread: Boolean): CharSequence =
         if (!unread) text

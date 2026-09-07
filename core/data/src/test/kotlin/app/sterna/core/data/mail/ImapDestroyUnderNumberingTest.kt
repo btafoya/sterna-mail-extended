@@ -6,18 +6,6 @@ import org.junit.Test
 
 /**
  * The IMAP twin of [DestroyableIdsTest] (Codeberg #99): given the numbering a destroy was
- * confirmed under, what may be destroyed at all — and how the wave is routed.
- *
- * Why it is a decision of its own rather than a comment in `destroyAll`: an IMAP `UID STORE
- * +FLAGS (\Deleted)` + `UID EXPUNGE` names messages by number, and those numbers only mean
- * anything inside one UIDVALIDITY. A held-back destroy that opposes NOTHING re-reads the folder's
- * current numbering at execution, the SELECT matches it against itself, and a folder renumbered
- * during the hold-back is expunged by UIDs that now name OTHER, live messages — in the Trash, or
- * in the Inbox itself on an account with no Trash, where `deleteWouldDestroy` is true and the
- * folder carried is the Inbox.
- *
- * Everything below RUNS. The wiring test at the end is the only source-text part, and it is there
- * because `MailRepository` needs Room and a `Context`; it pins whole lines, never substrings.
  */
 class ImapDestroyUnderNumberingTest {
 
@@ -162,10 +150,6 @@ class ImapDestroyUnderNumberingTest {
 
     /**
      * One link further than the test above, and the link that actually destroys: the argument has
-     * to reach `deleteBatch`. Dropping it COMPILES — `ImapMailService.deleteBatch` defaults
-     * `expectedUidValidity` to null — and `onMailbox` then falls back on `expectedUidValidity ?:
-     * recorded`, so the SELECT compares the folder's current number with itself, concludes SAME,
-     * and expunges a renumbered folder without one failure. That is the original defect, entire.
      */
     @Test fun `the frozen numbering reaches the wire, not merely the branch that routes`() {
         assertEquals(
@@ -178,22 +162,6 @@ class ImapDestroyUnderNumberingTest {
 
     /**
      * The OTHER destroy path, and the one `destroyAll` never routed: discarding a draft, or
-     * replacing one that was re-saved, expunges a single id straight from the folder it names.
-     * It handed `imapDestroyGroup` nothing to oppose, so `onMailbox` fell back on
-     * `expectedUidValidity ?: recorded`, compared the folder's current number with itself and
-     * expunged — including on a folder whose numbering the app had never recorded at all, i.e.
-     * with nothing whatsoever to oppose. Source text for the same reason as the tests above:
-     * `MailRepository` needs Room and a `Context`, so the lines are pinned WHOLE, arguments
-     * included — an assertion that the call merely exists says nothing about what it is handed.
-     *
-     * Opposing a number READ HERE was only half of it, and the cheap half. Between the moment
-     * the composer reads the draft's id off the screen and the moment the discard goes out, a
-     * background pass (`loadFolder`, `loadWatchedFolders`) may have seen the folder renumbered and
-     * written the NEW number to the store. Reading at execution then opposes that new number to
-     * itself — SAME, expunge — on a UID belonging to the OLD numbering, i.e. on whatever message
-     * now holds that number in Drafts. So the numbering is frozen by the caller when it reads the
-     * id, and arrives here as a parameter; this path reads nothing (see
-     * [the destroy path never looks the numbering up for itself]).
      */
     @Test fun `discarding a draft opposes the numbering frozen when its id was read`() {
         val body = bodyOf("destroyDraft")
@@ -218,20 +186,6 @@ class ImapDestroyUnderNumberingTest {
 
     /**
      * The freeze must name the folder the destroy will SELECT. The accessor the composer calls
-     * resolves it from the id exactly as [destroyDraft] does — the draft's own cached mailbox,
-     * falling back on the account's Drafts role. Resolve it differently on either side and the
-     * number frozen belongs to another folder: opposed to Drafts it reads CHANGED and every
-     * discard is refused for ever, or worse it happens to match and licenses the expunge the
-     * guard exists to stop.
-     *
-     * The needle stays the bare `mailboxOf(`, and it is deliberately WIDER than the two lines it
-     * pins: any other way of resolving a folder in these bodies — `mailboxDao.mailboxOf(`, a bare
-     * `mailboxOf(`, a helper named for one — lands in the list and fails the comparison, which is
-     * the whole point of comparing whole lists rather than searching inside them. It was briefly
-     * narrowed to `emailDao.mailboxOf(` on the argument that the JMAP branch's `draftMailboxOf(`
-     * matched inside it; that argument is false — [codeLinesNaming] is case-sensitive and
-     * `draftMailboxOf(` carries a capital M — so the narrowing bought nothing and cost the rule its
-     * reach. Do not narrow it again without running the needle over the body first.
      */
     @Test fun `the numbering is frozen for the very folder the destroy will select`() {
         val resolution = listOf(
@@ -257,15 +211,6 @@ class ImapDestroyUnderNumberingTest {
 
     /**
      * And it must refuse WITHOUT A WORD ON SCREEN.
-     *
-     * The refusal arrives here as an exception. `ComposeViewModel.submit` catches every `Throwable`
-     * and puts `t.message` straight into the "could not save" banner (`ComposeScreen`), so a refusal
-     * left to propagate shows the user "The server stated no UIDVALIDITY for Drafts; a destroy
-     * frozen under 42 was refused" — English protocol jargon, in all nine locales, precisely when
-     * the guard is doing its job. Its twin refusal, the one where the decision licenses an empty
-     * list, is already silent: `imapDestroyGroup` returns on `if (uidToId.isEmpty()) return` and
-     * nobody raises anything. Both refusals say nothing, or neither does — and a new string on
-     * screen costs nine translations for a case in which nothing was lost.
      */
     @Test fun `a draft the server will not confirm the numbering of is refused in silence`() {
         val body = bodyOf("destroyDraft")
@@ -313,18 +258,6 @@ class ImapDestroyUnderNumberingTest {
 
     /**
      * The numbering ARRIVES on this path; it is never read on it. A local read — including one
-     * that merely SHADOWS the parameter, which Kotlin accepts with a warning — hands the guard
-     * the number a refresh recorded AFTER the renumbering, which is precisely the value that
-     * makes it pass on the mail it exists to save. Same shape as the "no swallower" rule of
-     * [DestroyChecksTheFolderWiringTest].
-     *
-     * `destroyDraft` joined this list: it used to read at execution, and that read WAS the window
-     * between the composer displaying a draft's id and the expunge going out. The accessor the
-     * composer freezes through, `recordedUidValidityForDraft`, is a different function on purpose —
-     * called at the read, never here. `discardDraft` and `finishDraftSave` are on it too: they are
-     * the two functions that HAND the parameter over, and a `?: recordedUidValidityForDraft(…)`
-     * written on either of them restores the whole defect while every other rule stays green.
-     * The needle is the shorter name, so it catches the new accessor as well.
      */
     @Test fun `the destroy path never looks the numbering up for itself`() {
         listOf("destroyAll", "imapDestroyGroup", "destroyDraft", "discardDraft", "finishDraftSave")
@@ -340,16 +273,6 @@ class ImapDestroyUnderNumberingTest {
 
     /**
      * And every one of them must be written as a BLOCK, because a single-expression body is
-     * INVISIBLE to the rule above: [DaoQuerySource.mailFunctionBody] delimits a body by matching
-     * braces, an expression body has none, and the lookup then fails instead of reading. A
-     * `discardDraft` written as
-     *
-     *     suspend fun discardDraft(…) = destroyDraft(c, id, frozen ?: recordedUidValidityForDraft(c, id))
-     *
-     * re-opens the defect ENTIRE on the "empty a draft" gesture — the fallback is taken exactly
-     * when the composer froze nothing, and it answers the number recorded AFTER the renumbering —
-     * and it cannot appear in the list above at all. Same reason `ImapMailService.ccAndBccOf` is
-     * kept a block, and its KDoc says so.
      */
     @Test fun `the draft destroy path is written in blocks, or no rule can see inside it`() {
         listOf("destroyDraft", "discardDraft", "finishDraftSave").forEach { function ->
@@ -364,23 +287,6 @@ class ImapDestroyUnderNumberingTest {
 
     /**
      * The freezing accessor, everywhere it is CALLED in the repository — pinned as a list rather
-     * than as an absence, so the DECLARATION has to be named and a rule that has stopped finding
-     * anything at all cannot pass by accident.
-     *
-     * There is no execution-time call left. The send used to be the one exception: `performSend`
-     * read the numbering at delivery, which is a headless worker firing when the network comes back
-     * or at a scheduled send's hour — hours or days after the composer read that draft. The outbox
-     * row now CARRIES the number the composer froze (`OutboxEntity.draftUidValidity`), so this
-     * accessor is called nowhere in the repository: only the composer calls it, once, at the read.
-     *
-     * One line more here is the defect back, and each shape of it reads as harmless: a `?:` fallback
-     * in `performSend` "for rows queued before the column existed", a re-read in `discardDraft` or
-     * `finishDraftSave` "to be safe". All three answer the numbering recorded AFTER a renumbering,
-     * which is exactly the value that licenses the expunge on whatever now holds those UIDs.
-     *
-     * The file-wide rule below this one only pins `imap.recordedUidValidity(`; this accessor carries
-     * no `imap.` prefix and slips under it, so without this rule every draft path in the class could
-     * go back to reading at execution unseen.
      */
     @Test fun `the freezing accessor is declared for the composer and called at no execution point`() {
         assertEquals(
@@ -398,11 +304,6 @@ class ImapDestroyUnderNumberingTest {
 
     /**
      * The two hand-overs of `uploadDraft` (`saveDraft`'s upload half since #95) — the IMAP branch
-     * and the JMAP one. Nothing named
-     * `finishDraftSave` in any test before this: replacing either argument with
-     * `replacesEmailId?.let { recordedUidValidityForDraft(credentials, it) }` restores the defect
-     * on the RE-SAVE gesture (the one that destroys the server copy it replaces) and leaves the
-     * whole suite green. Whole lines, arguments included.
      */
     @Test fun `re-saving hands on the numbering the composer froze, on both protocols`() {
         val body = bodyOf("uploadDraft")
@@ -418,11 +319,6 @@ class ImapDestroyUnderNumberingTest {
 
     /**
      * The inverse witness for the new accessor, twin of "the accessor really asks IMAP" below.
-     * Every executable rule here proves "handed nothing, destroy nothing"; nothing proves a healthy
-     * IMAP account is handed a REAL number. Flip `!=` to `==` on the protocol guard, or answer
-     * `null` outright, and every IMAP draft destroy becomes a silent, permanent refusal: a
-     * duplicate left in Drafts on every re-save, and an emptied draft that comes back on the next
-     * sync — with the whole suite green.
      */
     @Test fun `the freezing accessor answers a real number for an IMAP account`() {
         val body = bodyOf("recordedUidValidityForDraft")
@@ -441,11 +337,6 @@ class ImapDestroyUnderNumberingTest {
 
     /**
      * WYSIWYG on the refusal. `onMailbox` invalidates the folder before raising
-     * `ImapUidValidityChanged`, which drops the cached BODIES of the whole Drafts folder and
-     * records the new numbering — but the draft's LIST ROW survives, carrying an id from a
-     * numbering that no longer exists. The "save" path repairs that by accident (`saveDraft` ends
-     * on `runCatching { refresh(credentials, drafts) }`); the "empty a draft" path repaired
-     * nothing, so the user was left looking at a row that means nothing, with no word on screen.
      */
     @Test fun `a refused discard leaves the drafts list telling the truth`() {
         val body = bodyOf("destroyDraft")
@@ -463,13 +354,6 @@ class ImapDestroyUnderNumberingTest {
 
     /**
      * The inverse witness at system level, and the one the executable tests cannot give: they all
-     * prove "handed nothing, destroy nothing". Nothing proves that a healthy account hands over a
-     * REAL number — replace this accessor's body with `null` and every IMAP permanent delete
-     * becomes a silent, permanent refusal, with the whole suite green.
-     *
-     * Read file-wide rather than per function: it is a single-expression body, which the brace
-     * matching of [DaoQuerySource.mailFunctionBody] cannot delimit. The second line is the purge's
-     * own read of the same value (#99), pinned here for the same reason.
      */
     @Test fun `the accessor really asks IMAP for the folder's numbering`() {
         assertEquals(

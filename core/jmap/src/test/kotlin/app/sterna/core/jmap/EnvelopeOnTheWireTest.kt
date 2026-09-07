@@ -20,21 +20,6 @@ import org.junit.Test
 
 /**
  * The EmailSubmission `envelope` (RFC 8621 §7.5) on the wire — the OCTETS that leave, read back
- * from a mock server, never the source that produced them.
- *
- * Without it, `EmailSubmission/set` carries `emailId` + `identityId` only and the server derives
- * `smtp.mailfrom` from the identity it was handed. For an address the server has no identity for,
- * that identity is not the one in the `From:` header, DMARC calls the mismatch a fail and the mail
- * lands in spam (issue #172). Naming the envelope is what makes the two agree, or makes the send
- * fail visibly.
- *
- * Both submission paths are exercised: [JmapClient.sendEmail] (structured) and
- * [JmapClient.importAndSendEmail] (raw PGP/MIME bytes). They now share one builder, and the point
- * of testing both is that they cannot be allowed to drift back apart.
- *
- * The default — no envelope — must put NOTHING extra on the wire: a server deriving its own
- * envelope is the ordinary, working case, and an empty or half-written `envelope` key would break
- * every account that sends under an identity the server knows.
  */
 class EnvelopeOnTheWireTest {
 
@@ -69,8 +54,6 @@ class EnvelopeOnTheWireTest {
 
     /**
      * The second request every JMAP send now makes: it reads back what the server did with the
-     * submission it just created (#183). Nothing is refused here, so the send goes through — but the
-     * response must be QUEUED, or the call sits on the read timeout.
      */
     private val submissionGetResponse =
         """{"methodResponses":[
@@ -172,8 +155,6 @@ class EnvelopeOnTheWireTest {
 
     /**
      * Every recipient, one entry each: RFC 8621 §7.5 makes `rcptTo` mandatory when an envelope
-     * is given, so the server does NOT fall back to the message's To/Cc/Bcc. A list amputated of
-     * the copies delivers to nobody but the To — with a send that reports success.
      */
     @Test fun `every recipient gets its own rcptTo entry`() {
         val sub = sendWith(

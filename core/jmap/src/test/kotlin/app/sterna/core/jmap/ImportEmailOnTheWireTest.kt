@@ -18,13 +18,6 @@ import org.junit.Test
 
 /**
  * WHAT `importEmail` PUTS ON THE WIRE — the JMAP half of a cross-account move (#189): a blob
- * already uploaded to account B becomes a message in the folders, with the keywords and under the
- * date the caller names, and nothing else. The only other `Email/import` in the client is the
- * PGP send, which hard-codes Drafts and `$draft`+`$seen`; this one carries what it is given.
- *
- * The `emails.m0` object is compared WHOLE, as parsed JSON, so a mailbox dropped, a keyword
- * invented, a `receivedAt` emitted when none was given, or one silently rewritten, all turn a line
- * red. Booleans are `true` because that is the JMAP shape of a set (`{id: true}`).
  */
 class ImportEmailOnTheWireTest {
 

@@ -9,29 +9,6 @@ import org.junit.Test
 
 /**
  * Arming the delivery worker is NOT queueing the send, and [armOrNote] is where that is decided.
- *
- * By the time `MailRepository.enqueueSend` arms, the row is inserted and its payload staged: the
- * message is durable, it is in the Outbox, and `unfinishedOutbox` re-arms it at the next app start
- * (`SternaApplication`). So a scheduler that throws costs a DELAY, never the mail — while relaying
- * that throw tells the caller nothing was queued about a message that is queued, and the caller
- * acts on it: `quickReplyAct(Send, queued = false)` hands the text back and keeps the notification,
- * so the person sends the same mail again and the recipient gets it twice.
- *
- * The neighbouring guard must NOT be confused with this one: a STAGING failure still destroys
- * the row and relays ([stageOrRollback], [EnqueueRollbackTest]) — an orphan with `attachmentsJson
- * "[]"` would be re-armed and sent amputated (#70). Staging failed means the row is bad; arming
- * failed means the row is good.
- *
- * What each assertion holds:
- *  - a throwing scheduler returns the id — the defect itself, restored the moment it re-throws;
- *  - the reason reaches [note] carrying the exception's own message, so the row can say why it is
- *    late instead of being silently late;
- *  - a CLEAN arming passes the item's own id and hold, whole: `(id, 0)` would fire a scheduled
- *    send or an undo window immediately, and a wrong id would arm somebody else's row;
- *  - a cancellation is re-thrown and noted NOWHERE ([rethrowIfCancelled], the house idiom): a
- *    cancelled coroutine is an instruction to stop, not a failure to record;
- *  - a [note] that throws still returns the id — recording the reason may not become a second way
- *    to fail the queueing it reports on.
  */
 class ArmingIsNotQueueingTest {
 

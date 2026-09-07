@@ -6,17 +6,6 @@ import org.junit.Test
 
 /**
  * WHICH arguments `MailRepository` hands the Autocrypt import at each of its three call sites, and
- * that the JMAP read still asks the server for nothing new.
- *
- * A source lint, and a last resort — `MailRepository` needs a `Context`, Room and the Keystore, so
- * no JVM test instantiates it. Its companion is [AutocryptPeerImportTest], which EXECUTES the rule
- * and the provider call: that one proves the decision is right, this one proves it is asked the
- * right question. A perfect rule fed the ACCOUNT's address instead of the message's `From` would
- * import every correspondent's key under the reader's own address, and every test of the rule would
- * still be green.
- *
- * Arguments are extracted by matching parentheses, not by reading whole lines: reformatting a call
- * must not turn this red, and changing what is passed must.
  */
 class AutocryptImportWiringTest {
 
@@ -80,13 +69,6 @@ class AutocryptImportWiringTest {
     @Test fun `the IMAP date comes from the server, and is only asked for when there is a key`() {
         // The whole block, line for line — never `contains("INTERNALDATE")`. Two mutations this
         // has to catch, and both make the code LONGER or merely REORDER it:
-        //  - the guard deleted (or inverted): a second round trip on EVERY message opened, for a
-        //    value nothing reads, on the opening path;
-        //  - the failure no longer swallowed: an `Autocrypt` header from a server having a bad day
-        //    would then stop the message from opening at all.
-        // And the reason the value is fetched rather than taken from the row: `envelope.receivedAt`
-        // is `Date:`, which whoever sent the message wrote — a key filed under a 2100 date can
-        // never be beaten inside OpenKeychain, and this app cannot undo anything there.
         assertEquals(
             listOf(
                 "private suspend fun autocryptInternalDate(",
@@ -114,10 +96,6 @@ class AutocryptImportWiringTest {
     @Test fun `the service call in the middle fetches INTERNALDATE, and nothing else`() {
         // The one line of the whole chain that neither an executed test nor another lint can
         // reach: `ImapMailService.fetchInternalDate` is a pass-through, so no JVM test constructs
-        // it and the on-the-wire test drives `ImapSession` directly, one layer below. Left
-        // unpinned, `-> session.fetchByUid(uid)?.dateMillis` compiles, keeps every other test
-        // green, and hands back the sender's `Date:` header — the whole defect, restored in one
-        // line. `-> null` turns the feature off just as quietly.
         assertEquals(
             listOf(
                 "suspend fun fetchInternalDate(credentials: AccountCredentials, mailboxId: String, uid: Long): Long? =",

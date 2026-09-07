@@ -7,80 +7,16 @@ import java.io.File
 
 /**
  * SOURCE + RESOURCE LINT, NOT A BEHAVIOUR TEST — said first, because what it guards is a RENDERING
- * defect, and nothing in this module can render anything.
- *
- * A save that could not replace the draft it reopened says so in a `Toast`: the decision is
- * `draftSaveNeedsNotice(outcome)` (executed in `LocalDraftSaveTest`), the sentence it shows is
- * chosen in the body of that guard in `ComposeViewModel.kt`, and `ComposeScreen.kt` collects
- * `viewModel.notices` into `Toast.makeText(context, res, Toast.LENGTH_LONG)`.
- *
- * A `Toast` on Android 12+ is TWO LINES beside the app icon, hard, with no setting anywhere.
- * Measured on the virtual bench on 2026-08-25 (`emu`, Android 16, 411 dp, release variant),
- * `compose_draft_original_kept` as it was first shipped:
- *
- * | locale        | chars | rendered                                                    |
- * |---------------|-------|-------------------------------------------------------------|
- * | `values` (en) |    97 | CUT — "… because this copy couldn't carry e**…**"            |
- * | `values-de`   |   124 | CUT — "… weil diese Kop**…**"                                |
- *
- * The half that fell was the justification; the two facts that carry the information survived by a
- * hair. The remedy taken on this branch is to bring the SENTENCE down, not the code up: a
- * `Snackbar` is not available to this screen — the message is read 2.5 to 6 s after the tap, after
- * the composer has closed.
- *
- * **Two limits, written down rather than left to be discovered**, the same two
- * [app.sterna.ui.connect.AccountToastFitTest] states, for the same reason:
- *
- *  - a character count is a **proxy** for rendered width. It is blind to the script (German and
- *    Cyrillic set wider than English at equal length), to the font, and to the font scale. It
- *    cannot prove a sentence fits; it can only refuse the ones that certainly do not.
- *  - the threshold comes from a **bench measurement, not from Android**. There is no specification
- *    behind a two-line `Toast` holding N characters, and no way to derive one here.
- *
- * NOT COVERED — THE FONT SCALE. Every figure above and every figure behind [maxToastChars] was
- * read at the DEFAULT font scale. Two lines hold far fewer characters at `font_scale 2.0`, nobody
- * has rendered this toast there, and this file says nothing whatsoever about it.
- *
- * NOT COVERED — THE OTHER TOASTS OF THE COMPOSER, deliberately. Six other `_notices` sentences
- * already exceed [maxToastChars] in at least one language (`compose_emptied_draft_server_copy_kept`
- * 94 chars in pt, `compose_pgp_no_draft` 84 in de, `compose_forward_attachment_dropped` 78 in de,
- * `compose_quote_not_added` 77 in de). That is PRE-EXISTING neighbourhood, out of this branch's
- * scope and already recorded by the integrating session. This file measures the sentence of THIS
- * branch, not the family — which is why its subject is extracted from one guard and not from the
- * `_notices` flow.
- *
- * The identifier is EXTRACTED, never listed: a list typed into a test is a copy of the code, and a
- * copy stays green while the code changes underneath it.
  */
 class DraftKeptToastFitTest {
 
     /**
      * 56 characters — the SAME number as
-     * [app.sterna.ui.connect.AccountToastFitTest.maxToastChars], and deliberately not a second
-     * derivation of it. Its three steps live in that file's KDoc and are quoted here only so this
-     * one can be read alone:
-     *
-     *  1. 72 characters came out WHOLE at 411 dp on `emu` (`values-it`, 2026-08-18). 80 did not.
-     *  2. the narrow bench is 360 dp (`ultranabla`), i.e. 360/411 of that width: ≈ 63 characters.
-     *  3. 63 is a LATIN reading; German and Cyrillic set wider per character, so the plafond keeps
-     *     a margin under it: **56**.
-     *
-     * It is not a width. It is a count of characters standing in for one, and a sentence that
-     * exactly hits 56 in Russian may still be cut. What the number is good for is refusing the
-     * sentences already known to be too long — which the shipped 97/124-character sentence was.
-     *
-     * If the bench ever contradicts it, the number moves THERE, in `AccountToastFitTest`, and this
-     * file follows; two independently maintained plafonds for one box is how they drift.
      */
     private val maxToastChars = 56
 
     /**
      * FAIL CLOSED, first half: what is being measured is FOUND.
-     *
-     * A lint that extracts its subject can extract nothing — a renamed guard, a notice moved to
-     * another call site, a `<string>` tag the pattern misses — and then report success over an
-     * empty set, for as long as nobody looks. A rule quietly matching nothing is worse than no
-     * rule.
      */
     @Test fun `the sentence a save that could not replace shows is found`() {
         val blocks = noticeBlocks()
@@ -104,12 +40,6 @@ class DraftKeptToastFitTest {
 
     /**
      * FAIL CLOSED, second half: the resources. An id the string map does not resolve is measured
-     * by NOTHING, silently, at any length — a sentence declared in a res file this rule does not
-     * read (a split into `values/labels.xml`, ordinary once a file grows), or one whose `<string>`
-     * tag this file's pattern misses (an attribute written BEFORE `name`, which neither this
-     * pattern nor `TranslationParityTest`'s matches, so parity would be happy too). The nine
-     * locales are counted for the same reason: a tenth language shipped without this sentence must
-     * not slip through as "not checked".
      */
     @Test fun `the sentence resolves in the nine languages`() {
         val strings = locales().associate { it.name to stringsOf(it) }
@@ -129,12 +59,6 @@ class DraftKeptToastFitTest {
 
     /**
      * THE DEFECT: a two-line box, and a sentence longer than two lines.
-     *
-     * What the reader loses is not decoration. Cut at "… weil diese Kop…" she is told a draft was
-     * saved and an original kept, and nothing about why — and the shipped English cut ("… because
-     * this copy couldn't carry e…") ends mid-word, which reads as a bug rather than a message.
-     *
-     * Counted on what the reader SEES, not on the XML: see [unescaped].
      */
     @Test fun `the sentence is not too long for a toast`() {
         val strings = locales().associate { it.name to stringsOf(it) }
@@ -160,33 +84,6 @@ class DraftKeptToastFitTest {
 
     /**
      * THE OTHER HALF, and the one the plafond above cannot see: a sentence can FIT and still be
-     * the wrong sentence. "Saved." is five characters and says nothing.
-     *
-     * **WHAT IS ACTUALLY PINNED, and it is less than the paragraph below wants.** The rule
-     * counts NON-EMPTY FRAGMENTS AROUND A FULL STOP and refuses fewer than two. That is a
-     * **proxy** for "two propositions", and a coarse one: it sees SHAPE, never MEANING. The
-     * mutation that walks straight through it, in French:
-     *
-     * ```
-     * Enregistré comme nouveau brouillon. Original supprimé.
-     * ```
-     *
-     * 52 characters, two fragments, no alias — every rule in this file green, and it tells the
-     * reader the exact OPPOSITE of what happened. Nothing here reads the second fact, in any of
-     * the nine languages. Named the way [app.sterna.ui.connect.AccountToastFitTest] names the
-     * mutations that survived its first version, so the gap is on the page rather than waiting to
-     * be rediscovered.
-     *
-     * And a keyword list per language is NOT the answer: a list of words typed into a test is a
-     * copy of the resource it is checking, green while the sentence changes underneath it. Whether
-     * each half SAYS the right thing is held by review and by the bench, not by this file.
-     *
-     * What the shape is still good for: the two facts are both load-bearing — *a new draft has
-     * been saved* AND *the original was kept*. Drop the first and the reader does not know her
-     * edit was recorded at all; drop the second and she does not know a second copy is now sitting
-     * in Drafts, nor which of the two to keep. Cutting the sentence down to ONE clause is exactly
-     * how it comes to fit two lines, and that is the collapse this refuses — the same shape
-     * [app.sterna.ui.connect.AccountToastFitTest] pins on its own sentence.
      */
     @Test fun `the sentence keeps both of its propositions, in every language`() {
         val strings = locales().associate { it.name to stringsOf(it) }
@@ -215,9 +112,6 @@ class DraftKeptToastFitTest {
 
     /**
      * A sentence written as a resource reference is a sentence this file cannot read: AAPT2
-     * resolves `@string/compose_draft_saved` at build time and the reader sees whatever that other
-     * key says, while every rule here counts the characters of the alias and finds them short,
-     * two-propositioned and well-formed. It must be spelled out in each language.
      */
     @Test fun `the sentence is spelled out in every language, never an alias`() {
         val strings = locales().associate { it.name to stringsOf(it) }
@@ -244,11 +138,6 @@ class DraftKeptToastFitTest {
 
     /**
      * The body of every `if (draftSaveNeedsNotice(…)) { … }` in `ComposeViewModel.kt`, brace
-     * balanced. Every occurrence, not the first: a second guard added later and read by nobody is
-     * the same blindness as no guard at all.
-     *
-     * Comment lines are stripped first ([code]), so the prose that names `draftSaveNeedsNotice`
-     * three times in this file cannot satisfy — or defeat — the extraction.
      */
     private fun noticeBlocks(): List<String> {
         val text = code(VIEW_MODEL)
@@ -259,13 +148,6 @@ class DraftKeptToastFitTest {
 
     /**
      * What the READER sees, from what the XML holds: `\'`, `\"`, `\\` and `\n` are Android
-     * escapes — two characters in the file, ONE on screen. Counting the XML instead would let the
-     * plafond lie by one character per apostrophe, in the direction that hurts (a 57-character
-     * sentence with an apostrophe would be refused for a width it does not occupy, and, worse, a
-     * 56-character budget spent on backslashes would look full).
-     *
-     * Backslash escapes only. No `&…;` entity appears in these strings today; one appearing
-     * would be counted LONGER than it renders, which fails in the safe direction.
      */
     private fun unescaped(text: String): String {
         val out = StringBuilder()
@@ -351,9 +233,6 @@ class DraftKeptToastFitTest {
 
         /**
          * A `<string>` with its text — attributes ALLOWED, as `TranslationParityTest` reads them.
-         * A pattern demanding `<string name="x">` exactly is silently blind to
-         * `<string name="x" formatted="false">`: the key would still exist for the parity rule and
-         * the sentence would simply drop out of the length rule, unchecked, at any length.
          */
         val STRING = Regex("""<string\s+name="([^"]+)"[^>]*>(.*?)</string>""", RegexOption.DOT_MATCHES_ALL)
 

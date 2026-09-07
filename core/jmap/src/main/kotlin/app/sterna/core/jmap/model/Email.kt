@@ -70,9 +70,6 @@ data class Email(
     val from: List<EmailAddress> = emptyList(),
         /**
          * `Reply-To` (RFC 5322 §3.6.2) — where the sender says an answer must go when that is not
-         * [from]. Asked of the server by every fetch whose result is cached, the cache's `@Upsert`
-         * replacing the whole row, so a path that omits it ERASES what the others wrote. Empty by
-         * default, `ignoreUnknownKeys` leaving a response without the property to deserialise.
          */
     val replyTo: List<EmailAddress> = emptyList(),
     val to: List<EmailAddress> = emptyList(),
@@ -97,10 +94,6 @@ data class Email(
     val headers: List<EmailHeader> = emptyList(),
         /**
          * `List-Unsubscribe` (RFC 2369), raw, requested only by the two body-bearing fetches. The
-         * `@SerialName` is what makes this field EXIST: the JMAP property is literally named
-         * `header:List-Unsubscribe:asText` and `DefaultJson` is `ignoreUnknownKeys = true`, so without
-         * it kotlinx drops the answer and the reader silently never offers the button. Filled by the
-         * IMAP path too, from the source already in hand.
          */
     @SerialName("header:List-Unsubscribe:asText")
     val listUnsubscribe: String? = null,
@@ -109,20 +102,11 @@ data class Email(
     val listUnsubscribePost: String? = null,
         /**
          * `Disposition-Notification-To` (RFC 8098), raw, requested only by the two body-bearing
-         * fetches. Same invariant and same silent failure as [listUnsubscribe]: the `@SerialName` IS
-         * the field. `asText` and not `asAddresses`, deliberately the same type the IMAP path hands
-         * over, so ONE parser decides on both protocols. Not the `asAddresses` property
-         * [app.sterna.core.jmap.JmapClient.sendEmail] SETS: that one writes the header, this reads it.
          */
     @SerialName("header:Disposition-Notification-To:asText")
     val dispositionNotificationTo: String? = null,
         /**
          * Who a forwarding service says really wrote this message, already decoded and filtered — read
-         * off an `X-…-Original-From…` field when the message carries one (#160). The `From` above is
-         * NEVER replaced by it. No `@SerialName`, deliberately: this is not a JMAP property and is
-         * never requested from a server, so a name matching a wire property would be a claim the
-         * server never made. Like the two fields above it lives only in the body cache, which
-         * serialises the whole `Email` — no column, no migration.
          */
     val originalSender: String? = null,
 ) {
@@ -139,9 +123,6 @@ data class Email(
 
         /**
          * The HTML body content, if the message has a genuine `text/html` part. JMAP servers (RFC 8621
-         * §4.1.4) fill `htmlBody` with the `text/plain` part when there is no HTML version, and
-         * treating that as HTML collapses the paragraph breaks (issue #4). Only a part that really is
-         * `text/html` is returned; otherwise the caller falls back to [textContent] and its `<pre>`.
          */
     fun htmlContent(): String? =
         htmlBody.firstOrNull { it.type.equals("text/html", ignoreCase = true) }

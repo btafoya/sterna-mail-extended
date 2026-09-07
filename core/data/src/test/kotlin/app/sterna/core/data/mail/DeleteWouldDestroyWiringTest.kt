@@ -5,25 +5,6 @@ import org.junit.Test
 
 /**
  * THIS TEST READS SOURCE TEXT — the last resort, for the reason [DestroyChecksTheFolderWiringTest]
- * spells out: `MailRepository` needs Room, a `Context` and a socket, so no JVM test instantiates
- * it. The DECISION guarded here is EXECUTED by [DeleteDestroysMessageTest]; this pins where it is
- * plugged in.
- *
- * What it exists for: `deleteWouldDestroy` opened on `roleMailboxId(credentials, "trash") ?:
- * return true`, so an account whose bin carries no role answered "deleting destroys" for every
- * message. `InboxViewModel` reads that answer and routes the swipe to the held-back destroy —
- * `MessageDestroyWorker`, permanent, behind a 5 s Undo. Since `delete()` resolves-or-creates the
- * Trash, that answer erased mail the user asked to bin.
- *
- * It pins the body as a WHOLE LIST OF LINES, not as three rules that each hunt for the line they
- * care about. A rule that only says "this line must be present" says nothing about what else may
- * decide: `if (trash == null) return !email.mailboxId.isNullOrBlank()`, slipped in between the
- * lookup and the return, restores the defect in full and satisfies every "must contain" rule ever
- * written for this function. Any line added, removed, reordered or lengthened reddens the list.
- *
- * What it CANNOT hold: that [MailRepository.delete] still resolves the bin the way pinned here.
- * That end is [DeleteResolvesOrCreatesTrashWiringTest]'s, line by line; if `delete()` learns a
- * fourth way to find a Trash, that file reddens and this one must be brought along by hand.
  */
 class DeleteWouldDestroyWiringTest {
 

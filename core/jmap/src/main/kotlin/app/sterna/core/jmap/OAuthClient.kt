@@ -27,9 +27,6 @@ data class OAuthMetadata(
     @SerialName("device_authorization_endpoint") val deviceAuthorizationEndpoint: String? = null,
         /**
          * Set by [OAuthClient.discoverMetadata] when a named endpoint was blanked FOR ITS HOST — the
-         * document sent the sign-in to somewhere we will not carry tokens. Narrower than "an
-         * endpoint was refused": [oauthEndpointAllowed] also refuses cleartext and an unreadable URL,
-         * neither of which names a third party, and the connect screen turns this into a sentence.
          */
     @kotlinx.serialization.Transient val endpointsOffDomain: Boolean = false,
 ) {
@@ -92,9 +89,6 @@ sealed interface DeviceTokenResult {
 
     /**
      * PKCE — Proof Key for Code Exchange (RFC 7636). A public client cannot keep a secret, so PKCE
-     * ties the authorization code to the app that started the flow: a random verifier stays in memory,
-     * only its SHA-256 digest travels in the browser, and the token exchange proves possession.
-     * Pure functions on purpose, so the derivation can be pinned on the RFC's own test vector.
      */
 object Pkce {
     /** The only method we announce. `plain` sends the verifier itself through the browser. */
@@ -106,8 +100,6 @@ object Pkce {
 
         /**
          * One instance, seeded by the OS; `SecureRandom.nextInt(bound)` is unbiased. The TYPE IS
-         * DECLARED, so swapping in a `java.util.Random` does not compile. A predictable verifier makes
-         * PKCE decorative — whoever intercepts the code computes the verifier and redeems it.
          */
     internal val random: SecureRandom = SecureRandom()
 
@@ -128,13 +120,6 @@ object Pkce {
 
     /**
      * Build the URL the browser is sent to (RFC 6749 §4.1.1). Pure: String in, String out, no I/O.
-     *
-     * https only (#2): over cleartext the whole exchange is readable and rewritable by anything on
-     * the path, and a non-https endpoint raises rather than yield a half-usable URL. An endpoint
-     * that already carries a query keeps what we do not set, but RFC 6749 §3.1 forbids a parameter
-     * TWICE, so the grant's seven names are removed from the base query first. Values are
-     * PERCENT-encoded (RFC 3986), not form-encoded: `URLEncoder` writes a space as `+`, and a server
-     * reading its query per RFC 3986 then sees one scope `…jmap:core+offline_access` and refuses.
      */
 fun buildAuthorizationUrl(
     authorizationEndpoint: String,
@@ -178,13 +163,6 @@ private val GRANT_PARAMETERS = listOf(
 
     /**
      * Add `login_hint` (OIDC Core §3.1.2.1) to a device-flow verification URL, so the approval page
-     * opens on the address the user typed a screen earlier (#55). This URL is the SERVER's, so
-     * nothing here throws: anything unreadable gives the ORIGINAL back verbatim. NOT over cleartext,
-     * and that is a refusal of the HINT, not of the URL (#2): a hint is an identity, and on `http` it
-     * would reach every proxy log on the path. A `login_hint` already on the URL WINS, RFC 6749 §3.1
-     * forbidding a parameter twice. It goes in the QUERY through `HttpUrl`, percent-encoded (RFC
-     * 3986): `URLEncoder` writes a space as `+`, so an address typed with one would arrive carrying a
-     * plus — a different address, matched by nobody.
      */
 fun withLoginHint(verificationUri: String, loginHint: String): String {
     if (loginHint.isBlank()) return verificationUri
@@ -222,12 +200,6 @@ private const val HEX = "0123456789ABCDEF"
 
     /**
      * The client the four OAuth POSTs use — built here, and NOT the shared JMAP one. These POSTs go to
-     * URLs already resolved or hard-coded, so a 3xx on one of them can only be a redirect that makes a
-     * secret leave for another host: OkHttp replays a POST body verbatim on a 307/308 — for [refresh]
-     * that body is the long-lived refresh token — and turns a 301/302/303 into a bodyless GET whose
-     * answer the caller parses as a token grant. `followSslRedirects(false)` refuses cleartext too.
-     * Discovery is deliberately NOT covered: it is a GET carrying no secret, and a server behind a
-     * proxy or vhost answers a redirect there (#54, #137).
      */
 internal fun defaultOAuthHttpClient(): OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(20, TimeUnit.SECONDS)
@@ -238,11 +210,6 @@ internal fun defaultOAuthHttpClient(): OkHttpClient = OkHttpClient.Builder()
 
     /**
      * Whether a discovery document may name [endpoint]: only over https, and only on [queriedHost]
-     * itself, on [addressDomain] itself, or on a subdomain of either. Refused by construction: any
-     * third party, any descent to cleartext, and any host that merely CONTAINS one of the two without
-     * being under it (`evil-<domain>` — hence the leading dot in the suffix check). An empty owner
-     * accepts nothing. Same rule and shape as `MailAutoconfig.redirectAllowed`, deliberately; not
-     * shared code, `core:data` depending on `core:jmap` and not the other way round.
      */
 internal fun oauthEndpointAllowed(endpoint: String, queriedHost: String, addressDomain: String): Boolean {
     val url = endpoint.toHttpUrlOrNull() ?: return false
@@ -253,9 +220,6 @@ internal fun oauthEndpointAllowed(endpoint: String, queriedHost: String, address
 
     /**
      * Whether [endpoint] names a host that is neither under [queriedHost] nor under [addressDomain] —
-     * the ONE of [oauthEndpointAllowed]'s three refusals that is about WHO. False for an endpoint
-     * that cannot be read as a URL and false for a cleartext one on a host that IS ours: both are
-     * refused, neither names a third party, and saying otherwise would be a new lie (#54, #137).
      */
 internal fun oauthEndpointNamesAnotherHost(
     endpoint: String,
@@ -276,8 +240,6 @@ private fun underOwner(host: String, owner: String): Boolean {
 
     /**
      * Minimal OAuth 2.0 client for the Device Authorization Grant (RFC 8628), the Authorization Code
-     * Grant with PKCE (RFC 6749 §4.1 + RFC 7636) and refresh-token grants — the flows used to sign a
-     * mobile app into a JMAP server without ever handling the password. Pure JVM.
      */
 class OAuthClient internal constructor(
     /** Metadata discovery only: follows 3xx, on purpose. See [defaultOAuthHttpClient]. */
@@ -291,13 +253,6 @@ class OAuthClient internal constructor(
 
         /**
          * Fetch the server's OAuth metadata, or null if it advertises none.
-         *
-         * [addressDomain] is the domain of the address being signed in, PASSED IN and never guessed by
-         * trimming a label off [host] — an `example.com` typed by hand would give `com`. WHAT THE
-         * DOCUMENT MAY NAME is judged endpoint by endpoint ([oauthEndpointAllowed]): this GET follows
-         * 3xx on purpose (#54, #137), and what comes back names the URLs the REFRESH TOKEN is POSTed
-         * to for the life of the account. A refused endpoint is BLANKED and the object still returned
-         * with [endpointsOffDomain] raised; null would say "this server does not support OAuth".
          */
     suspend fun discoverMetadata(host: String, addressDomain: String): OAuthMetadata? = withContext(Dispatchers.IO) {
         val metadataUrl = Jmap.oauthMetadataUrlFor(host)
@@ -404,8 +359,6 @@ class OAuthClient internal constructor(
 
         /**
          * Exchange an authorization code for tokens (RFC 6749 §4.1.3), proving PKCE possession. The
-         * fourth POST that carries a secret: [code] is a one-shot key to the account and
-         * [codeVerifier] makes it usable, so it goes through [tokenHttpClient] like the other three.
          */
     suspend fun exchangeCode(
         metadata: OAuthMetadata,
@@ -460,10 +413,6 @@ class OAuthClient internal constructor(
 
         /**
          * Decode an OAuth response WITHOUT letting the payload into the failure.
-         * kotlinx.serialization puts a slice of the offending JSON in its message, and on these
-         * endpoints that JSON is the access and refresh tokens themselves — a message the mail list
-         * DISPLAYS, by way of `MailRepository.jmapAuth`. So: no excerpt and no cause, exactly like
-         * `JmapClient.decodeList`. [what] is enough to place the failure.
          */
     private fun <T> decodeGuarded(body: String, what: String, serializer: KSerializer<T>): T =
         try {

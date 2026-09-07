@@ -2,11 +2,6 @@ package app.sterna.core.imap
 
     /**
      * Where a message's readable text is, as the SERVER described it in the BODYSTRUCTURE that came
-     * with the envelope — enough to fetch that one section and decode it without asking again. Kept
-     * because the structure is ALREADY on the wire: every folder walk asks for it and used to reduce
-     * it to one boolean. [section] is the IMAP body-section path, numbered exactly as
-     * `MimeParser.parseBody` numbers the same message; [encoding] and [charset] are what the server
-     * announced, null when it announced none, since reading under the wrong charset is mojibake.
      */
 data class ImapTextPart(
     val section: String,
@@ -26,14 +21,6 @@ private const val MAX_STRUCTURE_PARTS = 1024
 
     /**
      * The FIRST part of a parsed BODYSTRUCTURE that is this message's BODY, depth first — or null,
-     * which is a normal answer: a message that is one PDF has no opening line to show.
-     *
-     * The first TEXT part, never simply the first part: the first part of a `multipart/mixed` is as
-     * often a PDF, and fetching it would put base64 on the lock screen. And "the body", not "any
-     * text part": [MimeParser] already decides this for the SAME message — a part with a filename or
-     * an `attachment` disposition is a FILE, and `text/calendar` is an invitation — and two readings
-     * of one message that disagree is the kind of divergence nobody finds twice. Depth first because
-     * that is where the text of real mail is. Pure, and given the token tree rather than a socket.
      */
 fun firstTextPart(bodystructure: Any?): ImapTextPart? = textPartIn(bodystructure, prefix = "", depth = 0)
 

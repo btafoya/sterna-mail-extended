@@ -30,8 +30,6 @@ data class ReadReceiptPreview(
 
 /**
  * [originalSubject] is echoed verbatim from a stranger's message: safe in the header via the RFC
- * 2047 encoder, safe in the body because [readReceiptEntity] base64s that part. The wording
- * promises only what an MDN can keep.
  */
 fun readReceiptPreview(originalSubject: String?, finalRecipient: String): ReadReceiptPreview {
     val title = originalSubject?.trim().orEmpty()
@@ -56,8 +54,6 @@ internal const val READ_RECEIPT_UA = "Sterna Mail"
 
 /**
  * The `multipart/report` of RFC 8098 §3. [boundary] is an argument, never drawn here, so these bytes
- * can be pinned by a test. [finalRecipient] and [originalMessageId] come from a stranger and go
- * through [OutgoingMime.headerSafe]: CR and LF gone, they can neither add a field nor start a line.
  */
 internal fun readReceiptEntity(
     boundary: String,
@@ -115,9 +111,6 @@ internal fun receiptIdentity(identities: List<StoredIdentity>, deliveredTo: Stri
 
 /**
  * Null when there is nothing to answer: [ReadReceiptHeader.recipients] yields an empty list for a
- * malformed header, and `enqueueSend` opens with `require(recipients.isNotEmpty())`. [identityEmail]
- * is explicit because a delegated sub-account submits through its LOGIN (#31). [deliveredTo] wins
- * `Final-Recipient`: another alias would tell a stranger they wrote to a mailbox they never used.
  */
 internal fun readReceiptMail(
     receiptTo: List<String>,

@@ -8,24 +8,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [app.sterna.ui.NavHostSourceRulesTest]: it reads sources as text. It proves NOTHING about what a
- * keyboard receives. What the interceptor DOES is executed in [IncognitoInterceptorTest], and the
- * bit it adds in [IncognitoImeOptionsTest]; this file only checks WHERE the request is made.
- *
- * Placement is the half that no unit test can reach, and it has two failure modes, opposite and
- * both silent — nothing on screen changes for either:
- *
- *  - TOO LITTLE. A composer that is mounted without the wrapper: a second route tomorrow, or the
- *    wrapper quietly dropped. The promise "the composer's keyboard is asked to forget" breaks.
- *  - TOO MUCH. The wrapper moved up, or a second one added: `MainActivity` wrapping `SternaApp`,
- *    or `IncognitoKeyboard { SearchScreen(…) }`, makes the WHOLE app incognito. Search would lose
- *    the keyboard's memory, which recalling a contact's name depends on; settings and account
- *    setup too. That exceeds what was promised, and it destroys the bench witness — search must
- *    stay NOT incognito, otherwise "placed everywhere" cannot be told from "placed right".
- *
- * So the rule is counted over ALL of `app/src/main`, not over one file and not over one
- * occurrence: `IncognitoKeyboard {` appears exactly once in the application, and that occurrence
- * wraps the composer and nothing else.
  */
 class ComposeScreenIncognitoTest {
 

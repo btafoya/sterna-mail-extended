@@ -6,17 +6,6 @@ import org.junit.Test
 
 /**
  * The chosen OpenPGP app is the ONE preference that must NOT travel in a settings backup, so this
- * file locks an absence where its neighbours lock a presence.
- *
- * A package name is a fact about one device. Restored onto a phone that does not have that app,
- * it names a provider Sterna cannot bind — and the screen would then show a choice the user never
- * made, for an app they do not have. The honest answer on the new device is to let discovery
- * decide again, which is what `null` (no choice expressed) means (#151).
- *
- * The check is on the ENCODED export, not on the class: the codec writes with `encodeDefaults`, so
- * every field of [SettingsBackup] appears as a key in every export. A field added to the backup
- * therefore shows up here whether or not `exportSettings` was taught to fill it — which is the
- * likelier half-mistake, and the one an assertion on values alone would miss.
  */
 class SettingsBackupPgpProviderTest {
 

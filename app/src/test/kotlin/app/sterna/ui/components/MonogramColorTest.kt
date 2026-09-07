@@ -9,18 +9,6 @@ import org.junit.Test
 
 /**
  * Issue #85: contact badges were the one surface that ignored the system palette — a private hue
- * wheel, `Color.hsl(hash % 360, 0.42f, 0.52f)`, with no reference to the active ColorScheme while
- * everything else followed Material You. [monogramColor] now takes its colour from the scheme's own
- * tonal ramps, and the tests below pin the four things that has to keep true: the same address keeps
- * the same badge, different addresses get different ones, the answer really does depend on the
- * palette handed in, and the badge stays visible on the surface it sits on.
- *
- * The ramps are written out as literals rather than built from a [ColorScheme], so the derivation is
- * tested as the pure function it is — no Compose theme, no Robolectric. The values are the Material 3
- * baseline light and dark schemes; what the tests rely on is only that the two differ.
- *
- * What binds these ramps to the scheme the phone is actually showing is [monogramRamps], and that
- * lives in [MonogramRampsTest]: nothing here would notice if it read the wrong roles.
  */
 class MonogramColorTest {
 
@@ -75,11 +63,6 @@ class MonogramColorTest {
 
     /**
      * The size of the palette, pinned exactly rather than bounded loosely.
-     *
-     * 18 is a decision, not an accident — see TONE_COUNT for the measurements behind it — so this
-     * asserts equality: narrowing it (fewer tones, or three ramps collapsing into one) and widening
-     * it both have to come with a deliberate edit here. 500 seeds is far past the 60 it takes to
-     * reach every slot, so the count is the palette's, not the sample's.
      */
     @Test fun `the palette offers exactly eighteen badges`() {
         val everything = (0 until 500).map { monogramColor("seed-$it@example.org", lightRamps) }
@@ -123,8 +106,6 @@ class MonogramColorTest {
 
     /**
      * The trade-off announced on the issue, asserted rather than hoped for: on an achromatic palette
-     * the badges are grey and differ by lightness alone. The old wheel could not produce a grey, so
-     * this is exactly the behaviour that was asked for and exactly what it costs.
      */
     @Test fun `a monochrome palette gives grey badges that still differ`() {
         val first = monogramColor("alex.rivera@masto.top", monochromeRamps)
@@ -137,12 +118,6 @@ class MonogramColorTest {
 
     /**
      * Measured, not hoped for: the worst badge of the 18 reaches 2.47:1 in light, 3.84:1 in dark and
-     * 2.55:1 monochrome. The floor below is set just under the light figure, so it is a standard the
-     * palette actually meets rather than a tripwire far beneath it — re-paling the start of the
-     * ramps, which is the one change that would lower it, trips this immediately. For reference the
-     * hue wheel this replaced bottomed out at 2.05:1, so the change improved legibility.
-     *
-     * Every slot is checked, not only the ones the sample addresses happen to land on.
      */
     @Test fun `every badge keeps a visible contrast against the surface it sits on`() {
         val cases = listOf(
@@ -163,16 +138,6 @@ class MonogramColorTest {
 
     /**
      * THIS TEST CANNOT FAIL TODAY, AND THAT IS WHAT IT SAYS. `monogramColor(seed, ramps)` is
-     * DEFINED as `monogramColor(monogramSlot(seed, ramps.size), ramps)`, so what is compared below
-     * is `f(x)` against `f(x)`. It is kept, with this paragraph instead of the promise it used to
-     * carry ("nothing here is allowed to shift a single badge", which it never enforced), because
-     * the two are PUBLIC ENTRY POINTS and only one of them is currently written in terms of the
-     * other: the day the seed-taking half grows a derivation of its own — a cache, a normalisation
-     * of the address, a different family count — this is what says the widget's slot still lands
-     * where the list's address does.
-     *
-     * It is NOT what holds the derivation still. That is the two rules below: the slots are
-     * pinned as literal pairs, and the resolved colours as literal ARGB.
      */
     @Test fun `the two entry points agree, for as long as they are two`() {
         for (ramps in listOf(lightRamps, darkRamps)) {
@@ -189,8 +154,6 @@ class MonogramColorTest {
 
     /**
      * The slot is what crosses the process boundary, so its two numbers are pinned as literals —
-     * computed once by hand from the derivation as it shipped, not recomputed here. A widget that
-     * stored a slot yesterday must find the same badge today.
      */
     @Test fun `known addresses land on known slots`() {
         assertEquals(MonogramSlot(family = 2, tone = 0), monogramSlot("alex.rivera@masto.top"))
@@ -201,17 +164,6 @@ class MonogramColorTest {
 
     /**
      * AND THE OTHER HALF OF THE DERIVATION, IN LITERALS — the half that reads the PALETTE.
-     *
-     * The slots above pin `monogramSlot`, i.e. the address side. What turns a slot into a colour is
-     * `FIRST_TONE + TONE_GAP * slot.tone` stepped along the family's ramp, and until this rule
-     * nothing held it: every other test here asserts a PROPERTY — eighteen distinct colours, inside
-     * the ramp, above 2.4:1 — and all of them survive the tones being walked in the opposite
-     * direction, or started one step further along. That mutation repaints every badge in the app
-     * AND in the home-screen widget, for every user, and it is one operator wide.
-     *
-     * The values were computed from the shipped derivation and frozen; they are not recomputed
-     * here, which is the whole point. Three slots, deliberately: one at each end of a ramp and one
-     * from the other palette, so a shift in either direction shows.
      */
     @Test fun `three known badges come out the exact colours they shipped as`() {
         assertEquals(

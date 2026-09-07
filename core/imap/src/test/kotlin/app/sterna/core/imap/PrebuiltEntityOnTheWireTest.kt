@@ -8,17 +8,6 @@ import org.junit.Test
 
 /**
  * **The octets a PGP/MIME submission actually puts on the socket.**
- *
- * `OutgoingMessage.prebuiltEntity` is the one input of the SMTP path whose bytes come from
- * somewhere else (an OpenPGP provider's armor, or an entity persisted by an older version). The
- * DATA loop of [SmtpClient] splits the message on `"\r\n"` and writes each element as one line,
- * which is correct for everything [OutgoingMime] builds and wrong for that entity: an armor whose
- * lines are separated by bare `\n` collapses into ONE element and goes out as one oversized line
- * full of bare LFs, dot-stuffed on its first character only.
- *
- * This asserts on [FakeSmtpServer.wire] and not on [FakeSmtpServer.delivered]: `delivered` is
- * rebuilt through `BufferedReader.readLine()`, which splits on a bare LF and glues `\r\n` back on,
- * so it reports a conforming message no matter what the client wrote.
  */
 class PrebuiltEntityOnTheWireTest {
 
@@ -82,11 +71,6 @@ class PrebuiltEntityOnTheWireTest {
 
     /**
      * Undo SMTP's dot-stuffing, the way a receiving MTA does, so the anchor above compares the
-     * PAYLOAD and not its transport encoding — the fixture's `.abcdef` line legitimately travels
-     * as `..abcdef`.
-     *
-     * This is decoding, not a second copy of a decision under test: that the stuffing happened
-     * at all is pinned separately, and explicitly, a few lines up.
      */
     private fun unstuff(wire: String): String =
         wire.split("\r\n").joinToString("\r\n") { if (it.startsWith("..")) it.substring(1) else it }

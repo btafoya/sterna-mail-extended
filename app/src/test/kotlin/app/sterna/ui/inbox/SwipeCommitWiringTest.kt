@@ -7,37 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
- * [OutboxCountWiringTest]: it reads `InboxScreen.kt` as text, proves nothing about what appears on
- * screen, and would still pass if [swipeCommitThresholdPx] were broken inside. What the rule
- * COMPUTES is [SwipeCommitTest]'s job, against the functions themselves.
- *
- * It exists because the heart of #125 is a WIRING fix and nothing else in the suite can hold it.
- * The row used to take the same decision TWICE, in two expressions written separately: the commit,
- * in the drag handler, and `armed` — the reveal colour, the label pop, the haptic tick — in
- * composition. They agreed by coincidence and had already drifted on three details (one took
- * `abs()`, the other compared a signed fraction twice; one guarded on `rowWidth > 0`, the other on
- * `coerceAtLeast(1f)`; one checked the actions, the other did not). The screen promises, in its own
- * comment, that the reveal arms "the moment releasing would trigger the action"; that promise is
- * only structural if both sites are the SAME call. Split them again and every behaviour test stays
- * green while the reveal lights at one distance and the action fires at another.
- *
- * `InboxScreen` is a composable — no Robolectric, no instrumented tests here — so reading the
- * source is what is left.
- *
- * The second half of #125 added a flick path, and with it a handful of facts that live ONLY in the
- * wiring and cannot be asserted anywhere else: that the velocity tracker is fed in both event loops
- * (the direction-lock phase's travel is discarded, so a short flick happens almost entirely inside
- * it), that it is reset for every gesture including the abandoned ones, that the published speed is
- * zeroed at the release BEFORE the row springs home, and that a cancelled drag is honoured rather
- * than dropped. What each of those guards then DECIDES is [SwipeCommitTest]'s job; that they are
- * connected at all is this file's.
- *
- * What it does NOT do:
- *  - it reads names and argument text, so it can only say a call is WRITTEN. It cannot see through
- *    an indirection: a `swipeCommitThresholdPx` that forwarded to a fraction would satisfy it;
- *  - the shape rules are deliberately tight (whitespace apart). A correct refactor that rewrites
- *    either site will redden them. That direction of error is loud and one line to fix; the other
- *    direction is a fix that silently comes undone.
  */
 class SwipeCommitWiringTest {
 
@@ -85,10 +54,6 @@ class SwipeCommitWiringTest {
         )
         // Whole-match, argument by argument, and per site: the two now pass DIFFERENT expressions
         // for the same quantities (the handler has the release velocity and a PointerInputScope
-        // density; the reveal has the published velocity and composition locals), so they can no
-        // longer be pinned to one identical string. What is pinned instead is that each argument
-        // carries the right quantity at each site — which is where a swap of .x for .y, a
-        // hard-coded speed, or a dropped guard would show.
         assertEquals(
             "exactly one call must be the DRAG HANDLER's: the release velocity read from the " +
                 "tracker, the pointer scope's own slop, and the drag's completion flag. Calls " +
@@ -349,12 +314,6 @@ class SwipeCommitWiringTest {
 
     /**
      * The whole statement declaring `val [name]` inside the row: from its line to the line where
-     * its parentheses close again, that last line INCLUDED.
-     *
-     * The last line is the point. A rule that stopped at the closing paren, or that searched for a
-     * call inside the statement, would be blind to anything tacked on afterwards — `&& somethingElse`
-     * at the end of the line is exactly the shape of the drift this file exists to prevent, and the
-     * shape that a `contains` check cannot see (it only ever makes the line LONGER).
      */
     private fun statement(name: String): String {
         val lines = row().lines()
@@ -386,10 +345,6 @@ class SwipeCommitWiringTest {
 
     /**
      * The lines of [file] that are code, with their comments taken off — a line whose first
-     * non-blank character opens a comment is dropped whole, and a trailing `//` cuts the rest of
-     * its line, the cut only being taken outside a double-quoted run. Load-bearing here: the
-     * comments around this code name the old fraction rule and the abandoned expressions on
-     * purpose, and left in they would answer for code that is gone.
      */
     private fun codeLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val code = line.trimStart()
@@ -418,9 +373,6 @@ class SwipeCommitWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text: everything up to the
-     * first line indented no deeper than the declaration, once the declaration's own brackets have
-     * closed. Fails loudly when the declaration is not found — a rename must break these rules
-     * rather than satisfy them silently against an empty string.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)
@@ -468,12 +420,6 @@ class SwipeCommitWiringTest {
     companion object {
         /**
          * Both call sites, whole: the current width and the absolute distance, nothing else.
-         *
-         * The distance arm is spelled out in full, with no wildcard around the call. An earlier
-         * draft allowed anything either side of it, which let `SWIPE_COMMIT_DISTANCE_DP.dp.toPx()
-         * * 2.4f` pass — the whole of #125 undone at one site, or the reveal armed at half the
-         * distance it commits at, with the suite still green. Arithmetic on this value is exactly
-         * what must not compile past this test.
          */
         private val THRESHOLD_ARGS = Regex(
             """rowWidthPx\s*=\s*rowWidth\.toFloat\(\)\s*,\s*""" +
@@ -486,10 +432,6 @@ class SwipeCommitWiringTest {
 
         /**
          * The dispatch: the action the decision just chose, in the direction it was decided in.
-         *
-         * Nothing else pins this. `commitSwipe(rightAction, …)` in place of `commitSwipe(action,
-         * …)` makes a left swipe run the right-hand action — "delete" where the user configured
-         * "mark read" — and every other rule here stays green.
          */
         private val COMMIT_SWIPE_ARGS = Regex(
             """action, committed, width, motionOn, offsetX, lift, \{ currentOnSwipe\(it\) \},?""",

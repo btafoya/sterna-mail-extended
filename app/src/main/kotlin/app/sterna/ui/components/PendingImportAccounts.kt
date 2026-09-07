@@ -51,11 +51,6 @@ import kotlin.math.abs
 
 /**
  * The "accounts to sign in" list shown after a K-9 / backup import: every imported account still
- * awaiting its one-time sign-in. Tapping a row opens that account's sign-in; swiping it (either
- * direction, mirroring the inbox mail rows — the "Dismiss" action reveals as you swipe and only
- * commits past the same threshold) dismisses it from the list. The caller's [onDismiss] leaves the
- * account inert (it can be signed in later from Settings → Accounts) and should raise an undo
- * snackbar. Rendered as a plain [Column] so it nests inside a scrolling parent (the list is short).
  */
 @Composable
 fun PendingImportAccountsSection(
@@ -90,9 +85,6 @@ private const val SWIPE_COMMIT_FRACTION = 0.4f
 
 /**
  * A row that can be swiped away in either direction, reusing the inbox mail-row feel: the "Dismiss"
- * reveal grows behind the row as you drag, stays neutral until the swipe passes [SWIPE_COMMIT_FRACTION]
- * then snaps to the action colour with a label pop + haptic tick, and only commits (slides off →
- * [onDismiss]) past that threshold — a short swipe released early snaps back and does nothing.
  */
 @Composable
 private fun SwipeToDismissRow(

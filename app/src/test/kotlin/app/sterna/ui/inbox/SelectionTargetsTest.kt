@@ -9,16 +9,6 @@ import org.junit.Test
 
 /**
  * [resolveSelectionTargets] — what a bulk action acts on, executed rather than re-derived.
- *
- * The defect it answers: every bulk path asked the cache for the selected keys and then iterated
- * the ANSWER, so a selected search hit with no row in the local `emails` table was dropped in
- * silence — no action, no failure, no toast. The walk has to be over the keys, with the drawn row
- * as the fallback.
- *
- * The second half of these tests is about the folder: a row that only exists on screen carries a
- * `mailboxId` frozen at crawl time, and trusting it would make Undo file the message into a stale
- * folder and drop every other folder it was in. So a displayed row is never `folderTrusted`, and
- * that is asserted even when its `mailboxId` looks perfectly good.
  */
 class SelectionTargetsTest {
 

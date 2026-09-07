@@ -7,20 +7,6 @@ import org.junit.Test
 
 /**
  * WHETHER THE LIST IS FILTERED TO UNREAD — the one answer the pager and "Select all" both ask.
- *
- * This is the guard on the destructive half of Codeberg #126, rebuilt for a third scope. The
- * shipped rule is: the toolbar funnel says what the reader asked for, and [Sel.Unread] says what the
- * view IS — a scope named "Unread" shows unread mail whatever the funnel is set to.
- *
- * The defect this exists for is not "the pager filters wrongly". It is the pager and the SELECTION
- * disagreeing. `InboxViewModel.selectAll` asks `MailRepository.selectableIds(scopes, filtered)` for
- * the keys a bulk action may take. With the scope forcing the filter on and `filtered` read from the
- * raw toggle (false by default), the list draws twelve unread rows while the selection covers every
- * message of the Inbox, the Archive and every user folder of the account — and "Delete" moves the
- * read ones, which were never on screen, to the Trash. Nothing about the drawn list looks wrong.
- *
- * These tests EXECUTE [listUnreadOnly] over all four combinations. That the two call sites really ask
- * it is source-lint work (`PageKeyWiringLintTest`), and is labelled there as such.
  */
 class ListUnreadOnlyTest {
 

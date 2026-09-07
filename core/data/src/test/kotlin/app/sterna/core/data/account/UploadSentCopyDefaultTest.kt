@@ -7,15 +7,6 @@ import org.junit.Test
 
 /**
  * What a record ALREADY ON DISK decodes to, once `uploadSentCopy` exists.
- *
- * There is no migration here and there must not be one: the account list is one `@Serializable`
- * blob, and every record on every phone was written before this field. The whole compatibility
- * story is the default value, and the only way to prove it is to DECODE a record that does not
- * carry the key — building a `StoredAccount()` in Kotlin would apply the same default without ever
- * going through the parser, and would pass just as well if the field were `@Required`.
- *
- * The parser is the store's own configuration (`Json { ignoreUnknownKeys = true }`,
- * `AccountStore`); `StoredAccountReferenceRecordTest` is what pins it to the shipped source.
  */
 class UploadSentCopyDefaultTest {
 

@@ -7,16 +7,6 @@ import java.io.File
 
 /**
  * SOURCE RULE, and a deliberate one. `core/jmap` is plain Kotlin/JVM, so it logs through a lambda
- * the app supplies; the tag under which those lines land in logcat is decided HERE, at the single
- * construction site in [AppContainer]. That tag is not a detail: `JmapClient:*` was already handed
- * to a reporter as half of `adb logcat -s PushService:* JmapClient:*`, and the wrong string makes
- * the capture come back empty again.
- *
- * Same weakness and same reason as [app.sterna.push.PushWatchTest]'s source rules: `SternaApplication`
- * cannot be instantiated in this module (no Robolectric, and it builds the whole data layer), so the
- * wiring is pinned by reading the line that carries it, WHOLE. A substring check would be blind to
- * anything appended to it — and the line carries the level too. `Log.i`/`Log.w`, never `Log.d`/`Log.v`:
- * proguard-rules.pro strips those in release, which is the build reports come from.
  */
 class JmapClientLogTagTest {
 

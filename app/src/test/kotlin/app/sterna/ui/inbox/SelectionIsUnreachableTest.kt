@@ -8,12 +8,6 @@ import org.junit.Test
 
 /**
  * When the folder ON SCREEN stops being reachable and the list must fall back to the Inbox — the
- * decision itself, [selectionIsUnreachable], EXECUTED. Two ways in: the folder was deleted (#89),
- * or the account just ticked "show only subscribed folders" and it is not one of them (#174).
- *
- * No case here recomputes "subscribed, or a role, or a visible descendant" to decide what it
- * expects: every expectation is a literal. A test that restates the shipped rule stays green when
- * that rule is inverted, which is the whole failure this file exists to avoid.
  */
 class SelectionIsUnreachableTest {
 
@@ -26,11 +20,6 @@ class SelectionIsUnreachableTest {
 
     /**
      * One account's folder list, as the cache delivers it — whole, unfiltered:
-     *  - `inbox` subscribed, and the Inbox besides;
-     *  - `vieux` NOT subscribed, no role, nothing under it — the folder of the bench report;
-     *  - `archive` NOT subscribed but role-bearing (Stalwart really answers this);
-     *  - `projet` NOT subscribed, but `projet/done` under it IS;
-     *  - `travail` subscribed, plain.
      */
     private val folders = listOf(
         folder("inbox", role = "inbox"),

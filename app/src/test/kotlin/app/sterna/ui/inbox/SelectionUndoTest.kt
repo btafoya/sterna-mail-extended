@@ -7,14 +7,6 @@ import org.junit.Test
 
 /**
  * [selectionUndoEntries] — who may be put back, executed rather than re-derived.
- *
- * What it guards is irreversible. Undo is `restoreAll`, i.e. `client.move(..., sourceMailboxId)`,
- * which OVERWRITES the message's `mailboxIds` with `{source: true}`: an Undo built on a folder read
- * off a row that only ever existed on screen (frozen at crawl time, sometimes empty) files the
- * message into a folder it left long ago AND strips every other folder it belongs to, in silence.
- *
- * So: an untrusted row never yields an entry, an empty source never yields one, and one untrusted
- * row going through withholds the WHOLE batch's Undo — half an Undo lies about what it undoes.
  */
 class SelectionUndoTest {
 
@@ -52,10 +44,6 @@ class SelectionUndoTest {
 
     /**
      * The rule that is easy to get wrong and expensive to get wrong: dropping only the untrusted
-     * rows would leave an Undo that puts back one of the two messages the user just archived.
-     *
-     * Played in BOTH orders: a guard written as "stop at the first untrusted row" passes one order
-     * by accident.
      */
     @Test
     fun `one untrusted row going through withholds the whole batch's Undo`() {
@@ -73,8 +61,6 @@ class SelectionUndoTest {
 
     /**
      * The same id twice, trusted and not — the two rows a merge can hand over for one message.
-     * Both orders, because a decision that takes "the first one wins" gives the right answer by
-     * accident in one of them.
      */
     @Test
     fun `the same id trusted and untrusted withholds the Undo in either order`() {
@@ -92,8 +78,6 @@ class SelectionUndoTest {
 
     /**
      * `email.mailboxId?.let { }` lets `""` through, and an Undo to an empty folder id is a move to
-     * a folder that does not exist — the same write, just as irreversible. Its twin guard is on the
-     * destruction side (TrashPurge).
      */
     @Test
     fun `an empty or absent source folder yields no entry, and does not sink the others`() {
@@ -130,8 +114,6 @@ class SelectionUndoTest {
 
     /**
      * The confusion this exists to kill: ten messages left the folder, only four of them can be
-     * put back (six rows name no folder), and the banner must still say TEN — the other six are
-     * gone from the server all the same.
      */
     @Test
     fun `the count is what was written, not what can be undone`() {

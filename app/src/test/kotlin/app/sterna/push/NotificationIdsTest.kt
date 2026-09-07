@@ -8,8 +8,6 @@ import org.junit.Test
 
 /**
  * Notification ids must carry the account, not just the message id. JMAP ids are per-account, so
- * two accounts on one server hand out the same id: with a bare id, B's notification replaced A's
- * and (FLAG_UPDATE_CURRENT, same request codes) rewrote A's action buttons to act on B's message.
  */
 class NotificationIdsTest {
 

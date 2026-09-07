@@ -13,28 +13,6 @@ import java.sql.DriverManager
 
 /**
  * Runs the REAL migration objects against a real SQLite engine, starting from the schema a
- * PUBLISHED install actually carries.
- *
- * The upgrade path that matters is **v15 → v16**: v15 is 1.3.11–1.3.13 (the FTS rebuild of #71),
- * which is what every current user runs. [MIGRATION_15_16] widens the primary keys of `emails`,
- * `email_bodies` and `snoozed` to `(accountId, <email id>)` so two accounts of one login (issue
- * #31) can each hold a message sharing a JMAP email id. The tests check that it (a) preserves
- * every row of every table — user data (snoozed, outbox, scheduled sends) above all — (b) widens
- * the keys, and (c) leaves the search index working.
- *
- * On top of that, **v16 → v17** ([MIGRATION_16_17]) adds `emails.recipientsJson` — the message's
- * `To:` addresses, persisted so a Sent/Drafts row shows "To: …" from the cold cache instead of
- * being corrected a network round-trip later (#63). Those tests start from a real v16 database
- * (the published v15 schema with [MIGRATION_15_16] applied) and check that the column appears,
- * that nothing else moves, and that the value round-trips through [EmailRecipients].
- *
- * Then **v17 → v18** ([MIGRATION_17_18]) adds `purge_snapshot`, the frozen destroy list of a
- * confirmed "Empty trash" (#99) — additive, and deliberately empty on upgrade, so a purge
- * confirmed by the previous version destroys nothing instead of re-reading the folder.
- *
- * The migrations are executed through their own [MIGRATION_14_15] / [MIGRATION_15_16] /
- * [MIGRATION_16_17] / [MIGRATION_17_18] objects (via a tiny [SupportSQLiteDatabase] proxy that forwards `execSQL` to
- * JDBC), not through a copy of their statements, so the test cannot drift from the code that ships.
  */
 class EmailsMigrationSqlTest {
     private lateinit var db: Connection
@@ -80,8 +58,6 @@ class EmailsMigrationSqlTest {
 
     /**
      * The v14 shape of the search index: the SAME columns as v15, but built with
-     * `remove_diacritics=2` — the tokenizer argument 1.3.11 had to abandon (#71). Only used by
-     * the chained 14 → 15 → 16 test; unsupported on old SQLite, fine on the JVM driver.
      */
     private val v14FtsCreate = EMAIL_FTS_CREATE_SQL.replace("remove_diacritics=1", "remove_diacritics=2")
 
@@ -140,8 +116,6 @@ class EmailsMigrationSqlTest {
 
     /**
      * A [SupportSQLiteDatabase] that only knows how to `execSQL` onto the JDBC connection —
-     * enough to run a [androidx.room.migration.Migration], and enough to fail loudly if a
-     * migration ever starts using another method.
      */
     private fun supportDb(): SupportSQLiteDatabase =
         Proxy.newProxyInstance(

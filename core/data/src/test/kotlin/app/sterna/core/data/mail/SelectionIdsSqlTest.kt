@@ -10,17 +10,6 @@ import java.sql.DriverManager
 
 /**
  * What "Select all" is allowed to take from the folder behind the list, run against real SQLite
- * (Codeberg #126).
- *
- * The rule is not "the folder": it is "the rows the list is showing". The list is filtered in SQL —
- * the "unread only" funnel, and the snooze predicate that rides with it — and the selection used to
- * read the folder whole. Filter, long-press, Select all, delete: read messages that were never
- * drawn went to the Trash.
- *
- * So every case here runs BOTH shipped statements over the same rows — [pagingSql], which draws the
- * list, and [selectionIdsSql], which is what the tap takes — and asserts they answer the same ids.
- * Comparing the two queries is the point: a selection filter written to look like the list's would
- * pass a test that only checked the selection, and drift from it later in silence.
  */
 class SelectionIdsSqlTest {
     private lateinit var db: Connection

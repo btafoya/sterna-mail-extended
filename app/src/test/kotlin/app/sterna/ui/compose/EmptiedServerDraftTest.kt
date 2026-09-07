@@ -8,16 +8,6 @@ import org.junit.Test
 
 /**
  * Emptying a draft opened straight off the SERVER (#69 × #63), as the decision RUNS — not as a lint
- * watching a call happen.
- *
- * The defect: this route read nothing at all. `saveDraft` sent it to `repo.discardDraft`, an expunge,
- * while the twin route (a draft the phone was holding) already kept the server copy of a draft this
- * composer had not read whole and said so on screen. And "empty" is `draftHasContent`'s answer, which
- * counts neither an inline image nor a calendar part: a draft written elsewhere, made of one inline
- * image, is drawn EMPTY here — the user saves without typing anything and the original goes, silently.
- *
- * Nothing here recomputes the rule to choose what it replays: each case hands a fixed verdict in
- * and pins the answer that comes out.
  */
 class EmptiedServerDraftTest {
 
@@ -115,9 +105,6 @@ class EmptiedServerDraftTest {
 
     /**
      * The draft is emptied under whatever identity the "From" picker is showing, and that picker
-     * covers EVERY account. These four cases EXECUTE the choice; nothing here recomputes it — each
-     * hands two fixed account ids and a store that answers for whichever it is asked about, and pins
-     * WHAT came back and WHO was asked, because a look-up that never happens is the whole fix.
      */
     @Test fun `the expunge is addressed to the account the draft was read from, not the one written as`() {
         val asked = mutableListOf<String>()

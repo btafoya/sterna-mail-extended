@@ -19,9 +19,6 @@ object FetchAndNotify {
 
     /**
      * @param includeInbox false when something else owns the inbox (IMAP IDLE is live).
-     * @param includeExtras false to refresh the inbox alone — IDLE only ever signals the INBOX.
-     * @param resetBaselines true to reseed the INBOX baseline silently, the user being about to
-     *   see it. Watched extras always diff: a Sieve folder is not on screen at app-open (#16).
      */
     suspend fun run(
         context: Context,
@@ -56,20 +53,12 @@ object FetchAndNotify {
             refreshes.forEach { folder ->
                 // FIRST, and it leaves the folder entirely alone: null is the refresh saying its
                 // page cannot state what this folder holds, and the only thing this iteration would
-                // go on to do is write the baseline. `seed` REPLACES, so an empty set erases the
-                // folder's memory and the next pass posts a banner per thread. It holds just as
-                // hard with no baseline yet: seeding empty marks the folder known while
-                // remembering nothing.
                 val baselineIds = folder.baselineIds ?: return@forEach
                 val isInbox = folder.mailboxId == inboxId
                 val folderName = if (isInbox) null else folder.name
                 val hasBaseline = NewMailNotifier.hasBaseline(context, credentials.id, folder.mailboxId)
                 // #50 (opt-out, on by default): BEFORE this pass advances or reseeds the inbox
                 // baseline, pull the archived members of threads that just received genuinely-new
-                // inbox mail back into the Inbox. Keyed to the same diff as the notifications, and
-                // run ahead of ANY seed — the silent reseed used to swallow a just-arrived reply
-                // into the baseline before it was diffed, and the conversation reappeared with its
-                // archived members gone for good.
                 //
                 // Best-effort, but NOT for a sign-out: the guards inside
                 // `unarchiveThreadsOnReply` throw a CancellationException `runCatching` would catch
@@ -137,12 +126,6 @@ object FetchAndNotify {
 
     /**
      * Foreground counterpart of [run] for one just-refreshed inbox (#50). The UI list refresh syncs
-     * the cache without a push pass, so mail it lands sits outside the baselines until the next one —
-     * which, with the app in the foreground, is exactly when a reply should pull its archived thread
-     * back. No-op while unarchive-on-reply is off and for IMAP.
-     *
-     * No departures travel from here (#134): this reads the CACHE, and a cache read states what the
-     * folder holds, never what left it.
      */
     suspend fun onInboxRefreshed(context: Context, credentials: AccountCredentials, inboxMailboxId: String) {
         if (credentials.protocol == MailProtocol.IMAP) return
@@ -177,9 +160,6 @@ object FetchAndNotify {
         } catch (gone: AccountGoneException) {
             // Caught HERE for what it STOPS: `InboxViewModel` already wraps both of its calls, so
             // a refusal let out would change nothing for it. What matters is that `notifyDiff` and
-            // `seed` do not run, both writing the shared baseline under credentials.id, and that the
-            // sign-out leaves a LINE rather than a silence. What the line claims is
-            // [accountGoneCause]'s to decide.
             android.util.Log.i(
                 "FetchAndNotify",
                 "foreground inbox: ${accountGoneCause(credentials.id, container.accountStore.accountsUnreadable(), passKind = "refresh")}, dropped",
@@ -191,9 +171,6 @@ object FetchAndNotify {
 
 /**
  * Does this folder take its content into the baseline silently, instead of announcing the diff? Two
- * independent reasons: a folder seen for the first time has no baseline to diff against, so
- * announcing would empty its whole content into the shade; and [resetBaselines], the narrow one —
- * the inbox the user is looking at, on an arm the user caused. Watched extras never take it (#16).
  */
 internal fun seedsSilently(resetBaselines: Boolean, isInbox: Boolean, hasBaseline: Boolean): Boolean =
     (resetBaselines && isInbox) || !hasBaseline

@@ -15,12 +15,6 @@ import org.junit.Test
 
 /**
  * The receiving half of Autocrypt, EXECUTED: [autocryptPeerImportOf] decides, [importAutocryptPeer]
- * hands the decision to the provider, and both run here on a JVM.
- *
- * Nothing in this file recomputes the rule to choose what it feeds in. Every case is a message's
- * header list as one of the two readers really produces it — `MimeParser.rawHeaders` (continuations
- * already joined with a space) or JMAP's `headers` property (the raw value, CRLF+WSP and all) — and
- * what is asserted is the decision that comes out, arguments included.
  */
 class AutocryptPeerImportTest {
 
@@ -118,10 +112,6 @@ class AutocryptPeerImportTest {
     @Test fun `the string the IMAP path builds from INTERNALDATE is read back to the same millis`() {
         // The seam between the two halves of the IMAP fix, EXECUTED: `MailRepository`
         // (`autocryptInternalDate`) turns the server's INTERNALDATE into a String with
-        // `Instant.ofEpochMilli(it).toString()`, and THIS function reads it back through
-        // `internalDateOf` (`OffsetDateTime.parse`). Both sides are pinned by source lints, so
-        // nothing else executes the conversion between them — and if `Instant`'s form ever stopped
-        // being one `OffsetDateTime.parse` accepts, every IMAP import would go silently refused.
         val stamp = java.time.Instant.ofEpochMilli(1_780_308_000_000L).toString()
         assertEquals("2026-06-01T10:00:00Z", stamp)
         val decided = autocryptPeerImportOf(
@@ -170,12 +160,6 @@ class AutocryptPeerImportTest {
     @Test fun `an old date is still taken - only the future is bounded`() {
         // Nothing closes on the past side here, and bounding it too would drop keys off
         // perfectly ordinary mail — an old date already loses to a newer key inside the provider.
-        // Do NOT write that `ImapMailService`'s `dateMillis > 0` guard covers the past side of
-        // this decision: it did before `6d54a7cb`, and no longer does. That guard feeds
-        // `ImapMessage.toEmail`'s `receivedAt`, which Autocrypt stopped reading; the IMAP date now
-        // comes from `MailRepository.autocryptInternalDate` → `fetchInternalDate` →
-        // `imapDateTimeMillis`, which has no `> 0` anywhere. An `INTERNALDATE` before 1970 reads
-        // back negative and is taken, by design: only the future is bounded.
         val h = header("addr=alice@example.test; keydata=${AutocryptTestKey.RSA_4096}")
         val old = autocryptPeerImportOf(h, "alice@example.test", "1971-03-04T05:06:07Z", now)
             ?: error("a date in the past must still import")
@@ -249,10 +233,6 @@ class AutocryptPeerImportTest {
     @Test fun `the edge of the tolerance is the edge at the provider too`() {
         // The two tests around this one drive `autocryptPeerImportOf` DIRECTLY, and the
         // provider-level one below sits 74 years past the edge — so nothing observed what
-        // `importAutocryptPeer` does with `nowMillis` on the way through. Left like that,
-        // `autocryptPeerImportOf(headers, fromAddress, receivedAt, nowMillis + 2_000_000_000_000L)`
-        // compiles, keeps every test green, and files every key dated up to 2090. The pair below is
-        // the whole point: the SAME edge, one millisecond apart, measured at the provider.
         val h = header("addr=alice@example.test; keydata=${AutocryptTestKey.RSA_4096}")
         val taken = RecordingEngine()
         val done = runBlocking {

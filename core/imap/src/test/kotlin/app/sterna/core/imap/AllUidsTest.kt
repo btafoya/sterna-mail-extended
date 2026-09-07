@@ -7,11 +7,6 @@ import java.net.SocketTimeoutException
 
 /**
  * Enumerating a WHOLE folder, driven against a scripted server on loopback (Codeberg #99).
- *
- * The user's scenario: a Trash holding far more messages than the app ever synced, never
- * scrolled through. "Empty trash" must cover all of it, so the list of what to destroy cannot
- * come from the loaded page — it comes from the server, in one command, and within a bounded
- * wait since the screen has already announced the folder emptied.
  */
 class AllUidsTest {
 
@@ -71,8 +66,6 @@ class AllUidsTest {
 
     /**
      * The cap is applied while parsing, and the connection survives it: the ids past the cap are
-     * consumed off the wire instead of being left there. If they were not, the very next command
-     * would read the leftovers as its own answer.
      */
     @Test
     fun `a capped enumeration keeps the head and leaves the stream usable`() {
@@ -98,10 +91,6 @@ class AllUidsTest {
 
     /**
      * A split answer under a cap: the caller gets [cap] ids and the stream stays in sync.
-     *
-     * Note what this does NOT prove: how many ids were HELD while parsing. That bound (the cap
-     * spans the response instead of each line) is not observable through this API — the return
-     * value is identical either way — so it rests on reading `command`, not on this test.
      */
     @Test
     fun `a split answer still yields exactly the cap, and stays in sync`() {
@@ -138,8 +127,6 @@ class AllUidsTest {
 
     /**
      * A server that refuses the search must FAIL, not answer "nothing here": the caller turns a
-     * failure into its cached fallback, whereas a silent empty list would be read as an empty
-     * Trash and destroy nothing while claiming success.
      */
     @Test
     fun `a server refusing the search fails instead of reporting an empty folder`() {
@@ -160,9 +147,6 @@ class AllUidsTest {
 
     /**
      * A server that goes silent must not hang the caller. "Trash emptied" is on screen before
-     * this runs, so an unbounded wait would leave a success message over an untouched list.
-     * The bound is at the socket on purpose: a coroutine timeout cannot interrupt a blocking
-     * read, it would only fire while the read went on.
      */
     @Test
     fun `a silent server is given up on within the read timeout`() {
@@ -209,8 +193,6 @@ class AllUidsTest {
 
     /**
      * The no-budget case, which is what every other IMAP call in the app passes: a timeout of 0
-     * must mean "block", not "give up at once". This is the line that keeps folder loads, moves
-     * and IDLE behaving exactly as they did.
      */
     @Test
     fun `a timeout of zero leaves the socket blocking`() {

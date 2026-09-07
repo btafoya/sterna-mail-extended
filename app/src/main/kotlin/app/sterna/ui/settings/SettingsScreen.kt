@@ -2178,9 +2178,6 @@ private fun AccountDetailScreen(
 
 /**
  * The relay push address block (#177). Sterna runs no relay: it publishes an address the user hands
- * to whatever they already trust, and a POST to it wakes the app to check for mail.
- * With no UnifiedPush app installed nothing could mint an address, so the block says so and
- * offers no button rather than one that cannot work.
  */
 @Composable
 private fun RelayAddressSection(accountId: String, viewModel: AccountsViewModel) {
@@ -2459,8 +2456,6 @@ private fun pgpProviderLabel(context: Context, packageName: String): String =
 
 /**
  * What an OpenPGP app is called on screen when it declares no name of its own: its package name.
- * Never a hard-coded app name here: `?: "OpenKeychain"` would put one particular app onto the
- * screen of someone signing with another one (#151).
  */
 internal fun pgpProviderDisplayName(declaredName: String?, packageName: String): String =
     declaredName ?: packageName
@@ -2837,9 +2832,6 @@ private fun IdentityRowHeader(
 
 /**
  * What the signature will look like in a message, delimiter included (#90). Derived from the same
- * [signatureBlock] the composer uses, so it cannot claim a shape the message will not have.
- * A signature already beginning with its own delimiter is shown as it will be sent, two delimiter
- * lines and a note saying so. Not stripped: the app does not quietly edit the user's text.
  */
 @Composable
 private fun SignaturePreview(signature: String, delimiter: Boolean) {

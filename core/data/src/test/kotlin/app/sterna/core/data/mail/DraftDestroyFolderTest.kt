@@ -6,10 +6,6 @@ import org.junit.Test
 
 /**
  * Which folder a draft's destroy is opposed to — the decision RUN, with its arguments pinned.
- *
- * It used to be two Room calls joined by a `?:` inside `MailRepository`, i.e. a rule no JVM test
- * could reach: deleting the fallback left every suite green, and the damage only showed on a phone
- * whose cache no longer held the draft.
  */
 class DraftDestroyFolderTest {
 

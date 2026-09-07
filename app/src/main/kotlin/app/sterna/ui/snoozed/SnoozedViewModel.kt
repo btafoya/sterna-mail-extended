@@ -13,8 +13,6 @@ import kotlinx.coroutines.launch
 
 /**
  * Backs the "Snoozed" screen (Codeberg #82): the messages currently hidden by a snooze, with
- * their deadline, so a snooze can be undone or moved instead of being a hidden state.
- * Mirrors [app.sterna.ui.scheduled.ScheduledSendsViewModel] — same shape, same two verbs.
  */
 class SnoozedViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = application.container.mailRepository
@@ -29,8 +27,6 @@ class SnoozedViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Cancel a snooze: drop the row so the message re-appears in its list at once, AND cancel
-     * the WorkManager job, otherwise a ghost wake-up would still fire (and notify) at the old
-     * deadline for a message that is no longer snoozed.
      */
     fun cancel(accountId: String, emailId: String) {
         Snoozes.cancel(getApplication(), accountId, emailId)

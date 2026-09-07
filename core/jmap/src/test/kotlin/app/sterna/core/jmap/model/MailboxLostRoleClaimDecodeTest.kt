@@ -9,18 +9,6 @@ import org.junit.Test
 
 /**
  * [Mailbox.lostRoleClaim] decoded with the SHIPPING [JmapClient.DefaultJson] — the same trap
- * [MailboxSubscriptionDecodeTest] closes for `isSubscribed`, and the reason the Kotlin default is
- * load-bearing rather than tidy.
- *
- * `DefaultJson` is `ignoreUnknownKeys = true`: it forgives a property the SERVER sends and we do
- * not know, and forgives nothing about a property WE declare and the server omits — a non-defaulted
- * field throws `MissingFieldException`, which `JmapClient.decodeList` turns into a `JmapException`.
- * No server sends this one, ever: it is not an RFC 8621 field, it is filled in by the repository
- * for IMAP accounts only. Without the default, every `Mailbox/get` on every JMAP server would fail
- * and the account would list no folder at all.
- *
- * And the behaviour of a JMAP account is exactly `main`'s: JMAP names the role on the mailbox
- * and holds no election, so nothing there ever loses one and nothing is kept visible by this field.
  */
 class MailboxLostRoleClaimDecodeTest {
     private val json: Json = JmapClient.DefaultJson

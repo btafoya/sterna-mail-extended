@@ -6,13 +6,6 @@ import org.junit.Test
 
 /**
  * The public-key cache must cost existing installs nothing: accounts are kotlinx JSON in a prefs
- * blob, not a Room table, so a field with a default reads an older blob back untouched. There is no
- * migration to write — and this is what says so, by decoding a blob written BEFORE the field
- * existed.
- *
- * The legacy JSON is a literal on purpose. Re-serialising a current [StoredAccount] would emit
- * whatever the current class holds, so the "old blob" would silently gain the very field the test
- * claims is absent, and the test would pass with or without the default.
  */
 class StoredAccountPgpPublicKeyTest {
 

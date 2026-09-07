@@ -2,10 +2,6 @@ package app.sterna.core.data.text
 
 /**
  * [name] proposed to the picker for an attachment: sanitised like [safeFileName], but with its
- * extension kept whole rather than truncated — losing it strips the file type Android identifies
- * by. Split at the LAST dot; kept as an extension only if neither first nor last character and
- * at most [MAX_EXTENSION] characters long. Only the trunk pays the length cap; null/empty/blank
- * gives `attachment`.
  */
 fun attachmentFileName(name: String?): String {
     val raw = name.orEmpty().trim()

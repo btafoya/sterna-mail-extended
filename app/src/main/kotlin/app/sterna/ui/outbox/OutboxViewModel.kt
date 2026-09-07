@@ -28,8 +28,6 @@ class OutboxViewModel(application: Application) : AndroidViewModel(application) 
 
     /**
      * The id of the item just staged for editing, so the screen can open compose on it — `null`
-     * when there is none. The id, and not a flag: the screen puts it in the composer's route, which
-     * is the one place that survives a process death (see [edit]).
      */
     private val _readyToEdit = MutableStateFlow<Long?>(null)
     val readyToEdit: StateFlow<Long?> = _readyToEdit.asStateFlow()
@@ -47,17 +45,6 @@ class OutboxViewModel(application: Application) : AndroidViewModel(application) 
 
     /**
      * Reopen an item in compose for editing (#70): stage it into compose (re-staging IMAP
-     * attachments into the cache) and mark the row EDITING so the send worker leaves it alone while
-     * the composer holds it. Sending from compose consumes the row and enqueues the edited message;
-     * closing the composer instead flips the same row back to QUEUED. The row never leaves the
-     * database, so nothing rides in RAM and a process death costs the edit, not the message.
-     *
-     * And the composer FINDS the row again after such a death: the draft handed over through
-     * [sendOutbox] dies with the process, but the id published in [readyToEdit] goes into the
-     * composer's route (`compose?restore=true&outboxId=…`), which Android restores. Once the
-     * startup sweep has parked the row FAILED, the rebuilt composer takes it back by that id
-     * (`ComposeViewModel.resumeOutboxEdit`), and Send consumes the original instead of queueing a
-     * second copy beside it.
      */
     fun edit(id: Long) {
         viewModelScope.launch {

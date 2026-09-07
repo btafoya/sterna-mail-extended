@@ -23,12 +23,6 @@ internal fun isAttachedMessage(type: String?): Boolean =
 
 /**
  * Parses the downloaded bytes of a message/rfc822 part. The bytes become MimeParser's faithful byte
- * container (ISO-8859-1, one char per wire byte, #128), then [MimeParser.parseBody] applies its own
- * ceilings. Headers go through [MimeParser.decodedHeaderOf] and nothing else: it is the one
- * sanitising chain (RFC 2047, raw 8-bit bytes, bidi overrides, control characters), and these
- * headers are sender-controlled text bound for the screen.
- *
- * @throws ContentTooLargeException when parseBody refuses the source (tooLarge).
  */
 internal fun attachedMessageOf(bytes: ByteArray): AttachedMessage {
     val raw = bytes.toString(Charsets.ISO_8859_1)
@@ -53,8 +47,6 @@ internal fun attachedMessageOf(bytes: ByteArray): AttachedMessage {
 
 /**
  * The reader's own rule (`Email.fileAttachmentParts`), applied to what [MimeParser] collects.
- * Without the same filter here, a newsletter forwarded as an .eml would read
- * "Attachments: image, image, image" and a signed one "pgp-signature".
  */
 private fun MimeAttachment.isFileAttachment(): Boolean = when {
     cid != null && type.startsWith("image/") -> false

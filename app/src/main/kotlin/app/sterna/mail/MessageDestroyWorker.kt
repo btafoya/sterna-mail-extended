@@ -101,10 +101,6 @@ class MessageDestroyWorker(context: Context, params: WorkerParameters) : Corouti
 
         /**
          * Hold the permanent destroy of [folders] back for [holdBackMs], then run it. The ids come
-         * grouped by the folder they were in when the user confirmed, with that folder's numbering,
-         * so the destroy can tell a message that has since moved from one that has not (#122, #99).
-         * The whole account still goes in ONE `enqueueUniqueWork` call: the unique name is per
-         * account, so scheduling folder by folder would have each group REPLACE the previous.
          */
         fun schedule(context: Context, accountId: String, folders: List<FolderDestroy>, holdBackMs: Long) {
             WorkManager.getInstance(context).enqueueUniqueWork(
@@ -125,10 +121,6 @@ class MessageDestroyWorker(context: Context, params: WorkerParameters) : Corouti
 
         /**
          * Destroy [folders] as soon as there is a network, without taking the account's unique
-         * work slot — for a gesture that has no undo window of its own (#95 × #69). NOT
-         * [schedule], which enqueues under the account's name with REPLACE and would silently drop
-         * a permanent delete confirmed seconds earlier. Suspends until WorkManager has WRITTEN
-         * the request: the caller's next act destroys the only local trace.
          */
         suspend fun destroyDurably(context: Context, accountId: String, folders: List<FolderDestroy>) {
             destroyRequests(accountId, folders, delayMs = 0L)

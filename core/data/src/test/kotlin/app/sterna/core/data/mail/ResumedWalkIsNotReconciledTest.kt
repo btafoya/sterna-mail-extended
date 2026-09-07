@@ -10,37 +10,6 @@ import org.junit.Test
 
 /**
  * A full re-query whose walk had to RESTART ON A POSITION must delete nothing.
- *
- * The defect, executed. The JMAP walk pages by anchor; when the anchor leaves the folder mid-walk
- * the server answers `anchorNotFound` and the walk restarts once at an absolute index, one row
- * behind the count it had accumulated. That one step back corrects for exactly one disappearance —
- * the anchor's own. If the anchor AND k messages of lower index left in the same instant (a "delete
- * all read", a server rule filing a batch, another client emptying a range), the list has dropped
- * by k + 1 and the restart lands k rows too far: those k ids are listed by no page of the walk, and
- * `JmapClientTest.queryEmailsWindow_skipsMessagesWhenTheAnchorLeavesWithABurst` plays that out
- * against a real server.
- *
- * What turns a gap into a LOSS is what happens next, and it is all here. Those k ids are missing
- * from `WindowWalk.ids`, therefore missing from the keep set, therefore — since they were cached
- * BEFORE the walk, so the #165 bound does not protect them — evicted by the reconcile. The sync
- * cursor is stored immediately afterwards, the deltas resume, and a delta never re-sends a message
- * that was neither added nor changed. The messages are on the server and gone from the phone until
- * "Clear this account's cache".
- *
- * The fix is the one IMAP already carries for a renumbered folder (`ImapFolderWalk.moved` →
- * `reconcilableIds` → null): the walk SAYS it resumed by position, and the keep rule refuses. It
- * does not recover the skipped messages and is not meant to — replaying a walk against a list that
- * is moving has no stopping rule. It refuses the delete, and the next full query re-lists the
- * folder from the top.
- *
- * What the refusal costs is stated by `a walk that did NOT resume still caps the cache`: on that
- * pass the folder is allowed to hold more than the window, including rows the server no longer has.
- * That is the survivable direction, and it is the same posture `FullQuerySync` already takes for an
- * interrupted walk.
- *
- * The decisions under test are the shipped ones, EXECUTED — [fullQueryWriteThrough] for the order,
- * [reconcilableWindowIds] for the keep rule, [evictableCachedIds] and [reconcileEvictions] for the
- * delete. Nothing here restates when to refuse; the fixtures write a folder and then look at it.
  */
 class ResumedWalkIsNotReconciledTest {
 
@@ -70,10 +39,6 @@ class ResumedWalkIsNotReconciledTest {
 
     /**
      * A walk that hands [pages] over one at a time and answers with the ids it handed over —
-     * plus [resumedByPosition], the one thing it knows that its ids cannot show: that it restarted
-     * on an absolute index and may therefore have stepped over messages the server still holds.
-     *
-     * It decides nothing. It accumulates what it is given.
      */
     private fun walkOf(
         pages: List<List<String>>,

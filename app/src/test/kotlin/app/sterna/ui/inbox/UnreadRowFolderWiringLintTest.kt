@@ -6,33 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
- *
- * What [unreadRowFolder] ANSWERS is executed, argument by argument, in `UnreadRowFolderTest`. What
- * this file holds is the only part of #169 no executing test can reach: that the answer is asked
- * for, on the right rows, with the right trust, and that the value it needs to work at all
- * ([MailUi.accountId]) is actually carried into the state. There is no Compose harness in this repo,
- * `InboxScreen` is not instantiable on the JVM, and `InboxViewModel` is an `AndroidViewModel` over
- * Room — so this reads both files as TEXT.
- *
- * The mutations it exists for, every one of which compiles and leaves everything else green:
- *  - `originLabel = ownerAccount?.label()` on the list row: the function is written, tested, and
- *    never called — the reporter's list is unchanged;
- *  - `folderTrusted = true` on the list row: a search hit then names the folder it was crawled in,
- *    which the server may have contradicted since;
- *  - the children's `folderFor` dropped or answering null: the parent of an unfolded conversation
- *    names its folder and its children name nothing;
- *  - `inViewCount = 1` on the LIST row in place of `row.threadCount`: in conversation view, which is
- *    the DEFAULT, a collapsed thread then names its newest message's folder as if it were the whole
- *    row's — the reader's unread Inbox message hidden behind the word "Archive";
- *  - `rowFolder?.let { … } ?: ownerAccount?.label()` — the folder then wins over the account in the
- *    unified inbox, which is the one view where the account is the question;
- *  - `base.copy(unreadViewCount = …)` without the account, or `accountId = null` in the state: the
- *    guard in [unreadRowFolder] then rejects every row, silently, for ever, and the feature is
- *    simply absent. Both are one word, in a file no executing test reaches.
- *
- * Every rule compares WHOLE LINES, never `contains`: a fragment is blind to any mutation that
- * LENGTHENS it — `folderTrusted = !fromSearch` is contained in `folderTrusted = !fromSearch && false`.
- * The price is that a reformat reddens this file; that direction of error is loud and one line to fix.
  */
 class UnreadRowFolderWiringLintTest {
 
@@ -89,9 +62,6 @@ class UnreadRowFolderWiringLintTest {
 
     /**
      * The value the whole volet stands on. [unreadRowFolder] compares the row's account to
-     * `ui.accountId` before it looks anything up in `ui.mailboxes`, because that list is one
-     * account's and is not qualified by account (#31/#121). Left unfilled, the field is null, the
-     * guard rejects every row, and the feature is absent with nothing red anywhere.
      */
     @Test
     fun `the account on screen is folded into the state and carried into it`() {
@@ -121,16 +91,6 @@ class UnreadRowFolderWiringLintTest {
 
     /**
      * The lines of the `val state: StateFlow<MailUi> = combine(…) { … }` builder, comments out.
-     *
-     * Anchored on both ends and loud if either moves: a rule that quietly reads an empty slice
-     * guards nothing.
-     *
-     * The `initialValue` below `}.stateIn(` is OUTSIDE this slice, and it does not take the
-     * fields' defaults: it builds a second `MailUi(...)` by hand, naming `selectedMailboxId`,
-     * `unified`, `atInbox` and the rest, from `selection.value` and `meta.value`. It is a SECOND
-     * SITE of every rule the combine states, and it is what the reader sees until the first
-     * emission. Any rule corrected in the flow has to be corrected there too: #155 (f9e6da37) fixed
-     * `atInbox` in the combine and left the placeholder's copy of the same expression untouched.
      */
     private fun stateBlock(): List<String> {
         val lines = codeLines(INBOX_VIEW_MODEL)

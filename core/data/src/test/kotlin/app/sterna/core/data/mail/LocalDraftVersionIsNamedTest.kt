@@ -10,28 +10,6 @@ import java.io.IOException
 
 /**
  * **The `Message-ID` names the VERSION, not the draft** (#95), executed end to end over the
- * shipped decisions — [localDraftTarget], [localDraftMessageId], [localDraftRow],
- * [saveDraftLocalFirst], [uploadLocalDraftOnce] and [appendDraftUnlessAlreadyThere] — with a phone
- * that is a map and a Drafts folder that is another.
- *
- * **The loss this closes, and every step of it is reachable.** "Found on the server ⇒ do not
- * append" is only safe if the name searched for distinguishes two versions of the text. Frozen with
- * the row it did not:
- *
- * 1. the user edits a server draft into v1 and saves; the `APPEND` lands but its tagged answer is
- *    lost, so the phone records a failed attempt and keeps the row — the server holds v1, and
- *    nothing on the phone knows it;
- * 2. the user edits the same draft again into v2 and saves with no network; the row keeps its id
- *    and, under the old rule, its name;
- * 3. the deferred worker asks the server for that name, finds the copy of **v1**, skips the append
- *    as "already there" — and the caller consumes the row.
- *
- * v2 then exists nowhere: not on the phone, not on the server, and the original is destroyed on the
- * way out. Re-minting at every save turns that into the other outcome, which is a stale copy left
- * in Drafts: a duplicate the user can see and delete.
- *
- * What stays frozen, and is asserted here too: the row's ID and its creation time. The name is
- * the only thing a new save re-writes.
  */
 class LocalDraftVersionIsNamedTest {
 

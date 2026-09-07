@@ -28,9 +28,6 @@ import org.openintents.openpgp.util.OpenPgpServiceConnection
 
 /**
  * [PgpEngine] backed by an installed OpenPGP provider over the openpgp-api bound service; which
- * package that is comes from [PgpProviders]. Binds lazily on first use and keeps the connection for
- * the process lifetime. All calls run on IO; the provider's own UI surfaces as
- * [PgpResult.UserInteractionRequired] per the openpgp-api contract.
  */
 class OpenKeychainPgpEngine(
     context: Context,
@@ -132,9 +129,6 @@ class OpenKeychainPgpEngine(
 
     /**
      * The Intent for a [PgpApiRequest] — the ONE place a pure request becomes an Android object.
-     * The `when` is exhaustive and the `error` branch is not decoration: a fifth type added to a
-     * request without a branch here would be dropped in silence, i.e. an extra the provider never
-     * receives.
      */
     private fun intentFor(spec: PgpApiRequest, interactionResult: Intent?): Intent =
         request(spec.action, interactionResult).apply {
@@ -168,9 +162,6 @@ class OpenKeychainPgpEngine(
 
     /**
      * ACTION_GET_KEY: the provider streams the public key to the output stream, which is why this is
-     * the one read here that collects output. The arguments are [publicKeyRequest]'s, not this
-     * method's: they decide the bytes that end up in every outgoing `Autocrypt:` header, and nothing
-     * in this class can be executed by a test.
      */
     override suspend fun getPublicKey(
         keyId: Long,
@@ -186,12 +177,6 @@ class OpenKeychainPgpEngine(
 
     /**
      * ACTION_UPDATE_AUTOCRYPT_PEER: the provider files [keyData] in its PUBLIC keyring under
-     * [peerId], so the next `ACTION_GET_KEY_IDS` finds it and the composer stops saying "no key".
-     *
-     * `isMutual = false`, always: MUTUAL is a standing instruction to start encrypting, and that
-     * decision is not taken from an incoming message. No input stream and no output collected —
-     * this action carries everything in its extras — and no `interactionResult`, the caller having
-     * no screen.
      */
     override suspend fun updateAutocryptPeer(
         peerId: String,

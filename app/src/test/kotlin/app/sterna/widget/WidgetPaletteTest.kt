@@ -10,25 +10,6 @@ import org.junit.Test
 
 /**
  * The widget wears the APP's palette, not the splash screen's.
- *
- * A home-screen widget is drawn by RemoteViews in the launcher's process, so it cannot read the
- * Compose scheme the app picks at runtime: its colours are frozen in the `colors.xml` of `res/values` and `res/values-night`
- * and are only ever compared to the app by eye. That is how they drifted onto the splash nuancier —
- * in light mode not one of the three existed anywhere in `Color.kt`, and nothing went red.
- *
- * The expected values are NOT written here. Each resource is mapped to the Material ROLE it
- * stands for (that table is the rule, and it has to live somewhere), and the value is taken by
- * EXECUTING the real scheme objects: `ArcticColorScheme.surface.toArgb()`, etc. Re-tune the palette
- * in `Color.kt` and this test asks for the new value on its own; copy hex literals in here instead
- * and it would only ever prove that two files agree on a colour that matches nothing on screen.
- *
- * And never a `contains` on the line: a substring is blind to every mutation that LENGTHENS what
- * it matches. What is compared below is the WHOLE extracted value, `#RRGGBB` and nothing else, so
- * `#2F5E59A0`, `#FF2F5E59` or a second declaration of the same name all redden.
- *
- * The second rule here is [`the widget layouts spend each colour on the role it was declared for`]:
- * a right value in `colors.xml` proves nothing about WHICH view reads it, and the palette rule
- * above stays green while every line of the list is painted with the accent.
  */
 class WidgetPaletteTest {
 
@@ -50,22 +31,6 @@ class WidgetPaletteTest {
 
     /**
      * WHICH view reads WHICH colour — the half the palette rule cannot see.
-     *
-     * `widget_unread_count` is the ACCENT (teal): the big figure of the counter widget, its picker
-     * copy, and the base a row's account mark is retinted over. `widget_row_primary` is the primary TEXT of a row
-     * (`onSurface`, near-black in light mode), because that is what the app's own list does —
-     * `EmailListItem` writes the sender with no `color =` at all and so inherits `LocalContentColor`,
-     * i.e. `onSurface`. The two were one resource until the whole left half of the widget's list
-     * came out teal against an app that draws it dark grey.
-     *
-     * Nothing here is a `contains`: each colour-bearing line is pinned WHOLE, next to the
-     * `android:id` / `android:text` that says which view it belongs to and in document order. So
-     * pointing a row back at the accent, dragging the big figure onto the row colour, adding a
-     * second `android:textColor`, or moving one between elements all redden — and the printed diff
-     * names the view.
-     *
-     * The two drawables are in here for the same reason the layouts are: each is the sole consumer
-     * of one resource, so nothing else in this file would notice the swap.
      */
     @Test fun `the widget layouts spend each colour on the role it was declared for`() {
         assertEquals(
@@ -113,8 +78,6 @@ class WidgetPaletteTest {
 
     /**
      * Every line of [path] that names a `@color/widget_…` in an `android:textColor` or
-     * `android:color`, in document order, each prefixed by its element's tag and by the
-     * `android:id` / `android:text` attributes seen above it inside that same element.
      */
     private fun colourAttributes(path: String): List<String> {
         val lines = DeclarationSource.codeLines(DeclarationSource.file("app/src/main/res/$path"))

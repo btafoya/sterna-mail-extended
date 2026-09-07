@@ -5,14 +5,6 @@ import org.junit.Test
 
 /**
  * The decision behind a notification banner's Delete button, EXECUTED — not re-derived. Every
- * expectation below is a literal, so inverting an arm of the shipped rule turns these red.
- *
- * The harm: Delete on a banner was the only one of the three callers of `MailRepository.delete()`
- * that never asked whether the delete would move anything. Pressed on a banner left over from a
- * message the user had already deleted in the app, it dropped the cached row and its search-index
- * row while the server kept the message — it vanished from the screen until the next folder sync.
- * On an account with no Trash it threw, but only AFTER unlisting the message from a pending
- * Empty-trash order and (with markReadOnDelete on) marking it read.
  */
 class BannerDeleteActTest {
 

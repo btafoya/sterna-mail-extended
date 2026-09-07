@@ -9,13 +9,6 @@ import org.junit.Test
 
 /**
  * The joint between the protocol-neutral [SearchQuery] and what IMAP is asked, which had no test
- * at all — and is the one place where a criterion can be inert while every other test still
- * passes. The imap module's own tests build [app.sterna.core.imap.ImapSearchCriteria] BY HAND, so
- * deleting a field from [toImapCriteria] leaves them all green while the criterion silently stops
- * reaching the wire: the user ticks a box and the server is never told.
- *
- * Two decisions are made here and both are covered below: WHAT the server is asked, and whether
- * the client has to fetch-and-filter afterwards.
  */
 class SearchQueryToImapTest {
 
@@ -67,12 +60,6 @@ class SearchQueryToImapTest {
 
     /**
      * The guarantee the folder-walk test cannot make, because it chooses `requireAttachment`
-     * itself. THIS is the value the repository hands the walk, and the whole performance argument
-     * for the flagged criterion rests on it staying false.
-     *
-     * Widening it to `hasAttachment || flagged` would compile, would still return the right
-     * messages, and would quietly turn every starred-mail search into a batched envelope crawl
-     * with a scan cap and a count that can no longer claim to be a total.
      */
     @Test fun `a flagged search never asks for a client-side scan`() {
         assertFalse(SearchQuery(flagged = true).requiresLocalScan())

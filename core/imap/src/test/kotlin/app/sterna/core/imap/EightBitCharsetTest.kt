@@ -7,23 +7,6 @@ import java.nio.charset.Charset
 
 /**
  * A message sent in 8 bits with a charset other than UTF-8, from the socket to the screen.
- *
- * The defect lived in two places that could not see each other. `ImapParser` decoded every
- * literal as UTF-8, so any byte that was not valid UTF-8 became U+FFFD and the octet ceased to
- * exist — the whole message source goes through that one line. `MimeParser` then never applied
- * the part's declared charset to a `7bit`/`8bit`/`binary` body, and would have had nothing left
- * to apply it to anyway. The loss was upstream, the decoding downstream, and neither end saw the
- * other.
- *
- * WHAT IS AND IS NOT AFFECTED, because it is easy to overstate. `base64` and `quoted-printable`
- * are ASCII on the wire: they survived the parse intact and their charset was already applied to
- * the bytes they rebuild. They are also the common encodings. JMAP is not concerned at all —
- * bodies arrive as JSON text, attachments as HTTP octets. Only `7bit`, `8bit` and `binary` over
- * IMAP were affected, and among those the quiet one is an ATTACHMENT: its lost bytes were
- * written to disk as `?` (0x3F), with nothing on screen to suggest it.
- *
- * These tests drive a real socket, so they cover the parser, the byte convention it establishes
- * and the MIME reader that depends on it, in the order the app meets them.
  */
 class EightBitCharsetTest {
 
@@ -73,8 +56,6 @@ class EightBitCharsetTest {
 
     /**
      * THE WITNESS for the common case. A UTF-8 body sent in 8 bits is what most mail is; reading
-     * the wire faithfully without then applying the declared charset would turn every one of
-     * them into latin-1 gibberish. The two halves of the fix ship together or not at all.
      */
     @Test
     fun `an 8-bit UTF-8 body still reaches the reader intact`() {
@@ -136,11 +117,6 @@ class EightBitCharsetTest {
 
     /**
      * The nearest a JVM test in this module can get to `MailRepository.decryptMessage`, which is
-     * not constructible off-device (its fields build `android.util.LruCache`). What it holds to
-     * account is the CLAIM that path rests on: a signed entity is a verbatim slice of the message
-     * source, the source is a byte container, so `toByteArray(ISO_8859_1)` — and only that — hands
-     * the verifier the octets the sender hashed. RFC 3156 signatures are byte-exact; a re-encoded
-     * body is not a wrong-looking body, it is a signature that will not verify.
      */
     @Test
     fun `a signed entity is recoverable as the exact bytes the sender sent`() {
@@ -212,10 +188,6 @@ class EightBitCharsetTest {
 
     /**
      * THE WITNESS that the header path was moved with the body path. A header carries no charset,
-     * so once the parser hands over octets they have to be reinterpreted before anything filters
-     * them: `stripBidiAndControls` removes U+0080–U+009F, exactly where UTF-8 continuation bytes
-     * land when read one per char, and that damage cannot be undone. Reading the wire faithfully
-     * without this step would have moved the corruption from bodies to subjects.
      */
     @Test
     fun `a raw 8-bit UTF-8 subject survives the anti-spoofing filter`() {
@@ -238,13 +210,6 @@ class EightBitCharsetTest {
 
     /**
      * THE ADDRESS, which is the one value here that is not merely displayed. `fromEmail` is
-     * persisted in the cache, indexed for search, offered as a contact suggestion and prefilled
-     * as the recipient of a reply — so a mangled one does not look wrong, it SENDS WRONG.
-     *
-     * An internationalised address (RFC 6531, which Stalwart speaks) is non-ASCII, and RFC 3501
-     * leaves a conforming server no choice but to deliver it as a literal. The subject beside it
-     * was already asserted; the address in the same response was not, and that is precisely how
-     * this stayed invisible.
      */
     @Test
     fun `an EAI address in the envelope is read, not left as octets`() {

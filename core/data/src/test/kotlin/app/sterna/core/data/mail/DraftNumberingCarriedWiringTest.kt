@@ -8,23 +8,6 @@ import org.junit.Test
 
 /**
  * The frozen numbering on its way THROUGH THE QUEUE (#99, V2): the composer freezes it, the outbox
- * row carries it, and the delivery destroys the draft under it — never under a number read at
- * delivery time.
- *
- * Why this exists next to [ImapDestroyUnderNumberingTest], which already proves what the DECISION
- * does with a numbering: nothing there can see WHICH number the send hands it. `performSend` used
- * to call `recordedUidValidityForDraft` at execution, and execution is a headless worker firing
- * when the network comes back, or at a scheduled send's hour — hours or days after the composer
- * read the draft. By then a background pass may have recorded the Drafts folder's NEW numbering;
- * the guard compares it with itself, says "same", and the `UID EXPUNGE` destroys whichever message
- * now holds those UIDs. That is #122's shape on a folder the user writes in.
- *
- * Read as source text — the last resort, and for the usual reason: `MailRepository` needs Room, a
- * `Context` and a socket, so no JVM test can execute `performSend` or `enqueueSend`. What CAN be
- * run is the pure mapping a reopened queued message goes through, and it is run below. Arguments
- * are parsed out and compared WHOLE, never `contains`: a rule written as a substring is blind to
- * every mutation that lengthens the line, `?: recordedUidValidityForDraft(credentials, it)`
- * included — which is the defect, restored, in eleven characters.
  */
 class DraftNumberingCarriedWiringTest {
 
@@ -238,8 +221,6 @@ class DraftNumberingCarriedWiringTest {
 
     /**
      * [source] with every comment removed, string literals untouched. The comments in this
-     * repository name the very arguments these rules pin, so prose must not be able to answer for
-     * the code — nor to break a rule the code still satisfies.
      */
     private fun codeOf(source: String): String {
         val out = StringBuilder()

@@ -6,37 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
- *
- * The decision itself ([encodeSelection] / [restoreSelection]) is EXECUTED, by `SelectionMemoryTest`.
- * This file only pins where the app plugs it in, because `InboxViewModel` is an `AndroidViewModel`
- * over Room and `AccountStore` wraps `SharedPreferences`: neither can be built on the JVM, so no
- * executing test can see the wiring.
- *
- * The mutations it exists for, every one of which compiles and leaves everything else green:
- *  - the initial `selection` left as `Sel.Folder(store.inboxMailboxId())` — the memory is written
- *    on every selection and read by nobody, which is precisely the defect this branch fixes, and
- *    the feature simply never appears;
- *  - `AllInboxesView.existsFor(store.accounts())` replaced by `true` — the unified view is then
- *    restored on a single-account install, where the drawer has no entry for it;
- *  - `store.currentId()` swapped for `store.inboxMailboxId()`: two `String?`, and the guard that
- *    keeps one account's memory off another account's screen compares the wrong pair;
- *  - the elvis fallback dropped or changed — a cold start with nothing stored then shows no folder;
- *  - the persisting collector folded INTO the push collector, or its `store.currentId()` hoisted out
- *    of it, which pins the account of the moment the ViewModel was built instead of the account the
- *    selection belongs to;
- * - a SECOND reader of the store, hand-rolled next to the first. `RootViewModel` needs the same
- *    answer before the list exists (`RestoredViewWiringLintTest`), and the day it fetches the three
- *    arguments itself, one of the two copies drifts — silently, since both compile and both are
- *    three `String?`/`Boolean` in a row. Hence TWO counts below, because they catch different
- *    hands: one call to the rule `restoreSelection`, and a NAMED list of the reads of
- *    `store.storedView()` — two of them, each with the file it must sit in. A
- *    decoder written out on the spot (`storedView()?.split("\n")?.getOrNull(1) == "u"`) calls the
- *    rule never and only the second count sees it. Both are taken over the whole module, the bench
- *    source sets included.
- *
- * Every rule compares a WHOLE unit — the whole argument, the whole call. A `contains` on a
- * fragment is blind to any mutation that LENGTHENS it. The price is that a reformat reddens this
- * file; that direction of error is loud and one line to fix.
  */
 class SelectionMemoryWiringLintTest {
 
@@ -71,14 +40,6 @@ class SelectionMemoryWiringLintTest {
 
     /**
      * The OTHER half of "one reader", and the one the count above cannot see: the store itself.
-     *
-     * `restoreSelection` is a pure function anyone may call, but the three arguments come from
-     * `AccountStore`, and a reader that never calls the rule at all — `store.storedView()
-     * ?.split("\n")?.getOrNull(1) == "u"`, three tokens of the format written out a second time —
-     * leaves the count above at exactly 1 while the app carries two answers about the view it
-     * reopened on. So the READS are pinned too, by file, and there are exactly two: the adapter
-     * that reopens a view, and the sign-out that prunes a removed account's one out of the
-     * preferences ([prunedView]). Both hand the string to a pure function; neither splits it.
      */
     @Test
     fun `the stored view is read out of the store in exactly two named places`() {
@@ -104,8 +65,6 @@ class SelectionMemoryWiringLintTest {
 
     /**
      * The adapter's own signature, whole. It takes the STORE and nothing else: handed a stored
-     * string, or an account id, or a `Boolean` its callers computed, it becomes a second place
-     * where those three arguments are decided — which is the drift the count above forbids.
      */
     @Test
     fun `the one reader of the store takes the store, and answers a selection`() {
@@ -173,15 +132,6 @@ class SelectionMemoryWiringLintTest {
 
     /**
      * Every Kotlin source of the app module's THREE production source sets. `restoreSelection` and
-     * `restoredSelection` are `internal`, so this is the whole surface they can be called from —
-     * and `src/benchShared/kotlin` and `src/testApp/kotlin` are part of the module too
-     * (`app/build.gradle.kts` folds them into the debug/release variants under -PtestApp), which is
-     * exactly where a second reader would be least looked for. `src/test` is deliberately out: it
-     * is where the rules live, and a rule quoting a call is not a caller.
-     *
-     * A missing directory is an ERROR, not zero files: silently scanning less than the module is
-     * how this rule would go on passing while the reader it forbids sits in the half it stopped
-     * reading.
      */
     private fun mainSources(): List<File> = MODULE_SOURCE_DIRS
         .map { File(root, it) }
@@ -268,8 +218,6 @@ class SelectionMemoryWiringLintTest {
 
     /**
      * [file] as ONE line of code: comments taken out, runs of whitespace collapsed. Same scanner as
-     * `UnreadViewWiringLintTest`'s, and for the same reason: a `//` inside a string literal is not a
-     * comment, and a line starting with `*` is not always a comment either.
      */
     private fun codeText(file: File): String = strippedLines(file).joinToString(" ")
         .replace(Regex("""\s+"""), " ").trim()

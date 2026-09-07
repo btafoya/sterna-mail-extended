@@ -22,8 +22,6 @@ object BodyPreview {
 
     /**
      * The fragment was cut at an octet count that knows nothing of encoded units. A base64 cut off a
-     * quantum boundary makes the decoder reject the WHOLE string and the preview show the base64
-     * itself; `=C3` cut into `=C` is emitted verbatim.
      */
     private fun decodable(raw: String, encoding: String?): String = when {
         encoding.equals("base64", ignoreCase = true) -> {

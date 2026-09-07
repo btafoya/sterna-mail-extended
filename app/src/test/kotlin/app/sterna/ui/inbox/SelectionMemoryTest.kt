@@ -6,16 +6,6 @@ import org.junit.Test
 
 /**
  * Runs the drawer's memory of the current view — [encodeSelection] and [restoreSelection] — as the
- * pure functions they are, on the JVM, with LITERAL expectations.
- *
- * Nothing here recomputes the rule it checks. A test that rebuilt the stored string from the
- * same pieces the code uses would stay green with the condition inverted; the encoded strings and
- * the restored selections below are written out by hand, character by character.
- *
- * The pattern being imitated — `AccountStore.currentId()` and its fallback — is executed by NO
- * test in this repo (no Robolectric, `SharedPreferences` is a framework type). That is exactly why
- * the DECISION was pulled out of the store and out of the ViewModel: the store now only carries an
- * opaque string, and everything that can be got wrong is in this file's reach.
  */
 class SelectionMemoryTest {
 
@@ -30,8 +20,6 @@ class SelectionMemoryTest {
 
     /**
      * The account id travels WITH the selection, never a bare folder id: two accounts on the same
-     * server number their mailboxes independently, so "the folder called 5" is only a memory once
-     * it says whose 5 it is (#92 / #121).
      */
     @Test
     fun `two accounts encode the same folder id to two different strings`() {
@@ -48,8 +36,6 @@ class SelectionMemoryTest {
 
     /**
      * An unknown folder id is not a memory. Storing `Folder(null)` would reopen on a list with no
-     * folder instead of falling back on the Inbox as soon as its id IS known — the state the app is
-     * in before the first sync of a fresh account.
      */
     @Test
     fun `a selection with no folder id is not remembered`() {
@@ -78,16 +64,6 @@ class SelectionMemoryTest {
 
     /**
      * A folder id CAN carry the separator, and the answer is to FORGET the view, not to escape
-     * it. An IMAP path is decoded from modified UTF-7 with nothing filtered out of it
-     * (`ImapFolder.path`), and a mailbox named with a line feed travels as `&AAo-` and decodes back
-     * to a path holding U+000A (`ImapUtf7`) — so the string below is one the app writes ITSELF, not
-     * a preference corrupted from elsewhere. Four parts, refused, and the launch lands on the
-     * Inbox: a folder we decline to remember beats a folder we reopen wrong.
-     *
-     * Not covered by `anything that is not three parts is refused`, which hands restoreSelection
-     * strings written by hand and says nothing about what encodeSelection may produce. Adding an
-     * escaping pair to both functions would keep every other test in this file green and change
-     * only these two lines.
      */
     @Test
     fun `a folder id carrying the separator is refused, not escaped`() {
@@ -115,10 +91,6 @@ class SelectionMemoryTest {
 
     /**
      * The central guard: the memory belongs to ONE account. Deleted account, account switched
-     * between two launches, preferences restored from another install — every one of those lands
-     * here, and without it the app opens a row of a NEIGHBOUR account under the current account's
-     * header. All three forms, because a guard written on the folder arm alone still lets the
-     * unified and unread views through.
      */
     @Test
     fun `a memory of another account is refused, in all three forms`() {
@@ -129,9 +101,6 @@ class SelectionMemoryTest {
 
     /**
      * The unified view has no drawer entry on a single-account install (`InboxScreen` posts it
-     * under `accounts.size > 1`): restored there, it would draw a list the reader cannot leave by
-     * the way they entered it, under a title naming a view the app does not offer.
-     * `selectionIsUnreachable` does NOT cover this — it only ever judges `Sel.Folder`.
      */
     @Test
     fun `the unified view is only restored where the app offers it`() {
@@ -170,8 +139,6 @@ class SelectionMemoryTest {
 
     /**
      * Pins the string RETURNED, not merely whether it is null: a `prunedView` answering `""`, or
-     * answering the removed account's own id back, satisfies an assertNotNull and is still a
-     * memory nobody can read and nobody removed.
      */
     @Test
     fun `a view naming a removed account is forgotten, a survivor's is kept byte for byte`() {
@@ -203,9 +170,6 @@ class SelectionMemoryTest {
 
     /**
      * The FIRST field decides, not a well-formed value. A folder id can hold a line feed — an
-     * IMAP path decoded from modified UTF-7 — so a memory can arrive with FOUR fields, which
-     * [restoreSelection] refuses to reopen and which therefore sat on the disk for ever. It is also
-     * the shape carrying a folder the reader named herself, in cleartext.
      */
     @Test
     fun `a four field memory is pruned on its account like any other`() {
@@ -218,8 +182,6 @@ class SelectionMemoryTest {
 
     /**
      * The removed id is matched as the WHOLE first field, never looked for anywhere in the
-     * string: a folder whose name happens to be a removed account's id must not take a surviving
-     * account's memory down with it.
      */
     @Test
     fun `a removed id sitting in the payload prunes nothing`() {

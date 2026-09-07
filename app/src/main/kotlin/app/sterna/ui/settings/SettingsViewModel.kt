@@ -95,13 +95,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * Both home-screen cells take their colours from this setting, not from the system's night
-     * mode (#117), and nothing else would bring the change to them: their redraw triggers are all
-     * fed by mail and `updatePeriodMillis="0"` means there is no timer by design.
-     * The order is load-bearing, and the same at all three theme setters: the write first and
-     * awaited (both refreshes re-read with `.first()`), then `forget()` before `refresh()`, since
-     * the row factory falls back on timeout to a `RecentWidgetDrawing` holding the old palette,
-     * and both widgets, never one. [UnreadWidgetDraw.refresh] has no `forget()`: it holds no
-     * snapshot.
      */
     fun setPureBlack(enabled: Boolean) {
         viewModelScope.launch {
@@ -343,9 +336,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _appLock.value = value
         // The home screen has no periodic update by design, so without this the latest-messages
         // widget goes on listing senders and subjects until mail next arrives. SECURITY.md promises
-        // the lock silences that widget unconditionally. Both widgets: enlarged, the counter
-        // draws a line per account, whose label falls back to the reader's own mail address, and
-        // flipping the lock moves no count.
         viewModelScope.launch {
             RecentMailWidgetDraw.forget()
             RecentMailWidgetDraw.refresh(getApplication())

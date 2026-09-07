@@ -50,16 +50,6 @@ internal data class RowsGuard(
 
 /**
  * One step of the guard, run on every recomposition. `LazyPagingItems` keeps presenting the previous
- * snapshot until the new one inserts its first page, so on a switch the header flips at once over
- * another folder's mail; `stale` holds the loading indicator meanwhile. First rule that applies:
- * 1. the selection changed — arm, baseline = what is on screen; 2. the rows are provably another
- * selection's — arm. Before the sticky rule: rules 4 to 6 answer "something moved", which the old
- * generation can satisfy by itself; 3. already disarmed — nothing, for ever. Sticky, or the list
- * blanks on every refresh (#63, #23); 4. presented != baseline — disarm; 5. a whole loading cycle
- * ran — disarm, the net for two selections presenting identical rows; 6. the valve elapsed and
- * nothing is loading — disarm; 7. otherwise carry on.
- * It must converge: written and read in the same composition pass, so re-running it on its own
- * output must give an equal object.
  */
 internal fun advanceRowsGuard(
     prev: RowsGuard,

@@ -16,10 +16,6 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Fallback new-mail poll for when live push is down (#11). Android 15+ budgets long-running
- * foreground services and OEM battery managers kill them freely, so a device can silently lose the
- * push connection with nothing to revive it; every ~30 min this diffs each watched account's folders
- * against the same baselines as [PushService]. "Healthy" is judged per account, through
- * [shouldPollInbox]: the service existing says nothing about whether any connection is open.
  */
 class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
@@ -107,23 +103,11 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
 
 /**
  * Does the fallback cycle owe this account's INBOX a poll?
- *
- * [pushConnected] is deliberately per-account and not "is the service running": a connection that
- * fails goes into a retry loop that never gives up and never stops the service, so with every socket
- * dead a single-account install goes unpolled for ever — the case the worker was written for (#11).
- * A linked sub-account (#31) is polled even while its login's connection is open.
- *
- * This can only ADD polls, never remove one. What it can prove is narrow: "connected" means we
- * hold a Closeable we believe is open, so a socket that died without telling us still answers true.
  */
 internal fun shouldPollInbox(pushConnected: Boolean, linked: Boolean): Boolean = !pushConnected || linked
 
 /**
  * With the inbox covered, is there anything left worth a cycle? Only IMAP's watched extras, IDLE
- * signalling the INBOX alone (#16). The `isImap &&` carries something five hops downstream: it
- * makes `pollExtras` always false on JMAP, so a JMAP account reaching the call below always has
- * `pollInbox` true — which is the whole reason `refreshAccountFolders` can state that its JMAP
- * `targets` list is never empty.
  */
 internal fun hasExtrasToPoll(isImap: Boolean, watchedFolders: Set<String>): Boolean =
     isImap && watchedFolders.isNotEmpty()

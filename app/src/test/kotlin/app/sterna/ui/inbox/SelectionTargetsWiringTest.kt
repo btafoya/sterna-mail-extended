@@ -6,30 +6,11 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
- * [SelectAllWiringTest] and [HeldBackDestroyCarriesItsFolderTest]: it reads `InboxViewModel.kt` as
- * text, proves nothing about what happens on screen, and would still pass if the code it points at
- * were broken inside.
- *
- * It exists because [SelectionTargetsTest] RUNS the decision but is handed its inputs by the test,
- * and `InboxViewModel` is an `AndroidViewModel` no JVM test here can instantiate (no Robolectric,
- * no instrumented tests). The two read/unread paths can go back to `repo.cachedEmailsByIds(keys)`
- * in one line — which is the 2026-08-08 bench report: mark read on a search selection acts on the
- * messages that happen to have a cached row and skips the others without acting, failing or saying
- * anything — and every executable test stays green.
- *
- * So it pins the ARGUMENTS, whole and compared as a LIST, never `in`/`contains`: a substring rule
- * accepts anything appended to what it matched, and one of those rewrites is destructive across
- * accounts (a `displayed` argument rebuilt from the current account hands the action another
- * account's message of the same id — ids collide between accounts of one server).
- *
- * What it does NOT do: it reads names, so it can only say a call is written, never that it works.
  */
 class SelectionTargetsWiringTest {
 
     /**
      * The three arguments both paths must hand the shared resolution — the live selection, the
-     * cache answer, and the rows the screen is currently drawing. `displayed` is what makes a
-     * search hit with no local row reachable at all; drop it and the defect is back.
      */
     private val expectedArguments = listOf(
         "keys = keys",
@@ -69,8 +50,6 @@ class SelectionTargetsWiringTest {
 
     /**
      * The cache may only be read AS the `cached` argument. A second, direct read left in either
-     * body is the defect itself wearing the fix as a hat: the resolution runs, and the loop (or the
-     * vote) still walks what the query returned.
      */
     @Test fun `neither path reads the cache anywhere but into the resolution`() {
         for (name in listOf("toggleSelectedRead", "refreshSelectionReadState")) {
@@ -86,12 +65,6 @@ class SelectionTargetsWiringTest {
 
     /**
      * The vote and the loop must be over ALL the targets. Pinned whole-line because the mutation
-     * that matters lengthens these lines: a `.filter { it.folderTrusted }` slipped in front of the
-     * vote makes six unread search hits, selected and marked, stay unread — the icon says one thing
-     * and nothing moves on screen.
-     *
-     * `folderTrusted` has no business in this path at all: nothing here reads the row's
-     * `mailboxId`, so the flag that says whether to believe it can only serve to drop messages.
      */
     @Test fun `the whole selection votes, and the whole selection is written`() {
         val body = body(INBOX_VIEW_MODEL, "toggleSelectedRead")
@@ -116,17 +89,7 @@ class SelectionTargetsWiringTest {
 
     /**
      * The second half of the body, which the rules above never looked at. Each of these three lines
-     * can be rewritten with the resolution left perfectly intact, and each rewrite reopens the
-     * report on its own — so each is pinned WHOLE:
-     *
-     *  - `targetSeen` handed to the write as a constant: "mark unread" stops working everywhere,
-     *    search or not, and the optimistic repaint hides it until the next sync puts the bold back;
-     *  - the icon written as the opposite of what was just sent: the toggle KEEPS the selection, so
-     *    `refreshSelectionReadState` is not replayed and nothing corrects the lie;
-     *  - the dismissal handed an empty list: the notifications of what was just read survive it.
      */
-    // One rule per @Test on purpose: three assertions in one method would let the first failure
-    // hide the other two, and these three lines get mutated one at a time.
 
     @Test fun `the server write carries the direction just decided`() {
         val body = body(INBOX_VIEW_MODEL, "toggleSelectedRead")
@@ -160,13 +123,6 @@ class SelectionTargetsWiringTest {
 
     /**
      * What the user is told, and over what. `status_action_failed` ("Couldn't complete the action")
-     * over a batch where nine of ten went through is the very defect [bulkOutcome] was written to
-     * close on the batched path; the partial wording exists and is translated in all nine locales.
-     *
-     * The counting is the whole rule, hence the arguments pinned whole: `attempted` is the WHOLE
-     * selection and `failed` counts the unresolved keys too. Count `attempted` as the resolved rows
-     * instead and a selection nothing could be resolved for lands on `failed <= 0 -> NONE`, i.e.
-     * back to saying nothing at all.
      */
     @Test fun `a partial failure is told apart from a total one, over the whole selection`() {
         val body = body(INBOX_VIEW_MODEL, "toggleSelectedRead")
@@ -243,8 +199,6 @@ class SelectionTargetsWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text. Fails loudly when the
-     * declaration is not found — a rename must break these rules rather than satisfy them silently
-     * against an empty string.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)
@@ -270,9 +224,6 @@ class SelectionTargetsWiringTest {
 
     /**
      * A call's arguments, one entry each, whitespace normalised: split on the commas at the call's
-     * own depth, so a nested call or lambda keeps its own. This is what lets the rules above
-     * compare arguments WHOLE — the sole defence against a mutation that leaves the pinned text in
-     * place and appends to it.
      */
     private fun arguments(call: String): List<String> {
         val out = mutableListOf<String>()

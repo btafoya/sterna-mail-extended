@@ -8,17 +8,6 @@ import java.util.Locale
 
 /**
  * The reader's blank-space decision (#171), EXECUTED — not re-derived here.
- *
- * The reader draws two OPAQUE Compose layers over the body's WebView (the collapsing header on
- * top, the Reply/Forward bar at the bottom) and reserves their room inside the HTML document. The
- * defect this file pins: the room used to be reserved in CSS pixels, and a CSS pixel is not a
- * screen pixel — a newsletter carrying its own `<meta viewport>` lays out at a scale of its own
- * (measured at the bench: scale 0.600), so the blank painted only 60 % of what the header covers
- * and 218 px of the message were hidden underneath it.
- *
- * [bodySpacerCss] answers in `vh`, the one unit the page scale does not change, and the numbers
- * below are pinned literals — a test that recomputed the ratio would stay green with the shipped
- * formula wrong in exactly the same way.
  */
 class BodySpacerTest {
 
@@ -31,9 +20,6 @@ class BodySpacerTest {
     @Test fun `the reservation is a share of the view, not of one bench device`() {
         // The SAME header height against three different viewports, each pinned as a literal.
         // The bench measured one device; a formula that hard-codes its 2037 px viewport answers
-        // that device correctly and every other one wrong — the emulator, a narrow bench, landscape,
-        // split screen. On a 2400 px view such a formula reserves 449 screen px where the opaque
-        // header covers 538: 89 px of message underneath it, with nothing left to scroll.
         assertEquals("26.4114vh", bodySpacerCss(538, 2037))
         assertEquals("52.8487vh", bodySpacerCss(538, 1018))
         assertEquals("22.4167vh", bodySpacerCss(538, 2400))
@@ -47,9 +33,6 @@ class BodySpacerTest {
         //
         // The other half — that the browser paints those hundredths at the same screen size
         // whatever scale the page laid out at — is a property of Blink, NOT of this code, and no
-        // JVM test can reach it. Writing the browser's model into the arithmetic here and checking
-        // the code agrees with it would prove nothing at all: the scale would cancel before the
-        // assertion. It is measured at the bench (test-plan.md, A1), and nowhere else.
         for ((reserved, viewport) in listOf(538 to 2037, 250 to 2037, 538 to 1018, 96 to 640)) {
             val vh = bodySpacerCss(reserved, viewport).removeSuffix("vh").toDouble()
             assertEquals(

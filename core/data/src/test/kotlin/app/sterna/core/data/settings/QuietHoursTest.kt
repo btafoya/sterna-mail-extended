@@ -7,8 +7,6 @@ import org.junit.Test
 
 /**
  * Whether a mail notification must be posted silently: the quiet-hours window test shared by
- * arriving mail and by a snooze waking up (Codeberg #84 — the wake-up used to ring through
- * the window because it never consulted the setting at all).
  */
 class QuietHoursTest {
 

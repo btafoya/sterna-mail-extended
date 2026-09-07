@@ -10,9 +10,6 @@ import org.junit.Test
 
 /**
  * An IMAP account could never obtain a UnifiedPush address: [UnifiedPushManager.ensureRegistered]
- * returned on the protocol, and the endpoint path spoke JMAP to the mail server whatever the
- * account was. Both decisions now live in [RelayPush], and this file EXECUTES them: no rule is
- * restated here, every expectation is a literal.
  */
 class RelayPushTest {
 

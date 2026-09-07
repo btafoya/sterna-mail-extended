@@ -19,28 +19,6 @@ import org.junit.Test
 
 /**
  * **The bound on ONE deferred attempt at a draft** (#95), EXECUTED — never read off the source.
- *
- * The measurement behind it: 6 min 29 spent waiting for the account's IMAP mutex behind a
- * `loadFolder` retrying under `runWithRetry`. The row sat `UPLOADING`, `attemptCount` frozen at its
- * old value, `lastError` null, `notBeforeMillis` never moved — and the per-read budget
- * ([LOCAL_DRAFT_UPLOAD_BUDGET_MS]) had not started, because the attempt never got the session it
- * would have bounded the reads of. Two primitives had already been bounded one at a time (the read,
- * the session exit); the third one said the list has no end, so the bound moved a level up.
- *
- * **`withTimeout` throws a `TimeoutCancellationException`, which IS a [CancellationException].**
- * That is the whole risk of this volet and it is what these tests are for: left raw, it is read by
- * [uploadLocalDraftOnce] as "the worker is being stopped", rethrown untouched, and the row is left
- * in exactly the state that was measured — under a surface that now looks bounded. So three things
- * are executed here and not one:
- *  - an attempt that never returns comes back, IN its budget, as an ordinary failure the row records;
- *  - an attempt that finishes inside its budget is not touched (the witness);
- *  - a REAL cancellation still comes out as a cancellation (the other witness) — it is what makes
- *    `uploadLocalDraftRebooking` re-book the stopped run.
- *
- * Real time, `runBlocking`, and NOT `runTest`: a virtual clock would advance to the deadline
- * whatever the code did with it, so the bound would be pinned by the scheduler rather than by the
- * shipped function. [BUDGET_MS] is a second so a passing run costs seconds, not the shipped five
- * minutes — the value that actually ships is pinned separately, as a hard-coded couple.
  */
 class LocalDraftAttemptIsBoundedTest {
 
@@ -79,12 +57,6 @@ class LocalDraftAttemptIsBoundedTest {
 
         // A WINDOW AROUND THE BUDGET, not "some day this century". This is the only assertion in
         // the suite that ties the constant handed in to the deadline actually installed: the expiry
-        // message is built from the PARAMETER, so `withTimeout(budgetMs * 3)` inside
-        // [withLocalDraftAttemptBudget] keeps the right words and the right exception type and is
-        // invisible everywhere else — while the effective bound becomes fifteen minutes, i.e. ABOVE
-        // the ten at which WorkManager stops the worker, so it never fires, `record` never runs and
-        // the row is left UPLOADING with no counter and no backoff. That is the measured symptom,
-        // whole, under a surface that looks bounded.
         assertTrue(
             "⛔ the call has to come back ON ITS BUDGET — the block never returns by itself, so " +
                 "$elapsed ms is the deadline that was really installed for a ${BUDGET_MS} ms " +
@@ -151,9 +123,6 @@ class LocalDraftAttemptIsBoundedTest {
     @Test fun `a worker really stopped still comes out as a cancellation, not as a failed attempt`() = runBlocking {
         // The other witness, and the one mutation that is invisible everywhere else: catching
         // CancellationException in general instead of the expiry alone. WorkManager stopping the
-        // worker would then be written on the row as a failed attempt — pushing the backoff out for
-        // a draft nothing is wrong with — and, worse, the stop would never reach
-        // `uploadLocalDraftRebooking`, which is the only thing that re-books a stopped run.
         //
         // REALLY cancelled, not a CancellationException thrown by hand: the budget here is ten
         // minutes, so nothing but the cancellation can end this attempt.
@@ -189,15 +158,9 @@ class LocalDraftAttemptIsBoundedTest {
     @Test fun `a stop landing WHILE the expiry is being written down still writes it`() = runBlocking {
         // THE case the test above cannot see: it cancels BEFORE the deadline, so the attempt never
         // reaches `record` at all. Here the two are IMBRICATED, and they arrive together by
-        // construction — the worker runs under a network constraint, so losing the network is at
-        // once the likeliest reason the attempt ran out of time AND WorkManager's own reason to stop
-        // the worker. Between the throw and the Room write landing, the job is cancelled.
         //
         // Without `NonCancellable` around that write, `record` throws at its first suspension point
         // and NOTHING is written: no counter, no cause, no backoff — the row stays UPLOADING and the
-        // ordinary failure has been requalified as a stop, which is the symptom this volet exists to
-        // remove. Nothing else in the suite can see it: the row is a Room write and every other test
-        // records into a list that never suspends.
         val row = row()
         val writing = CompletableDeferred<Unit>()
         val letTheWriteFinish = CompletableDeferred<Unit>()

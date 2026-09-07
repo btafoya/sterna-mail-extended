@@ -7,11 +7,6 @@ import org.junit.Test
 
 /**
  * Which folder a JMAP archive falls back on when NO folder carries the `archive` role — the
- * decision RUN, with its arguments pinned. It used to be a `private val` + a `filter` inside
- * `MailRepository`, i.e. a rule no JVM test could reach (Room + a `Context` + a socket).
- *
- * Every case EXECUTES [archiveFolderByName]. None reads [ARCHIVE_FOLDER_NAMES] back: a test that
- * replays the shipped table proves only that the table equals itself.
  */
 class ArchiveFolderByNameTest {
 

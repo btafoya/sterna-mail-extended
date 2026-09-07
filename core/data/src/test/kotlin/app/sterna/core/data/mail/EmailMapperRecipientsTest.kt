@@ -12,12 +12,6 @@ import org.junit.Test
 
 /**
  * The `To:` recipients survive the cache (#63).
- *
- * A Sent/Drafts row shows who the mail went TO rather than its own sender (#59). Until schema v17
- * those addresses lived in a process-lifetime memo, so a row rendered from a cold cache fell back
- * to the sender and was corrected once the server copy arrived — the flicker #63 reported. They are
- * now a column, so the mapper must write them on the way in and replay them on the way out with no
- * network copy involved.
  */
 class EmailMapperRecipientsTest {
 

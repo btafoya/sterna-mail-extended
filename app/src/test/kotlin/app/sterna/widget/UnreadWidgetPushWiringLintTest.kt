@@ -6,29 +6,11 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
- * [app.sterna.ui.inbox.UnifiedUnreadWiringLintTest] and [UnreadWidgetDeclarationTest]. The decision
- * itself is EXECUTED, next door, by [UnreadWidgetPushTest]: it runs `UnreadWidgetPush.redraws` and
- * pins when the count is asked for. This file holds the one thing that test cannot see — where the
- * shipped app actually plugs it in, and what it plugs in.
- *
- * Neither end can be built in this suite: `AppContainer` wants a `Context`, the Keystore and a
- * database; `FetchAndNotify.run` wants all of that plus a server. There is no Robolectric here.
- *
- * Whole lines, never a `contains`: a substring rule is satisfied by every mutation that LENGTHENS
- * the line. The price is that reformatting either call reddens this test — loud, and one line to fix.
  */
 class UnreadWidgetPushWiringLintTest {
 
     /**
      * The case the app-scoped collection cannot cover: a process the DELIVERY woke. Mail lands, the
-     * banner goes up, nobody opens the app — and the widget keeps the number it was last drawn with.
-     * `FetchAndNotify.run` is the funnel every arrival goes through (live push, UnifiedPush, the
-     * fallback poll, the foreground refresh), so the redraw sits at the end of it.
-     *
-     * Pinned as the LAST lines of `run`, not merely as lines somewhere in the file: the position is
-     * half the claim. Inside the `try`, a cancellation coming out of the redraw would be caught by
-     * the `AccountGoneException` arm and logged as a sign-out that never happened; before the
-     * notifications, a failed draw could cost one.
      */
     @Test fun `the delivery pass redraws BOTH widgets, last, and outside its sign-out arm`() {
         assertEquals(
@@ -53,23 +35,6 @@ class UnreadWidgetPushWiringLintTest {
 
     /**
      * The other half: everything that moves while the process LIVES — a message read, a swipe, a
-     * delete, a multi-select, a push arriving with the app open. One collection instead of the
-     * fifteen-odd write sites in `MailRepository` that would each have to be wired by hand.
-     *
-     * And it is GATED. The whole block is pinned, not just the launch, because the gate is what
-     * keeps this from being paid by every install: `UnreadWidgetPush.redraws(…)` collected on a
-     * flow that is not `UnreadWidgetPresence.placed(…)` — a `flowOf(true)`, say — compiles, keeps
-     * every other test in this repository green, and subscribes two global Room aggregates for the
-     * life of every process on earth for a widget nobody placed.
-     *
-     * THE SECOND ARGUMENT IS PART OF THE RULE. `accountStore.accountsFlow` is what carries the
-     * account COUNT, and the cell's label and tap target are both decided on it
-     * ([AllInboxesView]); the breakdown cannot report it, being keyed on
-     * `UnifiedInbox.countedInboxes`, which drops any account whose `inboxId` is still null — how an
-     * imported account is written until it is signed in. Handed a `flowOf(emptyList())` instead, or
-     * dropped, this compiles and the cell keeps a name the app no longer has, with no timer to
-     * catch it (`updatePeriodMillis="0"`). [UnreadWidgetPushTest] executes the decision; only this
-     * rule sees which flow the shipped app hands it.
      */
     @Test fun `AppContainer collects the push, gated on a widget being placed`() {
         assertEquals(
@@ -98,18 +63,6 @@ class UnreadWidgetPushWiringLintTest {
 
     /**
      * THE GATE'S THREE WRITERS, whole lines, because two of them are `override fun`s the system
-     * calls and nothing in this suite can invoke.
-     *
-     * [anyWidgetPlaced] is executed by `UnreadWidgetPresenceTest`, and so is `set`. What no test in
-     * a JVM can reach is whether the PROVIDER still hands those calls the right argument, or hands
-     * them at all. Delete `onDisabled`, or make it `set(true)`, and the app goes on collecting the
-     * unified total for the life of every process after the user removed their last cell — the one
-     * expense this whole mechanism exists to refuse, invisible on screen, and green everywhere else.
-     * Delete `onEnabled` and a cell placed on a running process never starts following the mail.
-     *
-     * The seed is pinned for the same reason with one twist: it is the only line that turns the
-     * widget manager's answer into the gate's, and inverting it there (`!anyWidgetPlaced(…)`) breaks
-     * both directions at once without touching a function any test runs.
      */
     @Test fun `the provider opens and closes the gate, and the seed reads it the right way round`() {
         assertEquals(
@@ -181,8 +134,6 @@ class UnreadWidgetPushWiringLintTest {
 
     /**
      * The code lines of the function opening with [signature], its own closing brace excluded, so a
-     * rule can pin what the function ENDS with. Fails loudly when the signature is gone: a rename
-     * must redden the rule rather than satisfy it against an empty list.
      */
     private fun functionBody(file: File, signature: String): List<String> {
         val lines = codeLines(file)
@@ -204,11 +155,6 @@ class UnreadWidgetPushWiringLintTest {
 
     /**
      * The whole brace-balanced block that opens with [opener] and contains [marker] — the launch
-     * and everything under it, so a rule pins the collection AND what it is collected from.
-     *
-     * Deliberately returns an empty list when [marker] is nowhere in the file: dropping the block
-     * is the mutation the caller exists to catch, and an assertion that shows the expected lines
-     * against `[]` says more than an exception would.
      */
     private fun blockContaining(file: File, marker: String, opener: String): List<String> {
         val lines = codeLines(file)

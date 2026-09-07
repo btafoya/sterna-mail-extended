@@ -8,11 +8,6 @@ import org.junit.Test
 
 /**
  * Executes the two decisions the provider PICKER rests on: which package a stored choice resolves
- * to, and whether an already-bound connection may serve the next call.
- *
- * Every expectation is written out by hand. A test that calls `preferredDefault` (or re-derives the
- * fallback any other way) to know what to expect is a copy of the rule and stays green when the
- * rule is inverted — which is exactly the mutation this file exists to catch.
  */
 class PgpProviderChoiceTest {
 

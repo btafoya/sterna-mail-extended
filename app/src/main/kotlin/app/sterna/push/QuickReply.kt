@@ -5,8 +5,6 @@ import app.sterna.ui.compose.replyRecipient
 
 /**
  * What is to become of the text typed into a new-mail notification's reply field. That text exists
- * in exactly one place — the broadcast intent carrying it — so there are only two honest ends,
- * [Send] and [HandBack], plus "there was no text". Anything else is a message the app ate.
  */
 sealed interface QuickReplyOutcome {
     /** Nothing was typed: nothing to queue, nothing to give back, and the notification stays. */
@@ -29,12 +27,6 @@ sealed interface QuickReplyAct {
 
 /**
  * The decision AFTER the attempt, and the one that has to be a function: which way round these two
- * ends go is the whole bug, and no source lint can hold it — swapped by hand, the wiring still reads
- * correct while a successful send raises a false "not sent" and a failed one wipes the text.
- *
- * [queued] means the Outbox accepted the text, so it is durable from that moment and only then may
- * the notification be taken down. Not queued means the text exists nowhere else, so it is handed
- * back AND the notification stays — it is the second copy.
  */
 fun quickReplyAct(outcome: QuickReplyOutcome, queued: Boolean): QuickReplyAct = when (outcome) {
     QuickReplyOutcome.Ignore -> QuickReplyAct.DoNothing
@@ -45,11 +37,6 @@ fun quickReplyAct(outcome: QuickReplyOutcome, queued: Boolean): QuickReplyAct = 
 
 /**
  * The decision, pure: no network, no Android, no repository. [cached] is null when the local cache
- * holds no row for the message, which is a case to HANDLE — a notification does not imply a cached
- * message, and one that offers Reply does not imply a sender either.
- *
- * The recipient is chosen by [replyRecipient], the composer's own function, so the change coming to
- * it must be made once.
  */
 fun quickReplyOutcome(text: String?, cached: Email?): QuickReplyOutcome {
     if (text.isNullOrBlank()) return QuickReplyOutcome.Ignore

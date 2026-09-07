@@ -7,22 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
- * [OutboxCountWiringTest] and [ConversationScopeWiringTest]: it reads source files as text, proves
- * nothing about what happens on screen, and would still pass if the code it points at were broken
- * inside.
- *
- * It exists because [SelectAllKeysTest] runs the decision but is handed its inputs by the test.
- * `selectAll()` can go back to `repo.cachedIds(currentScopes())` in one line, with #126 reopened
- * and every behaviour test still green, and `InboxViewModel` is an `AndroidViewModel` that no JVM
- * test here can instantiate — no Robolectric, no instrumented tests. Reading the source is what is
- * left, and it pins the ARGUMENTS, because a call to `selectAllKeys(...)` handed `results = null`
- * is still a call and still selects the whole folder.
- *
- * The last rule is the one that earns the file: it reads the SCREEN's predicate, so that changing
- * how the screen decides to draw the result list without changing how the selection decides to take
- * it reddens here instead of silently making the two disagree.
- *
- * What it does NOT do: it reads names, so it can only say a call is written, never that it works.
  */
 class SelectAllWiringTest {
 
@@ -52,10 +36,6 @@ class SelectAllWiringTest {
         checkNotNull(call) { "selectAll() must contain exactly one selectAllKeys(...) call" }
         // WHOLE arguments, compared as a list — not substrings. A substring rule accepts anything
         // written after what it matched, and one of those rewrites is destructive across accounts:
-        // `results = search.results?.map { EmailKey(store.currentId(), it.id) }` still contains
-        // "results = search.results", and it hands the bulk action a key pointing at THIS account's
-        // message of that id — the local index is not account-filtered and ids collide between
-        // accounts of one server, so a message from another account, never seen, is deleted.
         assertEquals(
             "selectAllKeys(...) must be handed exactly these arguments, whole. Arguments were:\n$call",
             listOf(
@@ -66,9 +46,6 @@ class SelectAllWiringTest {
                 "complete = search.complete",
                 // The folder read, minus the server rows a local draft is standing in for (#95):
                 // those are taken OUT of the list but are still filed in `emails`, so the read
-                // hands them over like any other and the bulk action would reach a message that
-                // was never on screen — #126 re-opened from the app's own side. The subtraction
-                // wraps the read rather than replacing it: `filtered` still has to be in there.
                 "folderKeys = selectableKeysMinusHidden(repo.selectableIds(currentScopes(), filtered), hidden)",
             ),
             arguments(call),
@@ -78,15 +55,9 @@ class SelectAllWiringTest {
     @Test fun `the folder branch is read through the list's own filter`() {
         // The second half of #126: the navigation list is filtered in SQL by "unread only", so the
         // selection must be too, or the funnel plus Select all plus delete moves read mail that was
-        // never on screen to the Trash. `filtered` must be what the LIST was built with — a call
-        // handed `false` satisfies the argument rule above only if that constant is written there,
-        // and this rule is what makes writing it impossible.
         //
         // It used to demand the raw funnel (`val filtered = unreadOnly.value`), and that stopped
         // being the list's filter when a third scope arrived: `Sel.Unread` forces the filter on
-        // whatever the funnel says, so the raw read reopened #126 by construction. The one source
-        // both the pager and this read now ask is `listUnreadOnly`, executed in ListUnreadOnlyTest
-        // and wired-checked whole-line in PageKeyWiringLintTest.
         val body = body(INBOX_VIEW_MODEL, "selectAll").replace(Regex("""\s+"""), " ")
         assertTrue(
             "selectAll() must take the list's own unread filter from listUnreadOnly(selection.value, " +
@@ -120,10 +91,6 @@ class SelectAllWiringTest {
         //
         // Anchored on the BRANCH, and compared WHOLE-LINE, for two reasons the auditors proved:
         //  - the same `val searchActive = …` line exists elsewhere in the file (a scroll
-        //    LaunchedEffect), so a file-wide substring rule can be satisfied by the wrong one while
-        //    the list's own predicate has changed;
-        //  - a substring rule accepts a conjunct appended to it — `&& !selectionActive` is the
-        //    obvious one, and it draws the folder while the selection holds the search results.
         val lines = codeLines(INBOX_SCREEN).map { it.trim() }
         val branch = "searchActive -> when (searchDisplay(ui.searchResults.size, ui.searchLoading, ui.searchComplete)) {"
         val at = lines.indexOfFirst { it == branch }
@@ -175,9 +142,6 @@ class SelectAllWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text: everything up to the
-     * first line indented no deeper than the declaration, once the declaration's own brackets have
-     * closed. Fails loudly when the declaration is not found — a rename must break these rules
-     * rather than satisfy them silently against an empty string.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)
@@ -203,9 +167,6 @@ class SelectAllWiringTest {
 
     /**
      * A call's arguments, one entry each, whitespace normalised: split on the commas that are at
-     * the call's own depth, so a nested call or lambda keeps its own. This is what lets the rules
-     * above compare arguments WHOLE — the sole defence against a mutation that leaves the pinned
-     * text in place and appends to it.
      */
     private fun arguments(call: String): List<String> {
         val out = mutableListOf<String>()

@@ -6,15 +6,6 @@ import java.io.File
 
 /**
  * READ AS SOURCE TEXT — the last resort, and only for what nothing in this module can run.
- *
- * `ScheduledSendCancelTest` EXECUTES the decision; it cannot see whether the ViewModel calls it, on
- * which scope, or with which arguments, because `ScheduledSendsViewModel` is an `AndroidViewModel`
- * and this module has neither Robolectric nor AndroidX Test. So three things are read here, and
- * compared as WHOLE lines or as parsed arguments — never `contains`, which is blind to any mutation
- * that lengthens the line.
- *
- * NOT covered: that `appScope` really outlives the screen (that is `SternaApplication`), and
- * anything about how the snackbar is shown.
  */
 class ScheduledCancelScopeWiringTest {
 
@@ -60,14 +51,6 @@ class ScheduledCancelScopeWiringTest {
 
     /**
      * Every argument, by name AND by value, in ONE comparison.
-     *
-     * Pinning the key SET plus a chosen few values is what this rule used to do, and a review
-     * killed it with one edit: `body = d.subject`. The key `body` is still there, the suite stays
-     * green everywhere — `ScheduledSendCancelTest` never instantiates this ViewModel and answers
-     * for the test seam, not for `repo.saveDraft` — and in production cancelling files a draft
-     * whose body is the subject line. That is the reported defect (#170) with a snackbar claiming
-     * the opposite. Nothing executable in this module can see these values, so they are pinned
-     * whole, here, or nowhere.
      */
     @Test fun `every field of the row reaches saveDraft, by name and by value`() {
         val save = callsOf(bodyOf(VIEW_MODEL, "cancel"), "repo.saveDraft(").single()
@@ -111,19 +94,6 @@ class ScheduledCancelScopeWiringTest {
 
     /**
      * A `null` from `credentials` is not proof the account is gone, and the proof is the caller's
-     * to fetch: `AccountStore.credentials` answers null for a secret that will not decode, and
-     * `accounts()` answers an EMPTY list when the blob cannot be read — which is precisely what
-     * `accountsUnreadable()` was built to say (`AccountStore`). Without BOTH halves, a
-     * rotated Keystore key deletes the only copy of a scheduled message and the screen announces
-     * that the account is gone.
-     *
-     * What is pinned here is that this lambda DELEGATES: it hands the two verdicts to
-     * `accountDepartureIsProven`, whose four answers `AccountDepartureProofTest` executes. The rule
-     * used to be written out as an expression right here, where nothing in this module can run it —
-     * and the same expression is owed, word for word, by the worker that fires these messages, so
-     * an edit to one copy left the other saying the opposite. The ARGUMENTS are pinned too, not
-     * only the call: `accountStillListed` fed by `none {}` instead of `any {}` inverts the proof
-     * while every executed rule stays green.
      */
     @Test fun `the account-gone proof is delegated, with both halves, to the executable rule`() {
         val call = callsOf(bodyOf(VIEW_MODEL, "cancel"), "cancelScheduledSend(").single()
@@ -139,9 +109,6 @@ class ScheduledCancelScopeWiringTest {
 
     /**
      * The row leaves the screen only after `saveDraft` returns, and that call attempts the upload
-     * inline: on a dropped socket the X stays on screen, tappable, for seconds. A second tap
-     * re-reads the same row and files it again under a fresh local draft id (`replacesEmailId` is
-     * null by design, so nothing joins the two) — the same message twice in Drafts.
      */
     @Test fun `a second tap on the same row cannot start a second cancellation`() {
         val body = codeLines(bodyOf(VIEW_MODEL, "cancel"))

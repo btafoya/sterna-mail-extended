@@ -33,9 +33,6 @@ object DataFactory {
         settings: SettingsRepository? = null,
         /**
          * `BuildConfig.VERSION_NAME` of `:app`, handed down to [ImapClient] so it can name itself
-         * to an IMAP server (RFC 2971 `ID`, Codeberg #173). Defaulted like every optional argument
-         * above it: `core/data` has no BuildConfig of its own, and a caller that says nothing gets
-         * the name without a version.
          */
         clientVersion: String? = null,
     ): DataLayer {

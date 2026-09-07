@@ -18,10 +18,6 @@ internal fun numberingStampsCover(awaited: Set<EmailKey>, published: Map<EmailKe
 
 /**
  * The stamps of the tick for [awaited], waiting — bounded — for the read started at the tick to be
- * published (#99, #189). A barrier, never a re-read: a re-read is the realigned number, so a
- * folder renumbered since the tick would be compared with itself and agree. The fallback is the
- * map frozen on entry, never `published.value` at the timeout, which is empty after "Select all" +
- * Move + Back and has the repository refuse every row: the gesture fails, it does not destroy.
  */
 internal suspend fun tickedNumberingWhenCovered(
     awaited: Set<EmailKey>,

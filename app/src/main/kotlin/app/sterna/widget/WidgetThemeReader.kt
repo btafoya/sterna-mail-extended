@@ -20,25 +20,6 @@ internal object WidgetThemeReader {
 
     /**
      * EVERYTHING one reading of the colours learns — the palette override to post and the badge
-     * tones — or NULL, meaning the read never answered.
-     *
-     * Two kinds of null, and not the same claim: THIS FUNCTION returning null means the read
-     * TIMED OUT, nothing known and no badge drawn; [WidgetColours.palette] being null means
-     * [widgetFollowsResources], where posting nothing leaves the launcher re-resolving `-night` at
-     * every inflation. That second one no longer short-circuits the function — it decides the
-     * PALETTE FIELD alone, or it would take the badge tones with it, and a BITMAP has no resource
-     * behind it.
-     *
-     * [withTimeoutOrNull] and never `withTimeout`: three DataStore reads answer late on a cold
-     * process, and this runs inside a `goAsync()` window whose `PendingResult` must be finished and
-     * at the tail of `FetchAndNotify.run`, where a CancellationException becomes a cancelled mail
-     * delivery.
-     *
-     * All three settings are READ every draw and none may become a constant: the widget used to
-     * take its colours from the SYSTEM's night mode, so an app forced to light got a dark cell
-     * (#117). The night mode comes from `UI_MODE_NIGHT_MASK`, `AppCompatDelegate` never being
-     * called here. `dynamicColor &&` is not decoration: a cell following the wallpaper while the
-     * app wears its own palette is the same defect inside out.
      */
     suspend fun colours(app: Application): WidgetColours? = withTimeoutOrNull(PALETTE_TIMEOUT_MS) {
         val settings = app.container.settingsRepository

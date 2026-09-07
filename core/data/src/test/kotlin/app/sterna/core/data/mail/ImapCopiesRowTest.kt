@@ -11,15 +11,6 @@ import org.junit.Test
 
 /**
  * The end of the IMAP road: the envelope's copies have to land in the CACHE ROW.
- *
- * The IMAP side builds its own [app.sterna.core.data.db.EmailEntity] — it never has a JMAP `Email`,
- * so it cannot go through [EmailMapper.toEntity]. The two copies of that mapping have to agree
- * column by column, and this is the one a new column gets forgotten in: a JMAP account would then
- * keep the people in copy on a reopened draft while an IMAP account drops them, and whoever tests
- * on one account sees nothing.
- *
- * Four DIFFERENT addresses (From, To, Cc, Bcc) in every case: a fixture whose fields look alike
- * passes just as happily on a mapper that stores the neighbouring list.
  */
 class ImapCopiesRowTest {
 
@@ -142,11 +133,6 @@ class ImapCopiesRowTest {
 
     /**
      * THE ONE-SIDED SHAPE THAT LEAKS: nobody in Cc, somebody in Bcc — a message this account
-     * blind-copied, dropped in the folder by another client, whose `Bcc:` header the ENVELOPE
-     * therefore does state. The three shapes above ((full, full), (empty, empty), (full, empty))
-     * are all fixed points of `cc.ifEmpty { bcc }`, so without this case a mapper that falls back
-     * to the neighbouring list passes the whole class — and the hidden address then comes back in
-     * the composer's visible Cc row and leaves again on the next reply-all.
      */
     @Test
     fun `a bcc without a cc stays out of the visible column`() {

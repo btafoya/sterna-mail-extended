@@ -7,20 +7,6 @@ import org.junit.Test
 
 /**
  * A folder Sterna creates is a folder Sterna subscribes to (#174).
- *
- * Direct consequence of the panel that hides unsubscribed folders: an IMAP `CREATE` does NOT
- * subscribe (RFC 3501 §6.3.3 says nothing of the subscription list), so with the setting on the
- * folder the user has just created vanishes from the drawer the instant it appears. Measured
- * against a real server on 2026-08-25.
- *
- * The scope of this, and it is deliberate: **Sterna does not drive subscriptions.** No
- * `UNSUBSCRIBE` anywhere, no `SUBSCRIBE` on any other path, no subscription control on screen.
- * The only mailbox it ever subscribes to is the one it created itself, at the moment it creates
- * it.
- *
- * Read on the WIRE, never from the client's own encoder: what the tests below oppose is
- * "the second command names the same mailbox as the first", and a test that re-derived the
- * encoded name through [encodeModifiedUtf7] would be copying the code it is meant to watch.
  */
 class CreatedFolderIsSubscribedTest {
 
@@ -41,8 +27,6 @@ class CreatedFolderIsSubscribedTest {
 
     /**
      * T1 — the two commands, in that order. Order is asserted because it is the useful one: a
-     * SUBSCRIBE sent BEFORE the CREATE is at the mercy of a server that validates the name
-     * (RFC 3501 §6.3.6 lets it), and would then be refused on exactly the folder it is for.
      */
     @Test
     fun `creating a folder subscribes to it, in that order`() {

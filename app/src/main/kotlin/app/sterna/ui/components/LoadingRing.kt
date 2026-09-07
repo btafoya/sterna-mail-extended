@@ -17,15 +17,6 @@ import app.sterna.ui.rememberMotionEnabled
 
 /**
  * The centred "this screen is still loading" ring.
- *
- * Material 3's indeterminate arc lengthens and shortens as it turns, and with the system animation
- * scale at 0 what is left on screen is a few pixels of stroke that no longer read as a loading
- * indicator at all — that is what the reporter filmed (#63). Why Compose leaves it in that state has
- * not been isolated here, and nothing below depends on the answer.
- *
- * So when motion is off the ring is drawn DETERMINATE at a full turn: one whole, still circle. What
- * it says OUT LOUD stays indeterminate in both branches — a full turn is how the ring is drawn,
- * never a claim that the load is finished.
  */
 @Composable
 fun LoadingRing(
@@ -42,11 +33,6 @@ fun LoadingRing(
         //
         // The wrapping Box is not decoration — it is what the ring ANNOUNCES. The determinate
         // overload publishes ProgressBarRangeInfo(1f, …) of its own accord, so a screen reader
-        // would read "100 %" over a load still running, and precisely to the people who switched
-        // animations off. `clearAndSetSemantics` replaces every descendant's semantics with one
-        // Indeterminate node; a semantics{} on the indicator's own modifier would instead sit as a
-        // sibling of Material 3's internal progressSemantics(), and which wins this module cannot
-        // prove.
         //
         // SIZE: the caller's modifier goes on the Box, and Material 3's own `.size(40.dp)` on the
         // indicator is enforced against the incoming constraints, so it lands wherever the caller
@@ -72,10 +58,6 @@ internal const val LOADING_RING_REST_TURN = 1f
 
 /**
  * How much of the ring to draw, or `null` to let Material 3 run its own indeterminate animation.
- * The decision lives out here, and is executed by `LoadingRingTest`, because [LoadingRing] itself
- * cannot be run in this module. Answer `null` with animations off and the loading screens go back
- * to the unreadable fragment of #63; answer a turn with them on and every screen freezes into a
- * static ring that no longer distinguishes "working" from "stuck".
  */
 internal fun loadingRingProgress(motionOn: Boolean): Float? =
     if (motionOn) null else LOADING_RING_REST_TURN

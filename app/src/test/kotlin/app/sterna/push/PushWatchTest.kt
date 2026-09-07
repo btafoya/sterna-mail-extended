@@ -9,28 +9,6 @@ import java.io.File
 
 /**
  * Issue A8: the per-account new-mail toggle and its status line must be honest about which accounts
- * are actually watched. Both the foreground service and the 30-minute fallback worker watch
- * `pushAll ? all : [current]`, so an account that is neither the current one nor covered by push-all
- * is watched by nothing — [PushController.isWatched] is the pure decision behind greying the toggle
- * and showing [PushStatus.NotWatched] instead of a 30-minute poll that never runs. Linked
- * sub-accounts are handled by the caller (they stay [PushStatus.Periodic]) and are not this function.
- * [PushController.shouldShowUnwatchedNote] is the same question asked for the note under the toggle,
- * which promises a single action and so may only appear where a single action is enough.
- *
- * The second part covers [isCarriedByOpenConnection] (issue #61): once an account IS watched, the
- * status line still has to find the connection that carries it, and connections are keyed by login,
- * not by account. The third asks the same question for the 30-minute fallback poll
- * ([shouldPollInbox]), which used to read a process-wide "is the service running" flag instead.
- * The fourth ([shouldResetBaseline], [seedsSilently]) decides which accounts a user-initiated arm
- * may reseed silently.
- *
- * KNOWN GAP, stated rather than papered over: every test here is a pure decision function. Nothing
- * exercises the code that CALLS them — `MailFetchWorker.doWork`, `PushService.watch`,
- * `PushController.apply`, `InboxViewModel` — because each needs an Android Context, a service or a
- * WorkManager, and this module has no Robolectric. Both defects these functions were extracted from
- * were wiring defects, so the gap is exactly where the bugs were: negating an argument at a call
- * site, or passing the wrong one, leaves every test below green. The call sites are covered by
- * reading and by the on-device bench, not here.
  */
 class PushWatchTest {
 
@@ -58,11 +36,6 @@ class PushWatchTest {
     //
     // Same issue A8, one step further into the screen. The note under the toggle says "turn on Push
     // for all accounts" and nothing else, which is the whole truth only while this account's own
-    // notifications flag is still on. With that flag already off the state needs TWO actions, the
-    // note promised one, and the toggle carrying the second was greyed out at the same time: the
-    // screen asked for something and forbade doing it. [PushController.shouldShowUnwatchedNote] is
-    // the pure decision that keeps the note away from that state; the greying is gone, so ticking
-    // the toggle moves the screen into the state the note describes and the note comes back.
     //
     // Expected values are written out, never recomputed from the same expression as the function.
 
@@ -108,14 +81,6 @@ class PushWatchTest {
 
     /**
      * The parameter ORDER, which the named calls above are blind to: three arguments of the same
-     * type, so permuting the declaration would leave them green while the positional call site in
-     * SettingsScreen starts reading the account's own flag as "is linked". One `true` among two
-     * `false`s, passed positionally, plus two witnesses that pin where the `true` may not sit: any
-     * permutation that moves it out of the third slot turns one of the three red.
-     *
-     * Swapping the first two parameters with each other is the one permutation nothing here turns
-     * red, and it does not need to: the body negates both and ANDs them, so that swap is symmetric
-     * and changes no answer. Said rather than left to be rediscovered as a hole.
      */
     @Test fun `the unwatched note reads its arguments in the declared order`() {
         assertTrue(PushController.shouldShowUnwatchedNote(false, false, true))
@@ -125,30 +90,6 @@ class PushWatchTest {
 
     /**
      * SOURCE RULE, and the weakest test of this section — same reason as the [PushService] ones far
-     * below: the call site is a `@Composable` in a screen that needs a Context, a ViewModel and a
-     * Compose runtime, and this module has no Robolectric, so the wiring is pinned by reading it.
-     * Statements, in order, comments and blanks removed, never a substring: a `contains` check is
-     * blind to anything APPENDED to the line it looks at, which is exactly how `enabled = …` would
-     * come back.
-     *
-     * Two things are pinned here and both were defects. The `SettingSwitch(…)` call is read WHOLE,
-     * so re-adding an `enabled = !watched`-style argument — the greying that made the note's own
-     * instruction impossible to follow — turns this red. And the note's condition is read whole,
-     * with its three arguments, so dropping the account's own flag from it (the original one-action
-     * promise) is visible too.
-     *
-     * The window runs one statement PAST the condition, as far as the `Text(` it guards, so the
-     * note cannot be smothered by a second condition nested inside the first — which would leave
-     * every statement above it untouched and the note permanently invisible.
-     *
-     * Its weakness, stated: it reads a WINDOW of statements after the section marker, so it says
-     * nothing about code further down that section (the status line and below), and nothing about
-     * the values those arguments carry at runtime. In particular `viewModel.isWatched(accountId)`
-     * is pinned as TEXT: [AccountsViewModel.isWatched] could be made to return a constant and
-     * nothing in this module would notice — the known call-site gap this class documents at the
-     * top, not a new one. It also breaks on innocent reformatting — that is the price of reading
-     * text instead of running it, and why the decision itself lives in a pure function that the
-     * tests above execute.
      */
     @Test fun `the notifications section leaves the toggle live and asks the note for all three`() {
         assertEquals(
@@ -172,10 +113,6 @@ class PushWatchTest {
 
     /**
      * The first [count] statements of the account screen's Notifications section, trimmed, with
-     * comments and blank lines dropped. Bounded by a window rather than by a closing brace: this is
-     * a deeply nested Compose file where the section's own `}` shares its indentation with a dozen
-     * others. Fails loudly if the marker is not there exactly once, so a renamed or duplicated
-     * section can never turn this rule into a no-op.
      */
     private fun notificationsSectionStatements(count: Int): List<String> {
         val marker = "SettingsSection(stringResource(R.string.settings_account_notifications_section)) {"
@@ -195,10 +132,6 @@ class PushWatchTest {
     //
     // The service holds one connection per LOGIN and groups the accounts under it (issue #31), so
     // the open-connection map is keyed by login id while the status line asks with an account id.
-    // Every test below whose account is grouped under another login fails on the pre-fix tree,
-    // where the lookup was `connections.containsKey(accountId)` with no resolution step: a grouped
-    // sub-account matched nothing, and the service being up turned that miss into "connecting…"
-    // for as long as it ran.
 
     /** "sub" is a shared mailbox reached through login "login"; the login's socket is open. */
     private val grouped = mapOf("login" to "login", "sub" to "login")
@@ -236,9 +169,6 @@ class PushWatchTest {
     //
     // Same account-vs-connection confusion as above, on the other side of the app: the 30-minute
     // safety poll (issue #11) used to read the service's process-wide isRunning flag. The service
-    // survives the failure of every connection it holds — the reconnect loop retries forever and
-    // never stops it — so that flag said "push is fine" with nothing connected, and the poll skipped
-    // the inbox it was written to rescue. One account is enough to hit it.
     //
     // What these tests pin is the RULE, not the wiring. The rule did not exist before the fix, so
     // saying they "fail on the old tree" would be meaningless; what they do is fix the decision so
@@ -276,11 +206,6 @@ class PushWatchTest {
     //
     // A user-initiated arm (app open, account switch, a settings toggle, ticking one watched folder)
     // may swallow an inbox's backlog into the baseline instead of announcing it, because the user is
-    // looking at that inbox. Arming, however, covers every watched account at once: with "push for
-    // all accounts" on, one arm used to reseed all of them, and the accounts the user was NOT
-    // looking at lost their pending mail's notification for good — every later pass diffs against
-    // the baseline that just absorbed it. Same caveat as above: the predicate is new, so these pin
-    // the rule, not the wiring that feeds it.
     //
     // The witnesses matter as much as the case: without them these tests would also pass with the
     // reseed deleted outright, which is the opposite defect (a fresh install or a baseline version
@@ -328,8 +253,6 @@ class PushWatchTest {
 
     /**
      * The witness that keeps the narrowing from turning into a deletion: a folder with no baseline
-     * yet seeds silently whatever the reseed decision says. Without it, a fresh install or a
-     * baseline version bump would announce every message the folder already holds.
      */
     @Test fun `a folder with no baseline seeds silently anyway`() {
         assertTrue(seedsSilently(resetBaselines = false, isInbox = true, hasBaseline = false))
@@ -353,10 +276,6 @@ class PushWatchTest {
     //
     // The line the service writes at the end of an arm is read as evidence when a "push is dead"
     // report comes in. It used to count the login GROUPS it intended to connect, so it announced
-    // "over 1 connection(s)" with no socket open at all (an arm while offline, a watch() that gave
-    // up): a whole analysis pass was built on that sentence believing a connection existed. The
-    // expected strings below are written out literally — recomputing them with the same expression
-    // as [PushController.armSummary] would make this file a copy of the code instead of a check.
 
     @Test fun `the arm line carries accounts, requested logins and held connections in their places`() {
         assertEquals(
@@ -388,8 +307,6 @@ class PushWatchTest {
 
     /**
      * The guard against a silent inversion in the wording: swapping "requested" and "held" must
-     * produce a visibly different sentence, so one can never be printed for the other without the
-     * text changing.
      */
     @Test fun `requested and held are not interchangeable`() {
         val oneRequestedNoneHeld = PushController.armSummary(accounts = 1, logins = 1, held = 0)
@@ -407,8 +324,6 @@ class PushWatchTest {
 
     /**
      * The parameter ORDER, which every test above is blind to: they all pass named arguments, so
-     * permuting the declaration leaves them green while the positional call in [PushService] starts
-     * printing the requested count as the held one. Three distinct values, passed positionally.
      */
     @Test fun `the arm line reads its arguments in the declared order`() {
         assertEquals(
@@ -419,11 +334,6 @@ class PushWatchTest {
 
     /**
      * SOURCE RULE, and the weakest test here: the three arguments the service hands to
-     * [PushController.armSummary]. [PushService] is an Android [android.app.Service] with a
-     * container-backed arm — it cannot be instantiated in this module — so the wiring itself is
-     * pinned by reading the one line that carries it, whole. Whole, because a substring check is
-     * blind to anything appended to it. `Log.i` and not `Log.d`/`Log.v`: proguard-rules.pro strips
-     * those in release, which is the build the reports come from.
      */
     @Test fun `the service logs the arm summary with accounts, groups and open connections`() {
         val source = File(
@@ -442,10 +352,6 @@ class PushWatchTest {
     //
     // Three places in the service could drop an armament on the floor in silence: the generation
     // guard at the top of watch(), the same guard inside the delayed reconnect, and an arm that
-    // finds nothing to watch and stops the service. The two guards are correct and stay exactly as
-    // they are — they are what keeps a retired socket from reopening after an account switch — but
-    // a service left with no connection AND nothing rescheduled reads in logcat exactly like a
-    // healthy one, which is what makes a field report undiagnosable.
     //
     // Not claimed to be exhaustive, and one nearby path is deliberately left silent: the generation
     // check inside onClosed, which fires on every arm (reconnectAll closes every socket first) and
@@ -472,8 +378,6 @@ class PushWatchTest {
 
     /**
      * The two renouncements are different events — one never opened anything, the other gave up a
-     * retry that was already scheduled — and a reader of one logcat has only the sentence to tell
-     * them apart. Same arguments, so only the wording can carry the difference.
      */
     @Test fun `the two abandonments do not print the same sentence`() {
         assertNotEquals(
@@ -484,14 +388,6 @@ class PushWatchTest {
 
     /**
      * SOURCE RULE, same weakness and same reason as the armSummary one above: [PushService] cannot
-     * be instantiated in this module, so the wiring is pinned by reading the code that carries it.
-     * Not one line but the STATEMENTS, in order, comments and blanks removed — pinning a single line
-     * proves only that it exists somewhere. It said nothing about the condition that governs it, nor
-     * about a second guard slipped in above it, and both of those annul the fix while staying green.
-     *
-     * Here that means: the guard is the FIRST thing watch() does, it reads the generation once, and
-     * the log and the `return` ride the guard itself. `Log.w`, not `Log.d`/`Log.v`: proguard-rules.pro
-     * strips those in release, the build reports come from.
      */
     @Test fun `the service logs the arm it abandons at the generation guard`() {
         assertEquals(
@@ -512,9 +408,6 @@ class PushWatchTest {
 
     /**
      * Same rule for the delayed retry, and here the WHOLE body is pinned: the retry's guard has no
-     * `return` to ride on, so the line's condition — and the fact that the line sits in the `else`
-     * rather than after the branch, where it would print on every healthy reconnect — is only
-     * visible in the shape of the body.
      */
     @Test fun `the service logs the reconnect it abandons`() {
         assertEquals(
@@ -583,20 +476,9 @@ class PushWatchTest {
     //
     // The arm's generation guard is read ONCE, at the top of watch(), and what follows it is a full
     // baseline pass over the group — tens of seconds on a real mailbox. A concurrent onStartCommand
-    // during that pass retires this arm, but the pass finished, and the handle it came away with used
-    // to be written into `connections` regardless, on top of the one the CURRENT generation had just
-    // put there. When that stale socket then died, its onClosed found gen != generation and did
-    // nothing at all: no retraction, no reschedule. The entry then survived until the next arm — and
-    // nothing on this path triggers one, since no reconnect was scheduled — so PushService.isConnected
-    // kept answering true and MailFetchWorker kept skipping the account: no packet, no line.
     //
     // The retraction is the part with a trap in it, which is why it is a pure function executed here
     // rather than read. A close callback is ASYNCHRONOUS: close() returns at once and the callback
-    // lands later, on the transport's own thread, so a socket retired at the top of reconnectAll can
-    // call back long after the next generation stored ITS handle under the same key. A retraction by
-    // bare key (`connections.remove(loginId)`) would expel that live connection — a worse defect than
-    // the one being fixed. Pairing with the value is the whole rule, and these tests pin values,
-    // never a recomputation of it.
 
     /** Stands in for a connection handle. A data class on purpose: see the identity test below. */
     private data class Handle(val name: String)
@@ -629,10 +511,6 @@ class PushWatchTest {
 
     /**
      * The same "nothing stored" case with an EMPTY slot, which is the common one in production: the
-     * arm has not stored its handle yet and the map was just cleared by a fresh arm. Every other test
-     * here passes a non-empty map, so dropping the `mine == null` clause left the whole suite green
-     * while the function answered true for a removal it had not made — a mutation that survived until
-     * this test existed. Nothing was removed, so the answer is false.
      */
     @Test fun `nothing stored and nothing under the key reports nothing removed`() {
         val connections = mutableMapOf<String, Handle>()
@@ -643,9 +521,6 @@ class PushWatchTest {
 
     /**
      * The pairing is by IDENTITY, not by equals: two handles that compare equal are still two
-     * different sockets, and only the one actually recorded may be taken out. [Handle] is a data
-     * class precisely so this distinction is expressible — a real transport handle compares by
-     * identity anyway, which is what would let `!=` pass unnoticed here.
      */
     @Test fun `an equal but different handle does not retract the entry`() {
         val live = Handle("same")
@@ -691,8 +566,6 @@ class PushWatchTest {
 
     /**
      * Three renouncements now, and a logcat reader has only the sentence to tell them apart: nothing
-     * opened, a retry dropped, a handle opened, stored for an instant and taken back out. Same
-     * arguments, so only the wording can carry the difference.
      */
     @Test fun `none of the three abandonments print the same sentence`() {
         val lines = listOf(
@@ -705,20 +578,6 @@ class PushWatchTest {
 
     /**
      * SOURCE RULE, same weakness and same reason as the ones above: [PushService] is an Android
-     * [android.app.Service] and cannot be instantiated in this module, so the wiring of the pure
-     * decisions into watch() is pinned by reading the statements that carry it, WHOLE — a substring
-     * check is blind to anything appended, which is exactly how a second condition or an extra
-     * argument would come back. The decision itself is executed by the tests above.
-     *
-     * What this window pins is an ORDER, and the order is the fix: store, THEN read the generation
-     * once, and on a retired one retract the entry (paired with this very handle), close it, say so.
-     * Checking before the write would only narrow the defect — the map can be cleared between the
-     * read and the put — so the `val after = generation` sitting after `connections[loginId] =
-     * handle` is the whole point, and moving it back above turns this red.
-     *
-     * `Log.w`, never `Log.d`/`Log.v` (proguard-rules.pro strips those in the release build reports
-     * come from), and no [Throwable] argument: an abandonment is a fact the app already knows, and
-     * Log's cause chain would print the server and device IPs of an OkHttp ConnectException.
      */
     @Test fun `the arm checks the generation after storing, and takes its handle back out`() {
         assertEquals(
@@ -749,13 +608,6 @@ class PushWatchTest {
 
     /**
      * The other half, same rule: onClosed retracts ITS OWN entry — the call is read whole, so a slip
-     * back to `connections.remove(loginId)`, which would expel the live handle of a later generation,
-     * cannot hide — and then reschedules exactly as it did before this fix, on the current generation
-     * only, with nothing else in the callback. `mine` is an AtomicReference and not a captured `var`:
-     * this callback runs on the transport's thread.
-     *
-     * The retraction sits OUTSIDE the generation check, which is the second half of the fix: a stale
-     * connection that dies must still take its entry away, or the map keeps advertising it.
      */
     @Test fun `a connection that dies retracts its own entry, whatever its generation`() {
         assertEquals(
@@ -786,23 +638,6 @@ class PushWatchTest {
 
     /**
      * SOURCE RULE — same weakness and same reason as the ones above, and it closes the WINDOW they
-     * leave. The two rules that read watch() pin its first two statements (`take(2)`) and then
-     * everything from `val mine =` down; the three statements in between were pinned by nothing,
-     * and one of them is the only place on the DIRECT path (IMAP IDLE, JMAP EventSource) that ever
-     * reads [PushController.unifiedInboxVisible].
-     *
-     * The mutation that stayed green until this rule existed: `val unified = false`. A cold start
-     * that reopens on "All inboxes" (#179) then arms as though a single folder were on screen —
-     * [shouldResetBaseline] reseeds the current account only, and every other watched account
-     * announces the backlog the reader has in front of her. Its twin `val unified = true` does the
-     * reverse: any user-initiated arm swallows every account's backlog silently, i.e. mail nobody
-     * is ever told about. [PushService] is an [android.app.Service] this module cannot instantiate,
-     * so reading the text is the only witness there is; the decision it feeds IS executed, by the
-     * [shouldResetBaseline] tests above.
-     *
-     * Whole statements, never `contains`: `PushController.unifiedInboxVisible && false` is a
-     * superstring of the line it replaces. And the flag is mentioned ONCE in the whole file,
-     * comments included — a second read is a second answer, taken at another moment.
      */
     @Test fun `the arm reads the unified flag itself, and hands it to the baseline decision`() {
         val watch = pushServiceStatementsOf(WATCH_SIGNATURE)
@@ -838,8 +673,6 @@ class PushWatchTest {
 
     /**
      * The statements of one function of [PushService], in order, trimmed, with comments and blank
-     * lines dropped. Ends at the closing brace written at member indentation, which is how every
-     * function in that file closes.
      */
     private fun pushServiceStatementsOf(signature: String): List<String> {
         val lines = pushServiceSource().lines()

@@ -25,8 +25,6 @@ import java.time.Instant
 
 /**
  * The UnifiedPush transport state machine (#17), one instance per app. Instance ids ARE local
- * account ids; one JMAP PushSubscription per account credential, and the connector owns all WebPush
- * crypto. Never registers when no distributor is installed.
  */
 class UnifiedPushManager(
     private val context: Context,
@@ -120,8 +118,6 @@ class UnifiedPushManager(
     /** Drive the account towards ACTIVE: register when NONE/FAILED, re-register when a pending
      *  state went stale (a lazy watchdog, no timers). The decision is [RelayPush.shouldRegister];
      *  everything left here is side effects. */
-    // Synchronized: apply() runs from several call sites in quick succession, and without it the
-    // load/save race registers many times.
     @Synchronized
     fun ensureRegistered(credentials: AccountCredentials) {
         // Only the login holds a PushSubscription; its sub-accounts (#31) are fanned to on delivery.
@@ -157,9 +153,6 @@ class UnifiedPushManager(
 
     /**
      * The user asked for a relay address on this account. [RelayPush.onRelayRequested] puts the
-     * status back to NONE: "Remove address" leaves the account FAILED stamped now, so tapping "Get
-     * an address" straight afterwards fell inside the 15-minute cooldown and did nothing. That
-     * cooldown exists to stop the AUTOMATIC loop; a deliberate tap is not a loop.
      */
     fun requestRelayAddress(credentials: AccountCredentials) {
         synchronized(this) {
@@ -171,9 +164,6 @@ class UnifiedPushManager(
 
     /**
      * The user withdrew the relay address: forget the endpoint, then unregister the instance.
-     * It talks to no server, which is only true of an account that never held a PushSubscription,
-     * so one that does is refused rather than served quietly — run on a JMAP account it would erase
-     * the id locally and leave the subscription alive on the server.
      */
     fun dropRelayAddress(credentials: AccountCredentials) {
         synchronized(this) {
@@ -208,11 +198,6 @@ class UnifiedPushManager(
 
     /**
      * Is this account served by an ARMED relay — one the user asked for, holding no PushSubscription
-     * of its own, through which a wake has really arrived?
-     *
-     * One question over ONE record, so it cannot be reassembled from three reads answering about
-     * three different moments: an address may exist that nobody asked for, a JMAP account's ACTIVE
-     * is a PushVerification rather than a delivery, and PUBLISHED means never posted to.
      */
     fun relayArmed(accountId: String): Boolean {
         val state = store.load(accountId) ?: return false

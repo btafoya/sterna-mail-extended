@@ -6,11 +6,6 @@ import org.junit.Test
 
 /**
  * [deleteDestroysMessage] EXECUTED — the decision that routes the swipe either to a move or to the
- * held-back destroy, i.e. to permanent destruction behind a 5 s Undo window.
- *
- * The rule it replaces was `roleMailboxId(credentials, "trash") ?: return true`, inside
- * `MailRepository`, where nothing runs it. Its wiring is pinned by
- * [DeleteWouldDestroyWiringTest]; what the rule ANSWERS is decided here.
  */
 class DeleteDestroysMessageTest {
 

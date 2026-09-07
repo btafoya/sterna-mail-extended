@@ -16,15 +16,6 @@ import org.junit.Test
 
 /**
  * The read-receipt decision, EXECUTED — the whole truth table of [offeredReadReceipt], the capture
- * that feeds it, and the relay of what was queued back to the reader.
- *
- * Nothing here recomputes the rule to decide what to assert. Every expectation is written out by
- * hand, one row at a time: a test that derives its expectation from the code under test is a copy
- * of the decision, and inverting the delivered condition leaves it green.
- *
- * What is at stake, in one sentence: a receipt tells a stranger that a person opened their mail, at
- * a time, on a device. `SECURITY.md` promises none of that leaves on open. So the default answer to
- * every question below is "no", and the single "yes" needs four separate facts to be true at once.
  */
 class ReadReceiptOfferTest {
 
@@ -53,9 +44,6 @@ class ReadReceiptOfferTest {
 
     /**
      * The setting nobody has answered yet is NOT the setting turned on. This is the row the
-     * whole tri-state exists for: mapped to a boolean, the frames before DataStore answers would
-     * either ask everyone (mapped true) or be safe only by coincidence of the default (mapped
-     * false, indistinguishable from a reader's own "no").
      */
     @Test fun `a setting still being read asks nothing`() {
         assertNull(
@@ -82,9 +70,6 @@ class ReadReceiptOfferTest {
 
     /**
      * The eight other ways a message becomes read. A swipe, a multi-select, "mark all read", a
-     * notification action, the marking on archive/delete, a Sieve rule, a `$seen` arriving from
-     * another device: mail marked read that nobody looked at. A receipt sent for one of those says
-     * "your message was displayed" about a message nobody displayed.
      */
     @Test fun `a message marked read by anything but the reader asks nothing`() {
         assertNull(offeredReadReceipt(ReadReceiptSetting.ON, ReadMarking.OTHER, asked, answered = false))
@@ -92,8 +77,6 @@ class ReadReceiptOfferTest {
 
     /**
      * Reopening a message that was already read asks nothing — the trigger is the transition, and
-     * this is what keeps the work free of an "already answered" column, its migration and its
-     * resync.
      */
     @Test fun `a message that was already read asks nothing`() {
         assertNull(
@@ -120,8 +103,6 @@ class ReadReceiptOfferTest {
 
     /**
      * The header was there and named nothing usable — `<>`, a bare word, a group with no
-     * members. Empty offers nothing and, above all, throws nothing: `enqueueSend` opens with
-     * `require(recipients.isNotEmpty())`, and this is the guard that means it is never reached.
      */
     @Test fun `a header naming no usable address asks nothing, and does not throw`() {
         assertNull(
@@ -136,11 +117,6 @@ class ReadReceiptOfferTest {
 
     /**
      * REPLAYING THE DECISION IS NOT FORGETTING THE ANSWER.
-     *
-     * The decision is re-run every time the setting changes, so that turning the switch ON with a
-     * message open puts the question. That same replay must not resurrect a question the reader
-     * has answered: off-then-on would otherwise put a declined banner straight back, and the second
-     * tap would answer a stranger the reader had already refused.
      */
     @Test fun `a question the reader has answered is not asked again`() {
         assertNull(
@@ -188,13 +164,6 @@ class ReadReceiptOfferTest {
 
     /**
      * `deliveredTo` is carried into the request, and it is the address the message ARRIVED at —
-     * handed in by the caller, never derived from the account here. An account with several
-     * aliases has several addresses; only one of them was written to, and answering under another
-     * tells a stranger they wrote to a mailbox they never used.
-     *
-     * TWO message ids on purpose. RFC 8098's `Original-Message-ID` names ONE message, and a JMAP
-     * `Email` carries the field as a list: with a one-element list, `first` and `last` are the same
-     * value and the test cannot tell the app apart from one that answers about the wrong message.
      */
     @Test fun `the capture carries the address the message arrived at`() {
         val request = readReceiptRequest(
@@ -244,12 +213,6 @@ class ReadReceiptOfferTest {
 
     /**
      * THE SUBJECT THAT LEAVES THE DEVICE IS THE COVER ONE, and the one on the [Email] is not
-     * consulted at all.
-     *
-     * The reader shows the PROTECTED subject of a decrypted PGP/MIME message since #128, and the
-     * `Email` this capture is handed is the one on screen. A receipt is sent to an address the
-     * sender chose and is copied into Sent, so taking the subject off that `Email` would publish
-     * the real subject of an encrypted message in clear. The caller hands in the envelope's.
      */
     @Test fun `the receipt carries the cover subject, never the one on the message shown`() {
         val request = readReceiptRequest(
@@ -270,8 +233,6 @@ class ReadReceiptOfferTest {
 
     /**
      * No fallback when the cover is unknown. A null subject is a receipt titled "Read" with no
-     * title in it (`readReceiptPreview`), which is a loss of nothing; falling back to the message
-     * on screen is the leak this whole capture exists to prevent.
      */
     @Test fun `an unknown cover subject stays unknown, and does not fall back to the screen`() {
         assertNull(
@@ -290,8 +251,6 @@ class ReadReceiptOfferTest {
 
     /**
      * The setting changing under a standing question, both ways, through the ONE decision that is
-     * replayed on every emission: off takes the banner away, on puts it — and neither is a separate
-     * piece of code that could disagree with the other.
      */
     @Test fun `the switch moving takes the question away and puts it back`() {
         assertNull(
@@ -320,8 +279,6 @@ class ReadReceiptOfferTest {
 
     /**
      * The preview is RELAYED, never rebuilt. The strings below are deliberately not the ones
-     * this app would compose for a receipt: if anything downstream recomputed the wording, they
-     * could not come out the other end.
      */
     @Test fun `what was queued is what the state carries`() {
         val queued = ReadReceiptPreview(
@@ -344,11 +301,6 @@ class ReadReceiptOfferTest {
 
     /**
      * THE ROW THIS WHOLE FUNCTION EXISTS FOR — re-opening a message decrypted earlier in this
-     * process (leave the list, come back, tap it again).
-     *
-     * `openMessage` serves the decrypt cache first, so what comes back is the DECRYPTED body and
-     * its subject is the protected one. Read as a cover, it would be posted in clear to whatever
-     * address the sender put in `Disposition-Notification-To`.
      */
     @Test fun `re-opening a decrypted message does not overwrite the cover with the protected subject`() {
         val held = coverSubjectAfterOpen(

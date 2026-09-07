@@ -6,8 +6,6 @@ import kotlinx.serialization.json.Json
 
 /**
  * A durable descriptor for one outbox attachment. An IMAP attachment keeps its bytes
- * in a persistent per-item file (so a deferred retry can still read them); a JMAP
- * attachment keeps only the server-side blob id (the bytes live on the server).
  */
 @Serializable
 data class OutboxAttachment(

@@ -17,12 +17,6 @@ import kotlin.math.abs
 /*
  * How far the FINGER must actually have travelled before a flick is allowed to change message.
  *
- * Compose's `SnapFlingBehavior` looks at SPEED ALONE, so a 10-20 dp nudge clears its 400 dp/s
- * threshold, while `ViewPager` demanded BOTH that and a 25 dip distance. This file is that missing
- * floor and nothing else.
- *
- * The travel is read from the POINTER, the pager's own offset being short by its touch slop and by
- * whatever the body `WebView` held back — 15 to 25 dp on a 360 dp bench.
  */
 
 /** The travel a fling must have covered before it may carry the reader to another message, in dp —
@@ -33,13 +27,6 @@ internal const val MIN_FLING_DISTANCE_DP = 25
 
 /**
  * The velocity the pager is ALLOWED TO SEE, given how far the finger actually travelled. Under the
- * floor the answer is `0f` rather than "no fling": zero is below the library's own 400 dp/s, so the
- * SLOW drag keeps working by the library's own path. `snapPositionalThreshold` governs that path
- * only. At or above the floor the velocity passes through unchanged, sign included.
- *
- * @param travelPx the gesture's signed travel; there is no page size here and no fraction to fold.
- * @param minDistancePx [MIN_FLING_DISTANCE_DP] converted by the caller.
- * @param velocityPxPerSec the release velocity the pager was handed, signed.
  */
 internal fun flingVelocityForTravel(
     travelPx: Float,
@@ -59,13 +46,6 @@ internal data class PointerTravel(
 
 /**
  * One pointer event folded into the travel being tracked.
- * The travel is cleared by the next PRESS EVENT, not when the finger lifts, since the fling runs
- * after the release — and the reset hangs on [isPress], never on our own [PointerTravel.fingerDown],
- * a gesture being able to end with no "nothing pressed" event reaching this node. The travel kept
- * is SIGNED and FINAL, which closes the there-and-back gesture.
- *
- * @param anyPressed whether any pointer of the event is still pressed.
- * @param x the pointer's x, in the pager's own coordinates.
  */
 internal fun advanceTravel(
     previous: PointerTravel,
@@ -82,12 +62,6 @@ internal fun advanceTravel(
 
 /**
  * The finger's travel across the pager, read from the pointer stream and held for the fling.
- *
- * The observer CONSUMES NOTHING: it watches [PointerEventPass.Initial], which runs before the
- * pager's own drag handling, so consuming there would take the gesture away from the pager and from
- * the body `WebView`'s interop handle (#152 / #97 / #10).
- * [state] is a plain `var`, read once at fling time. A second finger landing mid-gesture restarts
- * the measurement on it, which is left as is: a two-finger gesture is not a page swipe.
  */
 internal class PagerTouchTravel {
     private var state = PointerTravel()
@@ -116,8 +90,6 @@ internal class PagerTouchTravel {
 
 /** The pager's default fling, with [MIN_FLING_DISTANCE_DP] of finger travel demanded of it first. A
  *  wrapper, deliberately: everything else is left to [PagerDefaults.flingBehavior].
- *
- *  @param travel the holder whose [PagerTouchTravel.modifier] must also be on the pager; without it
  *    the travel stays at 0 px and NO flick can change message. */
 @Composable
 internal fun rememberPageFlingBehavior(

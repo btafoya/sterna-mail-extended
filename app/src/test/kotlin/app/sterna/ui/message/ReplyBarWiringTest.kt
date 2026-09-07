@@ -7,17 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads source files as text and proves nothing about what
- * happens on screen. Same instrument and disclaimer as `NavHostSourceRulesTest`.
- *
- * [ReplyBarTest] runs both decisions. Neither of them is plugged in by anything a JVM test here can
- * execute: `MessageScreen` is a composable and `SettingsRepository` needs a DataStore on a device.
- * The three edits it guards are all silent — the suite stays green through every one of them:
- *
- *  1. `barVisible` back on `bodyReady && showBar`: the switch does nothing at all;
- *  2. the bottom inset computed inline again: the bar goes, and every message keeps ~80 dp of
- *     white under nothing — the trap this setting's whole implementation turns on;
- *  3. the setting missing from the backup snapshot or the restore: it exports as if it did not
- *     exist, and an import silently puts the bar back.
  */
 class ReplyBarWiringTest {
 
@@ -222,16 +211,9 @@ class ReplyBarWiringTest {
     @Test fun `the settle poll refuses to conclude on a reading that measured nothing`() {
         // The reader's ONE guaranteed report of the resting geometry is this poll's terminal one.
         // contentRangePx() is floored at the view's own height, so a body whose renderer is still
-        // booting reads that floor over and over — three agreeing readings of nothing. Concluding
-        // there announced "the body fits" for the first message opened after process start, and the
-        // ordering rule of barAfterReport then made that verdict permanent: the bar followed the
-        // RANK of the selection, not the body.
         //
         // BarReveal now discards such a report. That alone is not enough, and this rule is why: if
         // the poll still STOPPED on the floor, its report would be discarded and nothing would ever
-        // report the real geometry — a body that fits would lose its bar for good, which is worse
-        // than the defect. The gate must be the poll's, and it must be rangeMeasured (BodyRevealTest
-        // runs that decision); the old 'range > 0' is satisfied by the floor itself.
         val screen = code(MESSAGE_SCREEN).replace(Regex("""\s+"""), " ")
         assertTrue(
             "the settle poll must gate its stability counter on the WHOLE call " +
@@ -293,11 +275,6 @@ class ReplyBarWiringTest {
     @Test fun `the third writer is wired to the one place that decides`() {
         // The body's OWN gesture door (#63's cousin): closing the <details> that folds a reply's
         // quoted history shortens the document under a reader who is not scrolling, so no scroll
-        // report ever comes — and if one did, barAfterReport would keep the unfolded body's range
-        // and answer "there is more to read" for ever. Rewired to barReveal.scrolled(...) the
-        // Reply/Forward bar leaves the reader for good on the second tap of the fold, with every
-        // test in BodyRevealTest still green: the decision that separates the two doors is
-        // barAfterResize, and only this line reaches it.
         val screen = code(MESSAGE_SCREEN).replace(Regex("""\s+"""), " ")
         assertTrue(
             "the resize door must be the WHOLE lambda onResized = { m -> scrollY.intValue = " +
@@ -318,10 +295,6 @@ class ReplyBarWiringTest {
     @Test fun `the resize probe hangs off the end of the reader's gesture, and expires in silence`() {
         // javaScriptEnabled = false and CSP default-src 'none': nothing in the document can tell us
         // it resized, and there is no permanent size watcher on purpose (a body that relayouts in a
-        // loop exists — it is why the settle poll is capped — and a watcher would blink the bar on
-        // it). What changes a script-less document's height is a gesture of the reader's — tapping
-        // a <summary>, or pinching to zoom, which this reader supports — so the probe is armed by
-        // the end of a gesture, ONCE per gesture, and never per frame.
         val lines = codeLines(MESSAGE_SCREEN)
         assertTrue(
             "the gesture door must be exactly 'MotionEvent.ACTION_UP -> onActivated?.invoke()' in " +

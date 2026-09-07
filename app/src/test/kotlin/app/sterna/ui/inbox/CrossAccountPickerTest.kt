@@ -13,8 +13,6 @@ import org.junit.Test
 
 /**
  * The decisions behind a move into ANOTHER account's folder (#189), EXECUTED: which account the
- * picker lists, which folder it hides, whether the gesture leaves the account at all, and what the
- * one banner at the end says. Their call sites are pinned by [CrossAccountMoveWiringLintTest].
  */
 class CrossAccountPickerTest {
 
@@ -59,9 +57,6 @@ class CrossAccountPickerTest {
 
     /**
      * The list's picker on a MIXED selection: spec.md § 1 keeps a selection spanning accounts on
-     * main's behaviour (the retained account's messages go, the others are counted as skipped), so
-     * the account row must not be drawn at all. It is not drawn by handing it no account to choose
-     * from: [MoveAccountRow] returns straight away under two entries.
      */
     @Test
     fun `a selection that spans accounts is offered no account at all`() {
@@ -97,10 +92,6 @@ class CrossAccountPickerTest {
 
     /**
      * The same guard, at the OTHER end: what the picker LISTS and where the tap GOES. The account
-     * choice outlives the sheet it was made in (rotation closes the sheet, the ViewModel keeps the
-     * choice), so a choice made on a single-account selection must stop counting the moment the
-     * selection stops resolving one — otherwise the picker lists B's folders under names
-     * indistinguishable from A's, with no account row on screen to explain it.
      */
     @Test
     fun `an account chosen on one selection stops counting on a selection that spans accounts`() {
@@ -146,23 +137,6 @@ class CrossAccountPickerTest {
 
     /**
      * A batch where nothing was CONFIRMED written says so — "Couldn't complete the action", not
-     * "SOME messages couldn't be processed" (#189).
-     *
-     * And that is the whole guarantee: `CrossAccountMove.Failed` also covers a lost answer to
-     * an APPEND, so a copy MAY exist on account B. What is certain is that no original left A,
-     * which is what the served sentence says.
-     *
-     * The banner was an existential test (`results.any { it is Failed }`) where its neighbour one
-     * file over compares cardinalities (`bulkOutcome`, in `BulkOutcome.kt`: `failed >= attempted
-     * -> TOTAL`): zero confirmed read as "partly", so the one destroying gesture with no Undo
-     * ended on a line telling the user part of her selection had gone through when none of it
-     * had. She then has to find out by hand which half of a selection the screen no longer shows
-     * is where.
-     *
-     * Every expected value here is written by hand, and the priorities are pinned BOTH ways: a
-     * failure next to a move is still PARTLY_FAILED, and a copy whose original stayed still wins
-     * over both. Turn the two branches around in the shipped `when` and the total case can never
-     * be raised again — which is what these six lines exist to see.
      */
     @Test
     fun `a batch where nothing went through says so, not that some of it did`() {
@@ -186,13 +160,6 @@ class CrossAccountPickerTest {
 
     /**
      * WHICH lines go back under the tick when a move between accounts is over (#189) — the rule is
-     * EXECUTED here, and every expected answer is written out by hand. A test that re-derives the
-     * rule from the outcomes it feeds in is a copy of the shipped condition: invert the condition
-     * and the copy inverts with it, green throughout.
-     *
-     * This is the destructive half of a gesture with no Undo. A key wrongly given back is a message
-     * the second tap copies to B a second time; a key wrongly dropped is a message that never left
-     * A, that the screen stops showing as selected, and that nothing ever names.
      */
     @Test
     fun `what did not move goes back ticked, whichever refusal it was`() {
@@ -243,13 +210,6 @@ class CrossAccountPickerTest {
 
     /**
      * …and in the order the batch tried them, which is the order the rows were ticked in.
-     *
-     * NOT because a shuffle would show the user the wrong thing: the order of the rows on
-     * screen comes from the LIST, and the selection is only ever read by membership and by
-     * `.size`, so a sorted or shuffled give-back would look identical. What is kept here is
-     * determinism — one batch, one answer, and `tickedUnder` written from it in a fixed order —
-     * so that the two rules above name the same rows on every run instead of a different subset
-     * each time, and so a `Set` swapped for a hashing one is seen here and not in a bug report.
      */
     @Test
     fun `the give-back keeps the order of the batch`() {
@@ -274,8 +234,6 @@ class CrossAccountPickerTest {
 
     /**
      * The words each verdict of ONE message comes with — the banner is the only thing said, there
-     * is no Undo behind it, and "Moved to B › Archive" over a copy whose original stayed announces
-     * a move that did not happen and hides a duplicate. Executed, not read off the source.
      */
     @Test
     fun `a copy whose original stayed is never announced as a move`() {
@@ -327,9 +285,6 @@ class CrossAccountPickerTest {
         )
         // TWO OUTCOMES, TWO SENTENCES, AND NEVER ONE BRANCH FOR BOTH. Both expected ids are
         // written out by hand: merge the two branches in the shipped `when` and one of these two
-        // lines goes red, which is the whole point of splitting them here. `status_action_failed`
-        // already exists in all nine languages (the same reuse, for the same distinction, as
-        // `MailBySenderViewModel.deleteMessageRes`), so this costs no translation.
         assertNotEquals(R.string.status_action_failed, R.string.status_action_partly_failed)
         assertEquals(
             R.string.status_action_failed,

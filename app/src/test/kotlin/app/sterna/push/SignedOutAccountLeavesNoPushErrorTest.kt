@@ -7,43 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — and here that is not a shortcut, it is the whole reachable
- * surface. `FetchAndNotify.run` takes an Android `Context`, resolves the application container out
- * of it and calls a `MailRepository` that needs Room and a live session: no JVM test in this module
- * can enter it. What the type system already proves is proved next door — `AccountGoneException`
- * really is a `CancellationException` ([app.sterna.core.data.mail.SignedOutAccountStopsWritingTest]
- * runs that as a type check) — and what is left, "which arm of `run` catches it, and in which
- * order", is text. It is read as WHOLE LINES, arguments included.
- *
- * What the arm is for. Signing an account out cancels nothing: `AccountsViewModel.signOut` never
- * touches WorkManager, and `PushService` bumps a generation instead of cancelling the pass in
- * flight. So the guard inside `MailRepository.refreshAccountFolders` is the only thing that stops a
- * background pass from writing under the removed id — and it stops it by THROWING, through the four
- * callers of [FetchAndNotify.run], none of which knows the difference:
- *
- *  - `PushFetchWorker` → `Log.w` with a stack, then `Result.retry()` (up to two extra wake-ups);
- *  - `MailFetchWorker` → the same `Log.w`;
- *  - `PushService` → `Log.e`.
- *
- * Every sign-out would therefore print an error with a stack for a gesture that SUCCEEDED, which is
- * precisely what "make the push log say what happened, not what was hoped" (#130) was for. Caught
- * here, in the single funnel, it is one `Log.i` and no retry.
- *
- * And this file is where the un-archive path is proved, not next door: `SignedOutAccountWiringTest`
- * reads `MailRepository.kt` ALONE, so it stays green while the guards it pins are thrown into a
- * `runCatching` living in THIS file and go nowhere. Both calls of `unarchiveThreadsOnReply` sat in
- * exactly such a `runCatching { … }.getOrDefault(emptyList())`: the guard would skip the re-file and
- * the pass would carry on to `NewMailNotifier.seed`/`notifyDiff`, writing a baseline under the
- * removed id in `:app`'s SharedPreferences — where no orphan sweep exists at all. The ghost would
- * have been moved, not removed. So the propagation is pinned here, at both sites:
- *
- *  - in [FetchAndNotify.run], `rethrowIfCancelled()` between the `runCatching` and its default, so
- *    the refusal reaches the arm above (and an ordinary move failure still costs no notification);
- *  - in [FetchAndNotify.onInboxRefreshed], the same, plus an arm of its own — for what it STOPS,
- *    not for the caller. `InboxViewModel` calls this hook inside a `runCatching` at both of its
- *    call sites (`:943` and `:957`), so a refusal let out would be absorbed there and change
- *    nothing for it. What the arm buys is that `notifyDiff`/`seed` do not run, and that a sign-out
- *    leaves one line saying what happened instead of a silence — the same thing #130 put in place
- *    on every other path.
  */
 class SignedOutAccountLeavesNoPushErrorTest {
 
@@ -53,13 +16,6 @@ class SignedOutAccountLeavesNoPushErrorTest {
         //
         // And WHAT the line claims is not decided here. The guard throws when the pass's id is
         // not in `AccountStore.accounts()`, which answers an UNREADABLE blob with an empty list —
-        // so this arm also fires when nobody signed anything out, and it used to assert a sign-out
-        // in that case too. The choice is [app.sterna.core.data.mail.accountGoneCause], EXECUTED by
-        // `AccountGoneCauseTest`; what is pinned here is that this call site asks it, and with
-        // WHICH ARGUMENTS — a fresh `store.accountsUnreadable()`, not a constant, not a flag read
-        // before the pass started. A hard-coded `false` compiles and puts the lie straight back.
-        // `passKind` is this site's own word: the shared sentence decides WHICH claim is true, not
-        // what the caller was running.
         assertEquals(
             "the AccountGoneException arm of FetchAndNotify.run is no longer, line for line, what " +
                 "this was written against. Either it no longer asks accountGoneCause what " +
@@ -83,12 +39,6 @@ class SignedOutAccountLeavesNoPushErrorTest {
     @Test fun `nothing catches ahead of it — AccountGoneException IS a CancellationException`() {
         // Not cosmetic. The refusal is a cancellation by design, so ANY arm above this one that
         // names CancellationException (or Throwable) takes it first and the dedicated arm becomes
-        // unreachable — silently, with every test in the repo still green.
-        // Matched on the KEYWORD, not on the closing brace in front of it. `} catch (` is a
-        // formatting convention, not a rule of the language: an arm written on its own line
-        // (`}` then `catch (c: CancellationException) {`) is the same arm, in the same place, and a
-        // filter anchored on the brace does not count it — so it could be slipped ABOVE this one,
-        // leaving every test here green while the dedicated arm is dead code.
         //
         // This filter is what carries the ordering constraint. There is deliberately no
         // `catch (c: CancellationException) { throw c }` under the arm below (nothing catches
@@ -147,10 +97,6 @@ class SignedOutAccountLeavesNoPushErrorTest {
     @Test fun `the background pass lets the un-archive's refusal out of its best-effort wrapper`() {
         // The `runCatching` is not the defect and must stay: a move the server refuses must not
         // cost the notification. What it must not do is eat the sign-out, because the guards in
-        // `unarchiveThreadsOnReply` throw a CancellationException and `runCatching` catches those
-        // like anything else. Swallowed here, the re-file is skipped and the pass walks on into
-        // `NewMailNotifier.seed`/`notifyDiff`, which writes a baseline under the removed id — into
-        // `:app`'s SharedPreferences, which the sign-out's orphan sweep does not inventory.
         //
         // Pinned as a block: `.rethrowIfCancelled()` deleted, or moved after `.getOrDefault(...)`
         // where it can never see the exception, leaves the two guards next door doing nothing at
@@ -172,17 +118,9 @@ class SignedOutAccountLeavesNoPushErrorTest {
     @Test fun `the foreground inbox hook drops the signed-out account on the spot`() {
         // The same wrapper, in the hook the UI calls after it refreshed an inbox itself. Not for
         // the caller's sake: `InboxViewModel` wraps both of its calls to this hook in a
-        // `runCatching` (`:943`, `:957`), so a refusal let out of here would be absorbed there and
-        // nothing above would notice. The arm is what makes the hook STOP — no seed, no notifyDiff,
-        // no baseline under the removed id — and what makes a sign-out leave one line saying so
-        // rather than a silence (#130).
         //
         // The claim is [app.sterna.core.data.mail.accountGoneCause]'s, executed by
         // `AccountGoneCauseTest`, and what is pinned here is that this site ASKS it, with a FRESH
-        // `accountsUnreadable()` read (a constant `false` compiles and turns an unreadable account
-        // blob back into a "sign-out" in a reporter's logcat). `passKind` is this site's own word:
-        // this is the FOREGROUND refresh of one inbox, not the background pass of `run`, and the
-        // sentence must not flatten the two into each other.
         assertEquals(
             "the AccountGoneException arm of FetchAndNotify.onInboxRefreshed is no longer, line " +
                 "for line, what this was written against. Either it stopped asking " +
@@ -205,12 +143,6 @@ class SignedOutAccountLeavesNoPushErrorTest {
     @Test fun `the foreground hook's arm encloses the un-archive AND everything it would feed`() {
         // What must stop is the REST of the hook: `notifyDiff` and `seed` both write the shared
         // notifier baseline under credentials.id, and an arm that only wrapped the call itself
-        // would skip the re-file and then write that baseline anyway — the ghost moved from the
-        // `emails` table into SharedPreferences, which no orphan sweep reads.
-        // Same exception to the best-effort wrapper as in `run`, pinned again and not inherited:
-        // the two calls are two lines in two functions, and dropping `.rethrowIfCancelled()` from
-        // THIS one makes the arm below unreachable — the refusal is swallowed by the runCatching,
-        // the hook carries on, and every positional rule in this test stays satisfied.
         assertEquals(
             "the un-archive call of FetchAndNotify.onInboxRefreshed is no longer, line for line, " +
                 "what this was written against. Without .rethrowIfCancelled() the runCatching eats " +
@@ -250,13 +182,6 @@ class SignedOutAccountLeavesNoPushErrorTest {
     @Test fun `nothing else is open around the guarded calls that could swallow the refusal`() {
         // THE rule this file was missing, and a counter-expertise proved it by mutation: every
         // other rule here is about PRESENCE and ORDER, and both survive an enclosure. Wrap the
-        // whole `val returned = if (…) { … } else { emptyList() }` expression of `run` in a second
-        // `runCatching { … }.getOrDefault(emptyList())` and not one pinned line moves: the three
-        // lines are intact, `opened < unarchive < arm` is intact, and `CATCH` does not match
-        // `runCatching {`. Everything stays green — while the inner `rethrowIfCancelled()` hands
-        // the cancellation to the OUTER runCatching, which eats it, the arm is never reached and
-        // the pass walks on to `NewMailNotifier.notifyDiff`: the user gets a new-mail notification
-        // for the account she has just deleted, and its baseline is written under the dead id.
         //
         // So this asks what `SignedOutAccountWiringTest.openBlocksAt` asks of MailRepository, on
         // the file that one cannot see. Duplicated rather than shared: `:app` and `core:data` do
@@ -333,10 +258,6 @@ class SignedOutAccountLeavesNoPushErrorTest {
 
     /**
      * The code of ONE function of the file, from its declaration to the next declaration's.
-     *
-     * Not a convenience: the file carries two arms spelled identically now, and every rule here
-     * is "which statement follows which INSIDE one function". A whole-file read would let a line
-     * belonging to `run` satisfy a rule written about `onInboxRefreshed`, and the other way round.
      */
     private fun lines(function: String): List<String> {
         val body = lines()

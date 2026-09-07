@@ -6,40 +6,11 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
- * [UnreadWidgetPushWiringLintTest] next door. The decisions themselves are EXECUTED elsewhere:
- * [UnreadWidgetTapTest] runs `UnreadWidgetTap.of`, [app.sterna.ui.WidgetTapRelayTest] runs
- * `WidgetTapRelay.step` frame by frame, and [app.sterna.ui.WidgetTapNavigationTest] runs
- * `WidgetTapNavigation.from` against real stacks. This file holds only what none of them can see,
- * because it cannot be built in this suite — `PendingIntent`, `Intent`, `MainActivity` and a
- * Compose `LaunchedEffect` all want Android, and there is no Robolectric here. What it pins is the
- * WIRING: that the shipped effect calls those rules, with those arguments, in that order.
- *
- * It REPLACES the guard that used to live next door ("nothing in the widget package sets a
- * PendingIntent yet"), which was explicitly temporary: this is the pane that adds one, so the rule
- * becomes what the shipped tap must be rather than its absence.
- *
- * Whole lines, never a `contains`: a substring rule is satisfied by every mutation that LENGTHENS
- * the line. The price is that reformatting any of these calls reddens this test — loud, and one
- * line to fix.
  */
 class UnreadWidgetTapWiringLintTest {
 
     /**
      * The `Intent` behind the widget's `PendingIntent` carries an ACTION of its own, and that is
-     * not a nicety.
-     *
-     * A `PendingIntent`'s identity is `(requestCode, Intent as compared by filterEquals, flags)`,
-     * and `filterEquals` IGNORES extras. Every new-mail notification is built as
-     * `Intent(context, MainActivity::class.java)` with no action and no data, so they are all
-     * filterEquals-identical to one another and are told apart by their request code alone — which
-     * is `Notifications.childId(accountId, emailId)`, a `"$accountId $emailId".hashCode()` spread
-     * over the whole `Int` range. No number can be reserved against that.
-     *
-     * The action is what makes the widget's intent diverge whatever the number collides: without
-     * it, the first `childId` that lands on the widget's request code has its extras REWRITTEN by
-     * `FLAG_UPDATE_CURRENT`, and the user taps the banner announcing a message and gets the unified
-     * inbox instead of the message. The constant request code is a belt on top of that, not the
-     * mechanism.
      */
     @Test fun `the widget's tap intent carries its own action, so it cannot collide with a notification's`() {
         assertEquals(
@@ -74,8 +45,6 @@ class UnreadWidgetTapWiringLintTest {
 
     /**
      * The tap target is SET on the shared `RemoteViews`, once, where the cell is drawn — the same
-     * reason the draw itself has one home: a second `RemoteViews` built elsewhere would be a cell
-     * that shows the number and does nothing when touched.
      */
     @Test fun `the drawn cell is given that tap target`() {
         assertEquals(
@@ -88,11 +57,6 @@ class UnreadWidgetTapWiringLintTest {
 
     /**
      * GUARD 1, and it is the reason the three existing extras are parsed inside this `if`.
-     *
-     * The activity is `singleTask`: the intent that opened it stays its intent FOR GOOD. Parsed
-     * outside this block, the widget's order is re-read on every recreation — rotation, theme,
-     * locale, font size, split screen — and each one re-navigates to the unified inbox on top of
-     * whatever the user was reading, piling up back-stack entries they then have to unwind.
      */
     @Test fun `the widget's extra is only read on a real launch`() {
         assertEquals(
@@ -118,11 +82,6 @@ class UnreadWidgetTapWiringLintTest {
 
     /**
      * GUARD 2: the one-shot strip, belt to the guard above's braces. Whatever re-reads the
-     * retained intent later, it must no longer carry an order already carried out.
-     *
-     * And it has its OWN function on purpose, like `stripEmailOpenPayload` and `stripMailtoPayload`
-     * before it: consuming one payload must never cancel another that is genuinely pending. Not
-     * to be folded into the email-open strip.
      */
     @Test fun `the widget's extra is stripped once consumed, on its own`() {
         assertEquals(
@@ -151,8 +110,6 @@ class UnreadWidgetTapWiringLintTest {
 
     /**
      * The path a widget tap almost always takes: the app is already running, `singleTask` routes
-     * the new intent to `onNewIntent`, and `onCreate` never runs again. Read only there, the extra
-     * would work exactly once — on a cold start — and do nothing for the rest of the day.
      */
     @Test fun `onNewIntent reads the widget's extra too`() {
         assertEquals(
@@ -173,33 +130,6 @@ class UnreadWidgetTapWiringLintTest {
 
     /**
      * The consumption goes through `InboxViewModel.selectUnified()`, the very call the drawer's
-     * own entry makes — never a hand-rolled equivalent. Not for the push flag:
-     * `PushController.unifiedInboxVisible` is set by a collector on `selection` in
-     * `InboxViewModel`'s init, so any path that moves the selection sets it. For everything else
-     * `selectUnified()` does around that assignment — collapse the expanded threads, re-derive the
-     * unified inbox scopes from the account store, rewrite the header meta to the "All inboxes"
-     * label and total, and `refresh()` every account. A hand-rolled "just move the selection"
-     * compiles and leaves the header naming the previous folder over a list nothing re-fetched.
-     *
-     * AND THE ORDER IS TAKEN BEFORE THE LIST IS THERE, which is the half this pin gained after
-     * bench cell C1 (2026-08-17). `listViewModel` is looked up imperatively, so on a COLD start it
-     * is null in the composition that receives the tap; the effect that returned there returned for
-     * good, and the activity's flag stayed `true`, so every later tap was a `true → true`
-     * assignment that recomposed nothing. The three arms of [app.sterna.ui.WidgetTapRelay] are the
-     * fix — `Hold` consumes and keeps, `Deliver` consumes and acts — and both arms must call
-     * `onUnifiedOpenConsumed()`: a `Hold` that keeps the order without consuming it never brings
-     * the composition it is waiting for.
-     *
-     * AND `heldUnifiedOpen` IS `remember`, NOT `rememberSaveable` — pinned below as a whole line.
-     * Saved across a recreation, a held `true` re-opens All inboxes over what the user is reading on
-     * the next rotation, locale or font-size change, which is the defect
-     * `savedInstanceState == null` guards against, arrived at from inside.
-     *
-     * AND THE RULE IS HANDED THE WHOLE STACK, which is the third part of this pin.
-     * `popBackStack("inbox", inclusive = false)` drops EVERY entry above the list, so a verdict
-     * taken on `currentBackStackEntry` alone answers about the top screen and acts on all of them:
-     * `inbox → search → message` loses the search results, `inbox → compose → message` loses the
-     * draft. `nav.currentBackStack.value` is the list, oldest first, and it is not optional.
      */
     @Test fun `the consumption calls selectUnified, waits for the list, and unwinds on the whole stack`() {
         assertEquals(
@@ -274,12 +204,6 @@ class UnreadWidgetTapWiringLintTest {
 
     /**
      * The rule of [app.sterna.ui.WidgetTapNavigation] names TWO routes, `inbox` and `message`,
-     * and its own test runs it against strings. Nothing in that pair notices the day the graph
-     * renames either one: the rule would quietly stop matching, the pop would quietly stop
-     * happening, and every test would stay green. Worse for `inbox` — the rule's floor and the
-     * caller's `popBackStack("inbox", …)` are two separate literals, and if only one were renamed
-     * the rule would answer about a stack it no longer recognises while the pop still fired.
-     * This is the one thing only the source can say: the words must still be the same words.
      */
     @Test fun `the popped destination and the floor are still the graph's own routes`() {
         assertEquals(
@@ -334,8 +258,6 @@ class UnreadWidgetTapWiringLintTest {
 
     /**
      * The code lines of the function opening with [signature], its own closing brace excluded.
-     * Fails loudly when the signature is gone: a rename must redden the rule rather than satisfy it
-     * against an empty list.
      */
     private fun functionBody(file: File, signature: String): List<String> {
         val lines = codeLines(file)
@@ -357,10 +279,6 @@ class UnreadWidgetTapWiringLintTest {
 
     /**
      * The whole brace-balanced block that opens with [opener] and contains [marker].
-     *
-     * Deliberately returns an empty list when [marker] is nowhere in the file: dropping the block
-     * is the mutation the caller exists to catch, and an assertion that shows the expected lines
-     * against `[]` says more than an exception would.
      */
     private fun blockContaining(file: File, marker: String, opener: String): List<String> {
         val lines = codeLines(file)

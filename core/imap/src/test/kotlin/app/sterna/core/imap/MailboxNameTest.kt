@@ -6,16 +6,6 @@ import org.junit.Test
 
 /**
  * Non-ASCII folder names, both ways (Codeberg #101).
- *
- * The reporter saw `&BB8EPgQ8BDUERwQ1BD0EPQRLBDU-` in the drawer where "Помеченные" should be:
- * IMAP names travel in modified UTF-7 (RFC 3501 §5.1.3) and nothing decoded them. The trap is
- * that SELECT WORKED, precisely because nothing decoded them — the raw wire form went straight
- * back out. So the fix is a PAIR, and these tests prove the pair: the name arrives decoded AND
- * the command that follows leaves re-encoded, byte for byte as the server announced it.
- *
- * The wire tests drive a real socket ([FakeImapServer]) and read back the exact command lines,
- * because "the string looks right" is not the property under test — "the bytes on the wire are
- * the ones the server understands" is.
  */
 class MailboxNameTest {
 
@@ -55,8 +45,6 @@ class MailboxNameTest {
 
     /**
      * The hierarchy delimiter is never encoded and never swallowed: `/` and `.` are outside the
-     * modified base64 alphabet, so a whole path can be decoded in one pass. If a shift sequence
-     * could eat a delimiter, nesting would break.
      */
     @Test fun `the hierarchy delimiter stays a delimiter`() {
         assertEquals("INBOX/&BB8EQAQ4BDIENQRC-", encodeModifiedUtf7("INBOX/Привет"))
@@ -77,11 +65,6 @@ class MailboxNameTest {
 
     /**
      * …and surviving as text is NOT enough on its own. Those decodings all contain a literal `&`,
-     * which re-encodes as `&-` — a different mailbox name. Such a name used to round-trip by
-     * accident, because nothing touched it; decoding it and re-encoding it would make it readable
-     * and UNOPENABLE, the exact failure this pair exists to prevent. [decodeMailboxPath] keeps a
-     * decoding only when it comes back byte for byte, so the residual corner keeps the behaviour
-     * it had before this branch.
      */
     @Test fun `a name that would not encode back keeps its wire form`() {
         for (raw in listOf("x&", "&12-", "&AB!", "&Zz", "R&D")) {
@@ -97,10 +80,6 @@ class MailboxNameTest {
 
     /**
      * End to end, and the residual corner the pair cannot resolve on its own: a folder whose wire
-     * name is a bare `&` (an invalid encoding — Sterna up to 1.4.3 could create one, since it
-     * sent names raw). Its path is kept verbatim, the standard form is tried first, and the
-     * server's refusal is what tells us which of the two this name is. Before, such a folder was
-     * unreadable but openable; it must not become unopenable.
      */
     @Test fun `an undecodable folder still opens, on the second try`() {
         FakeImapServer { tag, line ->

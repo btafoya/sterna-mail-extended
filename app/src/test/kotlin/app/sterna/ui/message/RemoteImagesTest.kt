@@ -8,19 +8,6 @@ import java.io.File
 
 /**
  * The two questions the "images are blocked" strip turns on, RUN rather than re-stated, plus the
- * source rules a JVM test cannot measure.
- *
- * [hasRemoteRefs] decides whether the reader says anything at all, and it has to answer the same
- * question `BlockingWebViewClient.shouldInterceptRequest` answers at load time: is this reference
- * remote? That client is DEFAULT-DENY — everything that is not `data:`, `cid:` or `about:` is
- * blocked — and the tests below pin that shape, in particular the two cases a `http`/`https` test
- * gets wrong: a protocol-relative `//host/x.gif`, which carries no scheme at all and is fetched
- * anyway, and an exotic scheme, which is blocked. A detection keyed on http/https announces
- * nothing on either, so the message shows no strip while its pixel is being held back — the
- * reader is told the opposite of what happened.
- *
- * The inputs are literal and so are the expected answers: nothing here calls [hasRemoteRefs] to
- * decide what [hasRemoteRefs] should return.
  */
 class RemoteImagesTest {
 
@@ -119,9 +106,6 @@ class RemoteImagesTest {
 
     /**
      * The state → label correspondence, RUN. The strip now draws one single shape whose only
-     * variable is the string it wears, so this pair of constants IS the difference between the two
-     * states on screen; nothing else in the reader tells them apart. Both ids are written out in
-     * full below — the rule is not recomputed here.
      */
     @Test fun `the held-back state wears the show-images label`() {
         assertEquals(
@@ -225,20 +209,6 @@ class RemoteImagesTest {
 
     /**
      * SOURCE LINT, NOT A MEASUREMENT — Compose is not run here, so these rules would still pass on
-     * a strip that laid out wrong. What they hold is the one property no reviewer can see in a
-     * diff: the strip draws ONE shape in both states, so its height cannot diverge between them,
-     * and its PRESENCE cannot change either.
-     *
-     * The two states used to be two composables under `ButtonDefaults.MinHeight` — a 40 dp floor
-     * the [TextButton] overshoots (Material3 wraps it in `minimumInteractiveComponentSize()`, and
-     * its own vertical inset grows with the font scale) while a bare [Text] sits back down on it.
-     * Measured on the bench: the header lost 8 dp at the tap in the normal font, 13 dp at
-     * `font_scale 2.0`.
-     *
-     * Every rule below compares WHOLE LINES (trimmed, allowing only the trailing comma Kotlin puts
-     * on the last item of a list). `"x" in source` is blind to any mutation that LENGTHENS the
-     * line — `.heightIn(min = ButtonDefaults.MinHeight).padding(vertical = 8.dp)` satisfies a
-     * `contains` and breaks the very thing the rule exists for.
      */
     @Test fun `the strip is one shape, wearing one label or the other`() {
         val strip = stripLines()
@@ -317,13 +287,6 @@ class RemoteImagesTest {
 
     /**
      * The rule that keeps the two states ONE shape — the defect that was measured, stated the only
-     * way a source test can state it.
-     *
-     * Every enumerating rule above is satisfied by a strip that draws the button AND, beside or
-     * below it, something else: an `Icon(`, a second `Text(`, a `Column(` around the pair. That is
-     * exactly the shape the measured defect had — the "shown" state had a composable of its
-     * own — so this rule is written the other way round: the strip may contain these three drawing
-     * calls and no fourth. It goes red on a line ADDED, which is what the enumerations cannot do.
      */
     @Test fun `the strip draws one thing and nothing beside it`() {
         val strip = stripLines()
@@ -348,13 +311,6 @@ class RemoteImagesTest {
 
     /**
      * The rules above protect the lines they ENUMERATE. They cannot protect the file from a line
-     * that is ADDED — which is how the mutation that matters here survives them: a
-     * `modifier = Modifier.padding(top = 24.dp)` on the row, or a `Spacer` inside the button,
-     * satisfies every rule above word for word and makes the strip taller than the button floor.
-     * The single shape guarantees the two STATES agree with each other; it does not stop the strip
-     * from growing away from the height the header was measured at. So this rule is written the
-     * other way round: on the strip's own lines, the only geometry allowed is the two lines that
-     * are there, and anything else carrying geometry fails.
      */
     @Test fun `no geometry is added to the strip, ever`() {
         val strip = stripLines()
@@ -381,16 +337,6 @@ class RemoteImagesTest {
 
     /**
      * The call site, which no other rule in this class reads: [stripLines] is the body of
-     * `ImagesStrip`, [headerSource] the body of `MessageHeader`, and the call lives in
-     * `ConversationBody` — in neither.
-     *
-     * `imagesBlocked = !blockRemote` compiles, ships, and inverts the entire feature; nothing else
-     * here would go red. So the three arguments are pinned as WHOLE LINES at the call site itself.
-     *
-     * The second hop is pinned for the same reason: `nothing else in the reader was moved` only
-     * checks that a call named `ImagesStrip(` exists, so `ImagesStrip(imagesStrip, onShowImages)` —
-     * the FROZEN presence flag handed in where the LIVE state belongs — passes it. That one leaves
-     * the button on screen after the pictures have been shown, doing nothing when tapped.
      */
     @Test fun `the header is handed the live blocking state, not its opposite`() {
         val call = headerCallLines()
@@ -423,18 +369,6 @@ class RemoteImagesTest {
 
     /**
      * The hop ABOVE the one pinned just here, which nothing else in this class or in
-     * [ReaderBodyTest] reads: `MessageContent` is where the two answers are HANDED DOWN.
-     *
-     * [ReaderBodyTest] pins how `showRemote` and `plainText` are DECIDED; `HEADER_WIRING` above
-     * pins what `ConversationBody` does with `blockRemote` once it has it. Between the two there is
-     * one line each, and a single token changed on either passes the whole suite:
-     *
-     *  - `blockRemote = showRemote` inverts the app's privacy posture. The pictures of a sender the
-     *    reader never allowed are fetched — which tells that sender the message was opened and
-     *    gives him her IP address — while an allowed sender's are held back.
-     *  - `plainText = imageMode` hands the body, and with it the strip's presence, the IMAGE-side
-     *    answer. The two differ only until DataStore replies, so every message she opens renders a
-     *    frame as plain text and then swaps to HTML: the flicker `plainTextForBody` exists to stop.
      */
     @Test fun `the body is handed the reading-mode answer and the blocking state, not their twins`() {
         val call = bodyCallLines()
@@ -462,19 +396,6 @@ class RemoteImagesTest {
 
     /**
      * The THIRD door the same blocking answer has to go through, and the one nothing here was
-     * watching: the printer. `ReaderBodyTest` pins how `showRemote` is DECIDED, `HEADER_WIRING`
-     * pins what the strip is handed, `BODY_WIRING` what the rendered page is handed — and none of
-     * them can see this line. [bodyCallLines] only starts reading at
-     * `is MessageState.Loaded -> ConversationBody(`, which sits LOWER in `MessageContent` than the
-     * print effect, so the print line is dropped before any comparison is made. It is read here
-     * off the whole composable instead, and as a WHOLE LINE.
-     *
-     * `blockRemote = false` — or the argument dropped for a default — is thirty seconds of
-     * "printing does not need the blocker". It sends every print and every "save as PDF" to the
-     * network for the sender's pictures, on a message she read with those pictures held back: he
-     * learns she opened it and gets her IP address, at the moment she is making a paper copy.
-     * `blockRemote = showRemote` is the same damage with the trust inverted — the refused
-     * sender's pictures fetched, the allowed one's held back.
      */
     @Test fun `the printer is handed the same blocking state as the screen`() {
         val lines = block("private fun MessageContent(").lines().map { it.trim() }
@@ -507,14 +428,6 @@ class RemoteImagesTest {
 
     /**
      * WHETHER the row is drawn at all — the condition no other rule in this class reads, and the
-     * cheapest way left to bring the whole defect back.
-     *
-     * `if (imagesStrip && imagesBlocked) {` is thirty seconds of "why keep a strip when nothing is
-     * held back any more". It compiles, it reads as tidying, and every other rule here stays green.
-     * At the tap the row AND its `HorizontalDivider()` leave the header — about 49 dp, not 8 — the
-     * body's HTML document is re-keyed and the load in flight is cancelled: the maximal form of the
-     * very defect the single shape was built to close. The strip is drawn on PRESENCE alone; the
-     * live state only chooses the label and `enabled`, inside the row.
      */
     @Test fun `the row is drawn on presence alone, never on the live blocking state`() {
         val header = headerSource().lines().map { it.trim() }
@@ -534,18 +447,6 @@ class RemoteImagesTest {
 
     /**
      * The presence lock, which is the half of the height rule that is easy to lose.
-     *
-     * `senderAllowed` is captured when the body arrives and never read again for this page. Keyed
-     * on anything else — or not remembered at all — an "always show images from this sender"
-     * chosen from the overflow menu makes the strip VANISH mid-read: the header loses a whole row,
-     * which re-keys the document exactly like a resize does.
-     *
-     * The key is `(full, plainText)`, and BOTH halves are part of the rule. `plainText` is NOT
-     * free: the strip's own height feeds `topSpacerCssPx`, which the body's HTML remember() keys
-     * on, so a reading-mode toggle loads the document twice — once for the mode, once for the
-     * header that changed under it. It is allowed for that ONE gesture, which already replaces the
-     * document and puts the reader back at the top; the image-side mode (`imageMode`) is refused
-     * because it flips with no gesture at all, when DataStore answers.
      */
     @Test fun `the strip's presence is frozen for the life of the page`() {
         assertTrue(
@@ -595,8 +496,6 @@ class RemoteImagesTest {
 
     /**
      * Whole-line match. The only slack is the trailing comma Kotlin puts on the last element of an
-     * argument or modifier chain; anything else added to the line fails the rule, which is the
-     * whole point of not using `contains`.
      */
     private fun hasLine(lines: List<String>, exact: String) =
         lines.any { it == exact || it == "$exact," }
@@ -609,8 +508,6 @@ class RemoteImagesTest {
 
     /**
      * The `MessageHeader(...)` call inside `ConversationBody` — the arguments only, not the whole
-     * function, so a matching line found anywhere else in that 200-line composable cannot satisfy
-     * the rule by accident.
      */
     private fun headerCallLines(): List<String> =
         block("private fun ConversationBody(").lines().map { it.trim() }
@@ -619,8 +516,6 @@ class RemoteImagesTest {
 
     /**
      * The `ConversationBody(...)` call inside `MessageContent` — the arguments only, on the same
-     * pattern as [headerCallLines], so a line matching somewhere else in that 130-line composable
-     * (the `val`s at the top of it, in particular) cannot satisfy the rule by accident.
      */
     private fun bodyCallLines(): List<String> =
         block("private fun MessageContent(").lines().map { it.trim() }
@@ -666,8 +561,6 @@ class RemoteImagesTest {
 
         /**
          * Every composable the strip is allowed to draw, by its OPENING line, in order. A fourth
-         * entry is a second shape, which is the whole defect; a missing one is the strip taken
-         * apart. The arguments of these three are pinned separately, as whole lines.
          */
         val ALLOWED_DRAWS = listOf("Row(", "TextButton(", "Text(")
 

@@ -9,10 +9,6 @@ import org.junit.Test
 
 /**
  * Executes [rawSourceBytes], the decision behind "Save as .eml": the String a raw source travels
- * in is a byte container (one char per octet), so the file gets those octets back UNCHANGED —
- * never a UTF-8 re-encoding, which would double every byte above 0x7F and hand the reader a
- * `.eml` that no longer matches the server's copy (a signature over it would not verify). And an
- * unreadable source is an UNKNOWN, refused, never a zero-byte file that looks like a saved message.
  */
 class RawSourceBytesTest {
 
@@ -40,17 +36,6 @@ class RawSourceBytesTest {
 
     /**
      * Last resort, and only beside the executing tests above: the public entry point cannot be
-     * built on a JVM bench (`MailRepository` needs Room and a network stack), so this pins that
-     * [MailRepository.rawSource] still exists with the promised signature and still hands the
-     * fetched source to [rawSourceBytes] — every code line of the file that names either, whole.
-     * Delete the call and the export silently writes nothing; re-encode in UTF-8 and the bytes
-     * above never reach the file. The fourth line is the one CALLER of `rawSource` inside the
-     * file, the move between accounts (#189), pinned whole so a second maker of bytes cannot
-     * hide behind a caller's name — and it is pinned WITH the numbering the row was ticked under,
-     * which travels from `rawSource` down to the SELECT the fetch goes out on. Drop that argument
-     * anywhere on these three lines and the export still works while the cross-account move reads
-     * the octets of whatever holds that uid now ([ReadUnderTheNumberingItWasTickedUnderTest] runs
-     * the read itself; only the text can say the argument is still handed down).
      */
     @Test fun `rawSource is wired to rawSourceBytes, and to nothing else`() {
         assertEquals(

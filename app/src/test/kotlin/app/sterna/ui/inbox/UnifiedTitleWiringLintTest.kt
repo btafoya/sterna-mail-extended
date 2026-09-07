@@ -6,31 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxScreen.kt` as text and proves nothing about what
- * the app draws. There is no Compose test harness in this repo and `InboxScreen` is not instantiable
- * on the JVM, so the wiring of the top bar's title is out of reach of any executing test; this file
- * is the last resort the house pattern allows, and it pins ARGUMENTS, not just the names of the
- * functions called.
- *
- * What it guards, all three of them one-word mutations that compile and leave the rest green:
- *  - the title argument — with the unified arm gone, the title falls back to
- *    `mailboxDisplayName(null, "All inboxes")`, i.e. the internal [UNIFIED_LABEL] that
- *    `SelectionMemory.kt` puts in the top-level [Meta] (it used to live in `InboxViewModel`'s
- *    private companion, and both moved out so a JVM test could run the decision), shown raw in all
- *    nine locales while the drawer entry that leads there is translated;
- *  - the subtitle guard — in the unified view `accountName` is ALSO the internal label, so dropping
- *    `!ui.unified` prints the title twice, one under the other;
- *  - the role arm — swapping `mailboxDisplayName(selectedRole, ui.mailboxName)` for the unified
- *    string in EVERY case would render Sent / Trash / Drafts in raw English instead.
- *
- * Every rule compares a WHOLE unit — the whole argument, the whole condition, the whole call —
- * never a fragment. A `contains` on a piece is blind to any mutation that LENGTHENS it:
- * `if (ui.unified)` is contained in `if (ui.unified && false)`, and
- * `mailboxDisplayName(selectedRole, …)` contains `mailboxDisplayName(`. The price is that a reformat
- * reddens this test; that direction of error is loud and one line to fix.
- *
- * Every rule is anchored on the `MediumTopAppBar` block, never on the file: `InboxScreen.kt` holds a
- * second bar (the search field) that calls `mailboxDisplayName` too, and a rule read over the whole
- * file could be satisfied by the wrong one.
  */
 class UnifiedTitleWiringLintTest {
 
@@ -106,11 +81,6 @@ class UnifiedTitleWiringLintTest {
 
     /**
      * The `MediumTopAppBar` call up to the brace that balances its first `{`, i.e. its `title`
-     * lambda: comments removed and whitespace collapsed.
-     *
-     * Fails loudly when the call is not found, so a rename or a swap to another bar reddens these
-     * rules rather than satisfying them against an empty string. Matched on the call — `Name(` —
-     * because the import line names it too.
      */
     private fun titleBlock(): String {
         val text = codeText(INBOX_SCREEN)
@@ -125,10 +95,6 @@ class UnifiedTitleWiringLintTest {
 
     /**
      * The first argument of the call whose `(` comes at or after [from]: from that `(` to the `,`
-     * that closes the argument at depth 1, or to the `)` of a one-argument call.
-     *
-     * Depth counts brackets of all three kinds, so a conditional written with braces and a nested
-     * call are read as one argument.
      */
     private fun firstArgumentAt(text: String, from: Int): String {
         val open = text.indexOf('(', from)
@@ -191,12 +157,6 @@ class UnifiedTitleWiringLintTest {
 
     /**
      * [file] as ONE line of code: every comment taken out, every run of whitespace collapsed to a
-     * single space — so a call the formatter spreads over eight lines reads the same as one written
-     * on a line, and the rules do not care which the formatter chose.
-     *
-     * Written as a scanner over the whole file rather than per line: dropping a line because it
-     * starts with `*` — what the older lints here do — also drops a continuation written
-     * operator-first, and a `//` inside a string literal is not a comment.
      */
     private fun codeText(file: File): String {
         val code = StringBuilder()

@@ -5,8 +5,6 @@ import org.junit.Test
 
 /**
  * The sizing decision of a folder refresh, executed. Every expectation is a literal: a test that
- * recomputed `min(window, capacity)` would agree with the code by construction, including when
- * the code caps the wrong number.
  */
 class SyncPagingTest {
 

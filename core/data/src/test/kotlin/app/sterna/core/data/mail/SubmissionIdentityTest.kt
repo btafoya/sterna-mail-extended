@@ -7,14 +7,6 @@ import org.junit.Test
 
 /**
  * [SubmissionIdentity.choose] — the rule EXECUTED, with its arguments pinned.
- *
- * The defect it answers (issue #172): an address typed by hand in the identity settings has no
- * server identity, the submission was created under the FIRST server identity in silence, and the
- * server derived `smtp.mailfrom` from that one while the `From:` header carried the typed address.
- * DMARC sees two domains and the message lands in spam.
- *
- * Nothing here recomputes the rule to decide what it expects: every expectation is a literal
- * written out by hand. Inverting any condition in [SubmissionIdentity] must turn one of these red.
  */
 class SubmissionIdentityTest {
 
@@ -35,8 +27,6 @@ class SubmissionIdentityTest {
 
     /**
      * THE defect. The typed address has no server identity: the submission still goes out under
-     * the first one, but the envelope now SAYS the typed address, so the server either accepts it
-     * or refuses the submission — instead of quietly sending under another domain.
      */
     @Test fun `a chosen address the server does not know names it in the envelope`() {
         val choice = SubmissionIdentity.choose(
@@ -83,9 +73,6 @@ class SubmissionIdentityTest {
 
     /**
      * Case and surrounding spaces are not a different address. `StoredAccount` dedupes
-     * identities on `trim().lowercase()`, so an address typed with a trailing space survives as
-     * the chosen one; matching it strictly would call it unknown and pose an envelope for an
-     * address the server has an identity for.
      */
     @Test fun `matching trims both sides and ignores case`() {
         val choice = SubmissionIdentity.choose(

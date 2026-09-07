@@ -7,13 +7,6 @@ import org.junit.Test
 
 /**
  * The RFC 5530 response code — the ONE typed thing a failing IMAP server says — as it is read
- * off the tagged line and carried on [ImapException.responseCode].
- *
- * What is at stake is the connect screen's verdict: without the code, EVERY failure whose
- * message mentions AUTHENTICATE reads as "wrong email or password", including a server that
- * said `NO [UNAVAILABLE] busy` — and the user goes off to change a password that was right.
- * The code is also the only part of the server's answer that may ever reach the screen: the
- * free-text body has leaked a credential before (OAuth, 8e942069).
  */
 class ResponseCodeTest {
 

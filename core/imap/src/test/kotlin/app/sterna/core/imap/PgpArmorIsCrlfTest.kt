@@ -7,17 +7,6 @@ import org.junit.Test
 
 /**
  * **A PGP armor arrives with bare LFs, and nothing downstream fixes them.**
- *
- * The armored bytes are not built here: they come from the OpenPGP provider (OpenKeychain /
- * BouncyCastle `ArmoredOutputStream`), which separates its lines with bare `\n`. [PgpMime]
- * canonicalises the entity it SIGNS ([PgpMime.signablePayload]) and never the armor, so the
- * wrapper splices provider bytes verbatim into a message that is otherwise pure CRLF. On a relay
- * hardened after CVE-2023-51764 (`smtpd_forbid_bare_newline`) that message is refused and the
- * send never completes — the same message unsigned goes out.
- *
- * Two guards, tested separately because they are two distinct places to break: the producer
- * ([PgpMime.wrapSigned] / [PgpMime.wrapEncrypted]) and the delivery seam ([OutgoingMime.build],
- * the only one that also repairs an entity ALREADY on disk in `files/outbox/<id>/`).
  */
 class PgpArmorIsCrlfTest {
 
@@ -82,10 +71,6 @@ class PgpArmorIsCrlfTest {
     fun `a bare CR inside signed bytes crosses the seam untouched`() {
         // The one thing canonicalisation must NOT tidy up. An entity signed before dee4a346
         // and still sitting in the outbox contains "\r\r\n" INSIDE the octets the signature was
-        // computed over. Straightening it on the way out changes the signed bytes, and the
-        // recipient's client reads "invalid signature" — a wrong message delivered, where a bare
-        // LF only ever produced a refused one. And a bare CR is not what smtpd_forbid_bare_newline
-        // rejects anyway.
         val queued = "Content-Type: text/plain\r\n\r\nsigned line one\r\r\nsigned line two\r\n"
 
         val mime = OutgoingMime.build(pgpMessage().copy(prebuiltEntity = queued))
@@ -117,21 +102,6 @@ class PgpArmorIsCrlfTest {
 
 /**
  * The lines of a provider armor, as literals — the ONE description of the fixture, from which both
- * the bare-LF input and the expected CRLF output are joined.
- *
- * Two joins of this list, never a transformation of one into the other: an expected value
- * derived from the input by a `replace` would be a second copy of [PgpMime.canonicalize], and any
- * mutation of the real one would be reproduced by the test instead of caught by it.
- *
- * What each line is there for:
- *  - the **empty line** after `-----BEGIN…-----` is mandatory (RFC 4880 § 6.2): it separates the
- *    armor headers from the radix-64 block. Drop it and every message still sends, and NO
- *    recipient can verify the signature. It is inside the pinned block for exactly that reason.
- *  - twenty 62-column body lines, so the whole armor collapsed into a single "line" is well past
- *    the 998 octets RFC 5321 § 4.5.3.1 allows.
- *  - `.abcdef` is deliberate and NOT realistic radix-64 (neither the body nor the `=abcd` CRC24
- *    checksum can begin with '.'): the delivery loop dot-stuffs by testing the first character of
- *    each split element, so an un-split armor hides whether stuffing happens at all.
  */
 internal fun armorLines(kind: String): List<String> = buildList {
     add("-----BEGIN PGP $kind-----")
@@ -166,9 +136,6 @@ internal fun assertNoBareLf(what: String, s: String) {
 
 /**
  * The WHOLE armor, byte for byte, as one CRLF block — not a line-by-line search.
- *
- * A per-line check that skipped empty lines let a wrapper drop the mandatory blank line of
- * RFC 4880 § 6.2 while staying green: the message sends and nobody can verify it.
  */
 internal fun assertArmorIsIntact(kind: String, produced: String) {
     val expected = expectedCrlfArmor(kind)

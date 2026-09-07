@@ -7,10 +7,6 @@ import org.junit.Test
 
 /**
  * [autocryptHeaderValue], executed argument by argument — the whole decision of the volet.
- *
- * Nothing here recomputes the rule to choose what to expect: every case names an account, a
- * `From`, and the exact string that must come out (or `null`). Inverting any condition in the
- * shipped function has to turn one of these red.
  */
 class AutocryptHeaderValueTest {
 

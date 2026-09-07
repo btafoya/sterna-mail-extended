@@ -12,13 +12,6 @@ import app.sterna.core.data.text.Span
 
 /**
  * What the body field DRAWS in front of a list's lines (#131): `• ` on every line of a bullet block,
- * `1. `, `2. `… on a numbered one, restarting at 1 for each block.
- *
- * Not a character of this enters the model: the markers exist in the TEXT LAYER only, so the dirty
- * check, the save, the send and the HTML see the same text as before a list was toggled — hence the
- * [OffsetMapping], the caret and the IME speaking in ORIGINAL offsets.
- *
- * No `ParagraphStyle` / `TextIndent` (arbitrated, spec § 4): their boundaries fall on the `\n`.
  */
 fun markedText(text: AnnotatedString, blocks: List<Block>): TransformedText {
     // FIRST LINE, and that is the whole of it: a body with no list is handed straight back with
@@ -44,13 +37,6 @@ fun markedText(text: AnnotatedString, blocks: List<Block>): TransformedText {
 
 /**
  * THE body field's one and only `VisualTransformation`, carrying BOTH halves (#131): the inline styling
- * ([styledBody]) laid on the text, then the list markers ([markedText]) in front of the lines.
- *
- * Both halves, because a field has exactly one of these and a span in the field's VALUE destroys the
- * IME's composing region on every keystroke (mechanism over [styledBody]).
- *
- * The ORDER is not a taste: the spans go on first, at the model's own offsets, or every span after
- * the first marker sits two or three characters to the left.
  */
 fun bodyTransformation(rich: RichBody, linkColor: Color): VisualTransformation =
     object : VisualTransformation {
@@ -60,11 +46,6 @@ fun bodyTransformation(rich: RichBody, linkColor: Color): VisualTransformation =
 
 /**
  * The list kind covering EVERY line the selection touches, or null — what the two list buttons show
- * as `selected`.
- *
- * Like `toggleBlock` and unlike the inline styles, an EMPTY selection is not "nothing": the
- * cursor's own line is the target, as in Gmail. The two must agree line for line or the lit button
- * would not be the one that turns the list off; `RichBodyMarkersTest` pins that by running both.
  */
 fun listKindAt(body: RichBody, selection: Span): BlockKind? {
     val starts = lineStarts(body.text)
@@ -93,13 +74,6 @@ private fun markersOf(lineCount: Int, blocks: List<Block>): List<String> {
 
 /**
  * The two halves of the mapping, and the half that breaks everything visible if it is wrong.
- *
- * `originalToTransformed(o)` = `o` plus every marker up to AND INCLUDING the line holding `o`, so an
- * offset at the start of a line lands after that line's marker. `transformedToOriginal(t)` sends
- * anything inside a marker back to its line's first character.
- *
- * Property, pinned in `RichBodyMarkersTest`: the round trip is the identity for every offset, and
- * both directions are monotonic.
  */
 private class MarkerOffsets(
     private val starts: List<Int>,

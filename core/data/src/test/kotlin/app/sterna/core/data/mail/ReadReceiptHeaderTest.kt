@@ -5,16 +5,6 @@ import org.junit.Test
 
 /**
  * The `Disposition-Notification-To:` parser (RFC 8098), EXECUTED on the shapes a real header
- * arrives in — the one piece of this work that decides anything.
- *
- * Two failure modes are being held apart on every line below:
- *  - reading too little: a header that names a perfectly good address comes back empty, and the
- *    sender's request is dropped in silence;
- *  - reading too much: a leftover of a malformed header (`<>`, a group label, a display name)
- *    comes back as an address, and a later `require(recipients.isNotEmpty())` then offers to send
- *    a receipt to something that is not a destination.
- *
- * Every expectation is a literal list. Nothing here re-derives the rule it is checking.
  */
 class ReadReceiptHeaderTest {
 
@@ -32,8 +22,6 @@ class ReadReceiptHeaderTest {
 
     /**
      * The refusal that matters. A header that is there but yields no destination must answer
-     * the same empty list as an absent one — not a placeholder, not the raw text, and above all
-     * not an exception: the caller is specified to read the empty list as "no banner".
      */
     @Test fun `a header naming nothing usable names nobody`() {
         assertEquals(emptyList<String>(), ReadReceiptHeader.recipients("<>"))
@@ -46,8 +34,6 @@ class ReadReceiptHeaderTest {
 
     /**
      * An angle bracket that never closes. The `<…>` form does not match, and the fallback then
-     * finds a word carrying an `@` — with the bracket still stuck to it. `<ann@example.org` is not
-     * an address: nothing may come back holding a delimiter.
      */
     @Test fun `an unclosed angle bracket names nobody`() {
         assertEquals(emptyList<String>(), ReadReceiptHeader.recipients("Ann <ann@example.org"))
@@ -56,8 +42,6 @@ class ReadReceiptHeaderTest {
 
     /**
      * And the one that FABRICATES a destination: an address written inside a quoted display
-     * name, in the `<…>` form. The quoted name has to be removed BEFORE the brackets are looked
-     * for, or whoever wrote the display name chooses where the receipt goes.
      */
     @Test fun `an address hidden in a quoted display name is not the destination`() {
         assertEquals(
@@ -72,9 +56,6 @@ class ReadReceiptHeaderTest {
 
     /**
      * RFC 5322 §4.4's obsolete route: `<@relay,@hop:mailbox@domain>` is ONE address, and the
-     * mailbox is what follows the colon. The commas inside the brackets are not separators —
-     * which is what the splitter's bracket depth is for, and the only input in this file that
-     * can tell whether it is still there.
      */
     @Test fun `an obsolete source route names one mailbox, not the relays`() {
         assertEquals(
@@ -119,12 +100,6 @@ class ReadReceiptHeaderTest {
 
     /**
      * A comma INSIDE a quoted display name is not a separator — the classic split(',') defect.
-     *
-     * The second case is the one that can tell the two apart, and the first alone could not:
-     * split naively, `"Lee, Ann" <…>` still ends up naming the right address, because the piece
-     * torn off the front (`"Lee`) happens to hold no `@`. Put an address-shaped word inside the
-     * quotes and the naive split hands back a destination the sender never named — which for this
-     * header means a receipt sent to an address chosen by whoever wrote the display name.
      */
     @Test fun `a quoted display name holding a comma stays one address`() {
         assertEquals(
@@ -187,8 +162,6 @@ class ReadReceiptHeaderTest {
 
     /**
      * No policy, stated as a test: the same address twice comes back twice, and an address that
-     * has nothing to do with the sender comes back all the same. Deduplicating or filtering here
-     * would be a decision made where the caller cannot see it.
      */
     @Test fun `no address is deduplicated, reordered or judged`() {
         assertEquals(

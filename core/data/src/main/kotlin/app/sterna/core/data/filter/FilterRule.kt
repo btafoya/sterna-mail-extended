@@ -12,12 +12,6 @@ enum class RuleMatch { CONTAINS, IS }
 
 /**
  * One server-side filter rule, as edited in the form UI. Compiled to Sieve by
- * [SieveCodec] and round-tripped via a JSON metadata comment in the script, so
- * the app never has to parse arbitrary Sieve.
- *
- * v1: a single condition plus a curated, non-destructive action set (move to a
- * folder, mark read, flag). Multiple conditions and destructive actions are left
- * for later.
  */
 @Serializable
 data class FilterRule(
@@ -33,8 +27,6 @@ data class FilterRule(
 ) {
     /**
      * True for an untouched rule: no name, no match value and no action. Such a
-     * rule can neither filter nor be recognised, so it is dropped rather than
-     * kept in the list or written to the script.
      */
     val isEmpty: Boolean
         get() = name.isBlank() && value.isBlank() && moveTo == null && !markRead && !flag

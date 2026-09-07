@@ -6,26 +6,11 @@ import org.junit.Test
 
 /**
  * The RFC 2971 `ID` command as it really leaves the client, driven against a scripted server on
- * loopback.
- *
- * What is at stake is a usable account. NetEase (`imap.163.com`, `126.com`, `188.com`,
- * `yeah.net`) lets an anonymous client authenticate and then refuses every SELECT with
- * `NO SELECT Unsafe Login`, so mail syncs nowhere (Codeberg #173). The reporter's transcript
- * shows a bare `ID NIL` accepted and the SELECT still refused: the server wants the client to
- * NAME itself.
- *
- * Every assertion below is on the WHOLE command line, never `contains("ID (")`: a mutation that
- * adds a field, drops the quoting or renames the client all LENGTHEN the line, and `contains`
- * would witness none of them. The expected strings are pinned literals — this file must not
- * recompute what the client is supposed to say.
  */
 class IdOnTheWireTest {
 
     /**
      * A server advertising [capabilities] on top of IMAP4rev1. It can announce them the two ways
-     * a real server does — in the authentication completion's `[CAPABILITY …]` response code
-     * (what Dovecot, Stalwart and Gmail do), or only in answer to a `CAPABILITY` command — and
-     * [idAnswer] lets a test make it refuse the `ID` itself.
      */
     private fun server(
         vararg capabilities: String,
@@ -45,16 +30,12 @@ class IdOnTheWireTest {
 
     /**
      * Every `ID` line received, whole. Matched on the VERB and not on a prefix of the arguments,
-     * so an `ID NIL` — the anonymous form NetEase accepts and still refuses to serve — is caught
-     * by the tests that require no ID at all.
      */
     private fun FakeImapServer.idLines(): List<String> =
         issued().filter { it.substringBefore(' ') == "ID" }
 
     /**
      * The verbs of every line received, LOGIN and AUTHENTICATE included — the ORDER witness.
-     * Verbs only: those two lines carry credentials, which is why [FakeImapServer.issued] drops
-     * them, and an assertion message must not print them either.
      */
     private fun FakeImapServer.verbs(): List<String> =
         commands.toList().map { it.substringBefore(' ') }
@@ -91,8 +72,6 @@ class IdOnTheWireTest {
 
     /**
      * The heart of the best-effort: a server that advertises ID and then answers NO to it must
-     * not cost the user their mailbox. The refusal is swallowed, the SELECT that follows works,
-     * and the socket is not leaked (openSession has no `try/finally` to close it).
      */
     @Test
     fun `a server refusing the ID keeps a usable session`() {
@@ -107,8 +86,6 @@ class IdOnTheWireTest {
 
     /**
      * The OAuth half of the same door: an account authenticating with XOAUTH2 (Outlook/Gmail)
-     * names itself too. Its capability list arrives in the AUTHENTICATE completion, which is a
-     * different code path from LOGIN's — one that has already been forgotten once.
      */
     @Test
     fun `an XOAUTH2 session names itself too`() {
@@ -124,8 +101,6 @@ class IdOnTheWireTest {
 
     /**
      * A version string carrying CR/LF sends NOTHING. `quote` refuses the newline, the refusal
-     * lands in the best-effort wrapper, and the session goes on unnamed — instead of shipping a
-     * second, AUTHENTICATED command of somebody else's choosing on the back of the first.
      */
     @Test
     fun `a version carrying a newline sends no ID and no injected command`() {
@@ -142,11 +117,6 @@ class IdOnTheWireTest {
 
     /**
      * No version known (the default constructor, which is what every test and every non-`:app`
-     * caller builds): the name goes out alone, with no empty or `NIL` version field.
-     *
-     * Also the second discovery route: this server volunteered nothing, so the question is PUT —
-     * RFC 2971 §3 forbids sending ID to a server that has not advertised it, so it is asked first
-     * and named second, in that order.
      */
     @Test
     fun `a mute server is asked, then named, in that order`() {
@@ -164,8 +134,6 @@ class IdOnTheWireTest {
 
     /**
      * The other half of the question being PUT: a server that volunteered nothing and answers the
-     * question without ID in it is not named. Presuming it would understand the command is exactly
-     * what RFC 2971 §3 says a client must not do.
      */
     @Test
     fun `a mute server whose answer has no ID is asked and then left alone`() {
@@ -180,17 +148,6 @@ class IdOnTheWireTest {
 
     /**
      * What the session KEEPS of the question above: nothing. It is put by hand —
-     * `parseCapabilities(command("CAPABILITY").untagged)` — and NOT through `capabilities()` /
-     * `hasCapability`, which CACHE what they learn, so the next reader pays for its own round
-     * trip, and that is how the coldness is visible from outside at all.
-     *
-     * This once protected mail: `ImapSession.move` read "the capability probe could not be
-     * answered" as "the socket is gone, do not copy", so a cache filled at connect made that
-     * question unfailable and a `UID MOVE` cut mid-command walked into the destructive copy
-     * fallback. It no longer does — the fallback now requires a tagged NO/BAD from the server
-     * before it may copy and erase, and `ExpungeTest` pins that directly. So what is pinned here
-     * is the shape as it stands, and the waste it costs: kept as debt, to be lifted on its own,
-     * with this test rewritten with it.
      */
     @Test
     fun `asking for the ID capability leaves the session cache cold`() {

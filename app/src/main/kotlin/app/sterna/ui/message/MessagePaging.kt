@@ -11,13 +11,6 @@ object MessagePaging {
 
     /**
      * Whether the reading view must (re)load: [settled] first, and everything else after it.
-     *
-     * [settled] — "the page the reader landed on, not a warmed neighbour" — is why this function
-     * takes it rather than the screen keeping its own guard: the pager composes one page each side, so
-     * without it opening one message loads three, and on IMAP each load hands the sender's announced
-     * key to OpenKeychain, against ENCRYPTION.md:177-180.
-     *
-     * [failed] is IN HERE and is an `&&` not an `||`. The account is part of the identity question.
      */
     fun needsLoad(
         settled: Boolean,
@@ -30,13 +23,6 @@ object MessagePaging {
 
     /**
      * Whether a body already in the LOCAL cache may be put on a page the finger has not reached — the
-     * decision behind `warmFromCache`, which moves the ~1 s rendering staircase before the gesture.
-     * It moves nothing onto the NETWORK.
-     * The three refusals are about what the reader would SEE on a page she has not swiped to, and
-     * none of them keeps an unopened page off the network — that is the one-way `everActive` latch.
-     * [cryptoKind] non-null would print the armour in clear; inline images not settled is exactly
-     * `ensureInlineImages`'s own condition; [senderAllowedRemoteImages] buys COMFORT only, the
-     * settle otherwise flipping `blockRemote`, half of the load key. The caller compares LOWER-CASED.
      */
     fun warmable(
         cryptoKind: CryptoKind?,
@@ -49,12 +35,6 @@ object MessagePaging {
 
     /**
      * The entry the reader is SETTLED on: [previous] while the pager is [scrolling], [atRest]
-     * otherwise. The caller holds the answer as the MESSAGE, never as its rank.
-     *
-     * Identity, not a page number: `settledPage` is an index refreshed only around a scroll, so mail
-     * prepended under an open reader re-anchors the pager while that index keeps its old number and
-     * names the neighbour above — whose page then believed itself settled and LOADED. [scrolling]
-     * covers drag and fling alike. At rest the answer is [atRest] even when null.
      */
     fun <T> settledEntry(previous: T?, atRest: T?, scrolling: Boolean): T? =
         if (scrolling) previous else atRest
@@ -78,12 +58,6 @@ object MessagePaging {
 
     /**
      * Merge the live paged entries into the reading session's sticky entry list.
-     *
-     * The pager must never drop or shift an entry it has already shown: with the unread filter active,
-     * marking the settled message read removes it from the live flow, and a pager that followed would
-     * re-bind the settled slot to the next unread, mark it read in turn, and cascade. So entries
-     * missing from [live] are kept where they were, while genuinely new ones are inserted at their
-     * live position.
      */
     fun <T : Any> mergeEntries(stable: List<T>, live: List<T>, idOf: (T) -> String): List<T> {
         if (stable.isEmpty()) return live

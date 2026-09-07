@@ -9,22 +9,6 @@ import org.junit.Test
 
 /**
  * Codeberg #134: a message deleted from another client (Thunderbird, a webmail) left Sterna's
- * notification on screen. The layer that can cancel it is the notifier, and the only place that
- * KNOWS the message is gone is this sync — so the departure has to travel from here.
- *
- * Two halves, because only one of them can be executed:
- *
- *  - the DECISIONS — which ids a delta may call "gone from this mailbox" ([deltaEvictions]) and
- *    which of those the server actually confirms ([confirmedDepartures]) — are pure functions,
- *    and they are RUN here against the shapes that decide whether a banner is cancelled wrongly;
- *  - the WIRING — that the notifier is fed THAT function's result and never `queryChanges.removed`
- *    raw — cannot be executed: `MailRepository` needs Room and a live JMAP session. It is pinned
- *    by reading the shipped source, WHOLE LINE by whole line: a `contains` check is blind to any
- *    mutation that lengthens the line, which is how three of these went through unnoticed here.
- *
- * The sign of the error matters: feeding a non-authoritative signal (a reorder, a full-query page,
- * the retention window) cancels the banner of a message that is alive on the server — unread mail
- * the user never sees. One banner too many is survivable; one too few is not.
  */
 class DeparturesComeFromTheServerTest {
 
@@ -194,9 +178,6 @@ class DeparturesComeFromTheServerTest {
     @Test fun `the delta's spare is the real mutation window, not a constant`() {
         // Found by the counter-expertise: nothing executed this predicate. Both tests above build
         // their own (`{ false }`, `{ it == "M1" }`), so replacing the shipped one with a constant
-        // changed no verdict anywhere — and the damage is direct: a message the user has just
-        // starred FROM Sterna is evicted by the next delta AND loses its banner with it. The
-        // lines are two above the `deltaEvictions(...)` call the older lint pinned.
         val body = DaoQuerySource.mailFunctionBody("MailRepository", "syncMailbox")
         assertEquals(
             "the spare must be the recently-mutated window itself, asked per account (#31/#92)",

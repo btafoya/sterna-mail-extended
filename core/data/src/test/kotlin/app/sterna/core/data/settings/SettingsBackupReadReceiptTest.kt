@@ -8,16 +8,6 @@ import org.junit.Test
 
 /**
  * The read-receipt switch (#148) must travel in a settings backup like every other preference —
- * the same three checks as [SettingsBackupReplyBarTest], and here they matter more than usual.
- *
- * `AndroidManifest.xml` and `res/xml/backup_rules.xml` exclude `datastore/` from Android's own
- * backup, so this export is the ONLY way a preference survives a reinstall. A reader who turned
- * this on, exported, reinstalled and imported would find it off again with nothing said — and
- * "off" is the position where the app ignores a sender's request entirely, so there is not even a
- * banner to notice the loss by.
- *
- * The direction that matters is the opposite of the reply bar's: the default here is FALSE, so
- * "on" is the answer a backup has to carry.
  */
 class SettingsBackupReadReceiptTest {
 

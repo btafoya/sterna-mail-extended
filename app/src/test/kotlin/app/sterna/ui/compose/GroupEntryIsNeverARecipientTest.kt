@@ -7,19 +7,6 @@ import org.junit.Test
 
 /**
  * An addressing entry that carries a NAME and NO address must never become a recipient of a new
- * message.
- *
- * The IMAP `ENVELOPE` parser carries RFC 5322 group syntax with no member — `Cc:
- * undisclosed-recipients:;` — as one entry `EmailAddress(name = "undisclosed-recipients", email =
- * "")`, so a reopened draft shows the header the server holds instead of a blank field. That entry
- * is a header, not a mailbox: replying or replying-all to such a mail must address the real
- * mailboxes only, and a `Reply-To` made of nothing but that entry is no `Reply-To` at all — the
- * `From` takes over, rather than opening a reply with no recipient.
- *
- * Every expectation below is the WHOLE field, as a literal: an entry leaking in would have to leak
- * in silently for these to stay green. Each case is doubled by the same original WITHOUT the entry,
- * asserting the identical result — that pair is what proves the entry is what got dropped, and not
- * that the case never reached the guard.
  */
 class GroupEntryIsNeverARecipientTest {
 

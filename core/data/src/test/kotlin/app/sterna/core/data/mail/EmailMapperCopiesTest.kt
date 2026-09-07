@@ -12,18 +12,6 @@ import org.junit.Test
 
 /**
  * The `Cc` and `Bcc` recipients survive the cache.
- *
- * The cached row is what a reopened draft and a "reply all" are rebuilt from. While the row carried
- * only the `To:`, reopening a draft came back with its Cc and Bcc fields emptied — valid addresses
- * included, and the Cc/Bcc row folded shut, so nothing on screen said a recipient had gone — and
- * replying to all silently left out everyone in copy.
- *
- * Every case here uses four DIFFERENT, individually recognisable addresses (From, To, Cc, Bcc).
- * A test whose fields look alike cannot tell a mapper that stores the right list from one that
- * stores its neighbour, and would pass just as well on both.
- *
- * These tests execute the mapper itself; the columns and their migration are covered by
- * `CopiesMigrationSqlTest`.
  */
 class EmailMapperCopiesTest {
 
@@ -71,8 +59,6 @@ class EmailMapperCopiesTest {
 
     /**
      * The four addressing fields land in four separate columns, each holding its OWN list. Pins the
-     * argument each column is written from, not merely that something was written: `ccJson` built
-     * from the To (or the Bcc) is invisible to any check that only asks "is it non-null?".
      */
     @Test fun eachAddressingFieldGoesToItsOwnColumnAndNoOther() {
         val entity = message().toEntity("accA", "inbox")
@@ -88,10 +74,6 @@ class EmailMapperCopiesTest {
 
     /**
      * The one-token slip that leaks an address: reading the Bcc column into the visible `cc`.
-     *
-     * The whole point of a blind copy is that the other recipients never see it. A row that hands
-     * the Bcc back as the Cc puts that address into the composer's visible Cc field on the next
-     * reply-all or reopened draft, and it goes out to everybody.
      */
     @Test fun aBlindCopyNeverComesBackAsAVisibleCc() {
         val read = message().toEntity("accA", "inbox").toEmail()
@@ -141,11 +123,6 @@ class EmailMapperCopiesTest {
 
     /**
      * The commonest shape of a hidden copy: somebody in blind copy, NOBODY in visible copy.
-     *
-     * With both columns always filled together, a mapper reading `cc` as `ccJson ?: bccJson` reads
-     * exactly like a correct one. Here `ccJson` is NULL, so that fallback hands the hidden address
-     * back as the visible Cc: the composer unfolds its Cc row with it and the next send mails it to
-     * every recipient. Irreversible — the address is out.
      */
     @Test fun aBlindCopyAloneDoesNotFallBackIntoTheVisibleCc() {
         val entity = message(cc = emptyList(), bcc = listOf(dave)).toEntity("accA", "inbox")
@@ -240,8 +217,6 @@ class EmailMapperCopiesTest {
 
     /**
      * The addressee typed but not yet resolved: a server can hand a draft's recipient back with an
-     * empty address and the typed string in the name. It is still a recipient the user wrote, and
-     * losing it is the loss this column exists to stop.
      */
     @Test fun aCopiedRecipientWithNoAddressYetIsStillStored() {
         val typed = EmailAddress(name = "cc-typed-but-unresolved", email = "")

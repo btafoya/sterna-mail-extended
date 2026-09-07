@@ -11,14 +11,6 @@ import java.io.IOException
 
 /**
  * The rule that keeps re-saving a draft from destroying it (#63): the original may only be
- * destroyed by a replacement that reproduced it. Re-saving used to create an attachment-less
- * draft and then destroy the server copy that held the files compose was showing as chips —
- * irreversible loss of data the UI had just displayed.
- *
- * The same rule, extended to the addressing: an IMAP draft addressed to a Cc came back from
- * Drafts with an empty Cc field (the cache row has no such column), and saving it destroyed the
- * server copy that still carried the address. Measured on the bench 2026-08-04: `cc` went from
- * `jordan.lee@masto.top` to `null`, definitively and with nothing on screen.
  */
 class DraftSaveTest {
 
@@ -98,15 +90,6 @@ class DraftSaveTest {
 
     /**
      * A replacement that never left, every other leg green — and the original still stands.
-     *
-     * The damage this refuses: a deferred upload (#95) retries, its `Message-ID` lookup finds the
-     * draft already on the server and skips the APPEND on purpose, so the bytes this attempt was
-     * holding went NOWHERE. The three legs below then compare what the COMPOSER holds against what
-     * the ORIGINAL held — and say "faithful" about a copy some earlier attempt wrote. The original
-     * is expunged in its name. Two ways that copy is not the same message: it may have been
-     * deposited by a build that wrote no `Bcc:` header at all (the blind addresses then exist
-     * nowhere), and `imapDraftAttachments` drops a part it cannot read from disk, so the attempt
-     * that did the APPEND may have sent N−1 files while this one counts N against N.
      */
     @Test fun aReplacementThatNeverLeftProvesNothingAndKeepsTheOriginal() {
         assertFalse(
@@ -121,15 +104,6 @@ class DraftSaveTest {
 
     /**
      * THE cheap half of the same damage, and the one no other leg can catch: a draft with NO
-     * attachment at all — only a Cci, say — whose APPEND was skipped on a retry. Every countable
-     * leg is perfect (`0 == 0`), the body is clean, the addressing "matches" because the composer
-     * is compared with itself, and the original is expunged in the name of a copy this attempt
-     * never wrote. That copy may be the one an older build of this app appended with no `Bcc:`
-     * header at all, and then the blind addresses exist on no copy anywhere.
-     *
-     * Its twin above uses `attachmentsIn = 1` and would let `(replacementWentOut ||
-     * attachmentsIn == 0)` through — a mutation that restores exactly this loss. This case is what
-     * refuses it, so the two are kept side by side and neither may be dropped for the other.
      */
     @Test fun `a replacement that never left keeps the original even with nothing to count`() {
         assertFalse(
@@ -144,8 +118,6 @@ class DraftSaveTest {
 
     /**
      * The mirror, same values: the term is the APPEND's real answer and not a constant `false`.
-     * An attempt that DID put the bytes on the server, with every other leg green, still replaces
-     * the original in place — one draft, not two, on every ordinary save.
      */
     @Test fun theSameSaveThatDidGoOutStillReplacesTheOriginal() {
         assertTrue(
@@ -162,8 +134,6 @@ class DraftSaveTest {
 
     /**
      * THE distinction of this fix, half one. `null` = the addressing could NOT be established
-     * (offline, a fetch that failed). The server copy is then the only thing holding it, and it
-     * must survive — even though the replacement looks perfectly fine on its own.
      */
     @Test fun anAddressingThatCouldNotBeReadIsNotAnEmptyOne() {
         assertFalse(draftAddressingIsCarried(original = null, replacement = emptySet()))
@@ -177,8 +147,6 @@ class DraftSaveTest {
 
     /**
      * THE distinction of this fix, half two, and deliberately a SEPARATE test from the one
-     * above: a draft that really has no copied parties has nothing to lose, so it may be replaced.
-     * Confusing these two is what makes the whole fix vanish while staying green.
      */
     @Test fun anAddressingReadAsEmptyIsCarriedByAnything() {
         assertTrue(draftAddressingIsCarried(original = emptySet(), replacement = emptySet()))
@@ -212,11 +180,6 @@ class DraftSaveTest {
 
     /**
      * The inclusion runs ONE way: original ⊆ replacement. A replacement that ADDED an address
-     * (the user typed one before saving) carries the original's — nothing was lost.
-     *
-     * Inverted, this test is what fails: `replacement ⊆ original` would call this unfaithful and
-     * leave a duplicate here, while calling the case above (a Cc dropped) faithful and destroying
-     * the copy that held it.
      */
     @Test fun anAddressAddedByTheUserStillCarriesTheOriginal() {
         assertTrue(
@@ -246,10 +209,6 @@ class DraftSaveTest {
 
     /**
      * THE test of this volet, and it EXECUTES the decision rather than reading the call site.
-     * The original the server holds is `message.cc + message.bcc` (`ImapMailService.ccAndBccOf`),
-     * so a draft with a Cci offers a bcc address as the thing to prove. Since the Drafts APPEND
-     * writes a real `Bcc:` header, the replacement holds it too — and dropping the bcc from this
-     * set is what leaves a duplicate in Drafts on every save of a draft with a blind copy.
      */
     @Test fun aBlindCopyIsCarriedByTheReplacementsOwnBcc() {
         assertTrue(
@@ -265,8 +224,6 @@ class DraftSaveTest {
 
     /**
      * The safe direction, unchanged: a replacement whose Bcc came back EMPTY (the reopen gave
-     * nothing back — a cache row with no bcc column, a read that failed) does NOT carry an
-     * original that had a blind copy. The proof fails and the server copy survives.
      */
     @Test fun aReplacementWithNoBccDoesNotCarryABlindCopy() {
         assertFalse(
@@ -388,14 +345,6 @@ class DraftSaveTest {
 
     /**
      * The EMPTYING gestures (#69 × #95) ask THIS question, with an empty replacement — the
-     * composer has just been emptied, so it offers nothing at all — and read the answer as "was the
-     * original provably copied to nobody?". `MailRepository.emptiedDraftAddressingIsProvenEmpty` is
-     * the one line of wiring between the two, pinned by [DraftAddressingWiringTest] because nothing
-     * here can instantiate the repository; the decision is this, and it is executed.
-     *
-     * Three of the four answers must be the SAME false. The emptying destroys the server copy
-     * outright and leaves not even the duplicate an ordinary save leaves, so "there was a Cc" and
-     * "I could not find out" have to weigh alike: an unknown is not a void.
      */
     @Test fun theEmptyingProvesAnEmptyAddressingOnlyWhenTheServerSaidSo() = runTest {
         val reads = listOf<suspend (String) -> Set<String>?>(
@@ -435,9 +384,6 @@ class DraftSaveTest {
 
     /**
      * The entry the server hands back with no address at all — measured on the bench, a server
-     * dropping an address it judged invalid. Dropping it here is what authorises the destroy: it
-     * was the ONLY Cc, so the set would be empty, empty is "nothing to lose", and the copy that
-     * still held that recipient is destroyed. Unreadable is unknown.
      */
     @Test fun theOnlyEntryBeingUnreadableIsUnknownAndNotAnEmptyAddressing() {
         val read = copiedAddressesOrNull(listOf(ImapAddress(name = "aa", email = null)))
@@ -467,17 +413,6 @@ class DraftSaveTest {
 
     /**
      * `Cc: undisclosed-recipients:;`, the entry the envelope parser now produces for it, and the
-     * decision that follows — EXECUTED, not described.
-     *
-     * A group that names nobody is a name and no address. Before it was carried, the whole field
-     * arrived empty, `copiedAddressesOrNull(emptyList())` answered `emptySet()`, and
-     * `draftAddressingIsCarried(emptySet(), …)` answered TRUE: proof the replacement carried
-     * everything, so the server copy holding the only trace of that header was expunged. Now the
-     * read is unknown and the answer is FALSE — the copy stays.
-     *
-     * The last two lines are the inverse witness on the very same call: read as an empty
-     * addressing instead, this identical save destroys the original. That is the difference the
-     * defect erased, so it is asserted rather than assumed.
      */
     @Test fun aCcThatIsOnlyAGroupNamingNobodyKeepsTheServerCopy() {
         val read = copiedAddressesOrNull(
@@ -500,10 +435,6 @@ class DraftSaveTest {
 
     /**
      * THE distinction, half one, and the reason this field could not be in the guard before the
-     * header could be read: `null` = could not be established. Not "asks for nothing".
-     *
-     * Stated for `replacement = false` ONLY, which is where it means something: the new copy
-     * carries no request, so an original that might have held one must not be destroyed.
      */
     @Test fun aReceiptRequestThatCouldNotBeReadIsNotTheAbsenceOfOne() {
         assertFalse(draftReceiptRequestIsCarried(original = null, replacement = false))
@@ -511,9 +442,6 @@ class DraftSaveTest {
 
     /**
      * …and the limit of that conservatism: when the REPLACEMENT asks for a receipt, nothing the
-     * original held can be lost, whatever it held. Answering false there would leave a duplicate
-     * in Drafts on every save of a draft that asks for one — the very thing this guard is supposed
-     * to stop doing to ordinary drafts.
      */
     @Test fun aReplacementThatAsksForOneCarriesAnythingIncludingAnUnknown() {
         assertTrue(draftReceiptRequestIsCarried(original = null, replacement = true))

@@ -13,22 +13,6 @@ import java.io.File
 
 /**
  * The confirmation of a `mailto:` unsubscribe must show the TEXT it is about to send, not only
- * the address.
- *
- * What the mail path actually does: the subject and body of the `mailto:` in `List-Unsubscribe`
- * are the sender's own, sent verbatim, under the account's identity, with a copy in Sent. A
- * header reading `<mailto:hr@exemple.org?subject=Je démissionne&body=Effectif ce jour.>` is legal,
- * is preferred over a page link, and used to leave in two taps behind the single sentence
- * "Sterna will send an unsubscribe email to hr@exemple.org."
- *
- * Two halves, and they prove different things:
- *  - the EXECUTED half: [PendingUnsubscribe.mailPreview] runs, on the options the dialog captured,
- *    and is the same two strings `MailRepository.sendUnsubscribeMail` enqueues (that equality is
- *    itself executed in `:core:data`'s `UnsubscribeMailPreviewTest`);
- *  - a SOURCE LINT for the call site, because the dialog is a `@Composable` in a file that cannot
- * be instantiated in a JVM test. It proves the call is written and WITH WHICH ARGUMENTS, in
- *    which order, on which branch. It does NOT prove anything is drawn, laid out, scrollable or
- *    legible on a device — that is the release-build check on the bench.
  */
 class UnsubscribeConfirmationShowsMailTextTest {
 
@@ -79,8 +63,6 @@ class UnsubscribeConfirmationShowsMailTextTest {
 
     /**
      * SOURCE LINT. Pins the two ARGUMENTS and their order: subject first, body second. A swap
-     * renders the body on the "Subject:" line and vice versa, which no assertion above can see —
-     * the two strings are both non-empty and both correct in isolation.
      */
     @Test fun `the dialog shows the preview, subject first and body second`() {
         val source = File(repoRoot, "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt").readText()
@@ -99,8 +81,6 @@ class UnsubscribeConfirmationShowsMailTextTest {
 
     /**
      * SOURCE LINT. The preview comes from the CAPTURED pending gesture, on the mail branch only:
-     * read from live state it could describe another message by the time the button is pressed,
-     * and shown on the POST/page branches it would name a mail that is never sent.
      */
     @Test fun `the preview is read from the captured pending gesture, on the mail branch`() {
         val source = File(repoRoot, "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt").readText()

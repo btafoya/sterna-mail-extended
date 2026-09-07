@@ -6,35 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — the instrument of [SubscribedFoldersSurfaceWiringTest],
- * pointed at the ONE thing a behaviour test cannot see: **who reads
- * `Mailbox.lostRoleClaim`, across every module.**
- *
- * The rule itself is EXECUTED next door ([VisibleFoldersTest], `LostRoleClaimTest`,
- * `UnelectedRoleStopsAtTheDataBoundaryTest`, `MailboxLostRoleClaimDecodeTest`). What none of them
- * can catch is a SECOND reader appearing somewhere else, and that is the whole danger of this
- * field: it is the surviving trace of a role claim, on a folder whose role was erased on purpose.
- *
- * The three mutations it exists for, all of which keep every other test in this repo green:
- *
- *  1. **it is read as a role.** A losing `Spam` is not the junk folder — the junk election already
- *    picked another one, and every role→mailbox lookup in `:core:data` compares roles by exact
- *    equality (`MailboxDao`). Anything resolving a destination, an icon, a snooze rule or a delete
- *    target through this boolean makes a folder that lost its claim the answer to "where is the
- *    junk", and mail would be MOVED there. There are exactly TWO legitimate readers and both ask a
- *    VISIBILITY question: `visibleFolders` (does this folder stay in the list?) and
- *    [defaultCollapsedFolderIds] (does it fold itself on the first run? — folding a folder the
- *    server named `\Junk` on puts the spam false positives behind a chevron nobody asked for);
- *  2. **it stops being written.** The mapper filling it from something other than the stored role
- *    (a literal `false`, `isSubscribed`, the unmarked role) silently reopens the defect: the losing
- *    folder is dropped from the drawer, both move pickers and the unread view, while it is already
- *    out of search — unreachable from the app, with its mail still on the server;
- *  3. **the mark is erased one line too early**, on the cache row that `MailRepository`
- *    hands to the crossing. Same damage as 2, from a file neither half of the fix touches, and
- *    nothing executes that producer.
- *
- * Whole trimmed lines, by equality, screening EVERY code line of EVERY module's main sources that
- * names the field — never `contains` on a single line, which is blind to any mutation that
- * LENGTHENS it, and never a subset, which is blind to a new reader appearing.
  */
 class LostRoleClaimBordersTest {
 
@@ -66,12 +37,6 @@ class LostRoleClaimBordersTest {
 
     /**
      * The guard itself, whole lines. The sweep above sees the ONE line that names the field; this
-     * sees what it sits in — five survivor families, OR-ed, on the mailbox as it arrives.
-     *
-     * Two mutations only this stands between: `&&` for one of the `||`, which makes a lost claim a
-     * condition ON TOP of subscription instead of a reprieve from it (the defect, unchanged, with
-     * the box ticked); and `mailbox.role != null` widened to the raw stored role, which is the ⋮
-     * menu regression `UnelectedRoleStopsAtTheDataBoundaryTest` was written to close.
      */
     @Test fun `the survivor test is the five families, OR-ed, and nothing else`() {
         assertEquals(
@@ -106,16 +71,6 @@ class LostRoleClaimBordersTest {
 
     /**
      * THE SEAM, and the one mutation everything else here misses. The two halves of this fix are
-     * pinned apart — the reading of the mark in `:core:data`, the survivor rule in `:app` — and
-     * NOTHING executes what joins them: `MailRepository.observeMailboxes` is the only producer of
-     * the [app.sterna.core.jmap.model.Mailbox] list every screen sees, and no JVM test runs it (it
-     * needs a DAO). Erase the mark on the ENTITY one line earlier — `it.copy(role =
-     * unmarkedRole(it.role)).toMailbox()`, a plausible tidy-up — and `isLostRoleClaim` is handed a
-     * null on EVERY IMAP account, `lostRoleClaim` is false everywhere, the defect is back whole,
-     * and every other test in this repo stays green because all five shipped lines are untouched.
-     *
-     * So the crossing is pinned where it is called, by whole lines: the entity reaches
-     * `toMailbox()` as the cache stores it, mark and all.
      */
     @Test fun `the cache row reaches the crossing with its role untouched`() {
         assertEquals(

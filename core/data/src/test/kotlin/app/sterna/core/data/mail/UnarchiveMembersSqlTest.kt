@@ -9,11 +9,6 @@ import java.sql.DriverManager
 
 /**
  * Verifies, against in-memory SQLite, the member-selection semantics of
- * [app.sterna.core.data.db.EmailDao.threadMembersInMailbox] — the query that picks which
- * cached messages the opt-in unarchive-on-reply (Codeberg #50) moves back to the Inbox:
- * ONLY the archived members of the threads that just received a new reply. Mirrors that
- * query's WHERE (account scope, one folder, thread-id IN-list) so the data-layer contract
- * is checked without an Android device.
  */
 class UnarchiveMembersSqlTest {
     private lateinit var db: Connection

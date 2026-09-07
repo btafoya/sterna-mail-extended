@@ -7,10 +7,6 @@ import org.junit.Test
 
 /**
  * [eventSourceOrigin] is the redaction that lets the push connection be logged at all: a reporter
- * pastes logcat into a public issue, and the EventSource URL is the one URL of the client that can
- * carry a credential (query token, userinfo). Every expectation below is a literal string — the
- * test must not rebuild it with the same expression the function uses, or inverting the function
- * would keep it green.
  */
 class EventSourceOriginTest {
 

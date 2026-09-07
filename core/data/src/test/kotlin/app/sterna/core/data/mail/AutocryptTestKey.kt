@@ -2,18 +2,6 @@ package app.sterna.core.data.mail
 
 /**
  * The SAME RSA-4096 public key `:core:imap`'s test fixture holds
- * (`app.sterna.core.imap.AutocryptKeys.RSA_4096`, written for the sending half of this feature):
- * minimized, base64'd the way `pgpPublicKeyCacheValue` writes it — 1 163 octets, 1 552 base64
- * characters.
- *
- * It is a COPY, and there is no way around it: Gradle test source sets are not shared between
- * modules, and adding `java-test-fixtures` to `:core:imap` to publish one string would put a new
- * artifact in the build for every module that reads it. The two literals are not required to stay
- * equal — nothing here compares them — they only have to be a real key of that SIZE, which is what
- * makes the folding cases below the cases that actually travel.
- *
- * Size is the whole point: at 1 552 characters, `Autocrypt: addr=…; keydata=…` is far past RFC
- * 5322's 998-octet line, so a sender folds it, and the reader has to put it back together.
  */
 internal object AutocryptTestKey {
 

@@ -13,11 +13,6 @@ import org.junit.Test
 
 /**
  * The widget follows the theme the APP is on, not the one the system is on.
- *
- * Both rules are EXECUTED here — nothing in this file reads a source file or a resource. The
- * expected colours are taken from the scheme objects themselves (`ArcticColorScheme.primary.toArgb()`
- * and friends), never written as hex literals: a copied hex would only ever prove that two files
- * agree, which is the trap [WidgetPaletteTest]'s KDoc already spells out.
  */
 class WidgetThemeTest {
 
@@ -133,16 +128,6 @@ class WidgetThemeTest {
 
     /**
      * THE BADGE TONES ARE NOT A PALETTE, AND THEY ARE NEVER NULL — the difference that makes
-     * this a separate function rather than a fourth field of [WidgetPalette].
-     *
-     * A `WidgetPalette` may be withheld (null) because `res/values` and `res/values-night` already
-     * hold the same colours and the launcher re-resolves them for free. A BITMAP has no resource
-     * behind it: there is no `values-night/monogram.png`, so a badge that was handed nothing would
-     * simply not be drawn — on the DEFAULT settings, which are exactly the row where the palette is
-     * withheld. Hence: always tones, whatever the theme settings say.
-     *
-     * The six colours are named role by role rather than copied as hex, the rule this whole file
-     * follows: a hex literal only ever proves that two files agree.
      */
     @Test fun `the badge tones are the light scheme's three accent families`() {
         assertEquals(
@@ -172,9 +157,6 @@ class WidgetThemeTest {
 
     /**
      * AS MANY RAMPS AS [MONOGRAM_FAMILIES], on every theme. That count is the modulus
-     * `monogramSlot` reduces an address by: a slot chosen against three families and resolved
-     * against two ramps is an `IndexOutOfBoundsException` on a launcher's binder thread, not a
-     * miscoloured badge.
      */
     @Test fun `every theme offers a badge exactly as many families as a slot is cut from`() {
         assertEquals(
@@ -206,14 +188,6 @@ class WidgetThemeTest {
 
     /**
      * PINNED AS A FACT, NOT AS A DESIGN: pure black changes NOTHING about a badge today.
-     *
-     * `applyPureBlack` is called on this path for the same reason [widgetPalette] calls it — the
-     * OLED option must cover the brand palette and `dynamicDarkColorScheme` alike — but
-     * `pulledToBlack` only pulls the BACKGROUND and SURFACE roles to black, and a badge is drawn
-     * from the three CONTAINER families, which it does not touch. So the six tones come back
-     * identical, and that is written down here rather than dressed up as a test that would pass
-     * whatever the code did. The second assertion is the reason, pinned: the day `pulledToBlack`
-     * starts touching a container role, this test goes red and says so.
      */
     @Test fun `pure black leaves a badge's tones untouched, because it never touches a container role`() {
         assertEquals(
@@ -240,18 +214,6 @@ class WidgetThemeTest {
 
     /**
      * THE DECISION THIS PANE TURNS ON, executed here on every combination of the three settings.
-     *
-     * The eight answers below are written as LITERALS. A test that recomputed the condition to
-     * decide what to expect would be a copy of the rule, and inverting the shipped rule would leave
-     * it green.
-     *
-     * `true` means the widget must be handed NO palette at all, so the launcher resolves
-     * `res/values` / `res/values-night` itself at every inflation. That is only sound where the
-     * app's own theme cannot diverge from the system's, and [WidgetPaletteTest] is what makes it
-     * sound: it pins `values/colors.xml` to the Arctic scheme's roles and `values-night/colors.xml`
-     * to the Pelagic scheme's, the very roles [widgetPalette] reads. So on the `SYSTEM` + no pure
-     * black + no Material You row, posting the palette and posting nothing draw the SAME pixels —
-     * and posting nothing additionally keeps the cell alive to a system that flips at dusk.
      */
     @Test fun `only a system theme with no pure black and no Material You lets the resources answer`() {
         val measured = ThemeMode.entries.flatMap { mode ->

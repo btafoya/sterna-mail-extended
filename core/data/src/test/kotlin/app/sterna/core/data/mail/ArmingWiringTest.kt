@@ -5,25 +5,6 @@ import org.junit.Test
 
 /**
  * THIS TEST READS SOURCE TEXT — the last resort, in exactly [SendDraftDestructionWiringTest]'s
- * form and for its reason: `MailRepository.enqueueSend` needs Room, a file system and a socket
- * (fifteen constructor dependencies), so no JVM test can run the wiring below. The DECISION is
- * executed by [ArmingIsNotQueueingTest]; this file pins ONLY where it is plugged in, whole lines —
- * `contains` inside a line is blind to any mutation that lengthens it.
- *
- * What it exists for: `enqueueSend` used to end on `outboxScheduler?.schedule(id, holdMs)` outside
- * every guard, after the row was already durable. A throw there travelled to the caller, which
- * reads it as "nothing was queued" (`QuickReply` → `queued = false` → the text is handed back and
- * the notification kept) for a message that IS in the Outbox and WILL be sent by the startup
- * re-arm. The person sends it again; the recipient gets it twice.
- *
- * Each line below, changed alone, brings that back while every executable test stays green:
- *  - the `armOrNote(...)` call reverted to a bare `outboxScheduler?.schedule(id, holdMs)`;
- *  - `armOrNote(id, holdMs, outboxScheduler)` given something other than the row's own id or the
- *    caller's hold — `0` fires a scheduled send or an undo window at once;
- *  - a second, naked `schedule(` left beside the guarded one, which would re-throw anyway;
- *  - `stageOrRollback(rollback = { deleteOutbox(id) })` weakened or removed, which is the OTHER
- *    half of the frontier and must not move: staging failed means the row is bad and must die
- *    (#70), arming failed means the row is good and must live.
  */
 class ArmingWiringTest {
 
@@ -95,15 +76,6 @@ class ArmingWiringTest {
 
     /**
      * The one rule here that is an INVENTORY, and the reason it had to be: every other assertion
-     * in this file filters the body by a needle, so it is blind to a line that names none of them.
-     * Adding `deleteOutbox(id)` inside the note lambda is exactly that line — it leaves all four
-     * searches green while destroying the row the caller has just been told is queued. A quick
-     * reply's text lives in no draft and no autosave (`QuickReply`), so the notification is
-     * dismissed and the text is gone: worse than the defect this branch closes.
-     *
-     * So the tail is pinned WHOLE, closing braces included. It fails on any line added, removed or
-     * reworded after the row is durable — which is the only stretch of `enqueueSend` where a
-     * mistake can no longer be rolled back.
      */
     @Test fun `nothing else happens after the row is durable`() {
         val lines = codeLinesOf(bodyOf("enqueueSend"))

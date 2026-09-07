@@ -11,13 +11,6 @@ import java.util.Base64
 
 /**
  * Codeberg #145: autistici/inventati's submission service answers every `AUTH LOGIN` with
- * `535 5.7.8 Error: authentication failed: Invalid authentication mechanism: 'LOGIN'`, so mail sat
- * in the outbox forever while K-9 sent fine on the same account. The client asked for a mechanism
- * instead of picking one the server offers.
- *
- * The tests below never compute what the client "should" choose: the fake server ANNOUNCES, the
- * client WRITES, and the assertions pin the line that was written. The decision itself is executed
- * separately in [SmtpAuthChoiceTest], arguments and result.
  */
 class SmtpAuthTest {
 
@@ -228,12 +221,6 @@ class SmtpAuthChoiceTest {
 
 /**
  * SOURCE LINT. No JVM test can reach the STARTTLS branch (it needs a certificate), so the rule
- * "the capabilities come from the EHLO issued AFTER STARTTLS" is not provable by behaviour. RFC 3207
- * says the pre-encryption announcement must be discarded, and it is precisely the servers that
- * advertise NO AUTH before STARTTLS that would be mis-read.
- *
- * Whole lines and their relative positions, never `contains`: a substring check is blind to any
- * mutation that lengthens the line.
  */
 class SmtpCapabilityOrderLintTest {
 
@@ -257,17 +244,6 @@ class SmtpCapabilityOrderLintTest {
 
     /**
      * The `clear()` stays counted over the WHOLE of `send()`, and that is the point of the test.
-     * A second `lastResponse.clear()` dropped anywhere else in `send()` — say between the EHLO that
-     * follows STARTTLS and the line that reads its capabilities — empties the offered mechanisms,
-     * `chooseAuthMechanism` then falls back to LOGIN, and every server that offers only PLAIN
-     * refuses the sign-in: Codeberg #145, exactly. No behaviour test can see it (no fixture here
-     * speaks TLS), so this count is the only thing standing in its way. Narrowing it to `read()`
-     * would let that mutation through.
-     *
-     * What DID have to move is the read: `readBodyAck` opens on the same line as `read` (the
-     * acknowledgement of the message body tolerates a cut after a `250-`, because the server has
-     * then already taken the message). So there are two of them now, pinned as two, and the one
-     * the `clear()` must precede is the FIRST.
      */
     @Test
     fun `each response resets the accumulator before reading`() {

@@ -15,13 +15,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The home-screen list of the latest messages of every inbox — the second widget, and a separate
- * provider from [UnreadWidgetProvider] in every respect the system can see.
- *
- * It polls nothing, exactly like the counter. Nothing is drawn before the setting has
- * answered, and nothing on a read that did not answer in time: the cell then keeps what it was
- * showing, a default being a subject on the home screen of someone who asked for none.
- *
- * What a tap does is not decided here: a row asks for its own message ([RecentMailWidgetTap]).
  */
 class RecentMailWidgetProvider : AppWidgetProvider() {
 
@@ -73,18 +66,6 @@ class RecentMailWidgetProvider : AppWidgetProvider() {
 
 /**
  * Is at least one LATEST-MESSAGES cell placed? — its own state, and that is the whole point.
- *
- * It is NOT [UnreadWidgetPresence], whose seed asks the widget manager about the counter alone:
- * removing the last latest-messages cell would close the COUNTER's gate, and a counter cell still
- * on the home screen would quietly stop following the mail.
- *
- * The shape is the counter's, arm for arm: a seed read from the widget manager — the only answer a
- * process that started with a cell already placed would get — plus the two callbacks.
- *
- * That seed is not decorative: `onEnabled` fires once, on a process long dead by the next boot,
- * so without it (or with it read the wrong way round, which is one `!`) a cell sitting there for
- * weeks never opens the gate again. Pinned line by line by `RecentMailWidgetPushWiringLintTest`,
- * no JVM test being able to call it.
  */
 internal object RecentMailWidgetPresence {
 

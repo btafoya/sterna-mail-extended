@@ -7,12 +7,6 @@ import org.junit.Test
 
 /**
  * The pure "is this account shared?" rule and the accounts-screen order it feeds (issue #31).
- * Delegation is already persisted by discovery — a sub-account carries its login's id in
- * [StoredAccount.loginId] and the name the JMAP session advertises for it — so the UI can lay the
- * rows out without a single extra request.
- *
- * WHERE a settings shortcut sends a shared account is no longer decided here: it is the settings
- * graph's own `settingsRouteFor`, executed by SharedAccountScreenTest in the app module.
  */
 class SharedAccountTest {
 
@@ -138,9 +132,6 @@ class SharedAccountTest {
     @Test fun aDelegateWhoseLoginIsItselfADelegateFallsBackToTopLevel() {
         // A shared mailbox is never a parent: only a login opens a group, so a loginId naming
         // ANOTHER delegate hangs under nothing even though that delegate IS on screen — as its
-        // login's child row, and a child row hosts no child. It falls back to the end, top level,
-        // rather than being dropped: this is the "never nests further" fact the old
-        // `sharedLabelsUnder` tests carried, expressed in rows.
         val jordan = delegated()
         val subOfJordan = delegated("nested-uuid", "nested@example.org", loginId = "jordan-uuid")
 
@@ -157,9 +148,6 @@ class SharedAccountTest {
     @Test fun anImportPendingDelegateHasNoRowAnywhere() {
         // Reachable: `AccountStore.importAccounts` gives the copy a fresh id and importPending,
         // but KEEPS its loginId — so an imported file can hold a delegate awaiting its sign-in.
-        // Were it filtered on `all` instead of `visible`, the same mailbox would show up TWICE:
-        // once in the "accounts to connect" section above this list, and once as a live row that
-        // opens the settings of an account holding no credentials.
         val pendingDelegate = delegated("pending-uuid", "pending@example.org").copy(importPending = true)
 
         assertEquals(

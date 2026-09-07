@@ -7,19 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, and the twin of `OutboxParkWiringTest` — which stops at the 33rd line of
- * `doWork`, one line above the `catch` this pins. `OutboxWorker` is a `CoroutineWorker` reaching
- * for `AppContainer`, and this module has neither Robolectric nor instrumented tests, so nothing we
- * own can EXECUTE that `catch`.
- *
- * The decision itself is executed in `core/data`: `OutboxLogic.stateAfterFailure` answers what a
- * failed attempt does to the row, and `OutboxLogicTest` runs it on a permanent refusal and on an
- * ordinary failure. What that cannot see is whether the worker ASKS it — and reverting these three
- * lines to `if (OutboxLogic.shouldRetry(attempts))` compiles, reads perfectly well, and puts #183
- * straight back: a message the server refused would be sent four more times, leaving five copies in
- * Sent and, on a partial refusal, delivering it five times over to the recipient who was valid.
- *
- * WHOLE LINES in sequence, not a `contains`: a `contains` is blind to a lengthened line and to a
- * line moved inside a condition.
  */
 class OutboxPermanentFailureWiringTest {
 
@@ -50,11 +37,6 @@ class OutboxPermanentFailureWiringTest {
                 "} catch (t: Throwable) {",
                 // THE COUNT IS A GUARD, not bookkeeping. Written as `item.attemptCount + 1` a
                 // refused row is parked FAILED with 1 attempt, and OutboxLogic.stateAfterEdit then
-                // answers QUEUED for it: reopening the line to fix the address and coming back out
-                // re-arms the send (#70's door); and at the next start the sweep, which claims
-                // the rows at the cap first (revertEditingExhaustedToFailed) and parks the rest
-                // under the interrupted-edit reason, would relabel a refused row as "editing was
-                // interrupted" instead of keeping the server's reply. Both doors close on this one line.
                 "val attempts = OutboxLogic.attemptsAfterFailure(item.attemptCount, t)",
                 // The message, and only the message. It is persisted in lastError and printed on
                 // screen; the exception's own text is the address plus the server's SMTP reply.

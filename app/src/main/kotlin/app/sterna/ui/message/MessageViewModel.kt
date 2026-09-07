@@ -148,8 +148,6 @@ enum class SenderRuleEntry {
 
 /**
  * What the reader knows about the account's Sieve script — THREE states, because "not read yet" and
- * "read and got no answer" used to be one null: nothing has been asked in the first, so an entry
- * there names answers it has no grounds for, while the second is a state the gesture survives.
  */
 sealed interface SenderScript {
     /** Nothing has been asked. The panel arms the read; until it answers there is no opinion. */
@@ -164,13 +162,6 @@ sealed interface SenderScript {
 
 /**
  * Whether the reader may add "file future mail from this address into the Trash, marked read" from the
- * message it is reading, and in what state the entry appears — the per-sender screen's gesture, HERE
- * because that screen's aggregate excludes the Trash.
- * [isSender] — a FROM rule on a To or Cc row is about mail that person has not sent. [address] and
- * [ownAddresses] are `blockableSender`'s two noes. The rest are the screen's, with ONE difference:
- * `foreignActiveScript` GREYS the entry here instead of hiding it. And the two halves of the old null
- * part company — [SenderScript.Unread] is ABSENT, [SenderScript.Unreachable] OFFERED, since the tap
- * runs `addBlockRule`, which reads again when writing.
  */
 fun senderRuleEntry(
     isSender: Boolean,
@@ -226,8 +217,6 @@ sealed interface UnsubscribeState {
 
 /**
  * An unsubscribe waiting for the reader to confirm it, WITH the options it was offered for: they
- * travel with the pending gesture instead of being read again at the tap, so what the dialog names and
- * what the request goes to cannot come apart when the message behind it is reloaded.
  */
 data class PendingUnsubscribe(
     val action: UnsubscribeAction,
@@ -244,12 +233,6 @@ data class PendingUnsubscribe(
 
 /**
  * The gesture still on offer for [options] in [state], or null. ONE decision, executed by the banner,
- * the overflow entry and the action itself, because the three disagreeing is how a list gets left
- * twice. Sent and Queued are done — offering the button again invites a second POST to a server that
- * already answered — while a Failed IS offered again, a refusal being a retry.
- *
- * Bounded by the PAGE's composition, not by the process, so a rotation brings the button back.
- * Remembering it longer is a column in the message table.
  */
 fun offeredUnsubscribeAction(options: UnsubscribeOptions?, state: UnsubscribeState): UnsubscribeAction? =
     when (state) {
@@ -259,9 +242,6 @@ fun offeredUnsubscribeAction(options: UnsubscribeOptions?, state: UnsubscribeSta
 
 /**
  * Which of its four shapes the unsubscribe strip draws. [ACTION], [SENDING] and [DONE] are the same
- * height on purpose: the measured header height keys the `remember` that builds the body's HTML
- * document, so a strip that changes size cancels the body load in flight. [FAILED] is the one shape
- * allowed to grow, and only appears after a deliberate gesture.
  */
 enum class UnsubscribeStripBody {
     /** Nothing done yet: one button, no sentence. */
@@ -328,9 +308,6 @@ internal const val PLAIN_TEXT_UNLOADED_FOR_IMAGES = true
 
 /**
  * Which failure to open a message earns a sentence of OUR own, and which keeps the text it carries.
- * Null means the exception's own message reaches the screen; a resource REPLACES the technical text,
- * which names the account UUID, the folder path and the uid in English (#159). What a bug report needs
- * is in logcat, which is why [MessageViewModel.load]'s catch logs the throwable first.
  */
 internal fun readFailureStringRes(t: Throwable): Int? = when (t) {
     is ContentTooLargeException -> R.string.status_message_too_large
@@ -364,11 +341,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Whether an opened message that asked for a read receipt may raise the question — the setting of
-     * [ReadReceiptSetting], not a `Boolean`: mapped to `false` while DataStore answers, "not read
-     * yet" and "the reader said no" would be the same thing.
-     *
-     * [SharingStarted.Eagerly], required rather than chosen: this one is read through `.value`, not
-     * collected, and under `WhileSubscribed` it would never leave [ReadReceiptSetting.NOT_LOADED].
      */
     val readReceiptSetting: StateFlow<ReadReceiptSetting> = settings.askReadReceipt
         .map { if (it) ReadReceiptSetting.ON else ReadReceiptSetting.OFF }
@@ -498,13 +470,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Folders offered by the reader's move-to-folder picker (#73): the folders of THE OPEN MESSAGE'S
-     * account, minus the one it is filed under.
-     *
-     * Scoped by [_ownerAccountId], never by "the current account": in the unified inbox the message can
-     * belong to a sibling account, and mailbox ids collide between two accounts of one server (#92).
-     * That account also decides whether unsubscribed folders are offered (#174), passed as a parameter
-     * so each row's parent path is still resolved against the whole list (#109). With another account
-     * chosen on the picker's row (#189), THAT account's folders are listed instead.
      */
     val moveTargets: StateFlow<List<Mailbox>> = combine(
         movePickerAccountId.flatMapLatest { id ->
@@ -517,11 +482,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The OPEN MESSAGE's account's folders, WHOLE — scoped by [_ownerAccountId] and nothing else. What
-     * the SENDER RULE is computed against, since [blockSender] names that account's Trash in a
-     * server-side `fileinto`.
-     *
-     * It must NEVER follow [movePickerAccountId] again (#189, and it did for one commit): a Trash
-     * path computed on B's list would file A's mail into a path A does not have, or into a homonym.
      */
     val accountMailboxes: StateFlow<List<Mailbox>> = _ownerAccountId.flatMapLatest { id ->
         if (id == null) flowOf(emptyList()) else repo.observeMailboxes(id)
@@ -536,9 +496,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The account's filter rules as last read; see [senderRuleEntry] for what each of the three states
-     * means, the first two NOT being the same answer. Read ONLY when the participants panel is opened,
-     * never on opening a message: it is a network round-trip, and paying for one on every message
-     * merely swiped past is not a trade this app makes.
      */
     private val _senderRules = MutableStateFlow<SenderScript>(SenderScript.Unread)
     val senderRules = _senderRules.asStateFlow()
@@ -551,12 +508,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The addresses the user has DECLARED as her own on this account — her send-as identities, and
-     * nothing else. Read by the header's arrival line.
-     *
-     * Deliberately not [accountAddresses], which folds in the LOGIN: shared hosting authenticates as
-     * one address and receives at another, so a count including the login reads every such
-     * single-address account as multi-alias. And that list KEEPS its login, `senderRuleEntry` asking
-     * "is this sender me?" — two questions, two lists.
      */
     private val _identityAddresses = MutableStateFlow<List<String>>(emptyList())
     val identityAddresses = _identityAddresses.asStateFlow()
@@ -569,9 +520,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * One-shot word about an action taken ON the open message (report spam / not spam). Its own flow,
-     * not [_senderRuleStatus]: both are one slot deep, so sharing means a refused "report spam"
-     * silently eating a "Rule added". [_attachmentStatus] is no better — it is drawn inside the
-     * attachment section, so on a message with none it is drawn nowhere.
      */
     private val _actionStatus = MutableStateFlow<String?>(null)
     val actionStatus = _actionStatus.asStateFlow()
@@ -598,9 +546,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Add the "future mail to Trash, marked read" rule for [address] to the account's script. The whole
-     * gesture is [addBlockRule] — read the rules, then save them WITH one more — because
-     * `saveFilterRules` rewrites the ENTIRE script: a save that did not start from a successful read
-     * would delete the account's filters instead of adding one.
      */
     fun blockSender(address: String) {
         val credentials = credentials() ?: return
@@ -680,11 +625,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The stored reading-mode setting (#149) — null while DataStore has not answered, which the reader
-     * has to be able to SEE, since one of these is built per page of the pager.
-     *
-     * The initial value is null and NOT PLAIN_TEXT_DEFAULT: seeding the default would answer the
-     * remote-image question as "HTML" before the answer is known, and that side cannot be taken back.
-     * The two readers of this null differ on purpose.
      */
     val plainTextSetting: StateFlow<Boolean?> = settings.plainText.stateIn(
         scope = viewModelScope,
@@ -719,12 +659,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * "Save as .eml": [MailRepository.rawSource]'s bytes, one per octet, into the document picked at
-     * [uri]. The server's octets, never the clear text of an encrypted message. A failure lands on
-     * [actionStatus], never on [MessageState.Error]: the message stays readable.
-     *
-     * [ownerId] is the message the picker was launched FOR, since the result comes back to whatever
-     * page is settled by then. `CreateDocument` has the provider CREATE the document before this
-     * runs, so every failure and the refusal delete it again.
      */
     fun exportSource(uri: Uri, proposedName: String, ownerId: String) {
         viewModelScope.launch {
@@ -756,12 +690,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * "Save" on an attachment row: the part's bytes, straight from the server into the document she
-     * picked. Same shape as [exportSource]. Never through `StorageRepository.cacheAttachment`, the
-     * OPEN path's business: a saved attachment must not exist as a second copy inside the app.
-     *
-     * [ownerId] and [partKey] are re-resolved from [messages], and NEITHER is [loadedId]: the reader
-     * is a CONVERSATION, and the row hands over `msg.id`. Anything that does not resolve is refused.
-     * [openingAttachment] is neither taken nor released, or a save would wait behind a download.
      */
     fun saveAttachment(uri: Uri, proposedName: String, ownerId: String, partKey: String) {
         viewModelScope.launch {
@@ -873,11 +801,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Carry out the confirmed unsubscribe: the one-click POST, or the mail through the outbox.
-     * [UnsubscribeAction.OPEN_PAGE] is the screen's job.
-     *
-     * It acts on the target the confirmation NAMED, and only while [offeredUnsubscribeAction] still
-     * offers it. The result is applied only if this ViewModel still holds the SAME message of the SAME
-     * account: a swipe while the POST is in flight would land "Unsubscribed" on the neighbour (#31).
      */
     fun unsubscribe() {
         val pending = _unsubscribeConfirm.value ?: return
@@ -929,9 +852,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The question standing on the open message, or null when there is none to ask. RAISED in
-     * exactly one place — [maybeOfferReadReceipt], off a marking only [maybeMarkRead] can write —
-     * while everything else only CLEARS it. It carries what would be answered, captured when the
-     * question is put, so what the reader is shown and what would leave cannot come apart.
      */
     private val _readReceiptOffer = MutableStateFlow<ReadReceiptRequest?>(null)
     val readReceiptOffer = _readReceiptOffer.asStateFlow()
@@ -942,8 +862,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Whether the reader has had their say on THIS message's question — see [ReadReceiptAnswer].
-     * Not derivable from [_readReceiptOffer] being null: a refusal leaves the same null as a message
-     * that never asked, and the decision is replayed on every change of the setting.
      */
     private var readReceiptAnswer = ReadReceiptAnswer.PENDING
 
@@ -958,12 +876,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The reader said yes: queue the receipt through the outbox and report what was queued.
-     *
-     * The offer is taken and cleared FIRST, so a second tap has nothing to send, and the send uses the
-     * request the banner was showing. `deliveredTo` is handed over so an account with several aliases
-     * does not answer under a name the sender never wrote to, and what comes back is RELAYED into the
-     * state. The DECISION is run again here: a banner that survived a frame after the switch went off
-     * must not answer a stranger.
      */
     fun sendReadReceipt() {
         val pending = offeredReadReceipt(
@@ -1035,10 +947,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The (account, id) whose cached body [warmFromCache] has already painted on this page — the
-     * PAIR, never the id alone, since two accounts of one server hand out the same id (#92).
-     *
-     * Deliberately NOT [loadedId], which `needsLoad` reads: a warm-up writing it would mark a page
-     * loaded that was never fetched, and a neighbour absent from the cache would sit blank forever.
      */
     private var warmedId: String? = null
     private var warmedAccountId: String? = null
@@ -1050,20 +958,11 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * How this page's message came to be marked read, once the pager settled on it. Written in
-     * [maybeMarkRead] and nowhere else: it is the gate [maybeOfferReadReceipt] opens on, so a `setRead`
-     * from anywhere but this page's settle cannot reach the read-receipt decision at all.
      */
     private var settleMarking: ReadMarking? = null
 
     /**
      * The subject of the ENVELOPE — the cover — captured before anything is decrypted and never
-     * rewritten afterwards.
-     *
-     * The read receipt is the one thing this reader can SEND, and it used to take its subject off the
-     * screen. Since #128 the screen shows the PROTECTED subject once a PGP/MIME message is decrypted,
-     * so reading it would put the real subject of an encrypted message in clear into a mail addressed
-     * to whatever the sender wrote. Written only from the cached row and the fetched original, never
-     * from `_state`, and never erased by a null.
      */
     private var coverSubject: String? = null
 
@@ -1073,13 +972,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Paint this page's body from the LOCAL CACHE, before the finger reaches it — and from nothing else.
-     * A page whose state carries no body composes no `WebView`, so the whole rendering staircase starts
-     * after the swipe settles: the ~1 s hourglass.
-     *
-     * AND IT COSTS NOTHING: `repo.cachedMessage` and no other repository call. The warm-up `798a5fd1`
-     * removed went through `openMessage`, which on IMAP hands the sender's announced key to the OpenPGP
-     * provider, irreversibly. It marks nothing read, forwards no settle, asks no read-receipt
-     * question, and never writes [loadedId].
      */
     fun warmFromCache(emailId: String, accountId: String?) {
         if (loadedId != null) return
@@ -1095,12 +987,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 cachedInlineImages = cached.inlineImages.size,
                 // Read and compared exactly as MessageScreen does it, lower-cased against a list
                 // SettingsRepository lower-cases on write. What this argument buys is COMFORT, not
-                // the promise: `everActive` holds `senderAllowed` false until the finger lands. Drop it
-                // and the settle flips `blockRemote`, half of the WebView's load key, so the body
-                // reloads under the finger and the memoised images strip stays there, dead.
-                // AND IT IS THE DATASTORE FLOW, AWAITED — never the `imageAllowlist` StateFlow above,
-                // which answers "nobody is allowed" whenever nothing is collecting it, which is exactly
-                // this moment.
                 senderAllowedRemoteImages =
                     cached.email.from.firstOrNull()?.email?.lowercase()?.let { it in settings.imageAllowlist.first() } == true,
             )
@@ -1124,13 +1010,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /** Loads the conversation once per (id, account) pair, and ONLY for the page the pager has settled
      *  on. Does NOT mark read — [onActiveChanged] does that.
-     *
-     * [settled] carries no default, deliberately: the pager warms one page each side, so a load that
-     *  forgets to ask fetches two messages nobody touched, and on IMAP each fetched source imports its
-     *  sender's announced key into OpenKeychain. The whole decision lives in [MessagePaging.needsLoad],
-     *  error state included: as a separate `&&` here it was an OR in disguise.
-     *
-     *  The account is part of the guard: comparing the id alone left the previous account's message on
      *  screen (#92). */
     fun load(emailId: String, accountId: String?, settled: Boolean) {
         val failed = _state.value is MessageState.Error
@@ -1403,9 +1282,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Mark the anchor read (once) when this page is both settled and loaded. The one place
-     * [settleMarking] is ever written, and the reason is the `active` guard on its first line: settled
-     * means the message is in front of a person, while `setRead`'s eight other callers mark mail read
-     * nobody looked at — and `SECURITY.md` promises no read signal leaves on open.
      */
     private fun maybeMarkRead() {
         if (!active || anchorMarked) return
@@ -1435,13 +1311,6 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Put — or take away — the read-receipt question, by RUNNING the decision against the state as it
-     * now stands. It cannot decide anything on its own: [settleMarking] is null until [maybeMarkRead]
-     * has run, and that null is what makes the other eight ways a message becomes read unable to reach
-     * the decision.
-     *
-     * Called from four places, four things completing the picture in any order: the SETTLE, the BODY
-     * landing, the SETTING changing, and a SEND that FAILED — a retry, not a refusal, which is
-     * remembered and is [readReceiptAnswer]'s one exception to replaying safely.
      */
     private fun maybeOfferReadReceipt() {
         val marking = settleMarking ?: return

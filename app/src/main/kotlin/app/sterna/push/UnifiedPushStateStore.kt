@@ -16,8 +16,6 @@ enum class UpStatus {
 
     /**
      * A relay address is published for this account (IMAP): the endpoint exists and is shown to
-     * the user, and nothing has ever been delivered through it. Deliberately NOT [ACTIVE]:
-     * ACTIVE means "something arrived", and the transport decisions read it that way.
      */
     PUBLISHED,
 
@@ -47,8 +45,6 @@ data class UpAccountState(
 
 /**
  * Device-local UnifiedPush state, one record per account id, in a dedicated prefs file
- * deliberately OUTSIDE account backups: endpoints, subscription ids and deviceClientId
- * are this-device transport state and must never travel to another device.
  */
 class UnifiedPushStateStore(context: Context) {
     private val prefs = context.getSharedPreferences("unifiedpush_state", Context.MODE_PRIVATE)

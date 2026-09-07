@@ -18,14 +18,6 @@ import java.sql.DriverManager
 
 /**
  * The storage side of the UIDVALIDITY record (Codeberg #99), against real in-memory SQLite and
- * built from the very constants the 18→19 migration executes — not a hand-copied lookalike that
- * would keep passing after the migration changed.
- *
- * Two things it has to establish. That a snapshot written by the PREVIOUS version survives the
- * upgrade with a null numbering, because that null is what makes the purge destroy nothing. And
- * that dropping one folder's cached bodies drops one folder's cached bodies — the `LIKE` pattern
- * is the only thing standing between "this folder" and "every folder whose name it happens to
- * match".
  */
 class UidValiditySqlTest {
     private lateinit var db: Connection
@@ -114,8 +106,6 @@ class UidValiditySqlTest {
 
     /**
      * A purge confirmed on the previous version, still pending when the app upgrades. It comes
-     * through with no numbering — and no numbering means the destroy list cannot be verified,
-     * so it destroys nothing.
      */
     @Test fun `a snapshot written before the column survives the upgrade unverifiable`() {
         insertV18Snapshot("p1", "imap:accA:Trash:7")

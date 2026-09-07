@@ -7,13 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT. `WorkManager` needs a `Context` and this module has neither Robolectric nor
- * instrumented tests, so `Outbox.enqueue` cannot be executed by anything we own — the policy it
- * hands WorkManager is only ever readable as text. The twin of this file for the draft path is
- * `LocalDraftRearmWiringTest`, and the shape is deliberately the same.
- *
- * WHOLE LINES, in order: a `contains` is blind to a lengthened line and to a line moved inside a
- * condition, and the three mutations here (flipping the policy, flipping the DEFAULT in the
- * signature, dropping the argument at the call site) all leave the file compiling.
  */
 class OutboxRearmWiringTest {
 
@@ -79,9 +72,6 @@ class OutboxRearmWiringTest {
             listOf(
                 // ASSIGNED, not anonymous: `AppContainer.outboxRecovery` is the Job a composer
                 // rebuilt after a process death joins before taking its row back by the id its
-                // route carries (`resumeOutboxRow`). An anonymous launch here leaves nothing to
-                // join, and the composer's take races the park below — the row it just took
-                // EDITING is parked FAILED under the open composer.
                 "outboxRecovery = appScope.launch {",
                 // PARKED, not reverted: a row left EDITING by a process death is parked FAILED
                 // with the interrupted-edit reason, and unfinished() below does not return FAILED,
@@ -101,20 +91,9 @@ class OutboxRearmWiringTest {
     @Test fun `no other call site keeps what is already booked`() {
         // This is the trap of the volet, and it is why the default stays REPLACE. `keepExisting`
         // spreading to the other two call sites is silent and total:
-        //  - the worker re-books ITSELF for a HELD row (undo window, scheduled send) while it is
-        //    running, i.e. while the unique work is RUNNING. A KEEP there sees that RUNNING work
-        //    and throws the re-booking away: no scheduled send ever leaves, and the undo window
-        //    never closes.
-        //  - `outboxScheduler` is the seam every human gesture goes through — send, Retry. A
-        //    Retry carries the newest instant there is; kept out, it does nothing at all and the
-        //    button looks broken.
         //
         // TWO lines now, not one: the scheduled-send queue got the same startup re-arm, for the
         // same reason and with the same `keepExisting = true` (a REPLACE there cancels a
-        // ScheduledSendWorker between its outbox deposit and its row deletion, and the message
-        // goes out twice — pinned by `ScheduledSendRearmWiringTest`). What this inventory closes
-        // is unchanged: no call site OTHER than a startup re-arm keeps what is already booked.
-        // The `outboxScheduler` seam below and the worker's own re-booking must still REPLACE.
         val application = linesOf(APPLICATION)
         assertEquals(
             "only a startup re-arm may keep an existing booking (see the two damages above):",

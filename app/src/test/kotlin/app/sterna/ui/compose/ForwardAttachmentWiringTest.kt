@@ -7,21 +7,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads source files as text, same instrument and
- * disclaimer as [ReplyQuoteConsumedWiringTest]. `ComposeViewModel` is an AndroidViewModel and
- * cannot be instantiated in a JVM test, so the wiring of "forward as attachment" is pinned as
- * WHOLE trimmed lines: a `contains` on a fragment is blind to any mutation that lengthens the line.
- *
- * What is pinned: that `prepare()` no longer reads the raw `mode` string ANYWHERE (the decision
- * lives in `composeOpening`, executed by [ComposeOpeningTest]), that the two sites it replaced
- * read the enum, that the staged source is capped on what actually came back and not only on the
- * server's announcement, that the branch never arms `_attachmentsTouched` (the composer would open
- * dirty and ask "discard?" on the way back without a key typed, #70 / G3), and that the reader's
- * menu hands the ONE mode string `composeOpening` knows.
- *
- * WHAT THIS DOES NOT PROVE: that the .eml actually lands in the composer, that its bytes are
- * the server's, that the sent message carries it as `message/rfc822`, or that the composer opens
- * clean. Those are only readable on a bench. It also cannot see INSIDE the branch beyond the
- * lines it names: the ORDER of cap and fetch, and the bytes handed to `stageOutgoing`, are not pinned.
  */
 class ForwardAttachmentWiringTest {
 

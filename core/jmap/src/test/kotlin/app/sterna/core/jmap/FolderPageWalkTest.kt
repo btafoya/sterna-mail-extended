@@ -6,11 +6,6 @@ import org.junit.Test
 
 /**
  * The windowed folder walk's decision, executed rather than read: how big the next request is,
- * and when there is no next request.
- *
- * Every expectation here is a literal. Recomputing `min(target - fetched, pageSize)` in the test
- * would only prove the test can multiply the same way the code does; what has to hold is the
- * numbers a Stalwart-shaped server actually sees.
  */
 class FolderPageWalkTest {
 

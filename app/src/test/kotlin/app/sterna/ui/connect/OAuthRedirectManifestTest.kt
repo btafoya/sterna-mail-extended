@@ -7,20 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as [OAuthWiringTest]. A
- * manifest is not code this module can run: the merged one only exists inside a build, and no
- * instrumented test in this repo opens the connect screen. What CAN be held here is the one rule
- * that costs the bench its meaning if it breaks, and it is a text rule.
- *
- * The rule: the OAuth redirect scheme is the `${applicationId}` placeholder. The test app
- * (`-PtestApp`) is `app.sterna.test` and installs ALONGSIDE the maintainer's production install;
- * with a literal `app.sterna` written here, both packages claim `app.sterna://oauth`, Android
- * arbitrates, and a sign-in "verified" on the bench may well have completed in the production app
- * — on her real mail. The URI the code builds is covered by execution, in [OAuthRedirectTest]
- * (`oauthRedirectUri`); this is the other half, the registration.
- *
- * Whole trimmed lines, anchored: a `contains` on `${applicationId}` would stay green if a second
- * `<data>` element added a literal scheme next to it. The forbidden-token rule is the one place a
- * substring search is sound.
  */
 class OAuthRedirectManifestTest {
 

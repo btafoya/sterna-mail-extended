@@ -9,9 +9,6 @@ import org.junit.Test
 
 /**
  * Reading a cached message body. The rule: a row we cannot read costs one refetch, never a
- * message that can no longer be opened. SQLite refuses to read a row past its cursor window and
- * refuses again on every retry, so leaving the row in place turned one oversized body into a
- * permanently unopenable message.
  */
 class CachedBodyReadTest {
 

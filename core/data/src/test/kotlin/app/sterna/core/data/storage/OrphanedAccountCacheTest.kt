@@ -5,14 +5,6 @@ import org.junit.Test
 
 /**
  * The guard on the orphaned-cache sweep (Codeberg #121), and the one place in this fix where a
- * mistake costs mail rather than tidiness.
- *
- * `StorageRepository.purgeOrphanedAccounts` deletes the cached messages of every account the app
- * no longer has. Written as `DELETE … WHERE accountId NOT IN (:known)`, an empty `known` deletes
- * EVERYTHING — and "empty" is not a rare state: it is what `AccountStore.accounts()` returns when
- * the stored JSON cannot be decoded, and what any caller that ran before the accounts were read
- * would pass. The decision therefore lives in a pure function that answers "nothing" to it, and
- * these cases pin that answer.
  */
 class OrphanedAccountCacheTest {
 

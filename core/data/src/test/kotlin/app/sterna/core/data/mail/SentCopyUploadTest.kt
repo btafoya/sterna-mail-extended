@@ -6,15 +6,6 @@ import org.junit.Test
 
 /**
  * The decision behind "Upload sent messages", EXECUTED — not read as text.
- *
- * `ImapMailService.send` APPENDs the copy whenever it is handed a folder, and nothing in the four
- * modules can run that path (it wants a real account, a real socket and a token refresher). So the
- * choice of what to hand it is [sentMailboxToUpload], a pure function, and this is the only place
- * where the setting's effect is actually run rather than described.
- *
- * The three cases are spelled out one by one, with the expected value written down. A test that
- * recomputed the rule to decide what to assert would stay green with the shipped condition
- * inverted, which is the failure mode this file exists not to be.
  */
 class SentCopyUploadTest {
 

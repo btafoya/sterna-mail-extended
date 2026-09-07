@@ -121,16 +121,10 @@ data class DraftFields(
     val expand: Boolean = false,
     /**
      * Tick the "ask for a read receipt" box (RFC 8098) — set when reopening a message that already
-     * asked. NOT filled when a draft is reopened from the server: the header is not read back (debt
-     * D1), and claiming otherwise would tick a box for a request the message may not carry.
      */
     val requestReceipt: Boolean = false,
     /**
      * This body ALREADY carries the quoted original: true only for the reply prefill built on the path
-     * where nothing was cached. The screen has to be told, because the screen is what survives: after a
-     * process death [prepare] runs again on a new ViewModel while the composer comes back with its body
-     * restored, and left unsaid the rebuilt ViewModel draws "Couldn't load the original message." over
-     * the quote plainly on screen.
      */
     val quoted: Boolean = false,
 )
@@ -140,8 +134,6 @@ data class FromOption(val accountId: String, val identity: StoredIdentity)
 
 /**
  * What a "From" switch asks of the body's signature (D5): the identity being left had one, so its
- * block is [Swap]ped where it is still intact (an edited or deleted one is left alone); or it had
- * none, so the new signature is [Insert]ed where the prefill would have put it.
  */
 sealed interface SignatureChange {
     /** Whether the block is rewritten with the standard "-- " delimiter line (#90). Carried here
@@ -171,19 +163,11 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The id of the queued row this composer was opened on (#70), if any. The row stays in the outbox
-     * marked EDITING while it is held here; committing the message somewhere consumes it, and
-     * committing it nowhere gives it back to the queue.
      */
     private var editingOutboxId: Long? = null
 
     /**
      * Whether a queued row is really parked behind this composer — the observable face of
-     * [editingOutboxId], for the title ("Edit") and the leave dialog, which must say the message goes
-     * BACK to the queue rather than claim it is destroyed (#96/#70).
-     *
-     * Seeded from the handed-over draft rather than from `false`, because the screen reads it on its
-     * first frame while [prepare] only runs after it; [prepare] then settles it, and
-     * [resumeOutboxEdit] settles it again after a process death.
      */
     private val _editingOutbox = MutableStateFlow(holdsQueuedOutboxRow(true, outbox.restored.value))
     val editingOutbox: StateFlow<Boolean> = _editingOutbox.asStateFlow()
@@ -191,10 +175,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private val _onlyCopy = MutableStateFlow(false)
     /**
      * True when the message on screen exists nowhere else and nothing will put it back: a send the
-     * user undid. Closing then destroys it, so the screen asks first even if nothing was typed.
-     *
-     * Deliberately NOT what titles the screen — that is [editingOutbox]; conflating the two is what
-     * titled an empty composer "Edit" after a process death (#96).
      */
     val onlyCopy: StateFlow<Boolean> = _onlyCopy.asStateFlow()
 
@@ -203,9 +183,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The quoted original for a reply, delivered separately from [prefill]: the headers come instantly
-     * from the cached row while the quote needs the full original over the network. Consumed once
-     * ([consumeReplyQuote]) — left in place it is replayed to every new collector, and this ViewModel
-     * outlives its activity.
      */
     private val _replyQuote = MutableStateFlow<String?>(null)
     val replyQuote: StateFlow<String?> = _replyQuote.asStateFlow()
@@ -216,9 +193,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private val _attachmentsTouched = MutableStateFlow(false)
     /**
      * Whether the user added or removed an attachment (#70/#94). The unsaved-changes guard needs "did
-     * the user change anything", not "are there any": a reopened message opens WITH attachments, and
-     * counting those fired the discard dialog on an untouched close. Read in exactly one place, and
-     * it decides nothing at save time.
      */
     val attachmentsTouched: StateFlow<Boolean> = _attachmentsTouched.asStateFlow()
 
@@ -234,34 +208,18 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The draft this phone was keeping has been deleted, and the screen may go (#95 × #127).
-     *
-     * A signal of its own, NOT [ComposeState.Done], which plays the tern's flight and pops to the
-     * inbox; a deletion closes onto the Drafts list. Emitted only after the destroy is durable and
-     * the row consumed: fired from the tap, it would close the screen over a deletion that failed.
      */
     private val _localDraftDeleted = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val localDraftDeleted: SharedFlow<Unit> = _localDraftDeleted.asSharedFlow()
 
     /**
      * Whether deleting the draft this phone is keeping would LEAVE the server copy behind it — the one
-     * thing the confirmation owes the reader before her finger lands (#95). Where this phone never read
-     * that copy whole it is deliberately kept, so the row goes, the mask lifts, and the pre-edit text
-     * comes back at the top of Drafts; the dialog used to say the opposite.
-     *
-     * The decision is [emptiedLocalDraftKeepsServerCopy], armed where its terms are read.
      */
     private val _deleteKeepsServerCopy = MutableStateFlow(false)
     val deleteKeepsServerCopy: StateFlow<Boolean> = _deleteKeepsServerCopy.asStateFlow()
 
     /**
      * Whether the trash icon's confirmation is up (#127).
-     *
-     * HERE and not in a `rememberSaveable` on the screen: a bare `remember` fell back to false on
-     * every rotation and the dialog vanished without a word, but `rememberSaveable` survives PROCESS
-     * DEATH too, which the draft it names does not — the flag would redraw the dialog over a dead-end
-     * screen whose Delete deletes nothing.
-     * Scoped to the composer's NAVIGATION ENTRY, never "the process": it also outlives the composer
-     * merely leaving the composition.
      */
     private val _pendingDraftDelete = MutableStateFlow(false)
     val pendingDraftDelete: StateFlow<Boolean> = _pendingDraftDelete.asStateFlow()
@@ -278,11 +236,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Whether the leave dialog is up — "You haven't saved your changes" (#35, #127). HERE for
-     * [pendingDraftDelete]'s reason: a bare `remember` fell back to false on every rotation and the
-     * question left the screen as if it had been answered.
-     *
-     * It says only WHETHER the dialog is up; what it says and which buttons it offers is decided on
-     * the screen. Lifetime: the NAVIGATION ENTRY, never "the process".
      */
     private val _pendingDiscard = MutableStateFlow(false)
     val pendingDiscard: StateFlow<Boolean> = _pendingDiscard.asStateFlow()
@@ -299,10 +252,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Whether the pre-send "did you forget an attachment?" question is up. HERE for
-     * [pendingDraftDelete]'s reason: turning the phone took it away and left the message unsent, with
-     * nothing said about why.
-     *
-     * The two pre-send guards are CHAINED, never up together. Do not merge them into one state.
      */
     private val _pendingForgotAttachment = MutableStateFlow(false)
     val pendingForgotAttachment: StateFlow<Boolean> = _pendingForgotAttachment.asStateFlow()
@@ -319,8 +268,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Whether the pre-send "this goes to many recipients" question is up — the second link of the
-     * chain. HERE for [pendingDraftDelete]'s reason; see [pendingForgotAttachment] for the
-     * chaining, which is an order, not a combined state. Lifetime: the navigation entry.
      */
     private val _pendingManyRecipients = MutableStateFlow(false)
     val pendingManyRecipients: StateFlow<Boolean> = _pendingManyRecipients.asStateFlow()
@@ -371,8 +318,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The day already chosen in the calendar, as the picker gives it: UTC midnight, never local —
-     * [pickedScheduleMillis] is the only thing allowed to read it. HERE and not on the screen, with
-     * one more reason than the flags above: a rotation BETWEEN the calendar and the clock would lose it.
      */
     private val _scheduleDay = MutableStateFlow<Long?>(null)
     val scheduleDay: StateFlow<Long?> = _scheduleDay.asStateFlow()
@@ -395,9 +340,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Switch the sending identity, and report what that asks of the body's signature (D5), or null when
-     * it asks nothing: an identity being left WITH a signature gives a [SignatureChange.Swap], leaving
-     * an edited or deleted block as the user made it; one WITHOUT gives an [SignatureChange.Insert],
-     * still obeying the two reply settings.
      */
     suspend fun selectFrom(option: FromOption, isReplyOrForward: Boolean = false): SignatureChange? {
         val previous = selectedIdentity()
@@ -421,8 +363,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Say that the quoted original was dropped (B6). On a slow link the quote arrives after compose
-     * has opened, and it is deliberately not dropped onto text already typed — which until now
-     * happened in silence. A toast, nothing more: no "insert it anyway" action to reason about.
      */
     fun noticeQuoteNotAdded() {
         _notices.tryEmit(R.string.compose_quote_not_added)
@@ -430,12 +370,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The screen has dealt with [replyQuote] — dropped it in, or said it could not: retire it so it is
-     * handled exactly once. A rotation RECREATES the activity while this ViewModel survives, so left
-     * non-null the quote is replayed to every new collector: the caret goes back to offset 0, and the
-     * B6 toast is posted again.
-     *
-     * Called only from the two branches that HANDLED it: on the third way out nothing has posted it,
-     * so consuming would throw it away in silence.
      */
     fun consumeReplyQuote() {
         _replyQuote.value = null
@@ -451,8 +385,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The body a reply/forward opens with: the [quoted] original, plus the signature per the three
-     * settings, all read from DataStore inside the prefill coroutine rather than from a cached
-     * snapshot, so a composer opened moments after launch still honours them.
      */
     private suspend fun replyBody(quoted: String): String =
         if (!settings.signatureOnReplies.first()) {
@@ -546,9 +478,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Read this account's own public key from the provider and cache it, for accounts configured before
-     * the cache existed. SILENT in every direction: the provider may answer UserInteractionRequired,
-     * and nothing here may interrupt someone writing a message over a cache. And it is
-     * [store.setPgpPublicKey], which refuses the write if the key id moved.
      */
     private suspend fun cachePgpPublicKey(account: StoredAccount?) {
         val id = pgpPublicKeyBackfill(account, pgpPublicKeyTried) ?: return
@@ -565,9 +494,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The mode the user picked by hand — the lock's short tap, or the long-press menu, the only way to
-     * [PgpMode.ENCRYPT_UNSIGNED]. ONE body for both: a hand-set mode is marked user-chosen so it is
-     * never auto-downgraded (#35) and it announces itself, and a second entry point without both would
-     * let encrypt-by-default silently rewrite a choice just made.
      */
     fun setPgpMode(mode: PgpMode) {
         pgpModeUserSet = true
@@ -578,9 +504,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Refresh per-recipient key availability, then re-derive the opportunistic default mode (#35).
-     * Called on every keystroke, but it only acts when the set of real addresses changed: a half-typed
-     * token has no key by construction, so recomputing on it would flip the lock to "not encrypted"
-     * mid-word — and skipping keeps the provider out of it, each check being a round-trip per address.
      */
     fun updateRecipientKeys(to: String, cc: String, bcc: String) {
         val account = pgpAccount()
@@ -605,8 +528,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Opportunistic default (#35): with encrypt-by-default on and the lock not set by hand, encrypt
-     * only when EVERY recipient has a key, otherwise fall back visibly to plain. The keyless
-     * recipients are recorded for the inline hint.
      */
     private fun deriveAutoMode(addresses: List<String>) {
         val account = pgpAccount() ?: return
@@ -687,65 +608,31 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The saved draft being edited (#63): compose was opened from a message in Drafts. Sending or
-     * re-saving replaces it — the old copy is destroyed once the new one is safely through — so
-     * editing never leaves a duplicate; a failure leaves it untouched on the server.
      */
     private var editingDraftId: String? = null
 
     /**
      * The IMAP numbering [editingDraftId] belongs to, FROZEN at the moment that id was read (#99).
-     *
-     * An `UID EXPUNGE` only means anything inside one UIDVALIDITY: a repository that looked the value up
-     * at execution compared a number recorded after a renumbering with itself, said "same", and expunged
-     * another message in Drafts.
-     *
-     * Read ONCE and never re-read on the way out — re-reading is the defect itself. On JMAP it is
-     * ALWAYS null and the draft is destroyed all the same.
      */
     private var editingDraftUidValidity: Long? = null
 
     /**
      * The account [editingDraftId] was read from, FROZEN in the same breath as its numbering (#63 × #31).
-     *
-     * The "From" picker offers the identities of EVERY account and switching it resets nothing about the
-     * draft. Resolved at save time instead, the expunge left for a server that never issued the id and
-     * the screen closed as a success either way — on JMAP the draft comes back on the next sync, on IMAP
-     * two accounts whose Drafts share a UIDVALIDITY let it through in the WRONG mailbox.
-     *
-     * Frozen once and never looked up again: re-reading answers the "From" showing NOW.
      */
     private var editingDraftAccountId: String? = null
 
     /**
      * What the draft held WHEN IT WAS OPENED and this composer cannot put back: a genuine HTML body,
-     * inline images or a calendar part, or a file attachment that failed to re-stage (#63).
-     *
-     * Read only by [editingDraftLossy] — never by a destroy route, which must see the OTHER source
-     * too, and never by the save's WRITE guard: this term is true for every server draft reopened
-     * with an HTML body, so weighed on a write it refused an erasure made on purpose.
      */
     private var editingDraftLossyOnOpen = false
 
     /**
      * …and what THIS COMPOSER has lost since, on the way into an activity's saved-state parcel
-     * ([saveComposerResume]). Pushed here once, and never taken back down.
-     * The path it closes is a plain activity recreation: the parcel lost the body while `applied` and
-     * `subject` came back intact, so the editor is redrawn empty, the leave guard sees no change, and
-     * one tap on a still-lit Save destroys the server copy.
-     *
-     * Read in TWO places: half of the licence to destroy (#63), and on its own the ONLY term that may
-     * refuse to write an empty body over a stored one.
      */
     private var composerBodyWasLost = false
 
     /**
      * THE LICENCE TO DESTROY, and the only name every destroy route reads — eight read sites over
-     * `destroyReplacedServerDraft`, `sendInternal`, `scheduleSend` and `saveDraft`. The
-     * `composerBodyWasLost` argument beside the last is NOT a ninth: the body a save may refuse to
-     * overwrite is not a question of licence to destroy.
-     *
-     * It has TWO sources, and either alone is a data loss. A computed `val`, not a `var`: as one
-     * field, `prepare()`'s last statement would overwrite a lost-body flag on every draft reopen.
      */
     private val editingDraftLossy: Boolean get() = editingDraftLossyOnOpen || composerBodyWasLost
 
@@ -759,13 +646,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The row of `local_drafts` this composer holds a lease on (#95), and the account it belongs to.
-     * Both are needed to give it back: every write to that table is scoped by `(accountId, id)`
-     * because ids collide between two accounts of one server (#31).
-     *
-     * The id is PUBLISHED, exactly as [editingDraft] publishes the server row: it is the only honest
-     * answer to "is there a local draft to delete". `draftOpenRoute(draftId) == LOCAL` is not — on a row
-     * the upload worker consumed, the route still says LOCAL and the button would do nothing.
-     * One holder, not a var beside a flow: two of them drift.
      */
     private val _editingLocalDraftId = MutableStateFlow<String?>(null)
     val editingLocalDraftId: StateFlow<String?> = _editingLocalDraftId.asStateFlow()
@@ -773,24 +653,12 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The SERVER draft the reopened local row stands in for, and the numbering that id was frozen under
-     * — read off the row at the open.
-     *
-     * Two fields of their own, and NOT [editingDraftId] / [editingDraftUidValidity]: that pair is what
-     * a re-save and a send act on, and for a local draft it names the ROW — a server id there mints a
-     * second row per save, and a numbering there licenses an expunge beside an id no server issued.
-     * These two are read by the gestures that CONSUME the row and so lift the mask over the copy.
      */
     private var replacedServerDraftId: String? = null
     private var replacedServerDraftUidValidity: Long? = null
 
     /**
      * Which account the draft id this composer would carry was read under — handed to
-     * [unlessDraftBelongsElsewhere] at the three places that write it somewhere durable.
-     *
-     * The choice between the two fields is [carriedDraftAccountId], in `core:data` and executed by a
-     * JVM test, because it is the same choice [sendDraftTarget] makes; this is only the wiring, in ONE
-     * place, since written out at each site a later edit fixes one and leaves the others carrying an id
-     * across accounts. Not a field: a fourth copy could go stale against the id it describes.
      */
     private fun carriedDraftAccount(): String? = carriedDraftAccountId(
         editingDraftId = editingDraftId,
@@ -800,51 +668,30 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The saved draft behind this composer AS A MESSAGE — the cached row, ready to be deleted — or null
-     * when there is none (#127).
-     *
-     * Not derived from [editingDraftId], which has no flow and no longer answers the same question:
-     * since the reopen branch arms the id before the coroutine it is set on EVERY reopen, including one
-     * whose fetch failed. This flow is set only where the draft was read AND the cache holds the row,
-     * which is why Delete stays absent after a failed reopen.
      */
     private val _editingDraft = MutableStateFlow<Email?>(null)
     val editingDraft: StateFlow<Email?> = _editingDraft.asStateFlow()
 
     /**
      * Whether a draft saved on the SERVER is behind this composer — what the leave dialog may not
-     * announce as destroyed (#35). Broader than [editingDraft], which is null unless the cache holds the
-     * row: a draft that could not be read still exists in Drafts. The rule is [savedDraftBehindScreen].
      */
     private val _savedDraftBehind = MutableStateFlow(false)
     val savedDraftBehind: StateFlow<Boolean> = _savedDraftBehind.asStateFlow()
 
     /**
      * Whether the saved draft this composer was opened on is still being fetched — the window in which
-     * the screen has no fields to show and must offer no action (`draftReopenView`).
-     *
-     * NOT a [ComposeState]: that is a single slot, so a `Loading` there would be wiped by the first
-     * error and would wipe the error banner on its way in.
-     *
-     * Raised on the `draftId` path ONLY: a reply overwrites nothing on the server, so sending one while
-     * its quote is still coming loses nothing.
      */
     private val _draftLoading = MutableStateFlow(false)
     val draftLoading: StateFlow<Boolean> = _draftLoading.asStateFlow()
 
     /**
      * The string id of what to say when the draft could not be read at all ([draftLoadNoticeFor]).
-     *
-     * Its real job is not the sentence: it is that the editor is NOT DRAWN while it is non-null. A blank
-     * composer titled "Draft" cannot be told from a new message, and a save from it put a SECOND draft
-     * on the server while the first stayed there, invisible.
      */
     private val _draftLoadFailed = MutableStateFlow<Int?>(null)
     val draftLoadFailed: StateFlow<Int?> = _draftLoadFailed.asStateFlow()
 
     /**
      * The draft to delete, handed over exactly once. Refuses while a send or a save is in flight
-     * (INV-6): a send carries `draftEmailId` and destroys the original when it lands, so a delete racing
-     * it would be a second destruction. Clears as it hands over, so a double tap cannot delete twice.
      */
     fun takeEditingDraft(): Email? {
         if (_state.value is ComposeState.Sending) return null
@@ -856,8 +703,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Every address that IS the user on this account: the login plus each of its identities. A
-     * reply-all must exclude them all — an account with a second alias used to reply to itself,
-     * because only the login was filtered (B5).
      */
     private fun selves(credentials: AccountCredentials): Set<String> =
         (listOf(credentials.username) + store.identities(credentials.id).map { it.email })
@@ -867,8 +712,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Reply/forward from the address the original was addressed to (#81): pre-select [accountId]'s
-     * identity that appears in [original]'s To, else its Cc. Deliberately NOT a change to the reply-all
-     * recipients — [selves] still excludes every address of the account (B5) — nor to the undo path.
      */
     private fun preselectReceivingIdentity(accountId: String, original: Email) {
         receivingFromOption(_fromOptions.value, accountId, original)?.let { option ->
@@ -920,13 +763,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Take off the list every attachment whose staged bytes are no longer there, and say so. Called as
-     * the composer comes back to the front, because that is when it can have happened: Clear cache, or
-     * Android evicting `cacheDir`. The DECISION is [sweepStagedAttachments].
-     *
-     * IT DOES NOT RUN AT ALL WHILE THIS COMPOSER HOLDS THE ONLY COPY OF SOMETHING, i.e. on a server
-     * draft or a queued outbox item: both destructions are held back by a COUNT of what came through
-     * (#63, #70), and a sweep that removes the part from the INPUT side makes those counts agree.
-     * The reported symptom survives on those two paths, and that is the accepted price.
      */
     fun dropVanishedAttachments() {
         if (editingDraftId != null || editingOutboxId != null) return
@@ -940,12 +776,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Bind everything about a queued or undone message that is NOT the text of its fields — the two
-     * callers differ exactly there. [resumeOutboxEdit], after a process death, calls this ALONE, since
-     * the fields come back from the screen's `rememberSaveable`s and the body from the resume slot.
-     * So no `_prefill` here, ever (OutboxResumeWiringTest).
-     *
-     * [options] are the identities [prepare] just listed: the send identity is a flow of this
-     * ViewModel, dead with the process, so without this the message would leave under the default one.
      */
     private fun bindQueuedRow(d: SendOutbox.ComposeDraft, options: List<FromOption>) {
         _attachments.value = d.attachments
@@ -1000,12 +830,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Take back, by [id], the queued row a composer rebuilt after a process death was opened on (#70).
-     * Before this, that composer was DETACHED — `editingOutboxId` is only set from the in-memory
-     * hand-over — so Send enqueued a SECOND copy beside the original the startup sweep had parked.
-     *
-     * The order is the whole of it and it is [resumeOutboxRow] (`OutboxResumeTest`): AFTER
-     * `outboxRecovery`, so the row is FAILED when `takeOutboxForEdit` reads it. Fields are NOT
-     * touched (A8). Residue, accepted: a Send tapped before this returns goes out without an id.
      */
     private suspend fun resumeOutboxEdit(id: Long) {
         val app = getApplication<Application>()
@@ -1019,13 +843,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Build initial fields when opening as a reply/reply-all/forward of [replyToId], or, when [to] is
-     * given, as a fresh mail pre-addressed to it.
-     *
-     * @param quoteAlreadyOnScreen the composer ALREADY carries the quoted original, so neither of the
-     * two sentences below may be produced. Only the screen knows it: after a process death this object
-     * is new and everything here runs again, so the second pass would toast "the quote was not added"
-     * over the quote itself.
-     * @param outboxId the queued row this composer was opened on by Outbox → Edit (#70).
      */
     fun prepare(
         replyToId: String?,
@@ -1103,17 +920,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
         // Editing a saved draft: reopen it with every field it carried, and remember its id so sending
         // or re-saving replaces it instead of duplicating (#63).
-        // Which STORE the id belongs to is a decision, not a null check, answered in core:data where
-        // a JVM test executes it. Branching on `draftId != null` alone sent a `local-draft:` id into
-        // repo.fetchEmail, which offline blocks on the connect timeout and then opens the composer
-        // EMPTY over the only copy of the text (#95).
         when (draftOpenRoute(draftId)) {
             DraftOpenRoute.LOCAL -> {
                 // Raised HERE, before the coroutine, and NOT on its first line — the SERVER arm's reason,
                 // and it holds on a Room read too: set inside, the editor is on screen, editable, with
-                // Save and Send, for whatever the dispatcher does with that body, and a save landing
-                // there writes a SECOND draft. `viewModelScope` is Main.immediate today, so this
-                // guards against that changing rather than reading it.
                 _draftLoading.value = true
                 // The `finally` is at THIS level, not inside prepareLocalDraft: that function leaves
                 // by three bare `return`s as well as by any throw from Room, and a flag only one path
@@ -1134,23 +944,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 _draftLoading.value = true
                 // THE ID AND ITS VERDICT, ARMED AS ONE GESTURE — before the first suspension point.
                 // The invariant is no longer "the id is laid LAST" but "the LICENCE TO DESTROY is laid
-                // last". The id used to be the try's last statement, because a send tapped while the
-                // attachment carry was downloading went out amputated (#63) — but `applied` is a
-                // rememberSaveable, so after a kill the editor comes back with the typed text while
-                // prepare() re-runs, and offline that statement is never reached, so Save writes a
-                // SECOND draft. An id on its own destroys nothing now, the verdict being pessimistic.
-                // It must be armed to `true`, not left at `false`: that default IS the destroy, an
-                // unread draft's files counting 0 against 0. A site that cannot prove fidelity says true.
                 editingDraftId = draftId
                 // …AND THE ACCOUNT IT WAS READ UNDER, IN THE SAME BREATH: `unlessDraftBelongsElsewhere`
                 // lets a NULL draft account THROUGH on purpose, so an id armed beside a null account
-                // disarms that guard. Frozen after the fetch instead, every way the read can fail left
-                // that pair standing — and since draft ids COLLIDE between two accounts of one server
-                // (#31), a Save made after switching "From" overwrote B's own pending draft with A's
-                // text.
-                // Read with `credentials()`, which answers here what it answers below, `_selectedFrom`
-                // being empty at the entry of prepare(). And frozen HERE ONLY: two writes of one field
-                // a few lines apart is a value free to go stale.
                 editingDraftAccountId = credentials()?.id
                 editingDraftLossyOnOpen = true
                 viewModelScope.launch {
@@ -1175,19 +971,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         references = draft.references
                         // The numbering the draft's id belongs to, frozen HERE and never read again:
                         // at save time it would be the number a refresh recorded after the folder was
-                        // renumbered, and the expunge would land on another draft (#99). Read AFTER
-                        // the id is armed, which is safe: what destroys is the PAIR (id + a CLEAN
-                        // verdict), and the verdict is only lowered on a draft actually read.
                         editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)
                         // THE ACCOUNT IS NOT FROZEN HERE: it is armed at the entry, beside the id it
                         // describes. On this line it would be frozen only on the paths that reach it,
-                        // and every failed reopen would leave an armed id with a null account.
-                        // What this editor cannot give back on a re-save: an HTML body it cannot READ
-                        // BACK, inline images and calendar parts, and the read receipt the draft asked
-                        // for (D1). Every leg is read off the DRAFT just fetched.
-                        // INTO A LOCAL, NOT INTO THE FIELD: written to the field, this line hands the
-                        // screen a clean licence while the carry has not started, and a Send in that
-                        // window goes out with NO attachments against a faithful verdict. That is #63.
                         val lossy = reopenedDraftIsLossy(
                             hasHtmlBody = draftHtmlIsLossy(draft.htmlContent()),
                             inlineImageCount = draft.inlineImageParts().size,
@@ -1201,19 +987,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         val carried = carryDraftAttachments(credentials, draft)
                         // THE LICENCE TO DESTROY, LAID LAST — the final statement of this branch, and
                         // the only place the pessimistic verdict armed on entry is lowered. Until this
-                        // line runs, every Send, Save or empty-and-save tapped during the fetch AND
-                        // during the carry keeps the original.
-                        // It reads BOTH answers: `= lossy` alone would call a draft faithful whose
-                        // files failed to download — the destroy of the only copy of them.
                         editingDraftLossyOnOpen = lossy || !carried
                     } catch (t: Throwable) {
                         // The draft could not be read. NOTHING is prefilled and, above all, no editor is
                         // drawn: a blank editable composer titled "Draft" cannot be told from a new
-                        // message, and saving from it added a SECOND draft. The sentence is its own, not
-                        // compose_prefill_failed, which already means "the quoted original is missing".
-                        // The verdict line is redundant since it is armed `true` on entry — kept
-                        // because it documents the path. It must no longer claim "nothing on this
-                        // screen can save any more": `applied` survives process death.
                         editingDraftLossyOnOpen = true
                         val app = getApplication<Application>()
                         _draftLoadFailed.value = draftLoadNoticeFor(isOfflineFailure(t, online = hasUsableNetwork(app)))
@@ -1278,9 +1055,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
             // Cache-FIRST, and never blocked on the network: To/Subject of a reply come from the
             // original's headers, which the cached list row already holds. Offline, fetchEmail below
-            // blocks on the connection timeout, so waiting on it to build the headers is exactly the
-            // bug. Account-scoped lookup: the cache is keyed (accountId, id) and a bare id would hand
-            // back a sibling sub-account's message (#31).
             val cached = runCatching { repo.cachedEmail(credentials.id, replyToId) }.getOrNull()
             if (cached != null) {
                 // BEFORE the prefill: the identity decides which signature the body opens with, so the
@@ -1370,9 +1144,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             } else if (!quoteAlreadyOnScreen) {
                 // The whole body, not just the quote: the screen swaps it in wholesale and must keep the
                 // signature the cache-first prefill put there.
-                // Not a second time. After a process death the user may have typed under the restored
-                // quote, so handing it over again toasts "quoted message not added" over a body that
-                // carries it (G5). An `else if` so the emission stays the one line the lint pins.
                 _replyQuote.value = replyBody(quote(original, resolveOutgoingDateZone(settings.quotedDatesUtc)))
             }
         }
@@ -1380,13 +1151,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Reopen one of THIS PHONE's own drafts — a row of `local_drafts` the server has not got (#95).
-     * Nothing on this path may touch the network or read the cache: the id names a row no server has
-     * heard of, and offline `fetchEmail` blocks on the connect timeout. The row IS the draft, and
-     * [localDraftPrefill] projects it — a pure function a JVM test executes field by field.
-     *
-     * The row is taken out of the upload worker's way while this composer holds it, or the network
-     * coming back mid-edit uploads the draft and deletes the row AND its attachments. A row that is
-     * not there is SAID on [_draftLoadFailed], not swallowed by a bare `?: return`.
      */
     private suspend fun prepareLocalDraft(id: String) {
         val credentials = credentials()
@@ -1460,9 +1224,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         editingDraftLossyOnOpen = fields.bodyIsLossy
         // The row's OWN id: `localDraftTarget` looks a `local-draft:` id up by id, so a re-save lands
         // on this very row. The server draft it stands in for is NOT armed here — a local id names
-        // nothing a server can destroy — so [editingDraftUidValidity] stays null, and
-        // [editingDraftAccountId] with it: that one says which server hears about an id read off a
-        // server, and this id was read off this phone.
         editingDraftId = fields.editingDraftId
         // The server draft this row stands in for, carried to the gestures that consume the row,
         // since each of those lifts the mask it holds over that copy. Kept apart from the pair above:
@@ -1472,12 +1233,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         replacedServerDraftUidValidity = fields.replacedServerDraftUidValidity
         // Armed from the two terms the row carries, at the one place they are read, so the delete
         // confirmation can say BEFORE the tap that the copy on the server stays (#95).
-        // `addressingIsProvenEmpty = true` is NOT an assertion that the original was copied to nobody:
-        // establishing that means a blocking server read in front of the gesture that exists because
-        // there was no network. The gap is ONE-WAY — this dialog only ever ADDS a line, so `true` can
-        // make it withhold that line for a copy the destruction keeps, never promise a copy stays when
-        // the gesture is about to destroy it. Widened, not doubled, since the composer can lose its
-        // body: deliberately not closed here, as recomputing would put a second writer on the flow.
         _deleteKeepsServerCopy.value = emptiedLocalDraftKeepsServerCopy(
             fields.replacedServerDraftId,
             fields.bodyIsLossy,
@@ -1487,20 +1242,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The user emptied a draft this phone was keeping, and saved: destroy the SERVER draft it stood in
-     * for, then take the row away (#95 × #69).
-     * Consuming the row alone is the defect: while it exists the server draft is masked out of Drafts,
-     * and once it goes the mask lifts and the pre-edit text comes back at the top, permanently. The
-     * mask is not total for a server draft that represents a conversation.
-     *
-     * The destroy carries the folder and the FROZEN numbering, through `destroyDurably` and not
-     * `schedule`, which takes the account's unique work slot with `REPLACE`.
      */
     private suspend fun destroyReplacedServerDraft(localDraftId: String) {
         // The account the ROW was leased under, and never the one being written as. Handed
         // `credentials()`, this destroyed under whichever account the "From" picker shows: the lookup,
-        // the destroy and the eviction all left for a server that never issued that id and failed in
-        // silence, while the row was taken away correctly — mask lifted, pre-edit draft back at the top
-        // of Drafts. No fallback: throwing destroys nothing, and both callers catch it.
         val credentials = credentialsDestroyingReplacedServerDraft(
             leasedUnderAccountId = editingLocalDraftAccountId,
             composingAsAccountId = _selectedFrom.value?.accountId ?: accountId,
@@ -1515,10 +1260,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             bodyIsLossy = editingDraftLossy,
             // Read here, like `mailboxId` above, because establishing it means asking the server while
             // the decision stays pure. Under the account the ROW was leased under. The two guards in
-            // front of the read are not a second decision: each skips a question whose answer cannot
-            // reach the outcome and hands over `false`, "not proven". Unlike `mailboxId` this read
-            // leaves the phone, and unguarded it would block the one gesture that exists because there
-            // was no network (#95).
             addressingIsProvenEmpty = serverDraft != null && !editingDraftLossy &&
                 repo.emptiedDraftAddressingIsProvenEmpty(credentials, serverDraft),
         )
@@ -1534,13 +1275,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Delete the draft this phone is KEEPING, from the composer that holds it (#95 × #127).
-     * Not a second way to destroy anything: a deletion asked for IS the emptying —
-     * [destroyReplacedServerDraft] reached by a button, under the same proofs.
-     *
-     * The acts: the lease is READ, not blanked, since blanking it leaves the row `EDITING` with nobody
-     * to release it on a failure; the row goes back to the upload worker only when nothing was
-     * destroyed; and the screen closes on [localDraftDeleted], never on `Done`, which lands on the
-     * inbox. Stated debt: the failure banner is the SAVE one.
      */
     fun deleteEditingLocalDraft() {
         val id = heldEditingLocalDraft() ?: return
@@ -1561,11 +1295,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The lease on this phone's own draft row as this composer holds it — read, never cleared. Who
-     * gets the row back is decided at the END of the gesture ([localDraftLeaseAfterDelete]) and cannot
-     * be decided on a field this function has emptied.
-     *
-     * It refuses twice, both the useful half of [takeEditingDraft]'s one-shot (#127): during a send,
-     * which consumes this very row (INV-6), and on a lease the close has already handed back.
      */
     private fun heldEditingLocalDraft(): String? {
         if (_state.value is ComposeState.Sending) return null
@@ -1574,13 +1303,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Say a draft of the PHONE's own store could not be opened because no account resolved (#95).
-     * No new string and no new meaning: `compose_draft_load_failed` is what the SERVER reopen answers
-     * for the same cause, and it is not "offline".
-     *
-     * The dominant case is transitory and reopening works, but [credentials] also answers null when the
-     * store is empty — a deleted or signed-out account — where the sentence invites a gesture that
-     * returns nothing. Stated debt: a tenth string across nine locales was too dear for a path this
-     * narrow. On [_draftLoadFailed], the flow [draftReopenView] turns into `DeadEnd`.
      */
     private fun noticeLocalDraftNoAccount() {
         _draftLoadFailed.value = R.string.compose_draft_load_failed
@@ -1588,12 +1310,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Say the draft the phone was keeping is not on the phone any more (#95) — the upload worker consumed
-     * it between the list being drawn and the tap, or it was thrown away.
-     *
-     * The one new string of this branch, and it had to be new: `compose_draft_load_failed` asks for
-     * something that CANNOT work, `compose_draft_offline` would accuse an unrelated network, and
-     * `compose_prefill_failed` already means "the quoted original is missing".
-     * On [_draftLoadFailed], for its neighbours' reason.
      */
     private fun noticeLocalDraftGone() {
         _draftLoadFailed.value = R.string.compose_local_draft_gone
@@ -1601,12 +1317,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Say the draft is on the phone but not this composer's to open right now — its files are being
-     * staged, or the worker is uploading it. An `EDITING` row is NOT one of these: it is this phone's
-     * own stale lease, taken back rather than refused.
-     *
-     * A DIFFERENT sentence from [noticeLocalDraftGone]'s and no new string: `compose_draft_load_failed`
-     * is exactly true here, both states being transitory. On `_draftLoadFailed`, so the editor is not
-     * drawn: a blank composer with a live Save is the "second draft on the server" that flow ended.
      */
     private fun noticeLocalDraftBusy() {
         _draftLoadFailed.value = R.string.compose_draft_load_failed
@@ -1614,11 +1324,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Take the reopened local draft away — its row AND its staged files — because the composer has just
-     * committed the message somewhere else (#95).
-     *
-     * Never on its own: on the send routes it is [commitThenConsumeLocalDraft]'s `consume`, so it runs
-     * strictly after the outbox row exists. Left undone, the row stays at the top of Drafts and the
-     * worker files a copy of an already-sent message in the server's Drafts.
      */
     private suspend fun consumeEditingLocalDraft(id: String) {
         val account = editingLocalDraftAccountId ?: return
@@ -1628,12 +1333,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Leaving the composer without committing the message anywhere. A message reopened from the outbox
-     * has two ways out, and [body] — the RAW editor text at the close, never through `bodiesForSend` —
-     * decides which: the ordinary close gives it straight back to the queue (#70), while a close over a
-     * body this composer LOST ([closingParksQueuedRow]) PARKS it instead, because giving it back re-arms
-     * it at 0 and the message leaves in under a second, when the screen has just said to reopen it.
-     *
-     * App-scoped: the caller pops this screen right after, which kills [viewModelScope].
      */
     fun abandon(body: String, emptying: Boolean = false) {
         // All three answers are decided in one place, in values, and executed here (#95 × #70). A send
@@ -1671,11 +1370,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Give back the lease taken by [prepareLocalDraft] (#95): the row goes from EDITING to PENDING and
-     * its upload is re-armed. The repository refuses to touch a row in any other state.
-     *
-     * App-scoped, not as a precaution: this runs as the screen is popped and `viewModelScope` dies
-     * with it. [id] is HANDED IN by [abandonPlan]: read off the field here, the plan's decision not to
-     * release anything during a send could be undone by a call slipping past it.
      */
     private fun releaseLocalDraftEdit(id: String) {
         val account = editingLocalDraftAccountId ?: return
@@ -1688,8 +1382,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Consume the queued row this composer was editing (#70): the message has just been committed
-     * elsewhere (sent, scheduled, or saved as a draft), so its EDITING row is dropped rather than
-     * given back to the queue — otherwise the same message would go out twice.
      */
     private suspend fun consumeEditingOutbox() {
         val id = editingOutboxId ?: return
@@ -1700,13 +1392,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Park the queued row this composer was editing in [state] (#95 × #70) — the other end of
-     * [consumeEditingOutbox], for a save that put the message where the row's own copy is not.
-     *
-     * Leaving the row as the composer found it (EDITING) was the defect: no screen shows an EDITING
-     * row, and the next launch hands it back to the queue and delivers the pre-edit text.
-     *
-     * App-scoped, for [abandon]'s reason. The id is read and cleared SYNCHRONOUSLY, before the launch,
-     * so ordering against [consumeEditingOutbox] does not depend on coroutine scheduling.
      */
     private fun parkEditingOutbox(state: OutboxState) {
         val id = editingOutboxId ?: return
@@ -1720,16 +1405,12 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Queue the message in the persistent outbox with a hold-back window (Undo-send): validate +
-     * capture now, close the screen, and let the outbox worker deliver it a few seconds later
-     * (with auto-retry) unless the user undoes it. The row survives the app being killed.
      */
     fun send(to: String, cc: String, bcc: String, subject: String, body: RichBody, requestReceipt: Boolean) =
         sendInternal(SendArgs(to, cc, bcc, subject, body, requestReceipt), interactionResult = null)
 
     /**
      * The composer's field values, kept so a PGP interaction round-trip can retry the send. The
-     * read-receipt choice rides here too: that round-trip re-enters [sendInternal] with THIS record and
-     * nothing else, so a choice left out of it is dropped from every signed or encrypted send.
      */
     private data class SendArgs(
         val to: String,
@@ -1762,11 +1443,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private fun sendInternal(args: SendArgs, interactionResult: Intent?) {
         // A body this composer LOST never leaves, and never takes the only copy of the text with it
         // (#95): the row in `local_drafts` under an offline draft is the ONLY place that text exists,
-        // and the commit below destroys it. The decision is executed in `LostBodySendTest`.
-        // `args.body.text`, NEVER the `textBody` of `bodiesForSend`, which carries the signature and
-        // is never blank. ABOVE the re-entry guard, so nothing is flagged `Sending` for a refused
-        // send. `holdsStoredDraft` takes ALL THREE stores: "type it again" is the one instruction
-        // that DESTROYS the text on every route this protects.
         val lostBody = lostBodySendWording(
             bodyWasLost = composerBodyWasLost,
             body = args.body.text,
@@ -1816,12 +1492,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 }
                 // Which server draft this send replaces, and under which numbering — ONE answer for
                 // both, and the same one for the outbox row and for the record an undone send reopens
-                // from. For a draft reopened off this phone's store the composer holds the ROW's id,
-                // which names nothing a server can destroy, and without the copy named on the row the
-                // send unmasks it (#95).
-                // …and NOT AT ALL when that draft was read under another account (#31 × #63): no
-                // transaction spans two servers, and carried, the id would expunge a bare number in B's
-                // own Drafts.
                 val sendTarget = sendDraftTarget(
                     editingDraftId = editingDraftId,
                     editingDraftUidValidity = editingDraftUidValidity,
@@ -1830,9 +1500,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 ).unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)
                 // Persist the send held for the undo window; the worker delivers it after.
                 // And ONLY THEN take the phone's own draft row away (#95). The order is grid rule 1:
-                // that row is the only copy of the text and the line below is what makes a second one.
-                // Left behind, it stays at the top of Drafts after the message has gone, and the next
-                // launch re-arms it — the worker then files a copy of an already-sent message.
                 val id = commitThenConsumeLocalDraft(
                     localDraftId = _editingLocalDraftId.value,
                     commit = {
@@ -1917,10 +1584,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Schedule the message to be sent at [sendAtMillis]. Persisted to Room and fired by WorkManager.
-     * Attachments are not carried in v1.
-     *
-     * Answers whether the gesture was ACCEPTED and nothing more, which is what the screen needs:
-     * announced unconditionally, its toast reads "Scheduled — Mon 1 Sep, 09:00" over a refused message.
      */
     fun scheduleSend(
         to: String,
@@ -2001,9 +1664,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                                 sendAtMillis = sendAtMillis,
                                 // A scheduled send of an edited draft still replaces it (#63), but this
                                 // row cannot carry the fidelity verdict, so the id itself is the
-                                // carrier: written only when the verdict is clean, withheld otherwise.
-                                // ScheduledSendWorker relies on exactly this. And never one of this
-                                // phone's own ids, which names nothing to destroy.
                                 draftEmailId = sendTarget.emailId,
                                 // The row waits for hours, so the frozen numbering waits with it (#99):
                                 // read at the hour the send fires it would be the number recorded after
@@ -2033,13 +1693,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The outgoing (text, html) bodies, carrying exactly what the composer shows — the signature is
-     * already inside it, so nothing is appended (WYSIWYG). An HTML alternative is ALWAYS produced, since
-     * a lone text/plain body is subject to format=flowed reflow by some servers; an imported HTML
-     * signature is substituted while its plain block is untouched; and the INLINE styling (#131) goes
-     * into the html alternative only, the text one being `toPlainText` — never `userBody.text`.
-     *
-     * Which part actually leaves the phone is not decided here: `buildBodyEntity` emits a SINGLE body
-     * and knows no `multipart/alternative`, so only a plain JMAP send carries BOTH.
      */
     private suspend fun bodiesForSend(userBody: RichBody, identity: StoredIdentity?): Pair<String, String?> {
         val html = htmlBodyWithSignature(
@@ -2052,8 +1705,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Carry a reopened draft's file attachments back into compose (#63), staged like a forward's; inline
-     * images are not carried. Best-effort per part, and it returns whether EVERY part came across — a
-     * partial carry means a re-save cannot reproduce the draft, so the original must survive it.
      */
     private suspend fun carryDraftAttachments(credentials: AccountCredentials, o: Email): Boolean {
         val parts = o.fileAttachmentParts()
@@ -2070,8 +1721,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * A draft is worth persisting only if it carries real content (#69). A wholly empty compose does
-     * not count. Delegates to [draftHasContent] so this save gate and the toolbar's greyed-out Save
-     * icon share one rule.
      */
     private fun hasDraftContent(
         to: String,
@@ -2084,10 +1733,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     fun saveDraft(to: String, cc: String, bcc: String, subject: String, body: RichBody, requestReceipt: Boolean) {
         // A save is the CAUTIOUS gesture, and on one route it was the destructive one: a queued message
         // reopened by Outbox → Edit and redrawn empty is saved as an empty draft, and
-        // consumeEditingOutbox() then deletes the queued row and its durable attachments — the only copy
-        // of the text, while the send route on this same screen was telling her to reopen the message.
-        // HERE and not lower: everything below writes. The RAW `body`, never one through
-        // bodiesForSend. And NOT lostBodySendWording, which answers what a SEND owes.
         if (lostBodySaveDestroysQueuedRow(bodyWasLost = composerBodyWasLost, body = body.text, holdsQueuedRow = editingOutboxId != null)) {
             _notices.tryEmit(R.string.compose_body_lost_reopen_draft)
             return
@@ -2112,38 +1757,19 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             val originalAccountId = editingDraftAccountId
             // The phone's own row is handed back to NOBODY on this close, and the "nobody" is said to
             // abandon() rather than by blanking the field: abandon() would hand the row back PENDING and
-            // RE-ARM its upload, racing the pre-edit text to the server, while blanking the field left a
-            // failed submit() with the row EDITING and nobody to release it.
-            // Nothing is being saved, so a message reopened from the outbox goes back to the queue (#70)
-            // — lost and empty, parked rather than queued.
-            // Its TEXT and not the RichBody: abandon() asks one question, read off the characters.
             abandon(emptying = true, body = body.text)
             if (original == null) {
                 _state.value = ComposeState.Done
             } else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {
                 // NOT repo.discardDraft: for an id no server ever issued the IMAP route destroys
                 // NOTHING, and the screen closed as a success while the emptied draft went up on the next
-                // network. Its row and its staged files go together instead (#95 × #69) — and so does
-                // the SERVER draft it stood in front of, which the row's removal would otherwise unmask.
-                // And submit()'s credentials are NOT passed on: they belong to the "From" on show.
                 submit(to) { _, _ -> destroyReplacedServerDraft(original) }
             } else {
                 // …and the SERVER route asks the same question, because it is the same draft and the
                 // same expunge: a draft never read WHOLE keeps its server copy (emptiedServerDraftIsKept).
-                // "Empty" here is draftHasContent's answer, which counts neither an inline image nor a
-                // calendar part, so a draft made of one inline image is DRAWN empty. The word is owed and
-                // is emitted INSIDE the lambda: submit() reaches Done after this returns.
-                // …and the same of the ADDRESSING, the term both routes were deciding without: the copy
-                // about to be expunged is the only thing still holding a Cc never displayed.
-                // And submit()'s credentials are NOT what it goes out under — hence `{ _, _ ->`.
                 submit(to) { _, _ ->
                     // The account the draft was READ FROM, resolved here and nowhere else. `?:
                     // credentials` appended is the whole defect back: an id JMAP's destroyAll spares, or an
-                    // IMAP number expunged in the OTHER account's Drafts when the two UIDVALIDITYs agree.
-                    // Gone account: this throws, submit() catches it, and NOTHING is destroyed.
-                    // A local fun and NOT a val computed up front: for a draft never read whole the copy
-                    // is kept whatever the account says, and resolving a removed account would turn that
-                    // true notice into a "could not save" banner.
                     fun destroyingCredentials(): AccountCredentials =
                         credentialsDestroyingEmptiedServerDraft(
                             openedUnderAccountId = originalAccountId,
@@ -2152,9 +1778,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         ) ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
                     // NOT a decision taken here — the decision is the function below, and this is the
                     // term it reads. `!editingDraftLossy &&` skips a server read whose answer cannot
-                    // change the outcome, and what it hands over when it skips is `false`, "not
-                    // proven". Under the account the draft was OPENED from: `credentials` here would
-                    // read the addressing of another server.
                     val addressingIsProvenEmpty = !editingDraftLossy &&
                         repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)
                     if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {
@@ -2169,16 +1792,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         submit(to) { credentials, recipients ->
             // Keep a reply draft threaded, carry the attachments the chips are showing into the saved
             // copy, and replace the draft being edited (#63) rather than piling up a copy per save —
-            // unless the copy cannot hold everything the original did, in which case the repository
-            // keeps the original and says so here. Carry the composer's chosen From so a delegated
-            // sub-account's draft is saved under the identity it will send as (#31).
             val identity = selectedIdentity()
             // What this save REPLACES: the id frozen at the open and its numbering, as ONE pair (#99) —
             // and NOTHING AT ALL when that pair was read under another account (#31 × #63). Unlike every
-            // other account mismatch the destroy cannot be re-addressed: the new copy is created on the
-            // account being written as while the original stays where it was, and no transaction spans
-            // two servers. So the original is kept and the duplicate is the price. Both halves come out
-            // of the SAME answer.
             val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)
                 .unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)
             val outcome = repo.saveDraft(
@@ -2247,11 +1863,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             } finally {
                 // A save gives the phone's own row back too, and until this line nothing did
                 // (#95 × #31). `abandon()` is the only other release and only the CANCEL calls it, this
-                // route leaving on Done on the understanding that the save rewrote the row — which it did,
-                // unless the "From" picker was moved to another account: a NEW row is then minted and the
-                // reopened one stays EDITING for ever.
-                // HERE and not in saveDraft's lambda: submit()'s three callers are all in saveDraft, so
-                // abandonPlan(sending = true)'s risk cannot arise at this point.
                 localDraftLeaseAfterSave(_editingLocalDraftId.value, saved)?.let { releaseLocalDraftEdit(it) }
             }
         }
@@ -2259,8 +1870,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Initial fields for a reply/reply-all/forward of [original]. [quoteBody] is false when the full body
-     * could not be loaded: the headers are still prefilled from the cached row, but the quoted body is
-     * skipped rather than quoting the truncated preview. Ignored for a forward.
      */
     private suspend fun buildPrefill(
         original: Email,
@@ -2308,11 +1917,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The quoted original for a reply: a localised attribution line with the date formatted for the
-     * device, then the original prefixed with "> " — cut at the sender's signature delimiter, so a long
-     * exchange does not accumulate one signature per round (D4).
-     *
-     * [zone] is the clock the attribution speaks ([resolveOutgoingDateZone], #120), a parameter WITHOUT a
-     * default: a default here would let a forgotten caller leak the device's time zone silently.
      */
     private fun quote(o: Email, zone: ZoneId): String {
         val app = getApplication<Application>()
@@ -2325,8 +1929,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Prebuild the forwarded-original blocks (text + cleaned html) carried to send time, and re-stage the
-     * original's inline images and attachments. Inline images keep their Content-ID so the forwarded
-     * HTML's `<img cid:>` resolves; one whose image fails to download becomes "[image]" rather than broken.
      */
     private suspend fun buildForwarded(credentials: AccountCredentials, o: Email): ForwardedBlocks {
         val carriedCids = mutableSetOf<String>()
@@ -2381,8 +1983,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Stage outgoing-attachment bytes the same way for a picked file or a carried forward part: IMAP
-     * writes a cache temp file, JMAP uploads a blob. [disposition] is "inline" with a [cid] for a
-     * carried inline image, else "attachment".
      */
     private suspend fun stageOutgoing(
         credentials: AccountCredentials,
@@ -2417,13 +2017,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Build the PGP/MIME entity: assemble the inner MIME entity with the same builder normal sends use,
-     * then detached-sign or encrypt to all recipients + self — the split is [pgpEncryptArgs] and nothing
-     * else. Throws [PgpInteractionNeeded] when the provider wants the user first.
-     *
-     * [mode] is a PARAMETER, and `_pgpMode.value` must never be read in here: the send captures the
-     * mode ONCE, and read again it could answer something else, since `pgp.findKeys` suspends on a
-     * round-trip and the mode moves under it — the message going out UNSIGNED while the composer said
-     * "encrypted and signed", decided by which coroutine resumed first.
      */
     private suspend fun buildPgpEntity(
         credentials: AccountCredentials,
@@ -2466,9 +2059,6 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         val boundarySeed = java.util.UUID.randomUUID().toString().replace("-", "")
         // The subject goes in TWICE, and only one of them is this one. The message's real `Subject:`
         // is written by `OutgoingMime.build` on the envelope, in the clear — the `subject = ""` below
-        // is this throwaway carrier's own. What [protectedSubject] adds is a copy INSIDE the bytes
-        // about to be encrypted (RFC 9788 § 3), so a recipient can tell the subject they were shown is
-        // the subject that was sent. Null on SIGN and on a blank subject.
         val inner = OutgoingMime.buildBodyEntity(
             OutgoingMessage(
                 from = "-", to = listOf("-"), subject = "",

@@ -15,19 +15,6 @@ import kotlin.math.roundToInt
 
 /**
  * The fill behind a row's small rounded chips — the account chip, the [ThreadPill], the
- * [DraftLabel] — once the row itself stopped being plain `surface` (#141).
- *
- * [chipFill] is a pure function, so it is *run* here rather than read: every case pins the
- * arguments it was called with and the colour that came back. The role cases use sentinel colours
- * (values that cannot be mistaken for one another) instead of real Material tones, so a swapped
- * role comes out as a plain inequality and not as a near-miss between two greys — which is exactly
- * the defect: in the light scheme `surfaceVariant` (0xFFE0E4E9) and the unread row's
- * `surfaceContainerHighest` (0xFFE1E5E9) are one step out of 255 apart per channel, so the chips
- * did not fade on unread rows, they vanished and left their label floating.
- *
- * The last case therefore measures that distance on the app's REAL schemes, running [chipFill] and
- * [rowBackground] together: pinning roles alone would stay green if some future scheme moved two
- * roles back on top of one another.
  */
 class ChipFillTest {
 
@@ -114,10 +101,6 @@ class ChipFillTest {
 
     /**
      * The symptom itself, measured: in both real schemes and in all three row states, the chip
-     * must stand clear of the row it is painted on. The failing case scored 1/255 (light, unread);
-     * the tightest case that is *not* the defect is 23/255 (light, read: surface 0xFFF7F8FA under
-     * surfaceVariant 0xFFE0E4E9), so 16 sits well below anything legitimate and well above the
-     * defect. Distance is the largest per-channel gap, in 0-255 steps.
      */
     @Test fun `a chip stands clear of the row it sits on, in both schemes`() {
         for ((name, scheme) in listOf("Arctic" to ArcticColorScheme, "Pelagic" to PelagicColorScheme)) {
@@ -142,9 +125,6 @@ class ChipFillTest {
 
     /**
      * The switch off: the chips go back to what they were before the branch, `surfaceVariant`
-     * on every row. The row underneath is plain `surface` again ([RowBackgroundTest] pins that),
-     * so lifting an "unread" chip to surfaceContainerLowest here would put the pale chip on the
-     * pale row the fix was never needed for.
      */
     @Test fun `with the tint off every chip is the surface variant again`() {
         assertEquals(surfaceVariant, chipFill(scheme, selected = false, unread = true, unreadTint = false))

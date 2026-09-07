@@ -7,15 +7,6 @@ import org.junit.Test
 
 /**
  * The setting that removes the reader's bottom Reply/Forward bar (#63).
- *
- * It is NOT a fix for the bar arriving late: the bar is revealed by a report from the WebView once
- * the body has been measured, deliberately, and that stays. This is for the reader who would rather
- * not have it at all — and nothing becomes unreachable, since Reply, Reply all and Forward all sit
- * in the top bar and its menu.
- *
- * Two decisions, not one, and the second is the one that is easy to forget: the blank the bar sits
- * over is reserved INSIDE the HTML document. Turn the bar off without answering 0 there and every
- * message ends in ~80 dp of white under nothing.
  */
 class ReplyBarTest {
 

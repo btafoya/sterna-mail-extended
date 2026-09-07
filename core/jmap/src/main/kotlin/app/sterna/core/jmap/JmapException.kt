@@ -16,11 +16,6 @@ class JmapException(
     val oauthError: String? = null,
         /**
          * The server REFUSED this delivery, and replaying it can only duplicate what already went out.
-         * Set on the one failure we can prove is final: an `EmailSubmission` the server created and
-         * then reported as `delivered: "no"` for at least one recipient (#183), a refusal issued before
-         * the message was queued, so no bounce will follow either. NOT "this looked like a 5xx":
-         * transport, HTTP and parse errors leave it false, saying nothing about whether the message
-         * left. `OutboxLogic.stateAfterFailure` parks such a row as FAILED at once.
          */
     val permanent: Boolean = false,
 ) : Exception(message, cause)

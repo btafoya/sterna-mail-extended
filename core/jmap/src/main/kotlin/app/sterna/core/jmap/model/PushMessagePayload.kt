@@ -7,8 +7,6 @@ import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * A payload the server POSTs to the push endpoint (RFC 8620 §7.2): the one-time
- * PushVerification round-trip, or a StateChange once verified. Discriminated on
- * `@type`; anything else parses to null (callers treat that as a bare wake signal).
  */
 sealed interface PushMessagePayload {
 

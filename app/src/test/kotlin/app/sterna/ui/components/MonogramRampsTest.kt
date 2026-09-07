@@ -8,17 +8,6 @@ import org.junit.Test
 
 /**
  * The wiring between the active [androidx.compose.material3.ColorScheme] and the badge colours
- * (issue #85). [MonogramColorTest] hands [monogramColor] hand-written ramps, which proves the
- * derivation but would stay green if [monogramRamps] read the wrong roles — or read one role three
- * times, which is the failure that would quietly bring back a single flat badge colour. This is the
- * only thing that ties the badges to the palette actually in use, so it is checked on its own.
- *
- * Kept in a separate class from the derivation tests deliberately: it is the one that instantiates a
- * real [lightColorScheme], so if that ever turns out to need more than a plain JVM, it fails alone.
- *
- * The scheme is built from sentinel colours rather than real Material tones — six values that could
- * not be confused with each other, so a swapped or repeated role shows up as an inequality instead
- * of a near-miss.
  */
 class MonogramRampsTest {
 
@@ -59,8 +48,6 @@ class MonogramRampsTest {
 
     /**
      * [MONOGRAM_FAMILIES] is not documentation: [monogramSlot] indexes into the ramps with it, and the
-     * widget stores the resulting family number. If the constant and the list ever disagree, a badge
-     * lands outside the palette — so the number is pinned against a real scheme, not against itself.
      */
     @Test fun `the announced number of families is the number of ramps`() {
         assertEquals(MONOGRAM_FAMILIES, scheme.monogramRamps().size)

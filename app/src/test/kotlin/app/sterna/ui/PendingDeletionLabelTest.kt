@@ -7,37 +7,11 @@ import java.io.File
 
 /**
  * RESOURCE LINT, NOT A BEHAVIOUR TEST — and a lint on a MARK, not on a meaning.
- *
- * Three labels sit on the screen while nothing has happened yet. A permanent destroy, an Empty
- * trash and a folder delete all take the rows off the screen at once, then hand the server write to
- * WorkManager with an initial delay (`PURGE_HOLD_BACK_MS`, at least 6 s, and indefinitely long
- * while the phone is offline). During that window an Undo button is on the screen and works. The
- * labels used to be written in the past tense — "Trash emptied", "Message deleted permanently",
- * "Folder X deleted" — so the app announced a fact that had not happened and offered to undo it in
- * the same breath. Nothing is lost either way; it is the sentence that is untrue.
- *
- * So this file pins the MARK of an order in progress: the value ends in an ellipsis, the way
- * `Sending…` / `Vaciando…` / `Отправка…` already do elsewhere in these files. It deliberately does
- * NOT pin the 27 sentences: that would prove only itself and would freeze every translation fix.
- *
- * WHAT IT DOES NOT PROVE, and that is written debt, not covered ground:
- * - that a value is GRAMMATICALLY the present. "Papierkorb geleert…" carries the mark and lies
- *   exactly as before; only a reader of that language can see it. The forbidden list below catches
- *   the 27 sentences we shipped, and nothing else.
- * - that a translation is CORRECT, or even in the right language.
- * - that anything DISPLAYS these strings. This file reads XML as text and never touches a call
- *   site; `BulkSelectionWiringTest` is what holds the wiring of the destroy label.
- * - anything at all about `status_message_deleted`, `status_conversation_deleted` or the move
- *   labels: those are posted AFTER the server acknowledges, so their past tense is true.
  */
 class PendingDeletionLabelTest {
 
     /**
      * The mark itself, in the nine languages: a label posted before the write leaves the phone ends
-     * in `…`.
-     *
-     * A missing key counts as a fault here too — a value nobody can read is not a value that tells
-     * the truth — even though its own rule lives in `TranslationParityTest`.
      */
     @Test
     fun `the three labels of a delete that has not happened yet say it is under way`() {
@@ -63,12 +37,6 @@ class PendingDeletionLabelTest {
 
     /**
      * The falsification this file answers to: the 27 sentences the app shipped, by locale and by
-     * key, taken from the resources as they stood before the fix. Put any single one back and this
-     * test goes red on it by name.
-     *
-     * It is written out rather than derived, because there is no rule that separates "Trash
-     * emptied" from "Emptying Trash…" other than having read them. Rewording a label is free; going
-     * back to one of these 27 is not, and that is the whole point.
      */
     @Test
     fun `no label went back to announcing the delete as already done`() {
@@ -87,16 +55,6 @@ class PendingDeletionLabelTest {
 
     /**
      * THE #99 GUARD: a second tap has to repost the SAME text.
-     *
-     * The empty-trash path refuses to re-schedule a purge already pending, and what
-     * keeps the screen showing ONE snackbar rather than two stacked ones is that the label is
-     * byte-identical — the flow conflates the repost with the one already up. Give either label a
-     * counter or a folder name and the second tap posts a DIFFERENT string: a second snackbar,
-     * whose dismissal is timed from its own tap while the destroy still fires from the first, so
-     * for those seconds the screen offers an Undo on mail already destroyed.
-     *
-     * Hence: no format specifier at all, in any language. Not "the same specifiers as English" —
-     * none.
      */
     @Test
     fun `the message and trash labels take no argument, so a second tap reposts the same text`() {
@@ -116,11 +74,6 @@ class PendingDeletionLabelTest {
 
     /**
      * And the opposite for the folder: it names the folder it is deleting, exactly once.
-     *
-     * `TranslationParityTest` already compares each translation's specifiers with English, so it
-     * would stay green on a rewording that dropped `%1$s` from all nine at once. This pins the
-     * argument itself: without it the drawer says a folder is being deleted without saying which,
-     * one tap from a delete that takes the subfolders with it.
      */
     @Test
     fun `the folder label still names the folder it is deleting`() {
@@ -139,8 +92,6 @@ class PendingDeletionLabelTest {
 
     /**
      * Run [check] over the three keys in the nine languages and collect what it complains about.
-     * The value handed over is the raw text of the file, escapes included, because `\"` and `%1$s`
-     * are exactly what is being judged.
      */
     private fun eachValue(
         keys: List<String> = PENDING_KEYS,
@@ -180,14 +131,6 @@ class PendingDeletionLabelTest {
 
         /**
          * A Java format specifier, wider than the parity test's `%s`/`%d`: anything that would make
-         * a repost differ from the label already on the screen counts, `%.1f` and `%,d` included.
-         *
-         * The SPACE flag (`% d`) is deliberately left out of the flag class, and that is a
-         * trade, not an oversight: a class holding a space matches the `%` of a percentage written
-         * with the typographic space French and Russian put before it — `à 100 % en cours…` — and
-         * would redden this rule on a reword that carries no argument at all. A label formatting a
-         * signed number with a leading space is not a thing this app has ever posted; a percentage
-         * in a status line is one keystroke away.
          */
         val FORMAT = Regex("%(?:\\d+\\$)?[-#+0,(]*\\d*(?:\\.\\d+)?[a-zA-Z]")
 

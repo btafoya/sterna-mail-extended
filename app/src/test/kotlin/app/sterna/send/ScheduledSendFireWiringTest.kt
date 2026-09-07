@@ -7,14 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, same shape and same reason as [OutboxParkWiringTest]. `ScheduledSendWorker` is a
- * `CoroutineWorker` reaching for `AppContainer` (Room, WorkManager, a `Context`) and this module has
- * neither Robolectric nor instrumented tests, so the arm written inside `doWork` is unreachable from
- * every test we own. The DECISION is executed in `core/data`:
- * `AccountDepartureProofTest` runs `accountDepartureIsProven` on its four inputs.
- *
- * What that cannot see is whether this worker asks it before destroying the row — which is the whole
- * of the defect — and what it does when the answer is no. Pinned as WHOLE LINES in sequence: a
- * `contains` is blind to a lengthened line and to a line moved out of the branch it guards.
  */
 class ScheduledSendFireWiringTest {
 
@@ -69,12 +61,6 @@ class ScheduledSendFireWiringTest {
 
     /**
      * Its own test, and the one that closes the window. The block above pins TWELVE lines around
-     * the arm, so every rewrite INSIDE the arm reddens — but a `repo.deleteScheduledSend(id)` added
-     * anywhere ELSE in the file sits outside that window and used to pass. It is not a theoretical
-     * edit: dropped a line above `return try {`, the row is destroyed before the message is handed
-     * to the outbox, and the retry the catch below is written for then finds no row, returns
-     * success() and loses the only copy in silence. So the destruction sites are counted: three,
-     * in this order, and a fourth has to be argued for here before it can exist.
      */
     @Test fun `the row is destroyed in three places, and nowhere else`() {
         assertEquals(
@@ -97,12 +83,6 @@ class ScheduledSendFireWiringTest {
 
     /**
      * Counting the sites is not enough, and its own test says why. The three lines above are
-     * TEXTUALLY IDENTICAL, so MOVING the second one — the hand-over's delete, from after
-     * `enqueueSend` returned to a line above `return try {` — leaves the count at three, in the
-     * same order, and every rule in this file green. It loses the message: enqueueSend throws, the
-     * row is already gone, the catch retries, the next run reads no row and returns success(). No
-     * banner, no outbox line, nothing. So the position is pinned too: exactly ONE destruction may
-     * stand before the hand-over, the proven-departure arm's.
      */
     @Test fun `only the proven-departure arm may destroy the row before the hand-over`() {
         val lines = linesOf(WORKER)

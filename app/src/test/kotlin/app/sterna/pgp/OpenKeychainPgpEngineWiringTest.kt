@@ -5,19 +5,6 @@ import org.junit.Test
 
 /**
  * WHAT THIS FILE IS WORTH. It proves the SHAPE of `OpenKeychainPgpEngine.kt` and of the one
- * Android-touching line of `PgpProviders.kt`, not their behaviour: it reads the shipped sources and
- * compares whole trimmed lines. It exists because nothing here can build either of them (they need a
- * `Context`, a live binder and a real package manager, and there is no Robolectric in this repo).
- * The behaviour is proved next door by [PgpProvidersTest], which EXECUTES the decision. Neither file
- * is enough alone: the decision can be perfect and fed a hard-coded list, and the wiring can be
- * perfect around a discovery that only ever looks for OpenKeychain.
- *
- * Some of it is assertions of ABSENCE, on purpose: they survive any mutation that LENGTHENS a line,
- * which a `contains`-style check does not (bitten twice on 2026-08-04). But absence alone is not
- * enough, and a counter-expertise proved it here: a line that names NONE of the forbidden words
- * (`if (PgpProviders.installed(appContext).none { it == PgpProviders.OPENKEYCHAIN }) return null`)
- * rebuilds the whole defect. Hence the CONTIGUOUS block assertions below: whole lines, consecutive,
- * never one line in isolation — a per-line check is blind to a statement slipped between two.
  */
 class OpenKeychainPgpEngineWiringTest {
 
@@ -48,16 +35,9 @@ class OpenKeychainPgpEngineWiringTest {
     @Test fun `the head of service() picks a package and binds it, with nothing in between`() {
         // A CONTIGUOUS block, and it starts at the signature: the defect's second discovery path
         // came back as a single new statement carrying none of the words the absence tests look for
-        // — `if (PgpProviders.installed(appContext).none { it == PgpProviders.OPENKEYCHAIN })
-        // return null`. Anywhere between the cached-connection shortcut and the bind, that line
-        // makes Sterna refuse every provider that is not OpenKeychain, exactly as before.
         //
         // Since the provider became selectable, this block also carries the ORDER the whole
         // selector depends on. The stored choice must be read and resolved BEFORE the cached
-        // connection is consulted, and the cache dropped when it belongs to another package:
-        // put the `connection?.takeIf { it.isBound }` shortcut back on the first line and the
-        // binding is reused whatever the user picked, so switching provider does nothing at all
-        // until the app is killed — the state on screen and the app called disagree, silently.
         assertEquals(
             "the head of service() changed shape. Either it no longer resolves the package from " +
                 "PgpProviders + the stored choice, or the cached connection is consulted before " +
@@ -111,12 +91,6 @@ class OpenKeychainPgpEngineWiringTest {
     @Test fun `discovery asks the package manager which apps answer the service intent`() {
         // The single line the whole fix rests on, and the only one no other test reads: this file's
         // engine assertions stop at `PgpProviders.installed(...)`, and PgpProvidersTest only ever
-        // hands `eligible`/`preferredDefault` literal lists. A counter-expertise rewrote this body
-        // as `listOf(OPENKEYCHAIN, OPENKEYCHAIN_DEBUG).filter { getPackageInfo… }` and all thirteen
-        // tests stayed green while the PGPony user was back to "OpenKeychain is not installed".
-        // Dropping just the `eligible(` wrapper is the smaller version of the same: APG becomes
-        // selectable again — preferredDefault has no APG guard of its own — and Sterna binds an
-        // incompatible implementation.
         assertEquals(
             "discovery no longer goes through the api's service query filtered by eligible(). If " +
                 "it went back to a list of package names, every third-party OpenPGP provider is " +
@@ -133,10 +107,6 @@ class OpenKeychainPgpEngineWiringTest {
     @Test fun `both Autocrypt calls hand their arguments to the pure requests`() {
         // What each of these two lines is holding up is now EXECUTED next door
         // ([PgpApiRequestTest]): the minimize pair and the absent armor for the key read, the peer
-        // id / date / isMutual = false for the peer update. What no executing test can see is
-        // whether these two methods still CALL them, with the arguments they were given — a
-        // `publicKeyRequest(keyId, "")` here would pass every test over there while broadcasting
-        // every user id on the keyring.
         assertEquals(
             "getPublicKey no longer builds its intent from publicKeyRequest with the key id AND " +
                 "the account's own address. Either the announced key stops being minimized to the " +
@@ -203,8 +173,6 @@ class OpenKeychainPgpEngineWiringTest {
 
     /**
      * [count] CONSECUTIVE code lines of [path] from the single one starting with [prefix]. A prefix
-     * matching anything other than exactly one line returns a message instead, so an assertion can
-     * never pass by matching nothing.
      */
     private fun block(path: String, prefix: String, count: Int): List<String> {
         val lines = code(path)

@@ -7,8 +7,6 @@ import org.junit.Test
 
 /**
  * The move-to-folder picker offers the SELECTION's account folders, so a secondary-account message
- * moved from the unified inbox lands in its own folders (#73). [selectionAccount] is that resolution:
- * one account, or null when the picker cannot commit to one (empty, mixed, or an unknown account).
  */
 class SelectionAccountTest {
     private fun key(account: String?, id: String) = EmailKey(account, id)

@@ -6,28 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxScreen.kt` as text and proves nothing about what
- * is drawn. [RowFolderRoleTest] is the real test — read it first: it EXECUTES [rowFolderRole].
- *
- * This exists for ONE mutation that nothing else can see. Inside an unfolded conversation the swipe
- * of a child reads:
- *
- *     performSwipe(action, child, viewModel, ui, rowFolderRole(child, ui, folderRoles, …))
- *
- * and `rowRole` — the COLLAPSED ROW's role, the representative's — is in scope on that very line.
- * Writing `…, rowRole)` compiles, reads perfectly, and passes every test in this module: the decision
- * is right, the arguments are wrong. An unfolded conversation spans the viewed folder(s) PLUS Sent,
- * so in the Archive folder a swipe on a child that lives in Sent then takes the unarchive branch and
- * moves your own reply out of Sent into the Inbox. Same shape as the `showRecipientsFor` /
- * `showDraftBadgeFor` pair beside it, which are per-child for exactly this reason.
- *
- * WHOLE LINES, compared as a whole list. A `contains` on a fragment is blind to every mutation
- * that LENGTHENS the line, which has bitten this repo three times, and here it is not theoretical:
- * `rowFolderRole(child, …)` contains `rowFolderRole(`, and `rowRole` is a substring of nothing
- * useful. The price is that a reformat reddens this file. That direction of error is loud and one
- * line to fix; the other direction is a fix that silently comes undone.
- *
- * It covers the CALL SITES only. The predicates' own bodies and `rowFolderRole`'s are behaviour,
- * and belong to the tests that run them.
  */
 class RowFolderRoleWiringLintTest {
 
@@ -59,9 +37,6 @@ class RowFolderRoleWiringLintTest {
 
     /**
      * [file]'s non-blank lines with every comment taken out. The block-comment state is carried
-     * ACROSS lines and a `//` is only honoured outside a double-quoted string — deliberately not the
-     * per-line shortcut some lints here use, which drops any line whose first character is `*` and
-     * with it every continuation written operator-first.
      */
     private fun codeLines(file: File): List<String> {
         val out = mutableListOf<String>()
@@ -118,14 +93,6 @@ class RowFolderRoleWiringLintTest {
 
         /**
          * The lines, whole. Most are the row's own decision; three keep the VIEW's role and are
-         * listed with their reason:
-         *  - the selection bar's Trash icon acts on a whole selection and has no single row;
-         *  - `showsRecipients`' `role =` is the #115 rule and is out of this volet's scope — listed
-         *    so that moving it becomes a decision somebody has to take here;
-         *  - `rowFolderRole`'s own two body lines, which ARE the fallback.
-         *
-         * `performSwipe`/`performThreadSwipe` take the role as a parameter, so their bodies only
-         * read what the call site decided.
          */
         private val EXPECTED_LINES = listOf(
             // The selection bar: many rows at once, so the view's role — see above.

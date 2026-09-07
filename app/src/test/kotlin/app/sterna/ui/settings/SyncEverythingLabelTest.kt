@@ -6,18 +6,6 @@ import java.io.File
 
 /**
  * The nine "Everything" labels, and the fact that they are still SHIPPED.
- *
- * Read this before "cleaning up" the strings below. Nothing renders them any more: "Everything" is
- * off the picker (`syncWindowChoices()`) AND an account still carrying `SyncWindow.ALL` is now shown
- * the 10 000 label, because that is what it caches (`SyncWindowPickerScaleTest`). They are kept
- * anyway, deliberately: `SyncWindow.ALL` can never be deleted (its name is on disk in account
- * records — `SyncWindowStoredNameTest`), and a string dropped today cannot be put back by a later
- * volet without another round through nine translators. Unused is cheap; missing is not.
- *
- * Nine verbatim values. The string is ONE word per language and it is the promise that was
- * withdrawn; editing or deleting it must cost a deliberate edit here, where the reason is written
- * down. What that window now caches — 10 000, the largest offered — is pinned in `core:data`
- * (`SyncWindowScaleTest`), not here.
  */
 class SyncEverythingLabelTest {
 

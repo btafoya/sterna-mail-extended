@@ -158,8 +158,6 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * Write the account's "Messages to sync" window, dropping its sync cursors when it actually
-     * changed. Without the drop the setting is inert on any folder already synced: the delta
-     * branch of a sync never sends the window. Nothing is fetched here; the next pull applies it.
      */
     fun setSyncWindow(id: String, window: SyncWindow) {
         val changed = syncWindowChanged(store.syncWindow(id), window)
@@ -207,8 +205,6 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * What the relay-address block should draw for this account right now.
-     * SharedPreferences only, which is what makes it safe on the block's 500 ms loop. Whether a
-     * distributor is installed is deliberately elsewhere: [distributorInstalled] is a binder trip.
      */
     fun relayAddress(id: String): RelayAddress {
         val up = getApplication<Application>().container.unifiedPushManager
@@ -247,13 +243,6 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * Turn "show only subscribed folders" on/off for an account (#174). Written at the toggle.
-     * No cursor purge here, unlike [setSyncWindow]: this changes only which folders the lists
-     * draw, and dropping the cursors would re-download mailboxes and cached mail.
-     * Switching on costs one folder refresh ([subscriptionSyncOnToggle]): IMAP sends `LSUB` only
-     * when asked, so until a listing runs every folder sits at its `isSubscribed = true` default.
-     * [appScope], never `viewModelScope`: the back gesture pops this destination and would cancel
-     * the sync before `mailboxDao.replaceAll` writes a row. The sync is aimed at the id toggled —
-     * this screen opens on accounts that are not the selected one.
      */
     fun setShowOnlySubscribedFolders(id: String, enabled: Boolean) {
         store.setShowOnlySubscribedFolders(id, enabled)
@@ -284,9 +273,6 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * One identity this Save asked the server to create, and the server refused (#172).
-     * It carries the address because one Save can add several; [detail] is the server's own
-     * sentence, verbatim. And [accountId], because one AccountsViewModel serves every account
-     * detail screen: without the key a refusal on account A is drawn on account B's screen.
      */
     data class IdentityNotCreated(val accountId: String, val email: String, val detail: String)
 
@@ -295,11 +281,6 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * Persist edits. A blank [password] keeps the existing one.
-     * This parameter list is published to the user: `R.string.settings_save_scope`, printed above
-     * the Save button in nine languages, enumerates what this writes in the screen's vocabulary
-     * rather than one-to-one with these names — including [signature], derived from the first
-     * identity's and deliberately not named. Adding or dropping a parameter here can make that
-     * sentence false in nine languages silently; `SaveScopeCaptionTest` cannot see a stale list.
      */
     fun save(
         id: String,
@@ -340,16 +321,6 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * Tell the server about the identities this Save has just added (`Identity/set`, #172).
-     * Runs after, and never instead of, the local writes above: offline or refused, what the
-     * user typed is stored all the same. This only adds.
-     * [appScope], never `viewModelScope`: the back gesture that follows Save would cancel the
-     * request mid round trip, the same trap as #174.
-     * No retry (KISS): at the next Save `before` holds the address and [identitiesToCreate]
-     * filters it out, so retyping changes nothing. Only delete, Save, type back, Save asks again.
-     * The server's identity list is read fresh on every Save that could create something:
-     * `StoredAccount.serverIdentities` is written only by `MailRepository.connect`, so on a freshly
-     * added account it stays empty. A read that fails creates nothing — posting blind would
-     * fabricate duplicates — and every refusal is reported, since there is no retry behind it.
      */
     private fun createIdentitiesOnServer(
         id: String,
@@ -500,11 +471,6 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * Both values are computed first and published together, with no suspension between the two
-     * assignments: publishing the list before resolving the choice opens a frame where the row is
-     * drawn with nothing in use. The package-manager query runs on IO (binder round trip).
-     * The last line pins the provider in use when nothing was written down yet, so a device with a
-     * single OpenPGP app does not silently change provider the day a second one is installed
-     * ([PgpProviders.providerToPin]). It settles after one pass and clears no signing key.
      */
     fun refreshPgpAvailable() {
         viewModelScope.launch {
@@ -520,11 +486,6 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * Persist [packageName] as the OpenPGP app to use, and — only when that is a real switch of
-     * keyring ([PgpProviders.switchErasesKeys]) — drop every account's signing key.
-     * What is in use is re-read here from storage, never taken from [_pgpProviderInUse]: that is
-     * screen state, and a tap can land before it holds anything — reading it would say "nothing in
-     * use" and destroy every account's key for a choice that changed nothing.
-     * The choice is written before the keys are cleared (WYSIWYG).
      */
     fun setPgpProvider(packageName: String) {
         viewModelScope.launch {
@@ -617,11 +578,6 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         removed.forEach { Notifications.cancelAccount(app, it) }
         // The two preferences filed under an account but living outside the account blob, which
         // removeCascading does not touch: the last view shown (an IMAP folder path in cleartext)
-        // and the refresh register. PRIVACY.md promises everything filed under an account goes with
-        // it. Pruned, never cleared: the view is one global entry that may belong to a survivor,
-        // and a survivor's freshness entries must stay or it pays a refresh it does not need (#178).
-        // `removed`, not `id` (#31), and synchronous, above the coroutine, which may never be
-        // reached again.
         val removedIds = removed.toSet()
         store.setStoredView(prunedView(store.storedView(), removedIds))
         store.setRefreshFreshness(prunedFreshness(store.refreshFreshness(), removedIds))
@@ -642,10 +598,6 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
 
 /**
  * Trim an exception's sentence for `R.string.settings_identity_not_created`, whose template already
- * supplies the final full stop. The fix belongs here, not in the strings.
- * Only the trailing run of `.`/`!`/`?` and blanks goes: `:` means the message was cut off before
- * its cause, and `…` is the mark of a server-truncated message.
- * Returns "" for a blank or all-punctuation message; the caller falls back to the class name.
  */
 internal fun failureDetail(raw: String?): String =
     raw.orEmpty().trim().trimEnd { it == '.' || it == '!' || it == '?' || it.isWhitespace() }

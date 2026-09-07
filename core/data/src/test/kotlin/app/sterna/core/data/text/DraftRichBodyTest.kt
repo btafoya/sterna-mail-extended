@@ -8,16 +8,6 @@ import org.junit.Test
 
 /**
  * The three decisions a stored rich body rests on (#131), EXECUTED — what a save writes, what a
- * reopen reads, and what an HTML body costs.
- *
- * Every case is a hand-written pair (input → answer): nothing here recomputes the rule it checks,
- * so inverting any of the three shipped expressions has to turn a line red.
- *
- * These three are the whole of the volet's fidelity. `draftHtmlToSave` answering the wrong
- * thing gives every plain draft a second MIME part (or loses the styling of a rich one);
- * `richBodyFrom` answering the wrong thing reopens a styled draft plain, on all five routes at
- * once; `draftHtmlIsLossy` answering the wrong thing decides whether a server original may be
- * DESTROYED behind a re-save.
  */
 class DraftRichBodyTest {
 
@@ -69,9 +59,6 @@ class DraftRichBodyTest {
 
     /**
      * A draft written elsewhere (this one is a Thunderbird shape: a `<div>` and a `style=`
-     * attribute). It does not parse, and the STORED TEXT is what the editor gets — exactly what
-     * happened before #131. Never the markup as text: that is the symptom this fallback exists
-     * to keep away.
      */
     @Test fun `a foreign html falls back to the stored text`() {
         val reopened = richBodyFrom("""<div style="font-weight:bold">hello</div>""") { "hello" }
@@ -123,9 +110,6 @@ class DraftRichBodyTest {
     @Test fun `an html part that says nothing is lossy, and it is the one that loses data`() {
         // THE defect this rule exists for, and it is a destroy. `fromHtml("")` answers an EMPTY
         // body — not null — and so do a space, a tab and a lone `<br>`. Read as "it parses, so the
-        // draft is faithful", such a part opens the composer BLANK (the text part is never read)
-        // and the next save DESTROYS the original, whose text exists nowhere else. Before #131 any
-        // html part at all made the reopen lossy; these four keep that answer.
         for (html in listOf("", " ", "\t", "<br>")) {
             assertTrue(
                 "an html part carrying no text is PRESENT but says nothing — an unknown, and an " +

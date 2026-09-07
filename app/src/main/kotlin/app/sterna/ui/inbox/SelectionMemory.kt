@@ -7,8 +7,6 @@ import app.sterna.widget.AllInboxesView
 /*
  * The drawer's memory of the view you were last in: what to store, what to reopen on, and the header
  * it may claim before anything syncs. The stored value carries the account id next to the
- * selection (#92 / #121); the separator is "\n" and nothing is escaped, so a value holding one — an
- * IMAP folder path can — is dropped.
  */
 
 /** The string to store for [sel] under [accountId], or `null` for "fall back on the Inbox next
@@ -24,10 +22,6 @@ internal fun encodeSelection(accountId: String?, sel: Sel): String? {
 
 /**
  * The view to reopen on, or `null` for the Inbox. A folder deleted, renamed or unsubscribed is
- * not judged here: `selectionIsUnreachable` has the loaded folder list that takes.
- * @param stored what [encodeSelection] last wrote, straight out of the preferences.
- * @param currentAccountId the account the app is about to open.
- * @param unifiedViewExists whether the app offers the cross-account list at all.
  */
 internal fun restoreSelection(
     stored: String?,
@@ -85,19 +79,11 @@ internal fun restoredMeta(
 
 /**
  * Two fields, not one nullable: "no list yet" and "decided, nothing to write" are the same
- * `Meta?` and opposite instructions.
- * @property settled the one shot is spent: stop waiting for a list, whatever [meta] holds.
- * @property meta the header to write, or `null` when nothing must be written at all.
  */
 internal data class RestoredMetaStep(val settled: Boolean, val meta: Meta?)
 
 /**
  * Fill in the name and count [restoredMeta] left blank, from the cached folder list. An empty
- * list is "not known yet", so nothing is spent; a reader who has moved keeps her own header; an
- * unlisted folder goes to `inboxFallback` (#89/#174).
- * @param restoredId the folder whose name is still missing, or `null` when there is none.
- * @param selection the view on screen now.
- * @param folders the list that just arrived, whole.
  */
 internal fun restoredFolderMeta(
     restoredId: String?,

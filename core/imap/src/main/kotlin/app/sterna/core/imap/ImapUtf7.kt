@@ -4,15 +4,6 @@ import java.util.Base64
 
     /**
      * Modified UTF-7, the encoding IMAP mailbox names travel in (RFC 3501 §5.1.3). A folder called
-     * "Помеченные" is announced by `LIST` as `&BB8EPgQ8BDUERwQ1BD0EPQRLBDU-`, and the drawer used to
-     * show that (Codeberg #101). Decode and encode are ONE pair: `SELECT` used to work precisely
-     * because nothing was decoded, so decoding alone makes every non-ASCII folder readable and
-     * unopenable. Above this line the app holds real Unicode — mixing the two representations is the
-     * silent failure mode, a decoded id compared against a raw path matching nothing.
-     *
-     * `UTF8=ACCEPT` (RFC 6855) is deliberately NOT consulted: a server advertising it still speaks
-     * modified UTF-7 until the client sends `ENABLE UTF8=ACCEPT`, so unconditional encoding is correct
-     * everywhere and needs no negotiation.
      */
 
 /** The base64 alphabet of modified UTF-7: standard, with `,` where base64 has `/`. */
@@ -25,11 +16,6 @@ private fun Char.isModifiedBase64(): Boolean = this in MODIFIED_BASE64
 
     /**
      * A Unicode mailbox name as it must appear on the wire. Pure ASCII (bar `&`) comes back untouched,
-     * so an English folder still produces the exact bytes it always did; `&` becomes `&-`, and any run
-     * of other characters is UTF-16BE base64 between `&` and `-`. The result is pure ASCII, so [quote]
-     * remains a sufficient guard afterwards. UTF-16BE is written out by hand rather than through a
-     * [Charsets] encoder: a name holding a lone surrogate would have the JVM substitute `?`,
-     * irreversibly, and the folder would no longer open.
      */
 fun encodeModifiedUtf7(name: String): String {
     if (name.all { it.isDirect() }) return name
@@ -52,10 +38,6 @@ fun encodeModifiedUtf7(name: String): String {
 
     /**
      * A mailbox name as `LIST` announced it, turned back into Unicode. A malformed shift sequence
-     * SURVIVES AS TEXT rather than vanishing: a name is an identifier, and dropping what we failed to
-     * read would hand the app a path addressing a different mailbox. A shift ends at `-` (absorbed) or
-     * at the first character outside the modified base64 alphabet (not absorbed), per RFC 2152 — the
-     * hierarchy delimiter is in neither alphabet, so a whole path decodes in one pass.
      */
 fun decodeModifiedUtf7(name: String): String {
     if ('&' !in name) return name
@@ -87,13 +69,6 @@ fun decodeModifiedUtf7(name: String): String {
 
     /**
      * A mailbox path as the app will hold it: the decoding when it is faithful, the RAW WIRE FORM when
-     * it is not. THE identity function for a folder, and the one every persisted id must pass through.
-     *
-     * Decoding is only allowed to happen when it can be undone. Modified UTF-7 has corners that do not
-     * round-trip — a bare `&` that was never a shift (`R&D`, written by a version of this app that
-     * sent folder names raw) and a shift whose base64 is not valid UTF-16 — and both re-encode as `&-`,
-     * a DIFFERENT mailbox. So: decode, re-encode, keep the decoding only if it comes back byte for
-     * byte. A name we cannot read is a nuisance; a name we cannot address is a broken folder.
      */
 fun decodeMailboxPath(raw: String): String {
     val decoded = decodeModifiedUtf7(raw)

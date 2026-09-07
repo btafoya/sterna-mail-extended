@@ -8,14 +8,6 @@ import org.junit.Test
 
 /**
  * The one decision behind "3 results" and "at least 3": may this search answer be shown as a TOTAL?
- *
- * [searchAnswerIsTotal] is the protocol-independent form of it. Each reason to refuse a total is
- * pinned here ALONE, against a witness that differs by that reason only — a rule nothing exercises
- * on its own passes just as well once it is deleted.
- *
- * The last two tests guard the point of the extraction: what "we covered the account" may be read
- * from. It is the FOLDER list, never a list derived from it, because an empty derived list means
- * two different things at once.
  */
 class SearchAnswerIsTotalTest {
 
@@ -44,9 +36,6 @@ class SearchAnswerIsTotalTest {
 
     /**
      * The IMAP entry point answers exactly what it answered when it held the rule itself: it reads
-     * "we covered the account" off the emptiness of the searchable folder list and hands the rest
-     * over unchanged. Checked over every combination rather than on a happy path, so a swapped or
-     * dropped argument in the adapter cannot slip through.
      */
     @Test fun `the IMAP entry point still decides exactly what the shared rule decides`() {
         for (known in listOf(emptyList<String>(), listOf("i"), listOf("i", "a"))) {
@@ -69,9 +58,6 @@ class SearchAnswerIsTotalTest {
 
     /**
      * An account with neither Trash nor Junk: nothing to leave out of a search, so the excluded list
-     * is empty while the folder cache is full. Read the coverage off THAT empty list and this
-     * account's every search is downgraded to "at least N" forever; read it off the folder list the
-     * exclusions were computed from and it answers with the total it is entitled to.
      */
     @Test fun `having nothing to exclude is not the same as knowing no folder`() {
         val cached = folders("i" to "inbox", "a" to "archive", "x" to null)

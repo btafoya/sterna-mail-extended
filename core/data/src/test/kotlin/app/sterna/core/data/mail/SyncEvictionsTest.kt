@@ -8,16 +8,6 @@ import org.junit.Test
 
 /**
  * The eviction decisions of a sync (see SyncEvictions.kt): which cached ids a delta drops, which
- * the ghost sweep drops, and which the retention window drops. The first two encode the ghost
- * invariant — an externally-destroyed message must leave the cache within one sync cycle —
- * without reopening the recently-mutated spare's protections (a live row is never pruned off a
- * stale snapshot; only an authoritative per-id notFound overrides the spare).
- *
- * [retentionEvictions] is the odd one out and the reason it is worth stating: it drops rows the
- * server STILL HAS, on the user's "Messages to sync" setting alone. That makes it the only
- * eviction that can destroy live mail, so its cases here are written from the other side — what
- * it must NOT touch (Codeberg #110) — with a negative witness so "spares more" can't pass for
- * "works".
  */
 class SyncEvictionsTest {
 
@@ -176,9 +166,6 @@ class SyncEvictionsTest {
     @Test fun theFreshPageIsNeverPrunedByTheAgeWindow() {
         // Codeberg #110 in the reporter's own numbers: a ten-message folder, eight of them from
         // December, on the default 90-day window. The refresh re-queried the folder and the
-        // server returned all ten — so all ten are what the folder HOLDS. The window may bound
-        // what we keep in addition to that; it may not delete it. Pruning them was the flicker
-        // he saw: ten rows, then two.
         //
         // keepNewest is 0 here ON PURPOSE, so the floor cannot be what saves them: this asserts
         // the fresh-ids clause alone, on the deep-folder case where the floor does not reach.
@@ -210,9 +197,6 @@ class SyncEvictionsTest {
     @Test fun whatAnIncrementalDeltaJustFetchedIsSparedLikeAFullPage() {
         // The delta branch's half of #110, composed from the two shipped functions rather than
         // asserted on hand-made sets. A Sieve rule files a 2019 message into a deep folder: the
-        // delta reports it added, the cache has never held it, so the sync fetches and writes it.
-        // It is old, it is not in the newest N, and the sync's page — if the branch reported
-        // nothing — would not cover it. It must still survive the refresh that delivered it.
         val cachedIds = (1..250).mapTo(HashSet()) { "m$it" }
         val fetched = deltaFetches(added = setOf("sieveFiled2019"), cachedIds = cachedIds, updated = emptyList())
         val cache = (1..250).map { row("m$it", 200) } + row("sieveFiled2019", 2500)
@@ -261,10 +245,6 @@ class SyncEvictionsTest {
     @Test fun theRecentlyMutatedSpareIsNotUndoneByTheWindow() {
         // The reconcile spares a locally-restored row from the fresh page's reconcile
         // (EmailDao.deleteNotInSparing); the prune runs a few lines later on the same folder and
-        // must not delete it anyway. Concretely: delete a 2019 message in a 300-message folder,
-        // undo it, refresh. The page comes back without it — the server has not caught up — so it
-        // is outside freshIds, outside the newest N, and outside the window. Only spareIds keeps
-        // the undo alive.
         val cache = (1..200).map { row("page$it", 5) } + row("undone2019", 2500)
         assertEquals(
             emptyList<String>(),
@@ -348,9 +328,6 @@ class SyncEvictionsTest {
     @Test fun theFloorCountsTheNEWESTRowsAndNotJustAnyN() {
         // Which N the floor keeps is the whole decision: keeping an arbitrary N would leave the
         // list showing December while July sat pruned. All four rows here are outside the 90-day
-        // window, so only the floor decides — c (200 days) and d (100 days) are the newest two
-        // and survive, a and b do not. Sorted because the function returns the cache's own order
-        // and that is not what is under test here.
         val cached = listOf(row("b", 300), row("d", 100), row("a", 400), row("c", 200))
         assertEquals(
             listOf("a", "b"),
@@ -380,9 +357,6 @@ class SyncEvictionsTest {
     @Test fun aSweepThatDidNotGetAnAnswerPrunesNothing() {
         // The transport-failure contract, and the reason it is a null rather than an empty set:
         // "the server did not answer" must not read as "the server found none of them". A sweep
-        // whose Email/get throws — no network, a 5xx, a malformed body, or a second chunk failing
-        // after the first answered — deletes NOTHING. Deleting mail is the unforgivable direction;
-        // keeping a ghost one more interval is the safe one.
         assertEquals(
             emptyList<String>(),
             ghostEvictions(cachedIds = listOf("e1", "e2", "e3"), notFound = null),
@@ -441,9 +415,6 @@ class SyncEvictionsTest {
     @Test fun anIdleAccountIsThrottledButNeverBlocked() {
         // FAILS ON THE PRE-FIX TREE (the second assertion).
         // Was `anIdleAccountNeverResweeps`, and its old name was the defect (Codeberg #107): "no
-        // state movement" was read as "nothing can have been destroyed", which is false against a
-        // server that reports a delegated account's destroys in neither delta. A quiet account is
-        // now throttled inside the interval and swept once it elapses.
         assertFalse(
             shouldSweepGhosts(
                 firstThisSession = false, stateAdvanced = false, vanishedFromMailbox = false,
@@ -462,16 +433,10 @@ class SyncEvictionsTest {
     //
     // These pinned the hole while it was open (they were written as characterisation cases against
     // the shipped gate). The gate has since changed, so they have been re-read and re-aimed rather
-    // than re-baselined: the case that asserted "no refresh ever resweeps" now asserts that the
-    // refresh after the interval DOES, and is marked as failing on the pre-fix tree. What has NOT
-    // changed is that a sweep must stay rare — the throttling cases below still assert that.
 
     @Test fun aDestroyReportedOnlyInTheChangesDeltaDoesNotTripTheImmediateSweep() {
         // vanishedFromMailbox is computed from queryChanges.removed ALONE (MailRepository), so a
         // destroy the server reports only in Email/changes.destroyed does not count as "something
-        // left this mailbox" — even though it is the very shape the spare can swallow. The
-        // immediate sweep therefore does not fire, and the row waits out the floor instead. That
-        // wait is now bounded (see below), so this stays a throttle, not a hole.
         assertFalse(
             shouldSweepGhosts(
                 firstThisSession = false, stateAdvanced = true, vanishedFromMailbox = false,
@@ -490,11 +455,6 @@ class SyncEvictionsTest {
     @Test fun aQuietAccountRefreshingForEverIsSweptWhenTheIntervalElapses() {
         // FAILS ON THE PRE-FIX TREE — it is the fix. The sync that lost the destroy notice also
         // stored the cursors it came with, so every later sync of a quiet account compares equal:
-        // stateAdvanced = false for ever. The old gate kept its floor behind that condition, so no
-        // number of pull-to-refreshes ever ran an existence check and only a process restart or a
-        // cache wipe removed the row — the reporter's "even after refreshing… I clear the cache".
-        // The floor now stands on its own: refreshing inside the interval is still cheap, and the
-        // first refresh after it heals the row.
         assertFalse(
             "a refresh inside the interval must stay free",
             shouldSweepGhosts(

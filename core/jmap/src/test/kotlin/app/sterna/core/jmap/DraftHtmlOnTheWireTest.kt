@@ -20,18 +20,6 @@ import org.junit.Test
 
 /**
  * The styling of a SAVED DRAFT on the JMAP wire (#131) — the octets that leave, read back from a
- * mock server, never the source that produced them.
- *
- * A draft is stored as an `Email/set` create. Until #131 that create had exactly one body part;
- * the styling now travels as a SECOND one, `text/html`, in the shape `sendEmail` already uses —
- * an `htmlBody` part list and the matching `bodyValues` entry. The two halves are one thing: a
- * part naming a `partId` with no `bodyValues` entry behind it is a create a strict server (e.g.
- * Stalwart) refuses outright, which would turn "save draft" into an error banner.
- *
- * And the other direction is the one that must not move: a draft with NO styling has to leave
- * exactly as it always did — one `textBody` part, one `bodyValues` entry, nothing else. Every
- * draft ever saved by this app is that shape, and giving them all a second MIME part changes how
- * every other client renders them.
  */
 class DraftHtmlOnTheWireTest {
 

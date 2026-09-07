@@ -7,23 +7,6 @@ import org.junit.Test
 
 /**
  * What a move brings back about the SOURCE folder: which of the UIDs handed in are proved to have
- * left it — [ImapMoved.confirmedGone].
- *
- * Why it matters one layer up: a `UID MOVE` naming a UID that is already gone (the message was
- * moved or destroyed from another client since the list was drawn) is a NO-OP the server accepts
- * with a plain `OK`. A caller that counts the whole batch as moved on a non-throwing command
- * therefore reports moved mail that never moved. Nothing here decides anything about that: this
- * module states what it can prove and refuses to guess.
- *
- * The proof is a DIFFERENCE, not a reading: the same `UID SEARCH UID <set>` is sent once before
- * the move and once after it, and only a UID the source named before and no longer names after is
- * confirmed gone. The probe after, alone, answers the same "no" for the message we moved and for
- * the message that had already left — and upstairs the second reading drops the row AND its FTS
- * entry, which nothing on IMAP reindexes.
- *
- * The witness of the branch is `a bare OK and a silent probe confirm the whole chunk`: the
- * obvious reading — "no COPYUID, so nothing moved" — is FALSE, and shipping it would break moves
- * on every server that does not implement UIDPLUS.
  */
 class MoveConfirmsWhatLeftTheSourceTest {
 
@@ -32,10 +15,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * The probes and the landing commands **in the order they went out**, destination argument
-     * dropped. Written on the order and not on a count because the questions this file asks are
-     * ordering questions: a probe BEFORE the move observes a source the move has not touched yet,
-     * the same probe AFTER it observes what the move left — and the copy fallback's verdict must
-     * come from neither.
      */
     private fun FakeImapServer.moveTraffic(): List<String> =
         issued()
@@ -44,10 +23,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * The common case (Stalwart, Dovecot): a COPYUID that names the whole set. It is an
-     * authoritative per-UID report, so no probe follows the move — a move of 200 messages must
-     * not cost a round trip per chunk for a verdict already in hand. The observation TAKEN BEFORE
-     * cannot be spared the same way (nothing knows yet what the server will state) and its answer
-     * is simply never needed here.
      */
     @Test fun `a COPYUID naming the whole chunk confirms it, with no probe after the move`() {
         FakeImapServer { tag, line ->
@@ -74,13 +49,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * THE WITNESS. A server that answers the `UID MOVE` with a bare `OK` (no UIDPLUS, so no
-     * COPYUID) has still moved the mail. Reading the empty mapping as "nothing moved" would turn
-     * a working move into a permanent failure on that whole class of servers. The two probes are
-     * what settle it: the source folder is still selected, `UID SEARCH UID 1:3` named all three
-     * before the move and comes back EMPTY after it — those UIDs were there, and they left.
-     *
-     * This is also the falsification of an over-zealous fix: requiring a `COPYUID`, or reading
-     * the empty answer as "prove nothing", loses every departure here.
      */
     @Test fun `a bare OK and a silent probe confirm the whole chunk`() {
         var afterTheMove = false
@@ -115,8 +83,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * A UID the source still names AFTER the move did not move: the server moved the other two
-     * and did nothing for this one. It was there before and it is there after, so it is the one
-     * thing NOT confirmed.
      */
     @Test fun `a UID that still answers the probe is not confirmed gone`() {
         var afterTheMove = false
@@ -149,14 +115,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * THE INVARIANT OF THIS VOLET. UID 1 had ALREADY left the source BEFORE the `UID MOVE` went
-     * out — another client moved or destroyed it since the list was drawn. The move is a no-op for
-     * it and the server answers a bare `OK`; the probe sent AFTER cannot tell "left by our move"
-     * from "left before it", because 1 fails to answer either way. Only an observation made BEFORE
-     * the move can, and it does not name 1.
-     *
-     * One storey up a wrongly confirmed departure is not a stale row: the line is dropped AND its
-     * FTS entry destroyed, and nothing reindexes it on IMAP. The message becomes unfindable
-     * offline, for good.
      */
     @Test fun `a UID already gone before the move is not confirmed gone`() {
         var afterTheMove = false
@@ -191,10 +149,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * A COPYUID that names only part of the chunk does not answer for the rest, so the probe goes
-     * out — and its verdict is completed by the COPYUID keys, which are a statement of the server
-     * about those very messages. The fixture is deliberately CONTRADICTORY (the probe after still
-     * lists 1, which COPYUID says was copied out) so that the union is the only reading that
-     * passes: with an intersection, or with the probes alone, 1 would drop out.
      */
     @Test fun `a partial COPYUID probes, and its keys complete the probe's verdict`() {
         var afterTheMove = false
@@ -229,10 +183,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * A refused probe AFTER the move leaves the question unanswered — and that is all it does.
-     * The MOVE itself succeeded; failing the call here would have the caller retry a move that
-     * already happened. So: nothing confirmed, nothing thrown, the rest of the report as it was.
-     * The observation taken before is intact and still proves nothing on its own: presence is not
-     * departure.
      */
     @Test fun `a refused probe confirms nothing and does not fail the move`() {
         var afterTheMove = false
@@ -260,8 +210,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * And a refused probe drops the COPYUID keys with it: half a verdict about a chunk is not a
-     * verdict. Upstairs, "confirmed gone" is what licenses forgetting a row, so under-confirming
-     * costs a stale line the next sync repairs, and over-confirming costs the line itself.
      */
     @Test fun `a refused probe confirms nothing even where COPYUID named some`() {
         var afterTheMove = false
@@ -287,16 +235,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * The whole selection had ALREADY left the folder — every one of these UIDs was moved or
-     * destroyed from another client since the list was drawn. The `UID MOVE` is a no-op for all
-     * three and the server answers a bare `OK`; the probe before names nothing, the probe after
-     * names nothing either. Nothing is confirmed.
-     *
-     * This is the maximal form of the defect the volet closes, and it is the OTHER way the
-     * observation before can prove no presence: an answer that never came ([a probe refused
-     * before the move…]) and an answer that came empty are different events, and only the second
-     * one looks like a normal reading. Reading "the source names none of them" as "they were all
-     * there" would credit the whole batch and destroy three rows AND their FTS entries for mail
-     * the server never touched — which is precisely the report this branch exists for.
      */
     @Test fun `a source that names none of the set before the move confirms nothing`() {
         FakeImapServer { tag, line ->
@@ -328,16 +266,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * And the symmetric refusal, which is the one that can restore the defect: the probe taken
-     * BEFORE the move is refused, the one taken after answers perfectly. Nothing is confirmed.
-     *
-     * A refusal there proves NO presence, and a presence not observed can never become a proved
-     * departure — otherwise "the source would not answer me" would read as "everything I handed
-     * in was there", which is exactly what the whole batch used to be credited with. The probe
-     * after is impeccable here (the folder names nothing of the set any more) and it still must
-     * not carry the verdict on its own: that is the entire point of the volet.
-     *
-     * Under-confirming costs three stale rows the next sync repairs. Over-confirming costs the
-     * rows AND their FTS entries, which nothing reindexes on IMAP.
      */
     @Test fun `a probe refused before the move confirms nothing, however clean the one after`() {
         var afterTheMove = false
@@ -371,13 +299,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * The copy fallback must NEVER be probed AFTER its `UID COPY`. It leaves the originals in
-     * the source folder, flagged `\Deleted`, purged only after the loop — so a probe there would
-     * answer "still there" for mail that has landed, i.e. a systematically false failure on every
-     * server without the MOVE extension. Its own COPYUID is its per-UID report and its only one,
-     * and the observation taken before the refused `UID MOVE` is dropped unread.
-     *
-     * The assertion is on the ORDER of the commands, not on their number: what must not exist is
-     * a `UID SEARCH UID` AFTER the `UID COPY`.
      */
     @Test fun `the copy fallback is never probed after the copy and answers with its own COPYUID`() {
         var afterTheMove = false
@@ -410,9 +331,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * And where the fallback's COPYUID says nothing, nothing is confirmed — still without a probe
-     * after the copy. The fixture would REWARD one: the probe answers "empty" once the `UID MOVE`
-     * has been refused, so a fallback that read it would confirm all three, and those messages
-     * are still sitting in the source folder.
      */
     @Test fun `a copy fallback with no COPYUID confirms nothing, and still does not probe`() {
         var afterTheMove = false
@@ -443,14 +361,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * A move too big for one command is several chunks, and each chunk gets its own verdict by
-     * its own route — the first answers with a covering COPYUID and is never probed after, the
-     * second answers bare and is. Each has its OWN observation before, naming its own set. The
-     * union of the two verdicts is the report.
-     *
-     * Written against a mutation, not against a shipped defect: `gone += …` guarded by
-     * `if (gone.isEmpty())` passes every single-chunk test in this file, and would silently drop
-     * 300 proved departures out of a 500-message archive. Same for an observation hoisted out of
-     * the loop: it would name the first chunk's set and confirm nothing of the second.
      */
     @Test fun `every chunk of a long move contributes its own verdict`() {
         val all = (1L..250L).toList()
@@ -498,11 +408,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * A probe's answer must be read WHOLE — BOTH of them. A server may split a long `SEARCH`
-     * result over several untagged lines, and may interleave untagged traffic of its own
-     * (`* n EXPUNGE` for what another client just removed); this fixture does both, on each side
-     * of the move. Anything dropped from the answer AFTER falls out of the subtraction and is
-     * reported as PROVED GONE: the read error turns into the destructive answer, which is the very
-     * defect this field exists to close, one storey up. 11 is the only UID that actually left.
      */
     @Test fun `a split SEARCH answer with untagged noise is read whole`() {
         val all = (1L..12L).toList()
@@ -541,10 +446,6 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * And the same truncation on the observation taken BEFORE falls the other way, which is
-     * why the two readings can share one command with no cap: the server names only 1 and 2 while
-     * 3 is in fact there too, and after the move nothing answers at all. 3 is a presence never
-     * observed, so it is not confirmed — a stale row the next sync repairs, instead of a row and
-     * an FTS entry destroyed.
      */
     @Test fun `a truncated answer before the move under-confirms rather than over-confirms`() {
         var afterTheMove = false

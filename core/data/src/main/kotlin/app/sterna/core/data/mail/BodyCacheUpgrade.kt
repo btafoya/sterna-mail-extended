@@ -4,10 +4,6 @@ import android.content.Context
 
 /**
  * The versions whose arrival needs the cached bodies gone: 168 for the unsubscribe headers, 170 for
- * the read receipts (#148), 172 for the origin sender (#160). When another change needs them
- * dropped, add a NEW constant — never raise one of these, and never "purge on every version bump".
- * Each must be the `versionCode` of the cut that CARRIES its feature: an INTERLEAVED release purges
- * for nothing, records the number, and leaves the feature that follows no threshold to cross.
  */
 const val BODY_CACHE_PURGE_VERSION = 168
 

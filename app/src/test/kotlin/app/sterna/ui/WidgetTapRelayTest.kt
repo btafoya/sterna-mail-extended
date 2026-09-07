@@ -5,31 +5,11 @@ import org.junit.Test
 
 /**
  * The hand-over half of a widget tap, RUN — [WidgetTapRelay.step] is executed and every expectation
- * is a literal [WidgetTapStep], never the rule recomputed here. A shipped rule whose arms were
- * swapped or narrowed disagrees with this file instead of agreeing with it.
- *
- * A COLD START IS PLAYED AS A SEQUENCE OF FRAMES, not as one call. That is the whole defect
- * (bench cell C1, 2026-08-17): a tap that STARTS the process arrives in a composition where the
- * NavHost has not composed its start destination, so `listViewModel` is still null. A single call
- * asked in that frame answers honestly "no list"; what matters is what the NEXT frame is told, and
- * whether the order is still alive to be told it. The frames below are therefore written as the
- * sequence `MainNavHost` walks — `Hold` consumes the activity's order and raises the local flag,
- * `Deliver` consumes and lowers it — and each frame's state is asked of the rule in turn.
- *
- * WHAT THIS FILE CANNOT PROVE, and must not be read as proving: the frames are supplied here,
- * not produced. That consuming the activity's flag is what BRINGS the composition where the list
- * exists is read in `MainNavHost`, and no line of production code is traversed by this file — the
- * rule is a truth table over three booleans and nothing else. Bench cell C1 is what settles it.
  */
 class WidgetTapRelayTest {
 
     /**
      * THE TEST THIS FILE EXISTS FOR — the tap that starts the process, frame by frame.
-     *
-     * Shipped, the effect returned on the null list and never ran again: its keys
-     * (`pendingUnifiedOpen`, `listViewModel`) both changed in the SAME later composition only if
-     * something else recomposed this host, and `listViewModel` is looked up imperatively, so
-     * nothing did. The user tapped the counter on a cold app and got the current account's Inbox.
      */
     @Test fun `a tap that starts the process is kept until the list exists, then delivered`() {
         assertEquals(
@@ -85,8 +65,6 @@ class WidgetTapRelayTest {
 
     /**
      * The cold start that takes more than one frame to compose its start destination: the order is
-     * already held and the list is still missing. Keeping it is the only answer that neither loses
-     * the tap nor delivers it to a list that does not exist.
      */
     @Test fun `an order already held keeps waiting while the list is still missing`() {
         assertEquals(

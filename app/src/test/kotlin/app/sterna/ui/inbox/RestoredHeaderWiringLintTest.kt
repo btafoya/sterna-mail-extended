@@ -6,40 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — read `RestoredMetaTest` first, it is the real one: it
- * EXECUTES [restoredMeta] and [restoredFolderMeta] and pins their answers as literals.
- *
- * This file only pins where `InboxViewModel` plugs those two decisions in, because it is an
- * `AndroidViewModel` over Room and `AccountStore` wraps `SharedPreferences`: it cannot be built on
- * the JVM, so no executing test can see the call sites. Last resort, and it pins ARGUMENTS and
- * ORDER, never just the name of a function called.
- *
- * The mutations it exists for, all of which compile and leave everything else green:
- *  - the initial header left as `Meta(store.accountLabel(), store.inboxMailboxName(), …)` — the
- *    defect itself: a view restored onto the Trash titled "Inbox", for good when offline;
- *  - `store.unreadCount()` and `store.totalUnreadCount()` swapped, or `store.inboxMailboxId()`
- *    swapped for `store.currentId()` — both pairs are the same type and the second decides which
- *    arm of [restoredMeta] is taken;
- *  - `applyRestoredMeta(folders)` called BEFORE `applyNotificationFolder(folders)`: the tapped
- *    notification's folder is then selected after the memory has already written the header, and
- *    [restoredFolderMeta]'s selection check — the thing that lets the reader win — is read before
- *    the reader has moved;
- *  - the one shot spent whatever the decision says, which turns the empty first list into a blank
- *    title until a refresh succeeds, i.e. for ever in airplane mode;
- *  - `restoredFolder` armed for every restored folder, Inbox included, or never armed at all;
- *  - a THIRD writer of `restoredFolder` — `restoredFolder = null` at the top of `refresh()` is the
- *    one that survived a first pass. `init { refresh() }` runs at construction, i.e. before the
- *    first `mailboxes` emission, so the shot is spent before it can serve and the restored folder
- *    keeps the empty name for ever offline: the original defect, mute instead of lying;
- *  - the `initialValue` of `state` — the SECOND SITE of every rule the combine states, and what the
- *    reader actually sees until the first emission. `mailboxName = store.inboxMailboxName()` there
- *    is the original defect put back in the cold-start window, and a missing
- *    `unreadView = selection.value is Sel.Unread` titles a restored unread view with the Inbox's
- *    raw name. #155 (f9e6da37) corrected `atInbox` in the combine and left this copy untouched.
- *
- * Every rule compares WHOLE units — whole arguments, whole statements, in source order — never a
- * fragment. A `contains` on a piece is blind to any mutation that LENGTHENS it, which has bitten
- * this repo three times. The price is that a reformat reddens this file; that direction of error is
- * loud and one line to fix.
  */
 class RestoredHeaderWiringLintTest {
 
@@ -166,9 +132,6 @@ class RestoredHeaderWiringLintTest {
 
     /**
      * The lines of `initialValue = MailUi(…)`, trimmed, blanks dropped, in source order.
-     *
-     * Deliberately NOT the `combine` above it: that slice is `UnreadRowFolderWiringLintTest`'s,
-     * and it says in so many words that this block is outside it.
      */
     private fun initialValueLines(): List<String> {
         val text = codeLines().joinToString("\n")
@@ -293,9 +256,6 @@ class RestoredHeaderWiringLintTest {
 
     /**
      * The file line by line, comments taken out and line structure KEPT — the order of two
-     * statements is what one rule here reads, and collapsing the file first would still show it,
-     * but a statement split over two lines would then read as one. Same scanner as
-     * `SelectionMemoryWiringLintTest`'s: a `//` inside a string literal is not a comment.
      */
     private fun codeLines(): List<String> {
         val out = mutableListOf<String>()
@@ -370,10 +330,6 @@ class RestoredHeaderWiringLintTest {
 
         /**
          * The five fields of the placeholder header this rule owns: the three the header is drawn
-         * from, and the two that decide WHICH title arm draws it. Whole lines, source order.
-         *
-         * `unified` is here so the pair cannot be half-corrected: `unreadView` alone restored, with
-         * `unified` dropped, would title a restored unified view "All inboxes" raw in nine locales.
          */
         private val EXPECTED_PLACEHOLDER_HEADER = listOf(
             "accountName = meta.value.accountName,",

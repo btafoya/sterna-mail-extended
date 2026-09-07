@@ -52,17 +52,11 @@ fun OutboxScreen(
 
     // Id of the item whose Delete button was tapped, awaiting confirmation. A queued message has
     // never reached the server, so deleting it destroys the only copy along with its attachments —
-    // hence the confirmation. It lives here, in the screen: the repository's deleteOutbox is also
-    // the normal, silent way an item leaves the queue (sent, undone, reopened in the composer) and
-    // must stay silent for those.
     var pendingDelete by remember { mutableStateOf<Long?>(null) }
 
     pendingDelete?.let { id ->
         // Which body this row is owed, from the list ALREADY collected above — no second read of
         // the repository, no flow of its own. An INTERRUPTED row may already be at the recipient,
-        // and the default body opens by swearing it was never sent (see outboxDeleteBody). If the
-        // row left the list between the tap and this frame (delivered, undone, reopened), there is
-        // no state to speak for it and the default body is the honest answer.
         val pendingState = items.firstOrNull { it.id == id }?.state
         val deleteBody = pendingState?.let(::outboxDeleteBody) ?: R.string.outbox_delete_body
         AlertDialog(
@@ -137,10 +131,6 @@ fun OutboxScreen(
                     )
                     // What the row says, and in which colour, is decided in OutboxRowText and
                     // only EXECUTED here. A `when (item.state)` written back into this composable
-                    // is unreachable from every test in this module — and its `else ->` is exactly
-                    // how a state with no branch of its own inherited another one's sentence: a
-                    // message saved as a draft on the phone was announced as "Failed: saved as a
-                    // draft on this device, not sent", in nine languages (#95).
                     Text(
                         if (outboxStateShowsReason(item.state)) {
                             stringResource(
@@ -164,14 +154,6 @@ fun OutboxScreen(
                     )
                     // A row that is still waiting sometimes knows WHY — the server's refusal on one
                     // of the first attempts, or an arming that never happened — and that reason was
-                    // stored and shown nowhere, so Retry was pressed against a silent screen. It is
-                    // a LINE OF ITS OWN, under the state sentence, which stays untouched and true:
-                    // the row is waiting, it has not failed. Hence onSurfaceVariant and not
-                    // colorScheme.error, and no "Failed" anywhere — red belongs to FAILED alone, and
-                    // nothing would ever repaint a red put here once the message goes out.
-                    // FRAMED as history, never printed bare: lastError is the LAST reason recorded
-                    // and not necessarily the current one — a re-arm that succeeded does not clear
-                    // it, and an offline row carries an online failure's reason for days.
                     if (outboxShowsWaitingReason(item.state, item.lastError)) {
                         Text(
                             stringResource(
@@ -191,10 +173,6 @@ fun OutboxScreen(
                         }
                         // Edit is offered only for a genuinely waiting row the composer could
                         // rebuild (#70): a row whose entity nothing can produce again (a read
-                        // receipt) would come back as a different message, an encrypted item has no
-                        // body in the row to reopen, and a SENDING item has a send in flight that
-                        // reopening would race into an orphan or a double send. A SIGNED row is
-                        // rebuilt by signing afresh, and keeps Edit exactly as before.
                         val unreplayable =
                             OutboxLogic.isUnreplayablePrebuiltEntity(item.pgpMode, item.pgpEntityPath)
                         if (OutboxLogic.canEdit(item.pgpMode, item.state, unreplayable)) {

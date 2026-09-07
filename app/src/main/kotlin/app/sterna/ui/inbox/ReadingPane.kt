@@ -23,8 +23,6 @@ import app.sterna.ui.message.MessageScreen
 
 /** The reading pane beside the list (#103), built as the `message/…` destination builds it.
  *  `key(session)` is what makes a tap a new reading; a swipe changes the anchor but not the session.
- * Every action taken from the pane empties it, never "the next message": settling on a page
- * marks it read (`SECURITY.md`). No animation: a fade composites the body WebView through an
  *  offscreen layer (#10). */
 @Composable
 fun ReadingPane(

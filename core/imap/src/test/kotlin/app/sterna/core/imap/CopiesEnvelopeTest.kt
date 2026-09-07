@@ -7,15 +7,6 @@ import java.nio.charset.Charset
 
 /**
  * The envelope's `Cc` (index 6) and `Bcc` (index 7), read off a real socket.
- *
- * The copies were parsed by nobody: the four FETCH commands have always asked for the whole
- * ENVELOPE, and the parser walked over slots 6 and 7. So a reopened draft lost the people in
- * copy and a "reply to all" wrote to the To: alone.
- *
- * The two slots are ADJACENT and they are not interchangeable: index 7 is the blind copy. A
- * reader off by one publishes hidden addresses in the visible field. Every fixture here therefore
- * puts a DIFFERENT address in each of the six address slots — an assertion that cannot tell 6 from
- * 7 proves nothing.
  */
 class CopiesEnvelopeTest {
 
@@ -81,8 +72,6 @@ class CopiesEnvelopeTest {
 
     /**
      * THE SLOT. Index 7 is the blind copy: if it is what the visible `Cc` field is filled from,
-     * the app shows — and a reply-all writes to — an address the sender chose to hide. This test
-     * is what an off-by-one dies on, in the direction that leaks.
      */
     @Test
     fun `the bcc is not read as the cc, and the cc is not read as the bcc`() {
@@ -106,10 +95,6 @@ class CopiesEnvelopeTest {
 
     /**
      * A copied address is not shown and forgotten: it is prefilled as a recipient of a reply-all
-     * and re-sent. An internationalised address (RFC 6531, which Stalwart speaks) is non-ASCII, so
-     * a conforming server can only hand it over as a literal — BOTH halves of it. Decode the
-     * mailbox and forget the host and the copy leaves for a domain that does not exist, while the
-     * message looks sent.
      */
     @Test
     fun `an EAI cc address is decoded on both halves, not left as octets`() {
@@ -168,10 +153,6 @@ class CopiesEnvelopeTest {
 
     /**
      * Slot 6 NIL, slot 7 filled — the shape a fallback survives. Every other fixture here fills
-     * the Cc, and the empty-copies one empties BOTH, so `cc = ccAddrs.ifEmpty { bccAddrs }` is the
-     * identity on all of them. A message the account blind-copied, deposited in the folder by
-     * another client, is exactly this envelope: read the blind slot into the visible one and the
-     * hidden address is shown, prefilled into a reply-all, and sent.
      */
     @Test
     fun `a bcc with no cc is not read as the cc`() {

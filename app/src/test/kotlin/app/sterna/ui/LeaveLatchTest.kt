@@ -5,9 +5,6 @@ import org.junit.Test
 
 /**
  * The four ways a tap that leaves the app can go, decided by the shipped [LeaveLatch] itself.
- *
- * What it cannot say: whether the screens actually call it. That is what the source lint in
- * [NavHostSourceRulesTest] is for — the two together are the guard, and neither alone is.
  */
 class LeaveLatchTest {
 

@@ -9,13 +9,6 @@ import java.nio.charset.Charset
 
 /**
  * A fetched fragment of a body, turned into the line a notification may show — executed, on the
- * bytes a server really sends.
- *
- * The input is what `ImapSession.fetchSectionPartial` hands over: the octets of the part, one char
- * per octet (the byte-container convention `ImapParser` establishes), still transfer-encoded, and
- * CUT at a byte boundary that has no idea where a character, a base64 quantum or a tag ends. Every
- * case below is one of those cuts, or one of the charsets that make the difference between the
- * message and mojibake.
  */
 class BodyPreviewTest {
 
@@ -72,8 +65,6 @@ class BodyPreviewTest {
 
     /**
      * THE OTHER CUT THAT ALWAYS HAPPENS, and the commonest encoding of accented mail. The QP
-     * decoder needs `=` plus two characters to read an escape, so a fragment cut inside `=C3` emits
-     * the `=` and the `C` verbatim: the preview ends in `=C`, and nothing downstream removes it.
      */
     @Test fun `a quoted-printable escape cut in half does not reach the screen`() {
         assertEquals("Café et th", preview("Caf=C3=A9 et th=C", encoding = "quoted-printable"))
@@ -96,9 +87,6 @@ class BodyPreviewTest {
 
     /**
      * THE CUT THAT ALWAYS HAPPENS. base64 carries three octets per four characters, so a
-     * fragment cut at 8192 octets almost never ends on a quantum. The JVM decoder rejects the whole
-     * string, `MimeParser.decodeBytes` falls back on the raw characters — and the "preview" is the
-     * base64 itself.
      */
     @Test fun `a base64 body cut mid-quantum still decodes to text, never to base64`() {
         val text = "The quick brown fox jumps over the lazy dog. "
@@ -137,8 +125,6 @@ class BodyPreviewTest {
 
     /**
      * The first 8 KB of a newsletter is very often its stylesheet. `htmlToText` removes a
-     * `<style>` block by matching a PAIR of tags, so one whose closing tag is past the cut is not
-     * removed at all and its CSS is read as text.
      */
     @Test fun `an HTML fragment cut inside a style block shows nothing, never the CSS`() {
         val cut = "<html><head><style>body{font-family:Helvetica;color:#333;background:#fff"
@@ -195,9 +181,6 @@ class BodyPreviewTest {
 
     /**
      * THE LAYERING, pinned. `MailNotificationText.shapePreview` flattens the blanks and caps at
-     * 256 characters, for both protocols at once. Doing any of it here would cap the JMAP preview
-     * at one length and the IMAP one at another, and would hide from that function the fact that it
-     * has to hold.
      */
     @Test fun `nothing is capped, flattened or elided here`() {
         val long = "x".repeat(1000)

@@ -22,10 +22,6 @@ import androidx.compose.ui.unit.dp
 
 /**
  * A calm, coastal line-art scene for an empty screen. Each one is drawn as a
- * Compose [ImageVector] coloured from the live Material theme — ink from
- * [androidx.compose.material3.ColorScheme.onSurfaceVariant], a coral touch from
- * primary — so it adapts to Arctic/Pelagic (and the in-app light/dark override)
- * with no baked colours. Thin strokes, lots of empty space.
  */
 enum class EmptyArt { INBOX_ZERO, SEARCH, FOLDER, TRASH, OFFLINE }
 

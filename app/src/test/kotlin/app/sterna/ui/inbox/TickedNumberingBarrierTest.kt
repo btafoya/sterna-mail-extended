@@ -13,23 +13,6 @@ import org.junit.Test
 
 /**
  * THE RACE BETWEEN THE TICK AND THE TAP (#99, #189).
- *
- * `InboxViewModel` reads the numbering of each ticked row in a coroutine of its own — the collector
- * on `_selectedKeys` in `init` — and the read suspends: one database query per account, chunked at
- * 200 ids. The two selection gestures run in another coroutine and used to read the field with no
- * barrier at all. A "Select all" over a folder of thousands writes the keys in ONE emission and
- * reads them back in a dozen sequential queries, so a tap on Move or Delete straight afterwards
- * took a map that was empty or half full.
- *
- * What that costs is not the same before and after the previous volet. It used to be SILENCE: a
- * row with no stamp opposed nothing and went. It is now a REFUSAL, because a ticked row with no
- * numbering is refused at both ends of the move between accounts. So the race turned a quiet loss
- * into a frequent, visible failure on the one gesture people use it for, and that cost is this
- * branch's to pay.
- *
- * Everything decidable here is EXECUTED — the coverage rule against its own inputs, and the wait
- * itself against a `StateFlow` that publishes in two instalments on virtual time. The only source
- * lint is the last test, which says the two gestures share the one wait.
  */
 class TickedNumberingBarrierTest {
 
@@ -41,8 +24,6 @@ class TickedNumberingBarrierTest {
 
     /**
      * Four inputs, four verdicts, stated as literals: this test does not recompute the rule it
-     * checks. The third is the one a naive rule gets wrong — "something has been published" is not
-     * "this selection has been published", and a partial map is exactly what the race hands over.
      */
     @Test fun `a map covers a selection when every key of it has an entry`() {
         assertTrue(
@@ -68,8 +49,6 @@ class TickedNumberingBarrierTest {
 
     /**
      * THE WITNESS OF THE RACE, and the only test that tells a barrier apart from a `delay`: the
-     * flow publishes a PARTIAL map first, the gesture asks, and it must still be waiting; the full
-     * map lands afterwards and that is what the gesture gets.
      */
     @Test fun `the gesture gets the map published after it asked, not the partial one that was there`() = runTest {
         val published = MutableStateFlow<Map<EmailKey, Long?>>(mapOf(a to 7L))
@@ -95,22 +74,6 @@ class TickedNumberingBarrierTest {
 
     /**
      * THE INVERSE WITNESS, without which "always sleep for the budget" satisfies the one above
-     * and every selection gesture in the app grows a second and a half of dead time. A `StateFlow`
-     * replays its current value, so an already-covered map costs no virtual time at all.
-     *
-     * DECLARED SURVIVING MUTATION, still open: a `yield()` — or any re-dispatch — at the head of
-     * `tickedNumberingWhenCovered`. This test measures VIRTUAL TIME, and `runTest` does not advance
-     * the clock for a re-dispatch, so it stays green while the ordinary gesture stops being
-     * answered synchronously and goes through the dispatcher. "Costs no time" is not "never
-     * suspends".
-     *
-     * The probe that would close it is known and was written: start the call
-     * `CoroutineStart.UNDISPATCHED` on `Dispatchers.Unconfined` and assert `job.isCompleted` when
-     * `launch` returns — a body that never suspended is complete inline. It COMPILED, and it was
-     * then thrown away rather than shipped, because the run that would have falsified it never
-     * reached this module: Gradle stopped at the other module's deliberate failure, so the probe
-     * was never seen to go red against the `yield()` it exists for. A test nobody has watched fail
-     * is worth less than a debt written down, and this is the debt.
      */
     @Test fun `an already covered map is handed over without spending a single tick`() = runTest {
         val published = MutableStateFlow<Map<EmailKey, Long?>>(mapOf(a to 7L, b to 9L))
@@ -126,18 +89,6 @@ class TickedNumberingBarrierTest {
 
     /**
      * AND IT IS BOUNDED, because coverage can become UNREACHABLE — and the reason is the
-     * SELECTION MOVING, not a key nobody can resolve. `rememberTickedNumbering` ends on
-     * `filterKeys { it in still }`, so it publishes only what is still ticked: once the selection
-     * changes, no publication will ever contain the awaited keys again.
-     *
-     * The `credentialsFor`-is-null story this used to tell is very nearly unreachable —
-     * `InboxViewModel.credentialsFor` falls back on `store.load()`, so it answers null only when no
-     * account is usable at all, a state in which there is no selection to act on. A comment naming
-     * an inaccessible mechanism hides the one that actually happens.
-     *
-     * Safe by construction: the missing key becomes `FrozenNumbering.Frozen(null)` at the call
-     * site, which the repository refuses on the move between accounts. It fails; it does not
-     * destroy.
      */
     @Test fun `a key that is never published gives the partial map back, on the budget`() = runTest {
         val published = MutableStateFlow<Map<EmailKey, Long?>>(mapOf(a to 7L))
@@ -157,17 +108,6 @@ class TickedNumberingBarrierTest {
 
     /**
      * THE REGRESSION THIS CLOSES, and the reachable path that produces it. While the wait runs,
-     * the selection bar is still up and the gesture gives no visual answer; `InboxScreen` binds the
-     * system Back gesture to `clearSelection()`. So: Select all over a large folder, Move, Back
-     * before the stamps land — the collector republishes `filterKeys { it in still }` over an empty
-     * selection, coverage becomes unreachable, and the budget is spent.
-     *
-     * What must come back is the map AS IT WAS WHEN THE GESTURE ASKED. Re-reading `published.value`
-     * at the timeout hands back the EMPTIED map instead: every row becomes `Frozen(null)`, the
-     * repository refuses all of them, and on `deleteSelected` the whole selection lands in
-     * `split.kept` while the banner says "permanently deleted" — a sentence the server never
-     * confirmed. Before this branch the gesture held a snapshot taken outside the launch, at the
-     * tap, and simply went ahead with it.
      */
     @Test fun `a selection emptied during the wait still gets the map the gesture asked with`() = runTest {
         val published = MutableStateFlow<Map<EmailKey, Long?>>(mapOf(a to 7L))
@@ -189,10 +129,6 @@ class TickedNumberingBarrierTest {
 
     /**
      * THE SHIPPED BUDGET, EXECUTED. Without this the constant is pinned nowhere: the two tests
-     * that use the default are satisfied by ANY budget longer than the publication delay, and the
-     * timeout witness passes its own. `TICKED_NUMBERING_BUDGET_MS = 600_000L` would leave the whole
-     * suite green while the gesture holds the screen for ten minutes, selection bar up — the bound
-     * undone by a literal.
      */
     @Test fun `the default budget is the one shipped, and it is what gets spent`() = runTest {
         val published = MutableStateFlow<Map<EmailKey, Long?>>(mapOf(a to 7L))

@@ -13,31 +13,6 @@ import org.junit.Test
 
 /**
  * The count scale the "Messages to sync" row offers — 100 / 1 000 / 10 000 — and what each of those
- * numbers actually does. (This file was `UnboundedAllWindowTest`, written when "Everything" meant
- * the whole folder; that choice is withdrawn and the largest window is now 10 000.)
- *
- * `SyncWindow.limit` is read in TWO places that must not be confused:
- *
- * 1. **the size of the window to fetch** — [folderSyncSizing]'s `windowTarget`, which the JMAP walk
- *    counts down with [nextWindowPageLimit] and the IMAP walk turns into a floor sequence number;
- * 2. **the retention floor** — "keep at least the newest N whatever their age" (Codeberg #110),
- *    [retentionEvictions]'s `keepNewest`, which is the window and NEVER a request size.
- *
- * Stated exactly: the FETCH WINDOW is exercised below for every new value; the RETENTION FLOOR is
- * exercised on the function, but NO new value reaches it in service. `pruneRetention` only runs
- * under `pruneBeforeMillis != null` and every count window has `maxAgeDays = null`, so the prune is
- * skipped entirely for 100 / 1 000 / 10 000 and for `ALL` (the guards are pinned by
- * `SyncWindowReachesBothProtocolsTest`). What the floor tests below protect is the day a count
- * window gains an age, or the day someone caps the floor with a request size (#110).
- *
- * Every expectation below is a number written out here and compared against the SHIPPED constant, so
- * a member whose value stopped matching its label fails: an assertion like
- * `COUNT_1000.limit == COUNT_1000.limit` would agree with the code whatever the code said. The walks
- * are driven by the shipped decision — this file counts pages, it does not decide how big they are.
- *
- * What is NOT covered here: the wire, and the arithmetic of a target near [Int.MAX_VALUE] (no
- * shipped window carries one any more — `core:jmap`'s `JmapClientTest` and `core:imap`'s
- * `FolderWalkDecisionTest` keep that guard, where the arithmetic lives).
  */
 class SyncWindowScaleTest {
 
@@ -269,9 +244,6 @@ class SyncWindowScaleTest {
 
     /**
      * Walk a folder of [folder] messages with a window of [target], one page at a time, exactly as
-     * `JmapClient.queryEmailsWindow` loops. Fails loudly rather than hanging if the walk does not
-     * terminate: a missing stop condition is an infinite loop, not a wrong number, and a test that
-     * hung would be read as an infrastructure hiccup.
      */
     private fun walk(folder: Int, target: Int, pageSize: Int = serverPage): Walked {
         val requested = mutableListOf<Int>()

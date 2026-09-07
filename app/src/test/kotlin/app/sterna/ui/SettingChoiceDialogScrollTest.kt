@@ -7,43 +7,11 @@ import java.io.File
 
 /**
  * Defect: Settings → Appearance → App language lists ten entries (system default + nine
- * locales), and the bottom ones are not clipped at paint time, they are MEASURED SHORT — so their
- * pointer area has zero height (the tap does nothing), the `RadioButton` still shows (its drawing
- * spills past its bounds) and the label is gone (a `Text` clips its own drawing to the size it was
- * measured at). The DEAD TAP is what proves measured-short rather than clipped: a clipped row
- * still takes taps. Working hypothesis for the cause, the same one
- * [SenderRuleDialogFitTest] writes down and no more verified than there: Material's `text` slot
- * hands its child a finite `maxHeight`, which a non-scrolling `Column` SPENDS row by row until the
- * last rows are handed ~0.
- *
- * Measured twice, two days running, Moto G (Android 9, 720×1280, density 320 → 360 × 400 dp): the
- * bottom entries come out as radio circles stacked ~30 px apart with NO labels, tapping them
- * selects nothing, and the list does not scroll (several swipes, screenshots identical byte for
- * byte). At `font_scale` 0.85 the box fits on screen entirely and the defect remains — the ceiling
- * is on the list, not on the box. A Russian or Polish reader therefore cannot pick her language,
- * and with the app already in Russian she cannot even read which entry is the ticked one.
- *
- * The same dialog sits behind all thirteen `SettingChoiceRow`s, including the filters' "Move to"
- * folder picker (`FiltersScreen.kt`), whose option list is UNBOUNDED and whose pick ends in a
- * server-side Sieve write.
- *
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `SettingsComponents.kt` as text and proves nothing
- * about what happens on screen. There is no Robolectric and no `compose-ui-test` in this repo;
- * same instrument and same disclaimer as [SenderRuleDialogFitTest] and
- * [app.sterna.ui.compose.ComposeDeleteWiringTest], which close this defect on other dialogs.
  */
 class SettingChoiceDialogScrollTest {
 
     /**
      * G1 — the scroll is on THE `Column` of the `text` slot, pinned by WHOLE-LINE equality on the
-     * slot's opening line.
-     *
-     * Anchored on that line, and it has to be: counting the modifier "somewhere in the file", or
-     * "somewhere in the slot", is green when it lands on each option's `Row` or on a nested
-     * wrapper while the outer `Column` stays bounded — which is the defect, untouched. And never
-     * `"verticalScroll" in line`: a substring is blind to every mutation that LENGTHENS the line,
-     * and `Modifier.selectableGroup().verticalScroll(rememberScrollState()).heightIn(max = 200.dp)`
-     * contains it while bounding the list right back.
      */
     @Test fun `the option list scrolls instead of being crushed against the bottom`() {
         val slot = choiceSlot()
@@ -76,12 +44,6 @@ class SettingChoiceDialogScrollTest {
 
     /**
      * G2 — nothing beside the scroll may bound the list again.
-     *
-     * Written from the precedents' scars: `maxLines = 3` next to a scroll modifier left the
-     * sender-rule lint green and the body clipped at three lines, the exact defect back under a
-     * scroll with nothing left to scroll. A `heightIn(max = …)` / `height(…)` / `fillMaxHeight()`
-     * here is the same shape one level up: the list scrolls, inside a box pinned too short, and
-     * the entries below the pin are unreachable exactly as before.
      */
     @Test fun `nothing else pins the option list back to a fixed height`() {
         val slot = choiceSlot()
@@ -106,11 +68,6 @@ class SettingChoiceDialogScrollTest {
 
     /**
      * The `text = { … }` slot of `SettingChoiceDialog`'s `AlertDialog`, braces balanced.
-     *
-     * Anchored on the declaration and checked at every step: the same file also declares
-     * `SettingMultiChoiceDialog` (checkboxes, out of scope here and latent), and
-     * `indexOf("text = ")` matches inside `context = …` too — hence [SLOT]'s lookbehind. Every
-     * check below fails LOUDLY rather than let this rule read the wrong lambda and report success.
      */
     private fun choiceSlot(): String {
         val code = code(SETTINGS)
@@ -194,12 +151,6 @@ class SettingChoiceDialogScrollTest {
 
         /**
          * Everything that can pin the list, or a label, back into an unreachable size.
-         *
-         * Matched case-INSENSITIVELY, and that is the whole point: `requiredHeightIn(max = …)`
-         * and `requiredSizeIn(maxHeight = …)` bound the list exactly as their plain namesakes do,
-         * and neither contains `heightIn` nor `height(` as written. An audit walked out through
-         * that gap — a `Column(Modifier.sizeIn(maxHeight = 200.dp))` wrapped around the options
-         * left every rule here green while the bottom locales went back to being measured at zero.
          */
         val BOUNDS = listOf("heightIn", "height(", "fillMaxHeight", "sizeIn", "size(", "maxLines", "overflow")
 

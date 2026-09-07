@@ -5,13 +5,6 @@ import app.sterna.ui.compose.BLOCKQUOTE_TAG
 
 /**
  * Fold the TRAILING quoted history of a rich HTML body behind a native `<details>`.
- * `<details>`/`<summary>` is markup, not behaviour: the WebView opens it on a tap by itself, so the
- * reader keeps `javaScriptEnabled = false` and its CSP. The flip side: the open/closed state lives
- * in the DOM only, so the fold is closed on every open and has no setting.
- * ONE quote is folded — the last top-level one, at [BLOCKQUOTE_TAG]'s depth, and only when nothing
- * visible follows it, as K-9 and Gmail do. Three guards return [html] untouched: a blank [label],
- * nothing visible before the quote, and markup this one-pass scan cannot balance. Losing body is
- * the only unacceptable outcome; not folding is not one.
  */
 internal fun foldTopLevelQuotes(html: String, label: String): String {
     // Guard 1 — a mute button.
@@ -58,13 +51,6 @@ internal fun foldTopLevelQuotes(html: String, label: String): String {
 
 /**
  * Whether [fragment] holds anything the reader would SEE — the test behind guard 2.
- *
- * Markup that carries no text to the screen is dropped before the tags are stripped, which a bare
- * `replace(Regex("<[^>]*>"), "")` would not do: a body that is one forwarded quote usually arrives
- * as a complete document, and `body{margin:0}` in its `<head><style>` is text to any regex.
- *
- * An `<img>` deliberately does not count: a remote image is blocked by default, and the cost is
- * asymmetric — counting it wrongly empties the page, ignoring it wrongly only costs a fold.
  */
 private fun hasVisibleContent(fragment: String): Boolean =
     fragment

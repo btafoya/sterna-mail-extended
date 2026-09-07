@@ -8,18 +8,6 @@ import java.io.File
 
 /**
  * What the `mailto:` unsubscribe actually puts in the outbox.
- *
- * The mapping is *executed*, not read: [unsubscribeMail] is called here, so a recipient, a
- * subject or an identity that goes missing IN IT fails here rather than on a list that never
- * removes the address.
- *
- * What that does NOT cover is the last step. `MailRepository.sendUnsubscribeMail` copies the
- * fields of the returned [UnsubscribeMail] into the named arguments of `enqueueSend` one by one,
- * and that hand-over cannot be executed here (the repository needs a session, a JMAP client and a
- * device). Swap two of those arguments and everything above stays green while the mail leaves
- * with its subject and its body exchanged — under the user's real identity, into Sent, with no way
- * back. The last test in this file is a SOURCE LINT that pins those arguments; it is the weaker
- * instrument, and it is used only because nothing stronger reaches that line.
  */
 class UnsubscribeMailTest {
 
@@ -53,12 +41,6 @@ class UnsubscribeMailTest {
 
     /**
      * The witness: with nothing in the URI, a fixed subject and an empty body.
-     *
-     * And the subject is fixed in ENGLISH, not translated. It used to be the reader's own
-     * interface label, so a French account sent a mail whose subject line was "Se désabonner" and
-     * a Russian one "Отписаться" — to a list whose software matches on that line. What the reader
-     * sees is translated; what a stranger's robot has to understand is not. The default is not a
-     * parameter any more precisely so that no caller can hand a localised string back in.
      */
     @Test fun `a bare mailto falls back to a fixed english subject and an empty body`() {
         val mail = unsubscribeMail(
@@ -74,8 +56,6 @@ class UnsubscribeMailTest {
 
     /**
      * The account's own identity travels with the mail (issue #31): a delegated sub-account is
-     * submitted through its LOGIN, so without this the list receives an unsubscribe from an
-     * address that never subscribed — and correctly ignores it.
      */
     @Test fun `the account identity is carried, so a delegated sub-account unsubscribes itself`() {
         val mail = unsubscribeMail(
@@ -100,15 +80,6 @@ class UnsubscribeMailTest {
 
     /**
      * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `MailRepository.kt` as text. It proves nothing
-     * about what the outbox receives, and it would still pass if `enqueueSend` were broken inside.
-     *
-     * What it closes is the one gap everything else in this lot leaves open. The reader's dialog
-     * shows exactly what `unsubscribeMail` built — that equality is executed by
-     * `UnsubscribePreviewTest` — but between that value and the outbox there are six named
-     * arguments copied by hand. `subject = mail.body, body = mail.subject` compiles, keeps every
-     * assertion above green, keeps the dialog perfectly honest, and sends a mail whose subject is
-     * the token and whose body is the word "Unsubscribe", from the user's real address, with no
-     * Undo. So each argument is pinned BY NAME, at the call site.
      */
     @Test fun `the repository hands each field to the argument of the same name`() {
         val body = sendUnsubscribeMailBody()

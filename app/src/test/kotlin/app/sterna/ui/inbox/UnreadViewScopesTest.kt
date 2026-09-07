@@ -6,19 +6,6 @@ import org.junit.Test
 
 /**
  * WHAT the "unread" view pages — the scope, run as a function.
- *
- * The view claims to show one account's unread mail "everywhere it matters". Four kinds of folder
- * are not that: the Trash and Junk/Spam hold what the user already threw away or refused, and Sent
- * and Drafts hold the user's own outgoing mail, whose read state means nothing at all (the same
- * reason `isOutgoingFolder` takes "mark all read" off those two, #82).
- *
- * These tests EXECUTE [unreadViewScopes] over folder lists written out as literals and compare the
- * pairs it returns. Nothing here re-derives the rule to decide what to feed it: invert the filter in
- * the shipped function and the first three tests go red naming the folder that leaked.
- *
- * What this cannot say: the SQL those pairs end up in. `MailRepository.pagedMailbox` needs Room,
- * and the `Sel.Unread` branch that hands them over is inside an `AndroidViewModel`. The arguments of
- * that hand-over are pinned as text in `PageKeyWiringLintTest`, which is a lint and says so.
  */
 class UnreadViewScopesTest {
 
@@ -60,10 +47,6 @@ class UnreadViewScopesTest {
     fun `a folder whose trash claim was refused is an ordinary folder`() {
         // `~trash` is MailRepository's UNELECTED_ROLE_MARK: this folder claimed the trash role and
         // another folder of the account was elected to it (an account with a personal Trash and a
-        // shared Trash has two, and only one can be THE trash). Outside :core:data such a folder is
-        // byte for byte the role-less folder it was before that fix — same icon, same menu — so it
-        // is paged like one. The mark is erased on the way to Mailbox, so this is belt and braces:
-        // a mark that DID reach here must not silently hide a folder from the view.
         val scopes = unreadViewScopes(
             "a",
             listOf(folder("shared-trash", "~trash"), folder("shared-junk", "~junk"), folder("t", "trash")),

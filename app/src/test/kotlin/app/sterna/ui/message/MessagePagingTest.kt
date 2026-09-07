@@ -331,21 +331,6 @@ class MessagePagingTest {
 
     /**
      * What an insertion at the top of the mailbox does to a RANK and to an IDENTITY, played with
-     * the repository's own functions ([MessagePaging.mergeEntries], [MessagePaging.entryKey]) and
-     * nothing re-implemented here.
-     *
-     * GB-OPEN is open in the reader, GB-NEIGH sits directly above it and carries an `Autocrypt:`
-     * header. A new message merges in at the top; nothing is scrolled. After it, the page NUMBER
-     * the reader settled on names a different message (GB-NEIGH), while GB-OPEN's identity names
-     * a different number. That is the whole of the arithmetic behind the bench red: a stale page
-     * number pointed at the neighbour, whose page believed itself settled, loaded, and put that
-     * sender's key in OpenKeychain from a message nobody opened.
-     *
-     * What this does NOT prove: that `PagerState` re-anchors itself onto the same message when
-     * the list moves under it. That is the library's behaviour, it is why the screen holds an
-     * entry rather than an index, and it is only measurable on a device — it was, on 2026-09-04,
-     * where the screen still showed GB-OPEN after the injection while its key import fired for
-     * GB-NEIGH.
      */
     @Test fun `mail injected at the top moves the rank, never the identity`() {
         val neigh = "GB-NEIGH" to "acct-a"
@@ -381,8 +366,6 @@ class MessagePagingTest {
 
     /**
      * And the two ways the screen can then be driven, run through the shipped decision: at rest on
-     * the entry the pager re-anchored to, GB-OPEN stands; and if no emission comes at all (nothing
-     * moved for the pager to report), the previous answer is what the screen keeps.
      */
     @Test fun `the settled message survives the shift, whichever way the pager reports it`() {
         val open = "GB-OPEN" to "acct-a"
@@ -492,17 +475,6 @@ class MessagePagingTest {
 
     /**
      * THE REFUSAL, PINNED — but NOT for the reason first written here. That reason was: a
-     * warmed page composes the `WebView`, the allowlist answers `senderAllowed`, "`manualShow` is
-     * false there", `blockRemote` goes false and the request leaves. The parenthesis was a
-     * coincidence, not a guard: nothing gated the manual override, whose "Show images" button a
-     * warmed page composes live and whose only reset sits in `load()`, which never runs there.
-     *
-     * What holds the pixel now is `MessagePage`'s one-way `everActive` latch, which gates BOTH
-     * producers (`manualShow` and `senderAllowed`) — pinned line by line in
-     * [LoadOnSettleCallSiteTest], since neither can be reached from a JVM bench. This refusal is
-     * kept for COMFORT: without it the settle flips `blockRemote`, half of the WebView's load key,
-     * and the body reloads under the finger. The two guards cite each other on purpose; read
-     * either alone and it looks redundant. PRIVACY.md:288 rests on the latch, not on this.
      */
     @Test fun `a body whose sender loads remote images automatically is never warmed`() {
         assertFalse(

@@ -16,24 +16,6 @@ import org.junit.Test
 
 /**
  * **What a REAL [ImapMailService] puts on the wire for a draft** (#95), executed against a
- * scripted server on loopback — because the two defects here are invisible above the socket.
- *
- * 1. `withSession` replays a failed block once on a fresh connection. For an `APPEND` that means
- *    the bytes go out TWICE inside one call, with no attempt recorded in between, so neither the
- *    deferred retry nor the `Message-ID` search this volet added ever gets a say: two drafts on the
- *    server, and nothing on the phone able to see either. An `APPEND` is not idempotent and is the
- *    one command here that must not be replayed blind.
- * 2. The de-duplication asked its question with `SEARCH HEADER "Message-ID"`, and the test server
- *    answers an EMPTY `* SEARCH` to every shape of that key while answering `HEADER "Subject"`
- *    perfectly — five witnesses at the bench, on a folder holding two copies of the very id being
- *    asked about. An honest "no", read as "not there", one more copy appended. Nothing above the
- *    socket can see that, so the folder is scripted here: `UID SEARCH ALL` and an envelope read is
- *    what must come out.
- *    [ImapMailService.draftIsAlreadyThere] also takes a folder and a `Message-ID` in that order,
- *    and its caller passes them positionally. Swap the two at the DECLARATION and everything still
- *    compiles: the SELECT then names a message id, throws, is read as "not there", and appends —
- *    de-duplication dead, in silence. So this drives the shipped function POSITIONALLY, and reads
- *    back the command lines the server actually received.
  */
 class ImapDraftAppendGoesOutOnceTest {
 
@@ -95,16 +77,6 @@ class ImapDraftAppendGoesOutOnceTest {
     fun `the draft is found by enumerating the folder, and no HEADER key is ever sent`() {
         // THE test of this volet. The bench measurement behind it: Stalwart answers an EMPTY
         // `* SEARCH` to every shape of `HEADER "Message-ID"` — naked, bracketed, substring, on a
-        // delivered message — while answering `HEADER "Subject"` and `HEADER "To"` perfectly. An
-        // honest-looking "no", read as "not there", one more copy appended. What is executed here
-        // is the answer to it: `UID SEARCH ALL` plus an envelope read, and the comparison made in
-        // our own code. It is the EXACT command list below, not a scripted answer to a header
-        // search, that holds the old shape out: a `SEARCH HEADER` would show up in it. (An earlier
-        // revision scripted an empty answer to every other search key; the shipped code emits none,
-        // so that branch was never reached and said nothing — removed.)
-        // The call is POSITIONAL on purpose: swap folder and Message-ID at the declaration and
-        // it still compiles — the SELECT would then name a message id, throw, and be read as
-        // "not there". The command list below is what catches that.
         ScriptedImapServer { tag, line ->
             when {
                 line.startsWith("LOGIN") -> "$tag OK logged in\r\n"
@@ -220,9 +192,6 @@ class ImapDraftAppendGoesOutOnceTest {
     fun `a draft a few from the newest is found in a folder deeper than the lookup cap`() {
         // THE cap, executed rather than described. Every other fixture here scripts a folder of
         // two or three UIDs, i.e. one no cap ≥ 3 can ever truncate: the constant could be set to
-        // anything and the suite would stay green. This folder holds DEEPER_BY more drafts than the
-        // lookup reads, and ours is the OURS_FROM_NEWEST-th newest of them — inside the window at
-        // the shipped value, outside it the moment the cap is lowered to less than that.
         val total = ImapMailService.DRAFT_LOOKUP_SCAN + DEEPER_BY
         val ours = (total - OURS_FROM_NEWEST + 1).toLong()
         deepDraftsFolder(total, ours).use { server ->
@@ -274,9 +243,6 @@ class ImapDraftAppendGoesOutOnceTest {
 
     /**
      * A Drafts folder of [total] messages, UID 1..[total], of which only UID [ours] carries our
-     * `Message-ID`. Like a real server it answers a `UID FETCH` with the UIDs it was ASKED FOR and
-     * no others — which is the whole point: whether our copy comes back is decided by the client's
-     * request, not by the fixture.
      */
     private fun deepDraftsFolder(total: Int, ours: Long) = ScriptedImapServer { tag, line ->
         when {
@@ -332,21 +298,12 @@ class ImapDraftAppendGoesOutOnceTest {
 
         /**
          * How much deeper than [ImapMailService.DRAFT_LOOKUP_SCAN] the deep fixture's folder goes,
-         * and how far back from the newest our copy sits in it. Neither is derived from the cap:
-         * a fixture that placed our draft "just inside the window" would follow the constant
-         * wherever it went and prove nothing about its value. These are the two absolute claims
-         * made here — a folder of cap+7 drafts is read to a depth of at least 7, and no deeper
-         * than the cap.
          */
         const val DEEPER_BY = 7
         const val OURS_FROM_NEWEST = 7
 
         /**
          * An [OAuthTokenRefresher] that is never used and cannot be built — the same trick, and for
-         * the same reason, as `DestroyNeedsTheNumberingStatedNowTest`'s (whose companion is private):
-         * the real service is required, it needs a refresher, and a refresher needs an Android
-         * `Context`. `freshAccessToken` returns at `credentials.oauth ?: return null` for a password
-         * account, so no field of it is ever read.
          */
         fun unusedTokenRefresher(): OAuthTokenRefresher {
             val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")

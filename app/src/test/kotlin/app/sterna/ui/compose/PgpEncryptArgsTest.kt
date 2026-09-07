@@ -9,14 +9,6 @@ import org.junit.Test
 
 /**
  * Who signs, and who can read — the only thing the "encrypt without signing" mode changes in the
- * send path ([pgpEncryptArgs]).
- *
- * The two arguments of `PgpEngine.signAndEncrypt` come from ONE key on the account, playing two
- * roles: it signs, and it is a recipient so the copy filed in Sent can be reopened. The obvious way
- * to write the unsigned mode — make the sign key nullable and let the recipient list be derived
- * from it — takes the sender's own key out of the recipients too, and every unsigned encrypted
- * message the user sends becomes unreadable on their own phone, permanently. That is the assertion
- * this file exists for.
  */
 class PgpEncryptArgsTest {
 
@@ -118,9 +110,6 @@ class PgpEncryptArgsTest {
     @Test fun aModeThatDoesNotEncryptIsRefused() {
         // Not defensive noise: the send site branches on the mode, then suspends in the provider,
         // then asks for the signer. If the mode moves to OFF under that suspension, answering
-        // "no signer" here would send an UNSIGNED message from a composer that showed
-        // "encrypted and signed". A crash is the honest answer; the caller reads the mode once so
-        // it can never happen from there.
         for (mode in listOf(PgpMode.OFF, PgpMode.SIGN)) {
             assertThrows(IllegalArgumentException::class.java) {
                 pgpEncryptArgs(mode, self, listOf(bob))

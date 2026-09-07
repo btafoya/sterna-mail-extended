@@ -6,39 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `SettingsScreen.kt` as text and proves NOTHING about
- * what is drawn. Same instrument and same disclaimer as [ComposeDeleteWiringTest], which reads
- * another source file for another rule: there is no Robolectric and no `compose-ui-test` in this
- * project, `DetailScaffold` is a composable that cannot be instantiated in a JVM test, and only the
- * bench can say what the top bar really looks like.
- *
- * The defect (#146): `DetailScaffold`'s title was drawn by a bare `Text(title)`, carrying no end
- * inset at all. The account address — which is what the title holds whenever the "account name"
- * field is empty — ran into the physical right edge of the screen, in BOTH the expanded and the
- * collapsed state (one `title` lambda serves both). Shown by the reporter with layout bounds on.
- *
- * Two rules, deliberately kept apart, because each one alone stays green over a change the other
- * kills:
- *
- *  1. the WHOLE BODY of the `title = { … }` slot, normalised line by line, equals [TITLE_SLOT]
- *     exactly. Not "contains the inset line": counting one pinned line is blind to anything added
- *     BESIDE it or to a change in what is drawn, and two ways of restoring #146 were found that way
- *     — `Modifier.padding(end = 16.dp)` continued on the NEXT line with `.offset(x = 16.dp)`, which
- *     leaves the pinned line identical to the character and puts the glyphs back against the edge;
- *     and `title.take(24) + "…"`, which needs none of the blacklisted keywords of rule 2 to cut the
- *     address. Line equality also catches `end = 0.dp`, the near miss a `"padding" in line` would
- *     wave through;
- *  2. nothing bounds that `Text` — no `maxLines`, no `overflow`, no `softWrap`. Rule 1 already
- *     rejects them; this one is kept because it names the damage when a bound is what was added,
- *     instead of printing two lists to diff. The title is usually an e-mail address, and an ellipsis
- *     on an address ("alexandra.billerey@…") makes it unreadable: a long title must wrap, not be cut.
- *
- * THE FALSE RED, and it is by construction: rule 1 pins the source layout too, so writing the very
- * same fix on one idiomatic line — `Text(title, modifier = Modifier.padding(end = 16.dp))` — FAILS
- * this test although it renders identically, pixel for pixel. That is the price of the equality, and
- * the only thing holding that formatting: this repo has neither ktlint nor spotless. If you meant to
- * reflow it, reflow [TITLE_SLOT] with it — but read rule 1 first and check nothing else moved.
- *
- * `DetailScaffold` roofs the twelve settings screens, so this is one place for all of them.
  */
 class SettingsDetailTitleInsetTest {
 
@@ -85,9 +52,6 @@ class SettingsDetailTitleInsetTest {
 
     /**
      * The body of `DetailScaffold`'s `title = { … }` slot, braces balanced, comments cut.
-     *
-     * Every step fails LOUDLY: a rule that cannot find what it pins must say so rather than pass
-     * over an empty string.
      */
     private fun titleSlot(): String {
         val code = code(SETTINGS_SCREEN)
@@ -191,8 +155,6 @@ class SettingsDetailTitleInsetTest {
 
         /**
          * The whole body of the title slot, normalised (trimmed, trailing comma dropped, blank and
-         * comment lines cut). Pinned as a LIST, so a line added beside the inset — the chained
-         * `.offset` — and a line changed — the truncated argument — both fail.
          */
         private val TITLE_SLOT = listOf(
             "Text(",

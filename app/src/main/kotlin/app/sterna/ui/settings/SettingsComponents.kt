@@ -328,10 +328,6 @@ fun AccountRow(
 
 /**
  * A read-only value the user has to carry out of the app — today the relay push address (#177).
- * Tapping anywhere on the row copies it and confirms with [copiedMessage].
- * Deliberately not a [SettingTextField]: in an edit box a stray keystroke silently changes what
- * will be pasted elsewhere. The value wraps rather than ellipsising, since half a URL cannot be
- * checked against the one pasted into the relay, and it is selectable.
  */
 @Composable
 fun SettingCopyableRow(
@@ -455,10 +451,6 @@ fun <T> SettingChoiceDialog(
 
 /**
  * The question a form with its own Save button asks when the user leaves with edits still unwritten
- * (#34). Shared by the account editor, the filter rules and the vacation responder.
- * @param message what is at stake, in the wording of the screen that asks.
- * @param canSave whether saving is possible right now (a half-filled account, a write in flight).
- *   Disabled rather than hidden: hiding the button would look like the offer moved.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

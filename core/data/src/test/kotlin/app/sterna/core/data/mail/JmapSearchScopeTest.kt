@@ -10,29 +10,6 @@ import java.io.File
 
 /**
  * A JMAP account searched before its folder list came back, and the two things that go wrong
- * together: the search spreads where it promised not to go, and the screen states a total about it.
- *
- * A JMAP search does not walk folders — it sends ONE query for the whole account and names the
- * folders to leave out (Trash, Junk) as ids read from the folder cache. With an empty cache there is
- * nothing to name, so the query carries no exclusion at all and the server answers with the deleted
- * mail included. That is the mirror image of the IMAP failure pinned in
- * [SearchNeverSyncedAccountTest] — too wide instead of too narrow — and it costs the same thing: the
- * count on screen describes something other than what the screen says it shows.
- *
- * The fix is not to refuse the search: searching too wide while SAYING so beats not searching, which
- * is already the trade the IMAP path makes with its inbox fallback. What is pinned here is that the
- * answer stops being called whole.
- *
- * The scope is one of three reasons it may not be. The other two are the server's own: a query that
- * matched as many ids as the caller's cap stopped AT that cap, and a get that handed back fewer
- * objects than the query matched left the list short of what matched. Both are read off the count
- * `Email/query` reported (`JmapClientTest` pins that the client surfaces it), never off the objects
- * that came back, and a server that reported no count at all buys no total either.
- *
- * Half of that can be asserted by calling the code and half cannot, exactly as in
- * [SearchNeverSyncedAccountTest]: the decision is called, the wiring is read out of the shipped
- * source because `MailRepository` opens shared preferences in its constructor and cannot be built in
- * a JVM test.
  */
 class JmapSearchScopeTest {
 
@@ -53,8 +30,6 @@ class JmapSearchScopeTest {
 
     /**
      * The never-synced account: nothing cached, so nothing to exclude, so the server searches the
-     * whole account — deleted and refused mail included. The results are still shown, they are just
-     * no longer presented as the account's answer.
      */
     @Test fun `a search on an account with no cached folder excludes nothing and cannot be stated as a total`() {
         val cached = folders()
@@ -67,9 +42,6 @@ class JmapSearchScopeTest {
 
     /**
      * The decisive witness. An account that simply has neither Trash nor Junk excludes nothing, like
-     * the never-synced one — and its cache is complete, its search covered exactly what it claims.
-     * Read the coverage off the exclusion list and this account is downgraded to "at least N" on
-     * every search it will ever run; read it off the folder list and it gets the total it is owed.
      */
     @Test fun `an account holding neither Trash nor Junk excludes nothing and is still owed its total`() {
         val cached = folders("i" to "inbox", "a" to "archive", "x" to null)
@@ -80,9 +52,6 @@ class JmapSearchScopeTest {
 
     /**
      * The cap still refuses a total on its own, for a cache that is beyond reproach: a full page
-     * means the server stopped counting, not that the account holds exactly that many. It is the
-     * QUERY's count that hit the cap — a query that matched 50 and a get that returned 49 of them is
-     * still a capped search, so the cap is read on the count the server matched.
      */
     @Test fun `a full page is not a total even on a cached account, one hit under the cap is`() {
         val cached = folders("i" to "inbox", "t" to "trash")
@@ -94,10 +63,6 @@ class JmapSearchScopeTest {
 
     /**
      * The two counts a JMAP search comes back with are not one number: `Email/query` matches ids,
-     * `Email/get` fetches objects, and the get returns fewer when the server caps it or when a
-     * message is destroyed between the two calls. 50 matched under a cap of 50 is capped; 50 matched
-     * and 49 handed back is a list that is not what matched. Neither is a total, and the count on
-     * screen must not be read off the shorter list as though the difference did not exist.
      */
     @Test fun `a get that brought back less than the query matched is not a total`() {
         val cached = folders("i" to "inbox", "t" to "trash")
@@ -109,9 +74,6 @@ class JmapSearchScopeTest {
 
     /**
      * The server said nothing about how many ids matched — no `ids` array at all. "It did not say"
-     * is not "it matched none": an answer built on it cannot be a total, and an EMPTY one above all,
-     * which would otherwise reach the screen as the flat "No results" the empty state states as a
-     * fact.
      */
     @Test fun `a server that never said how many ids matched cannot be quoted for a total`() {
         val cached = folders("i" to "inbox", "t" to "trash")
@@ -126,11 +88,6 @@ class JmapSearchScopeTest {
 
     /**
      * The one that cannot be called. Two ways to get this wrong, and both compile: judging the
-     * answer on the CAP alone (what the branch did — `hits.size < limit`, blind to the scope), or
-     * judging it on the EXCLUSION list, which is empty for a never-synced account and for an account
-     * with no Trash alike. The verdict must be fed the raw folder list, and the exclusions must keep
-     * being derived from that same list — two reads of the folder cache would drift apart, which is
-     * the very defect this branch shipped.
      */
     @Test fun `the JMAP branch judges its answer on the folder list, not on the exclusions derived from it`() {
         val source = jmapSearchBranch()
@@ -168,9 +125,6 @@ class JmapSearchScopeTest {
 
     /**
      * The JMAP half of `search(credentials, query, limit)`: from the connection that opens it to the
-     * unified `search(accounts, …)` that follows. Every marker is asserted, so a rename fails the
-     * test loudly instead of handing back an empty slice that every `contains` would then fail on
-     * for the wrong reason.
      */
     private fun jmapSearchBranch(): String {
         val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt").readText()

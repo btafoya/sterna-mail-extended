@@ -7,29 +7,6 @@ import java.io.File
 
 /**
  * A draft id never leaves the composer under an account other than the one it was read from
- * (#31 × #63) — SOURCE LINT, the last resort, for [DraftVerdictWiringTest]'s reason: nothing in
- * this module can instantiate `ComposeViewModel` (an `AndroidViewModel`, no Robolectric here).
- *
- * The decision itself is EXECUTED in `core:data`
- * ([app.sterna.core.data.mail.unlessDraftBelongsElsewhere] and
- * [app.sterna.core.data.mail.carriedDraftAccountId], run by `SendDraftTargetTest`). What no
- * executable test can see is whether this class still ASKS it, at all three places that write a
- * draft id somewhere durable, and WHICH two accounts it hands over — an inverted pair of arguments
- * compiles, reads well, and disarms the guard completely.
- *
- * The defect, in one sentence: the "From" picker offers the identities of EVERY account and
- * switching it resets nothing, so a draft opened in account A and then sent, scheduled or re-saved
- * as B took A's draft id into an operation carried out under B — a new copy on B, and an order to
- * destroy A's id addressed to B's server (spared in silence on JMAP; on IMAP a bare number in B's
- * own Drafts, which two accounts of one server can hold under the same UIDVALIDITY).
- *
- * Arguments are parsed out of each call and compared WHOLE, never `contains`: a substring rule is
- * blind to every mutation that lengthens a line, and `?: credentials.id` appended to the account
- * would sail through one while restoring the defect outright.
- *
- * NOT covered here: what the repository and the delivery worker do with the pair (pinned in
- * `core:data`), and the on-device gesture — open a draft in A, switch "From" to B, save: two
- * drafts, one in each account's Drafts, and neither destroyed.
  */
 class DraftAccountCarriedWiringTest {
 
@@ -199,9 +176,6 @@ class DraftAccountCarriedWiringTest {
 
     /**
      * \u26d4 The guard must be the LAST link: `linesNaming` selects the lines that name it, so a
-     * link appended on the NEXT line is invisible to every rule above —
-     * `.let { if (it.emailId == null) SendDraftTarget(editingDraftId, editingDraftUidValidity) else it }`
-     * hands the withheld pair straight back, and the id crosses to the other account again.
      */
     private fun assertEndsTheChain(body: String) {
         val lines = body.lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("//") }

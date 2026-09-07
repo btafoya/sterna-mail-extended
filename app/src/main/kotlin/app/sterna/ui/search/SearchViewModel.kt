@@ -19,8 +19,6 @@ sealed interface SearchState {
     data object Searching : SearchState
     /**
      * [query] is the query these results came from — NOT the one being edited, so the folded panel
-     * always describes what is in the list. [complete] is false when the search stopped short, and
-     * the count then says "at least" instead of claiming a total.
      */
     data class Results(
         val query: SearchQuery,
@@ -32,8 +30,6 @@ sealed interface SearchState {
 
 /**
  * Lazy-list key for a result row. Account + id, never the id alone: search spans every account and
- * deduplicates by (accountId, id), so the same JMAP id legitimately appears twice and a duplicate
- * key in a lazy list throws (#92).
  */
 internal fun searchResultKey(email: Email): String = "${email.accountId}|${email.id}"
 
@@ -45,9 +41,6 @@ private const val SEARCH_LIMIT = 200
 
 /**
  * One criterion as the screen opens: what was [saved] wins over the [argument] the caller navigated
- * with. The precedence is only visible after a process death — the caller's argument stays attached
- * to the entry for ever, so preferring it would overwrite the user's edit each time the process came
- * back. An absent saved value is not an empty one: a field cleared on purpose must stay cleared.
  */
 internal fun initialCriterion(saved: String?, argument: String?): String = saved ?: argument.orEmpty()
 
@@ -56,8 +49,6 @@ const val SEARCH_QUERY_ARG = "q"
 
 /**
  * Nav argument: the address the screen opens on, so "search this sender" lands on a search that is
- * already about that sender. It behaves exactly like [SEARCH_QUERY_ARG] and deliberately not one
- * step further: it fills the criterion and stops there.
  */
 const val SEARCH_FROM_ARG = "from"
 

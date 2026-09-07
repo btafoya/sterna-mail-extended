@@ -9,10 +9,6 @@ import app.sterna.ui.theme.applyPureBlack
 
 /**
  * WHICH pre-built background the cell asks for — three named states, not a colour.
- * `setBackgroundColor` REPLACES the shape drawable with a flat fill and `setBackgroundTintList` is
- * API 31 against a minSdk of 26, so the background travels as `setBackgroundResource`. The
- * consequence, deliberate: under Material You the text colours follow the wallpaper while the
- * background stays Arctic / Pelagic / black, there being no drawable for a runtime colour.
  */
 internal enum class WidgetSurface { Light, Dark, Black }
 
@@ -56,12 +52,6 @@ internal fun widgetPalette(scheme: ColorScheme, dark: Boolean, pureBlack: Boolea
 
 /**
  * What ONE reading of the colours learnt: the override to post — null meaning post nothing, the
- * resources already holding the right colours — and the badge tones, which are NEVER null.
- *
- * The asymmetry is the point: a palette may be withheld because the launcher re-resolves the
- * resources at every inflation, for free, with this process dead. A BITMAP has no resource behind
- * it, so tones withheld are a badge NOT DRAWN — and the row that withholds the palette is the
- * default install.
  */
 internal data class WidgetColours(val palette: WidgetPalette?, val monogramRamps: List<ToneRamp>)
 
@@ -74,17 +64,6 @@ internal fun widgetMonogramRamps(scheme: ColorScheme, dark: Boolean, pureBlack: 
 
 /**
  * Does the app's theme AGREE with the system's, so that the cell needs no override at all?
- *
- * The decision the whole pane turns on, and easy to read as a special case worth deleting. The
- * override exists ONLY to say that the app DIVERGES from the system, and the three settings are
- * exactly the three ways it can; with none of them [widgetPalette] returns, by construction, what
- * `res/values` and `res/values-night` already hold, so posting nothing is the identical drawing.
- *
- * And it buys what the palette costs: a palette is posted as literal values FROZEN into a cached
- * `RemoteViews`, the surface drawables have no `-night` twin and nothing listens for a configuration
- * change, so a reader on the DEFAULT settings whose phone switches to dark at dusk would watch both
- * cells stay light until the next message. Answering `true` hands that row back to the launcher —
- * the reason no configuration receiver is needed, and why this may not be "simplified" away.
  */
 internal fun widgetFollowsResources(themeMode: ThemeMode, pureBlack: Boolean, dynamicColor: Boolean): Boolean =
     themeMode == ThemeMode.SYSTEM && !pureBlack && !dynamicColor

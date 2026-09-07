@@ -937,8 +937,6 @@ class MailRepository(
 
     /**
      * App-layer teardown for a folder the server has renumbered (#99). Without it the next push pass diffs
-     * the folder's new ids against the old baseline and re-announces read mail. Set by the app layer at
-     * startup.
      */
     var onMailboxRenumbered: ((String, String) -> Unit)?
         get() = imap.onMailboxRenumbered
@@ -973,8 +971,6 @@ class MailRepository(
 
     /**
      * Advance the affected mailboxes' stored emailState to what a local mutation returned, so the next
-     * `Email/changes` doesn't re-report our own change and revert the optimistic write. Null (IMAP) is a
-     * no-op.
      */
     private fun advanceEmailState(newState: String?, accountId: String, vararg mailboxIds: String?) {
         val s = newState ?: return
@@ -1154,8 +1150,6 @@ class MailRepository(
 
     /**
      * Apply an account's sync window once a refresh has landed: drop what falls outside it, EXCEPT [freshIds]
-     * (#110), the recently-mutated spare (read here — it is the prune's only reachable victim) and the
-     * [keepNewest] newest rows, which share [cutoffMillis]' window.
      */
     private suspend fun pruneRetention(
         accountId: String,
@@ -1254,8 +1248,6 @@ class MailRepository(
 
     /**
      * The UIDVALIDITY this folder was last observed under, or null — for the notification pre-pass, which
-     * cannot see a renumbering any other way: `fetchPreview` swallows the refusal, so the second message of
-     * the same pass would show the opening of somebody else's mail (#99).
      */
     suspend fun recordedNumbering(accountId: String, mailboxId: String): Long? =
         imap.recordedUidValidity(accountId, mailboxId)
@@ -1314,8 +1306,6 @@ class MailRepository(
 
     /**
      * Live unread across every account's inbox, ONE ENTRY PER ACCOUNT. JMAP inboxes contribute the same
-     * mode-aware aggregate their own badge shows; IMAP inboxes their stored server counter, since a windowed
-     * cache would under-count. See [unreadByAccountFrom].
      */
     fun observeUnifiedInboxUnreadByAccount(scopes: List<Pair<String, String>>): Flow<Map<String, Int>> {
         val conversationView = settings?.conversationView ?: flowOf(true)
@@ -1335,8 +1325,6 @@ class MailRepository(
 
     /**
      * Cached mailboxes of [accountId], updated reactively. JMAP folders carry a live local
-     * [Mailbox.unreadForList] (unread past the sync window is not counted, WYSIWYG); IMAP folders keep the
-     * stored server counter, since their partial cache would make a local count wrong.
      */
     fun observeMailboxes(accountId: String): Flow<List<Mailbox>> =
         if (isImapAccount(accountId)) {
@@ -1349,8 +1337,6 @@ class MailRepository(
 
     /**
      * Paged list of cached emails for [scopes] — the unified inbox's (account id, inbox id) pairs. PAIRS, not
-     * bare folder ids (#121): a folder id alone matches rows of accounts not in this list at all, a sibling
-     * numbered the same or one the user has removed. See [folderScopeSql].
      */
     fun pagedMailbox(
         scopes: List<Pair<String, String>>,
@@ -1509,8 +1495,6 @@ class MailRepository(
 
     /**
      * The keys "Select all" may take outside a search: the rows the flat list is PAGING, through
-     * [selectionIdsQuery] — the same WHERE clause, so the unread and snooze filters reach the selection
-     * (#126).
      */
     suspend fun selectableIds(scopes: List<Pair<String, String>>, unreadOnly: Boolean): List<EmailKey> =
         emailDao.keysForSelection(selectionIdsQuery(scopes, unreadOnly))
@@ -1518,8 +1502,6 @@ class MailRepository(
 
     /**
      * The keys of the unread messages this phone HOLDS in the given scopes — what "mark all read" patches on
-     * screen, while [unreadIds] resolves the folder-wide set to actually mark. Bounded by the same
-     * [UNREAD_RESOLVE_MAX].
      */
     suspend fun cachedUnreadKeys(scopes: List<Pair<String, String>>): List<EmailKey> {
         return scopes.flatMap { (accountId, mailboxId) ->
@@ -1529,8 +1511,6 @@ class MailRepository(
 
     /**
      * What one new-mail notification pass over [mailboxId] reads: the rows it may announce, and the ids it
-     * must remember (`NotifyCandidates.kt` says why those are two bounds). ONE floor for both, since read at
-     * two instants the id read could miss a row the hydrated read included.
      */
     suspend fun notifyRead(accountId: String, mailboxId: String): NotifyRead {
         val since = notifyCandidateFloor(System.currentTimeMillis())
@@ -1571,8 +1551,6 @@ class MailRepository(
 
     /**
      * Every unread message id in [mailboxId], resolved SERVER-side (uncollapsed Email/query on `notKeyword
-     * $seen`, paginated and bounded), so "Mark all read" reaches unread mail the cache doesn't hold. Falls
-     * back to the cached rows on failure; IMAP always uses the cache.
      */
     suspend fun unreadIds(credentials: AccountCredentials, mailboxId: String): List<String> {
         // Bounded by the SAME [UNREAD_RESOLVE_MAX] as the server walk below: one question, one size.
@@ -1606,8 +1584,6 @@ class MailRepository(
 
     /**
      * Crawl the whole mailbox's HEADERS into the local search index so as-you-type search covers all mail
-     * instantly and offline. Headers only; body matches are NOT indexed locally — the live search unions in
-     * the server's full-text results. JMAP only, throttled by [INDEX_TTL_MS].
      */
     suspend fun syncSearchIndex(
         credentials: AccountCredentials,
@@ -1760,8 +1736,6 @@ class MailRepository(
 
     /**
      * Resolve a manually-entered JMAP server to the value to persist as the account's `server`: the first
-     * session-URL candidate whose session parses and carries a mail account. Rethrows the first failure when
-     * none works.
      */
     suspend fun resolveJmapServerInput(serverInput: String, auth: JmapAuth): String {
         val candidates = Jmap.sessionUrlCandidates(serverInput)
@@ -1783,8 +1757,6 @@ class MailRepository(
 
     /**
      * The address the server itself associates with [auth] at [server]: the session's `username` (RFC 8620
-     * §2), else the primary mail account's name — whichever looks like an email address. Token sign-ins adopt
-     * this over the typed address, which Bearer auth never validates (#54).
      */
     suspend fun sessionIdentity(server: String, auth: JmapAuth): String? {
         val session = client.fetchSession(Jmap.sessionUrlFor(server), auth)
@@ -1814,8 +1786,6 @@ class MailRepository(
 
     /**
      * OAuth metadata for a host, or null if it advertises none. One that advertises OAuth without a
-     * device-authorization endpoint is returned AS IS, `supportsDeviceFlow` false. [addressDomain] BOUNDS
-     * what the document may name; passed in, never derived from [host].
      */
     suspend fun discoverOAuth(host: String, addressDomain: String): OAuthMetadata? =
         oauthClient.discoverMetadata(host, addressDomain)
@@ -1830,8 +1800,6 @@ class MailRepository(
 
     /**
      * The URL the browser is sent to for the authorization-code grant, with Sterna's client id and scopes.
-     * Pure. The endpoint check only makes a caller that skipped `supportsCodeFlow` fail on a sentence rather
-     * than a null.
      */
     fun authorizationUrl(
         metadata: OAuthMetadata,
@@ -1925,8 +1893,6 @@ class MailRepository(
 
     /**
      * Run a provider device flow to completion: start it, hand the user code to [onCode], then poll until the
-     * grant is approved, refused, or expires. Fails with [OAuthDeniedException], carrying the parsed error /
-     * AADSTS code.
      */
     suspend fun runProviderDeviceFlow(
         provider: OAuthProvider,
@@ -1950,8 +1916,6 @@ class MailRepository(
 
     /**
      * Validate freshly granted OAuth [tokens] against [provider]'s IMAP server with XOAUTH2, then persist an
-     * IMAP/SMTP account and prime its inbox cache. Throws (persisting nothing) if the token is rejected.
-     * Returns true when THIS add created it — see [addOAuthAccount].
      */
     suspend fun addOAuthImapAccount(
         provider: OAuthProvider,
@@ -2198,8 +2162,6 @@ class MailRepository(
 
     /**
      * The outcome of ONE best-effort origin read (#160): [header] is what was found, [succeeded] whether the
-     * read HAPPENED at all. A null from a failed read, cached, would say "no origin" for ever — `openMessage`
-     * serves that cache before any network call ([cachesBodyAfterOriginRead]).
      */
     private class OriginRead(val header: String?, val succeeded: Boolean)
 
@@ -2266,8 +2228,6 @@ class MailRepository(
 
     /**
      * The same read for MANY messages, keyed by id: ONE grouped `Email/get`, best effort, cancellation
-     * rethrown untouched. `null` on failure and not an empty map — see [cachesBodyAfterOriginRead]. Not
-     * twenty single calls: this runs on every inbox refresh.
      */
     private suspend fun originalSendersOf(ctx: Context, emails: List<Email>): Map<String, String?>? = try {
         val byId = client.getEmailsHeaders(ctx.session, ctx.accountId, emails.map { it.id }, ctx.auth)
@@ -2465,8 +2425,6 @@ class MailRepository(
 
     /**
      * Structural check for OpenPGP content on an already-fetched [Email]. Public because the reader's cache
-     * warm-up must ask the same question before painting a cached body on a page the finger has not reached,
-     * and two copies of "is this PGP?" would drift.
      */
     fun cryptoKindOf(email: Email): CryptoKind? {
         val parts = email.attachments
@@ -3723,8 +3681,6 @@ class MailRepository(
 
     /** Move [email] from [source] into [targetMailboxId] of [target], another account (#189): a copy
      *  confirmed on B, then the original trashed on A. The ORDER is [crossAccountMove]; the copy carries
-     *  A's flags and date. IMAP: one APPEND, never replayed, named by `[APPENDUID]` or found back by
-     *  `Message-ID`. [frozen] travels to the two steps that touch A's mail, the READ and the BIN: refused
      *  on the read nothing is written on B; refused at the bin the user keeps a duplicate. */
     suspend fun moveToAccount(
         source: AccountCredentials,
@@ -4309,8 +4265,6 @@ class MailRepository(
 
     /**
      * Save a draft — on the phone first, then on the server, always (#95). A failed upload keeps
-     * the row, returns [DraftSaveOutcome.KEPT_ON_DEVICE] and does not throw, changing nothing on
-     * the SERVER. With [replacesEmailId] (#63) the old draft dies only once a FAITHFUL one exists.
      */
     suspend fun saveDraft(
         credentials: AccountCredentials,
@@ -4437,8 +4391,6 @@ class MailRepository(
 
     /**
      * Bring ONE account's rows back from a process death mid-upload or mid-staging (#95), never
-     * globally. TWO statements: a row rescued from `STAGING` cannot refill its `attachmentsJson`,
-     * so it returns `bodyIsLossy` or the upload destroys the original. `EDITING` is in neither.
      */
     suspend fun revertUnfinishedLocalDrafts(accountId: String) {
         localDraftDao.revertUploadingToPending(accountId)
@@ -4733,8 +4685,6 @@ class MailRepository(
 
     /**
      * Was the draft [emailId] PROVABLY addressed to nobody but the people the composer is showing?
-     * "Addressing" is the COPIED parties: a Cc may be on the server copy and on no screen. Its
-     * `false` answers "addressed to somebody" AND "could not find out"; both keep the server copy.
      */
     suspend fun emptiedDraftAddressingIsProvenEmpty(
         credentials: AccountCredentials,
@@ -4755,9 +4705,6 @@ class MailRepository(
 
     /**
      * Discard a draft the user emptied while editing it (#69): the same permanent server+cache
-     * destroy the edit-replace flow uses, and unlike a plain [delete] nothing in Trash either.
-     * [frozenUidValidity] is the numbering the caller froze, and A REFUSAL IS NOT A FAILURE.
-     * KEEP THE BLOCK BODY: `ImapDestroyUnderNumberingTest`'s rules cannot delimit an expression.
      */
     suspend fun discardDraft(credentials: AccountCredentials, emailId: String, frozenUidValidity: Long?) {
         destroyDraft(credentials, emailId, frozenUidValidity)
@@ -5010,8 +4957,6 @@ class MailRepository(
 
     /**
      * Park a row taken out with [takeOutboxForEdit] in [state] instead of giving it back to the
-     * queue (#95 × #70): the composer saved the message as a draft the upload could not place, so
-     * it must stay visible and must NOT leave. The state, and NOTHING else; only EDITING parks.
      */
     suspend fun parkOutboxEdit(id: Long, state: OutboxState) {
         val row = outboxDao.byId(id) ?: return
@@ -5021,9 +4966,6 @@ class MailRepository(
 
     /**
      * Park a row whose edit was INTERRUPTED: the composer closed over a body it had lost, on the
-     * app's own advice, and the row is the only copy. NOT [releaseOutboxEdit], and that is the
-     * whole fix: released, the row is re-armed at 0 and delivers the message she was told to
-     * reopen. FAILED at [OutboxLogic.MAX_ATTEMPTS], the cap [OutboxLogic.stateAfterEdit] trusts.
      */
     suspend fun parkInterruptedOutboxEdit(id: Long) {
         val row = outboxDao.byId(id) ?: return
@@ -5034,8 +4976,6 @@ class MailRepository(
 
     /**
      * Startup recovery (#70): PARK every row stranded in EDITING by a process death — FAILED at the
-     * cap, reason [OutboxLogic.EDIT_INTERRUPTED] — so [unfinishedOutbox] re-arms none. Not back
-     * to QUEUED, which delivers what the restored composer can send again. Exhausted rows first.
      */
     suspend fun parkInterruptedOutboxEdits() {
         outboxDao.revertEditingExhaustedToFailed(OutboxLogic.MAX_ATTEMPTS)
@@ -5464,8 +5404,6 @@ class MailRepository(
 
     /**
      * Whether the filter rules are actually running server-side, and whether the vacation responder
-     * is a Sieve script (a server keeps ONE active script per account). A FAILED read answers
-     * `null`, NOT "nothing known" — the callers apply [refreshedFilterWarning].
      */
     suspend fun loadFilterScriptStatus(credentials: AccountCredentials): FilterScriptStatus? {
         if (credentials.protocol == MailProtocol.IMAP) return FilterScriptStatus()

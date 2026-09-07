@@ -6,15 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. Everything it pins is EXECUTED elsewhere — the order of the
- * four steps and IMAP's refusal by [ImapFullQueryWriteThroughTest], the walk itself by
- * `core:imap`'s `FolderWalkOnTheWireTest` and `FolderWalkDecisionTest`. What no JVM test can reach
- * is `MailRepository` (Room, an Android `Context`, a live IMAP connection) and `ImapMailService`
- * (whose collaborator is a concrete socket client), so the plug between the two is read here.
- *
- * Whole lines and never a fragment: a `contains` on a fragment is blind to every mutation that
- * LENGTHENS the line, and the plausible wrong versions here all do — `limit` swapped for a
- * constant, `reconcilableIds(...)` replaced by `load.walk.uids.toHashSet()`, a `?: emptySet()`
- * slipped in front of the refusal.
  */
 class ImapWindowWiringTest {
 
@@ -38,30 +29,9 @@ class ImapWindowWiringTest {
         //
         // The FIRST line is the one the unified inbox turns on. This function ends in a
         // reconcile, which DELETES every cached row it is not given, and `refreshAllInboxes`
-        // reaches it with a hard-coded 50 that has nothing to do with the user's setting. On an
-        // account set to "Everything" that is three gestures from losing the folder: pull on the
-        // folder, tap "All inboxes", come back — the walk brings 50 rows and the reconcile removes
-        // everything else. The window is therefore read on the ACCOUNT here, exactly as the JMAP
-        // full query does it (`fullQueryWindowTarget`, same function).
         //
         // Each argument carries one property:
         //  - folderIds: the folder as it stood BEFORE the walk, which bounds what the reconcile
-        // may DELETE (#165). NULL on an unnamed folder, never `emptySet()`: null means "no
-        //    bound", an empty set would mean "evict nothing" and would switch the reconcile off.
-        //    `credentials.id` here, never another account's, and `mailboxId` — NOT
-        //    `load.targetMailboxId`, which does not exist yet when this lambda is read;
-        //  - walk: `loadFolder` must receive `onPage`, or nothing streams and nothing is bounded;
-        //  - writePage: `upsertAll`, NEVER `replaceMailbox` — the latter DELETES what it is not
-        //    given, so a per-page call would empty the folder down to its last page every refresh;
-        //  - keepIds: `reconcilableIds`, which answers null on a folder that moved under the walk.
-        //    `load.walk.uids` here instead would reconcile against a set that may be missing a
-        //    message the server still holds, and delete it;
-        //  - spareIds: a lambda, so the 45 s protection window is read AT the reconcile;
-        //  - reconcile: the folder the WALK landed on, with the keep set, the spare set, and the
-        //    bound ONLY when the walk landed on the folder that was inventoried. `loadFolder`
-        //    falls back to the inbox when the requested path is gone (a folder renamed on the
-        //    server), and bounding the inbox with another folder's inventory would evict nothing
-        //    there — the `takeIf` is that refusal, in code rather than in a comment.
         //
         // The two `checkAccountStillConfigured` lines are the sign-out guard: this walk runs for
         // minutes on a deep folder, and nothing cancels it when the account is signed out from the
@@ -143,24 +113,9 @@ class ImapWindowWiringTest {
     @Test fun `the window the caller asked for is what the folder walk is given`() {
         // The line the cartography found untested: `SyncWindow.ALL.limit` travels
         // InboxViewModel → refresh → refreshImap → imapWriteThrough → loadFolder → walkFolder, and
-        // nothing on that path may substitute a number of its own. The page size is the module's
-        // constant, NOT the window: confusing the two would either put the whole window back in one
-        // request or shrink every window to 200. What the walk then does with an unbounded window
-        // is executed on a real socket in `core:imap`
-        // (`FolderWalkOnTheWireTest.an unbounded window walks the folder to its first message`).
-        // `status`, not `status.exists`: the walk answers with `folderStatedEmpty`, and the two
-        // halves of that answer (the count, and whether the server ever stated it) must reach it as
-        // one value. Handing over the count alone let this line pair it with a provenance of its
-        // own — and a walk that reports "empty" for a folder whose size was never stated has its
-        // cache DELETED by the reconcile at the end.
         assertLine("ImapMailService", "loadFolder", "session.walkFolder(status, limit, IMAP_FOLDER_PAGE) { page ->")
         // And `status.uidValidity` travels with the page: the rows are stamped with the numbering
         // of THE SELECT THAT ENUMERATED THEM (#99). Dropped here, a cached row says nothing about
-        // what its UID means, and a later permanent delete has only the folder's current record to
-        // oppose — which a background pass has already realigned to the renumbering.
-        // And the fourth argument is the opening line READ FOR THAT ROW, looked up under the
-        // row's own cache id (#187). A literal here — or a lookup under another message's id —
-        // shows one correspondent's words under another correspondent's name.
         assertLine("ImapMailService", "loadFolder", "val preview = previews[emailId(credentials.id, target.path, it.uid)]")
         assertLine(
             "ImapMailService",
@@ -177,9 +132,6 @@ class ImapWindowWiringTest {
         //
         // `exists` stays 0 (the server said nothing), `existsObserved` becomes true, the walk then
         // STATES the folder empty, `reconcilableIds` answers the empty set, and the reconcile
-        // DELETES every cached row of the folder — the "SELECT without EXISTS" symptom whole, with
-        // the retention prune inheriting the same empty set. 300 rows to zero, no error, nothing
-        // left offline.
         //
         // Nothing executable can see it: no JVM test runs `loadFolder` (Room, an Android `Context`,
         // a live socket), `core:imap`'s wire tests drive the session directly, and the decision
@@ -206,9 +158,6 @@ class ImapWindowWiringTest {
     @Test fun `the numbering is settled before the walk, through the function that says so`() {
         // Codeberg #99, re-opened by writing pages as they land: a row of the new numbering must
         // not be visible while a body cached under the old one is still readable. The ORDER is
-        // executed by [NumberingSettlesBeforePagesTest]; what is read here is that `loadFolder`
-        // still goes through it, with the reconcile as `settle` and the walk as `walk` — swapping
-        // the two arguments would put the invalidation back after the last page.
         assertLine("ImapMailService", "loadFolder", "val walk = withNumberingSettled(")
         assertLine(
             "ImapMailService", "loadFolder",
@@ -237,9 +186,6 @@ class ImapWindowWiringTest {
     @Test fun `the folder load guards neither the walk nor the page write`() {
         // The third place the red line can be broken, and the least visible: a `runCatching` around
         // `onPage(...)` here would let a page fail to be WRITTEN while the walk carried on and
-        // finished — and the reconcile at the end would then delete every cached row that page was
-        // supposed to have re-written. The walk's own half of this is executed in `core:imap`
-        // (`a walk that fails mid-way throws, and never answers with what it had so far`).
         val body = lines("ImapMailService", "loadFolder")
         listOf("try {", "catch (", "finally", "runCatching").forEach { guard ->
             assertEquals(
@@ -272,9 +218,6 @@ class ImapWindowWiringTest {
         //
         // The second line is the one added for a walk that read NOTHING: a SELECT that never
         // stated a count, or a page whose every FETCH was unreadable, both end with no UID and
-        // nothing thrown. Deleting on that is a 300-row folder gone to zero on one pull-to-refresh.
-        // `folderStatedEmpty` is the only thing that tells it from a folder the server SAID is
-        // empty, which must still be able to clear its cache — dropping the `!` swaps the two.
         assertEquals(
             "reconcilableIds is no longer, line for line, what this was written against. Null is a " +
                 "REFUSAL to reconcile; an empty set is an instruction to delete the folder.",

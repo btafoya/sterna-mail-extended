@@ -16,15 +16,6 @@ import java.io.File
 
 /**
  * OAuth as a RESULT rather than a choice: what the credentials step asks for once the server has
- * answered, and what starts the sign-in.
- *
- * The defect: the two OAuth gestures — a button reading "Sign in with OAuth (no password)" and a
- * provider chip — both lived in the manual fallback. Since the walk only lands there when discovery
- * found NOTHING, a reader whose server wants OAuth had to know the word, guess that "Set up
- * manually" is where it hides, and find a button whose name means nothing to her.
- *
- * Every case below is HARD-CODED. A test that re-derives the rule from the metadata it feeds in
- * is a copy of the decision, and the shipped condition could be inverted under it without a red.
  */
 class OAuthHandoverDecisionTest {
 
@@ -335,16 +326,6 @@ class OAuthHandoverDecisionTest {
 
 /**
  * The OAuth search under a budget, and the address step's two probes under one clock.
- *
- * The defect these hold: `collectOAuthHosts` walks up to four hosts IN SERIES, each with the OAuth
- * client's 20 s connect + 30 s read — up to ~200 s of wheel. Behind a button nobody taps by
- * accident that was tolerable; on the path every address now takes it is the exact wheel a previous
- * version has just removed from JMAP discovery.
- *
- * The clock is virtual ([runTest]): a budget measured against a real network is not a test. Probes
- * can be made DEAF (`NonCancellable`) like the blocking OkHttp `execute()` the real one makes — a
- * fake that only ever uses a cancellable `delay` cannot tell "we stopped waiting" from "we asked
- * them to stop", and that difference is the whole defect.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class OAuthDiscoveryIsBoundedTest {
@@ -512,13 +493,6 @@ class OAuthDiscoveryIsBoundedTest {
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [ImapDiscoveryWiringTest]: `ConnectViewModel` is an `AndroidViewModel` on the app container and
- * `ConnectScreen` is a composable, and this module has neither Robolectric nor instrumented tests,
- * so neither can be run here. The decisions are EXECUTED above; what is held here is that the
- * screen and the ViewModel run THOSE decisions, with THOSE arguments.
- *
- * Every pin is a WHOLE trimmed line compared by equality and required exactly once — never a
- * `contains` on a fragment, which is blind to any mutation that lengthens the line.
  */
 class OAuthHandoverWiringTest {
 

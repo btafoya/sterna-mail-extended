@@ -16,13 +16,6 @@ internal enum class PendingExit {
 
 /**
  * Decide the next step for a "save, then leave" that is under way. [failed] wins over [dirty]: the
- * edits survive a refusal, so leaving would drop them. None of the three set means the request has
- * not reached the view model yet, so the screen keeps waiting rather than leaving on a state that
- * predates its own request.
- * @param saving a write is in flight.
- * @param dirty the edits still differ from what the server confirmed — the same flag that gates the
- *   screen's Save button, so undoing an edit by hand counts as nothing left to save.
- * @param failed the last attempt reported an error (refused by the server, invalid dates…).
  */
 internal fun pendingExitStep(saving: Boolean, dirty: Boolean, failed: Boolean): PendingExit = when {
     saving -> PendingExit.WAIT

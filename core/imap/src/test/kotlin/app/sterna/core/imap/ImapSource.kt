@@ -4,11 +4,6 @@ import java.io.File
 
 /**
  * Hands a JVM test the body of a function **as it is written in the shipped source** — the
- * `core:imap` sibling of `core:data`'s `DaoQuerySource`, cut down to the one thing needed here.
- *
- * It exists for a rule no behaviour test can state: that two functions which cannot share their
- * code — one plain, one suspending — still say the same thing. Retyping either into a test would
- * mean checking a copy the app does not run.
  */
 internal object ImapSource {
 
@@ -21,8 +16,6 @@ internal object ImapSource {
 
     /**
      * The block body of `fun [functionName]` in [fileName] (without its `.kt`), braces included,
-     * trimmed line by line. Fails loudly when the function is renamed or loses its body, rather
-     * than quietly reporting that nothing changed.
      */
     fun functionBody(fileName: String, functionName: String): List<String> {
         val text = source(fileName)
@@ -56,8 +49,6 @@ internal object ImapSource {
 
     /**
      * The declaration of `fun [functionName]` in [fileName] — from the `fun` keyword to the closing
-     * parenthesis of its parameter list, trimmed line by line. Defaults live there and nowhere else,
-     * so a rule about a DEFAULT VALUE cannot be stated by [functionBody].
      */
     fun functionSignature(fileName: String, functionName: String): List<String> {
         val text = source(fileName)

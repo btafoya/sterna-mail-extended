@@ -6,21 +6,6 @@ import org.junit.Test
 
 /**
  * "Select all" must take the list the user is looking at (#126).
- *
- * The report is destructive: filter the folder in the search bar, long-press a result, "Select
- * all", delete — and the whole folder goes to the Trash, not the handful of rows on screen. The
- * selection was built from the folder's cached ids, which the search term never entered.
- *
- * [selectAllKeys] is that choice, extracted so it can be RUN. The tests below therefore execute the
- * decision; they do not re-derive it. Note the first one: it pins the behaviour that existed before
- * #126 and had no test at all — outside a search, the folder is still the answer, because the
- * navigation list is a paging list and what it has not loaded cannot be read off it.
- *
- * NOT here, and it used to look as if it were: "a key silently rewritten onto the current account".
- * [selectAllKeys] never touches a key — it picks WHICH list to hand back — so a case claiming to
- * cover that was a strict duplicate of "a search showing results selects exactly those results",
- * with a comment describing something the function cannot do. The rewrite it named happens at the
- * call site, where the results are turned into keys, and `SelectAllWiringTest` is what holds that.
  */
 class SelectAllKeysTest {
     private val folder = listOf(EmailKey("acct-A", "f1"), EmailKey("acct-A", "f2"), EmailKey("acct-A", "f3"))

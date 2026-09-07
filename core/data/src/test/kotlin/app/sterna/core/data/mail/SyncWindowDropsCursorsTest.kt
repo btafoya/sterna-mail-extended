@@ -11,14 +11,6 @@ import org.junit.Test
 
 /**
  * Changing "Messages to sync" has to drop that account's sync cursors, because the delta branch of
- * `MailRepository.syncMailbox` never sends the window and never fetches backwards: on a folder that
- * already has a cursor, the setting was inert until the user emptied the cache by hand.
- *
- * Everything here is EXECUTED. The decision is a function ([syncWindowChanged]), the drop is a class
- * ([SyncCursors]) with a fake persisted half, so "both halves fall" and "only this account falls"
- * are run rather than read. `MailRepository` and `AccountsViewModel` cannot be built off a device;
- * the two lines that plug this in are pinned by [SyncCursorDropWiringTest] and, on the app side, by
- * `SyncWindowDropWiringTest`.
  */
 class SyncWindowDropsCursorsTest {
 

@@ -18,13 +18,6 @@ import java.util.concurrent.atomic.AtomicLong
 
 /**
  * The composer's body, parked on disk instead of in the activity's saved-state parcel. Two
- * `rememberSaveable`s carried the WHOLE body into that parcel, and `Parcel.writeString` writes UTF-16,
- * so a ~324 kB reply killed the activity with `TransactionTooLargeException`. The parcel now carries a
- * short TOKEN, which only proves the parcel and the file name the same record.
- *
- * ONE FILE PER COMPOSER: two composers are reachable, and on a shared file closing the top one
- * erased the record underneath. The file is NOT an autosave — same lifetime as the parcel, since a
- * composer typing an ENCRYPTED message keeps its cleartext there.
  */
 class ComposerResumeSlot(private val file: File) {
 
@@ -56,13 +49,6 @@ class ComposerResumeSlot(private val file: File) {
 
     /**
      * Parks [body] (caret at [selectionStart]..[selectionEnd]) and [baseline] under [token], and says
-     * whether it got there; `false` leaves no half-written file behind.
-     *
-     * THE TOKEN IS AN ARGUMENT, never minted here: the saver runs TWICE per activity recreation, so
-     * a token minted per write put the file under a name the sealed parcel could no longer ask for — a
-     * rotation coming back with an EMPTY body, silently. See [ComposerResumeState.token].
-     * Written to a neighbouring temporary and renamed, never in place: an in-place write that dies
-     * halfway leaves a header promising the old lengths.
      */
     fun write(
         token: String,
@@ -125,14 +111,6 @@ class ComposerResumeSlot(private val file: File) {
 
     // -- the format on disk -------------------------------------------------------------------
     //     sterna-composer-resume/4 <token> <selStart> <selEnd> <bodyChars> <baselineChars>\n
-    //     <body styling>|<baseline styling>\n
-    //     <body><baseline>
-    // The styling line holds neither `:` nor `\n`, so the second newline is its end whatever the body
-    // contains, and it is parsed STRICTLY; a `/1` file has no styling line. The lengths are in
-    // CHARACTERS (UTF-16 code units), and the two texts are separated by nothing.
-    // THE SHAPE OF THE LINE IS READ, NEVER ASSUMED FROM THE VERSION: two builds of #131 shipped a
-    // `/3` and did not write the same line, and a record refused for that has the composer come back
-    // EMPTY over a draft the parcel says was parked. [stylingShapeOf] decides it by the sections.
 
     private fun header(token: String, start: Int, end: Int, bodyLen: Int, baseLen: Int): String =
         "$MAGIC $token $start $end $bodyLen $baseLen\n"
@@ -247,12 +225,6 @@ class ComposerResumeState(
     baselineLinks: List<Link> = emptyList(),
     /**
      * Names the record this composer parks, minted ONCE — here — never per write.
-     *
-     * THE ROTATION DEFECT LIVES HERE: the saver runs twice per activity recreation, once when the
-     * parcel is built and once at teardown, so a token minted inside [ComposerResumeSlot.write] had
-     * the second run rename the file to something the sealed parcel could never ask for. HOME never
-     * showed it — it does not tear the composition down.
-     * Held for the life of ONE state object: a restore builds a new composer with a name of its own.
      */
     val token: String = newComposerToken(),
     /** Whether THIS composer has already lost a body on its way into a parcel (see
@@ -285,13 +257,6 @@ class ComposerResumeState(
 
 /**
  * THE DECISION, on the way out. Two forms carry the text, and a third mark carries a LOSS:
- *  - `t:<token>` — the ordinary one, the text being in the file;
- *  - `v:<start>:<end>:<bodyChars>:<styling>:<body><baseline>` — the FALLBACK, when the file could not
- *    be written and the text is small enough to travel as it did before any of this;
- *  - `l:` — THE LOSS, alone or as a PREFIX on either of them.
- * The fallback is not optional, a failed write returning `null` having parcelled nothing, and it is
- * bounded at [INLINE_LIMIT]. THE LOSS IS MARKED, BECAUSE THE FALLBACK IS NOT HARMLESS: `null` loses
- * the body while `applied` stands, so the still-lit Save destroys the server copy on a rotation.
  */
 internal fun saveComposerResume(state: ComposerResumeState, slot: ComposerResumeSlot): String? {
     if (state.closed) return null
@@ -350,11 +315,6 @@ internal fun restoreComposerResume(saved: String, slot: ComposerResumeSlot): Com
     }
     // A RECORD THE PARCEL NAMES AND THAT CAME BACK `null` IS A LOSS, NOT AN ABSENCE. `t:<token>`
     // promises that a body WAS parked, and [ComposerResumeSlot.read] collapses five causes into one
-    // `null`, none of which means "there was nothing to restore". WHAT takes the file away in
-    // ordinary use is not established. A site that cannot prove fidelity says `true`.
-    // The bound is the EMPTY token, and only that, or a parcel that never promised a body arms the
-    // loss. And it is `resume == null` that says "lost", never an empty body that came back, which
-    // is a VALUE. The same sentence for `v:`, with the same bound.
     val unreadable = resume == null && (
         (form.startsWith(TOKEN_FORM) && form.length > TOKEN_FORM.length) ||
             (form.startsWith(INLINE_FORM) && form.length > INLINE_FORM.length)
@@ -427,12 +387,6 @@ private const val LINK_LETTER = 'a'
 
 /**
  * WHICH sections one side of a styling line holds, in the one order they are ever written: the four
- * inline families, then the two block groups, then the links.
- *
- * A NAMED SHAPE, never a `Boolean` with a default. The links build carried
- * `withLinks: Boolean = true`, and the default was the trap: the next format added a section, the
- * untouched calls kept compiling, and a file read in the wrong shape is refused. Both callers now READ
- * the shape off the line and pass it.
  */
 internal enum class StylingShape(val sections: Int, val hasBlocks: Boolean, val hasLinks: Boolean) {
     /** `b;i;u;s` — a `/2` line, written before either the lists or the links existed. */
@@ -450,13 +404,6 @@ internal enum class StylingShape(val sections: Int, val hasBlocks: Boolean, val 
 
 /**
  * The shape a styling line was written in, from the LINE ALONE — no header needed, and the parcel has
- * none to offer. Four forms have ever been written, told apart by the number of sections AND the
- * letter that opens the ones past the families: four is the families alone, five adds `a` (the links),
- * six adds `U;O` (the block groups), seven is all three and what is written today.
- *
- * Everything else is `null` and the caller refuses the record: answering a shape for a line no build
- * ever wrote hands back a draft that is not what the user wrote. Only the body side is measured —
- * [decodeRanges] holds BOTH sides to that one shape.
  */
 internal fun stylingShapeOfLine(line: String): StylingShape? {
     val sections = line.substringBefore('|').split(';')
@@ -479,9 +426,6 @@ internal fun stylingShapeOfLine(line: String): StylingShape? {
 
 /**
  * `b0-4,9-12;i;u;s;U1-3;O;a2-6-https%3A%2F%2Fx|b;i;u;s;U;O;a`: the body's four inline families in
- * declaration order, then its bullet and numbered runs, then its links, then `|`, then the baseline's
- * seven sections. Spans are `start-end` (half-open, characters), block runs `first-last` (INCLUSIVE,
- * line indices), links `start-end-URL` percent-encoded. Neither `:` nor `\n` ever appears in it.
  */
 internal fun encodeRanges(body: RichBody, baseline: RichBody): String =
     encodeSide(body) + "|" + encodeSide(baseline)
@@ -497,8 +441,6 @@ private fun encodeSide(rich: RichBody): String =
 
 /**
  * Percent-encoding of everything outside `A-Za-z0-9._~`, over the UTF-8 bytes — the `-` included,
- * because it separates the two bounds from the URL. `|`, `;`, `,` and `-` each cut this line
- * somewhere, and a URL is free to contain all of them.
  */
 private fun encodeLinkUrl(url: String): String {
     val out = StringBuilder(url.length + 8)
@@ -549,11 +491,6 @@ internal data class DecodedStyling(
 
 /**
  * STRICT inverse of [encodeRanges], in the [shape] the caller has identified: exactly two parts, then
- * exactly [StylingShape.sections] sections each, each opened by its letter, every span and block run
- * within the text they style, every link with a URL the STRICT face of the guard accepts.
- *
- * BOTH SIDES ARE HELD TO THE ONE SHAPE, and anything else is `null`: a guessed styling is a draft
- * that is not what the user wrote, and a guessed URL an address she never typed.
  */
 internal fun decodeRanges(
     line: String,
@@ -630,11 +567,6 @@ private fun decodeBlocks(groups: List<String>, length: Int): List<Block>? {
 
 /**
  * THE THIRD BORDER OF THE URL GUARD. What comes out of here is a `Link` the composer hands to the
- * next send, which writes it as `<a href="…">`, so this file is as much a border as
- * [app.sterna.core.data.text.fromHtml] and uses the same STRICT face. Never `normalizeLinkUrl`:
- * this border did not watch anyone type, so it may not invent a scheme.
- *
- * No hostile producer is claimed; what is claimed is that the guard is at EVERY border.
  */
 private fun decodeLinks(section: String, length: Int): List<Link>? {
     if (section.isEmpty() || section[0] != LINK_LETTER) return null

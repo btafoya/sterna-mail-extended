@@ -7,30 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads three source files as text and proves nothing about
- * what is drawn. Same instrument and disclaimer as [ListMonogramWiringTest].
- *
- * The reading-mode setting of #149 has its decisions run elsewhere:
- * `SettingsBackupPlainTextTest` executes the default, the stored key and the backup field, and
- * `ReaderBodyTest` executes the two functions that resolve the setting and the per-message
- * deviation. What NOTHING in this module can run is the plumbing between them: nothing builds a
- * `SettingsRepository` (it needs a DataStore on a device), `SettingsViewModel` is an
- * `AndroidViewModel` reaching into the application container, and the screen is Compose code. Four
- * silent edits this file exists to catch:
- *
- *  1. the flow fed by a NEIGHBOURING decision function — `map(::replyBarFrom)` compiles perfectly
- *     here, and leaves the switch flipping back by itself while the reply-bar switch quietly
- *     changes how every message is rendered;
- *  2. the setter writing a constant instead of its argument: the switch flips and springs back;
- *  3. the default written out as a literal in the view model — a second copy, free to disagree with
- *     the repository for as long as DataStore takes to answer, so the switch shows the wrong
- *     position on entry;
- * 4. the field dropped from `snapshotBackup` or from `restoreBackup`: re-importing one's own
- *     settings then silently turns the mode off, and every value test stays green.
- *
- * Every rule compares WHOLE lines (trimmed, nothing else), never a `contains` for something it
- * expects to find: a substring check is blind to any mutation that LENGTHENS the line, and
- * `initialValue = PLAIN_TEXT_DEFAULT || true` is exactly such a mutation. `contains` appears only
- * where this file screens for something that must be ABSENT.
  */
 class PlainTextReadingWiringTest {
 

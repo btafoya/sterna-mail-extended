@@ -9,8 +9,6 @@ import java.nio.file.Files
 
 /**
  * Taking a queued message out to edit it must never lose an attachment (#70). The row itself stays
- * in the queue (marked EDITING) with its durable dir intact, so the take only has to hand the
- * composer readable, sendable copies — and must refuse rather than silently drop one it can't read.
  */
 class OutboxEditTest {
     private fun tempDir(name: String): File = Files.createTempDirectory(name).toFile()

@@ -9,19 +9,6 @@ import java.io.File
 
 /**
  * Step 2 after a hand-over that ended without an account, and Back while one is on screen.
- *
- * The two defects, both measured at the bench on the default path (a server that signs in through a
- * browser), both one gesture from the start:
- *
- *  A — Cancel on the hand-over panel gave back the address field and a BARE WHEEL, still turning
- *      40 s later with nothing loading behind it. The step drew a wheel for anything that was not
- *      the password field, and Cancel changes neither the step nor the server's answer.
- *  B — the system Back gesture on that panel left the APP: the walk's `BackHandler` is composed
- *      after the panels' `return@Column`, so while a panel owns the screen no handler is composed
- *      at all and the system pops the screen, with the sign-in still in flight behind it.
- *
- * Every case is HARD-CODED. A test that re-derives the rule from what it feeds in is a copy of
- * the decision, and the shipped condition could be inverted under it without a red.
  */
 class CredentialsPaneTest {
 
@@ -277,18 +264,6 @@ class CredentialsPaneTest {
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as [OAuthHandoverWiringTest]:
- * `ConnectScreen` is a composable and this module has neither Robolectric nor instrumented tests,
- * so nothing here can be composed. The decisions are EXECUTED above; what is held here is WHERE the
- * screen runs them.
- *
- * And this one is about ORDER, which is the hole defect B came through: a pinned line is blind to
- * two lines being swapped, and "the handler exists" was true all along — it was composed after the
- * panels had already returned out of the column, so while a panel was on screen it did not exist.
- *
- * Order is not enough either: it says nothing about a BODY belonging to its LABEL. The three
- * branches of the credentials `when` are held to their bodies by the two lints at the end of this
- * class — the wheel by a pin that carries label and body on one line, the invitation by containment
- * between its label and the next.
  */
 class HandoverBackWiringTest {
 
@@ -429,9 +404,6 @@ class HandoverBackWiringTest {
         )
         // ORDER IS NOT ENOUGH, and this is where the mutation went through: PASSWORD is the
         // LAST branch label of the guard, so the whole block dropped INSIDE it still sits after
-        // every label and before the manual step — and there it is never drawn, because the guard
-        // answers PASSWORD and the decision answers null. What tells the two apart is depth, read
-        // on the RAW line: under the closed `when` the exit stands at the guard's own indentation.
         val depth = indent(exit)
         val guardDepth = indent(lines.indexOf("when (credentialsPane(ask, state, handedOver)) {"))
         assertEquals(

@@ -13,10 +13,6 @@ import org.junit.Test
 
 /**
  * The link in a rich body (#131): the URL guard, the four branches of [setLink], the non-sticky
- * remap, the HTML the anchor is written as and read back from, and the plain-text alternative.
- *
- * Everything here EXECUTES the decision; nothing reads a source file and nothing recomputes the
- * rule it checks — the expected values are written out by hand.
  */
 class RichBodyLinkTest {
 
@@ -381,9 +377,6 @@ class RichBodyLinkTest {
     @Test fun `a relative href is refused — the parser never invents a scheme`() {
         // THE DESTROY LICENCE. `draftHtmlIsLossy` is what lets a re-save EXPUNGE the server
         // original. Before the links existed every `<a>` was refused, so a foreign draft carrying
-        // a relative anchor was "unreadable" and its original was KEPT. Read with a scheme put in
-        // front of it, that draft is judged reproducible and the original is destroyed in favour
-        // of a copy whose link points somewhere else entirely.
         for (html in listOf(
             """<a href="x">t</a>""",
             """<a href="#top">t</a>""",

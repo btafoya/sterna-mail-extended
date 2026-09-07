@@ -8,33 +8,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxViewModel.kt` as text and proves nothing about
- * what appears on screen. What the decision COMPUTES is [ActionFailureMessageTest]'s job, against
- * [actionFailureMessage] itself; this file holds the half that cannot be executed — `InboxViewModel`
- * is an `AndroidViewModel` and cannot be instantiated in a JVM test, so the two failure arms are
- * reachable only as source.
- *
- * The defect it closes: a swipe that failed offline put `it.message` straight on the snackbar —
- * `Unable to resolve host "…": No address associated with hostname`, in English whatever the app's
- * language — because the `?:` behind it only fires on a NULL message, which a transport exception
- * never has. Its twin `threadSwipeRemove` was already right, which is how it went unnoticed. The
- * second arm, Undo's: `error = it.message` with no fallback at all, so a null message there is
- * `RefreshNotice.NONE` — a BANNER that says nothing. Not a silent Undo, to be exact: the snackbar
- * "couldn't restore some messages" fires either way, one call further down. And in airplane mode
- * the banner the reader actually gets is the offline one, because `RefreshNotice` puts OFFLINE
- * ahead of ERROR (#65) — an order this fix leaves alone. What this arm owes is therefore narrow
- * and worth stating plainly: no raw resolver text, and never an empty banner.
- *
- * A third arm joined them: the batched bulk's total failure, which used to print the generic
- * sentence unconditionally while the swipe beside it said "you are offline". It is not shaped like
- * the other two — the throwable is caught in a `getOrElse`, kept in `batchFailure`, and read by the
- * `when` below — so [SITES] carries how each arm is cut and what its throwable is called, and the
- * rules run over all three.
- *
- * Both `.onFailure` arms are compared WHOLE, flattened, not searched for fragments: a `contains` rule is blind
- * to every mutation that makes the line LONGER — `online = hasUsableNetwork(app) && false`, an
- * `?: it.message` tacked on the end — and that is the shape this fix would come undone in. A
- * legitimate refactor of either arm reddens this file; that direction of error is loud and one line
- * to fix, the other direction ships in silence.
  */
 class ActionFailureWiringTest {
 
@@ -106,9 +79,6 @@ class ActionFailureWiringTest {
 
     /**
      * The batched bulk loops over ACCOUNTS, so it can be handed several failures. The one that
-     * decides the sentence is the FIRST — the one that cut the gesture; the last is whatever the
-     * accounts behind it answered once the link was already gone. `batchFailure = it` on every
-     * turn compiles and stays green under a rule that only looks for an assignment.
      */
     @Test fun `the batched bulk keeps the first failure, not the last`() {
         val site = SITES.first { it.cut == Cut.CAUGHT_THEN_TOLD }
@@ -157,9 +127,6 @@ class ActionFailureWiringTest {
 
     /**
      * The `.onFailure { … }` block of the declaration starting at [header], comments stripped and
-     * whitespace squeezed to single spaces, braces balanced. Fails loudly when the declaration or
-     * its arm cannot be found, so a rename reddens these rules rather than satisfying them against
-     * an empty string.
      */
     private fun arm(site: Site): String = when (site.cut) {
         Cut.ON_FAILURE -> arm(site.header)
@@ -168,10 +135,6 @@ class ActionFailureWiringTest {
 
     /**
      * The two halves of the batched bulk's arm, joined: the `getOrElse { … }` that logs the
-     * failure and keeps it, and the `BulkOutcome.TOTAL ->` branch that turns it into a sentence
-     * twenty lines below. They are read together because the rules span them — the log lives in
-     * the first, the decision in the second, and a rule reading one alone would pass while the
-     * other went missing.
      */
     private fun caughtThenTold(header: String): String {
         val text = code()
@@ -223,9 +186,6 @@ class ActionFailureWiringTest {
 
     /**
      * The file's code as one string, comments taken off: a line whose first non-blank character
-     * opens a comment is dropped whole, and a trailing `//` cuts the rest of its line, the cut only
-     * being taken outside a double-quoted run. Load-bearing here — the comments in both arms quote
-     * the raw resolver string this fix removes, and left in they would answer for the code.
      */
     private fun code(): String = INBOX_VIEW_MODEL.readLines().mapNotNull { line ->
         val start = line.trimStart()
@@ -260,12 +220,6 @@ class ActionFailureWiringTest {
 
         /**
          * `actionFailureMessage(<this arm's throwable>, online = hasUsableNetwork(app))` — and, on
-         * the two `.onFailure` arms, the `app.getString(…)` that wraps it, exactly as [DECISION]
-         * demanded before a third site joined them. Dropping the resolver for all three would make
-         * this rule cover LESS than it did on `main`, which is the one direction a lint must never
-         * move. The batched bulk cannot take the resolver: its `getString(` sits outside an `if`,
-         * so the two are not adjacent there — its branch is pinned WHOLE by equality instead, in
-         * BulkOutcomeWiringTest and in BulkSelectionWiringTest.
          */
         private fun decidesOnLiveConnectivity(site: Site) = Regex(
             """\bactionFailureMessage\(${Regex.escape(site.failure)}, online = hasUsableNetwork\(app\)\)"""
@@ -274,10 +228,6 @@ class ActionFailureWiringTest {
 
         /**
          * The capture that survives a second failing account. ONE spelling, not an alternation:
-         * `batchFailure = batchFailure ?: it` reads the same and would satisfy a looser rule, but
-         * BulkSelectionWiringTest pins that line word for word — so an alternation here would
-         * promise a freedom the suite does not grant. Deliberately pinned twice: a legitimate
-         * rewrite reddens both, loudly, and that is the direction of error this file wants.
          */
         private val KEEPS_THE_FIRST_FAILURE = Regex("""if \(batchFailure == null\) batchFailure = it\b""")
 
@@ -286,11 +236,6 @@ class ActionFailureWiringTest {
 
         /**
          * The last two lines before `refresh()` are one pair: the row goes back into the search
-         * results it was taken out of, AND into the browse list it flew off. Neither is a local
-         * eviction — the row was never dropped, the repo is network-first — and the rewind is
-         * pinned here whole for the same reason as everything else in this arm: `+ emptySet()` is
-         * one word, compiles, and leaves the row invisible for good. What it then DECIDES is
-         * [SwipeRewindTest]'s job; that both halves are connected is [SwipeRewindWiringTest]'s.
          */
         private val SWIPE_ARM =
             "val app = getApplication<Application>() " +
@@ -343,9 +288,6 @@ class ActionFailureWiringTest {
 
 /**
  * One failure arm this fix owns: where it lives, how it is cut out of the source, and the name the
- * `Throwable` goes by inside it. The batched bulk needed all three — it has no `.onFailure` block
- * (it catches in a `runCatching { }.getOrElse { }` and decides in a `when` further down), and its
- * throwable is not called `it`.
  */
 private data class Site(val name: String, val header: String, val cut: Cut, val failure: String)
 

@@ -8,8 +8,6 @@ import org.junit.Test
 
 /**
  * The three signature settings — when it is inserted, where, and whether the "-- " delimiter line
- * comes with it — must travel in a settings backup like every other preference: a setting that
- * silently fails to restore is worse than one that does not exist.
  */
 class SettingsBackupSignatureTest {
 
@@ -44,9 +42,6 @@ class SettingsBackupSignatureTest {
     @Test fun theyAreCarriedAsFalseWhenExplicitlyOff() {
         // The VALUES, not the keys — this is where the pattern was invented and where it was
         // copied from. The codec writes with encodeDefaults and explicitNulls, so every key is
-        // present in every export (`"signatureOnReplies": null` for an unset field) and asserting
-        // on the key alone is true of any export whatsoever, including one that dropped the
-        // settings entirely.
         val json0 = SettingsBackupCodec.encode(
             SettingsBackup(
                 signatureOnReplies = false,

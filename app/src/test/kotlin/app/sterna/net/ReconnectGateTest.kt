@@ -8,11 +8,6 @@ import org.junit.Test
 
 /**
  * The connectivity rule (#65), driven the way the framework drives it: a transport callback for
- * the real networks underneath, a default-network callback for the route this app is given (the
- * tunnel, under an always-on VPN), and the outcome of the refreshes themselves.
- *
- * [live] plays a whole scenario and reports what the user would have seen: the states published
- * to the banner, and how many resyncs were asked for.
  */
 class ReconnectGateTest {
 
@@ -265,9 +260,6 @@ class ReconnectGateTest {
     @Test fun `the callbacks replayed at registration are not the plumbing moving`() {
         // The view model does `refresh(); connectivity.start()`, and the gate is seeded from the
         // synchronous connectivity read — the latches are up, but no network identity is known yet.
-        // Under a tunnel that swallows traffic the first refresh dies on a multi-second timeout
-        // while the replay lands in milliseconds, so the two can arrive in either order. Learning
-        // what was already there is not a change, and must cost nothing whichever order it is.
         val live = Live(link = true)
         live.refreshDiedOnTheTransport()
         live.transportUp(WIFI)

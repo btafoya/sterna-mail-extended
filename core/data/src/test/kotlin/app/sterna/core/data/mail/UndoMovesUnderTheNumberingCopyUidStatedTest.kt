@@ -14,26 +14,6 @@ import org.junit.Test
 
 /**
  * THE UNDO, and the numbering it opposes (Codeberg #99).
- *
- * "Undo" on the banner moves the mail BACK, so it SELECTs the folder the forward move PUT it in —
- * the Trash, the archive, the folder the user picked — and it is THAT folder's numbering the move
- * has to state. The first delivery of this guard read it with
- * `recordedUidValidity(credentials, currentFolder)`, and that read cannot work: a `UID MOVE` never
- * SELECTs its destination, and nothing else in the flow does either. On an account whose Trash has
- * never been opened the read answers null, `mayDestroyUnderStatedNumbering(null, 77)` is false, and
- * **Undo after an ordinary delete is refused** — the mail stays in the Trash and the user is told
- * the restore failed.
- *
- * The server had already said it. `COPYUID <uidvalidity> <source-set> <dest-set>` (RFC 4315 §3,
- * RFC 6851 §4.3 for `UID MOVE`) states the DESTINATION's numbering in the same response as the
- * destination UIDs, at the instant they were assigned — a freeze, not a reading — and the client
- * used to skip that token with a non-capturing `\d+`.
- *
- * Everything below RUNS: a real [ImapMailService] on a scripted socket for the wire, and the
- * shipped routing decision ([UidValidity.imapUndoRoutes]) EXECUTED, never restated. What the test
- * does by hand is the one step nothing in this module can run — `MailRepository` needs Room and a
- * `Context` — namely writing the landing into `lastImapMove`; that wiring is pinned line by line
- * in [ImapMoveUnderNumberingTest].
  */
 class UndoMovesUnderTheNumberingCopyUidStatedTest {
 
@@ -41,8 +21,6 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
 
     /**
      * The whole defect in one run. The INBOX states 42, the Trash states 77, and nothing has ever
-     * opened the Trash. The delete goes out under 42; the Undo must go out under **77**, which
-     * only the forward move's `COPYUID` ever said.
      */
     @Test fun `the undo goes out under the numbering COPYUID stated for a folder never selected`() {
         val store = RememberedNumbering()
@@ -109,8 +87,6 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
 
     /**
      * The inverse witness, and the shape of the first delivery: asking the store what the Trash's
-     * numbering is answers nothing, and the Undo is REFUSED. It is here so that "the freeze works"
-     * cannot be read as "any value would have done".
      */
     @Test fun `the same undo, opposing what the store recorded for the trash, is refused`() {
         val store = RememberedNumbering()
@@ -146,10 +122,6 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
 
     /**
      * THE GUARD THAT MUST NOT MOVE. A server that reports no `COPYUID` loses the Undo, silently,
-     * and that is documented behaviour (`ImapSession.move`): the move happened, only per-message
-     * Undo positioning is lost. Carrying a numbering must not turn that into a refusal with a
-     * message: the id simply gets no landing, so it gets no route, so no command goes out and
-     * nothing is raised.
      */
     @Test fun `a server reporting no COPYUID loses the undo in silence, as it always did`() {
         val store = RememberedNumbering()
@@ -185,10 +157,6 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
 
     /**
      * THE NUMBERING IS PART OF THE ROUTE KEY. Two waves moved into the same Trash either side of
-     * a renumbering carry UIDs of two different numberings, and one `UID MOVE` can oppose only one
-     * of them. Merged, the older wave would go out under the newer number — the #99 accident
-     * itself, moving whatever now holds those UIDs. Split, only the lot that cannot be confirmed
-     * is refused.
      */
     @Test fun `two numberings for one folder are two move-backs, not one`() {
         val landings = mapOf(
@@ -259,8 +227,6 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
 
     /**
      * A server with two folders that state DIFFERENT numberings — the INBOX 42, the Trash 77 —
-     * because that difference is the whole test: a fixture where both stated 42 would be green
-     * with the source folder's number carried by mistake.
      */
     private fun twoFolders(): (String, String) -> String = { tag, line ->
         when {
@@ -291,9 +257,6 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
 
     /**
      * The `COPYUID` for the set of [line], and the numbering of the folder it is moving INTO:
-     * 7:9 land in the Trash (77) as 100:102, and 100:102 come home to the INBOX (42) as 200:202.
-     * Scripted rather than computed: an unexpected set must fail loudly here instead of coming
-     * back as an empty mapping, which reads exactly like "the server reported none".
      */
     private fun copyUid(line: String): String {
         val set = line.removePrefix("UID MOVE ").substringBefore(' ')

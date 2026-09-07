@@ -7,20 +7,6 @@ import org.junit.Test
 
 /**
  * BEHAVIOUR TEST — it executes [suggestionMenuMaxHeight] and pins numbers, because that function
- * IS the decision behind #143: on a 240 × 432 px screen the recipient suggestion menu, capped at a
- * flat 256 dp, hung over the keyboard and no further character could be typed to narrow it.
- *
- * Every expectation below is a LITERAL. Recomputing the rule here to decide what to expect would
- * make this file a copy of the code: the condition could then be inverted in
- * `SuggestionMenuFit.kt` and this test would follow it, green. The arithmetic is stated once, in
- * words, and never again in Kotlin: at density 2, one pixel is half a dp; the room left is
- * `window − field bottom − keyboard`; under one row of it — 56 dp, times the system font scale,
- * never less — there is no menu at all.
- *
- * What is NOT covered here, and cannot be: that the composable feeds this function the real
- * measurements, and that it re-runs when the keyboard slides in. Nothing in this module can lay
- * out a Compose tree (no Robolectric, no compose-ui-test, no androidTest). `RecipientMenuFitTest`
- * is the source lint that stands in for it.
  */
 class SuggestionMenuFitTest {
 
@@ -87,10 +73,6 @@ class SuggestionMenuFitTest {
 
     /**
      * A row is not 56 dp at every font size. It holds two lines of text on top of the avatar,
-     * and at `font_scale 2.0` it is past 80 dp: measuring against the un-scaled 56 dp showed
-     * between 56 and one real row exactly the sliced row this fix refuses to draw.
-     *
-     * Both cases below are the SAME 100 dp of room, and they must not answer the same thing.
      */
     @Test fun `the threshold follows the system font size`() {
         // 1000 − 200 − 560 = 240 px = 120 dp, against a row that is 56 × 2 = 112 dp here.
@@ -167,13 +149,6 @@ class SuggestionMenuFitTest {
     @Test fun `on a screen the size of the reporter's the menu shrinks instead of covering the keys`() {
         // The three numbers are deliberately different here and in every test above, so that
         // putting the WINDOW in either other position changes the answer. What this cannot pin,
-        // and no input of this function ever could, is the order of the last two: `window − field
-        // − ime` is symmetric in them, so swapping the field's bottom with the keyboard's height
-        // is invisible here. That mapping is pinned one level up, in `RecipientMenuFitTest`, by
-        // tying each named argument at the call site to the identifier that holds that
-        // measurement — an earlier version of this comment claimed the swap was caught here, and
-        // it was simply false.
-        // 432 − 120 − 220 = 92 px = 92 dp at density 1.
         assertEquals(
             "a 432 px tall screen with a 220 px keyboard leaves 92 dp under the field",
             92.dp,

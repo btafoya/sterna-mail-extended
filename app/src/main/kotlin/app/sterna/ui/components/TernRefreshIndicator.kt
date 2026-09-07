@@ -30,11 +30,6 @@ import app.sterna.ui.rememberMotionEnabled
 
 /**
  * Sterna's signature pull-to-refresh: the launcher-icon tern (a filled teal
- * silhouette) that **opens its wings** as you pull (the pull distance drives the
- * spread), then **flaps** in a gentle loop while the list refreshes, and fades away
- * when it's done. Brand teal (primary), the same bird as the app icon and splash.
- * With reduced motion the bird still appears but holds a static glide (no flapping).
- * The refresh itself never waits on this — the indicator is purely cosmetic.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

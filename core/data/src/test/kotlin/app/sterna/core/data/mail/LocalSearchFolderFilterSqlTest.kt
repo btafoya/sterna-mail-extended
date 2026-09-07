@@ -9,35 +9,12 @@ import java.sql.DriverManager
 
 /**
  * Verifies, against in-memory SQLite, that the local index half of a search
- * ([app.sterna.core.data.db.EmailFtsDao.search]) hides the folders a search must not surface —
- * Trash/Junk/Spam, the roles of [NOT_SEARCHED_ROLES], which the server half already excludes.
- *
- * What this filter covers, and all it covers: index rows that are still there but LABELLED with an
- * excluded folder. Rows get that label when they were WRITTEN with the excluded mailbox already on
- * them — the folder cache carried no role yet when the crawl indexed them, the role arrived from
- * the server afterwards, or the row came from `MIGRATION_14_15`, which repopulated the index
- * straight `FROM emails` with no exclusion at all. NOTHING in the app rewrites
- * `email_fts.mailboxId`, so the cases below fabricate that label with an `UPDATE` the app never
- * runs ([labelIndexRow]); a message deleted out of the Inbox keeps the INBOX on its index row and
- * is invisible to this filter. That other half — the message is gone, the row must go with it — is
- * `EmailDao.deleteById`/`deleteByIds`, pinned by [DeletedMailLeavesTheIndexSqlTest].
- *
- * Every case therefore carries the same witness: **the row is still in `email_fts`**. That is what
- * proves the FILTER did the work; a test that merely deleted the index row would also pass against
- * the old, broken query and would guard nothing.
- *
- * The statement executed here is read out of the shipped DAO by [DaoQuerySource], not retyped, so
- * changing the DAO's SQL changes this test's SQL with it.
  */
 class LocalSearchFolderFilterSqlTest {
     private lateinit var db: Connection
 
     /**
      * The DAO's own statement, with `:match` / `:excludedRoles` / `:accountIds` /
-     * `:accountScopeCount` / `:limit` turned into `?`.
-     *
-     * Built per call rather than once: Room expands `IN (:accountIds)` into as many `?` as the
-     * scope holds, so the statement depends on [accountScope]'s size.
      */
     private fun searchSql(accountScope: List<String>) = DaoQuerySource.bindOrder(
         DaoQuerySource.daoQuery("EmailFtsDao", "search"),
@@ -99,11 +76,6 @@ class LocalSearchFolderFilterSqlTest {
 
     /**
      * Put an excluded folder's id on an index row — the state this filter exists for.
-     *
-     * This UPDATE is a fixture, NOT something the app runs: no code path rewrites
-     * `email_fts.mailboxId`. It stands in for a row that was WRITTEN carrying that mailbox (a
-     * folder whose role was still unknown to the cache when the crawl indexed it, a role the server
-     * sent later, a row from `MIGRATION_14_15`), which is the only way such a row exists.
      */
     private fun labelIndexRow(emailId: String, mailboxId: String) {
         db.prepareStatement("UPDATE email_fts SET mailboxId = ? WHERE emailId = ?").use {
@@ -113,10 +85,6 @@ class LocalSearchFolderFilterSqlTest {
 
     /**
      * The ids the shipped search query returns for [match], scoped to [accountScope].
-     *
-     * [accountScope] defaults to the empty list — no account filter at all, which is what the
-     * repository passes when the stored account list cannot be read, and what keeps every case
-     * written before the scope existed answering the same rows.
      */
     private fun search(match: String, limit: Int = 50, accountScope: List<String> = emptyList()): List<String> {
         val (sql, order) = searchSql(accountScope)
@@ -195,9 +163,6 @@ class LocalSearchFolderFilterSqlTest {
 
     /**
      * The SECOND trash. An account with a personal `Trash` and a shared `Shared/…/Trash` gives the
-     * role to one of them (`ImapClient.assignRoles`); the loser is stored with the role MARKED
-     * (`~trash`, [imapMailboxEntity]) and must be hidden exactly like the elected one. Left
-     * role-less, as it was, its mail came back in every search result.
      */
     @Test fun aRowLabelledWithAnUnelectedTrashIsHiddenToo() {
         folder("mb-inbox", role = "inbox")
@@ -226,8 +191,6 @@ class LocalSearchFolderFilterSqlTest {
 
     /**
      * The witness for the two above: the mark is not a wildcard. A folder whose role merely STARTS
-     * with the mark, or that lost a claim on something else, is an ordinary folder and its mail is
-     * still found — otherwise the cases above would pass under a filter that hides too much.
      */
     @Test fun theMarkHidesTrashAndJunkAndNothingElse() {
         folder("mb-sent", role = "~sent")
@@ -260,9 +223,6 @@ class LocalSearchFolderFilterSqlTest {
 
     /**
      * A row indexed under an account that is GONE stays cherchable otherwise: the index carries no
-     * foreign key to anything, and removing an account does not sweep it. The scope is what hides
-     * it, and the witness says the row is still there — so it is the QUERY doing the work, not a
-     * cleanup that happened to run.
      */
     @Test fun aRowOfAnAccountThatIsGoneIsHiddenWhileStayingInTheIndex() {
         folder("mb-inbox", role = "inbox", accountId = "accA")
@@ -275,8 +235,6 @@ class LocalSearchFolderFilterSqlTest {
 
     /**
      * The inverse witness for the case above: name BOTH accounts and both hits come back. Without
-     * it, a scope clause that matched nothing at all — or one bound to the wrong column — would
-     * pass by returning an empty answer.
      */
     @Test fun everyAccountNamedInTheScopeIsSearched() {
         folder("mb-inbox", role = "inbox", accountId = "accA")
@@ -288,9 +246,6 @@ class LocalSearchFolderFilterSqlTest {
 
     /**
      * An EMPTY scope filters nothing, deliberately. `AccountStore.accounts()` answers with an empty
-     * list both for "no account" and for "the stored blob could not be decoded"; filtering on the
-     * second would switch local search off entirely on a healthy install, the same failure the
-     * unknown-folder rule above refuses.
      */
     @Test fun anEmptyScopeFiltersNoAccountAtAll() {
         folder("mb-inbox", role = "inbox", accountId = "accA")
@@ -302,9 +257,6 @@ class LocalSearchFolderFilterSqlTest {
 
     /**
      * The scope does not make the role join's own account match redundant. Two accounts of one
-     * login (issue #31) can mint the SAME mailbox id, and here BOTH are configured, so the scope
-     * keeps both rows: only `mailboxes.accountId = email_fts.accountId` stops account B's trash
-     * from hiding account A's inbox message. Drop that condition and this case is what turns red.
      */
     @Test fun accountScopeDoesNotReplaceTheRoleJoinsAccountMatch() {
         folder("mb-7", role = "inbox", accountId = "accA")

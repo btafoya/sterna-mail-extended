@@ -7,16 +7,6 @@ import org.junit.Test
 
 /**
  * The cache row an IMAP folder becomes ([imapMailboxEntity]), EXECUTED — the one place that turns
- * "this folder claimed the trash and lost it" into something the rest of the app can act on.
- *
- * The defect: an account with a personal `Trash` and a shared `Shared/…/Trash` has two trashes,
- * `ImapClient.assignRoles` elects one, and the loser used to be stored role-less. A role-less
- * folder IS searched ([searchableFolderIds]) and IS crawled into the local index, so mail thrown
- * into the shared trash came back in search results and stayed there through a cache purge.
- *
- * Every expectation below is a literal. Nothing here recomputes the marking rule or reads the
- * source that contains it: the shipped function is called with pinned arguments, and inverting
- * what it decides makes these red.
  */
 class UnelectedTrashIsMarkedTest {
 
@@ -40,8 +30,6 @@ class UnelectedTrashIsMarkedTest {
 
     /**
      * A lost claim on any other role stays null, exactly as on the code this fixes: nothing
-     * anywhere reads a `~sent`, and marking one would only put an unreadable value in the cache
-     * row for no filter to use.
      */
     @Test fun aLostClaimOnAnyOtherRoleStaysNull() {
         assertEquals(null, roleOf(folder("Gesendet", role = null, unelected = "sent")))
@@ -74,8 +62,6 @@ class UnelectedTrashIsMarkedTest {
 
     /**
      * The mark and the source that excludes it are one decision in two files, in two modules that
-     * do not depend on each other. This is where they meet: what [imapMailboxEntity] writes must
-     * be what [NOT_SEARCHED_ROLES] holds, or the row is marked and searched anyway.
      */
     @Test fun whatIsMarkedIsWhatTheSearchSourceExcludes() {
         val drawer = listOf(
@@ -89,10 +75,6 @@ class UnelectedTrashIsMarkedTest {
 
     /**
      * And the shipped listings go through it — BOTH of them. The construction used to be written
-     * out twice, identically, in `listMailboxes` and `loadFolder`; a rule applied to one copy and
-     * not the other is the shape this extraction exists to make impossible. Read from the source
-     * because neither caller can be reached from a JVM test (both need a live IMAP session), and
-     * the arguments are pinned, not just the name of the function called.
      */
     @Test fun bothImapFolderListingsBuildTheirRowsInTheOnePlace() {
         val source = DaoQuerySource.mailSource("ImapMailService")

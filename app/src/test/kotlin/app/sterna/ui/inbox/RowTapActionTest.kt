@@ -5,19 +5,6 @@ import org.junit.Test
 
 /**
  * WHAT a tap on a list row does.
- *
- * In the Drafts folder a tap edits the draft in compose (#63). Until now that branch was ALSO gated
- * on the row not being a foldable conversation, so a draft whose thread counts more than one message
- * (the reply you are writing to a conversation) opened the READER instead, where nothing lets it be
- * edited. Same for a draft listed as a child of an unfolded conversation, whose tap never asked the
- * role of its folder at all.
- *
- * These tests EXECUTE [rowTapAction] and [childTapAction]. They never rebuild the rule to decide
- * what to assert: every input is a literal and the expected [RowTap] is written out.
- *
- * Says nothing about what the screen does with the answer. That `EDIT_DRAFT` reaches
- * `onEditDraft` and `OPEN` reaches the reader is `InboxScreen` composition, out of reach in a JVM
- * test; the wiring is read as text in [RowFolderRoleWiringLintTest] and [LocalDraftListWiringLintTest].
  */
 class RowTapActionTest {
 

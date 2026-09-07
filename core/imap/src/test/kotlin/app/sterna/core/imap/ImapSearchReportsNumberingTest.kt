@@ -7,17 +7,6 @@ import java.time.ZoneOffset
 
 /**
  * A search walk SELECTs every folder it looks in, and what that SELECT states about the folder's
- * numbering must come back with the hits (Codeberg #99).
- *
- * Why it matters one layer up: a folder reached ONLY by a server-side search — a result from an
- * archive the user has never opened — was selected here and its `UIDVALIDITY` thrown away, so
- * nothing anywhere recorded it. `MailRepository` then had no number to freeze, and archiving,
- * moving or deleting that hit was REFUSED on a perfectly healthy server. The guard was firing at
- * a server that had done nothing wrong, and the missing fact was one already on the wire.
- *
- * Reporting only. This file's own rule is untouched: a server announcing no numbering is still
- * not turned into a refusal here (`UidValidityTest`), because ten read paths select through it.
- * The walk keeps searching folders that state nothing; it simply says so.
  */
 class ImapSearchReportsNumberingTest {
 

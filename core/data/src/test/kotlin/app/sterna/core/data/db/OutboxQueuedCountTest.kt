@@ -19,38 +19,6 @@ import java.sql.DriverManager
 
 /**
  * The count on the overflow menu's Outbox entry (#70): what is in the Outbox **right now**.
- *
- * Two things have to hold at once, and they contradict each other on purpose.
- *
- * The count must appear the instant a message is queued — the reporter sent a message offline and
- * nothing anywhere told him it had been queued. And the dot on the toolbar button must KEEP its
- * thirty-second grace (#82), because it is in the field of view whether or not the user went
- * looking, whereas this count does not exist on screen until the menu is opened on purpose.
- *
- * So for the length of the grace the dot is absent while the menu reads "(1)". Every test here that
- * checks the count also checks the dot at the same instant, so flattening the two onto one flow —
- * in either direction — turns this file red.
- *
- * ## Why every fixture is anchored to [anchor] and not to 0
- *
- * The first version of this file wrote its deadlines as `0`, `5_000`, `99_000` — timestamps from
- * 1970, half a century before any row this app will ever insert. A real `notBeforeMillis` is a real
- * epoch, and `System.currentTimeMillis()` is astronomically larger than those literals, so any
- * threshold of the form `now >= notBefore + grace` was satisfied by the sheer distance between the
- * two and never by the fixture. The consequence was that the file passed with the fix undone:
- * replacing `queuedCount(items)` with `activeCount(items, System.currentTimeMillis())` — which
- * restores #70 in full, the menu silent for thirty seconds after a send — left it green from end to
- * end. A wall clock smuggled into the count was simply invisible.
- *
- * Every deadline here is therefore written against [anchor], one real reading of the clock taken
- * when the test starts: `anchor + window` is a message queued this instant, `anchor` is one queued
- * with no undo window at all. A clock consulted anywhere in [OutboxLogic.queuedCount] then reads a
- * time that is *before* those deadlines by construction, and the count it returns is 0 where these
- * tests demand 1.
- *
- * The virtual clock is kept where it belongs: [OutboxLogic.badgeCount] takes its `now` as an
- * argument, so the dot's timeline is driven by `anchor + testScheduler.currentTime` — real
- * timestamps, virtual advance, and half a minute passes in no time at all.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class OutboxQueuedCountTest {
@@ -92,13 +60,6 @@ class OutboxQueuedCountTest {
 
     /**
      * THE REPORTER'S CASE, on real timestamps. He is offline, the send is queued, its undo window
-     * has not even closed, and he opens the menu straight away: the entry must already say 1.
-     *
-     * At that same instant the dot is deliberately dark — that is #82's grace — and this is the one
-     * test that states both halves about the same rows at the same real instant. It is also the test
-     * that dies if a clock ever creeps back into the count: with the row's deadline five seconds in
-     * the FUTURE, any `now >= notBefore + grace` reading answers "not yet" and the menu goes silent
-     * again, which is the report verbatim.
      */
     @Test fun theReportersCaseWithRealTimestamps() {
         val queuedRightNow = listOf(justQueued())
@@ -115,12 +76,6 @@ class OutboxQueuedCountTest {
 
     /**
      * The count reads no clock at all, stated as a property rather than as a scenario: the same row
-     * gives the same answer whether its deadline sits an hour in the past or an hour in the future.
-     *
-     * A future deadline is what a message queued a second ago actually looks like (its undo window
-     * has not run out), and it is the case a clock gets wrong; a past deadline is the same row a
-     * minute later, and a clock gets that one right. Sampling both is what makes this rule catch a
-     * smuggled `System.currentTimeMillis()` instead of agreeing with it half the time.
      */
     @Test fun theCountIgnoresTheClockEntirely() {
         val hour = 3_600_000L
@@ -168,16 +123,6 @@ class OutboxQueuedCountTest {
 
     /**
      * The whole point of the change, checked on the two shipped paths at once: the dot goes through
-     * [OutboxLogic.badgeCount] on a clock, the menu through [OutboxLogic.queuedCount].
-     *
-     * The clock is virtual but its readings are REAL: `badgeCount` is handed
-     * `anchor + testScheduler.currentTime`, so the row's deadline and the instant it is compared
-     * against are both epoch values, half a minute passes instantly, and the count under test is
-     * being asked about a message queued five seconds ago rather than in 1970.
-     *
-     * Deleting the grace to "harmonise" the two makes the first assertion fail; giving the count a
-     * grace — a clock of any kind — makes the second fail. There is no way to make both indicators
-     * agree and keep this test green, which is exactly the property #70 and #82 need from this file.
      */
     @Test fun theDotStaysDarkThroughTheGraceWhileTheMenuAlreadyShowsTheMessage() = runTest {
         val rows = MutableStateFlow(listOf(justQueued()))
@@ -211,8 +156,6 @@ class OutboxQueuedCountTest {
 
     /**
      * Guard on the grace itself rather than on one scenario: over the first half-minute of a send,
-     * the dot's count and the menu's count must genuinely disagree. A grace quietly reduced to zero
-     * (or a count that grew one) would make them agree everywhere, and that is what fails here.
      */
     @Test fun theTwoCountsDisagreeForTheWholeLengthOfTheGrace() {
         val rows = listOf(queuedWithNoWindow())
@@ -274,18 +217,6 @@ class OutboxQueuedCountTest {
 
     /**
      * The contract of this fix: the number on the menu entry is, at every instant, exactly the
-     * number of lines the Outbox screen will show. Tapping the entry must not open a list with a
-     * different number of messages in it than the badge just announced.
-     *
-     * Both sides are run for real here — the two `@Query` statements are read out of the shipped
-     * [OutboxDao] and executed against a real SQLite engine, so a `WHERE` added to either one (they
-     * are different queries over the same table) breaks the equality instead of being noticed on a
-     * device six weeks later. The screen's own filtering is [OutboxLogic.isWaitingInOutbox], the
-     * single predicate `MailRepository.outboxFlow` applies to the rows of `observeAll` and
-     * `outboxQueuedCount` counts with — one function, so the two cannot drift.
-     *
-     * The rows carry the deadlines they would really carry: everything here was queued within the
-     * last instant, which is when the menu has to answer and when a clock would not.
      */
     @Test fun theMenuCountIsExactlyTheNumberOfRowsTheOutboxScreenLists() {
         insert(OutboxState.HELD, notBefore = anchor + window, createdAt = anchor + 1)
@@ -315,8 +246,6 @@ class OutboxQueuedCountTest {
 
     /**
      * The invariant again, on the state that breaks it if anything does: the row taken out for
-     * editing must vanish from the count at the same moment it vanishes from the list, and come
-     * back to both when the composer gives it up (`releaseOutboxEdit` only flips the state).
      */
     @Test fun theRowOpenInTheComposerLeavesBothTheListAndTheCountTogether() {
         insert(OutboxState.QUEUED, notBefore = anchor, createdAt = anchor + 1)

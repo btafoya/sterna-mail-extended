@@ -10,36 +10,6 @@ import org.junit.Test
 
 /**
  * The push pass's twin of [EmptyImapWalkIsNotAnEmptyFolderTest]: a page that came back with
- * nothing in it is not a page over an empty folder, and only the second may clear the folder's
- * NOTIFICATION BASELINE.
- *
- * The baseline is what `NewMailNotifier` diffs the next pass against, and `seed` REPLACES it. So a
- * page that reads nothing and is remembered as "nothing" leaves the folder with no baseline at all:
- * the pass after it finds every unread message of the last day unknown and announces them, one
- * banner per thread, at whatever hour the push pass happens to run. For mail the user read
- * yesterday.
- *
- * Two shapes reach [watchedBaselineIds] with an empty page and no failure anywhere:
- *
- * - a `SELECT` that never stated a count (the line absent, or `* NIL EXISTS`). `select()` leaves its
- *   count at zero, `fetchPage(0, …)` asks for nothing, the page is empty;
- * - a folder whose `* n EXISTS` is perfectly stated and n > 0, whose page comes back empty anyway:
- *   the newest messages all carry `\Deleted` with no expunge (another client emptied a folder and
- *   did not purge) and `ImapSession.messages` drops every one of them, or their `FETCH` responses
- *   carry no `UID` and are dropped the same way.
- *
- * The second shape is the one a refusal keyed on `existsObserved` ALONE does not close, and it is
- * the case that must fail loudest here: the server stated a count, so `existsObserved` is true, and
- * a page-is-empty-therefore-the-folder-is check would wipe the baseline. What the count says has to
- * be read too.
- *
- * And the witness keeps the rule honest: a folder the server SAID holds nothing clears its
- * baseline. Refusing on every empty page would make a baseline immortal — mail refiled into that
- * folder months later would be diffed against ids nothing can remove, and never announced.
- *
- * That a stated `* 0 EXISTS` and a never-stated one really do produce those two [ImapMailboxStatus]
- * values is on the wire in `core:imap` (`ExistsThatWasNeverStatedTest`); this file is the decision
- * taken on them.
  */
 class EmptyPushPageIsNotAnEmptyFolderTest {
 
@@ -71,15 +41,6 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
 
     /**
      * The folder is a PARAMETER, and the three fields that identify it move together. A fixture
-     * that only ever built the inbox let this mutation live:
-     *
-     *     - if (load.messages.isEmpty() && !load.folderStatedEmpty) return null
-     *     + if (load.messages.isEmpty() && !load.folderStatedEmpty && load.role == "inbox") return null
-     *
-     * The protection would then cover the inbox alone, and every WATCHED folder — the very case
-     * multi-folder push was built for (#16) — would go back to wiping its baseline on a page that
-     * read nothing and re-announcing its day. The same hole fits any discrimination by folder
-     * (`mailboxId.startsWith(…)`, `name != …`), which is why all three travel.
      */
     private fun load(
         messages: List<EmailEntity>,
@@ -111,8 +72,6 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
 
     /**
      * A3 — THE SECOND DOOR, and the case that tells the two designs apart. The server stated its
-     * count, and stated it above zero: `existsObserved` is TRUE here. A refusal that reads only that
-     * flag licenses the wipe, and every `\Deleted`-but-not-expunged folder re-notifies its day.
      */
     @Test fun `an empty page from a folder the server said HOLDS messages is a REFUSAL too`() {
         val status = ImapMailboxStatus(exists = 12, uidValidity = 1L, uidNext = 99L, existsObserved = true)
@@ -153,8 +112,6 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
 
     /**
      * A1 on a Sieve folder. The decision knows nothing about WHICH folder it is deciding for, and
-     * the watched extras are the ones that hurt most: the user does not look at them at app-open, so
-     * `seedsSilently` never covers them (issue #16) and every re-announcement they make is a banner.
      */
     @Test fun `a watched folder's empty page whose SELECT stated no count is refused just the same`() {
         assertNull(
@@ -266,12 +223,6 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
 
     /**
      * SOURCE LINT — `ImapMailService.loadWatchedFolders` cannot be run on the JVM (a token
-     * refresher and a live socket), so what is read here is that the field is filled BY the decision
-     * above and not by a copy of it written on the spot.
-     *
-     * The mutation it exists for is `folderStatedEmpty = status.existsObserved` — true for the
-     * `\Deleted`-not-expunged folder of A3, and every executable test above still green, because
-     * they are all handed the flag by hand.
      */
     @Test fun `the load fills the provenance from the shared decision, never forges one on the spot`() {
         val body = DaoQuerySource.mailFunctionBody("ImapMailService", "loadWatchedFolders")

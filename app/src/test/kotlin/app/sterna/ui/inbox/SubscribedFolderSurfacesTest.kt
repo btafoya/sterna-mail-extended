@@ -10,10 +10,6 @@ import org.junit.Test
 
 /**
  * What the subscription filter (#174) does to the three surfaces that are not the drawer: the two
- * move-to-folder pickers, the "unread" view's scope and badge, and the vanished-folder fallback it
- * must NOT trigger.
- *
- * Every expectation is a hard list; nothing here recomputes the filter to decide what to expect.
  */
 class SubscribedFolderSurfacesTest {
 

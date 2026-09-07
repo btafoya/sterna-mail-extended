@@ -8,22 +8,6 @@ import java.time.Instant
 
 /**
  * WHAT AN APPEND PUTS ON THE WIRE, byte for byte — the primitive a cross-account move stands on
- * (#189): the message read from account A has to arrive in account B's folder as the SAME octets,
- * with the date it was received under, and the copy has to be NAMED by the server before A's
- * original is touched.
- *
- * Three things, each pinned on a whole value, never on a `contains`:
- *
- * - the octets: `append(ByteArray)` sends the bytes as they are and sizes the literal by them.
- *   The old `append(String)` UTF-8-encoded its argument, which is right for a message the app
- *   composed and WRONG for one it fetched (a raw source is one char per octet in this app —
- *   ISO-8859-1 — and UTF-8-encoding that doubles every 8-bit byte). The fake server records the
- *   literal as bytes so the test looks at what left the socket, not at a decoded copy of it;
- * - the command line: with a date it carries the RFC 3501 `date-time` in quotes between the
- *   flags and the literal size; without one it is exactly the line of before, so the two callers
- *   that exist today (the Sent copy, the draft) emit what they always did;
- * - the answer: the `[APPENDUID uidvalidity uid]` of RFC 4315, read into the uid the caller
- *   keeps, and null when the server gave none — a server without UIDPLUS is not a failed append.
  */
 class AppendOnTheWireTest {
 

@@ -10,11 +10,6 @@ import org.junit.Test
 
 /**
  * What the account selector observes (issue #31): the list republished on every write to
- * [AccountStore], so a shared mailbox granted or revoked server-side reaches the drawer without
- * the screen being recreated — and nothing at all when a write changes nothing.
- *
- * This covers the emission rule only. The wiring from a stored write to this flow lives in
- * [AccountStore], which needs Android's SharedPreferences and Keystore and has no JVM test.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class AccountsStateTest {

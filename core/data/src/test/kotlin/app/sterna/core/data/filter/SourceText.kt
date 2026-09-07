@@ -4,15 +4,6 @@ import java.io.File
 
 /**
  * Reading the SHIPPED source as text — the instrument of the source lints, in one place.
- *
- * A source lint is a **last resort**, never the proof: it is used where the decision cannot be
- * executed in a JVM test (`MailRepository` needs a session, a JMAP client and a device), or where
- * what must be held still is the SOURCE itself rather than a value (the Sieve `generate` emits,
- * which every script already on a server was written by).
- *
- * It compares WHOLE lines, never substrings: a `contains` is satisfied by every mutation that
- * makes the line LONGER, and one such mutation already walked straight past the first version of
- * the `MailRepository` lint.
  */
 internal object SourceText {
 
@@ -47,12 +38,6 @@ internal object SourceText {
 
     /**
      * The slice of [source] running from [signature] to the next KDoc block at the same indent —
-     * i.e. one function, comments included, so a lint can drop them itself.
-     *
-     * The LAST member of a class or object has no KDoc after it, and that is not a reason to
-     * leave it unpinned: `SieveCodec.escape` was exactly that member, and a mutation adding one
-     * `replace` to it changed the emitted Sieve while every lint stayed green. So the fall-back is
-     * the close of the enclosing declaration — the final `}` in column 0.
      */
     fun functionSource(source: String, signature: String): String {
         val start = source.indexOf(signature)

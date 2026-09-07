@@ -11,12 +11,6 @@ import org.junit.Test
 
 /**
  * What the reader says when a message won't open.
- *
- * The decision — which failure earns a sentence of our own, and which keeps its technical text —
- * lives in [readFailureStringRes], a pure function, so the three cases below EXECUTE it instead of
- * reading the code that contains it. `readFailureText` itself needs an `Application` and cannot run
- * here, hence the two SOURCE rules at the bottom: they hold the wiring an executable test cannot
- * reach — that the screen consults the decision at all, and that the throwable is written down.
  */
 class ReadFailureTextTest {
 
@@ -56,13 +50,6 @@ class ReadFailureTextTest {
 
     /**
      * SOURCE RULE — the branching, which nothing executable holds.
-     *
-     * Every test above calls [readFailureStringRes] directly, so cutting the screen loose from it
-     * (`readFailureText` reduced to `t.message ?: t.javaClass.simpleName`) disables the whole fix
-     * and leaves them all green. So does swapping the elvis, which puts the technical text back in
-     * front. WHOLE LINES, not fragments: a mutation that LENGTHENS a line — appending the technical
-     * text after the translated sentence, which is the leak this fix exists to close — is invisible
-     * to a `contains`.
      */
     @Test fun theScreenGoesThroughTheDecision() {
         val expected = listOf(
@@ -81,11 +68,6 @@ class ReadFailureTextTest {
 
     /**
      * SOURCE RULE — the throwable, which now reaches nobody.
-     *
-     * Same argument as `UnsubscribeFailureIsLoggedTest`: `load()` turns every failure into one
-     * sentence on screen, and since that sentence REPLACES the technical text for
-     * `MessageUnavailableException` (#159), the reason a message would not open exists nowhere at
-     * all unless the catch writes it down — not in logcat, not in a report.
      */
     @Test fun theFailureToOpenIsWrittenDown() {
         val logged = codeLines(functionBody("fun load(")).filter {

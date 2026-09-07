@@ -9,10 +9,6 @@ import java.sql.DriverManager
 
 /**
  * The real snooze predicate ([notSnoozedSql]) run against an in-memory SQLite engine:
- * a pending snooze hides its message, a lapsed one does not, and deleting the `snoozed` row —
- * what "Cancel snooze" does (Codeberg #82) — hands the id straight back to the lists. The
- * fixture carries the composite (accountId, id) key of the multi-account schema (issue #31), so
- * the account correlation of the predicate is exercised too.
  */
 class SnoozeFilterSqlTest {
     private lateinit var db: Connection

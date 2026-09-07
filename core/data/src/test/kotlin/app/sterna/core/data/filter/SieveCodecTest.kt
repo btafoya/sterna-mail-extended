@@ -68,9 +68,6 @@ class SieveCodecTest {
 
     /**
      * A script with content and no marker is UNREADABLE, not empty.
-     *
-     * Someone's hand-written Sieve, saved under the name this app uses. Reading it as "no rules"
-     * is what let the per-sender gesture rewrite the whole script from one new rule.
      */
     @Test fun `a script with content and no marker cannot be read`() {
         assertNull(SieveCodec.parseRulesOrNull("require [\"fileinto\"];\nif true { keep; }"))
@@ -88,9 +85,6 @@ class SieveCodecTest {
 
     /**
      * The witness of the pair. A blank script says nothing, filters nothing and loses nothing
-     * when it is rewritten: zero rules, and NOT an alarm. Without this, "unreadable" would be
-     * the answer to every account whose script is a stub, and the block gesture would be refused
-     * for ever on all of them.
      */
     @Test fun `an empty or blank script is zero rules, not unreadable`() {
         assertEquals(emptyList<FilterRule>(), SieveCodec.parseRulesOrNull(""))

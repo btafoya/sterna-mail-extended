@@ -9,14 +9,6 @@ import java.io.File
 
 /**
  * What the foot of the walk's column says, and whether it has to be read — EXECUTED, over every
- * (state, step) pair that matters, with the expected values written out in full and never
- * recomputed from the rule under test.
- *
- * THE MEASURED DEFECT behind this file: address step, keyboard up, airplane mode, tap on
- * Continue. The walk answered correctly — a `ConnectState.Error` carrying `connect_offline`, still
- * on step 1 — and the sentence was drawn under the keyboard, absent from the uiautomator tree
- * until the screen was scrolled. The two decisions here are what the screen now draws AND scrolls
- * from, so a scroll can never be withheld from a sentence that is drawn.
  */
 class ConnectStatusTest {
 
@@ -227,20 +219,6 @@ class ConnectStatusTest {
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [ImapDiscoveryWiringTest]: `ConnectScreen` is a composable and this module has neither
- * Robolectric nor instrumented tests, so nothing here can be composed. What [statusLine] and
- * [statusMustBeRead] DECIDE is executed in [ConnectStatusTest]; what is held here is that the foot
- * of the walk's column draws THAT value, and scrolls it into view when it is a sentence.
- *
- * THE DEFECT THIS FILE EXISTS FOR, measured at the bench (emu, Android 16, 1080×2400, release):
- * address step, keyboard up, airplane mode, tap on Continue. The walk did everything right — it
- * stayed on step 1 and wrote a `ConnectState.Error` carrying `connect_offline` — and the sentence
- * was rendered at y≈1589, under a keyboard whose top edge is y≈1500. It was absent from the
- * uiautomator tree until the screen was scrolled. From the reader's side: she taps Continue and
- * nothing happens.
- *
- * Every pin is a WHOLE trimmed line compared by equality, or a run of consecutive whole lines —
- * never a `contains` on a fragment, which is blind to any mutation that lengthens the line.
  */
 class ConnectStatusWiringTest {
 
@@ -303,12 +281,6 @@ class ConnectStatusWiringTest {
     @Test fun `the block is a direct child of the walk's column, not something's else branch`() {
         // THE HOLE THE COUNTER-AUDIT CAME THROUGH, and no trimmed pin in this repo can see it:
         // wrap the whole foot of the column in `if (walkStep != ConnectStep.ADDRESS) { … }` and
-        // every run of lines above still follows in the same order, every assertOnce still counts
-        // one, the anti-leak test still finds no `walkStep == ConnectStep.MANUAL` — and offline at
-        // the address step the walk computes the message, writes the state and DRAWS NOTHING. The
-        // original defect, whole, with a green suite. Only the leading whitespace says whether a
-        // line has been moved inside a block. Same instrument as OFFLINE_GUARD, which pins its
-        // four lines at eight spaces for this very family of mutations.
         listOf(
             "val status = statusLine(state, walkStep, ask, handedOver)" to
                 "the value the foot of the column draws",
@@ -421,11 +393,6 @@ class ConnectStatusWiringTest {
 
     /**
      * The one line of [SCREEN] whose trimmed text is [pinned] must carry exactly [spaces] leading
-     * spaces — i.e. sit at that nesting level, and no deeper.
-     *
-     * Read on the RAW line, deliberately: every other lint in this repo trims first, and a
-     * trimmed line is blind to the one mutation that changes nothing about the lines themselves —
-     * a conditional wrapped around them.
      */
     private fun assertIndent(pinned: String, spaces: Int, what: String) {
         val raw = source(SCREEN).lines().filter { it.trim() == pinned }

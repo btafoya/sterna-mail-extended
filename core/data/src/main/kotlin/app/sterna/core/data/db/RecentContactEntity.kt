@@ -8,8 +8,6 @@ import androidx.room.Upsert
 
 /**
  * A person we've emailed (a send recipient). Received senders come from the cached
- * [EmailEntity] rows instead, so this table just captures the "sent to" side that
- * the message cache doesn't hold. Keyed by lower-cased email; newest wins.
  */
 @Entity(tableName = "recent_contacts")
 data class RecentContactEntity(

@@ -8,23 +8,11 @@ import java.io.File
 
 /**
  * RESOURCE LINT. It reads the string resources as text, in all nine languages, and checks the two
- * places where this screen's WORDS make a claim its CODE does not back.
- *
- * That gap is not a typo class, it is a defect class, and both instances of it here shipped past a
- * green suite: a sentence can be wrong while every assertion about the code stays true. So the
- * rules below are written against the code's actual behaviour — what `alreadyBlocked` inspects,
- * and which folders the scope clause excludes — rather than against a chosen wording, and they are
- * evaluated per locale from that locale's own folder names.
  */
 class SenderVolumeCopyTest {
 
     /**
      * The "already handled" entry may not say WHERE the mail goes.
-     *
-     * `alreadyBlocked` matches any FROM/IS rule on the address — it looks at neither `moveTo` nor
-     * `enabled`, deliberately (two FROM/IS rules on one address compile to two sequential `if`s
-     * and both act). So a rule filing that sender into "Work", or a disabled one, greys this entry
-     * out too. Naming the Trash there states as fact something nothing verified.
      */
     @Test fun `the already-handled label does not name a destination folder`() {
         val offenders = locales().mapNotNull { dir ->
@@ -46,17 +34,6 @@ class SenderVolumeCopyTest {
 
     /**
      * The delete dialog and the header sentence must name the folders the DELIVERED clause
-     * excludes — no more, no fewer.
-     *
-     * The list of roles is parsed out of [SENDER_VOLUME_SCOPE_SQL] itself rather than typed here:
-     * a list typed into a test is a copy of the rule, and a copy stays green while the rule
-     * changes underneath it. Both directions are checked. A role dropped from the clause leaves a
-     * sentence that still names it — a folder the reader thinks is spared and is not — and a role
-     * added leaves both sentences quietly incomplete.
-     *
-     * The screen opens from the inbox's overflow, so "these messages" reads as "in the inbox"
-     * unless the dialog says otherwise; the header says otherwise three lines higher up, and the
-     * two must not part company.
      */
     @Test fun `both sentences name exactly the folders the delivered clause excludes`() {
         val expectedKeys = excludedFolderKeys()
@@ -83,12 +60,6 @@ class SenderVolumeCopyTest {
 
     /**
      * If the clause leaves snoozed mail out — it does — both sentences must say so.
-     *
-     * They enumerate the folders that are not counted, in a form that reads as exhaustive. A
-     * reader who snoozed forty messages from one sender sees a number smaller than she expects
-     * and finds nothing anywhere that explains it. This is the same defect class as the sentence
-     * above, reintroduced by the correction that stopped counting snoozed mail: words claiming
-     * more than the code does.
      */
     @Test fun `the sentences mention snoozed mail exactly when the clause leaves it out`() {
         val excluded = "snoozed" in SENDER_VOLUME_SCOPE_SQL
@@ -112,13 +83,6 @@ class SenderVolumeCopyTest {
 
     /**
      * The header's number counts ONE account, so its sentence has to say so.
-     *
-     * `senderVolumes(credentials.id)` is scoped to the current account, and the screen is per
-     * account for that reason — but the plural said "%1$d messages stored on this phone", which on
-     * a phone carrying three accounts is a claim about all three. The phrase is not typed into
-     * this rule: it is each locale's OWN word for "account", read from the label the screen prints
-     * two lines higher up ([accountWord]), so a translation that names the account in its own
-     * words passes and one that quietly drops it does not.
      */
     @Test fun `the cached count says the account is its scope`() {
         val offenders = locales().mapNotNull { dir ->
@@ -141,12 +105,6 @@ class SenderVolumeCopyTest {
 
     /**
      * The locale's own word for "account", as the app already prints it above the list
-     * (`settings_vacation_account`, "Account: %1$s"), cut to its first four characters so a
-     * declined form still matches: Konto/Kontos, konto/konta, Аккаунт/аккаунта.
-     *
-     * Four characters is deliberately loose. It can accept a word that merely starts alike, and
-     * that is the failure this rule prefers: it exists to catch a sentence with NO account in it
-     * at all, not to grade a translation.
      */
     private fun accountWord(strings: Map<String, String>): String =
         strings.getValue("settings_vacation_account")
@@ -177,9 +135,6 @@ class SenderVolumeCopyTest {
 
     /**
      * The string keys for the roles the DELIVERED clause excludes, read out of the clause.
-     *
-     * `folder_junk` labels both `junk` and `spam`: the app has one word for the two, and the
-     * clause excludes both roles — so the labels are de-duplicated by the caller, not the roles.
      */
     private fun excludedFolderKeys(): List<String> {
         val roles = Regex("""NOT IN \(([^)]*)\)""").find(SENDER_VOLUME_SCOPE_SQL)?.groupValues?.get(1)

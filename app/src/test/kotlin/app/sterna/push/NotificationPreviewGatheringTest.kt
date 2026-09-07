@@ -12,15 +12,6 @@ import org.junit.Test
 
 /**
  * What the notification pre-pass DOES, executed — not read.
- *
- * Everything it decides is here: whether it runs at all, how many messages it may read, how long
- * the whole of it may take, what it does when a read fails, and — the one that can lose mail —
- * that it happens BEFORE the first notification is posted and can never reach the caller as an
- * exception. The clock, the numbering and the fetch are handed in, so every one of those is a
- * verdict this test watches rather than a line it reads.
- *
- * The numbers are written out (6, 4000) rather than taken from the object: a test that asks the
- * shipped code what its own cap is agrees with any cap.
  */
 class NotificationPreviewGatheringTest {
 
@@ -28,8 +19,6 @@ class NotificationPreviewGatheringTest {
 
     /**
      * Nothing at all happens unless the reader asked for the body position. Not a fetch, not
-     * even the numbering read: someone who chose "no details", or who is nursing a battery, must
-     * not pay a round trip per message for a line they will never be shown.
      */
     @Test fun `the three positions that show no body ask the server for nothing`() = runBlocking {
         NotificationContent.entries.filter { it != NotificationContent.BODY_PREVIEW }.forEach { content ->
@@ -52,8 +41,6 @@ class NotificationPreviewGatheringTest {
 
     /**
      * Six messages per pass, and no more. Past the sixth the reader is looking at the group
-     * summary — which lists six — and not at the messages, so a seventh round trip is spent on a
-     * line nobody opens. A burst of fifty arrivals is fifty round trips on one radio wake-up.
      */
     @Test fun `at most six messages of one pass are read`() = runBlocking {
         val server = FakeServer(previews = { "opening" })
@@ -64,8 +51,6 @@ class NotificationPreviewGatheringTest {
 
     /**
      * A message with no readable text at all (one PDF, a calendar invitation) costs no round trip,
-     * so it must not eat one of the six either — otherwise a folder of attachments would spend the
-     * whole allowance on messages that have nothing to show.
      */
     @Test fun `a message with no readable text does not consume one of the six`() = runBlocking {
         val ids = ids(20)
@@ -79,8 +64,6 @@ class NotificationPreviewGatheringTest {
 
     /**
      * And a pass where NOTHING has readable text touches nothing at all — the numbering included.
-     * This is the ordinary JMAP pass: its rows carry their own preview, so it conveys no source,
-     * and it must not pay a single read for the position being set to the body.
      */
     @Test fun `a pass with nothing to read touches nothing`() = runBlocking {
         val server = FakeServer(previews = { "opening" })
@@ -94,8 +77,6 @@ class NotificationPreviewGatheringTest {
 
     /**
      * FOUR SECONDS FOR THE WHOLE PRE-PASS, not for each message: each read is given what is
-     * LEFT, and when nothing is left the pass posts with what it has. Mail that has already
-     * arrived is waiting behind this.
      */
     @Test fun `the four seconds are the whole pre-pass, and each read gets what is left`() = runBlocking {
         val server = FakeServer(previews = { "opening" }, costMs = 1_500)
@@ -109,9 +90,6 @@ class NotificationPreviewGatheringTest {
 
     /**
      * And never a budget of zero: `budgetMs = 0` is `ImapBudget.NO_BUDGET`, i.e. `soTimeout = 0`,
-     * i.e. block until the OS gives up — on a server that accepts the connection and then says
-     * nothing, that is minutes, holding the account's mutex, in a background service. The exhausted
-     * budget must stop the pass, not be passed on.
      */
     @Test fun `an exhausted budget stops the pass instead of being handed on`() = runBlocking {
         val server = FakeServer(previews = { "opening" }, costMs = 4_000)
@@ -129,8 +107,6 @@ class NotificationPreviewGatheringTest {
 
     /**
      * The four seconds start at the FIRST READ, not when the budget is made. A delivery pass
-     * refreshes the account's folders first — seconds of network — and a budget armed before that
-     * would already be spent by the time the first opening line is asked for.
      */
     @Test fun `the four seconds start at the first read, not when the budget is made`() = runBlocking {
         val server = FakeServer(previews = { "opening" })
@@ -143,9 +119,6 @@ class NotificationPreviewGatheringTest {
 
     /**
      * THE SIX ARE THE ACCOUNT'S, NOT EACH FOLDER'S. A delivery pass diffs the inbox AND every
-     * watched folder, calling the pre-pass once per folder: a count of its own per folder would
-     * give an account watching three extras 4 × 6 = 24 reads on ONE radio wake-up, under that
-     * account's single mutex. The second folder here inherits what the first one left.
      */
     @Test fun `the six reads are shared by the folders of one account pass`() = runBlocking {
         val server = FakeServer(previews = { "opening" })
@@ -207,10 +180,6 @@ class NotificationPreviewGatheringTest {
 
     /**
      * THE WHOLE pre-pass stops at the first renumbering, not just the message that hit it.
-     * The refused SELECT is invisible from here — `fetchPreview` swallows it — but the
-     * invalidation RECORDS the new numbering as it goes, so the NEXT message would sail through
-     * the check carrying a UID from the old numbering and put the opening of somebody else's mail
-     * on the lock screen (Codeberg #99).
      */
     @Test fun `a renumbered folder stops the pre-pass entirely`() = runBlocking {
         val server = FakeServer(previews = { null })
@@ -230,10 +199,6 @@ class NotificationPreviewGatheringTest {
 
     /**
      * And a numbering that cannot be read FROM THE VERY FIRST READ stops it before a single
-     * fetch — the case the "after the first read" test above cannot see, because a first read that
-     * succeeds gives the comparison something to differ from. With nothing to compare against,
-     * every later read compares equal and the loop runs to the end: the guard reads as armed and
-     * is inert.
      */
     @Test fun `a numbering unreadable from the very first read reads nothing`() = runBlocking {
         val server = FakeServer(previews = { "opening" })
@@ -245,10 +210,6 @@ class NotificationPreviewGatheringTest {
 
     /**
      * And the folder whose numbering the SERVER never states (no UIDVALIDITY at the SELECT):
-     * `recorded` is null, so this comparison has nothing to hold — and `onMailbox` cannot refuse
-     * anything either, since it has no expected value to check against. BOTH guards are down at
-     * once, which makes this the one path by which the opening of another message could reach a
-     * lock screen (Codeberg #99). It reads nothing at all.
      */
     @Test fun `a folder whose numbering the server never states reads nothing`() = runBlocking {
         val server = FakeServer(previews = { "opening" })
@@ -262,13 +223,6 @@ class NotificationPreviewGatheringTest {
 
     /**
      * THE ONE THAT CAN LOSE MAIL. Every opening is gathered BEFORE the first notification is
-     * posted, in ONE pre-pass — never a round trip between two posts.
-     *
-     * The caller advances the folder's baseline after its posting loop. A fetch inside that loop
-     * puts a network failure in the middle of a half-announced batch: the baseline never moves,
-     * the next pass sees every message as new again, and a re-announcement MOVES MAIL server-side
-     * through `unarchiveThreadsOnReply`. The trace below is what tells "gathered first" from
-     * "gathered along the way" — a per-message gather interleaves, and this test reads the order.
      */
     @Test fun `every opening is gathered before the first notification is posted`() = runBlocking {
         val trace = mutableListOf<String>()
@@ -325,8 +279,6 @@ class NotificationPreviewGatheringTest {
 
     /**
      * A server that answers previews, a clock that only moves when a read is paid for, and a
-     * folder numbering that can change under the pass — the three things [NotificationPreviews]
-     * is given from the outside.
      */
     private inner class FakeServer(
         val previews: (PreviewSource) -> String?,

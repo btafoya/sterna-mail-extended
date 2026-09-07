@@ -22,8 +22,6 @@ const val OAUTH_DISCOVERY_BUDGET_MS = 10_000L
 
 /** Which hosts the default path may ask how the mail signs in: the mail-named hosts of the address'
  *  domain, never the bare domain. The bare domain also serves the organisation's website, whose
- *  `/.well-known/oauth-authorization-server` may be that site's identity provider, with nothing in
- *  the document saying which role it speaks for. The cost is accepted: OAuth on the bare domain is
  *  not recognised here, and the manual form's button keeps all four. */
 fun mailOAuthCandidates(email: String): List<String> {
     val hosts = Jmap.autodiscoverHosts(email)

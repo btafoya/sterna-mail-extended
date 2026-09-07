@@ -7,13 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT — the wiring of [resumeOutboxRow] and [outboxRowToResume] into the three places
- * that cannot be executed here: `ComposeViewModel` (an `AndroidViewModel`), `SternaApp.kt`'s
- * navigation graph, and the Outbox screen's hand-off. The two decisions are EXECUTED in
- * [OutboxResumeTest] and [ComposeTitleTest]; this file only pins that the app calls them, with
- * these arguments, at this position.
- *
- * WHOLE LINES, in order, never `contains`: a lengthened line and a line moved inside a condition
- * both compile and both walk through a substring check.
  */
 class OutboxResumeWiringTest {
 

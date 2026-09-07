@@ -6,14 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. The order this pins — write each page, reconcile once, only
- * on a walk that finished — is EXECUTED by [FullQueryWriteThroughTest]. What no JVM test can reach
- * is `MailRepository`, which needs Room, an Android `Context` and a live JMAP session; so the plug
- * between the two is read here, as WHOLE LINES.
- *
- * Whole lines and never a fragment: a `contains` on a fragment is blind to every mutation that
- * LENGTHENS the line, and three of the mutations that matter on this path do exactly that — a
- * `recentlyMutatedIds(...)` hoisted into a `val` above the walk, a `?: emptyList()` slipped into
- * the keep set, an argument swapped for a narrower one.
  */
 class FullQueryStreamingWiringTest {
 
@@ -71,11 +63,6 @@ class FullQueryStreamingWiringTest {
     @Test fun `the full query routes through the write-through, with these arguments`() {
         // Each argument carries one of the volet's properties, and each is pinned
         // whole because each has a plausible-looking wrong version:
-        //  - walk: the client call must receive `onPage`, or nothing streams;
-        //  - writePage: `upsertAll`, NOT `replaceMailbox` — the latter deletes per page and would
-        //    empty the folder down to its last page on every refresh;
-        //  - spareIds: a lambda, so the protection window is read at the reconcile and not here;
-        //  - reconcile: `reconcileMailbox` with BOTH the keep set and the spare set.
         assertLine("MailRepository", "syncMailbox", "val full = fullQuerySizing(")
         assertLine("MailRepository", "syncMailbox", "val walked = fullQueryWriteThrough<List<Email>, WindowWalk>(")
         // #165: the folder as it stood BEFORE the walk, which travels to the reconcile as the
@@ -157,9 +144,6 @@ class FullQueryStreamingWiringTest {
     @Test fun `exactly one transaction, whichever way into the reconcile`() {
         // The two entry points are transactional and the shared body is NOT. If the body were,
         // `replaceMailbox` would open a transaction inside a transaction — supported by Room and
-        // by SQLite, but the only place in this DAO that would rely on it, on the one path whose
-        // failure mode is deleted mail, and on both protocols. Nothing in this repository can
-        // execute Room, so the arrangement that removes the question is pinned instead of tested.
         assertTrue("replaceMailbox is no longer one transaction", DaoQuerySource.isTransactional("EmailDao", "replaceMailbox"))
         assertTrue("reconcileMailbox is no longer one transaction", DaoQuerySource.isTransactional("EmailDao", "reconcileMailbox"))
         assertEquals(
@@ -185,14 +169,6 @@ class FullQueryStreamingWiringTest {
     @Test fun `the reconcile is these four lines, and evicts WITHOUT un-indexing`() {
         // Pinned whole, because the mutations that matter here are ARGUMENT substitutions:
         // `keepIds` and `spareIds` are both id collections, so handing reconcileEvictions the wrong
-        // one compiles, leaves the statement list identical, and turns every full re-query into
-        // "delete the folder except the rows mutated in the last 45 seconds". A `chunk = 1_000`
-        // added to the same call is #29 reopened. And `cachedIds` is the folder's own read
-        // BOUNDED by `evictableIds` (#165): this body runs inside the @Transaction and re-reads the
-        // folder AFTER the caller has stopped looking, so dropping the bound here deletes whatever
-        // committed in between. Both are EXECUTED against real SQLite by
-        // [ReconcileMailboxSqlTest], which reads these expressions rather than restating them; this
-        // pin is what makes an inserted line cost a deliberate edit.
         assertEquals(
             "EmailDao.reconcileMailboxRows is no longer, line for line, what this was written against.",
             listOf(

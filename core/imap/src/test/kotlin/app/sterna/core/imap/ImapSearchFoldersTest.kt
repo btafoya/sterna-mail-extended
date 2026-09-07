@@ -106,8 +106,6 @@ class ImapSearchFoldersTest {
 
     /**
      * The cap counts KEPT messages, not examined ones. With one message in ten carrying a file,
-     * asking for 5 must walk enough candidates to find 5 — not stop at the first batch and
-     * report 5 hits as if that were all there was.
      */
     @Test
     fun `the attachment filter fills the cap instead of truncating the scan`() {
@@ -142,8 +140,6 @@ class ImapSearchFoldersTest {
 
     /**
      * The scan cap is the one case where the answer may be short: the walk stops with candidates
-     * left and the result cap unfilled. It has to SAY so, or a count on screen would present a
-     * partial scan as a total.
      */
     @Test
     fun `a scan that gives up on its cap says the answer is short`() {
@@ -191,18 +187,6 @@ class ImapSearchFoldersTest {
 
     /**
      * The flagged filter, end to end on a socket: `FLAGGED` really leaves the client as a SEARCH
-     * key, and the SERVER's short answer is what comes back — two UIDs out of a 300-message
-     * folder, brought home by ONE fetch.
-     *
-     * What this does NOT prove, and must not be read as proving: that the flagged criterion
-     * leaves `requireAttachment` alone. It passes `requireAttachment = false` itself, so it could
-     * only ever establish "no walk when the walk is switched off". The decision that actually
-     * carries that guarantee is `SearchQuery.requiresLocalScan()`, pinned in core:data next to
-     * the call site that feeds it.
-     *
-     * The fake is rigged so a dropped key is loud rather than silently equivalent: without
-     * `FLAGGED` on the line the server hands back the whole folder, and everything in it is
-     * `\Seen` instead of `\Flagged`. Both the UID list and the flag assertion below then fail.
      */
     @Test
     fun `flagged goes out as a search key and the server's answer needs one fetch`() {
@@ -298,11 +282,6 @@ class ImapSearchFoldersTest {
 
     /**
      * The whole-command refusal, which is the case that made this worth fixing: an exotic server
-     * that answers `NO` to a key it does not implement fails EVERY folder the same way.
-     *
-     * The walk then finds nothing anywhere — and the answer must NOT be an empty list calling
-     * itself whole, because the screen states "No results" as a fact on exactly that shape. That
-     * is the overclaim #102 removed from this app; a search that never ran must not wear it.
      */
     @Test
     fun `a server refusing the search key leaves every folder marked, not an empty complete answer`() {

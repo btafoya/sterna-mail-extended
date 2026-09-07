@@ -7,11 +7,6 @@ import org.junit.Test
 
 /**
  * [byIdsChunked] — the read side of the SQLite bound-variable limit. A `SELECT … WHERE id IN (:ids)`
- * over a whole select-all throws below Android 12 (999 bindings), and it throws OUTSIDE the
- * `runCatching` the bulk paths wrap their server call in: a crash, not a failed action.
- *
- * This runs the decision; the wiring (which repository call sites go through it) is pinned
- * separately by [ChunkedIdReadsSourceTest], which can only read source text.
  */
 class IdChunksTest {
 

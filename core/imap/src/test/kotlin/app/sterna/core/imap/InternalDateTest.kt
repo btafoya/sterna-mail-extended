@@ -6,17 +6,6 @@ import org.junit.Test
 
 /**
  * [imapDateTimeMillis] EXECUTED — the reading of `INTERNALDATE`, the server's own delivery stamp.
- *
- * Why it matters more than a date parser usually does: this value dates a correspondent's key in
- * the OpenPGP provider. Until now the IMAP Autocrypt import was handed the message's `Date:`
- * HEADER, which the sender writes; a message dated 2100 filed a key no authentic one could ever
- * beat afterwards, inside OpenKeychain, where this app can undo nothing. So the two properties
- * this file holds are: read the real instant, and answer `null` — never `0L`, never "now" — for
- * anything that is not a `date-time`, because the import refuses an unreadable date outright.
- *
- * Expected values are epoch LITERALS. Recomputing them here with `java.time` would be a copy of
- * the rule under test, and would stay green if the zone sign, the month table or the offset were
- * inverted in the code.
  */
 class InternalDateTest {
 
@@ -38,11 +27,6 @@ class InternalDateTest {
         assertEquals(1_772_674_689_000L, imapDateTimeMillis("05-Mar-2026 07:08:09 +0530"))
         // The one shape no case above and no round trip below can reach: a NEGATIVE sign AND
         // non-zero minutes. `ZoneOffset.ofHoursMinutes` refuses mixed signs outright, so a `sign *`
-        // dropped from the offset's MINUTES alone throws here, `runCatching` eats it and the
-        // reading answers null — which on a server in -0330 (Newfoundland), -0430 or -0930 means no
-        // correspondent's key is ever imported again, in silence, while ENCRYPTION.md and
-        // SECURITY.md promise the opposite. 07:08:09 -0330 is 10:38:09Z the same day; the literal
-        // was computed away from this code and is pinned here, never recomputed.
         assertEquals(1_772_707_089_000L, imapDateTimeMillis("05-Mar-2026 07:08:09 -0330"))
     }
 

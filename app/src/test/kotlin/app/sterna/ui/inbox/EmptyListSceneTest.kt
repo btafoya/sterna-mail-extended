@@ -7,22 +7,6 @@ import org.junit.Test
 
 /**
  * What an empty list SAYS, run rather than read: the picture, the two strings, and whether the way
- * out is offered.
- *
- * The four combinations of (the "unread" view, the toolbar funnel) are the point. Before this volet
- * the scene was decided on `selectedMailboxId == null`, which the unread view also answers, so it
- * inherited the unified inbox's hero drawing and the words "your inbox is empty" over a view that
- * spans every folder of the account.
- *
- * The action button is the one that is NOT symmetric: it clears the funnel, and in the unread
- * view there is no funnel to clear — [listUnreadOnly] forces the filter on for that scope. A button
- * that changes nothing is worse than no button.
- *
- * And the BODY follows the button. `empty_unread_body` ends on "Turn off the unread filter to see
- * all mail", which in the unread view names a funnel that is not on the toolbar and a button that is
- * not under the text: the drawing would describe one view and the words another. That scope gets
- * `empty_unread_view_body`, which promises nothing it cannot keep — "your folders", never "all mail",
- * because Trash and Junk are deliberately out of the scope.
  */
 class EmptyListSceneTest {
 
@@ -101,8 +85,6 @@ class EmptyListSceneTest {
 
     /**
      * The unread view outranks the folder role left over from the last folder visited: nothing in
-     * the view is that folder any more, and `selectedMailboxId` is null there anyway. Pinned so the
-     * scope's arm cannot be written UNDER the role arms, where the trash would answer first.
      */
     @Test
     fun `the scope outranks a stale folder role`() {
@@ -114,10 +96,6 @@ class EmptyListSceneTest {
 
     /**
      * The four titles are pinned as LITERALS above, one by one, and never as "whatever
-     * [listUnreadOnly] answers": a test that asks the shipped rule what to expect moves both sides
-     * of its own comparison at once, and the rule can then be inverted with everything still green.
-     * This is only the guard the comparisons above rest on — six resource ids that must be six
-     * different numbers, or an `EmptyScene` equality proves nothing on the JVM, where they are ints.
      */
     @Test
     fun `the ids these scenes are told apart by are all different`() {

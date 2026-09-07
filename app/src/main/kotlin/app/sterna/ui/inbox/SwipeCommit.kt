@@ -29,15 +29,6 @@ internal fun swipeCommitThresholdPx(rowWidthPx: Float, distancePx: Float): Float
 
 /**
  * Which way a released drag of [offsetPx] commits: `1` rightwards, `-1` leftwards, `0` neither.
- * Either distance ([thresholdPx]) or velocity is enough. Whether the direction has an action is the
- * caller's business, the row bounding its offset to 0 there; the velocity is not bounded that way.
- * @param offsetPx how far the row has actually been pulled, signed, positive rightwards.
- * @param thresholdPx the distance that commits, from [swipeCommitThresholdPx].
- * @param velocityPxPerSec the horizontal release speed, signed, positive rightwards.
- * @param crossVelocityPxPerSec the vertical release speed, signed; only its magnitude is used.
- * @param escapeVelocityPxPerSec [SWIPE_ESCAPE_VELOCITY_DP_PER_SEC] converted by the caller.
- * @param slopPx the platform's touch slop, as the floor under the velocity path.
- * @param dragCompleted `false` when the drag was cancelled; it then commits nothing, by either path.
  */
 internal fun swipeCommitDirection(
     offsetPx: Float,

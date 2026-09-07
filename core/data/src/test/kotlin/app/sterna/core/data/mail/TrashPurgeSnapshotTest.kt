@@ -6,10 +6,6 @@ import org.junit.Test
 
 /**
  * The rule that decides WHAT an "Empty trash" may destroy (Codeberg #99), checked without a
- * device: the set is whatever the Trash held when the user confirmed — nothing more.
- *
- * The reported defect was the opposite: the purge held a folder id and re-read the folder when
- * its undo window expired, so a message moved to Trash in between was destroyed with the rest.
  */
 class TrashPurgeSnapshotTest {
 

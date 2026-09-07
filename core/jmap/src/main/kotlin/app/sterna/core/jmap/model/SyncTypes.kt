@@ -16,9 +16,6 @@ data class EmailPage(
     val total: Int? = null,
         /**
          * How many ids the `Email/query` half returned — which can EXCEED `emails.size` when the
-         * back-referenced `Email/get` omits some. A short GET is not an exhausted folder, and stopping
-         * on `emails.size` would abandon everything behind it. No default: a caller building a page
-         * has to say what the query saw, `0` meaning "exhausted" to [nextWindowPageLimit].
          */
     val queryCount: Int,
 )
@@ -40,11 +37,6 @@ data class CrawlPage(
 
     /**
      * One page of a search: the messages fetched, and [matchedIds] — how many ids `Email/query` matched
-     * before `Email/get` was asked for them. NOT the same number: the get can return fewer than the
-     * query matched. Only [matchedIds] says whether the server hit the caller's cap, and only the gap
-     * between the two says whether the list in hand is the whole set — which is what stands between a
-     * partial answer and a count stated as a total on screen. Null when the response carried no `ids`
-     * array at all: "it did not say" must not be read as zero.
      */
 data class SearchPage(
     val emails: List<Email>,

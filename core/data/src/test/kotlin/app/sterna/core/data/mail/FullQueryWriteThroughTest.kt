@@ -12,26 +12,11 @@ import org.junit.Test
 
 /**
  * The red line of the full-query sync, EXECUTED: pages are written as they land, and the DELETE
- * happens once, at the end, only on a walk that finished.
- *
- * The decision under test is the shipped one, [fullQueryWriteThrough]. The reconcile it is handed
- * runs the shipped complement rule too ([reconcileEvictions]) over a fake folder, so "reconcile
- * against the last page instead of the whole walk" is a mutation these fixtures can SEE: every
- * folder below caches at least one row that only a MIDDLE page names.
- *
- * What no test here can check, and what the wiring lint next door
- * ([FullQueryStreamingWiringTest]) is for: that `MailRepository.syncMailbox` still routes through
- * this function, with these arguments.
  */
 class FullQueryWriteThroughTest {
 
     /**
      * One folder as this path leaves it — a cache of ids, a recently-mutated spare set that MOVES
-     * while the walk runs, and a record of what the reconcile was handed.
-     *
-     * [spare] is mutable on purpose: the protection window is 45 s wide and a deep folder takes
-     * minutes, so "when was it read" is a real question with a real answer, and the only way to
-     * ask it of an executed decision is to change the answer under the walk.
      */
     private class Folder(cached: List<String> = emptyList()) {
         val cache = LinkedHashSet(cached)
@@ -60,10 +45,6 @@ class FullQueryWriteThroughTest {
 
     /**
      * A walk that hands [pages] over one at a time and then answers with every id it handed over,
-     * or — when [failAfter] pages have been handed over — throws [failWith] instead of finishing.
-     *
-     * It decides nothing: it accumulates exactly what it was given. A fake that re-derived which
-     * ids to report would pass whatever the shipped rule said.
      */
     private fun walkOf(
         pages: List<List<String>>,

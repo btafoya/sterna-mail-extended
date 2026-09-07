@@ -12,18 +12,6 @@ import java.sql.DriverManager
 
 /**
  * The chip's query AS THE APP BUILDS IT — statement and binds together.
- *
- * Every other case around the conversation list ([ConversationSqlTest], [ConversationScopeTest],
- * [ConversationInvariantsSqlTest], [UnreadBadgeSqlTest]) calls [conversationSql] and then retypes
- * the binding: the mailbox ids, then the ids again with an (account, Sent) pair per resolved
- * folder, then the ids once more for the outer WHERE. That copy is not the app's. `conversationQuery`
- * is the only line of `core:data` the chip/unfold fix touched, and nothing ran it — a bind order
- * shifted by one argument compiles, executes, and answers a different question about different
- * folders, in silence.
- *
- * So these cases build the real [SimpleSQLiteQuery][androidx.sqlite.db.SimpleSQLiteQuery], let it
- * bind itself into a recording statement (which is how Room hands it to SQLite), and run exactly
- * that. If the assembly and the SQL ever disagree about what goes where, this is where it shows.
  */
 class ConversationQueryTest {
     private lateinit var db: Connection

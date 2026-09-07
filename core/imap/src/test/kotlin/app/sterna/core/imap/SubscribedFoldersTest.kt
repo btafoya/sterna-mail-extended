@@ -7,19 +7,11 @@ import java.io.ByteArrayInputStream
 
 /**
  * What the client asks a server about SUBSCRIPTION, and what it does with the answer (#174).
- *
- * The rule the whole branch hangs from: **the unknown hides nothing**. A folder is marked
- * unsubscribed only when the server SAID SO, in an answer that arrived and named other folders.
- * Anything else — the setting off, an LSUB that failed, an LSUB that named nothing — leaves every
- * folder subscribed, because the next panel HIDES on this flag and an empty drawer is a worse
- * failure than a folder too many.
  */
 class SubscribedFoldersTest {
 
     /**
      * A server holding four mailboxes, subscribed to two of them plus one it no longer has
-     * (RFC 3501 §6.3.9 allows a subscription to outlive its mailbox). [lsub] scripts the LSUB
-     * answer, tag included, so a test can make it fail.
      */
     private fun server(lsub: (String) -> String = ::subscriptions) = FakeImapServer { tag, line ->
         when {
@@ -43,8 +35,6 @@ class SubscribedFoldersTest {
 
     /**
      * T1 — the setting on: a second round trip asks for the subscriptions, and the folders come
-     * back split. BOTH values are asserted: a `true` nailed on, or a `false` nailed on, each
-     * satisfies half of this and neither satisfies it whole.
      */
     @Test
     fun `with the setting on the folders carry what LSUB said`() {
@@ -74,8 +64,6 @@ class SubscribedFoldersTest {
 
     /**
      * T2 — the setting off (the default): NOT ONE LSUB leaves the client, and every folder is
-     * subscribed. The command list is read, not the flags: asking and then ignoring the answer
-     * would cost a round trip on every push wake-up and pass a flags-only assertion.
      */
     @Test
     fun `with the setting off no LSUB is sent at all`() {
@@ -89,8 +77,6 @@ class SubscribedFoldersTest {
 
     /**
      * T3 — THE test of this panel. The server refuses the LSUB; the folder list still comes back
-     * WHOLE, all subscribed, and nothing is thrown. Let this one through and a passing server
-     * error empties the user's drawer.
      */
     @Test
     fun `a refused LSUB leaves every folder subscribed`() {
@@ -105,9 +91,6 @@ class SubscribedFoldersTest {
 
     /**
      * T3b — the answer that arrives and says nothing: an OK with no LSUB line. Indistinguishable
-     * from an account genuinely subscribed to nothing, and DELIBERATELY treated as the failure
-     * above — everything stays subscribed. Hiding all four folders on the strength of a silence
-     * is the one outcome this branch may never produce.
      */
     @Test
     fun `an LSUB that names nothing hides nothing`() {
@@ -120,9 +103,6 @@ class SubscribedFoldersTest {
 
     /**
      * T4 — the two parsers must decode a mailbox name THE SAME WAY, or the intersection misses
-     * every non-ASCII folder and it disappears from the drawer in silence. Asserted on the
-     * decoded path itself and then on the intersection, so a divergence cannot hide behind a
-     * lucky match.
      */
     @Test
     fun `a Cyrillic mailbox decodes to the same path on both sides`() {

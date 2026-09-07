@@ -8,9 +8,6 @@ import org.junit.Test
 
 /**
  * The decision "is this account already there?", EXECUTED. Every assertion below runs the shipped
- * function on real arguments; nothing here re-derives the rule, so inverting the rule turns this
- * file red. The wiring of the same functions into `AccountStore.importAccounts` is pinned next
- * door, by [AccountStoreGateWiringTest] — that store cannot be built in a JVM test.
  */
 class AccountIdentityTest {
 

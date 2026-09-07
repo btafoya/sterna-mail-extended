@@ -9,8 +9,6 @@ import java.time.format.DateTimeFormatter
 
 /**
  * A single parsed calendar event (the first VEVENT of an iCalendar object), reduced to the
- * fields the in-app invite card needs. Times are epoch milliseconds (UTC); [allDay] events
- * are anchored to midnight in the device time zone.
  */
 data class ParsedEvent(
     val title: String?,
@@ -53,8 +51,6 @@ data class Attendee(val email: String, val cn: String?, val raw: String)
 
 /**
  * A small, dependency-free RFC 5545 reader. It unfolds, finds the first VEVENT, and pulls the
- * properties the invite card uses. It is deliberately defensive: any malformed input, unknown
- * time zone, or unparseable date yields a graceful fallback or a null result, never an exception.
  */
 object ICalendar {
 
@@ -147,9 +143,6 @@ object ICalendar {
 
     /**
      * RFC 5545 unfolding: join a continuation line (CRLF/LF followed by space/tab) back onto the
-     * previous one, dropping the break and leading space. Accumulated in one [StringBuilder] and
-     * materialised once — per-continuation string rebuilding is quadratic and can freeze the
-     * reader for minutes on a hostile .ics, with no exception to catch.
      */
     private fun unfold(raw: String): List<String> {
         val out = ArrayList<String>()
@@ -223,8 +216,6 @@ object ICalendar {
 
     /**
      * Convert a DTSTART/DTEND value to epoch millis. Handles UTC (`…Z`), zoned (`TZID=`),
-     * all-day (`VALUE=DATE` / bare yyyymmdd → midnight in the system zone) and floating
-     * (no zone → system local time). Returns null on anything it can't read.
      */
     private fun parseDate(rawValue: String, params: Map<String, String>): Dated? {
         val v = rawValue.trim()
@@ -310,8 +301,6 @@ object ICalendar {
 
     /**
      * Build a minimal iTIP REPLY (RFC 5546) VCALENDAR for [event], echoing UID/ORGANIZER/DTSTART/
-     * SEQUENCE/SUMMARY verbatim where possible, with [attendeeEmail] and [partstat]. [nowMillis]
-     * supplies DTSTAMP so this stays pure and testable. CRLF endings, RFC 5545 75-octet folding.
      */
     fun buildReply(
         event: ParsedEvent,

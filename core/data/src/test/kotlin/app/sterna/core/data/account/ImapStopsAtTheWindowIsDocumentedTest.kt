@@ -7,27 +7,6 @@ import java.io.File
 
 /**
  * `SyncWindow`'s KDoc once promised that the window "only bounds what stays cached offline"
- * because "the scroll mediator pages older mail in on demand". The bench says otherwise: same
- * device, same gesture, counted in the database per account and per folder, the JMAP Archive went
- * from 1 000 rows to 1 150 by scrolling alone while the IMAP Archive stayed flat at 1 000.
- *
- * WHY it does not hold on IMAP is not established, and this file does not pretend it is. The
- * mediator's IMAP branch exists and does fetch older pages (`MailRepository.folderMediator` →
- * `ImapMailService.fetchOlderPage` → `upsertAll`), and it is attached without testing the protocol
- * (`MailRepository.pagedFolder`), so "the app never asks" would be false. The behaviour was NOT
- * fixed either (the repair runs through the reconcile that deletes) — the label was brought down
- * to what is measured, so the only thing left to defend is the label.
- *
- * The gate here is NOT a vocabulary heuristic. A keyword rule cannot tell a sentence from its
- * negation: "on IMAP it is a hard ceiling on what is KEPT and never on what reading can reach"
- * names IMAP, names a ceiling, promises exactly the thing that was measured false, and would pass
- * any such rule (it did — that mutation survived the first version of this file). So the shipped
- * KDoc must CARRY [REQUIRED], the sentences declared below, verbatim once normalized. Rewording
- * the KDoc is then a deliberate edit of this test, which is the point: the sentences are the
- * contract, and a reviewer who improves the prose has to look at the bench result while doing it.
- *
- * The keyword blacklist is kept as a second net only ([scrollArrivalClaims]), for a false promise
- * ADDED next to the required ones rather than replacing them.
  */
 class ImapStopsAtTheWindowIsDocumentedTest {
 
@@ -96,12 +75,6 @@ class ImapStopsAtTheWindowIsDocumentedTest {
 
     /**
      * What is wrong with [doc], read as the KDoc block of `SyncWindow` — empty when nothing is.
-     *
-     * 1. [MISSING] — every sentence of [REQUIRED] must be in the block, verbatim once normalized
-     *    (whitespace folded, case folded, comment markers dropped). This is the gate: it cannot be
-     *    satisfied by a sentence that says the opposite, and lengthening one breaks it.
-     * 2. [SCROLL_ARRIVAL] — second net, for a false promise added rather than substituted: a
-     *    sentence claiming mail ARRIVES by scrolling must name JMAP and must not name IMAP.
      */
     private fun syncWindowDocVerdict(doc: String): List<String> {
         val normalized = normalize(doc)
@@ -116,8 +89,6 @@ class ImapStopsAtTheWindowIsDocumentedTest {
 
     /**
      * Sentences of an already-normalized [block] that claim mail arrives by scrolling while
-     * naming IMAP, or while naming no protocol at all. Only JMAP does that, so a claim of this
-     * shape is either about JMAP or it is the promise the bench measured false.
      */
     private fun scrollArrivalClaims(block: String): List<String> =
         Regex("""(?<=\.)\s+""").split(block)
@@ -133,12 +104,6 @@ class ImapStopsAtTheWindowIsDocumentedTest {
 
     /**
      * The KDoc block on `enum class SyncWindow`, read out of THIS module's source tree.
-     *
-     * Anchored on the compiled classes of this very test, never by walking parent directories
-     * looking for the path: a worktree is a subdirectory of the main checkout, which holds a file
-     * of the same name, so a walk that goes one level too far would validate the KDoc of ANOTHER
-     * tree and report it as this branch's. That is the `-w` trap of the build container, and the
-     * answer is the same: resolve inside the tree that was actually built, or fail.
      */
     private fun shippedEnumKdoc(): String {
         val classes = javaClass.protectionDomain?.codeSource?.location
@@ -166,10 +131,6 @@ class ImapStopsAtTheWindowIsDocumentedTest {
 
         /**
          * THE CONTRACT. These sentences must be in `SyncWindow`'s KDoc, word for word. Three
-         * things they hold, and each is there because leaving it out has already cost something:
-         * what was MEASURED, that the cause is NOT established, and that the unified inbox has no
-         * mediator on either protocol. Change one only together with the KDoc, and only against
-         * the bench.
          */
         val REQUIRED = listOf(
             "On IMAP the window is where the reader's mail ends.",
@@ -183,8 +144,6 @@ class ImapStopsAtTheWindowIsDocumentedTest {
 
         /**
          * A claim that mail ARRIVES because the reader scrolled — the promise, not the machinery.
-         * Naming the mediator is not on this list on purpose: saying the IMAP branch exists is a
-         * true statement the KDoc has to be able to make.
          */
         val ARRIVAL_ON_SCROLL = Regex(
             """on\s+demand|(as|when|while)\s+you\s+scroll|\bon\s+scroll\b|pages?\s+past\s+it""",

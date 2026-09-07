@@ -15,16 +15,6 @@ import java.sql.ResultSet
 
 /**
  * Verifies, against in-memory SQLite, the two statements behind "Mail by sender":
- * [app.sterna.core.data.db.EmailDao.senderVolumes] (the numbers the screen prints) and
- * [app.sterna.core.data.db.EmailDao.senderMessageIds] (the ids its delete acts on).
- *
- * Both are read out of the shipped DAO by [DaoQuerySource] — the annotation's own text, with the
- * shared scope constant resolved — and executed. Retyping them here would let the DAO change
- * under a green test, which is the whole reason that reader exists.
- *
- * The invariant this file is really for: **the count and the deleted set are the same set**. Not
- * "they look alike", not "the SQL mentions the same words": every id the second statement returns
- * is counted by the first, on the same rows, in the same run.
  */
 class SenderVolumeSqlTest {
     private lateinit var db: Connection
@@ -160,9 +150,6 @@ class SenderVolumeSqlTest {
     @Test fun `two spellings differing by a non-ASCII capital are TWO lines`() {
         // Pinned rather than endured: SQLite's lower() is ASCII-only, so "É" is not folded onto
         // "é" and these are two groups. Kotlin's lowercase() IS Unicode-aware, so anything that
-        // re-lowercases these addresses on the Kotlin side folds them into ONE value — which is
-        // why the list key upstream must be the address AS STORED. A LazyColumn handed the same
-        // key twice throws, and takes the screen down with it.
         insert("m1", from = "Éric@example.com")
         insert("m2", from = "éric@example.com")
         val rows = volumes()

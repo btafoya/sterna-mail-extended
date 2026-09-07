@@ -11,14 +11,6 @@ import org.junit.Test
 
 /**
  * The `Reply-To` addresses survive the cache.
- *
- * A sender that sets `Reply-To` says "answer somewhere else than my `From`": a mailing list, a
- * `support@` behind a `no-reply@`, a ticketing alias. If the address does not reach the row, an
- * offline reply — and the notification's quick reply, which reads nothing but the cache — has only
- * the sender to fall back on, and the answer goes to a mailbox nobody reads while it looks sent.
- *
- * These tests exercise the mapper itself; the column and its migration are covered by
- * `ReplyToMigrationSqlTest`.
  */
 class EmailMapperReplyToTest {
 

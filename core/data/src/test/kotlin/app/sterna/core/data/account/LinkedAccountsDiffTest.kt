@@ -8,15 +8,6 @@ import org.junit.Test
 
 /**
  * [diffLinkedAccounts] (issue #31): the pure add/prune decision behind
- * AccountStore.reconcileLinkedAccounts. The revocation cases guard the device-validated bug where
- * a session shrunk back to the login's single account (all delegated access revoked) failed to
- * prune the linked sub-accounts, leaving them in the drawer forever.
- *
- * The `probes` cases guard the other side of it: the #129 probe may keep a sub-account OUT (it is
- * never minted), it may never push one out (a listed account is not pruned on a `forbidden` that
- * may be a reloaded ACL — that deletes a real shared mailbox and five tables of cache).
- *
- * Every expectation is a literal, never a re-derivation of the rule.
  */
 class LinkedAccountsDiffTest {
 
@@ -155,8 +146,6 @@ class LinkedAccountsDiffTest {
 
     /**
      * The destruction this fix exists for: the server STILL LISTS the shared mailbox, one
-     * Mailbox/get for it came back `forbidden` (a reloaded ACL, a moment of denial). Pruning here
-     * deletes the StoredAccount of a real shared mailbox and purges its five tables.
      */
     @Test fun stillListedSubAccountRefusedByTheProbeIsNeitherPrunedNorReAdded() {
         val diff = diffLinkedAccounts(
@@ -199,12 +188,6 @@ class LinkedAccountsDiffTest {
 
     /**
      * The reporter's configuration, naked (#129): a login whose ONLY non-primary candidate is the
-     * refused calendar-only share, nothing tracked yet. Nothing to add, and nothing to prune either.
-     *
-     * This is the case that fails a filter written as "…and if that leaves nothing, take the raw
-     * list": every other admission case here has a second candidate the probe served, so the empty
-     * result is never reached and such a fallback would go unseen while re-minting the sharer's
-     * account exactly as it was reported.
      */
     @Test fun `refused sole candidate is neither added nor pruned`() {
         val diff = diffLinkedAccounts(
@@ -221,9 +204,6 @@ class LinkedAccountsDiffTest {
 
     /**
      * The same refusal next to a sub-account already tracked and served: still nothing to add.
-     * Pinned separately because "already linked" is not what disqualifies the refused candidate —
-     * a rule reading `existingLinked` to decide whether the probe applies would pass the case
-     * above and mint the sharer's account here.
      */
     @Test fun `refused untracked candidate is not added while a tracked sibling is served`() {
         val diff = diffLinkedAccounts(

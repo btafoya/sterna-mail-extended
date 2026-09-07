@@ -12,12 +12,6 @@ import org.junit.Test
 
 /**
  * The reading-mode switch (#149): its default, its stored key, and its trip through a settings
- * backup. Same five checks and the same reasons as [SettingsBackupListMonogramTest] — a setting that
- * silently fails to restore is worse than one that does not exist, and a default that can be flipped
- * with the suite green is worse still.
- *
- * The decision is RUN here, not described: [plainTextFrom] is handed real `Preferences`, so the
- * elvis and the key are both exercised rather than read as text.
  */
 class SettingsBackupPlainTextTest {
 

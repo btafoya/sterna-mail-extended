@@ -6,15 +6,6 @@ import org.junit.Test
 
 /**
  * What the ENLARGED cell says, RUN — not read as source, and never recomputed here. Every
- * expectation below is a literal list of [UnreadAccountRow], so a shipped rule with a guard dropped
- * or a figure swapped disagrees with this file instead of agreeing with it.
- *
- * The stake is the home screen, where the app cannot explain itself and nothing is ever unlocked to
- * read it: a wrong figure beside an account's name is read as that account's unread mail, and a
- * name that is really a mail address is a permanent nameplate on the launcher.
- *
- * The figures themselves are not decided here and are not tested here: they are
- * `MailRepository.observeUnifiedInboxUnreadByAccount()`, executed in `UnifiedInboxUnreadTest`.
  */
 class UnreadWidgetAccountRowsTest {
 
@@ -29,9 +20,6 @@ class UnreadWidgetAccountRowsTest {
 
     /**
      * Three accounts, three DIFFERENT figures, none of them the total and none of them equal to
-     * another: a rule that handed every line the total (12), or the first account's figure, or a
-     * count taken from the wrong key would all still produce three lines, and only distinct values
-     * tell those apart.
      */
     @Test fun `three accounts each get their own line, in the app's order, with their own figure`() {
         val accounts = listOf(
@@ -72,10 +60,6 @@ class UnreadWidgetAccountRowsTest {
 
     /**
      * App lock on → the total, at every size, whatever the breakdown says.
-     *
-     * `StoredAccount.label()` falls back to `username`, which IS the mail address, so ventilating
-     * under a lock writes the owner's own address on a home screen that is never asked for a PIN.
-     * An empty list is how this rule says "draw the total instead".
      */
     @Test fun `an app lock leaves nothing to ventilate, however many accounts there are`() {
         assertEquals(
@@ -93,8 +77,6 @@ class UnreadWidgetAccountRowsTest {
 
     /**
      * One account is not a grouping. The drawer offers "All inboxes" only from two accounts up
-     * ([AllInboxesView]), and a one-line breakdown of one account names something the app does not
-     * have.
      */
     @Test fun `a single account is never ventilated`() {
         assertEquals(
@@ -111,10 +93,6 @@ class UnreadWidgetAccountRowsTest {
 
     /**
      * Two accounts, ONE known inbox — and the answer is the total, not a single line.
-     *
-     * An account absent from the breakdown has no known inbox to count. Ventilating anyway would
-     * draw one line, which is the total under an account's name, and would silently drop the other
-     * account from a cell that is supposed to be showing all of them.
      */
     @Test fun `two accounts with only one known inbox fall back to the total`() {
         assertEquals(
@@ -131,10 +109,6 @@ class UnreadWidgetAccountRowsTest {
 
     /**
      * And the absent account gets NO line, not a line at zero — asserted where there ARE two
-     * other lines, so the guard above cannot be what makes this pass.
-     *
-     * A "0" is a claim: it says that account has nothing unread. The app does not know that; it
-     * knows it has no inbox to count, which is a different thing and not something to write down.
      */
     @Test fun `an account absent from the breakdown gets no line at all, never a zero`() {
         assertEquals(

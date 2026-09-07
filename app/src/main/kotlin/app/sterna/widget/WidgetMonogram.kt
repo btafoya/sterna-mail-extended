@@ -10,22 +10,11 @@ import app.sterna.ui.components.ToneRamp
 
 /**
  * The badge of a widget row, as a `Bitmap` — the only way a `RemoteViews` can carry a coloured
- * initial.
- *
- * No tint rule and no key rule live here: both were cut out into [widgetMonogramArgb],
- * [widgetMonogramLetterArgb] and [widgetMonogramKey], because this object cannot be touched from the
- * JVM suite at all — loading it runs [cache]'s initialiser, an `android.util.LruCache`.
- *
- * The bitmap handed back is SHARED and mutable: it is the cache's own object, given to every row
- * that resolves to the same letter, colour and side. Do not draw on it and do not recycle it.
  */
 internal object WidgetMonogram {
 
     /**
      * The disc for [monogram], painted in the tones handed in — cached, then handed out as is.
-     * The cache is not an optimisation: `getViewAt` builds a fresh `RemoteViews` on every call, how
-     * many is the launcher's decision, and all of it happens on a binder thread the launcher waits
-     * on. Uncached, one flick of a home screen re-renders up to 25 discs.
      */
     fun badge(context: Context, monogram: RecentRowMonogram, ramps: List<ToneRamp>): Bitmap {
         val side = context.resources.getDimensionPixelSize(R.dimen.widget_recent_monogram)
@@ -37,8 +26,6 @@ internal object WidgetMonogram {
 
     /**
      * A filled circle with the initial centred on it. The baseline is computed from the FONT
-     * METRICS and not from half the height: a glyph's ink sits above its baseline, so centring on
-     * `side / 2` leaves every letter floating high.
      */
     private fun draw(initial: String, argb: Int, side: Int): Bitmap {
         val bitmap = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
@@ -64,10 +51,6 @@ internal object WidgetMonogram {
 
     /**
      * Bounded in BYTES, not in entries: a disc's side comes from the resources, so an xxxhdpi
-     * screen draws one sixteen times the memory of an mdpi one for the same count.
-     *
-     * Nothing invalidates this cache and nothing has to: the resolved colour is part of the key,
-     * so a theme change simply stops asking for an entry and the LRU drops it.
      */
     private const val CACHE_KB = 512
 

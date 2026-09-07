@@ -9,16 +9,6 @@ import java.time.ZoneOffset
 
 /**
  * The attachment scan's ceiling, driven on a real socket: when a folder is deeper than the walk is
- * allowed to look, and what that costs the folders next to it.
- *
- * The flag under test is [ImapFolderHits.incomplete]. It is the whole basis of the "at least N"
- * the screen shows: lose it and a scan that stopped a thousand messages into a folder is presented
- * as a total, which is the overclaim #102 took out of this app. So each case below comes with its
- * witness — a folder the walk DID finish, whose answer must not be marked.
- *
- * The cap itself is a private constant and stays that way: the folders here are sized well above
- * (1500 candidates) and well below (200) it, so the tests describe behaviour rather than pinning a
- * number that is free to move.
  */
 class ImapSearchScanCapTest {
 
@@ -31,8 +21,6 @@ class ImapSearchScanCapTest {
 
     /**
      * A folder the walk got through end to end: every candidate was examined, so what it kept IS
-     * the answer for that folder. THE witness — without it, "marked incomplete" could just be a
-     * constant and every search would call itself partial.
      */
     @Test
     fun `a folder walked to the end under the scan cap answers in full`() {
@@ -56,8 +44,6 @@ class ImapSearchScanCapTest {
 
     /**
      * The same folder, deeper than the walk may go: it keeps what it found on the way and SAYS the
-     * answer is short. Both halves matter — dropping the hits would lose mail the user can see is
-     * there, and dropping the flag would pass a partial scan off as the whole folder.
      */
     @Test
     fun `a folder deeper than the scan cap keeps what it found and says the answer is short`() {
@@ -82,10 +68,6 @@ class ImapSearchScanCapTest {
 
     /**
      * THE witness that matters, and the case no test covered: several folders, ONE of them
-     * saturated. The saturated folder must mark the walk short, and the folders that answered
-     * normally must keep every hit they found. Losing the good folders' results because a bad one
-     * ran out of allowance would be the expensive mistake — the user searched five folders and got
-     * the contents of none of them.
      */
     @Test
     fun `one saturated folder makes the walk short without costing the other folders their hits`() {
@@ -127,9 +109,6 @@ class ImapSearchScanCapTest {
 
     /**
      * A folder whose `UID SEARCH` is refused (`NO`) while its neighbours answer. It must come back
-     * as an EMPTY entry MARKED — never vanish. A folder missing from the answer is, on screen,
-     * indistinguishable from a folder that held no match, and that is how a search which never ran
-     * ends up under "No results" as if it were a fact.
      */
     @Test
     fun `a folder whose search is refused comes back empty and marked while the others answer`() {
@@ -174,9 +153,6 @@ class ImapSearchScanCapTest {
 
     /**
      * What keeps the scan affordable: the attachment filter narrows a set the SERVER already cut
-     * down, it does not stand in for the query. The scripted server here refuses to be helpful —
-     * a search line missing the criteria gets the whole 900-message folder — so a build that asked
-     * for `ALL` and filtered everything locally would fetch 900 envelopes instead of three.
      */
     @Test
     fun `the attachment scan filters what the server already narrowed rather than replacing the query`() {

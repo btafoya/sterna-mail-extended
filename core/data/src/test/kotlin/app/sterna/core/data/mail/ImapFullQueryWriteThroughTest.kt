@@ -13,17 +13,6 @@ import org.junit.Test
 
 /**
  * The red line on the IMAP side, EXECUTED: pages written as they land, ONE reconcile at the end,
- * and NO reconcile at all when the walk cannot vouch for what it read.
- *
- * The decisions under test are both shipped ones — [fullQueryWriteThrough], which orders the four
- * steps, and [reconcilableIds], which is IMAP's own refusal. The reconcile they are handed runs the
- * shipped complement rule ([reconcileEvictions]) over a fake folder, so "reconcile against the last
- * page" is a mutation these fixtures can SEE: every folder below caches a row only a MIDDLE page
- * names.
- *
- * What no JVM test can reach — `MailRepository` needs Room, an Android `Context` and a live IMAP
- * connection — is that `imapWriteThrough` still routes through these two with these arguments. That
- * is the wiring lint next door ([ImapWindowWiringTest]).
  */
 class ImapFullQueryWriteThroughTest {
 
@@ -51,8 +40,6 @@ class ImapFullQueryWriteThroughTest {
 
     /**
      * One folder as this path leaves it — a cache of ids, a recently-mutated spare set that MOVES
-     * while the walk runs, and a record of what the reconcile was handed (and of the folder it was
-     * told to reconcile, which the walk resolves, not the caller).
      */
     private class Folder(cached: List<String> = emptyList()) {
         val cache = LinkedHashSet(cached)
@@ -83,11 +70,6 @@ class ImapFullQueryWriteThroughTest {
 
     /**
      * A walk that hands [pages] over one at a time and then answers with every UID it handed over
-     * plus [moved] — or, when [failAfter] pages have been handed over, throws [failWith] instead of
-     * finishing.
-     *
-     * It decides nothing: it accumulates exactly what it was given, and it repeats [moved] as it
-     * was told. A fake that re-derived either would pass whatever the shipped rule said.
      */
     private fun walkOf(
         pages: List<List<Long>>,

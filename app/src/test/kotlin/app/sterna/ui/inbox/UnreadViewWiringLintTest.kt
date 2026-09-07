@@ -6,39 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
- *
- * It reads `InboxScreen.kt` and `InboxViewModel.kt` as text and proves nothing about what the app
- * draws. There is no Compose harness in this repo, `InboxScreen` is not instantiable on the JVM and
- * `InboxViewModel` is an `AndroidViewModel` over Room; the drawer entry that makes the "unread" view
- * reachable at all is therefore out of reach of any executing test. What CAN be executed is what the
- * entry shows ([unreadViewCount], run in `UnreadViewCountTest`) and what an empty list of it says
- * ([emptyListScene], run in `EmptyListSceneTest`) — this file pins the wiring between them, as whole
- * ARGUMENTS, never as "the call exists".
- *
- * The mutations it exists for, every one of which compiles and leaves everything else green:
- *  - `selected = ui.unified` on the entry: the tick sits on "All inboxes" while the unread view is
- *    the one on screen;
- *  - the entry moved inside `if (accounts.size > 1)`: a per-account view that a single-account
- *    install can never reach — and this branch was written from the unified entry, where that guard
- *    is right;
- *  - the toolbar funnel left visible in the view: it is drawn OFF over a list [listUnreadOnly] has
- *    filtered, and tapping it changes nothing;
- *  - `unreadView = sel is Sel.Unified` in the state: every one of the three decisions above then
- *    describes the wrong view, in one word, in a file no executing test can reach;
- *  - the badge folded in from another flow, or read from another field, or never folded in at all —
- *    three type-correct one-word edits, none of which any executing test can see;
- *  - `atInbox` answering true for a view that has no folder, which turns Back into "leave the app";
- *  - the search hint left on its two arms, promising a search of the Inbox over a search of the
- *    whole account.
- *
- * Every rule compares a WHOLE unit — the whole argument, the whole condition, the whole line.
- * A `contains` on a fragment is blind to any mutation that LENGTHENS it: `selected = ui.unreadView`
- * is contained in `selected = ui.unreadView && false`. The price is that a reformat reddens this
- * file; that direction of error is loud and one line to fix.
- *
- * ONE rule is not a comparison of whole units, and cannot be: `the ViewModel declares no
- * isAtInbox of its own` proves an ABSENCE, so it searches for a pattern and expects nothing back.
- * There is no line to compare when the point is that no such line may exist.
  */
 class UnreadViewWiringLintTest {
 
@@ -87,8 +54,6 @@ class UnreadViewWiringLintTest {
 
     /**
      * The one difference from the unified entry, and the reason this rule exists: the unread view
-     * is a view of ONE account, so it has a meaning on an install that has only one. Written inside
-     * the `accounts.size > 1` guard it would be dead for exactly the readers it was built for.
      */
     @Test
     fun `the entry is not hidden behind a second account`() {
@@ -136,11 +101,6 @@ class UnreadViewWiringLintTest {
 
     /**
      * The regex is `\bunreadView(Count)?\b`, and the parenthesis is not decoration: `\bunreadView\b`
-     * does NOT match `unreadViewCount` (there is no word boundary between "w" and "C"), so a rule
-     * written that way leaves every line that carries the NUMBER unguarded — `= base.unread` in
-     * place of `= base.unreadViewCount` is two `Int`s, compiles, and puts the current folder's count
-     * on the entry. It must not match `unreadViewScopes` either, which is volet 1's and is pinned by
-     * `PageKeyWiringLintTest`.
      */
     @Test
     fun `the view flag and the badge are carried whole, from their own state`() {
@@ -159,13 +119,6 @@ class UnreadViewWiringLintTest {
 
     /**
      * SOURCE LINT, and the rule the one above cannot be: it pins WHERE THE VALUES COME FROM.
-     *
-     * Three mutations live here, all of them type-correct and all of them silent:
-     *  - `combine(baseState, unifiedInboxScopes, currentAccountId)` — same type, and the entry then
-     *    announces the unread of the INBOXES over a list that pages every folder;
-     *  - `combine(baseState, …)` where the state reads `badgedState` — the badge is then never
-     *    written and the entry never carries a number at all;
-     *  - a fourth flow spliced in, or the five-flow `baseState` re-ordered.
      */
     @Test
     fun `the badge is folded in from the unread scope, and the state reads the folded flow`() {
@@ -193,16 +146,6 @@ class UnreadViewWiringLintTest {
 
     /**
      * Not this volet's feature, but this volet's accident. `atInbox` drives the system Back
-     * gesture: true means "this IS the inbox", and Back then LEAVES THE APP.
-     *
-     * Written as `(sel as? Sel.Folder)?.id == store.inboxMailboxId()`, the unread view answers
-     * `null == null` on an account whose inbox has never been synced — no folder selected on one
-     * side, no cached inbox id on the other — and the view silently becomes an exit. The structural
-     * form cannot: a selection that is not a folder is not the inbox, whatever the store knows.
-     * `Sel.Folder(null)` keeps the answer it always had, deliberately.
-     *
-     * The rule itself is [isAtInbox] and is EXECUTED by `AtInboxTest`; what is pinned here is that
-     * the ViewModel's two sites call it instead of restating it — the drift this file exists for.
      */
     @Test
     fun `no view without a folder can pass for the inbox`() {
@@ -223,13 +166,6 @@ class UnreadViewWiringLintTest {
 
     /**
      * The delegation above is only worth what the NAME resolves to. Kotlin resolves a member
-     * before a top-level function of the same package, so a `private fun isAtInbox(sel: Sel,
-     * inboxMailboxId: String?)` declared anywhere inside `InboxViewModel` captures both call sites
-     * in silence: the rule above still reads exactly the two lines it expects, `AtInboxTest` still
-     * runs — a function nobody calls any more — and the loose form, with the Back gesture that
-     * leaves the app from the unread view, is back in full.
-     *
-     * So the rule here is an absence, and is written as one: a search that must find nothing.
      */
     @Test
     fun `the ViewModel declares no isAtInbox of its own`() {
@@ -250,14 +186,6 @@ class UnreadViewWiringLintTest {
 
     /**
      * The last link, and the only one: `InboxScreen.kt` is where `atInbox` is READ. Everything
-     * above proves the flag is computed by the one rule; nothing above notices if the screen stops
-     * asking that rule the right question, or stops acting on its answer.
-     *
-     * Both mutations compile, and both bring the whole symptom back:
-     *  - `inboxBackAction(selectionActive, ui.searching, ui.selectedMailboxId == null || ui.atInbox)`
-     *    — every view without a folder is "the inbox" again, at the reading end this time;
-     *  - the SHOW_INBOX handler deleted — Back then falls through to the system, i.e. out of the
-     *    app, from every folder and every view.
      */
     @Test
     fun `the screen asks the back rule the right question, and binds its answer`() {
@@ -277,9 +205,6 @@ class UnreadViewWiringLintTest {
 
     /**
      * The search field's hint says what the search covers. In this view it covers the whole account
-     * ([InboxViewModel.searchAccounts] answers the current account, and the scope is its folders),
-     * while the label falls back to `ui.mailboxName` — which `selectUnread()` has just set to the
-     * INBOX's name. "Search in Inbox", over a search of everything.
      */
     @Test
     fun `the search hint names the view, not the folder last visited`() {
@@ -361,10 +286,6 @@ class UnreadViewWiringLintTest {
 
     /**
      * The `val scopeLabel = …` statement of the search bar, up to the statement that follows it.
-     *
-     * Anchored on both names rather than on `TopAppBar(`: `InboxScreen.kt` builds two of those, and
-     * a rule read over the wrong one would be satisfied by the browse bar's title. Fails loudly if
-     * either name moves — a rule that quietly reads an empty string guards nothing.
      */
     private fun searchScopeLabel(): String {
         val text = codeText(INBOX_SCREEN)
@@ -463,9 +384,6 @@ class UnreadViewWiringLintTest {
 
     /**
      * [file] as ONE line of code: comments taken out, runs of whitespace collapsed — so a call the
-     * formatter spreads over eight lines reads like one written on a line. Same scanner as
-     * `UnifiedTitleWiringLintTest`'s, and for the same reason: a `//` inside a string literal is not
-     * a comment, and a line starting with `*` is not always a comment either.
      */
     private fun codeText(file: File): String = strippedLines(file).joinToString(" ")
         .replace(Regex("""\s+"""), " ").trim()
@@ -574,9 +492,6 @@ class UnreadViewWiringLintTest {
 
         /**
          * The screen's whole use of the Back rule: the question, then the four handlers. The
-         * reading pane's flag is `detail != null && pane.anchor != null` (#103): the host's split
-         * AND a message in it — `pane.anchor != null` alone would swallow a Back on a narrow window
-         * over an anchor nothing there can show.
          */
         private val EXPECTED_BACK_ACTION_LINES = listOf(
             "val backAction = inboxBackAction(selectionActive, detailOpen = detail != null && pane.anchor != null, ui.searching, ui.atInbox)",

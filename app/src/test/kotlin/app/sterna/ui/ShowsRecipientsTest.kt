@@ -8,20 +8,6 @@ import org.junit.Test
 
 /**
  * Sender or recipients? [showsRecipients] is that decision, and both surfaces make it here: the
- * list row (`InboxScreen`) and the reader (`MessageViewModel._ownMessage`).
- *
- * #115: a message you send to YOURSELF arrives in the Inbox, and the Inbox showed it as "To: your
- * address" — a line that reads as sent mail in the folder of received mail. The sender test was
- * true wherever the message sat, folder included.
- *
- * The fix is narrow on purpose: the author test is dropped only where the context is EXPLICITLY
- * incoming — the Inbox, and the unified view, which aggregates nothing but Inboxes. Everywhere
- * else it decides exactly as before, and two of those elsewheres are load-bearing:
- *
- *  - #69, a sent message or a draft moved to the Trash still reads "To: …". Nothing but the author
- *    test rescues it there, since the Trash role fails the folder test.
- *  - a folder with no role at all (a custom folder, or a role that has not resolved yet) keeps the
- *    author test, because nothing has established that it holds incoming mail.
  */
 class ShowsRecipientsTest {
 

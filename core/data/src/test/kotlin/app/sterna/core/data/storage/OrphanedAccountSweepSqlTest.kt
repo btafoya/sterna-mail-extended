@@ -12,45 +12,6 @@ import java.sql.DriverManager
 
 /**
  * The orphan sweep of [StorageRepository.purgeOrphanedAccounts] (#121), replayed against in-memory
- * SQLite with the statements the DAOs ship — read out by [DaoQuerySource], never retyped.
- *
- * The sweep has three ways of going wrong, and each is a separate half of this file:
- *
- *  - WHAT IT LOOKS AT. Taking the inventory from `emails` alone misses the residue that is by far
- *    the likeliest: `refresh()` persists the folder list before it fetches any mail, so an
- *    interrupted or failed first sync leaves an account with folders and not one message. That
- *    account is gone from the store, nothing syncs it, and an emails-only sweep walks straight past
- *    it — for good. Hence the union of every table the sweep deletes from.
- *  - WHAT IT DELETES. An empty list of known accounts must sweep NOTHING. It is not only the
- *    signed-out user: `AccountStore.accounts()` also returns an empty list when the stored JSON
- *    fails to decode, and treating that as "everything is an orphan" would wipe a healthy install's
- *    entire cache on one bad read. The decision stays in [OrphanedAccountCache] — outside SQL —
- *    precisely so it cannot degrade into `DELETE … WHERE accountId NOT IN (…)`. And every delete it
- *    then runs must be scoped to one account: an unscoped `deleteAll()` **anywhere after the
- *    decision** empties the cache of every account there is, which is the single most expensive
- *    mistake this file exists to catch.
- *  - IN WHAT ORDER. The inventory is read first and the account list second. The other way round,
- *    an account created between the two reads is missing from the list, present in the inventory,
- *    and its brand-new cache is swept.
- *
- * SO NOTHING HERE IS RETYPED FROM THE REPOSITORY. The statements replayed below, the order they
- * run in, which tables they touch and **which way round the decision is called** are all READ OUT
- * of `purgeOrphanedAccounts` (see [SweepShape]). A test that replays its own idea of the sweep
- * proves things about itself; this one goes red when the shipped function changes shape, which is
- * the only reason it is worth running.
- *
- * TWO THINGS THIS READS AND EARLIER VERSIONS DID NOT, both because a mutation slipped through:
- *
- *  - **The region judged as "the deletes" starts at the DECISION, not at the loop.** It used to
- *    start at `orphans.forEach`, so `if (orphans.isNotEmpty()) emailDao.deleteAll()` on the line
- *    between the two was read by no rule at all and left every test green — while wiping every
- *    account's cached mail on every cold start. Every DAO call standing after the decision is now
- *    judged as a delete: per-account or red.
- *  - **The decision's arguments, in order.** Only the function name was pinned, and the replay
- *    retyped `orphans(known, cached)` by hand, so `orphans(cached, known)` (same types, compiles in
- *    silence, sweep goes inert and #121 comes back) and `orphans(listOf(known.first()), cached)`
- *    (every account but one loses its cache) were both invisible. The argument list is now read
- *    from the source and the replay passes them in the order it read.
  */
 class OrphanedAccountSweepSqlTest {
 
@@ -118,9 +79,6 @@ class OrphanedAccountSweepSqlTest {
 
     /**
      * The decision, with its two arguments in the order the SHIPPED call passes them — the one
-     * thing this replay cannot execute for itself, so it reads it instead. Swapping them in
-     * `StorageRepository` swaps them here, and the sweep goes inert in every test below rather than
-     * staying green on a hand-typed copy of a call the app no longer makes.
      */
     private fun decide(known: Collection<String>, cached: Collection<String>): List<String> {
         val values = mapOf(SweepShape.knownValue to known, SweepShape.cachedValue to cached)
@@ -144,8 +102,6 @@ class OrphanedAccountSweepSqlTest {
 
     /**
      * The whole sweep — inventory → account list → decision → the per-account deletes — in the
-     * order the shipped function does them, with [afterFirstRead] standing in for whatever the rest
-     * of the app does while the sweep is between its two reads. Returns the ids swept.
      */
     private fun sweep(knownAccountIds: () -> Collection<String>, afterFirstRead: () -> Unit = {}): List<String> {
         val cached: List<String>
@@ -250,9 +206,6 @@ class OrphanedAccountSweepSqlTest {
 
     /**
      * The whole point of reading the known accounts as a LIST rather than a filter: every account
-     * the store lists keeps its cache, not just the first one. A decision handed a narrowed list
-     * (`listOf(known.first())`, a `take(1)`, a filtered copy) still sweeps "orphans" — they are
-     * simply every other account the user has, and they lose their mail on the next cold start.
      */
     @Test fun `nothing is swept while every cached account is a known one`() {
         val known = listOf("a", "b", "c")
@@ -289,9 +242,6 @@ class OrphanedAccountSweepSqlTest {
 
     /**
      * The replay above runs whatever `purgeOrphanedAccounts` calls after its decision, so an
-     * unscoped delete would already show up as a live account losing its rows. This states the rule
-     * on its own, so the failure names it: nothing standing after the decision may run a statement
-     * that is not per-account — not in the loop, and not on the line before it.
      */
     @Test fun `every delete the sweep runs is scoped to one account`() {
         assertTrue(
@@ -318,18 +268,6 @@ class OrphanedAccountSweepSqlTest {
 
     /**
      * THE CALL ITSELF, ARGUMENTS INCLUDED. Pinning only the function name left two mutations
-     * green, and both are cache-wide:
-     *
-     *  - `orphans(cached, known)` — same types, compiles in silence. Every cached account is now
-     *    "known", so nothing is ever swept: the sweep is inert and #121 is back, with a full suite
-     *    of green tests over it.
-     *  - `orphans(listOf(known.firstOrNull().orEmpty()), cached)` — one known account survives and
-     *    every other account of the user is swept as an orphan, on every cold start.
-     *
-     * Neither is a delete, which is why the rules about deletes read straight past them. What holds
-     * them is that the two names the sweep read into are the two things it hands over, in that
-     * order — and [decide] then replays the call the way this reads it, so the behaviour tests turn
-     * red on the same mutation rather than agreeing with a copy typed here.
      */
     @Test fun `the decision is handed the account list first and the inventory second`() {
         assertEquals(
@@ -347,11 +285,6 @@ class OrphanedAccountSweepSqlTest {
 
     /**
      * The account created while the sweep runs. The trigger used to hand the sweep an already-read
-     * list (`purgeOrphanedAccounts(store.accounts().map { it.id })`), and the inventory that follows
-     * is typically the first database access of the process: it pays for opening the file and for
-     * any migration, while the first unified refresh is discovering shared mailboxes and creating
-     * their sub-accounts (#31). An account minted in that gap was absent from the list and present
-     * in the inventory — an orphan by both readings, swept the moment its first page landed.
      */
     @Test fun `an account created between the two reads is not swept`() {
         insertEmail("kept"); insertMailbox("kept")
@@ -414,13 +347,6 @@ class OrphanedAccountSweepSqlTest {
 
     /**
      * The sweep's two callers, in the app module — the cold start and the sign-out. Neither can be
-     * exercised from this module (an Application and an AndroidViewModel), and neither was covered
-     * by anything at all, so what is cheap to hold is held: they must hand the sweep a READER of
-     * the account store, so the order pinned above is the order they actually get.
-     *
-     * Comments are stripped before the file is read, and EVERY call site is judged rather than the
-     * first mention found: a KDoc naming `purgeOrphanedAccounts` above the function used to be
-     * taken for the call and failed the rule on its own.
      */
     @Test fun `both callers hand the sweep a reader of the account store`() {
         val callers = mapOf(
@@ -453,18 +379,6 @@ class OrphanedAccountSweepSqlTest {
 
     /**
      * The shape of the shipped sweep, parsed once from `StorageRepository.kt`: which DAO calls take
-     * the inventory, which ones delete, which way round the decision is called, and whether the
-     * account list is read before or after the inventory. Braces are counted raw — no Kotlin parser
-     * here — which reads too far or stops early rather than lying, and every failure above prints
-     * the body it read.
-     *
-     * THE SHAPE THIS EXPECTS, and it is a real constraint on the shipped function: the account
-     * list and the inventory each go into a local `val` before the decision is taken, and the
-     * decision's result into a third. Reading a source file as text is the only instrument
-     * available here, and it needs names to follow; inlining any of the three (`orphans(
-     * knownAccountIds(), …)`) fails these rules loudly rather than passing unread. The sweep is
-     * eight lines long, so that is a cheap thing to ask of it — but it IS asked, deliberately, and
-     * a future shape that wants the inlining will have to teach this to follow it.
      */
     private object SweepShape {
 
@@ -483,11 +397,6 @@ class OrphanedAccountSweepSqlTest {
 
         /**
          * The same, with the comments taken out — what every rule here actually reads.
-         *
-         * Prose is not code, and reading it as code made two rules fail on files that were
-         * perfectly correct: a comment containing the words "not in" tripped the `NOT IN` ban (the
-         * comparison ignores case), and a commented-out DAO call would have been parsed as a
-         * statement the sweep runs.
          */
         val code: String by lazy { functionText(withoutComments(SOURCE)) }
 
@@ -512,8 +421,6 @@ class OrphanedAccountSweepSqlTest {
 
         /**
          * Where the sweep makes up its mind. Everything before it is the inventory; everything
-         * after it deletes — INCLUDING THE GAP between the decision and the loop, which used to
-         * belong to no region at all and where an `emailDao.deleteAll()` sat unread by every rule.
          */
         val decisionAt: Int by lazy {
             code.indexOf(DECISION).also {
@@ -577,8 +484,6 @@ class OrphanedAccountSweepSqlTest {
 
         /**
          * The name the loop binds each orphan to — `forEach { id ->`, a bare `forEach { … it … }`,
-         * or `for (id in orphans)` alike. Read rather than assumed: renaming the loop variable, or
-         * writing the loop the other way, is not a defect and must not turn this file red.
          */
         val loopVariable: String by lazy {
             val after = code.substring(decisionAt)
@@ -596,8 +501,6 @@ class OrphanedAccountSweepSqlTest {
 
         /**
          * Whether the account list is read after the inventory. A list evaluated by the caller
-         * leaves no call to read here at all, which is exactly "read first" — the shape this file
-         * refuses.
          */
         val inventoryIsReadFirst: Boolean by lazy {
             val listAt = code.indexOf("$listParameter()")
@@ -673,11 +576,6 @@ class OrphanedAccountSweepSqlTest {
 
         /**
          * [source] with its Kotlin comments removed, string literals left alone.
-         *
-         * A source lint that reads prose as code fails on files that are correct — a comment saying
-         * "not in" is not a `NOT IN`, and a commented-out call is not a call. Strings are stepped
-         * over so a `"http://…"` cannot be mistaken for the start of a comment; character literals
-         * are not, which would only matter for a `'"'` and none of the files read here has one.
          */
         fun withoutComments(source: String): String {
             val out = StringBuilder(source.length)

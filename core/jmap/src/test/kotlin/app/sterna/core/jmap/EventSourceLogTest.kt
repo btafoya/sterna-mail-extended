@@ -20,10 +20,6 @@ import java.util.concurrent.TimeUnit
 
 /**
  * The push connection is the one thing a reporter is asked to capture (`adb logcat -s
- * PushService:* JmapClient:*`), so it has to leave a trace — and that trace is pasted in public.
- * This runs the real [JmapClient.openEventSource] against a MockWebServer through the logging seam
- * and reads what actually came out: the open line exists and names the host, the failure line
- * carries its cause, and no line carries the bearer token, the query, or the path.
  */
 class EventSourceLogTest {
     private lateinit var server: MockWebServer
@@ -51,9 +47,6 @@ class EventSourceLogTest {
 
     /**
      * The two lines of a connection that opens and ends cleanly, pinned as WHOLE sentences. The
-     * wording is the entire point of the pair: "closed by" and "failed for" are the distinction the
-     * volet exists to draw, and asserting only that some line names the host lets the two be swapped
-     * without a test noticing.
      */
     @Test fun `opening and closing the event source are logged, with the host and nothing else`() {
         server.enqueue(
@@ -109,8 +102,6 @@ class EventSourceLogTest {
 
     /**
      * The likeliest field failure of all — an expired credential answering 401 on the SSE endpoint —
-     * arrives with NO throwable, only the response. Without the status the line would say no more
-     * than the silence it replaces. The status code and nothing else: no header, no body.
      */
     @Test fun `a refused event source names the status it was refused with`() {
         server.enqueue(MockResponse().setResponseCode(401).setBody("token expired for alex@example.com"))
@@ -142,8 +133,6 @@ class EventSourceLogTest {
 
     /**
      * A sink that throws must not cost the caller its reconnect: [onClosed] is how the service
-     * learns the connection is gone, and losing it leaves a login dead with nothing rescheduled —
-     * the very failure this branch exists to make visible.
      */
     @Test fun `a sink that throws does not swallow the callback`() {
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
@@ -163,8 +152,6 @@ class EventSourceLogTest {
 
     /**
      * Nothing logged may carry the credential, the query, or the path of the connection — and that
-     * includes the THROWABLE, which is printed with its whole cause chain by the app's sink and is
-     * the one channel this module does not write itself.
      */
     private fun assertNoSecretsLeaked() {
         captured.forEach { (message, error) ->

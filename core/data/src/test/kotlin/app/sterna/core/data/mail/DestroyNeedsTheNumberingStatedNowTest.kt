@@ -14,22 +14,6 @@ import org.junit.Test
 
 /**
  * A destroy may only go out under a numbering the server states IN THE SELECT IT IS ABOUT TO
- * EXPUNGE UNDER (Codeberg #99).
- *
- * The hole this closes: `ImapSession.select` only refuses when the server reports a UIDVALIDITY
- * that differs from the expected one. A server that announced `UIDVALIDITY 42` yesterday and
- * today answers a SELECT with NO UIDVALIDITY line at all refuses nothing — so `UID STORE +FLAGS
- * (\Deleted)` and `UID EXPUNGE` go out against yesterday's UIDs, in a folder that may have been
- * renumbered in between. On an account with no Trash that folder is the INBOX, and nothing fails.
- *
- * The guard cannot live in `core/imap`: ten READ paths select with the remembered numbering, and
- * refusing there would make a folder unreadable on a non-conforming server (see `UidValidityTest`,
- * "a server announcing no numbering is not turned into a refusal", which must stay green). It
- * lives where the destructive intent, the frozen number and what the server JUST SAID all meet:
- * `ImapMailService.deleteBatch`.
- *
- * Everything below RUNS against a real [ImapMailService] driven onto a scripted socket, and the
- * witness is the command list that actually left the client.
  */
 class DestroyNeedsTheNumberingStatedNowTest {
 
@@ -102,17 +86,6 @@ class DestroyNeedsTheNumberingStatedNowTest {
 
     /**
      * THE ARGUMENT ITSELF, on a perfectly healthy server. The twin of
-     * `MoveNeedsTheNumberingStatedNowTest`'s "a move that opposes nothing is refused, on a
-     * perfectly healthy server", and the only thing that kills this mutation:
-     *
-     *     - UidValidity.mayDestroyUnderStatedNumbering(expectedUidValidity, status.uidValidity)
-     *     + UidValidity.mayDestroyUnderStatedNumbering(status.uidValidity, status.uidValidity)
-     *
-     * Every test above hands `deleteBatch` a frozen number that coincides with what the server
-     * states, so the mutation reads the same value twice and answers the same thing — it walked
-     * through the whole suite. Here nothing is frozen (`null`, i.e. the row carried no numbering,
-     * or none was ever recorded) while the server answers 42 to every SELECT: the real rule refuses,
-     * the mutated one destroys, and the difference is on the wire.
      */
     @Test fun `a destroy that opposes nothing is refused, on a perfectly healthy server`() {
         val store = RememberedNumbering()
@@ -150,8 +123,6 @@ class DestroyNeedsTheNumberingStatedNowTest {
 
     /**
      * The server that NEVER states a numbering is not this guard's business: nothing is recorded
-     * for it, so the destroy is refused a layer up by [UidValidity.imapDestroyPlan] and never
-     * reaches a socket at all. Behaviour unchanged, and the new guard is not what catches it.
      */
     @Test fun `a server that never states a numbering is refused without reaching the destroy`() {
         val store = RememberedNumbering()
@@ -206,8 +177,6 @@ class DestroyNeedsTheNumberingStatedNowTest {
 
     /**
      * A server whose Nth SELECT announces [announce] `(n)` — null meaning NO `UIDVALIDITY` line at
-     * all, which is exactly what a server that stops stating its numbering sends. The `EXISTS`
-     * line stays, so the folder still reads as a live folder.
      */
     private fun scripted(announce: (Int) -> Long?): (String, String) -> String {
         var selects = 0
@@ -265,13 +234,6 @@ class DestroyNeedsTheNumberingStatedNowTest {
 
         /**
          * An [OAuthTokenRefresher] that is never used and cannot be built.
-         *
-         * `ImapMailService` requires one, it requires an `AccountStore`, and that requires an
-         * Android `Context` — unavailable on the JVM. Kotlin's parameter assertions rule out
-         * passing null. But `freshAccessToken` returns at `credentials.oauth ?: return null` for
-         * every password account, so the object's fields are never read: an allocated-but-not
-         * -constructed instance is enough, and it keeps the test driving the REAL service rather
-         * than a stand-in for it.
          */
         fun unusedTokenRefresher(): OAuthTokenRefresher {
             val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")

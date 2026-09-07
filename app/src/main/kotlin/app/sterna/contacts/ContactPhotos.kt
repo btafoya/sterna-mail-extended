@@ -10,14 +10,6 @@ import kotlinx.coroutines.withContext
 
 /**
  * Decodes contact thumbnails from the device address book, off the main thread, with a small
- * bounded cache.
- *
- * The suggestion menu is rebuilt on every keystroke, so the same handful of thumbnails would
- * otherwise be read from disk and decoded dozens of times while a single address is typed —
- * precisely while the keyboard needs the main thread. Everything here runs on [Dispatchers.IO] and
- * answers from memory the second time.
- *
- * Nothing is ever logged: an address, a name or a photo URI in logcat is a privacy leak.
  */
 object ContactPhotos {
     /** Longest side kept, in pixels. Thumbnails are ~96 px; this only guards against odd sources. */
@@ -25,9 +17,6 @@ object ContactPhotos {
 
     /**
      * Room for about sixteen decoded thumbnails (128 px ARGB_8888 = 64 KiB at worst, 96 px = 36 KiB)
-     * or forty-eight remembered "this contact has no usable photo" answers, whichever comes first.
-     * Both bounds matter: the entry count keeps misses from piling up, the byte budget keeps a few
-     * unexpectedly large bitmaps from doing so.
      */
     private const val MAX_ENTRIES = 48
     private const val MAX_BYTES = 1L * 1024 * 1024
@@ -45,8 +34,6 @@ object ContactPhotos {
 
     /**
      * The thumbnail for [photoUri], decoded on IO and cached. Returns null — and the caller falls
-     * back to the monogram — when there is no URI, when [android.Manifest.permission.READ_CONTACTS]
-     * is not granted, or when the photo cannot be read or decoded.
      */
     suspend fun load(context: Context, photoUri: String?): ImageBitmap? {
         if (photoUri.isNullOrBlank()) return null

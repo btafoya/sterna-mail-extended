@@ -6,23 +6,11 @@ import org.junit.Test
 
 /**
  * The folder LIST as it really leaves the client, driven against a scripted server on loopback.
- *
- * What is at stake is mail: RFC 6154 §5 lets a server withhold the `\Trash`/`\Junk`/`\Sent`/…
- * attributes unless the client asks for them, and a folder that comes back attribute-less falls
- * through to the English name table. On a French mailbox that means "Corbeille" gets no role, the
- * app finds no trash, and the delete swipe ERASES instead of moving.
- *
- * Every assertion below is on the WHOLE command line. `contains("LIST \"\" \"*\"")` is true of both
- * forms — with and without the return option — so it would witness neither of the two mutations
- * this file exists to catch.
  */
 class ListFoldersOnTheWireTest {
 
     /**
      * A server advertising [capabilities] on top of IMAP4rev1, listing one English and one French
-     * mailbox. It hands the special-use attributes over ONLY when they were asked for, which is
-     * precisely the RFC 6154 §5 behaviour Sterna was blind to, and answers BAD to a return option
-     * it never advertised, like a server that has no LIST-EXTENDED at all.
      */
     private fun server(vararg capabilities: String, advertiseAtLogin: Boolean = false) = FakeImapServer { tag, line ->
         val advertised = capabilities.toList()
@@ -68,9 +56,6 @@ class ListFoldersOnTheWireTest {
 
     /**
      * The guard, and the reason it is not a detail: a server that never advertised the extension
-     * gets the bare LIST it has always got. Ask a server without LIST-EXTENDED for a return option
-     * and it answers BAD — the drawer comes back EMPTY and the account is unusable, which is a
-     * worse failure than the one being fixed.
      */
     @Test
     fun `a server that never advertised SPECIAL-USE still gets the bare LIST`() {
@@ -89,13 +74,6 @@ class ListFoldersOnTheWireTest {
 
     /**
      * THE case the two above cannot stand in for: the capability list arrives in the LOGIN
-     * completion, which is how nearly every real server answers (Dovecot, Stalwart, Gmail). The
-     * two other cases reach the list through an explicit `CAPABILITY` command, so a build that
-     * mangled the login-borne list — the free path, the one production takes — would still ask
-     * for the attributes there and hand the trash back roleless everywhere else.
-     *
-     * Hence the second assertion: no `CAPABILITY` command was issued at all. Without it this test
-     * could pass by falling back on the round trip and would prove nothing the others do not.
      */
     @Test
     fun `the capability list volunteered at login is what the guard reads`() {
@@ -113,14 +91,6 @@ class ListFoldersOnTheWireTest {
 
     /**
      * A source lint on the whole body that builds the two commands, pinned LINE BY LINE. It is a
-     * secondary net behind the wire cases: `in`/`contains` on a source line is blind to any
-     * mutation that LENGTHENS it, which is how three of this project's regressions got through.
-     *
-     * The LSUB lines are here for two reasons a wire test cannot state: the guard above it must
-     * stay a plain `if (!onlySubscribed)` — no capability test, since Stalwart advertises neither
-     * LIST-EXTENDED nor SPECIAL-USE and a capability guard would switch the feature off on our
-     * own server — and the round trip must stay wrapped in a `runCatching`, whose `getOrNull()`
-     * is what turns a refused LSUB into "subscription unknown" instead of an empty drawer.
      */
     @Test
     fun `the LIST command line is built under the capability guard`() {
@@ -139,9 +109,6 @@ class ListFoldersOnTheWireTest {
 
     /**
      * [count] consecutive CODE lines of `ImapClient.kt` from the single one starting with [prefix],
-     * trimmed. Comments and blank lines are dropped first — a mutation cannot hide in a comment,
-     * and pinning prose would make this fail on every reword. A prefix matching anything other than
-     * exactly one line returns a message, so the assertion can never pass by matching nothing.
      */
     private fun sourceBlock(prefix: String, count: Int): List<String> {
         val path = "core/imap/src/main/kotlin/app/sterna/core/imap/ImapClient.kt"

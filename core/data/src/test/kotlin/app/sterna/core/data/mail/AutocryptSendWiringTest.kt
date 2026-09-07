@@ -6,16 +6,6 @@ import org.junit.Test
 
 /**
  * WHICH arguments `MailRepository` hands [app.sterna.core.data.account.autocryptHeaderValue] at each
- * of its three send call sites.
- *
- * A source lint, and a last resort — `MailRepository` needs a `Context`, Room and the Keystore, so
- * no JVM test instantiates it. It is the companion of `AutocryptHeaderValueTest`, which EXECUTES the
- * rule: that one proves the rule is right, this one proves the rule is asked the right question. A
- * perfect rule fed `credentials.username` instead of the message's actual `From` would answer "yes,
- * announce" on every delegated send, and every test of the rule would still be green.
- *
- * The arguments are extracted by matching parentheses, not by reading whole lines: reformatting the
- * call must not turn this red, and changing what is passed must.
  */
 class AutocryptSendWiringTest {
 

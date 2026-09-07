@@ -7,16 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `MessageScreen.kt` as text and proves nothing about
- * what happens on screen. Same instrument and disclaimer as [ReplyBarWiringTest].
- *
- * A test that checks a CALL EXISTS never proves what is passed to it. That is why the decision
- * itself is a pure function, [bodySpacerCss], and is EXECUTED in [BodySpacerTest]; this file only
- * pins the wiring — the two measurements it is fed, in that order, and the guard that waits for
- * both. `ConversationBody` is a `@Composable` and no JVM test in this repo can instantiate it.
- *
- * Every rule here pins the WHOLE line, never a fragment: a `contains` on a fragment is blind to any
- * edit that LENGTHENS the line (a term added to the remember key, an extra argument), and both of
- * the call sites take two `Int`s that compile just as well the wrong way round.
  */
 class BodySpacerWiringTest {
 

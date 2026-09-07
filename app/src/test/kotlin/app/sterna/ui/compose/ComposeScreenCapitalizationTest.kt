@@ -8,23 +8,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [ComposeScreenIncognitoTest]: it reads sources as text. It proves NOTHING about what the keyboard
- * receives. `KeyboardCapitalization` ends up in the `EditorInfo.inputType`
- * (`TYPE_TEXT_FLAG_CAP_SENTENCES`, 0x4000) built by Compose at runtime, which this module cannot
- * instantiate; that flag is read on a bench in `/qa`, not here.
- *
- * What it CAN hold is the shape of the promise made to the reporter of #184, which has two halves
- * and both are silent when broken:
- *
- *  - the SUBJECT and the BODY ask for sentence capitalisation;
- *  - the RECIPIENTS do NOT — they are addresses. This half is the counter-witness: without it, a
- *    fix "placed everywhere" cannot be told from a fix "placed right".
- *
- * Each field's `keyboardOptions` argument is read WHOLE (joined across lines, whitespace collapsed)
- * and compared with [assertEquals] against a string pinned here. Never `contains`: this repo has
- * been caught three times by a substring check that stayed green while someone LENGTHENED the line
- * — e.g. adding `imeAction = ImeAction.Done` to the body, which would replace its line break (#26).
- * The expected strings are written down, not recomputed from the source.
  */
 class ComposeScreenCapitalizationTest {
 
@@ -130,8 +113,6 @@ class ComposeScreenCapitalizationTest {
 
     /**
      * The whole `keyboardOptions = KeyboardOptions(…)` argument of the [FIELD] call written in
-     * top-level function [owner], joined across lines with whitespace collapsed and any trailing
-     * comma dropped, or [MISSING] when the call names no such argument.
      */
     private fun optionsOf(lines: List<String>, owner: String): String {
         val (_, block) = fields(lines).singleOrNull { it.first == owner }

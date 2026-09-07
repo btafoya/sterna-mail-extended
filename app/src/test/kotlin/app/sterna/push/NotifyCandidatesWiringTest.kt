@@ -7,22 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads source files as text.
- *
- * `NotifierCandidateWindowTest` (in `core/data`) runs the actual agreement: the bounded read has to
- * contain everything the notifier's age floor can still announce. Neither end of it is reachable
- * from a JVM test in this module — `NewMailNotifier` needs `SharedPreferences` and an `Application`
- * container, `FetchAndNotify` needs both plus a repository — so what a test HERE can do is check
- * that the shipped code is still wired to the pieces that test runs.
- *
- * The three edits it guards are all silent, and each one re-opens the bug the bound was written
- * for while every test in the repo stays green:
- *
- *  1. the foreground hook reading the whole inbox again (`cachedEmailsForMailboxes` was exactly
- *     that, and it ran on EVERY foreground refresh with unarchive-on-reply on);
- *  2. the age floor inlined back into `newSince` — the floor and the read then drift, and the
- *     drift shows up as notifications for months-old mail, on the user's phone, not here;
- *  3. `receivedAfter` re-implemented instead of delegating, which quietly un-shares the leniency
- *     the read's `sortKey = 0` clause exists to honour.
  */
 class NotifyCandidatesWiringTest {
 
@@ -72,19 +56,6 @@ class NotifyCandidatesWiringTest {
 
     /**
      * SOURCE LINT, NEGATIVE SPACE — these are ALL the places this file seeds a baseline, and
-     * there is no other.
-     *
-     * Every rule above asks that a line be PRESENT, and a presence check cannot see a line that was
-     * ADDED. This mutation passes all of them, because it names neither `folder.baselineIds` nor
-     * `orEmpty()` nor `?: emptyList()`, and it re-opens the whole defect through the side door —
-     * the first sight of a folder is marked "known, remembering nothing", so the next pass
-     * announces everything in it:
-     *
-     *     if (folder.emails.isEmpty() && !NewMailNotifier.hasBaseline(context, credentials.id, folder.mailboxId))
-     *         NewMailNotifier.seed(context, credentials.id, folder.mailboxId, emptyList())
-     *
-     * Compared as a LIST of whole lines, in order: an argument swapped, a fourth call site added or
-     * one of these three removed are all a different list. A `contains` would see none of it.
      */
     @Test fun `these three are every baseline this file writes, and there is no fourth`() {
         assertEquals(
@@ -103,22 +74,6 @@ class NotifyCandidatesWiringTest {
 
     /**
      * SOURCE LINT — a refresh that says "I cannot tell you what this folder holds"
-     * (`FolderRefresh.baselineIds == null`) must SKIP the folder whole: no seed, no diff, not one
-     * write of the baseline.
-     *
-     * The refusal costs nothing to honour, and that is why skipping is the right gesture rather
-     * than a special case: a refused page is empty by construction, so there is nothing to
-     * announce, and the only thing this loop would do with it is precisely the write being refused.
-     *
-     * The mutation this exists for is `?: emptyList()`. `seed` REPLACES the baseline, so an
-     * unknown taken as empty erases it, and the next pass announces every unread message inside the
-     * notifier's age floor — one banner per thread, at 3 a.m., for mail already read. It is
-     * unreachable from a JVM test in this module (`NewMailNotifier` needs SharedPreferences,
-     * `FetchAndNotify` an Application container), and the decision it honours is executed one
-     * module down in core/data's `EmptyPushPageIsNotAnEmptyFolderTest`.
-     *
-     * It also carries what the pinned `remembered` line above lost when it stopped naming
-     * `folder.baselineIds`: this is the line that says the remembered ids come from the refresh.
      */
     @Test fun `a folder whose page could not say what it holds is skipped, never remembered as empty`() {
         val lines = code(FETCH_AND_NOTIFY).lines().map { it.trim() }

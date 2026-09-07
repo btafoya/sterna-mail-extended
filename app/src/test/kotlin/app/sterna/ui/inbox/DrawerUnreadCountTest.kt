@@ -6,16 +6,6 @@ import org.junit.Test
 
 /**
  * What a drawer row COUNTS, EXECUTED ([drawerUnreadCount]) — a folded folder answers the unread it
- * hides, an open one answers its own. The rule lives in a function precisely so this file can run
- * it: at the call site it sits inside a Composable nothing in this module can build.
- *
- * Every expectation is a number written out in full. Re-summing the list under test here would
- * be a copy of the shipped rule, and the condition could then be inverted with this file green.
- *
- * What this file does NOT reach: that the drawer resolves the count against
- * `MailUi.visibleMailboxes` and against the SAME folded set the tree is built from, and that a
- * zero leaves the bare folder name on the row. Those three are call-site facts, held by
- * [CollapsedFoldersSurfaceWiringTest] and [SubscribedFoldersSurfaceWiringTest] as a source lint.
  */
 class DrawerUnreadCountTest {
 
@@ -49,15 +39,6 @@ class DrawerUnreadCountTest {
 
     /**
      * THE state the app STARTS in, which no other case here plays: a parent and one of its own
-     * descendants folded at once. [defaultCollapsedFolderIds] folds every user folder that has
-     * children, so on this tree the very first launch folds `Travail` AND `Client A` together —
-     * this is the nominal state, not an edge case.
-     *
-     * The mutation it exists for: `if (child.id in collapsed) return@forEach` after the cycle
-     * guard ("do not walk into a descendant that is itself folded"). It reads like a sound
-     * refinement and every other case in this file stays green under it, while on the first launch
-     * `Travail` badges its own 1 and the 3+4 unread of `Client A` and `Devis` sit on no row at all
-     * — the exact defect this function exists to close.
      */
     @Test fun `the first launch folds a parent AND its child, and the top row still counts through`() {
         val started = setOf("Travail", "Travail/Client A")
@@ -122,8 +103,6 @@ class DrawerUnreadCountTest {
 
     /**
      * The scope. The drawer hands its DRAWN list (`MailUi.visibleMailboxes`); a descendant the
-     * "only subscribed folders" setting hides (#174) has no row and is inside no chevron, so
-     * counting it advertises mail no gesture in this drawer reaches.
      */
     @Test fun `a descendant absent from the list handed in is not counted`() {
         val drawn = listOf(folder("Travail"), folder("Travail/Client A"))

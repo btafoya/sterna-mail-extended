@@ -25,11 +25,6 @@ import java.util.concurrent.TimeUnit
 
 /**
  * [discoverMailSettings]: which servers a typed email address is turned into, and — the part that
- * carries the value — which answers are REFUSED.
- *
- * Everything runs against a local [MockWebServer] and injected TLS probes; no test leaves the
- * machine. The published-config tests go through the cascade's DEFAULT http client, so the redirect
- * policy proved here is the shipped one.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class MailAutoconfigTest {
@@ -105,9 +100,6 @@ class MailAutoconfigTest {
 
     /**
      * The privacy policy promises the app contacts only the user's own server: no Mozilla ISPDB,
-     * no third party. The whole list of hosts discovery may talk to is these two URLs on the
-     * user's domain — pinned in full, in order, so a third entry is a red test before it is a
-     * broken promise.
      */
     @Test fun `the two published locations are asked in this order, and nothing else`() {
         assertEquals(
@@ -121,12 +113,6 @@ class MailAutoconfigTest {
 
     /**
      * The DEFAULT wiring itself, traversed: the cascade is called the way production calls it —
-     * address only, no injected URL list — and every URL the default client is asked to fetch is
-     * captured by an interceptor that answers a canned 404 BEFORE any connection could open (no
-     * `chain.proceed()`, so no packet leaves this machine; the TLS probe is injected dead).
-     * Assertion: exactly the two published locations on the user's own domain, in order, and
-     * nothing else. A third default URL — the Mozilla ISPDB temptation — is a red test here
-     * before it is a broken privacy promise.
      */
     @Test fun `the default cascade fetches exactly the two locations on the user's domain`() = runBlocking {
         val asked = mutableListOf<String>()
@@ -198,9 +184,6 @@ class MailAutoconfigTest {
 
     /**
      * The order of the tiers is a decision: what the domain PUBLISHED wins over what we would
-     * have guessed — and the guess is not even tried, so no TLS connection leaves for a domain
-     * that answered. The probe here would say yes to everything; a cascade that ran the tiers in
-     * the wrong order (or in parallel, first-answered-wins) hands back `imap.masto.top` instead.
      */
     @Test fun `the published config wins over a guess that would succeed`() = runBlocking {
         server.enqueue(xml(publishedConfig()))
@@ -237,9 +220,6 @@ class MailAutoconfigTest {
 
     /**
      * The shipped redirect policy, hop by hop: a same-origin 3xx (a path on the very server this
-     * fetch already reached — what parking the well-known path behind a redirect looks like,
-     * #54/#137 arbitration) is walked to the config. The manual walk is what runs here: the built
-     * client itself refuses to follow anything, as the test below pins.
      */
     @Test fun `a same-origin redirect is walked to the config`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", "/real"))
@@ -261,8 +241,6 @@ class MailAutoconfigTest {
 
     /**
      * The pure decision one hop is judged by, executed with pinned arguments: https on the
-     * user's own domain or under it — nothing else. The refusals are the promise: no third party,
-     * no descent to cleartext, and no host that merely CONTAINS the domain without being under it.
      */
     @Test fun `redirectAllowed - https on the domain or under it, and nothing else`() {
         assertTrue(redirectAllowed("https://masto.top/mail/config-v1.1.xml".toHttpUrl(), "masto.top"))
@@ -291,9 +269,6 @@ class MailAutoconfigTest {
 
     /**
      * The live escape this guards: `autoconfig.<domain>` answers 302 towards a third party
-     * (the ISPDB pattern). The tier must die on the spot AND the refused host must receive no
-     * connection at all — a second server plays the third party and counts what reached it, even
-     * though it stood ready with a perfect config.
      */
     @Test fun `a redirect towards a third party is refused without contacting it`() = runBlocking {
         val thirdParty = MockWebServer()
@@ -331,9 +306,6 @@ class MailAutoconfigTest {
 
     /**
      * An HTTP 200 is not a verdict — the real case this pins: a catch-all reverse proxy
-     * (masto.top) answers 200 with an HTML page on BOTH autoconfig paths. The first body here is
-     * everyday HTML (not even well-formed XML), the second is well-formed XHTML: both must be
-     * refused, both tiers must still be TRIED, and with no guess alive the answer is NotFound.
      */
     @Test fun `a 200 with an HTML page on both paths is not a config`() = runBlocking {
         server.enqueue(xml("<!DOCTYPE html><html><body><p>welcome to masto.top</body></html>"))
@@ -351,9 +323,6 @@ class MailAutoconfigTest {
 
     /**
      * The root element IS the verdict: a document whose root is not `clientConfig` is no config,
-     * even when a perfectly-shaped emailProvider hides inside it. A parser that only checked "did
-     * the fields I want exist somewhere" — or worse, the HTTP code — passes this document and
-     * fills the screen with whatever a stray page contained.
      */
     @Test fun `an XML answer whose root is not clientConfig is refused, servers inside or not`() = runBlocking {
         server.enqueue(xml(publishedConfig(root = "config")))
@@ -401,8 +370,6 @@ class MailAutoconfigTest {
 
     /**
      * `plain` — or any socketType we do not positively recognise — rejects the WHOLE tier.
-     * There is no fallback: a "safe default" of NONE would put the user's password on a public
-     * network in cleartext, on the word of an unauthenticated XML fetch.
      */
     @Test fun `a socketType of plain never falls back to cleartext`() = runBlocking {
         server.enqueue(xml(publishedConfig(incomingSocket = "plain")))
@@ -463,8 +430,6 @@ class MailAutoconfigTest {
 
     /**
      * The hosts and ports a guess may EVER touch, pinned by argument: `imap.<d>:993` then
-     * `mail.<d>:993`, and `smtp.<d>:465` then `mail.<d>:465` — nothing else, in that order. Here
-     * the first candidate of each side answers, so the second is never contacted.
      */
     @Test fun `guesses are the pinned hosts and ports, first alive one wins`() = runBlocking {
         val bench = ProbeBench { _, _ -> true }
@@ -514,8 +479,6 @@ class MailAutoconfigTest {
 
     /**
      * No handshake, no guess. A guess is only a NAME; what makes it safe to show — and to send
-     * a password to — is a TLS handshake with a certificate valid for that name. When nothing
-     * answers, the screen gets NotFound and the user types the servers in, which loses nothing.
      */
     @Test fun `when no handshake succeeds nothing is guessed`() = runBlocking {
         val bench = deadBench()
@@ -563,9 +526,6 @@ class MailAutoconfigTest {
 
     /**
      * Leaving the sign-in screen cancels discovery, and that cancellation must RETRAVERSE — a
-     * catch-all that turns it into NotFound keeps the machinery running on a screen that is
-     * already gone (the lesson `probeOfFailure` already paid for). If the cascade swallowed the
-     * cancellation, [result] would hold NotFound here instead of nothing.
      */
     @Test fun `cancelling the caller retraverses, never NotFound`() = runTest {
         var result: MailAutoconfigResult? = null

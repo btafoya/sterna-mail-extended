@@ -15,19 +15,6 @@ import org.junit.Test
 
 /**
  * WHEN the (account, folder) → role map is re-read (#115).
- *
- * The decision itself — is this row judged by its author or by its recipients — is
- * [ShowsRecipientsTest]'s, and it is right. What feeds it was not: the map was re-scoped off
- * `unifiedInboxScopes`, a StateFlow of (account, inbox) pairs that does not emit when the new value
- * equals the old one, and an account is added to the store BEFORE it has ever synced, so it has no
- * inbox id and contributes no pair. Adding an account therefore produced an identical pair list,
- * nothing re-emitted, and the rows of that account were judged by a map that did not contain their
- * folder: they fell back to the pre-#115 rule while the reader, which asks the database directly,
- * answered something else. That contradiction is the one #115 exists to close.
- *
- * So these tests run the re-scoping over an account list that changes, and watch which account ids
- * the map is actually opened for. They are not about the SQL (that is `FolderRolesSqlTest`) and not
- * about the rule (that is `ShowsRecipientsTest`).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class FolderRolesScopeTest {

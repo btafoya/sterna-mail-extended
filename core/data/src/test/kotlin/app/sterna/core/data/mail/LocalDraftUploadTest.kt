@@ -28,17 +28,6 @@ import java.sql.DriverManager
 
 /**
  * **The deferred upload of a draft the phone kept** (#95), executed: the shipped
- * [uploadLocalDraftOnce] driven over the shipped `local_drafts` table and real files on disk, with
- * an upload that throws exactly as an offline transport throws.
- *
- * Every couple below is written out in full. A test that asks [localDraftRetryDelayMillis] what
- * to expect, or that recomputes "is it due" before deciding what to replay, is a copy of the rule:
- * invert the shipped rule and it stays green.
- *
- * What is NOT faked: the orchestration, the backoff, the `recordAttempt` / `deleteById` /
- * `deleteForAccount` statements (read out of the shipped DAO) and the table itself. The lambdas are
- * only the Room/file adapters `MailRepository` supplies; [LocalDraftUploadWiringTest] pins that it
- * supplies exactly these.
  */
 class LocalDraftUploadTest {
     private lateinit var db: Connection
@@ -316,9 +305,6 @@ class LocalDraftUploadTest {
         //
         // **This coroutine is REALLY cancelled**, and that is the whole design of the test. Made
         // to `throw CancellationException()` from a live job instead, it passes against code that
-        // cannot work: insert any suspension point before the booking — a `yield()`, an "improved"
-        // version that writes a `lastError` first — and the real path throws there and books
-        // nothing, while the thrown-by-hand version sails past it.
         var returnedNormally = false
         var clockReads = 0
         val job = launch(start = CoroutineStart.UNDISPATCHED) {
@@ -334,11 +320,6 @@ class LocalDraftUploadTest {
 
         // Half a minute, NOT zero: a worker stopped under system pressure that re-books itself
         // for `now` is stopped again at once, and again — a loop against the very condition that
-        // stopped it.
-        // And `true` — book only if nothing is booked. WorkManager reschedules a run it stopped
-        // itself, everything here books under ONE unique name, and a plain booking REPLACES: we
-        // would cancel the system's own retry and put ours 30 s later in its place, delaying the
-        // resumption this branch exists to guarantee.
         assertEquals(listOf(30_000L to true), booked)
         assertTrue("a cancelled job is what this pins", job.isCancelled)
         assertFalse(

@@ -8,8 +8,6 @@ import org.junit.Test
 
 /**
  * Covers the two-group identity model: manual [StoredAccount.identities] overriding server
- * [StoredAccount.serverIdentities], pristine server identities self-correcting, the
- * save-persists-only-manual invariant, and the empty→synthesized fallback.
  */
 class ResolvedIdentitiesTest {
 
@@ -218,9 +216,6 @@ class ResolvedIdentitiesTest {
     //
     // A linked sub-account's [StoredAccount.username] is its LOGIN's address (the one that
     // authenticates), so the standalone fallback identity would be a silently wrong From. The
-    // sub-account's own address comes from the session's account name (Stalwart advertises the
-    // address there); a non-address name yields an empty list so AccountStore.identities() can
-    // fall back to the login's identities instead.
 
     private fun standalone() = StoredAccount(
         id = "login-uuid",

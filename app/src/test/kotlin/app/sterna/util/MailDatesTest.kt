@@ -13,9 +13,6 @@ import org.junit.Test
 
 /**
  * A reply's attribution line and a forward's header used to paste the raw ISO timestamp
- * ("2026-07-04T09:12:33Z"). They now show the same formatted date the message view does.
- * The month name follows the device language, so the assertions here pin the value with an
- * explicit formatter and the SHAPE for the device-locale one.
  */
 class MailDatesTest {
 
@@ -53,9 +50,6 @@ class MailDatesTest {
     //
     // Three steps: today shows the time, an earlier day of the current year "d MMM", any other
     // year a short numeric date in the language's own order with a two-digit year. The month NAME
-    // follows the device language, so the "d MMM" step is pinned by shape; the numeric step takes
-    // an explicit locale and is pinned literally — the only way to prove the order really follows
-    // the tongue while the width stays the same in all nine.
 
     @Test fun aMessageFromTodayIsPlacedByItsTime() {
         assertEquals(

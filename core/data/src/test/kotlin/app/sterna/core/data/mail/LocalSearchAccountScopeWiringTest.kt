@@ -5,19 +5,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. `MailRepository` needs Room, an Android `Context` and a live
- * JMAP session, so it cannot be built in a JVM test. What the account scope DOES is executed
- * against real SQLite by [LocalSearchFolderFilterSqlTest]; what is read here is the PLUG, because
- * a scope the caller never fills is a scope that does nothing.
- *
- * That gap is real and was measured: with the query scoped and its cases green, replacing the ids
- * `searchIndex` reads with `emptyList()` left the WHOLE suite green — an empty list filters nothing
- * by design ([app.sterna.core.data.db.EmailFtsDao.search]), so the fix silently reverts to the
- * defect it closes and every result row of a removed account comes back.
- *
- * The body is pinned WHOLE, line for line, never as a `contains` on a fragment: a fragment check is
- * blind to anything that LENGTHENS a line (`accountIds.take(1)`, a `if (…) return emptyList()`
- * slipped above the read), which is exactly the shape this exists to catch. Any edit to the
- * function therefore costs a deliberate edit here — read the new body before updating it.
  */
 class LocalSearchAccountScopeWiringTest {
 

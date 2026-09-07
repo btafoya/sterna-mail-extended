@@ -6,29 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [app.sterna.core.data.account.ImapStopsAtTheWindowIsDocumentedTest]: it reads a shipped file as
- * text and proves nothing about what runs.
- *
- * Why it has to exist. Everything autodiscovery DECIDES is covered for real in
- * [DiscoveryIsBoundedTest], which runs [discoverJmapAmong] and [probeHost] with fake probes in
- * virtual time. What no test in this module can reach is the four lines that WIRE those decisions
- * up: `MailRepository` takes a dozen DAOs and a `JmapClient` whose constructor is internal to
- * another module, so it cannot be built here, and `discoverJmapServer` is therefore executed by
- * nothing. Two mutations proved that hole is not theoretical — both left the entire suite green:
- *
- *  - the whole probe replaced by a constant, `discoverJmapAmong(hosts) { HostProbe.NoAnswer }`.
- *    Autodiscovery then finds nothing, ever: every sign-in that relies on it falls through to
- *    "enter your server by hand", and a wrong password stops being reported as one;
- *  - a budget handed in at the call site, `discoverJmapAmong(hosts, 200_000L)`, which restores the
- *    200 s of spinner this whole change exists to remove.
- *
- * The second is closed by construction — [JMAP_DISCOVERY_BUDGET_MS] is a default and the call site
- * passes no budget at all, so there is no argument left to change. The first cannot be; this reads
- * it instead.
- *
- * What it does NOT do: it cannot tell that `fetchSession` is handed the right URL or the right
- * credentials, and a green run here is not "autodiscovery works". It only makes the two mutations
- * above impossible to write back without a red test.
  */
 class DiscoveryWiringTest {
 
@@ -73,14 +50,6 @@ class DiscoveryWiringTest {
 
     /**
      * Whole line, never a fragment — and the reason it is pinned at all is #188.
-     *
-     * Since a guessed rank's 401/403 stopped counting as a credential verdict, the WHOLE of that
-     * correction rests on one unwritten fact: rank 0 is the domain she typed.
-     * [verdictOnceSettled] cannot check it — it takes a `List<String>` and has only indices — so
-     * the fact lives here, in the one line that builds the list, and nothing else holds it.
-     * `Jmap.autodiscoverHosts(email).reversed()` leaves the entire suite green and puts
-     * `api.<domain>` at rank 0: its 403 is a credential verdict again, and #188 is back in full
-     * with nothing to see anywhere.
      */
     @Test fun `autodiscovery keeps the candidate order, so rank 0 is the domain she typed`() {
         val body = discoverJmapServerBody()

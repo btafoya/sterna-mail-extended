@@ -34,24 +34,12 @@ internal fun sharedAccountFor(id: String, accounts: List<StoredAccount>): Stored
 
 /**
  * The inner settings route that opens [accountId]: the short shared-mailbox screen when the id
- * names a delegated account, the full account screen otherwise (#31). One decision for both ways
- * into the settings graph; the graph only sees a route string and never re-reads
- * [StoredAccount.isShared]. An unknown id resolves to the account screen and its empty scaffold.
- * A blank id is not that case: it yields `"account/"`, matches no route, and navigating to it
- * throws. It is unreachable only because SternaApp.kt passes the deep link as `?.ifBlank { null }`.
  */
 internal fun settingsRouteFor(accountId: String, accounts: List<StoredAccount>): String =
     if (sharedAccountFor(accountId, accounts) != null) "sharedAccount/$accountId" else "account/$accountId"
 
 /**
  * Settings for a delegated (shared) account — the two it genuinely owns (#31): accent colour and
- * its own new-mail notifications. Each tap writes; there is no Save button and no unsaved state.
- * Not `AccountDetailScreen` with rows hidden: that screen edits the LOGIN this account borrows,
- * whose secret lives under [StoredAccount.loginKey], so a credential typed here would overwrite it
- * for every account under that login. Its sign-out is no better: the cascade runs from a login down
- * to its linked accounts, so signing out a delegated account leaves the login untouched and the
- * next discovery pass re-adds the share under a fresh id, losing both settings.
- * Both writes carry [accountId], never the borrowed login's id.
  */
 @Composable
 internal fun SharedAccountScreen(

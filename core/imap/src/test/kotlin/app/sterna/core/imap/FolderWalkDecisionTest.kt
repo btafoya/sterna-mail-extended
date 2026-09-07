@@ -8,12 +8,6 @@ import org.junit.Test
 
 /**
  * The three decisions a paginated folder walk takes, EXECUTED on their own: where the window
- * starts, which range the next request covers, and — the one that can cost mail — whether the
- * folder moved while the walk was reading it.
- *
- * They are separate functions precisely so this file can exist. Buried inside `walkFolder` they
- * would only ever be reachable through a scripted server, and "the folder moved" would be a
- * condition nobody could state a table for.
  */
 class FolderWalkDecisionTest {
 
@@ -38,9 +32,6 @@ class FolderWalkDecisionTest {
     @Test fun `the page size is a few hundred, which is the whole point of paginating`() {
         // Not a tautology, a BOUND. The shipped page size is the one number that can un-do this
         // walk without changing a line of its logic: raise it past a window and every window is
-        // one request again — the memory shape the volet exists to end — and drop it to a handful
-        // and a thousand-message folder costs a thousand round trips on the account's one
-        // connection, which is blocked for the duration.
         assertTrue("IMAP_FOLDER_PAGE = $IMAP_FOLDER_PAGE is no longer a page", IMAP_FOLDER_PAGE in 50..500)
         assertTrue(
             "one page must be smaller than the largest window the app offers (1 000), or the " +

@@ -15,29 +15,6 @@ import org.junit.Test
 
 /**
  * A permanent delete opposes the numbering ITS ROWS WERE READ UNDER, not the folder's current
- * record (Codeberg #99).
- *
- * The hole this closes, in the order it happens:
- *
- * 1. a background pass (multi-folder push: [ImapMailService.loadWatchedFolders]) selects the folder
- *    and finds it renumbered. `reconcileNumbering` writes the NEW number into `mailbox_uidvalidity`
- *    and drops what is keyed by UID — but the `emails` rows of the OLD UIDs stay: nothing prunes
- *    them on IMAP (`MailRepository.refreshAccountFolders`, "No departures on IMAP");
- * 2. the user taps delete on one of those rows. The freeze read the FOLDER's numbering, i.e. the
- *    new one, and the SELECT that follows compares it with itself: SAME, no refusal, and
- *    `UID STORE +FLAGS (\Deleted)` + `UID EXPUNGE` go out on UIDs that now name OTHER, live
- *    messages. On an account with no Trash that folder is the INBOX.
- *
- * The fix is an appariement, not a check: the row carries the numbering of the SELECT that
- * enumerated it ([EmailEntity.uidValidity]), so ids and number come out of the same server
- * response and cannot drift apart. The same thing `TrashPurge.snapshotUidValidity` already does
- * for an "Empty trash".
- *
- * Everything below RUNS: a real [ImapMailService] on a scripted socket, and the witness is the
- * command list that actually left the client. What the whole chain cannot run in a JVM is the
- * ViewModel and the worker in the middle (Application, WorkManager, Room) — those are pinned as
- * source in `HeldBackDestroyCarriesItsFolderTest`, and the routing they hand over is EXECUTED in
- * [UidValidityDestroyRoutesTest].
  */
 class DestroyUnderTheNumberingTheRowWasReadUnderTest {
 
@@ -104,9 +81,6 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
 
     /**
      * THE INVERSE WITNESS, and it is not optional: without it "stamp nothing / refuse always"
-     * satisfies the test above, and that is a total regression — no IMAP permanent delete would
-     * ever go through again, the message would leave the list, come back at the next refresh, and
-     * never die.
      */
     @Test fun `rows read under 42 on a folder still numbered 42 are destroyed exactly as before`() {
         val store = RememberedNumbering()
@@ -135,17 +109,6 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
 
     /**
      * THE SECOND DEFECT OF THE SAME KEY, end to end: the row is not stale, it is REPLACED.
-     *
-     * The user ticks three rows while the folder is numbered 42. A background pass then meets the
-     * renumbering to 77 and `@Upsert`s the rows carrying THE SAME IDS with other messages'
-     * envelopes — nothing prunes rows on IMAP, and the id is `imap:<account>:<folder>:<uid>`, the
-     * bare UID with no numbering in it. The ticks never moved: they follow the key, so the new
-     * envelopes are on screen already ticked and nobody touched anything.
-     *
-     * That is why the downstream guard cannot see it. The route built on the REWRITTEN rows carries
-     * 77, the server has just stated 77, and `mayDestroyUnderStatedNumbering` says yes — correctly:
-     * it destroys what the line represents NOW. What must refuse is the stamp the line carried WHEN
-     * IT WAS TICKED, and after that refusal not one command naming a UID may leave.
      */
     @Test fun `rows ticked under 42 destroy nothing once the same ids are rewritten under 77`() {
         val store = RememberedNumbering()
@@ -212,8 +175,6 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
 
     /**
      * THE INVERSE WITNESS of the split, and it is not negotiable: without it "refuse everything
-     * that was ticked" satisfies the test above and kills every IMAP permanent delete in the app —
-     * the message leaves the list, comes back at the next refresh, and never dies.
      */
     @Test fun `rows ticked under 42 on a folder still numbered 42 are destroyed exactly as before`() {
         val store = RememberedNumbering()
@@ -264,8 +225,6 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
 
     /**
      * A server whose Nth SELECT announces [announce] `(n)` as its UIDVALIDITY, holding three
-     * messages with UIDs 7, 8 and 9 — the same three [DestroyNeedsTheNumberingStatedNowTest]
-     * destroys, so the commands a destroy puts on the wire read identically in both files.
      */
     private fun scripted(announce: (Int) -> Long): (String, String) -> String {
         var selects = 0
@@ -332,8 +291,6 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
 
         /**
          * An [OAuthTokenRefresher] that is never used and cannot be built — see
-         * [DestroyNeedsTheNumberingStatedNowTest], which explains why an allocated-but-not
-         * -constructed instance is enough and why it keeps the test driving the REAL service.
          */
         fun unusedTokenRefresher(): OAuthTokenRefresher {
             val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")

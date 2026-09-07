@@ -6,19 +6,6 @@ import org.junit.Test
 
 /**
  * The "(Draft)" chip on a list row — [showsDraftBadge], run as the pure function it is.
- *
- * The chip used to be the `$draft` keyword alone, and that keyword is not in the row schema: it
- * lives in an in-memory set filled only when a live fetch maps a message. So the chip vanished
- * after process death (the sync resumes from its saved cursor, unchanged rows are never re-mapped,
- * and pull-to-refresh brings nothing back), and on IMAP it never appeared at all — that side builds
- * its rows without going through the mapper.
- *
- * Hence the disjunction: the keyword when the row still carries it, OR the role of the row's OWN
- * folder. The second term is what a cold start and IMAP have, and it needs no resynchronisation.
- *
- * Pairs are written out by hand below, input and expected output. Nothing here recomputes the rule
- * to decide what to assert — a test that re-derives the decision passes whichever way the decision
- * is written.
  */
 class ShowsDraftBadgeTest {
 

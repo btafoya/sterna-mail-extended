@@ -2,14 +2,6 @@ package app.sterna.contacts
 
 /**
  * A tiny least-recently-used cache bounded twice over: by number of entries AND by the total weight
- * of what it holds. Contact thumbnails are decoded bitmaps, so counting entries alone would not
- * bound the memory used (a 512 px photo costs sixteen times a 128 px one); counting bytes alone
- * would let a crowd of misses pile up.
- *
- * Deliberately free of Android types: the suggestion menu reloads on every keystroke, so this is
- * the piece that has to be right, and it is covered by plain JVM tests.
- *
- * Thread-safe: filled from a background thread, read during composition.
  */
 class PhotoCache<T>(private val maxEntries: Int, private val maxBytes: Long) {
     private class Entry<T>(val value: T, val bytes: Long)

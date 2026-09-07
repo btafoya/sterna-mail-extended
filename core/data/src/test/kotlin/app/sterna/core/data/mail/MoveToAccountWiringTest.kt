@@ -5,37 +5,6 @@ import org.junit.Test
 
 /**
  * THIS TEST READS SOURCE TEXT — the last resort, for the reason [DeleteWouldDestroyWiringTest]
- * spells out: `MailRepository` needs Room, a `Context` and a socket, so no JVM test instantiates
- * it. The DECISION guarded here — copy confirmed on B, then the original trashed on A, and nothing
- * else in between — is EXECUTED by [CrossAccountMoveTest]; this pins where and how it is plugged in
- * (#189).
- *
- * The body of `moveToAccount` is pinned as a WHOLE LIST OF LINES. Each of the seven steps is a
- * real gesture on a real server, and the ones that matter are pinned with their ARGUMENTS: the
- * source's check on `source.id` and the target's on `target.id`; the bytes going to B as read; the
- * IMAP append under the translated flags and date; the JMAP import under exactly the target mailbox,
- * the translated keywords and the date; the mark on the TARGET account; the trash through `delete`
- * — the bin, never a destroy — on the SOURCE account; and the refresh of B's folder. Any line added,
- * removed, reordered or lengthened reddens the list.
- *
- * AND WHAT THE TICK FROZE, carried to the two steps that touch the SOURCE account's mail
- * (#189). `moveToAccount` takes a [FrozenNumbering] — three states, not two: nothing frozen, a
- * frozen number, a frozen ABSENCE — and hands it to the READ and to the TRASH; every other step is
- * the other account's business and must never see it. The third state is the volet: as a `Long?`
- * it was spelled `null`, exactly like "nothing was frozen", so it silently took that case's
- * fallback on the folder's record — the record a background pass realigns the moment it meets a
- * renumbering. It is refused now, at both ends. The
- * AND ONLY THAT. [ReadUnderTheNumberingItWasTickedUnderTest] drives `ImapMailService.fetchSource`
- * onto a scripted socket — the LAST LINK of the read, not the path the move takes to reach it —
- * and [MoveNeedsTheNumberingStatedNowTest] does the same for `move`. Neither runs a line of
- * `MailRepository`, so neither can say the stamp survives the three hops between this body and
- * those calls: `rawSource`, `fetchRawSource`, and the `imap.fetchSource(` argument itself. That is
- * source text and nothing else, and it is [RawSourceReadUnderNumberingTest]'s — pinned there
- * because a delivery already lost the value on the last of those hops with every line here
- * byte-identical.
- *
- * What it CANNOT hold: that `rawSource`, `delete` and `refresh` still do what their names say.
- * Each has its own pins; this one holds that they are the functions called, with these arguments.
  */
 class MoveToAccountWiringTest {
 
@@ -147,22 +116,6 @@ class MoveToAccountWiringTest {
 
     /**
      * The signature, whole and in order — what the tick froze is the LAST parameter and it DEFAULTS
-     * TO [FrozenNumbering.NothingFrozen].
-     *
-     * IT IS A TYPE, AND THAT IS THE VOLET (#189). As a `Long?` this parameter carried two
-     * incompatible intentions under one spelling: "no tick froze anything, fall back on the
-     * folder's record" (the reader's single move, a row cached before the numbering column existed)
-     * and "a tick froze this row's numbering, and there was none". Both were `null`, both took the
-     * fallback, and the second is the one that must be REFUSED: the record it falls back on is
-     * realigned by the first iteration of the loop that meets a renumbering, so it is compared with
-     * itself, agrees, and another message's octets go to B while a live message goes to A's bin.
-     * `MailRepository` now refuses that shape at both ends; [FrozenNumberingRefusalTest] runs the
-     * decision and pins the two consumptions.
-     *
-     * The default still has to be "nothing frozen" and still has to mean the fallback: a default
-     * of anything else, or a parameter promoted to a bare number, turns every ordinary move into a
-     * refusal — `mayDestroyUnderStatedNumbering(null, x)` is false, so the Trash half would fail
-     * 100 % of the time and every move would end "copied, not removed".
      */
     @Test fun `the stamp of the tick is the last parameter, and defaults to nothing frozen`() {
         val signature = signatureOf("moveToAccount")
@@ -184,19 +137,6 @@ class MoveToAccountWiringTest {
 
     /**
      * AND IT REACHES EXACTLY TWO STEPS. A closed list, because both mistakes compile and both
-     * are silent:
-     *
-     *  - dropped from `readSource` — the octets are read under the FOLDER's record, which the
-     *    first iteration of the loop has already realigned to the server's new number, so the
-     *    guard compares that number with itself, agrees, and another message's octets are appended
-     *    on the other account. Only the Trash then refuses, and the copy stays: a permanent
-     *    duplicate, no Undo (A3);
-     *  - dropped from `trashSource` — the copy is written on B and A's original is binned under a
-     *    uid that may now name a live message the user never pointed at;
-     *  - handed to `writeTarget` or `findTarget` instead — those speak to the OTHER account, whose
-     *    folder has a numbering of its own that this number has nothing to do with. Every APPEND
-     *    would then be refused, or worse, licensed by a collision between two unrelated folders'
-     *    numbers.
      */
     @Test fun `the stamp reaches the read and the trash, and no other step`() {
         val body = bodyOf("moveToAccount")

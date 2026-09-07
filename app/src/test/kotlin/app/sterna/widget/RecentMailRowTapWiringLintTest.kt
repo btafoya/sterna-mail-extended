@@ -11,40 +11,11 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — the tap pane's half of what no JVM test can run. What a row
- * ASKS FOR is executed next door ([RecentMailWidgetTapTest]); `PendingIntent`, `Intent`,
- * `RemoteViews` and `MainActivity` cannot be built in this suite at all (there is no Robolectric
- * here), so how that request is handed to the launcher is pinned as text.
- *
- * WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
- * LENGTHENS the line, which is how the first version of another lint in this repo was walked past
- * twice. The price is that reformatting a pinned line reddens this file — loud, and one line to fix.
  */
 class RecentMailRowTapWiringLintTest {
 
     /**
      * THE TEMPLATE'S ACTION IS LOAD-BEARING, and it is the same trap the counter's `tapIntent`
-     * carries in its own KDoc.
-     *
-     * A `PendingIntent`'s identity is `(requestCode, Intent as compared by filterEquals, flags)`,
-     * and `filterEquals` IGNORES EXTRAS. Every new-mail notification is built as
-     * `Intent(context, MainActivity::class.java)` with no action and no data, and they are told
-     * apart by request code alone — `Notifications.childId(accountId, emailId)`, a
-     * `"$accountId $emailId".hashCode()` spread over the whole `Int` range, so no interval can be
-     * reserved against it. Without an action of its own this template is filterEquals-identical to
-     * every one of them, and the first `childId` that lands on its request code has its extras
-     * REWRITTEN by `FLAG_UPDATE_CURRENT`: the user taps the banner announcing a message and the app
-     * opens a different one.
-     *
-     * AND IT IS MUTABLE. A collection widget cannot hand out one `PendingIntent` per row; the
-     * platform's single route is a template the launcher FILLS IN per row, and filling in a
-     * `PendingIntent` requires it to be mutable. It is the app's second one, alongside the
-     * quick-reply action in `Notifications`, which `RemoteInput` demands. Two bounds are pinned by
-     * this very body: the intent names an explicit component (`MainActivity::class.java`), and it
-     * carries an action of its own. NOT a third bound, though the fill-in test next door reads
-     * like one: `Intent.fillIn` copies whatever the base intent left unset, so a holder of the
-     * template can add data, categories and a package whatever we put in ours. What makes that
-     * cost nothing is that `MainActivity` is exported with a LAUNCHER filter and can already be
-     * started by anything with anything.
      */
     @Test fun `the row template names an explicit component, its own action, and is deliberately mutable`() {
         assertEquals(
@@ -78,9 +49,6 @@ class RecentMailRowTapWiringLintTest {
 
     /**
      * The template is set on the LIST, inside the per-cell loop that builds the `RemoteViews`, and
-     * before that `RemoteViews` is sent. A template attached anywhere else, or not at all, is a
-     * widget whose rows are drawn and swallow every touch — which is exactly what this branch
-     * shipped in its previous pane.
      */
     @Test fun `the drawn cell hands the list its template`() {
         assertEquals(
@@ -95,16 +63,6 @@ class RecentMailRowTapWiringLintTest {
 
     /**
      * EXTRAS AND NOTHING ELSE, which is what makes the mutable template above acceptable.
-     *
-     * A fill-in `Intent` is merged into the template by the launcher. An action, a data URI or a
-     * component set here would be a third party writing into what this app is about to start; the
-     * three `putExtra`s below are the identity of a message and nothing more, and they are the very
-     * three a tapped new-mail notification already carries — so opening arrives on the route that
-     * has been carrying notification taps for releases, with every guard it already holds.
-     *
-     * The two nullable ones are put ONLY when present. `MainActivity.parseEmailOpen` reads them
-     * as `?.ifBlank { null }` and `SternaApp` acts on the folder half only when both are there; a
-     * blank travelling as a blank would ask for the folder "" of the account "".
      */
     @Test fun `a row's fill-in intent carries extras and nothing else`() {
         assertEquals(
@@ -137,14 +95,6 @@ class RecentMailRowTapWiringLintTest {
         )
         // AND THE WHOLE FUNCTION, not merely that one line. The filter above proves a line is
         // PRESENT and says nothing about the others — which was harmless while this factory held
-        // rows that carried no identifier at all, and stopped being harmless the moment a row
-        // became a pair of what it draws and what it opens. Both halves are now in scope here,
-        // three lines above a `setTextViewText`, and a review demonstrated two one-line changes
-        // that compiled and left this whole suite green: drawing `item.tap.mailboxId` in place of
-        // the date, which puts a folder id on a LOCKED home screen, and reading `position + 1`
-        // into `row`, which makes every line name one message and open another with no way to
-        // find out but to tap. The type still refuses to carry an id; this file is what now
-        // refuses to draw one.
         assertEquals(
             "RecentMailWidgetFactory.getViewAt is pinned whole. Only `item.drawn` may reach a " +
                 "setTextViewText, and `item.tap` may reach nothing but the fill-in — under the " +
@@ -251,14 +201,6 @@ class RecentMailRowTapWiringLintTest {
 
     /**
      * THE TWO WIDGETS MUST NOT SHARE A REQUEST CODE, and this rule reads the two NUMBERS rather
-     * than any prose about them.
-     *
-     * They already differ by action, which is the real defence; this is the belt. Aligned — the
-     * likeliest way being a reader "tidying up" the second widget to reuse the first's constant —
-     * the two templates would differ only by their action, and the day either action is touched the
-     * two `PendingIntent`s become one: the counter's cell and the message rows would then rewrite
-     * each other's extras through `FLAG_UPDATE_CURRENT`, and a tap on the counter would open a
-     * message.
      */
     @Test fun `the two widgets' request codes, and their actions, are different things`() {
         assertNotEquals(
@@ -279,8 +221,6 @@ class RecentMailRowTapWiringLintTest {
 
     /**
      * The integer a `private const val … = <n>` declares, read from the source. Fails loudly when
-     * the declaration is gone: a rename must redden this rule rather than satisfy it against
-     * nothing.
      */
     private fun requestCode(file: File, declaration: String): Int {
         val line = kotlinLines(file).singleOrNull { it.startsWith(declaration) }

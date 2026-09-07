@@ -5,13 +5,6 @@ import org.junit.Test
 
 /**
  * [unreadRefreshTargets] RUN, not read: what a pull-to-refresh in the "unread" view sends to
- * `MailRepository.refreshAccountFolders(extraFolderIds = …)`.
- *
- * The decision this pins is the ARGUMENT, not the call. `InboxViewModel` is an `AndroidViewModel`
- * and cannot be built here, so the one thing a JVM test can do honestly is execute the function that
- * decides the set — which is exactly why the set is decided in a function of its own rather than
- * inline in the refresh. `UnreadRefreshWiringLintTest` is the (source-reading) link that says the
- * refresh hands this function's answer over unaltered.
  */
 class UnreadRefreshTargetsTest {
 
@@ -31,11 +24,6 @@ class UnreadRefreshTargetsTest {
 
     /**
      * The one that costs data if it is wrong. Only the current account's credentials are in hand:
-     * a folder id belonging to account "b" sent to account "a"'s server addresses either nothing or
-     * somebody else's homonymous folder on a shared server, and what comes back is written into the
-     * cache under "a" (#121/#31). Here "b" holds an `Archive` id identical to "a"'s, so a rule that
-     * projected the pairs without filtering the account would LOOK right — the answer would be the
-     * same set — until "b" owned a folder "a" does not.
      */
     @Test fun `a sibling account's folder is never sent to this account's server`() {
         val mixed = scopes + ("b" to "Comptabilite")

@@ -10,13 +10,6 @@ import org.junit.Test
 
 /**
  * Whether the unsubscribe is still on offer — the decision the banner, the overflow entry and the
- * action itself all take, executed here rather than restated three times in Compose.
- *
- * The defect it closes: the banner hid its button once the request had gone out, but the overflow
- * entry never looked at the state at all, and the action only refused while a POST was in flight.
- * Menu → confirm → **a second POST**, to a list that had already answered, from an address that
- * had just proved it is read. The one place the three could be made to agree is a function they
- * all call, and the only way to know they agree is to execute it.
  */
 class UnsubscribeOfferTest {
 
@@ -66,8 +59,6 @@ class UnsubscribeOfferTest {
 
     /**
      * The pending confirmation carries the options it was opened for, and names its target from
-     * them — so what the dialog says and what the button then does are the same thing, even if
-     * the message behind the dialog is reloaded in the meantime.
      */
     @Test fun `a pending confirmation names the target it captured`() {
         val pending = PendingUnsubscribe(UnsubscribeAction.OPEN_PAGE, page)

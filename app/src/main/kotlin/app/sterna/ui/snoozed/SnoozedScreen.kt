@@ -41,12 +41,6 @@ import app.sterna.ui.message.snoozePresets
 
 /**
  * The "Snoozed" screen (Codeberg #82): the messages a snooze currently hides, each with the
- * moment it comes back. A snoozed message still leaves its list — that is the point of a
- * snooze — but it is no longer unreachable: from here the snooze can be cancelled (the message
- * returns at once) or moved to another deadline.
- *
- * Deliberately built on the same pattern as the "Scheduled" sends screen: same place in the
- * navigation, same list shape, same way of spelling out a deadline.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -150,8 +144,6 @@ fun SnoozedScreen(
 
 /**
  * The "snoozed until …" line heading a snooze-preset menu. Informative, not an action: an
- * already-snoozed message says when it comes back rather than offering a mute list of delays
- * (Codeberg #82 — answer with the information, not with a colour).
  */
 @Composable
 internal fun SnoozeDeadlineHeader(formattedUntil: String) {

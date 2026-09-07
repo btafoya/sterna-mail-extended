@@ -8,14 +8,6 @@ import org.junit.Test
 
 /**
  * The rules stop filtering when the responder is switched on, and STAY stopped when it is
- * switched off (measured against Stalwart, 2026-08-03 and 04: a single active Sieve script per
- * account, and the return from holiday leaves none active at all). Neither screen said a word.
- *
- * This exercises the decision itself — [filterScriptWarning] is called, not read — because the
- * two places it is wired into (a composable and an Application-bound view model) cannot be
- * instantiated in a JVM test. Two cases are witnesses rather than requirements: the one with no
- * `vacation` script keeps the prediction conditional, and the one with the responder already on
- * keeps it in the future tense. Drop either condition and only its witness moves.
  */
 class FilterScriptWarningTest {
 
@@ -194,9 +186,6 @@ class FilterScriptWarningTest {
 
     /**
      * The name is not decoration: the repo looks for a script called exactly this, and getting the
-     * spelling wrong makes the prediction permanently mute with every test still green — the tests
-     * above pass `vacationScriptExists` as a boolean and never travel through the constant.
-     * Measured on the server, lower-case.
      */
     @Test
     fun `the vacation script is looked for under the name the server uses`() {
@@ -205,8 +194,6 @@ class FilterScriptWarningTest {
 
     /**
      * [enabledRuleCount] counts the rules the server will actually run. It is a second spelling
-     * of the predicate inside [SieveCodec.generate], so it is pinned against the script that
-     * codec really produces: if one drifts, this fails rather than the warning quietly lying.
      */
     @Test
     fun `the counted rules are the ones the generated script filters on`() {

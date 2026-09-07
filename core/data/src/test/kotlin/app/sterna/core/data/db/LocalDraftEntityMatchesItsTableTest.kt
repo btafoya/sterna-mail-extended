@@ -10,31 +10,6 @@ import java.sql.DriverManager
 
 /**
  * [LocalDraftEntity] and [LOCAL_DRAFTS_CREATE_SQL], each read from itself and compared — the one
- * check that fails when the two drift apart.
- *
- * The hole this closes. Renaming a field of the entity without touching the CREATE compiles, and
- * left every other test green: they all read `PRAGMA table_info` of a table built by the CONSTANT,
- * so they check the constant against a copy of itself. Nothing in this repo runs Room's own
- * `TableInfo`/`validateMigration` — there is no `androidTest`, no Robolectric, and `exportSchema` is
- * off — so the first execution of that comparison happens on a user's phone, at open time, as
- * `IllegalStateException: Migration didn't properly handle local_drafts` on EVERY launch. Only
- * installs coming up from v22 are hit; a fresh install builds its table from the entity and is
- * perfectly green, which is why no bench pass can catch it. The user's only way out is clearing the
- * app's data, which takes the outbox with it.
- *
- * So this states no column list of its own. It EXECUTES both sides: it creates the real table and
- * reads back what SQLite made of it, it reads the entity's real constructor, and it discovers each
- * parameter's nullability by CALLING that constructor with a null and seeing whether Kotlin's own
- * `checkNotNullParameter` refuses it. A third hand-written copy of the schema would just be a third
- * thing to forget.
- *
- * What it compares, in both directions: name for name (a column with no field and a field with no
- * column both fail), affinity for affinity, nullable for nullable.
- *
- * What it does NOT pin: the primary key and its column order (`androidx.room.Entity` has BINARY
- * retention, so the annotation is gone at runtime — `LocalDraftsMigrationSqlTest` pins that on the
- * SQL side), the column ORDER, and Kotlin default values (which are not column defaults; the table
- * deliberately declares none).
  */
 class LocalDraftEntityMatchesItsTableTest {
 
@@ -64,10 +39,6 @@ class LocalDraftEntityMatchesItsTableTest {
 
     /**
      * The entity's own constructor, found by matching its parameter types against the backing
-     * fields — which is also what lets a parameter be named: Kotlin emits no parameter names in the
-     * bytecode (that needs `-java-parameters`), so the names come from the fields, and this match
-     * is what says the two lists line up. A data class also carries a synthetic constructor with
-     * the defaults mask, which does not match and is therefore never picked.
      */
     private fun primaryConstructor(fieldTypes: List<Class<*>>): Constructor<*> =
         LocalDraftEntity::class.java.declaredConstructors.singleOrNull {
@@ -105,8 +76,6 @@ class LocalDraftEntityMatchesItsTableTest {
 
     /**
      * The entity's columns as the entity itself defines them: names from the backing fields,
-     * affinity from the type, and nullability EXECUTED — a primitive parameter cannot hold null at
-     * all, and for a reference one we hand the constructor a null and watch what it does.
      */
     private fun entityShapes(): Map<String, Shape> {
         val fields = LocalDraftEntity::class.java.declaredFields
@@ -135,12 +104,6 @@ class LocalDraftEntityMatchesItsTableTest {
 
     /**
      * Whether the constructor rejects a null in position [i] — i.e. whether that parameter is
-     * non-null, which is what makes the column `NOT NULL`.
-     *
-     * The rejection comes from Kotlin's own `Intrinsics.checkNotNullParameter`, and its message
-     * names the parameter. That name is checked against the field we lined up with this position:
-     * a mismatch means the fields and the parameters are not in the same order, and every verdict
-     * below it would be about the wrong column.
      */
     private fun refusesNull(constructor: Constructor<*>, good: Array<Any?>, i: Int, name: String): Boolean {
         val args = good.copyOf()

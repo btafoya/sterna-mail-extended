@@ -7,13 +7,6 @@ import org.junit.Test
 
 /**
  * The stateful half of the ghost sweep's gate (Codeberg #107): the bookkeeping that decides when a
- * mailbox may be existence-checked again, exercised over sequences of syncs rather than one
- * decision at a time. The pure gate is pinned in SyncEvictionsTest; what is pinned HERE is what a
- * long-lived process does with it — the reporter's app holds a push foreground service, so "it
- * heals on the next launch" was never an answer.
- *
- * A fake clock stands in for the schedule's monotonic one (`SystemClock.elapsedRealtime`, which a
- * JVM test cannot call anyway) so a five-minute floor can be crossed without waiting it out.
  */
 class GhostSweepScheduleTest {
 
@@ -162,9 +155,6 @@ class GhostSweepScheduleTest {
     @Test fun aFailedSweepThatWasNotTheSessionsFirstWaitsOutAWholeFloor() {
         // The documented other half of releaseFailed, and a deliberate choice rather than an
         // oversight: only the once-per-process credit is handed back, so a sweep that fails on the
-        // recurring path is retried one interval later instead of on every single sync. An unhappy
-        // server therefore cannot turn a failing existence check into a per-sync request storm; the
-        // price is that a ghost can outlive one extra interval when the network drops mid-sweep.
         val b = bench()
         assertTrue(b.quietSync().sweep) // spends the session credit
         b.elapse(floor)
@@ -181,9 +171,6 @@ class GhostSweepScheduleTest {
     @Test fun onlyOneOfManySimultaneousSyncsIsGrantedTheSameWindow() {
         // Push, the fallback worker and a pull-to-refresh can sync one mailbox at the same instant.
         // Deciding and stamping atomically is what stops them all being granted the same floor:
-        // nothing extra could be deleted (the checks are identical and read-only), but the log
-        // would claim several sweeps where one ran. Sixteen claims at one frozen instant, exactly
-        // one interval after the last sweep — exactly one may be granted.
         val b = bench()
         assertTrue(b.quietSync().sweep)
         b.elapse(floor)

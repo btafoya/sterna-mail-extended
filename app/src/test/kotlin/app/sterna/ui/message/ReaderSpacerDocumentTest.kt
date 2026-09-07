@@ -8,12 +8,6 @@ import org.junit.Test
 
 /**
  * [buildHtmlDocument] EXECUTED, and the document it emits read as text: the two reserved blanks
- * must reach the page carrying the unit they were computed in.
- *
- * Why the unit is asserted and not just the number: the emission site is a string interpolation,
- * so `style="height:${topSpacerCss}px"` compiles and reads almost the same. It would put a RATIO
- * (~26) where a pixel count (~205) used to be — the #171 defect, worse than before, with
- * [BodySpacerTest] still green.
  */
 class ReaderSpacerDocumentTest {
 

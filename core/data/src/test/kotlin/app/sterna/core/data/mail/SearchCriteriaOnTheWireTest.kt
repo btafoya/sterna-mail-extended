@@ -11,21 +11,6 @@ import java.time.ZoneOffset
 
 /**
  * Every criterion of the search panel, from the object the SCREEN owns down to the `UID SEARCH`
- * bytes — one by one, then crossed.
- *
- * The whole chain on purpose. `ImapSearchCommandTest` builds `ImapSearchCriteria` by hand, so a
- * criterion dropped in [toImapCriteria] leaves it green while the box stops meaning anything;
- * `SearchQueryToImapTest` covers that crossing but only for the flagged switch. Starting from
- * [SearchQuery] here means a criterion that goes inert anywhere along the way fails HERE.
- *
- * Two questions per criterion, and the second is what makes the first worth anything:
- *  - set alone, does it produce its own key AND NOTHING ELSE?
- *  - left at its default, does it produce no key at all?
- *
- * The odd one out is `hasAttachment`: IMAP `SEARCH` has no key for it, so it is the only criterion
- * that pays for a client-side scan. That it is the ONLY one is asserted below, and so is the thing
- * that makes the scan affordable — the other criteria still go out on the wire, so the scan walks
- * a set the server has already narrowed instead of the whole folder.
  */
 class SearchCriteriaOnTheWireTest {
 
@@ -80,8 +65,6 @@ class SearchCriteriaOnTheWireTest {
 
     /**
      * THE witness for all seven at once. Without it every assertion above passes on a build that
-     * appends its key unconditionally — and a search would then be permanently filtered by a
-     * criterion the user never set, quietly returning a fraction of what matches.
      */
     @Test fun `criteria left at their default send no key of their own`() {
         val onlyText = keys(SearchQuery(text = "invoice"))
@@ -114,9 +97,6 @@ class SearchCriteriaOnTheWireTest {
 
     /**
      * Starred AND from Alex AND since June. Three keys separated by spaces is an implicit AND in
-     * `SEARCH`, so this NARROWS. The only way IMAP could widen it is an `OR`, and the only `OR` the
-     * builder ever emits is the recipient's — asserted absent here, because "starred, or anything
-     * from Alex" is a strictly bigger answer than either box on its own.
      */
     @Test fun `the star crossed with a date and a sender narrows the search rather than widening it`() {
         val crossed = keys(SearchQuery(from = "alex@masto.top", flagged = true, afterMillis = june1))
@@ -144,12 +124,6 @@ class SearchCriteriaOnTheWireTest {
 
     /**
      * The cost argument for the local scan rests entirely on this: with an attachment tick AND
-     * other criteria, the other criteria still go to the server. The scan then walks what the
-     * server already narrowed — a handful of starred June messages from Alex — instead of standing
-     * in for the query and fetching envelopes across the whole folder.
-     *
-     * A build that answered "attachment ticked, so ask for ALL and sort it out here" would pass
-     * every other test in this file and turn a two-message answer into a thousand-message crawl.
      */
     @Test fun `an attachment search still sends the other criteria to the server`() {
         val mixed = SearchQuery(
@@ -166,9 +140,6 @@ class SearchCriteriaOnTheWireTest {
 
     /**
      * And the attachment is the ONLY criterion that buys the scan. Widening the decision (say to
-     * `hasAttachment || flagged`) compiles, returns the right messages, and silently turns a cheap
-     * server-answered search into a batched envelope crawl with a scan cap and a count that can no
-     * longer call itself a total.
      */
     @Test fun `no criterion other than the attachment asks for a client-side scan`() {
         listOf(

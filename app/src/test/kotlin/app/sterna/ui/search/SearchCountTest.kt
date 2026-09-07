@@ -5,13 +5,6 @@ import org.junit.Test
 
 /**
  * The header above the search results must never claim a total it can't back (#102).
- *
- * The inbox's search bar answers in two passes — the local header index instantly, the server's
- * full-text index a second later, unioned in — and on a COLD index the first pass can be a small
- * slice of the answer. The screen still printed the plain "N results" over it, so a partial answer
- * looked final and read as if mail had gone missing. Nothing is missing; the count was overclaiming.
- *
- * These exercise the very functions the two search screens call, not a copy of their logic.
  */
 class SearchCountTest {
 

@@ -6,23 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
- * [BulkSelectionWiringTest]: it reads `InboxViewModel.kt` as text, proves nothing about what
- * happens on screen, and would still pass if the code it points at were broken inside.
- *
- * It exists because the SWIPE's delete was pinned nowhere. [BulkSelectionWiringTest] holds the
- * SELECTION route (`deleteSelected`, through [planSelectionDelete]); the one-message gesture —
- * `fun delete(email)`, the most ordinary thing the user does — went through none of it, and its
- * `.getOrDefault(false)` could be turned into `.getOrDefault(true)` with the whole suite green.
- *
- * That `false` is the offline guard, and it is the difference between a failed gesture and lost
- * mail: the probe resolves the Trash over the socket (a JMAP `connect()`, an IMAP LIST), so it
- * THROWS when the phone is offline or the LIST times out. Falling back to "does not destroy"
- * sends the gesture down the move path, whose own failure is handled and announced. Falling back
- * to "destroys" would send every offline swipe into the held-back destroy — permanent, behind a
- * 5 s Undo — on messages that were never in the Trash.
- *
- * What the probe ANSWERS is `DeleteDestroysMessageTest`'s job, in `:core:data`; that the gesture
- * asks it, and what it does when the question cannot be asked at all, is this file's.
  */
 class SwipeDeleteProbeWiringTest {
 
@@ -94,8 +77,6 @@ class SwipeDeleteProbeWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text. Fails loudly when the
-     * declaration is not found — a rename must break these rules rather than satisfy them silently
-     * against an empty string.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)

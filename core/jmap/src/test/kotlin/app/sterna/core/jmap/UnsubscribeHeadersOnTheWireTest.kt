@@ -13,17 +13,6 @@ import org.junit.Test
 
 /**
  * The two unsubscribe headers, from the request bytes to the decoded model — and, just as
- * deliberately, their ABSENCE from the list fetch.
- *
- * The chain has three places to go silently inert, and each of them looks like "this sender does
- * not offer an unsubscribe":
- *  1. the property is not asked for on the wire;
- *  2. it is asked for, but the `@SerialName` is missing — `DefaultJson` is
- *     `ignoreUnknownKeys = true`, so kotlinx drops the server's answer without a word;
- *  3. the server rejects the property and the whole `Email/get` fails, which is much worse than
- *     no banner: no message opens at all.
- *
- * So the assertions start from the call the READER makes and go down to the octets.
  */
 class UnsubscribeHeadersOnTheWireTest {
     private lateinit var server: MockWebServer
@@ -77,9 +66,6 @@ class UnsubscribeHeadersOnTheWireTest {
 
     /**
      * THE witness. A list page fetches dozens of rows every time a folder is scrolled; putting a
-     * header property there would make every user pay, on every page, for something only the open
-     * message uses. The indicator in the list is a separate, later piece of work with its own
-     * cost — it must not arrive by accident here.
      */
     @Test fun `the folder list does NOT ask for them`() = runBlocking {
         server.enqueue(
@@ -128,9 +114,6 @@ class UnsubscribeHeadersOnTheWireTest {
 
     /**
      * The fallback, and the reason it is not optional. Stalwart accepts these properties; Cyrus,
-     * Fastmail and James were never measured. A server that rejects an unknown property fails the
-     * WHOLE `Email/get`, so without this every message on that account would stop opening — a
-     * privacy nicety would have broken reading mail.
      */
     @Test fun `a server that rejects the properties still opens the message`() = runBlocking {
         server.enqueue(
@@ -173,10 +156,6 @@ class UnsubscribeHeadersOnTheWireTest {
 
     /**
      * The same refusal, spoken the other way. A method-level `invalidArguments` is the polite
-     * form; a server that does not know the property may just as well answer **HTTP 400** to the
-     * whole request, and that arrives as a completely different exception. Without this, the
-     * fallback would not fire and the account would stop opening messages altogether — the exact
-     * disaster the fallback exists to prevent, reached by the other door.
      */
     @Test fun `a server that refuses the properties with HTTP 400 still opens the message`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(400).setBody("""{"type":"urn:ietf:params:jmap:error:notRequest"}"""))
@@ -195,15 +174,6 @@ class UnsubscribeHeadersOnTheWireTest {
 
     /**
      * And the boundary of THAT, for THIS guard: a 400 is the only status it replays without the
-     * unsubscribe headers. 401/403 are credentials, 5xx is the server being ill; dropping these
-     * two headers could not help, and pretending it might would hide a real refusal behind a
-     * second attempt that fails for the same reason.
-     *
-     * The request COUNT is two per status, not one, and that is not this guard: the read-receipt
-     * guard wraps this one and replays anything but a rate limit, because that property is
-     * unmeasured and a server refusing it in unexpected words would otherwise wall the account
-     * (see `ReadReceiptHeaderOnTheWireTest`). What is asserted here is what belongs here — the
-     * status reaches the caller unchanged, and these two headers are never the thing dropped.
      */
     @Test fun `an authentication or server error is never replayed without these headers`() = runBlocking {
         listOf(401, 403, 500, 503).forEach { code ->
@@ -228,10 +198,6 @@ class UnsubscribeHeadersOnTheWireTest {
 
     /**
      * Opening a message and prefetching bodies are NOT the same request, and a rate limit is
-     * where the difference is felt. `getEmail` is the reader sitting in front of a spinner: it
-     * fails at once, with its own sentence, which is displayed as it is. The two were briefly
-     * folded into one function — which quietly gave the reader four backoffs of waiting and
-     * changed the words on their screen.
      */
     @Test fun `opening a message does not retry a rate limit, and keeps its own words`() = runBlocking {
         repeat(6) { server.enqueue(MockResponse().setResponseCode(429)) }
@@ -248,9 +214,6 @@ class UnsubscribeHeadersOnTheWireTest {
 
     /**
      * The witness for the pair above: the background prefetch DOES back off (RFC 8620 §3.6.1),
-     * because nobody is waiting for it. And whatever either of them does, every attempt still
-     * carries the properties: a rate limit must never be read as "this server refuses them", or
-     * a busy minute would cost the account its banner for the rest of the process.
      */
     @Test fun `the prefetch backs off instead, and never drops the properties`() = runBlocking {
         repeat(8) { server.enqueue(MockResponse().setResponseCode(429)) }
@@ -271,9 +234,6 @@ class UnsubscribeHeadersOnTheWireTest {
 
     /**
      * RFC 8620 §3.6.1's `urn:ietf:params:jmap:error:limit` is *also* an HTTP 400 — the same status
-     * a server uses to reject a property it does not know. It is a rate limit all the same, and
-     * must not be replayed without the properties: that would cost the account its banner for the
-     * process because the server was busy for a second.
      */
     @Test fun `the JMAP limit error is a rate limit, not a rejected property`() = runBlocking {
         val limit = MockResponse().setResponseCode(400)

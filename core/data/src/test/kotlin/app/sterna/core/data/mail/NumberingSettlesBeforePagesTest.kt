@@ -8,20 +8,6 @@ import org.junit.Test
 
 /**
  * Codeberg #99, re-opened by writing pages as they land, and closed again: a folder whose
- * UIDVALIDITY changed must have its body cache dropped BEFORE the first row of the new numbering
- * reaches the screen.
- *
- * Why it came back. `loadFolder` used to hand its caller ONE snapshot, so nothing was visible until
- * the whole read was over and the numbering could be reconciled on the way out. Writing page by page
- * makes rows visible while the walk is still running, and opening a message reads the BODY CACHE
- * first, keyed by the same `imap:account:folder:uid` id. A body cached under the previous numbering
- * is a different message under the same id — `UidValidity` says it plainly: "a body read back under
- * a recycled UID renders the wrong message under the right header". The window was zero before the
- * streaming rewrite and the length of the walk after it.
- *
- * The order is a function of its own, [withNumberingSettled], for the same reason
- * [fullQueryWriteThrough] is: an order that only exists as the sequence of two lines in the middle
- * of a long function is an order no test can execute.
  */
 class NumberingSettlesBeforePagesTest {
 
@@ -29,8 +15,6 @@ class NumberingSettlesBeforePagesTest {
 
     /**
      * What the user has in front of them: the rows the list shows, and the body cache an open would
-     * read. [openedWhenFirstPageLanded] is the answer to "if the user tapped that row the moment it
-     * appeared, what body would the app render?" — null meaning "nothing cached, fetch it".
      */
     private class Screen {
         /** A body cached under the OLD numbering, for the id the new page is about to show. */

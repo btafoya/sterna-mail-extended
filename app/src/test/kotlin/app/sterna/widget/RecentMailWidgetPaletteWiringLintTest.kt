@@ -8,35 +8,11 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — the same instrument and the same disclaimer as
- * [UnreadWidgetPaletteWiringLintTest], one widget over. There is no Robolectric in this repository,
- * so neither the `RemoteViews` of the cell's frame nor the `RemoteViewsFactory` that serves its rows
- * can be built, let alone executed, by this suite. [WidgetThemeTest] RUNS the two rules that decide
- * the colours; that says nothing about whether the shipped cell goes and asks for them, and this
- * widget draws in two places, at two different moments.
- *
- * The defect being closed: the rows and the frame took their colours from `res/values` +
- * `res/values-night`, i.e. from the SYSTEM's day/night mode, so the theme chosen in the app, the
- * pure-black option (#117) and Material You never reached the home screen.
- *
- * WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
- * LENGTHENS the line. The price is that reformatting a pinned call reddens this test — loud, and
- * one line to fix.
  */
 class RecentMailWidgetPaletteWiringLintTest {
 
     /**
      * `setBackgroundResource`, NEVER `setBackgroundColor`.
-     *
-     * `RemoteViews.setInt(id, "setBackgroundColor", …)` calls `View.setBackgroundColor(int)`, which
-     * REPLACES the shape drawable with a flat fill: the cell comes out SQUARE, a rectangle of solid
-     * colour among rounded neighbours, and every corner rule in this package stays green while it
-     * happens. That is why the surface travels as one of three pre-built drawables and why
-     * [WidgetThemeReader.background] is the only thing that names them.
-     *
-     * The notice is the other half. It is the cell's EMPTY VIEW — what the launcher shows before any
-     * read has answered, and whenever the list holds no rows — so without its `setTextColor` it
-     * keeps the near-black the layout froze into it and lands on the app's dark surface, unreadable,
-     * on the one screen nobody can debug.
      */
     @Test fun `the drawn frame is painted from the palette, and keeps its rounded corner`() {
         assertEquals(
@@ -83,18 +59,6 @@ class RecentMailWidgetPaletteWiringLintTest {
 
     /**
      * The three texts of a row take the palette; the account dot does NOT.
-     *
-     * The sender takes `rowPrimary` (Material `onSurface`, what `EmailListItem` draws a sender in)
-     * and the two quieter lines take `label`: without them a row keeps `@color/widget_row_primary`,
-     * resolved through `values-night` from the SYSTEM's mode, so a reader who forced the app to
-     * light on a dark phone reads near-white text on the app's light surface.
-     *
-     * AND THE DOT IS PINNED HERE, UNCHANGED, in the same list. Its colour is the ACCOUNT's (#112)
-     * and it is the only thing on an interleaved list saying which mailbox a line came from; painted
-     * from `palette.accent` — one plausible-looking edit — every dot becomes the same colour and the
-     * row stops answering the only question it was added to answer, with nothing broken to see.
-     * The weight is not in scope here either: read and unread are told apart by `weighted(…)` and
-     * by nothing else, and a colour must not start saying it too.
      */
     @Test fun `a served row takes its text colours from the palette, and its dot from the account`() {
         assertEquals(
@@ -172,19 +136,6 @@ class RecentMailWidgetPaletteWiringLintTest {
 
     /**
      * THE CARRIED PALETTE IS NULLABLE, and it is the same `null` [RecentMailWidgetFactory]
-     * already knew how to draw: "a row drawn with no `setTextColor` keeps the colour its layout
-     * froze in … not a regression".
-     *
-     * That sentence is the rule for the WHOLE pane now, not a special case of the factory. Null
-     * reaches every drawing site — the frame here, the counter one file over, the rows — and it
-     * means the same thing at each: post nothing, the resources hold the right answer. It arrives
-     * on two paths, a read that timed out and an app that does not diverge from the system
-     * ([widgetFollowsResources], executed in [WidgetThemeTest]).
-     *
-     * Make this field non-null again and the second path cannot exist: every draw would bake a
-     * literal int into the `RemoteViews`, there is no `-night` twin behind those ints, no trigger
-     * listens for `ACTION_CONFIGURATION_CHANGED` and `updatePeriodMillis="0"` means no timer — so
-     * the cell would keep the day's colours through the evening switch until mail arrived.
      */
     @Test fun `the palette carried beside the rows is optional, and null means the resources answer`() {
         assertEquals(
@@ -218,19 +169,6 @@ class RecentMailWidgetPaletteWiringLintTest {
 
     /**
      * THE ROWS AND THEIR COLOURS COME OUT OF ONE READ, and the whole body is pinned because the
-     * mutation is one line long: `palette = RecentMailWidgetDraw.drawing?.palette` reads perfectly
-     * well and is a second read.
-     *
-     * The frame and the rows are drawn at different moments — the frame when the app asks, the rows
-     * when the launcher pulls — so two reads mean two answers. The reader switches the app to light
-     * and the cell shows a light frame over rows still in the dark theme's colours until something
-     * makes the launcher refetch, which `updatePeriodMillis="0"` guarantees is not soon. It is the
-     * same drift the held snapshot exists to prevent for the text, and the same fix: one
-     * [RecentWidgetDrawing], both fields off it.
-     *
-     * [kotlinx.coroutines.withTimeoutOrNull] and not `withTimeout` stays pinned with it: this
-     * runs on a binder thread the launcher is waiting on, and a `CancellationException` from here
-     * escapes a binder callback, which takes the process down.
      */
     @Test fun `the rows and the colours they are drawn in come from the same read`() {
         assertEquals(
@@ -270,19 +208,6 @@ class RecentMailWidgetPaletteWiringLintTest {
 
     /**
      * THE CACHE IS KEYED ON THE COLOUR IT ACTUALLY PAINTED — the one decision of this pane that
-     * no executed test can reach, because it is an ARGUMENT and not a rule.
-     *
-     * [widgetMonogramKey] is pure and is run next door ([WidgetMonogramRulesTest]), so what a key
-     * made of a letter, a colour and a side distinguishes is measured. What is handed to it is not:
-     * passing `monogram.slot` where `argb` belongs type-checks, reads perfectly well, and gives back
-     * a key that is stable across a theme change — which is precisely the defect. The launcher would
-     * then be served the previous palette's disc for the life of the process, since
-     * `updatePeriodMillis="0"` means nothing ever redraws on a schedule and there is no invalidation
-     * anywhere to catch up.
-     *
-     * And the bound is in BYTES. A cap counted in entries means a different amount of memory on
-     * every phone — a badge at xxxhdpi is sixteen times the pixels of an mdpi one — and it is the
-     * largest screens that would hold the most.
      */
     @Test fun `the badge is cached under the colour it was painted, and the cache is bounded in bytes`() {
         assertEquals(
@@ -318,29 +243,6 @@ class RecentMailWidgetPaletteWiringLintTest {
 
     /**
      * AND THE DISC ITSELF — the one place in this pane where a one-character mutation is
-     * invisible to everything else.
-     *
-     * [widgetMonogramLetterArgb] is pure and is RUN next door ([WidgetMonogramRulesTest]), so the
-     * rule "black or white, by WCAG luminance against the disc" is measured. What no executed test
-     * can see is what is HANDED to it: `widgetMonogramLetterArgb(0xFF000000.toInt())` type-checks,
-     * reads perfectly well, keeps the function called and correct — and paints every initial of
-     * every row white. On the pastel tones a light scheme hands out that is 1.40:1, a letter that
-     * is technically drawn and practically invisible, which is precisely what
-     * [widgetMonogramLetterArgb]'s own KDoc forbids in writing. It survived the whole suite.
-     *
-     * The other two lines are pinned with it and are the same kind of fact:
-     *
-     * - the BASELINE comes from the paint's `fontMetrics`. A glyph's ink sits above its baseline,
-     *   so `drawText(initial, centre, centre, letter)` — the obvious simplification — leaves every
-     *   letter floating high by roughly a third of its height, on a 24 dp disc where that is
-     *   obvious and nowhere near a test;
-     * - the letter's size is `side * LETTER_SCALE`, the ratio the app's own badge draws at, which
-     *   is what makes the home screen's badge read as the same badge as the list's.
-     *
-     * WHAT THIS CANNOT SEE: the pixels. `Bitmap`, `Canvas` and `Paint` do not run in this suite
-     * — merely touching [WidgetMonogram] would run the class initialiser of its `LruCache` — so
-     * that the disc comes out round, centred and legible is a bench claim. This rule pins the
-     * ARGUMENTS; nothing here executes a single line of drawing.
      */
     @Test fun `the badge's letter is coloured against the disc it sits on, and centred on the font's metrics`() {
         assertEquals(

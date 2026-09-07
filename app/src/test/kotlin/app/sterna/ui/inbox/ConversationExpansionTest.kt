@@ -92,9 +92,6 @@ class ConversationExpansionTest {
 
     // The unfolded conversation is no longer built from the wire: the server completion only
     // fills the cache, and the rows on screen are a live reading of it (ThreadMemberStream). The
-    // append-only rule those merge cases pinned — the copy already drawn is the copy kept, #63 —
-    // and the scoping to the viewed folder(s) plus Sent now live in ThreadMemberStreamTest and in
-    // ConversationScopeTest's run of the shipped queries.
 
     // --- threadEntries: the reading view's swipe context (Codeberg #13) ---
 

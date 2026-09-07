@@ -11,23 +11,6 @@ import java.sql.DriverManager
 
 /**
  * The (account, folder) → role map the rows of an unfolded conversation are judged by (#115), run
- * against real SQLite from the SQL the shipped DAO declares.
- *
- * The rule that consumes this map is tested (`ShowsRecipientsTest`) and its re-scoping is tested
- * (`FolderRolesScopeTest`); what nothing reached was the query itself. A `WHERE` clause mutated
- * here — `AND role NOT IN ('inbox')` is one line — reopens #115 in full: the Inbox drops out of the
- * map, every message in it resolves to an unknown role, and the child rows of a conversation go
- * back to being judged by their author, which is the exact defect. The witness the fix shipped with
- * (#69, a reply of yours inside a thread) stays green throughout, so nothing looks wrong.
- *
- * The statement is read out of `MailboxDao.kt` by [DaoQuerySource] rather than retyped, so editing
- * the DAO changes what runs here.
- *
- * WHAT THIS DOES NOT PROVE. The schema below is recopied by hand, so it does not prove the table
- * the app creates matches it; Room binds the parameters and maps the columns onto
- * [AccountMailboxRole] by name, and neither of those runs here — the binding order and the column
- * names are the test's own reading of the statement. It proves what the SQL selects, over rows a
- * real SQLite engine stores, and that is all.
  */
 class FolderRolesSqlTest {
     private lateinit var db: Connection
@@ -105,10 +88,6 @@ class FolderRolesSqlTest {
     @Test fun `a folder that claimed the trash and lost it is left out too`() {
         // `~trash` is the mark a second trash is stored with (a personal Trash plus a shared
         // Shared/…/Trash) so search skips it. The statement CANNOT drop it — it keeps every
-        // non-null role — so the mapping is what holds this map's contract: what it hands out is a
-        // role a caller knows. Handing "~trash" over would be an answer nobody can read, the same
-        // shape of defect as the folder menu that read the mark as a role and took Rename and
-        // Delete off a user's shared trash.
         folder("acc", "f1", "inbox")
         folder("acc", "f2", "~trash")
         folder("acc", "f3", "~junk")

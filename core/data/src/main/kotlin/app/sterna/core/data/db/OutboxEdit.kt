@@ -5,8 +5,6 @@ import java.io.File
 
 /**
  * Taking a queued message out of the outbox to edit it (#70). The row stays QUEUED-adjacent,
- * marked [OutboxState.EDITING]; closing without sending restores [OutboxState.QUEUED], so a
- * process death mid-edit loses only the edit, never the message.
  */
 object OutboxEdit {
     /**

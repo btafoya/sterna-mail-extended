@@ -8,16 +8,6 @@ import org.junit.Test
 
 /**
  * [originalSenderToShow], EXECUTED — whether the reader gets an "Original sender" line at all, and
- * what it says (#160).
- *
- * Nothing here recomputes the rule. Header values and `from` lists are literals, and every
- * expectation is written out field by field: an expectation derived from the code under test is a
- * copy of the decision, and inverting the delivered condition would leave it green.
- *
- * The decision is a plain function and not a branch inside the panel's composable, and this
- * test is why that matters: R8 has already inlined a small `@Composable` of this module until it
- * painted nothing at all (`Monogram`, kept by an explicit rule), so a guard living in the painting
- * is only ever proven by a bench run on a release build. Here it is proven by the build itself.
  */
 class OriginalSenderToShowTest {
 
@@ -41,8 +31,6 @@ class OriginalSenderToShowTest {
 
     /**
      * Case is not identity. Addresses come back from a relay in whatever casing it felt like,
-     * and showing the SAME address twice under two labels is not a signal — it is noise on the
-     * one screen this feature exists to make legible.
      */
     @Test fun `an origin equal to the From, in another casing, shows nothing`() {
         assertNull(
@@ -55,8 +43,6 @@ class OriginalSenderToShowTest {
 
     /**
      * THE refusal. This header is entirely sender-controlled, and the line it feeds is read as
-     * "here is who really wrote to you". A value with nothing address-shaped in it must produce no
-     * line at all rather than present arbitrary text under that promise.
      */
     @Test fun `a value with no address in it shows nothing`() {
         assertNull(originalSenderToShow("(aucune adresse ici)", alias))

@@ -7,16 +7,6 @@ import java.util.Base64
 
 /**
  * [MimeParser.decodedHeaderOf] — the read that hands a header over READY TO SHOW, next to
- * [MimeParser.headerOf], which hands it over as it was sent.
- *
- * It exists for the RFC 9788 protected headers of a decrypted PGP/MIME entity (issue #128): the
- * subject inside the ciphertext is sender-controlled content, so it has to pass the same door as
- * the outer envelope subject (`ImapClient`, `decodeWords(envelope[1])`) — and that door
- * ([decodeWords] and the two filters under it) is `internal` to this module, so the read has to
- * live here rather than be copied into the module that needs it.
- *
- * Each case therefore asserts BOTH readings on the same input: the raw one is pinned so that
- * "decoded" is a proven difference and not a claim.
  */
 class DecodedHeaderOfTest {
 

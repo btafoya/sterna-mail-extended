@@ -7,34 +7,11 @@ import org.junit.Test
 
 /**
  * WHAT THE GROUPED PREVIEW FETCH PUTS ON THE WIRE, and how its answer is read — the page twin of
- * [BodyPeekOnTheWireTest], whose rules this file keeps.
- *
- * `BODY.PEEK[…]`, never `BODY[…]`. A bare `BODY` fetch sets `\Seen` on the server (RFC 3501
- * §6.4.5) for EVERY uid in the set. On this path the caller reads a page of a folder as it syncs,
- * so the slip would not mark a message read, it would mark the mailbox read — on every device the
- * account is open on, with no command that undoes it.
- *
- * Whole lines, compared with assertEquals — never `contains("PEEK")`. A containment check is
- * blind to every mutation that makes the line LONGER: a second item added to the fetch, a
- * `<0.8192>` grown to `<0.20000000>`, a `BODY.PEEK[]` fetching the whole message beside the
- * section. The list asserted is the WHOLE conversation, so a round trip nobody asked for shows up
- * as an extra line instead of passing unnoticed.
- *
- * And the thing this file exists for: the answer is filed BY UID. A grouped fetch comes back as
- * one untagged line per message, numbered by SEQUENCE, in whatever order the server likes — so a
- * reader that keeps the first body (which is what the single-message [ImapSession.fetchSection]
- * path does, by design) or that zips the answer against the request would hand one person's mail
- * to another person's row.
  */
 class PreviewPageOnTheWireTest {
 
     /**
      * A server that answers each `UID FETCH <set>` with one `FETCH` line per requested uid for
-     * which [body] gives something, carrying it as `BODY[1]<0>`.
-     *
-     * The sequence number is the message's POSITION IN THE ANSWER (`* 1`, `* 2`, …) and
-     * deliberately not its uid: that is what a real server sends, and it is the number a reader
-     * that indexed by anything but the `UID` item would latch onto.
      */
     private fun previewResponse(tag: String, line: String, body: (Long) -> String?): String {
         val requested = expandUidSet(line.removePrefix("UID FETCH ").substringBefore(' '))
@@ -92,10 +69,6 @@ class PreviewPageOnTheWireTest {
 
     /**
      * THE POINT OF THE WHOLE PANEL: three answers, three bodies, three rows — each under ITS OWN
-     * uid. The reader shared by the single-message fetches keeps the FIRST body of the answer and
-     * drops the rest ([ImapSession] `bodyItem`), which here would show message 7's opening on all
-     * three rows; indexing by the answer's position would show them shuffled, since the sequence
-     * numbers this server sends are 1, 2, 3 and the uids are 7, 9, 11.
      */
     @Test fun `each body comes back under its own uid`() {
         val bodies = mapOf(7L to "seven speaks", 9L to "nine speaks", 11L to "eleven speaks")
@@ -106,11 +79,6 @@ class PreviewPageOnTheWireTest {
 
     /**
      * One `UID FETCH` per BATCH, not per page asked for. The answer to a preview fetch carries up
-     * to 8 KiB per message and all of it is parsed and held before a body is read out of it: two
-     * hundred messages in one command is ~1.6 MB on the heap of a foreground service, which is the
-     * shape `walkFolder` paginates to avoid. The batch is pinned to its VALUE here, not read back
-     * from the constant — a test that recomputed the split from the constant would pass whatever
-     * the constant became.
      */
     @Test fun `more messages than one batch go out as several fetches, and all of them come back`() {
         // Newest-first, the order a folder walk holds its uids in: the batches must still be
@@ -144,9 +112,6 @@ class PreviewPageOnTheWireTest {
 
     /**
      * "At most 8 KiB" must be TRUE of EVERY body, not merely requested, and not only of the
-     * first: `<0.8192>` is a request, a literal is read up to 32 MiB, and the item is taken by
-     * prefix — so a server that ignores the partial would otherwise have twenty whole messages
-     * decoded and held before anything threw them away.
      */
     @Test fun `every over-long body is cut to the bound the client asked for`() {
         val huge = "A".repeat(20_000)
@@ -178,10 +143,6 @@ class PreviewPageOnTheWireTest {
 
     /**
      * A message the server answers about WITHOUT a body item makes no entry — and above all not
-     * the string "UID". The item list opens with `UID <n>`, so a reader that took index 0 when it
-     * found no body would file that atom as the message; on this path it is what a mail list row
-     * would show as somebody's first line. An absent uid is an ordinary answer, and the entries
-     * around it must survive it.
      */
     @Test fun `a fetch line with no body item makes no entry, and never the word UID`() {
         var fetched: Map<Long, String> = emptyMap()

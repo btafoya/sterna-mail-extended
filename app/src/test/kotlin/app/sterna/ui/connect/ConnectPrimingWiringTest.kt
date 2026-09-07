@@ -7,21 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [app.sterna.ui.inbox.ConversationScopeWiringTest]: it reads a file as text and proves nothing
- * about what runs. `ConnectViewModel` is an `AndroidViewModel` wired to the app container, so this
- * module (no Robolectric, no instrumented tests) cannot instantiate it. The decision it now takes
- * is covered for real in [AccountAddPrimingTest]; what is left to hold is that the three add paths
- * actually go through that decision, and reading the source is the only way to hold it.
- *
- * The rule, from #121: an add path must never hand the repository credentials it built itself,
- * because those carry no account id until the account exists — and priming the cache with them
- * writes a page of inbox rows under `accountId = ""`. So this file may contain exactly ONE call to
- * `mailRepository.refresh(`, inside [ConnectViewModel.primeInbox], reached only through
- * `addAccountThenPrime`, which stamps the real id on the credentials it primes with.
- *
- * What it does NOT do: it cannot tell that `primeInbox` is passed the right thing at runtime, nor
- * that the account store persisted anything. It only makes the old shape — build credentials,
- * refresh, then add — impossible to write back without a red test.
  */
 class ConnectPrimingWiringTest {
 
@@ -30,9 +15,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * The identity each add path must ask about, spelled out whole. The ARGUMENTS are the rule: an
-     * IMAP account is recognised by its IMAP host (its `server` is blank), a JMAP one by its
-     * server, and a route that hands over the wrong pair is told "this account is new" about an
-     * account it is about to refresh — the silence this change exists to end.
      */
     private val addGuards = mapOf(
         "finishTokenConnect" to
@@ -45,9 +27,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * Every path that has to SAY which of the two happened — the three add paths plus the device
-     * grant, whose account is minted inside `MailRepository` and which therefore appears in none
-     * of the rules above. It said nothing at all before this change, and a re-add through the
-     * browser round-trip is the one that was actually caught on the bench.
      */
     private val sayingPaths = addPaths + "pollForToken"
 
@@ -56,9 +35,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * Every route the "Connect" button can take, all six of them. Offline — airplane mode, Wi-Fi
-     * off — none of them can succeed, and without a guard the screen spins through the whole
-     * connect/read timeout before saying that nothing answered. Five of six is not a fix: the
-     * unguarded one keeps that wait for its protocol only.
      */
     private val offlineGuarded = listOf(
         "connect", "connectAuto", "connectToken", "connectOAuth", "connectOutlookOAuth", "connectImap",
@@ -66,27 +42,16 @@ class ConnectPrimingWiringTest {
 
     /**
      * And the two sign-ins the import flow puts on this same screen. They answer through the
-     * per-account row (`updateSelected`) instead of the screen's state, so they carry the guard in a
-     * second shape — see [IMPORT_OFFLINE_GUARD].
-     *
-     * Neither list can find a route nobody wrote down: this file reads names, it does not
-     * enumerate the screen. These two were missed on the first pass for exactly that reason. A new
-     * way to sign an account in belongs in one of these lists on the day it is written.
      */
     private val offlineGuardedImports = listOf("submitImportPassword", "startImportOAuth")
 
     /**
      * What "the guard comes first" is measured against: the two spellings by which a route hands
-     * work to something that will try to reach the network — its own coroutine, or an app-scoped
-     * driver on the container. A guard placed after either of them has already let the request go.
      */
     private val requestHandoffs = listOf("viewModelScope.launch", "container.")
 
     /**
      * Every call in THIS FILE that brings an account into existence. It is a vocabulary, not a
-     * proof: a creation call this list does not name is a path the rules below read straight past,
-     * which is why [`every account-creating call this lint knows still exists in the file`] refuses
-     * to let it hold a name that occurs nowhere.
      */
     private val accountCreation = listOf(
         "container.accountStore.add(",
@@ -96,11 +61,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * The functions of this file that create an account WITHOUT going through the decision, and why
-     * each is out of the rules above rather than an oversight:
-     *  - `pollForToken` creates through `MailRepository.addOAuthAccount`, which orders validate /
-     *    persist / prime for itself in the data layer. Nothing in this module reads that ordering;
-     *  - `restoreImportAccount` puts back a `StoredAccount` the store already had (a dismissed
-     *    import), so it mints nothing and primes nothing.
      */
     private val creatorsOutsideTheDecision = listOf("pollForToken", "restoreImportAccount")
 
@@ -145,11 +105,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * The rule the previous one does NOT hold: it proves each path reaches the decision, nothing
-     * about WHAT it hands it. `prime = { primeInbox(probe) }` — one identifier, `probe` being in
-     * scope in all three lambdas — compiles, primes the cache under the blank id again, and leaves
-     * every other test green, including the refresh lint (no `refresh(` in that lambda) and the
-     * decision's own tests (they never call an add path). Only `it` is the credentials the helper
-     * stamped with the account id.
      */
     @Test fun `every add path primes with the credentials the decision stamped`() {
         val offenders = addPaths.filterNot { PRIME_LAMBDA in functionBody(it) }
@@ -164,9 +119,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * Priming must be the LAST step, so nothing exists in the store before the credentials are
-     * proven. Creating the account first and then calling the helper passes every other rule here:
-     * the call is present, the validation lambda is present, `it` is primed. The order is what the
-     * fix is, so the order is what this reads.
      */
     @Test fun `no add path writes to the account store before the decision runs`() {
         val offenders = addPaths.mapNotNull { path ->
@@ -189,24 +141,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * WHAT THIS PROMISES, EXACTLY — and it is narrower than "the account-creating functions of
-     * this file are the ones this lint knows about", which is what it used to be called: every
-     * occurrence of one of the THREE STRINGS in [accountCreation] sits in a function that has been
-     * judged, either as an add path or as a documented exception. That is a vocabulary check, not a
-     * proof. A function that creates an account by any other spelling — a local alias, a helper
-     * called with the store passed in, a call this list does not name — is read straight past and
-     * reported as nothing, exactly as it was before this rule existed.
-     *
-     * It does NOT promise that these are all the ways the app can create an account. Off this
-     * lint's map, and covered by no rule here:
-     *  - the OAuth paths, which mint theirs inside `MailRepository` (`addOAuthAccount`, and the
-     *    Outlook flow driven by `OutlookSignIn`);
-     *  - `AccountStore.reconcileLinkedAccounts`, which creates a linked sub-account for every
-     *    shared or delegated mailbox a session exposes (#31) and prunes the ones it no longer does.
-     *    It runs on every connect, from several scopes, and it is the path the create-then-prime
-     *    ordering leans on for its justification — nothing here reads it;
-     *  - `AccountStore.importAccounts`, which is both the `.k9s` import and the RESTORE OF A
-     *    SETTINGS BACKUP (`SettingsViewModel`): it adds accounts to the store directly, with fresh
-     *    ids and no password.
      */
     @Test fun `every account-creating call this lint names sits in a function it has judged`() {
         val creators = source().lines().withIndex()
@@ -227,9 +161,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * And the vocabulary must be alive. `container.accountStore.addOAuth(` sat in that list while
-     * occurring nowhere in the file: the rule above was reading the file for a string that could
-     * not be there, and reported full coverage of the creation paths on the strength of it. A name
-     * that matches nothing does not restrict anything — it only makes the promise look wider.
      */
     @Test fun `every account-creating call this lint knows still exists in the file`() {
         val dead = accountCreation.filterNot { it in source() }
@@ -243,8 +174,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * Cancellation is not a sign-in failure: leaving the screen while the inbox loads cancels this
-     * coroutine, and a `catch (Throwable)` that maps it to [ConnectState.Error] both lies to a
-     * screen that is gone and hides a real cancellation from the machinery above.
      */
     @Test fun `every add path lets cancellation through instead of showing it`() {
         val offenders = addPaths.filterNot { "catch (cancelled: CancellationException)" in functionBody(it) }
@@ -257,20 +186,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * The same rule, on the two paths that run autodiscovery before any account exists. They used
-     * to write `runCatching { discoverJmapServer(…) }.getOrElse { NotFound }`, which swallows the
-     * cancellation that leaving the screen raises and then writes [ConnectState.NeedsServer] — a
-     * "tell me your server" form nobody asked for, onto a screen that is gone.
-     *
-     * Three things are read, because a `contains` on `"catch (cancelled: CancellationException)"`
-     * alone proved to hold none of them:
-     *  - the catch is pinned WITH ITS BODY ([RETHROWS_CANCELLATION]), since keeping the header and
-     *    returning `NotFound` from it restores the defect in full and matches a fragment happily;
-     *  - no `runCatching` wraps the probe, however the line is spelled;
-     *  - `discoverJmapServer` is still called HERE. Without that, the two rules above are satisfied
-     *    trivially by moving the call into a helper — the rule would then guard an empty room.
-     *
-     * Still not held: a second, nested `try` that swallows before this one sees it. Declared debt
-     * — a text lint cannot see scope, and `ConnectViewModel` cannot be run in this module.
      */
     @Test fun `neither discovery path turns a cancelled probe into "no server found"`() {
         val offenders = discoveryPaths.filterNot { path ->
@@ -290,21 +205,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * Offline, nothing typed on this screen can reach a server, and every route used to find that
-     * out the long way: a DNS lookup that never resolves, then the connect timeout, then the read
-     * timeout, per candidate host. The guard is three lines and there is no decision to extract
-     * from it — [app.sterna.net.hasUsableNetwork] IS the decision.
-     *
-     * And that decision has NO test of its own: it reads `ConnectivityManager`, so this module
-     * (no Robolectric, no instrumented tests) cannot run it. Inverting `hasUsableNetwork` itself
-     * leaves this file green. Say that plainly rather than let the rule below imply cover it does
-     * not give.
-     *
-     * Matched as the WHOLE four-line shape, condition included, and anchored at the function
-     * body's own indentation. A fragment test is blind to every mutation that lengthens the line
-     * (`if (!hasUsableNetwork(app) && false)`); a test that accepts any indentation is blind to the
-     * one that wraps the whole guard in a condition —
-     * `if (imapPort == 993) { …guard… }` re-arms the timeout on every other port and matched a
-     * `[ \t]*` anchor happily.
      */
     @Test fun `every add route refuses to start a request while offline`() {
         val offenders = offlineGuarded.filterNot { OFFLINE_GUARD.containsMatchIn(functionBody(it)) }
@@ -324,10 +224,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * And it must come FIRST. A guard is not a guard once the request is in flight: placed after
-     * `viewModelScope.launch {` it runs inside the coroutine that is already probing, and placed
-     * after `container.outlookSignIn.start(` it runs after the browser hand-off. Same instrument as
-     * the store-write ordering rule above — compare indices, because both spellings are present
-     * either way and only their order says which one happened first.
      */
     @Test fun `the offline guard runs before anything is launched`() {
         val offenders = offlineGuarded.mapNotNull { route ->
@@ -348,12 +244,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * The same symptom, on the two routes that sign in an account an import brought in. They report
-     * through the per-account row rather than the screen's state, so they carry the guard in that
-     * shape — but the wait they used to take is the identical one.
-     *
-     * These are the routes that matter MOST offline, not the least: importing a `.k9s` file is an
-     * entirely local operation, so it is exactly what someone does with no connection. The screen
-     * then opens straight onto the "accounts to sign in" list, whose buttons are these two.
      */
     @Test fun `signing in an imported account refuses to start a request while offline`() {
         val offenders = offlineGuardedImports.filterNot { IMPORT_OFFLINE_GUARD.containsMatchIn(functionBody(it)) }
@@ -372,8 +262,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * The vocabulary must be alive, for the same reason `container.accountStore.addOAuth(` had to
-     * go: a route name that matches nothing restricts nothing, and the rules above would report
-     * six guarded routes while reading five. A rename must land here, in red.
      */
     @Test fun `every route this lint guards still exists in the file`() {
         val dead = (offlineGuarded + offlineGuardedImports)
@@ -410,15 +298,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * REWRITTEN. This test used to read two fragments of the token path's hand-written re-add
-     * branch — `container.accountStore.updatePassword(existing.id, token)` and
-     * `AddedAccount(existing.id, created = false)` — with `in body`, which is the blindness this
-     * repo has paid for three times: any mutation that LENGTHENS those lines matched happily. And
-     * the branch itself is gone: the store recognises the account and refreshes it inside a
-     * `@Synchronized` add, so the route makes ONE call whether or not the account was there. What
-     * is left to hold is that the route no longer writes the account store by hand around it —
-     * `updatePassword` + `setCurrent` outside `persist` is a write before the credentials are
-     * proven, and it was gated on `authType == API_TOKEN`, so the same address added by password
-     * and then by token walked straight past it into a second account.
      */
     @Test fun `the token path leaves the re-add to the store instead of writing it by hand`() {
         val body = functionBody("finishTokenConnect")
@@ -437,13 +316,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * WHICH ACCOUNT IS ALREADY THERE is one shared decision (`resolveExistingLogin` +
-     * `accountKeyOf`), and each route must ASK it, with the identity it is actually adding. The
-     * arguments are pinned, not the call: `accountKeyOf(MailProtocol.JMAP, server, "", username)`
-     * and `accountKeyOf(MailProtocol.IMAP, "", imapHost, username)` are different questions, and a
-     * route that asks the wrong one gets "no, it is new" for an account it is about to refresh.
-     *
-     * Whole trimmed lines, compared for equality. `contains` on `resolveExistingLogin(` is blind
-     * to every mutation that lengthens the line — `… == null || true` being exactly that.
      */
     @Test fun `each add path asks the shared identity whether the account is already there`() {
         val offenders = addGuards.filterNot { (path, required) ->
@@ -461,8 +333,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * And the answer must be USED. `created = true` written into `AddedAccount` is the state the
-     * whole change removes: it says "this add created the account" on every add, including the
-     * ones that refreshed one.
      */
     @Test fun `no add path declares itself the creator regardless of what it found`() {
         val offenders = addPaths.flatMap { path ->
@@ -496,15 +366,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * Sub-account reconciliation runs on a CREATION only, and this is the rule that keeps it
-     * there. A re-add now lands on the login that was already there — with whatever shared
-     * sub-accounts it carries — and it may have just moved that login from OAuth onto a password.
-     * `diffLinkedAccounts` derives its evictions from the RAW discovered list, so a session that
-     * lists the login's own account but not the shares prunes every sub-account and purges its
-     * five tables: a real shared mailbox deleted (#129). Ungated, that destruction becomes
-     * reachable from the Add account screen.
-     *
-     * Whole trimmed line: `contains` on `reconcileLinkedAccountsAfterAdd(` matches the gated and
-     * the ungated call alike, which is the whole difference.
      */
     @Test fun `sub-account reconciliation only runs when the add created the account`() {
         val gated = "if (created) container.mailRepository.reconcileLinkedAccountsAfterAdd(added.id)"
@@ -525,14 +386,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * The last stretch, which every one of the four routes above goes through. `accountAddedToast`
-     * is executed by a test and hands back the right resource id; NOTHING followed that id to the
-     * Toast until this rule. Written `Toast.makeText(app, string(R.string.connect_account_added), …)`
-     * the helper puts "Account added" on every re-add — the exact sentence this change removes —
-     * and every other test stays green, because the call lines above are untouched and no test in
-     * this module can build a ConnectViewModel.
-     *
-     * Whole trimmed lines, as a contiguous block: `contains` on `Toast.makeText(` is blind to
-     * every mutation that lengthens it.
      */
     @Test fun `the toast helper shows the resource it was handed, and names none of its own`() {
         assertEquals(
@@ -550,8 +403,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * And no route may name the re-add sentence itself. That is the reproach `OAuthWiringTest`
-     * already makes of `oauthRanOutMessage`: naming one of the two answers on the spot is taking
-     * the decision back from the function that is tested, into a route no test can run.
      */
     @Test fun `no add path picks the re-add sentence itself`() {
         val offenders = sayingPaths.flatMap { path ->
@@ -569,24 +420,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * SOURCE LINT — an account that was just added must have its inbox baseline WRITTEN by the add
-     * itself, from the page the add already loaded.
-     *
-     * Without this line the first background pass of a new account is also the first sight of its
-     * inbox, and a first sight seeds SILENTLY (`FetchAndNotify` takes `seedsSilently` and calls
-     * `NewMailNotifier.seed`). So the first message that arrives after an account is added is
-     * swallowed for good: cached, listed, never announced. On IMAP nothing else can write that
-     * baseline — `FetchAndNotify.onInboxRefreshed` returns on its first line for IMAP — so the add
-     * is the only place left to write it.
-     *
-     * Whole trimmed lines, as the whole body, in order, and that is the point:
-     *  - `contains("seedInboxBaseline(")` would stay green on
-     *    `seedInboxBaseline(credentials.id, meta.mailboxName)`, which writes the baseline under a
-     *    key no pass ever reads back — the defect intact, with a green lint;
-     *  - the ORDER is the rule that says the seed happens after a successful `refresh()`. `refresh`
-     *    throws on failure and `addAccountThenPrime` catches that into `primeFailure`; moved above
-     *    it, the seed would run on an add whose inbox never loaded, marking a folder "known,
-     *    remembering nothing" — and the next pass would then announce the backlog AND unarchive it
-     *    server-side. No `runCatching`, no `try` here either: they would restore that order.
      */
     @Test fun `priming an added account seeds its inbox baseline, last`() {
         assertEquals(
@@ -610,15 +443,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * SOURCE LINT, NEGATIVE SPACE — this screen writes ONE baseline, and there is no second.
-     *
-     * The rule above asks that a line be PRESENT, and a presence check cannot see a line that was
-     * ADDED. A seed written anywhere else on this screen — a re-authentication path, an import
-     * sign-in, a "refresh the folders" helper — passes every rule in this file and overwrites a
-     * LIVE baseline, which swallows every arrival not yet announced: the reported defect, one
-     * screen further along.
-     *
-     * Compared as a LIST of whole lines: an argument swapped (`read.emails`, `meta.mailboxName`) or
-     * a second call site added are both a different list. A `contains` would see neither.
      */
     @Test fun `this screen writes exactly one baseline, through the seeding helper`() {
         assertEquals(
@@ -633,17 +457,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * SOURCE LINT — and the seed goes through the decision, which is the part
-     * [AddedInboxBaselineTest] actually EXECUTES.
-     *
-     * The two lines this pins whole are the two that cannot be read from the executed test:
-     *  - `NewMailNotifier.hasBaseline(app, accountId, mailboxId)` is the question that keeps a
-     *    re-add / re-authentication from overwriting a baseline that is already alive. Passed
-     *    `false` on the spot, or asked about another key, an add would erase a live baseline and
-     *    swallow whatever it had not announced yet;
-     *  - `?: return` is what a null MEANS here. Written `?: emptyList()` — the mutation
-     *    `FetchAndNotify`'s own lint exists for — the add would seed an EMPTY baseline over the
-     *    live one, and the next pass would announce every unread message inside the notifier's age
-     *    floor, unarchiving their threads server-side.
      */
     @Test fun `the seeding helper asks the decision, and a null answer writes nothing`() {
         assertEquals(
@@ -673,11 +486,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * The body of a function of [CONNECT_VIEW_MODEL], as text: from its declaration to the line
-     * that closes it, by counting braces.
-     *
-     * Braces are counted raw — no Kotlin parser here — which is sound only as long as the file's
-     * string literals carry none. They do not today; if that changes, this reads too far or stops
-     * early rather than lying, and the failure message prints the body it read.
      */
     private fun functionBody(name: String): String {
         val lines = source().lines()
@@ -701,9 +509,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * The name of the function whose declaration is the nearest one at or above [line] — how a rule
-     * asks "which function is this call in?" without walking braces. Reading upwards is enough
-     * because nothing in this file declares a function inside another one; a local `fun` would make
-     * this answer the inner name, which is a wrong answer, not a silent pass.
      */
     private fun enclosingFunction(line: Int): String {
         val lines = source().lines()
@@ -715,9 +520,6 @@ class ConnectPrimingWiringTest {
 
     /**
      * The file's CODE, comments cut — the same helper [app.sterna.push.NotifyCandidatesWiringTest]
-     * reads with, and needed for the same reason: the comments beside these call sites name the
-     * very expressions the rules forbid (`read.emails.map { it.id }`, `?: emptyList()`), so a rule
-     * reading the raw text would answer about a sentence instead of about the code.
      */
     private fun code(): String = codeOf(source())
 
@@ -774,8 +576,6 @@ class ConnectPrimingWiringTest {
 
         /**
          * The cancellation catch WITH its body. Pinning the header alone leaves
-         * `catch (cancelled: CancellationException) { DiscoveryResult.NotFound }` green, which is
-         * the reported defect back in full while the lint reports the path as fixed.
          */
         val RETHROWS_CANCELLATION = Regex(
             """catch \(cancelled: CancellationException\) \{[^}]*throw cancelled""",
@@ -787,16 +587,6 @@ class ConnectPrimingWiringTest {
 
         /**
          * The offline guard, as a whole: every one of its four lines pinned end to end, so that
-         * anything added to the condition (`&& false`), any other string shown, or a `return`
-         * turned into something that falls through, fails to match instead of hiding inside a
-         * `contains`.
-         *
-         * The indentation is part of the pattern, and it is the point. Eight spaces is the top
-         * level of a method body in this file; twelve is one condition deep. Written `[ \t]*` this
-         * matched a guard buried inside `if (imapPort == 993) { … }`, which re-arms the whole
-         * timeout for every other port while the lint reports the route as guarded. A guard that
-         * only runs sometimes is not a guard, and indentation is the only thing in a text lint that
-         * can tell the difference.
          */
         val OFFLINE_GUARD = guardPattern(
             """_state\.value = ConnectState\.Error\(string\(R\.string\.connect_offline\)\)""",

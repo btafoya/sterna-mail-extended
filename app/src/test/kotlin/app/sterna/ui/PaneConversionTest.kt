@@ -6,8 +6,6 @@ import org.junit.Test
 
 /**
  * [PaneConversion], run on the stacks `MainNavHost` can hand it after a recreation — the routes
- * are the REAL ones, copied from `SternaApp.kt`, each stack led by the graph's own null entry as
- * `NavController.currentBackStack` lists it (see [PaneOrdersTest], [WidgetTapNavigationTest]).
  */
 class PaneConversionTest {
 

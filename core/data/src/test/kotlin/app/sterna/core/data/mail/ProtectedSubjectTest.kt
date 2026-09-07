@@ -6,20 +6,6 @@ import java.util.Base64
 
 /**
  * RFC 9788 protected headers: which subject the reader shows once a PGP/MIME message is
- * decrypted (issue #128).
- *
- * The outer envelope of an encrypted message carries a COVER subject — "[...]", "...",
- * "Encrypted message" — and the real one travels inside the ciphertext, in the headers of the
- * decrypted entity. [decryptedSubject] is that whole decision, extracted as a pure function so
- * these tests can EXECUTE it with pinned arguments: `MailRepository` cannot be built on a JVM
- * bench (its `AccountStore` opens shared preferences in its constructor), and a test that merely
- * read the rule out of the source would be a copy of it.
- *
- * Nothing here is recomputed: every case is a literal (outer subject, entity) pair and the literal
- * string that must come out.
- *
- * The entity is a BYTE CONTAINER (one char per wire byte, ISO-8859-1 — see `MimeParser`'s KDoc),
- * so decoding is not cosmetic, and it has to be the SAME decoding the outer subject gets.
  */
 class ProtectedSubjectTest {
 
@@ -51,8 +37,6 @@ class ProtectedSubjectTest {
 
     /**
      * An empty protected subject is not information, it is a loss: the field exists but says
-     * nothing, and overwriting a readable cover subject with "" leaves the reader with no title
-     * at all. The guard is the whole point of these two cases.
      */
     @Test fun `an empty subject header keeps the outer subject`() {
         assertEquals(
@@ -84,8 +68,6 @@ class ProtectedSubjectTest {
 
     /**
      * The same anti-spoofing filter the outer envelope subject gets (`ImapClient`). A
-     * protected subject is sender-controlled content: letting it through unfiltered would open on
-     * screen exactly what the outer path closes.
      */
     @Test fun `a bidi override in the protected subject is removed`() {
         assertEquals(
@@ -103,8 +85,6 @@ class ProtectedSubjectTest {
 
     /**
      * OBSERVED behaviour, not a wish: `MimeParser.parseHeaders` (MimeParser-374) builds a
-     * `Map`, so a duplicated field silently keeps the LAST occurrence. Pinned here because a
-     * crafted entity can carry two `Subject:` lines and this is what would reach the screen.
      */
     @Test fun `with two subject headers the LAST one is what comes out`() {
         assertEquals(

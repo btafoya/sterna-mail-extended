@@ -7,13 +7,6 @@ import org.junit.Test
 
 /**
  * EXECUTES the proof that lets a caller destroy the only copy of a message, and pins all FOUR
- * combinations by value. Where each site calls it, and with which arguments, is held by the source
- * lints that guard those arms ([app.sterna.ui.scheduled.ScheduledCancelScopeWiringTest] for the
- * cancel path, `app.sterna.send.ScheduledSendFireWiringTest` for the worker): neither the ViewModel
- * nor the worker can be built in a JVM test.
- *
- * The expectations are written out as literal `true`/`false`, never recomputed from the same
- * expression: a test that rebuilds the rule to decide what to expect passes on an inverted rule too.
  */
 class AccountDepartureProofTest {
 
@@ -45,8 +38,6 @@ class AccountDepartureProofTest {
 
     /**
      * The account is right there in the list: whatever made `credentials` answer `null` (a secret
-     * that will not decode, a `pw_` slot never written for a linked sub-account, a slot withdrawn
-     * on an OAuth→app-password conversion), it is not a departure.
      */
     @Test fun `an account still in the list is not gone, whatever credentials answered`() {
         assertFalse(
@@ -58,8 +49,6 @@ class AccountDepartureProofTest {
 
     /**
      * Incoherent input — an unreadable blob cannot list anything — pinned all the same: the rule
-     * must not answer `true` on any input a caller could reach by asking the two questions a
-     * moment apart, with a write landing in between.
      */
     @Test fun `an unreadable blob that still lists the account proves nothing either`() {
         assertFalse(

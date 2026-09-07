@@ -7,29 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads four source files as text and proves nothing about
- * what is drawn. Same instrument and disclaimer as [UnreadTintWiringTest].
- *
- * `SettingsBackupPureBlackTest` runs the decision (the default, the key, the backup field) and
- * `PulledToBlackTest` runs `applyPureBlack`, the pure function this switch feeds. Neither can see
- * the PLUMBING: `MainActivity`, `SternaTheme`, the view model and the Appearance screen are all
- * Compose or Android code, and this module has no Robolectric, no `compose-ui-test`, no
- * `androidTest` — adding one is a dependency decision, not a test decision. Four silent edits:
- *
- * 1. **the setting collected and never handed to the theme.** `SternaTheme`'s `pureBlack`
- *     parameter already defaults to `false`, so dropping the argument compiles, keeps every value
- *     test green, and leaves the switch storing a preference nothing reads;
- * 2. **the default written out as a literal.** It exists in THREE copies — the repository, the
- *     activity's `initial =` and the view model's `initialValue =`. A `true` in either of the last
- *     two paints the first frames after launch black for people who never asked;
- *  3. the switch moved back INSIDE the `Build.VERSION.SDK_INT >= S` guard it sits after: dynamic
- *     colour needs Android 12, a black background does not, and inside that guard the setting
- *     silently disappears on everything older;
- *  4. the switch wired to the wrong string keys, or missing from the backup snapshot / restore.
- *
- * Every rule compares a WHOLE line (leading and trailing blanks removed, nothing else), never a
- * `contains` for something it expects to find: a substring check is blind to any mutation that
- * LENGTHENS the line — `initial = PURE_BLACK_DEFAULT || true` contains the constant. `contains`
- * appears only where this file screens for something that must NOT be there.
  */
 class PureBlackWiringTest {
 
@@ -178,13 +155,6 @@ class PureBlackWiringTest {
 
     /**
      * The half of the setting no other test here touches: **storing** what the user chose. Every
-     * rule above reads — the default, the collect, the theme argument, the backup — and the pure
-     * decision function under test elsewhere is a pure READ of `Preferences`. Nothing executes
-     * `setPureBlack`, so writing a constant instead of the argument leaves the whole feature dead
-     * (the switch flips, then springs back on the next emission) with the suite entirely green.
-     *
-     * Both links of the chain are pinned, whole: the view model must hand the argument down, and
-     * the repository must store the argument rather than a value of its own.
      */
     @Test fun `flipping the switch stores what the user chose, not a constant`() {
         assertEquals(
@@ -208,11 +178,6 @@ class PureBlackWiringTest {
 
     /**
      * The FOURTH copy of the default, and the one the previous commit message forgot when it said
-     * there were three: the composable's own parameter. It is unreachable today — the single call
-     * site always passes a value, and that call is pinned above — so this rule guards a drift rather
-     * than a live defect. It is a literal on purpose: [app.sterna.ui.theme.SternaTheme] takes its
-     * other defaults as literals too, and importing a settings constant into the theme signature to
-     * save one line would be the coupling, not the cure.
      */
     @Test fun `the theme's own default is off too`() {
         assertEquals(
@@ -254,9 +219,6 @@ class PureBlackWiringTest {
 
     /**
      * The body of `SettingsSection(stringResource(R.string.settings_theme_section)) {` — each line
-     * paired with its brace depth RELATIVE to the section, which is the whole point here: depth 0
-     * is a direct child of the section, depth 1 is inside the Android-12 guard. Closed by counting
-     * braces, not by waiting for the next section (see UnreadTintWiringTest for why).
      */
     private fun themeSection(): List<Pair<Int, String>> {
         val lines = codeLines(SETTINGS_SCREEN)

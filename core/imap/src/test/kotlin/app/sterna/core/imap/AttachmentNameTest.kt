@@ -5,15 +5,6 @@ import org.junit.Test
 
 /**
  * Attachment filenames that are not ASCII (Codeberg #101, the reporter's second sentence: "the
- * same situation with attachments in letters").
- *
- * A filename reaches us in one of three shapes and all three used to be shown verbatim — or
- * dropped, which was worse: the RFC 2231 form (`filename*=UTF-8''%D0%9E…`) matched nothing at
- * all, so the part fell back to the word "attachment". The RFC 2047 decoder the envelope already
- * used is reused here rather than written twice.
- *
- * These names are what the USER sees. What lands on disk is sanitised separately and stays
- * `[A-Za-z0-9._-]` — deliberately, it is the path-traversal guard.
  */
 class AttachmentNameTest {
 

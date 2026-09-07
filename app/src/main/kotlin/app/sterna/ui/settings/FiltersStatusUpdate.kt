@@ -6,15 +6,6 @@ import app.sterna.core.data.filter.rulesAreNotRunning
 
 /**
  * Fold a status read into the filters screen's state.
- * Two round trips, not one: three facts come from [status] (`SieveScript/get`), the two
- * `*FromRulesRead` flags from the earlier rules read, which may describe a slightly different
- * server. They are OR-ed, never merged, so the answer leans towards the alarm.
- * A null [status] is a read that failed, not an all-clear: it changes nothing, so the screen
- * keeps what it had rather than blanking warnings that just became true.
- * @param foreignFromRulesRead what the rules read concluded, both causes folded: another active
- *   script, or a `sterna` script it could not parse. The second is invisible in the script list,
- *   so it is OR-ed in and never cleared by a status read.
- * @param unreadableFromRulesRead the second cause alone, so the screen can say which one it is.
  */
 internal fun filtersStateWithStatus(
     state: FiltersUiState,

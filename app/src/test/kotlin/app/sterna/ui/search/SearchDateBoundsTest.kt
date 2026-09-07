@@ -9,10 +9,6 @@ import java.time.ZoneOffset
 
 /**
  * "Since 1 June" means 1 June WHERE THE PHONE IS. Material's date picker hands the day back as
- * UTC midnight, and that value used to go to the server as-is: east of Greenwich the bound landed
- * mid-morning local time and dropped that morning's mail, west of it the bound fell on the
- * previous evening and kept mail from the day before. Both are silent — the results simply differ
- * from what was asked.
  */
 class SearchDateBoundsTest {
 

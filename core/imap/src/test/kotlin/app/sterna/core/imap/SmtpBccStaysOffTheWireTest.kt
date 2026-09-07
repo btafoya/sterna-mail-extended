@@ -8,17 +8,6 @@ import org.junit.Test
 
 /**
  * THE BLIND COPY, read off a real socket. `OutgoingMime.build` can now write a `Bcc:` header —
- * the Drafts-folder APPEND needs it, or a Cci typed into the composer is gone the moment the draft
- * is reopened — and this is the test that says the submission path did NOT get it too.
- *
- * The whole risk lives in one property of [SmtpClient]: the built MIME is copied into `DATA` line
- * by line, with no header filter anywhere between the builder and the socket. Whatever is written
- * is what the recipients read. So this asserts on [FakeSmtpServer.delivered] — the bytes the server
- * actually received — and not on a string some helper rebuilt.
- *
- * Both halves are the same statement, and neither alone says it: the hidden address must be absent
- * from the message AND present as a `RCPT TO` command. Dropping the second would leave "the Bcc
- * leaks nothing" satisfied by a client that simply stopped delivering the blind copy.
  */
 class SmtpBccStaysOffTheWireTest {
 

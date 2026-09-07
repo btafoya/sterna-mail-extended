@@ -9,8 +9,6 @@ import org.junit.Test
 
 /**
  * What a recorded UIDVALIDITY licenses (Codeberg #99) — the decision itself, with no server and
- * no database, because the consequence it guards (destroy, or refuse to) cannot be reproduced on
- * a real account without persuading a server to renumber a folder on demand.
  */
 class UidValidityDecisionTest {
 
@@ -40,10 +38,6 @@ class UidValidityDecisionTest {
     //
     // One rule, two kinds of caller, and that is why it has a name. `ImapMailboxStatus
     // .uidValidity` is a `Long` where 0 means "the server said nothing"; every row is WRITTEN with
-    // this normalisation (`ImapMessage.toEntity`) and every cache read that must not answer with
-    // rows of another numbering is BOUNDED by it (`EmailDao.cachedPreviews`, #99 inside #187). A
-    // row written under one spelling of the rule and looked up under another never matches, in
-    // silence — so there is one spelling, executed here over the four inputs it can get.
 
     /** Nothing stated is not a numbering: `null` in, `null` out, and the column stays NULL. */
     @Test fun `a server that stated nothing states no numbering`() {
@@ -52,9 +46,6 @@ class UidValidityDecisionTest {
 
     /**
      * AND NEITHER IS ZERO — the case the whole function exists for. `ImapMailboxStatus` carries
-     * 0 for "no UIDVALIDITY in the SELECT response", and 0 read as a numbering would be a numbering
-     * no server ever announced: rows stored under 0 and rows stored under NULL would then be two
-     * populations of the same folder, and a read bounded by one would silently miss the other.
      */
     @Test fun `zero is what the server did not say, not a numbering`() {
         assertNull(UidValidity.stated(0L))
@@ -78,9 +69,6 @@ class UidValidityDecisionTest {
 
     /**
      * THE data-loss guard. A snapshot with no numbering cannot be shown to still mean anything —
-     * a purge confirmed by the previous version, or one built from the cache for a folder whose
-     * numbering was never observed — so it destroys NOTHING. The same call the destroy worker
-     * already makes for a purge enqueued before snapshots existed.
      */
     @Test fun `a snapshot with no numbering destroys nothing`() {
         assertFalse(UidValidity.mayDestroy(null))
@@ -101,9 +89,6 @@ class UidValidityDecisionTest {
 
     /**
      * Offline: the server could not be asked and the CACHED ids stood in. Those ids were fetched
-     * under the recorded numbering, so that is what the order belongs to. Without this fallback
-     * every offline "Empty trash" would produce an unverifiable order and quietly destroy nothing
-     * once connectivity came back.
      */
     @Test fun `an offline snapshot inherits the numbering its cached ids belong to`() {
         assertEquals(4L, TrashPurge.snapshotUidValidity(observed = null, recorded = 4L))

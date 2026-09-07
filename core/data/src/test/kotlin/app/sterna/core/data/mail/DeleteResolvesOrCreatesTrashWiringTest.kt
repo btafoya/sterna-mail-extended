@@ -5,18 +5,6 @@ import org.junit.Test
 
 /**
  * THIS TEST READS SOURCE TEXT — the last resort, for the reason [DestroyChecksTheFolderWiringTest]
- * spells out: `MailRepository` needs Room, a `Context` and a socket, so no JVM test instantiates it.
- * The DECISION it guards is executed by [TrashFolderByNameTest]; this pins WHERE that decision is
- * plugged in, and it pins WHOLE LINES — `contains` is blind to any mutation that lengthens a line.
- *
- * What it exists for: on an account where no folder carries the `trash` role, `delete()` threw
- * `This account has no Trash folder.` and the message stayed. Archiving, on the same account, has
- * always resolved-or-created without asking anyone. Delete now does the same.
- *
- * The by-name resolution pinned here is JMAP-ONLY. The IMAP branch asks `imapRoleFolder`, i.e.
- * `ImapClient.roleFromName`, and that table is untouched: a server that states no role and names
- * its bin something that table does not know (`Bin`, `Çöp`) still gets a second folder created
- * next to it. That is a defect of the IMAP name table, not of the wiring below.
  */
 class DeleteResolvesOrCreatesTrashWiringTest {
 

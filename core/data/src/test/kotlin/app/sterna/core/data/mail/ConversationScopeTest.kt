@@ -12,22 +12,6 @@ import java.sql.DriverManager
 
 /**
  * The chip and the unfold ask ONE question about the same conversation.
- *
- * [ConversationInvariantsSqlTest] (C6) already pins that the chip equals the unfold when both are
- * handed the same folders. What decides those folders is [ConversationScope], and it is where the
- * two used to part company: the chip's Sent folder came from a reactive read of the folder cache,
- * the unfold's from a second, one-shot read whose failure was swallowed into "no Sent folder". A
- * thread with a reply in Sent then wore a chip of 3 and unfolded to 2.
- *
- * So these cases exercise the DECISION, not the queries: each one resolves the folders exactly as
- * the two call sites do — `conversationQuery` through [ConversationScope.sentFolders],
- * the inbox's thread expansion through [ConversationScope.folders] — and then runs the two
- * SHIPPED statements over what it got. The equality is asserted on the outcome the reader sees,
- * the chip's number against the messages the row unfolds into.
- *
- * The witness in each case is a DEGRADED resolution: when the Sent folder does not resolve, both
- * sides must shrink together. Without it these cases would pass on a fixture where the Sent reply
- * is never in play at all — which is precisely the state the bug produced on one side only.
  */
 class ConversationScopeTest {
     private lateinit var db: Connection
@@ -66,9 +50,6 @@ class ConversationScopeTest {
 
     /**
      * The chip on the collapsed row, and the id it is drawn on.
-     *
-     * Built exactly as `conversationQuery` builds it: the Sent pairs it binds are
-     * [ConversationScope.sentFolders] of the [resolution], and the SQL is [conversationSql].
      */
     private fun chip(viewed: List<String>, resolution: List<Pair<String, String>>, accountId: String?): Pair<String, Int> {
         val sent = ConversationScope.sentFolders(resolution, accountId)
@@ -96,12 +77,6 @@ class ConversationScopeTest {
 
     /**
      * The messages the row unfolds into, REPRESENTATIVE INCLUDED — the row itself draws it, and
-     * `ConversationExpansion.membersBelow` only keeps it out of the list drawn beneath. So the chip
-     * equals the size of this, not one less.
-     *
-     * Built exactly as the inbox's thread expansion builds it — the folders are
-     * [ConversationScope.folders] of the same [resolution] — and run through the DAO's own
-     * `cachedThreadEmails`, read out of the shipped source.
      */
     private fun unfold(viewed: List<String>, resolution: List<Pair<String, String>>, accountId: String, threadKey: String = "T1"): List<String> {
         val folders = ConversationScope.folders(viewed, resolution, accountId).toList()

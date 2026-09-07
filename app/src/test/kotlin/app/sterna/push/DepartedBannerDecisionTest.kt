@@ -6,13 +6,6 @@ import org.junit.Test
 
 /**
  * Codeberg #134: "when deleting an email with a different client, e.g. Thunderbird-Desktop, the
- * notifications for sterna-mail are still present." The rule that ends that is
- * [Notifications.departuresToCancel] — which of the ids the server dropped from a folder still
- * have a banner to take down — and it is EXECUTED here, not restated.
- *
- * Its two failure directions are not symmetrical: leaving a banner up re-opens a message that no
- * longer exists (the reported defect), while cancelling one wrongly hides unread mail the user
- * will never be shown. Every case below is about which side an input falls on.
  */
 class DepartedBannerDecisionTest {
 

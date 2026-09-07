@@ -10,31 +10,6 @@ import java.io.File
 
 /**
  * The read receipt (RFC 8098) on its way from the composer to the queue.
- *
- * Two halves, deliberately different in kind:
- *
- *  1. **Executed.** [composeDraftOf] is a pure function, so the hand-over a queued message goes
- *     through when it is reopened for editing is RUN here. It matters more than it looks: re-editing
- *     enqueues a BRAND-NEW row from the composer's state, so a field this mapping drops is not
- *     missing from the screen — it is cancelled, silently.
- *
- *  2. **Read as source text — the last resort**, for the same reason as
- *     [ComposeViewModelWiringTest]: nothing in this module can instantiate `ComposeViewModel` (an
- *     `AndroidViewModel`, no Robolectric here) or run a `WorkManager` worker. What the header looks
- *     like once written is executed in `core:imap`/`core:jmap`; what nothing else can see is
- *     whether these four sites still pass the user's answer on. So the ARGUMENT is parsed out of
- *     each call and compared whole — a `contains` is blind to any mutation that lengthens a line.
- *
- *  3. **`ComposeScreen.kt`, read the same way** — the screen is where the box LIVES, and it was the
- *     one link nothing watched: `viewModel.send(…, false)` there is a composer that shows "asked
- *     for" and sends nothing of the sort, on every protocol and every path at once, and the whole
- *     suite stayed green through it. Same instrument as [ComposeDeleteWiringTest] and
- *     [DiscardDialogWiringTest], which already read this very file for their own rules.
- *
- * What this does NOT cover: that the box is drawn, that tapping the entry flips the state it
- * reads back, or that `rememberSaveable` really restores it after a process death. `ComposeScreen`
- * is Compose UI with no test harness in this module; that one is a bench check (kill the process
- * with the composer open, reopen, the box is still ticked).
  */
 class ReadReceiptWiringTest {
 
@@ -251,9 +226,6 @@ class ReadReceiptWiringTest {
     @Test fun `the leave guard treats the box as a field of the message`() {
         // The defect this rule was written for: the box was not a field of the verdict at all, so on
         // a reopened outbox message BOTH senses were lost in silence, with no dialogue — unticking
-        // it and leaving gave `dirty = false`, `cancel()` handed the queued row back untouched, and
-        // the message went out still asking. ComposeDirtyTest RUNS the verdict; this states that
-        // the screen actually feeds it the two values, which no executed test here can see.
         val call = callsOf(codeOf(COMPOSE_SCREEN.readText()), "ComposeDirty.isDirty(").single()
         assertEquals(
             "the live state of the box must be handed to the unsaved-changes verdict",
@@ -294,14 +266,6 @@ class ReadReceiptWiringTest {
 
     /**
      * The positional arguments of every `[call]…)` in [source], in order.
-     *
-     * Whole values, never a `contains`: send, both saves and the schedule pass their arguments
-     * positionally (the leave guard names its own, and is read straight off [callsOf]), so
-     * `requestReceipt && false` — a mutation that LENGTHENS the line and reads as harmless — comes
-     * out as a different last element and the assertion turns red. The preceding arguments are
-     * pinned with it on purpose: a swap that hands `body.text` where the receipt goes compiles
-     * nowhere, but an argument list quietly reordered around a new parameter is exactly how one of
-     * these sites would stop carrying the answer.
      */
     private fun positionalArguments(source: String, call: String): List<List<String>> =
         callsOf(source, call).map { arguments ->
@@ -347,10 +311,6 @@ class ReadReceiptWiringTest {
 
     /**
      * The arguments of every `[call]…)` in [body], as name → value expression; positional arguments
-     * are keyed `#0`, `#1`, …
-     *
-     * Parsed, not searched for: `"requestReceipt = args.requestReceipt" in body` passes just as
-     * happily on a line that reads `requestReceipt = args.requestReceipt && false`.
      */
     private fun callsOf(body: String, call: String): List<Map<String, String>> {
         val calls = mutableListOf<Map<String, String>>()
@@ -457,16 +417,12 @@ class ReadReceiptWiringTest {
 
         /**
          * What the composer hands to send/scheduleSend, positionally — the receipt is the last one.
-         * The body is `rich` (#131): the text AND its styling, so the html alternative carries the
-         * styling and the text alternative the same text.
          */
         private val SEND_ARGUMENTS =
             listOf("to", "cc", "bcc", "subject.text", "rich", "requestReceipt")
 
         /**
          * …and to saveDraft, which takes the SAME `rich` since #131: the draft is stored with its
-         * styling as a `text/html` part beside its text. `body.text` here saves the draft with the
-         * styling stripped — and the next reopen shows the stripping, not the loss.
          */
         private val SAVE_ARGUMENTS =
             listOf("to", "cc", "bcc", "subject.text", "rich", "requestReceipt")

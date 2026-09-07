@@ -15,13 +15,6 @@ import org.junit.Test
 
 /**
  * The signature is ordinary text in the body (inserted when compose opens), never appended at send
- * time: what the composer shows is what leaves. These cover the insertion, the "is the block still
- * intact?" rule that governs both the HTML substitution and the From-change swap, and the
- * format=flowed guard (an html alternative is emitted even with no signature).
- *
- * Every case is run with the "-- " delimiter ON (the default, and the shape the app has always
- * written); the block below covers the same functions with it OFF (#90), plus the case the setting
- * makes possible: a body written in one shape and read back in the other.
  */
 class ComposeSignatureTest {
 
@@ -66,9 +59,6 @@ class ComposeSignatureTest {
 
     // --- From change (D5) -----------------------------------------------------------------------
     // Three cases, and only three: the identity being left had a signature and its block is still
-    // there → swap it; it had one and the block is gone → the user deleted it deliberately, leave
-    // the body alone; it had none → nothing can have been deleted, so insert the new one where the
-    // prefill would have put it.
 
     @Test fun changingIdentitySwapsAnUntouchedSignature() {
         val body = "Hi Bob," + bodyWithSignature("", sig, delimiter = true)
@@ -316,12 +306,6 @@ class ComposeSignatureTest {
 
     /**
      * `bodiesForSend` is a private method of an `AndroidViewModel` and cannot be run here; the two
-     * expressions it is made of CAN, and they are what actually leaves: `htmlBodyWithSignature`
-     * for the html alternative and `toPlainText` for the text one. Both are run here on ONE body
-     * that carries a numbered list and a link inside it.
-     *
-     * The two must agree. The html carrying the anchor while the text alternative says only
-     * "the site" is a message whose address exists for half its readers.
      */
     @Test fun aBodyWithAListAndALinkCrossesBothAlternativesWhole() {
         val body = RichBody(
@@ -447,9 +431,6 @@ class ComposeSignatureTest {
 
     // --- The trap: a body written in one shape, read back in the other (#90 §3) -------------------
     // The block is found "to the character", and two features hang off that lookup: the From swap
-    // (which declines rather than rewrite text the user touched) and the HTML signature
-    // substitution. A draft written with the delimiter and reopened after the switch was turned off
-    // — or the reverse — must still be recognised, or both go quiet without a word.
 
     @Test fun aBodyWrittenWithTheDelimiterIsStillFoundOnceTheSettingIsOff() {
         val written = "Hi Bob," + bodyWithSignature("", sig, delimiter = true)

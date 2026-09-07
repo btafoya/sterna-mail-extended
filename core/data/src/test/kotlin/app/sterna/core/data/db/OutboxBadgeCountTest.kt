@@ -12,9 +12,6 @@ import org.junit.Test
 
 /**
  * The outbox badge over time, driven through the shipped [OutboxLogic.badgeCount] on a virtual
- * clock. Two things have to hold at once: a message that goes out normally must never put the badge
- * on screen, not even for a second (#82), and a message that is NOT going out must reach the badge
- * on its own, without anything having failed — offline nothing ever takes the row out of HELD (#70).
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class OutboxBadgeCountTest {
@@ -91,8 +88,6 @@ class OutboxBadgeCountTest {
 
     /**
      * A transient failure puts the row back to QUEUED (OutboxWorker) without touching its deadline.
-     * The grace hangs off that deadline, so a hiccup that heals stays silent, and a retry that keeps
-     * failing counts at the instant it would have counted anyway — it never buys itself a new grace.
      */
     @Test fun aRowRequeuedAfterATransientFailureDoesNotRestartTheGrace() = runTest {
         val rows = MutableStateFlow(listOf(OutboxBadgeItem(OutboxState.HELD, notBeforeMillis = window)))
@@ -129,9 +124,6 @@ class OutboxBadgeCountTest {
 
     /**
      * The coupling declared at MailRepository.retryOutbox: Retry rewrites the row's deadline, which
-     * is the very anchor the badge counts from, so a retried row leaves the badge for the length of
-     * the grace and returns on its own if it still has not gone out. The Outbox screen offers Retry
-     * on every row, so this is the path for a merely-waiting message as much as for a failed one.
      */
     @Test fun retryingARowTakesItOffTheBadgeForTheGraceThenBringsItBack() = runTest {
         val rows = MutableStateFlow(listOf(OutboxBadgeItem(OutboxState.FAILED, notBeforeMillis = 0)))
@@ -174,9 +166,6 @@ class OutboxBadgeCountTest {
 
     /**
      * #70: a row open in the composer has no verdict that can change with time, so the flow stops
-     * scheduling wake-ups for it. What matters is that it starts again when the row comes back:
-     * releasing an edit only flips the state (MailRepository.releaseOutboxEdit), so a message that
-     * was queued long ago counts the instant it is given back — the break must not be final.
      */
     @Test fun aRowInTheComposerStopsTheClockAndReleasingItStartsItAgain() = runTest {
         val rows = MutableStateFlow(listOf(OutboxBadgeItem(OutboxState.EDITING, notBeforeMillis = 0)))

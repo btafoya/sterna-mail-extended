@@ -39,9 +39,6 @@ sealed interface OutlookOutcome {
 
 /**
  * App-scoped driver for the Outlook (Microsoft) OAuth device flow. Runs start → poll → add-account
- * on the application scope so it survives the round-trip to the browser (backgrounding, the app
- * lock, the connect screen being popped); the screen-scoped ViewModel did not, so on a phone-only
- * sign-in the token was never collected. On success the account is added and a toast is shown.
  */
 class OutlookSignIn(
     private val repo: MailRepository,

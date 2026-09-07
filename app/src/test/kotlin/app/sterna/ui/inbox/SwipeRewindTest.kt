@@ -9,15 +9,6 @@ import org.junit.Test
 
 /**
  * The decision behind "this row's swipe did not take, put it back": is THIS row one the view model
- * reported? Executed here, against [needsSwipeRewind] itself — the wiring that asks it, and the
- * animation it rewinds, are [SwipeRewindWiringTest]'s half, which can only read source.
- *
- * The whole point of the function is the pair. A dismissing swipe plays its take-off in full before
- * the write is even attempted, so the row is off screen by the time the failure is known; the
- * reconcile that follows re-emits it under the SAME list key, into the same composition, with the
- * flight animation still parked at the edge. Reporting the failure by bare message id would then
- * bring back the WRONG row: two accounts of one server hand out the same ids, and that exact
- * mistake already unfolded the sibling account's homonymous conversation (#92).
  */
 class SwipeRewindTest {
 
@@ -50,11 +41,6 @@ class SwipeRewindTest {
 
     /**
      * The pivot, run end to end rather than assumed: the key the view model REPORTS is built by
-     * `Email.emailKey()`, and the key the screen ASKS with is built by [needsSwipeRewind] from the
-     * row's own pair. Every other test here hands both halves the same hand-written [EmailKey], so
-     * all of them stay green if `emailKey()` ever stops carrying the account — and the two halves
-     * would then never meet, no row would ever rewind, and the defect would be back whole. Only
-     * this case crosses the seam.
      */
     @Test fun `the key the view model reports is the key the screen asks with`() {
         val swiped = Email(id = "M1", accountId = "a1", mailboxId = "mbA", subject = "s")

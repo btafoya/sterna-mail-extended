@@ -15,14 +15,6 @@ import org.junit.Test
 
 /**
  * The quoted-dates-in-UTC switch (#120), run rather than described: [outgoingDateZone] is the one
- * decision both outgoing dates go through — a reply's quote attribution line and a forwarded
- * message's Date header — and these tests EXECUTE it, then format the same instant through it, so
- * inverting the decision (or having it ignore the setting, which is the shipped defect) turns
- * literal dates wrong here.
- *
- * The pivot instant is 23:40 UTC: in Paris that is already 01:40 the NEXT day, so the two zones
- * disagree on the date itself, not just the hour — a swapped or ignored zone cannot pass by luck.
- * The zone is pinned (Europe/Paris), never the machine's.
  */
 class OutgoingDateZoneTest {
 

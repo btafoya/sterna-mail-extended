@@ -6,24 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — the same instrument and the same disclaimer as
- * [ComposeBodyWiringTest], turned on the link dialog (#131).
- *
- * Why it had to exist. The dialog was moved into its own file precisely so it would not disturb
- * the three lints that count the composer's `BasicTextField(` call sites — and nothing was put in
- * its place, so its whole body was uncovered. `AlertDialog` cannot be executed in this module (no
- * Robolectric, no compose-ui-test), the two decisions behind it are executed by [LinkDialogTest],
- * and what nothing else could see is whether the composable still HANDS THEM the right arguments.
- * Three mutations went straight through and were measured doing so:
- *  - `linkApplied(body, selection, url, "")` — the label box stops reaching the model, so the main
- *    gesture (a bare cursor, an address and a label) closes the dialog and does nothing;
- *  - the remove button calling `removeLink` on something other than the live body and selection;
- *  - the two fields losing their opening values, so an edit opens empty and overwrites.
- *
- * WHOLE TRIMMED LINES, compared by equality — never `contains`: a `contains` is blind to every
- * mutation that LENGTHENS the line.
- *
- * What it does NOT cover: that the dialog is drawn, that a tap reaches a button, that the error
- * text appears, or that anything survives a rotation. Those are bench measurements.
  */
 class LinkDialogWiringTest {
 
@@ -94,12 +76,6 @@ class LinkDialogWiringTest {
 
     /**
      * (d) The dialog's fields are Material `TextField`s and never `BasicTextField`.
-     *
-     * Not a matter of taste: [ComposeScreenIncognitoTest] and
-     * [ComposeScreenCapitalizationTest] count `BasicTextField(` in `ComposeScreen.kt` and read the
-     * file's structure around each one. A `BasicTextField` here — or this dialog moved back into
-     * the screen's file — moves those counts and makes two rules answer about a field they were
-     * not written for.
      */
     @Test fun `the dialog's two boxes are Material fields, in this file`() {
         assertEquals(

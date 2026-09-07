@@ -8,24 +8,6 @@ import org.junit.Test
 
 /**
  * #172, second half: an identity the app has just created on the server must appear WITHOUT
- * restarting the app.
- *
- * The defect, in one line: `connect` caches its session
- * (`context?.let { if (it.credentials == credentials) return it }`), and the only `Identity/get` in
- * the whole repository lived inside `connect`. So `createIdentity` reused the cached context, the
- * server-side list was never re-read, and the new address stayed invisible in Settings and unusable
- * in the composer until the next cold start — the restart the reporter had to do by hand.
- *
- * HALF SOURCE LINT, and the disclaimer is the point. `MailRepository` cannot be built in a JVM
- * test: it takes eleven Room DAOs plus an `AccountStore(context: Context)`, which wants a device
- * and the Keystore, and there is no Robolectric in this module. So the MockWebServer test that
- * would post an `Identity/set` and watch a second `Identity/get` come back is out of reach here,
- * and what CAN be executed was extracted to be executed: [storedServerIdentities] is the payload
- * that lands in `StoredAccount.serverIdentities`, and it is run below on real arguments.
- *
- * The wiring around it is read as WHOLE trimmed lines, as contiguous blocks, never a `contains`:
- * a `contains` is satisfied by every mutation that makes a line longer, and one such mutation
- * already walked past the first version of a `MailRepository` lint.
  */
 class IdentityRefreshAfterCreateTest {
 
@@ -188,11 +170,6 @@ class IdentityRefreshAfterCreateTest {
 
     /**
      * The server's OWN html signature field (RFC 8621 §6), which is not the legacy case above: here
-     * the server fills `htmlSignature` itself and the plain text is plain text. Dropping it — the
-     * one-character mutation `it.htmlSignature.orEmpty()` to `""` — compiles, and every other case
-     * here stays green because they all leave that field null. What the user would see: the
-     * identity editor calls the signature plain text instead of HTML, and the composer stops
-     * sending the html alternative the server holds for that address (#79, #90).
      */
     @Test fun `the signature the server holds as HTML survives the re-read`() {
         val answered = listOf(
@@ -220,9 +197,6 @@ class IdentityRefreshAfterCreateTest {
 
     /**
      * [count] consecutive CODE lines of [path] from the single one starting with [prefix]. Comments
-     * and blank lines are dropped first, so no rule can be satisfied by prose; a prefix matching
-     * anything other than exactly one line returns a message, so an assertion never passes by
-     * matching nothing.
      */
     private fun block(path: String, prefix: String, count: Int): List<String> {
         val code = SourceText.codeLines(SourceText.read(path))

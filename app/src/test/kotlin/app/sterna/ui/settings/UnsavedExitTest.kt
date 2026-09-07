@@ -7,11 +7,6 @@ import org.junit.Test
 
 /**
  * Leaving the filter rules or the vacation responder with unwritten edits (#34). Both screens ask
- * before they close, and a Save chosen from that question has to survive a network round-trip, so
- * the "may I leave yet?" rule is [pendingExitStep] rather than a straight `onBack()`.
- *
- * The screens gate the question on the view models' `dirty` flag — the very flag that gates their
- * Save button — so the second half of this covers what that flag is computed from.
  */
 class UnsavedExitTest {
 

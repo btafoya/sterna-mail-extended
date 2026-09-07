@@ -6,23 +6,6 @@ import java.io.File
 
 /**
  * The shipped text of the destruction block, whole and in order (#170).
- *
- * The property: the `scheduled_sends` row is the ONLY copy of the message, and deleting it is a
- * committed write when it returns, while `dropWorker` → `WorkManager.cancelUniqueWork` is
- * asynchronous and its return proves nothing. So the row goes FIRST and the job after it: a job
- * that outlives the row fires on nothing (`ScheduledSendWorker` returns on a missing row),
- * whereas a row that outlives the job is re-armed at every process start (`AppContainer.init`) and
- * the cancelled message goes out anyway.
- *
- * [ScheduledSendCancelTest] EXECUTES that order through the call journal, and is what would catch a
- * plain swap. This reads the source for what running the seams cannot see: that there is exactly
- * ONE call site for each write, that they are still inside the `scheduledCancelDropsTheRow` guard,
- * and that neither line has grown a wrapper (a `runCatching { deleteRow(id) }` swallows the failed
- * delete and the journal still reads "delete", "dropWorker").
- *
- * Whole trimmed lines compared by list equality — never `contains`, which is blind to every
- * mutation that LENGTHENS the line. Comment lines are dropped, so prose can neither satisfy a rule
- * nor break one.
  */
 class ScheduledCancelDropOrderTest {
 

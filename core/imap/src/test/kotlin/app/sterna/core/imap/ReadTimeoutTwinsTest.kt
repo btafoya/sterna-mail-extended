@@ -6,18 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT. The two `withReadTimeout` wrappers — one plain, one suspending — cannot call each
- * other (a plain function cannot take a suspending lambda; making the plain one suspend would drag
- * `connect` with it), so they are written twice and must not drift.
- *
- * What drift costs, precisely: every IMAP call the app makes on the pooled connection now goes
- * through the SUSPENDING copy (`ImapMailService.runWithRetry`), while the three tests that pin the
- * budget arithmetic (`AllUidsTest`, `ImapBudgetTest`) exercise the plain one. A copy that quietly
- * stopped setting the socket timeout would leave all of them green and put `ENUMERATE_BUDGET_MS`
- * out of service — the bound that stops an "Empty trash" enumeration waiting out a mute server.
- *
- * Two rules, and the first is the one that matters: the part that can go missing lives in ONE
- * function that both call, so deleting it is a behaviour change the budget tests already see. This
- * file adds the second: the wrappers themselves must stay identical, line for line.
  */
 class ReadTimeoutTwinsTest {
 

@@ -13,12 +13,6 @@ import org.junit.Test
 
 /**
  * The two decisions the link dialog makes (#131), EXECUTED — what it opens with, and what OK
- * produces. They live outside the composable on purpose: `AlertDialog` cannot be run here, so a
- * rule kept inside it could only ever be read as text.
- *
- * Neither of them re-implements anything: `linkApplied` is [app.sterna.core.data.text
- * .normalizeLinkUrl] followed by `setLink`, and this file pins the ARGUMENTS those two receive by
- * comparing whole bodies.
  */
 class LinkDialogTest {
 
@@ -92,9 +86,6 @@ class LinkDialogTest {
     @Test fun `OK with no label at all writes the address as its own words`() {
         // Without this, the fourth arm of `setLink` is reachable from the dialog: a bare cursor,
         // no link under it, the label box empty — the body comes back UNCHANGED, `onApply` runs,
-        // the dialog closes and nothing has happened, with nothing said. Gmail writes the address
-        // (rule 4), and `toPlainText` already spells that shape once rather than
-        // `https://example.org <https://example.org>`, so both ends agree.
         assertEquals(
             RichBody(
                 "hello worldhttps://example.org",

@@ -5,8 +5,6 @@ import org.junit.Test
 
 /**
  * Direction-lock discrimination for a list-row drag (Codeberg #97): a mostly-vertical
- * arc that starts with a slight sideways nudge must scroll, not arm archive/delete,
- * while a deliberate sideways swipe must still arm promptly.
  */
 class SwipeDirectionLockTest {
 

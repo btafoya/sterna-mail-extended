@@ -9,21 +9,6 @@ import java.sql.DriverManager
 
 /**
  * `EmailDao.numberingOfRows`' shipped statement, RUN against a real SQLite engine — the read a
- * permanent delete freezes with the user's confirmation and opposes to the server minutes later
- * (Codeberg #99).
- *
- * Why this file exists at all: every other test of that read hands the numbering over as a map
- * built in Kotlin, so the SQL itself was executed by NOTHING. Room generates the implementation, so
- * nobody reads it either. A statement that answered the folder's LATEST numbering instead of each
- * row's own — one correlated sub-select, and it still compiles, still returns both columns of
- * `RowNumbering`, still passes every source lint — brings #99 back whole: UIDs read under 42 would
- * be handed 77, the SELECT would compare 77 with 77, and `UID EXPUNGE` would fall on live mail. The
- * statement is read out of the shipped DAO ([DaoQuerySource.emailDaoQuery]), never copied here, so
- * this test cannot drift from what ships.
- *
- * The bench is deliberately built around the one thing the column exists for: TWO rows of ONE
- * folder, read under two different numberings. That is not a corner case — it is what a folder
- * looks like after a background pass met a renumbering, since nothing prunes the old rows on IMAP.
  */
 class NumberingOfRowsSqlTest {
     private lateinit var db: Connection
@@ -50,9 +35,6 @@ class NumberingOfRowsSqlTest {
 
     /**
      * THE ONE THAT MATTERS. One folder, two numberings — the state a folder is left in when a
-     * background pass finds it renumbered and writes the new page beside the old rows. Each row
-     * must answer ITS OWN number: answer them both the folder's latest and the older ids go out
-     * under a numbering they do not belong to, which is the accident.
      */
     @Test fun `two rows of one folder read under two numberings each answer their own`() {
         insert("imap:acc:INBOX:7", "INBOX", uidValidity = 42)
@@ -96,8 +78,6 @@ class NumberingOfRowsSqlTest {
 
     /**
      * The account scope, which is not decoration here: two accounts of one server mint the same
-     * ids (#31), and the composite primary key lets both rows exist. Reading across the scope
-     * would hand one account's numbering to the other's destroy.
      */
     @Test fun `another account's row of the same id is never read`() {
         insert("imap:acc:INBOX:7", "INBOX", uidValidity = 42, accountId = "acc")

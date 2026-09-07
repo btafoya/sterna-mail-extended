@@ -56,10 +56,6 @@ data class JmapSession(
 
         /**
          * Ids one `Email/get` may ask for: `maxObjectsInGet`, read exactly like [setBatchSize] but
-         * from its OWN property — a server advertises the two separately and may well differ, a get
-         * carrying whole messages where a set carries ids. The Undo of a bulk move re-fetches every id
-         * it moved back, and past this limit the server rejects the WHOLE call: the mail is back on
-         * the server and gone from the list, with nothing to say so.
          */
     fun getBatchSize(): Int = advertisedLimit("maxObjectsInGet")
 

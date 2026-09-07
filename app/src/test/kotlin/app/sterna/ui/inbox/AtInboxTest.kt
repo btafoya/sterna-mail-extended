@@ -5,12 +5,6 @@ import org.junit.Test
 
 /**
  * [isAtInbox], the rule the list screen's Back gesture rests on: `true` means "this IS the inbox",
- * and [inboxBackAction] then hands Back to the system, which leaves the app.
- *
- * Every case below states its answer as a LITERAL. The rule is not recomputed here — a test that
- * re-derives it agrees with whatever the code says, including the form this one was written to
- * refuse: `(sel as? Sel.Folder)?.id == inboxMailboxId`, which answers `null == null` for any
- * selection that is not a folder as soon as the account's inbox has never been synced.
  */
 class AtInboxTest {
 
@@ -52,10 +46,6 @@ class AtInboxTest {
 
     /**
      * The reachable state the eight cases above leave open, and the one a `sel.id ?: inboxMailboxId`
-     * would answer `true`: `refreshFolder` writes the account's inbox id into the store BEFORE the
-     * selection is repointed, so a folder selection still carrying a null id coexists with a known
-     * inbox id. A null id is not "the inbox", it is "no folder yet" — Back must still give the
-     * reader the Inbox, not the door out of the app.
      */
     @Test fun `a folder with no id is not the inbox once one is cached`() {
         assertEquals(false, isAtInbox(Sel.Folder(null)) { "inbox" })
@@ -63,11 +53,6 @@ class AtInboxTest {
 
     /**
      * The lambda is not decoration. `AccountStore.inboxMailboxId()` walks `currentAccount()` →
-     * `accounts()` → the blob gate, which parses the stored account JSON and writes the
-     * `unreadable` flag that guards every account write. The inline form this rule replaced
-     * short-circuited on `sel is Sel.Unified`; extracted with a `String?` parameter it would be
-     * evaluated at EVERY call, in every view, on every recombination of the list state. Executed,
-     * not read: only the count can tell an eager parameter from a lazy one.
      */
     @Test fun `the inbox id is asked for only when the selection is a folder`() {
         var asked = 0

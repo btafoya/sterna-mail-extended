@@ -2,8 +2,6 @@ package app.sterna.core.data.mail
 
 /** Every page as it lands, the reconcile once at the end, on a walk that finished. The reconcile
  *  deletes every cached row outside [keepIds], so it sits on the normal return path and nowhere
- *  else: no `try`/`catch` here, and it must never move into a `finally`. Null from [keepIds] means
- *  "do not reconcile", null from [folderIds] "no bound on what may be deleted" (#165); neither is
  *  `emptySet()`. */
 internal suspend fun <P, R> fullQueryWriteThrough(
     // The folder as it was before the walk, or null from a caller that cannot name it.

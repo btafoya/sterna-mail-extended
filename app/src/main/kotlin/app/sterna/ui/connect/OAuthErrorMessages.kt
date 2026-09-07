@@ -98,8 +98,6 @@ fun chooseOAuthHost(discovered: List<Pair<String, OAuthMetadata>>): Pair<String,
 
 /** null when discovery found a server this app can actually sign into; otherwise what to show.
  *  Three failures, three facts: no OAuth at all; OAuth but no flow this app can drive; and OAuth
- *  handing the sign-in to another domain ([OAuthMetadata.endpointsOffDomain]), the only one where
- *  the refusal is ours. That arm comes first but fires only when nothing usable is left: a
  *  document whose device endpoint alone was refused still signs in. */
 @StringRes
 fun oauthDiscoveryFailure(metadata: OAuthMetadata?): Int? = when {

@@ -26,12 +26,6 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
 
     /**
      * The rows whose cancellation is still running, so a second tap on the same X cannot start a
-     * second one (#170).
-     *
-     * Load-bearing since the deposit came first: the row leaves the screen only after `saveDraft`
-     * returns, and that call attempts the upload inline, so a dropped socket keeps the X on screen
-     * and inviting. A second tap files the message under a fresh local draft id and the user gets it
-     * twice in Drafts. Concurrent because the taps arrive on the main thread.
      */
     private val inFlight: MutableSet<Long> = ConcurrentHashMap.newKeySet()
 
@@ -42,11 +36,6 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
 
     /**
      * Cancel a scheduled send: file the message back in Drafts, then drop its row and then its job —
-     * and say which of the three things happened (#170).
-     *
-     * On `appScope`, not `viewModelScope`: this screen is left the moment the X is tapped, and a
-     * deposit cancelled halfway leaves the message in neither Drafts nor the schedule. The ordering
-     * and the cancellation shelter live in [cancelScheduledSend].
      */
     fun cancel(id: Long) {
         val app = getApplication<Application>()

@@ -9,26 +9,6 @@ import org.junit.Test
 
 /**
  * A walk can end WITHOUT throwing and still know nothing about the folder — and the reconcile
- * that follows deletes every cached row it is not given.
- *
- * The concrete case: an `Email/get` answering `200 OK` with no `list` key. `decodeList` returns an
- * empty list without raising, so the first page adds nothing, `nextWindowPageLimit`'s anti-spin
- * guard (`last.added <= 0`) ends the walk by ordinary return, and the walk hands back an empty id
- * list. Nothing anywhere failed. Reconciling against that empty set empties the folder — everything
- * except the recently-mutated spare.
- *
- * This is not a regression of the streaming volet: `replaceMailbox(…, emptyList(), …)` did
- * exactly the same before it. What the volet added is a claim that this cannot happen, which is
- * what makes it worth closing rather than filing.
- *
- * The rule, and the reason an empty answer is not simply always refused: an empty folder is a real
- * state that must be able to clear a stale cache. What tells the two apart is the QUERY. If
- * `Email/query` listed no ids at all, the folder is empty and the reconcile is right; if it listed
- * ids and the get brought none of them back, the walk learned nothing and must keep its hands off.
- *
- * [nextWindowPageLimit][app.sterna.core.jmap.nextWindowPageLimit] is deliberately NOT touched: its
- * stopping conditions are correct, it is the conclusion drawn from "it stopped" that was too
- * strong.
  */
 class EmptyWindowIsNotAnEmptyFolderTest {
 

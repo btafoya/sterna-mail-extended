@@ -7,30 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `ComposeScreen.kt` and `ComposeViewModel.kt` as text
- * and proves nothing about what appears on screen. Last resort, and for the reason already written
- * in `ReaderStateResetOnLoadTest`: `ComposeScreen` is a composable, `ComposeViewModel` is an
- * `AndroidViewModel` reaching into `application.container`, and this module has neither Robolectric
- * nor instrumented tests.
- *
- * Measured on the bench, 2026-08-15: composer open on a draft, trash tapped, `Delete this draft?`
- * on screen, `settings put system user_rotation 1` — the dialog VANISHES, back to the composer,
- * without a word. No `configChanges` in the manifest, so a rotation recreates `MainActivity`, the
- * composition restarts, and a bare `remember` falls back to `false`. All FOUR of the composer's
- * dialogs were declared that way in the same file, so all four are covered here: the draft-delete
- * confirmation, the leave dialog, and the two chained pre-send guards.
- *
- * And the fix is NOT `rememberSaveable`. That one also survives process death, where the thing
- * each dialog acts on does NOT: the ViewModel's `_editingDraft` is gone, the typed body is being
- * restored, the attachment list is not resolved yet. A restored flag would be redrawn over a
- * loading or dead-end screen, with the wrong body — and the delete dialog's Delete would land in
- * the branch where `takeEditingDraft()` returns null and nothing at all happens, in silence.
- *
- * Each flag's lifetime is the composer's NAVIGATION ENTRY, not the process: it survives a
- * configuration change (the fix) and dies with the entry. Do not restate it as "dies with the
- * process" — that reads as a shorter interval than the real one, and the difference is observable.
- *
- * The rule: a flag lives where the thing it acts on lives. What the user TYPED stays
- * `rememberSaveable`; a gate in front of ViewModel state goes into the ViewModel.
  */
 class DialogFlagsSurviveRotationTest {
 
@@ -773,11 +749,6 @@ class DialogFlagsSurviveRotationTest {
 
     /**
      * Asserts exactly [times] code lines of [path], trimmed, are [pinned] — WHOLE line, never a
-     * fragment.
-     *
-     * [times] is not a loosening: the count is an EQUALITY either way. It exists because the two
-     * "pick date and time" dialogs now carry the very same keyboard line, and a pin that accepted
-     * "at least one" would go green with one of the two dialogs stripped of it.
      */
     private fun assertPinned(path: String, pinned: String, why: String, times: Int = 1) {
         val hits = codeLines(path).count { it == pinned }
@@ -791,8 +762,6 @@ class DialogFlagsSurviveRotationTest {
 
     /**
      * Asserts [signature] is present once in [path] and that the very next code line is [body].
-     * Pinning the two lines separately would NOT catch the bodies being swapped: both texts would
-     * still be there, one apiece, and both pins would pass.
      */
     private fun assertBody(path: String, signature: String, body: String, why: String) {
         val code = codeLines(path)
@@ -912,9 +881,6 @@ class DialogFlagsSurviveRotationTest {
                 ask = "askScheduleDay", clear = "clearScheduleDay",
                 // In source order, and the order changed with the two faces: the buttons are
                 // hoisted ABOVE the branch so their bodies exist once, and each face then carries
-                // its own `onDismissRequest` — our shell for the typed face, `DatePickerDialog`
-                // for the grid. A face that lost its line would stop closing on a tap outside
-                // while the other still closed.
                 closes = listOf(
                     "viewModel.clearScheduleDay()",
                     "TextButton(onClick = { viewModel.clearScheduleDay() }) {",

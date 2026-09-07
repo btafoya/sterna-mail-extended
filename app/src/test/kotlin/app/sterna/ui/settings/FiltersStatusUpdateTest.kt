@@ -8,11 +8,6 @@ import org.junit.Test
 
 /**
  * [filtersStateWithStatus], executed. The filters screen carries three facts about the SERVER —
- * "your rules are not running", "another script is active", "there is a vacation script" — and
- * they must move together, from one read, or not at all.
- *
- * `FiltersViewModel` cannot be built in a JVM test (it is `Application`-bound), which is why the
- * update lives here as a function on an ordinary data class rather than inside it.
  */
 class FiltersStatusUpdateTest {
 
@@ -149,9 +144,6 @@ class FiltersStatusUpdateTest {
 
     /**
      * E2. The same read carries WHICH of the two refusals it is, all the way to the screen.
-     * Folded into `foreignActive` alone — as it was — the screen can only draw a sentence about
-     * somebody else's script or about the auto-reply, and the one thing Save is about to do here
-     * (replace content nobody could read) is the one thing nothing says.
      */
     @Test
     fun `the unreadable script reaches the screen as a fact of its own`() {

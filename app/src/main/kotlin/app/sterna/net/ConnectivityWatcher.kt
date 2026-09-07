@@ -29,19 +29,6 @@ internal enum class Reachability {
 
 /**
  * Pure connectivity state machine behind the offline banner and the auto-refresh on reconnect
- * (#65), kept free of Android types so it is unit-testable.
- *
- * Three inputs, because none is honest on its own: the transports underneath (a SET, so a handover
- * is not an outage, and the one signal a tunnel cannot fake); the route this app is given, where a
- * tunnel torn down and rebuilt is visible and nowhere else; and what requests actually did.
- *
- * The three latches are seeded with what was true at registration, but the network IDENTITIES are
- * not: only a change against an identity we were HOLDING counts as the plumbing moving. Without
- * that, the registration replay looked like a reconnect on every cold start.
- *
- * [online] is the link corrected by the evidence; the resync trigger is taken on the PLUMBING
- * alone. That split stops the banner flickering "online" while a tunnel re-handshakes, and makes
- * the trigger cheaper to earn than the state. Nothing here is on a timer.
  */
 internal class ReconnectGate(link: Boolean) {
     /** Every real transport currently satisfying the NOT_VPN request. */
@@ -117,13 +104,6 @@ internal class ReconnectGate(link: Boolean) {
 
     /**
      * Recompute the link, publish, and report whether a resync should be attempted. Two reasons: the
-     * link came back (level-triggered, so a burst of callbacks asks for one resync), or the plumbing
-     * MOVED while requests are known to be dying.
-     *
-     * That second is the reported symptom: a VPN that blackholes traffic without touching its
-     * network produces no edge, so the app would sit behind a correct "offline" banner for ever. A
-     * plausible "the tunnel is back" is enough, what follows being an ATTEMPT, not a declaration.
-     * Bounded by construction — only while the verdict is FAILED, only on a held identity moving.
      */
     private fun settle(moved: Boolean = false): Boolean {
         val up = transportsUp && routeUp && !blocked
@@ -140,10 +120,6 @@ internal class ReconnectGate(link: Boolean) {
 
 /**
  * How the refresh that follows a reconnect is paced, kept pure so the schedule is testable (#65).
- * The link is back several seconds before an always-on VPN has re-handshaked, so a single refresh
- * fired then fails and strands the banner: a few attempts with a widening gap, and only the LAST
- * failure is the user's to see. Bounded and edge-triggered, never a periodic poll — this is the
- * one piece of Sterna that could quietly cost every user battery.
  */
 internal object ReconnectRefresh {
     /** Attempts made per reconnect; the last one is the one whose failure is reported. */
@@ -171,17 +147,6 @@ internal object ReconnectRefresh {
 
 /**
  * Watches connectivity and calls [onReconnect] when it actually comes back. Register with [start],
- * and always [stop] — the callbacks outlive the owner otherwise.
- *
- * Two registrations, because one is always blind to half the problem (#65). The TRANSPORT
- * callback sees the networks underneath, an always-on VPN's tunnel being connectionless so that a
- * real outage is missed entirely; the DEFAULT-NETWORK callback sees the route this app is given,
- * the only place a tunnel dropping and returning is visible, and its blocked flag is how a lockdown
- * killswitch announces itself.
- *
- * Neither is filtered on NET_CAPABILITY_VALIDATED: Sterna's users are exactly the crowd who block
- * the captive-portal check server, so their networks are usable yet never VALIDATED. The validation
- * is the app's own requests instead — a real probe, against the user's own server, and free.
  */
 class ConnectivityWatcher(context: Context, private val onReconnect: () -> Unit) {
     private val manager = context.applicationContext.getSystemService(ConnectivityManager::class.java)
@@ -242,10 +207,6 @@ class ConnectivityWatcher(context: Context, private val onReconnect: () -> Unit)
 
 /**
  * Whether traffic can leave the device right now — a cheap synchronous read of the capabilities, not
- * a reachability probe. Both halves of [ConnectivityWatcher]'s own view, so the send-time "queued vs
- * sent" verdict (#70) and the reconnect watcher cannot read connectivity differently: a real non-VPN
- * transport exists, AND this app is given a default network, which a lockdown takes away while the
- * Wi-Fi underneath stays up. Not filtered on VALIDATED.
  */
 fun hasUsableNetwork(context: Context): Boolean {
     val cm = context.applicationContext.getSystemService(ConnectivityManager::class.java) ?: return false
@@ -268,12 +229,6 @@ private const val MAX_CAUSE_HOPS = 8
 
 /**
  * Whether [t] is the transport failing rather than the file or the server saying no.
- *
- * Matched on the exception TYPE, never on its text, which the platform resolver writes and which
- * changes with the Android version and the system language. Deliberately narrower than "any
- * IOException": an unreadable picked file raises FileNotFoundException, and a rejected certificate's
- * technical text is the only clue the reader gets. The cause chain is walked, the failure often
- * arriving wrapped.
  */
 internal fun isNetworkFailure(t: Throwable): Boolean {
     var error: Throwable? = t
@@ -289,7 +244,5 @@ internal fun isNetworkFailure(t: Throwable): Boolean {
 
 /**
  * Whether a failure should be told as "you are offline" rather than shown as its exception text.
- * Both halves must hold: it died on the transport, AND [hasUsableNetwork] says there is none. Being
- * offline is a claim about the device, so it is only made when the device confirms it.
  */
 internal fun isOfflineFailure(t: Throwable, online: Boolean): Boolean = !online && isNetworkFailure(t)

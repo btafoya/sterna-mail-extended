@@ -9,8 +9,6 @@ import org.junit.Test
 
 /**
  * Quoting an HTML original used to strip its `<blockquote>` nesting, so every past round of an
- * exchange came back at a single ">" level and a reply to a reply looked like a fresh one (B1).
- * The nesting now becomes ">" markers, and [deepenQuote] adds the new level on top.
  */
 class QuoteDepthTest {
 

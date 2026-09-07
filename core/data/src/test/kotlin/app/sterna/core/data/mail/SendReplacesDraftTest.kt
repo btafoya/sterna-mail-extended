@@ -9,13 +9,6 @@ import java.io.IOException
 
 /**
  * The decision the SEND path runs before it may destroy the draft a message was edited from:
- * [replaceableDraftIdOrNull], executed. Delivery ([MailRepository.performSend]) destroys whatever
- * draft id the outbox row carries, so the id may only be written against the same fidelity proof a
- * re-save answers to ([draftReplacementIsFaithful] — ONE rule, [DraftSaveTest] runs its legs).
- * Before this decision existed the send path wrote the id unconditionally: a reopened draft the
- * composer could not reproduce (HTML body, inline image, calendar part, an attachment that failed
- * to re-stage) was sent amputated AND its original — the only copy of what was missing — was
- * destroyed behind it.
  */
 class SendReplacesDraftTest {
 
@@ -44,8 +37,6 @@ class SendReplacesDraftTest {
 
     /**
      * Offline, dropped socket, a row that is gone: the proof cannot be ESTABLISHED. An unknown
-     * is not an innocence — it forbids the destroy, end to end through the same
-     * [draftAddressingIsCarried] the save path runs (no `catch` may round it up to "faithful").
      */
     @Test fun anAddressingThatCannotBeReadIsUnknownAndKeepsTheIdOff() = runTest {
         assertNull(

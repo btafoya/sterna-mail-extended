@@ -5,10 +5,6 @@ import androidx.paging.PagingState
 
 /**
  * Where a refresh must reload the list, in rows from the top of the folder. With placeholders off
- * Paging's `anchorPosition` indexes the loaded window while Room feeds the key into `LIMIT … OFFSET`,
- * an index into the folder: the two agree only while the window starts at row 0 (paging 3.3.5).
- * A negative [firstLoadedItemsBefore] (`COUNT_UNDEFINED`) reads as "window starts at the top"; with
- * placeholders on the anchor is already folder-wide, so no offset is added.
  */
 internal fun refreshOffsetForAnchor(
     anchorPosition: Int?,

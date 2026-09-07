@@ -14,19 +14,6 @@ import org.junit.Test
 
 /**
  * A composer rebuilt after a process death taking its queued row back — [resumeOutboxRow] EXECUTED
- * against a fake outbox and the startup recovery the real one runs into.
- *
- * What is at stake is an ORDER, and the fake is only what it takes to make the order observable:
- * the startup sweep parks every EDITING row FAILED and re-arms every QUEUED one (what
- * `MailRepository.parkInterruptedOutboxEdits` + the re-arm do in `AppContainer`), and the take
- * refuses an EDITING or SENDING row and marks the row EDITING otherwise (`OutboxLogic.canEdit` →
- * `takeOutboxForEdit`). The row starts EDITING, as a process death leaves it.
- *
- * Taken BEFORE the sweep, the row the composer just took EDITING is parked FAILED under its feet:
- * the composer believes it holds the row, Send believes it consumes it, and the Outbox shows a red
- * line under an open composer. Taken AFTER, the row is FAILED when the take reads it, which
- * `canEdit` accepts, and it comes back EDITING with nobody left to park it. The function under test
- * is what decides the order; the test does not re-decide it, it watches which call came first.
  */
 class OutboxResumeTest {
 

@@ -6,16 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT on the ONE call of `SmtpClient.send` in the repo.
- *
- * `send()` bounds its connect and its command reads with two parameters that DEFAULT to the shipped
- * values, and `core:imap` pins those defaults on the declaration. That pins nothing about what the
- * app passes: `send(config, message, commandTimeoutMs = 0)` here restores the original defect whole
- * — a submission that hangs for ever on a server gone quiet, an outbox row frozen on "sending" —
- * and every test in the four modules stays green, because nothing exercises `ImapMailService.send`
- * (it needs a real account, a real socket and a token refresher).
- *
- * So the call site is pinned, whole line at a time. `contains` on a fragment would be blind to the
- * one mutation that matters here, which LENGTHENS the line by adding an argument.
  */
 class SmtpSubmissionCallSiteTest {
 

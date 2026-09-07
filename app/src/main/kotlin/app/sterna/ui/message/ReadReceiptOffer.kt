@@ -9,11 +9,6 @@ import app.sterna.core.jmap.model.Email
 
 /**
  * Whether a message that asked for a read receipt (RFC 8098) may raise the question. Nothing here
- * sends or draws anything: it answers "is there a question to ask?" and hands back the request.
- *
- * Two things it keeps apart: a setting that has not LOADED is not a setting that is off, hence three
- * values; and being MARKED read is not being read — `setRead` has nine callers, only the reader
- * settling on a message is a person looking at it, and `SECURITY.md` promises nothing leaves on open.
  */
 enum class ReadReceiptSetting {
     /** DataStore has not answered yet. Not "off": nothing is offered and nothing is remembered, so
@@ -50,11 +45,6 @@ enum class ReadMarking {
 
 /**
  * What would be answered, captured whole at the moment the question is raised: read again when the
- * reader taps, a second read would answer for the neighbouring message, or for none — same failure as
- * [PendingUnsubscribe].
- *
- * [deliveredTo] is the address of THIS account the message arrived at, carried rather than worked out
- * later so an account with several aliases does not answer under a name it never wrote to.
  */
 data class ReadReceiptRequest(
     val receiptTo: List<String>,
@@ -65,12 +55,6 @@ data class ReadReceiptRequest(
 
 /**
  * What [email] would have answered, had it been read by a person, at [deliveredTo], about
- * [outgoingSubject].
- *
- * THIS REQUEST LEAVES THE DEVICE, to an address the SENDER chose, with a copy in Sent. So the
- * subject is the one from the COVER, handed in by the caller, and never [Email.subject]: after a
- * decrypt that field holds the PROTECTED subject (RFC 9788, #128). [outgoingSubject] has no default
- * on purpose. It raises no question by itself: [offeredReadReceipt] turns this into a banner.
  */
 fun readReceiptRequest(
     email: Email,
@@ -87,25 +71,12 @@ fun readReceiptRequest(
 
 /**
  * What the cover subject becomes after `openMessage` has answered: the [held] one, or the [opened]
- * message's when that one is still the envelope.
- *
- * [MessageCrypto.Decrypted] hands back [held] UNCHANGED: `openMessage` serves the decrypt cache
- * first, so reopening a message decrypted earlier returns the PROTECTED subject (#128), which read as
- * a cover would leave the device in clear. [MessageCrypto.Locked] is not excluded, nothing having
- * been decrypted. A null subject never erases what is [held].
  */
 internal fun coverSubjectAfterOpen(held: String?, opened: Email, crypto: MessageCrypto?): String? =
     if (crypto is MessageCrypto.Decrypted) held else opened.subject ?: held
 
 /**
  * The question to put to the reader, or null when there is none — the whole of the policy in one
- * place, executed by its test. Null when the setting has not loaded, when it is off, when the message
- * was marked read by anything but the reader settling on it, when it was already read, when there is
- * no header or none naming a usable address (this is the guard that keeps `enqueueSend` from ever
- * seeing an empty recipient list), or when the reader has already answered.
- *
- * A function of the CURRENT state, not an event, which is what lets it be replayed: turning the
- * switch on with a message open raises the question, and off takes it away, through one decision.
  */
 fun offeredReadReceipt(
     setting: ReadReceiptSetting,
@@ -122,9 +93,6 @@ fun offeredReadReceipt(
 
 /**
  * Whether the reader has already answered on this message. Its own type, not "the offer is null":
- * [offeredReadReceipt] is REPLAYED whenever the setting changes, and a null offer is exactly what a
- * refusal leaves behind, so switching off and on again would put back the question just declined.
- * It lives and dies with the page: this work remembers nothing across a reload.
  */
 enum class ReadReceiptAnswer {
     /** Nothing said yet: the question may be put, and put again. */
@@ -168,13 +136,6 @@ fun readReceiptSendOutcome(preview: ReadReceiptPreview?): ReadReceiptState =
 
 /**
  * How TALL the strip is allowed to be, which outranks everything else about it. The measured header
- * height keys the `remember` that builds the body's HTML document, so a strip that changes SIZE
- * cancels the body load in flight: before the first reveal the reader waits behind the spinner, after
- * it the message reloads and she loses her place.
- *
- * `heightIn(min = ButtonDefaults.MinHeight)` does not hold two shapes level — it is a FLOOR, and a
- * `TextButton` stands above it while a bare `Text` sits on it (measured, #153: 8 dp, 13 dp at
- * `font_scale 2.0`). So the three non-failure states draw the SAME button.
  */
 enum class ReadReceiptStripShape {
     /** The line is held to ONE line, so the row is exactly the button's height — the same height in

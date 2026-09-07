@@ -7,31 +7,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads source files as text, same instrument and
- * disclaimer as [OutgoingDateWiringTest] and `ImapDiscoveryWiringTest`. Nothing in this suite can
- * EXECUTE the wiring it pins: `ComposeViewModel` is an AndroidViewModel and the composer's
- * `LaunchedEffect` needs a composition — there is no Robolectric and no compose-ui-test in this
- * repo. So the call sites are pinned as WHOLE trimmed lines: a `contains` on a fragment is blind
- * to any mutation that lengthens the line (three found that way on 2026-08-04).
- *
- * What is pinned is the ONE-SHOT contract of the reply quote. `MainActivity` declares no
- * `android:configChanges`, so a rotation, a light/dark flip, a language change or a multi-window
- * resize recreates the activity while the ViewModel survives. An unconsumed `_replyQuote` is
- * therefore still non-null, `LaunchedEffect(replyQuote)` replays on every recreation, and the user
- * sees either the caret thrown back to offset 0 over the selection `TextFieldValue.Saver` had just
- * restored, or one more "quote not added" toast stacking up in LENGTH_LONG.
- *
- * Retiring the quote writes `null` into the flow, which is a NEW value: the effect is relaunched
- * one more time with `replyQuote == null`. That re-entry did not exist before the consume, so the
- * effect's key and its `?:` early return are pinned here too — they are what stands between the
- * second pass and a branch that would empty the body and its baseline together.
- *
- * WHAT THIS DOES NOT PROVE: that the replay is actually gone. That is only readable on a bench —
- * open a reply, wait for the quote, rotate, and look at the caret and at the toast. This file
- * proves the two consume calls exist, are unique/paired, and sit AFTER the work they retire.
- * It also does not prove anything about the third way out of the effect (quote arrived, prefill
- * not applied yet), which must keep doing nothing AND keep not consuming — pinned only negatively,
- * by the count of two. And it cannot see INSIDE `consumeReplyQuote`: a guard added above
- * `_replyQuote.value = null` would leave every line here intact and bring both symptoms back.
  */
 class ReplyQuoteConsumedWiringTest {
 

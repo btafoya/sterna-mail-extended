@@ -10,20 +10,6 @@ import java.io.File
 
 /**
  * The read-receipt strip: WHEN there is one at all, WHAT it says, and the one property that
- * matters beyond looks — the three ordinary states are the same height.
- *
- * Height is not a taste here. The measured height of the reader's header is part of the key of the
- * `remember` that builds the body's HTML document, so a strip that changes size cancels the body
- * load in flight — and this strip sits in the header, which is exactly where its two gestures are
- * made. `heightIn` is a FLOOR and cannot level two different shapes: a `TextButton` stands well
- * above it while a bare `Text` sits back down on it, measured on the bench for the images strip
- * (#153) at 8 dp in the normal font and 13 dp at `font_scale 2.0`. So the states that are not a
- * failure draw the SAME button, and [ReadReceiptStripShape] is where that is written down.
- *
- * What a JVM test CAN do is RUN [readReceiptStrip] and read [ReadReceiptStripBody]'s table; what it
- * cannot do is measure Compose, so the source rules at the end say so and pin the ARGUMENTS — the
- * height floor, which shapes draw the button, which callback each gesture is wired to — because a
- * rule that only checks that `TextButton(` appears is satisfied by any strip containing one.
  */
 class ReadReceiptStripTest {
 
@@ -46,13 +32,6 @@ class ReadReceiptStripTest {
 
     /**
      * THE SWITCH, EXECUTED THROUGH THE STRIP. The two functions are composed here rather than
-     * described: whatever [offeredReadReceipt] answers for a setting that is off — or has not been
-     * read yet, which is NOT the same thing — is what the strip is built from, and both answers are
-     * "there is nothing to draw".
-     *
-     * Written this way round on purpose: the strip must not carry a rule of its own about the
-     * setting. It has no way to see one, and a second guard here would be a second thing to keep in
-     * step with the first.
      */
     @Test fun `a switch that is off, or not yet read, draws nothing`() {
         listOf(ReadReceiptSetting.OFF, ReadReceiptSetting.NOT_LOADED).forEach { setting ->
@@ -73,8 +52,6 @@ class ReadReceiptStripTest {
 
     /**
      * SAYING NO SENDS NOTHING, AND THE STRIP GOES. The refusal is executed through the same two
-     * functions the app runs: the reader has answered, so the question is null, so there is no
-     * strip — and nothing anywhere in this path can queue anything.
      */
     @Test fun `a refusal leaves no strip and nothing to send`() {
         val afterRefusal = offeredReadReceipt(
@@ -113,9 +90,6 @@ class ReadReceiptStripTest {
 
     /**
      * THE TEXT SHOWN IS THE TEXT THAT WAS QUEUED, not one this file could rebuild. The subject
-     * below is deliberately not a wording this app composes for a receipt: if anything on the way
-     * recomputed it, it could not come out the other end. `assertSame` because it must be the very
-     * string the repository handed back.
      */
     @Test fun `in the outbox, the strip names the row that was queued`() {
         val queued = ReadReceiptPreview(
@@ -143,8 +117,6 @@ class ReadReceiptStripTest {
 
     /**
      * There is NO "sent" — [ReadReceiptState] has four states and the strip has four shapes, one
-     * for one. A fifth of either is a claim this app cannot keep: a receipt has one road, the
-     * durable outbox, and nothing here watches it leave.
      */
     @Test fun `every state of the receipt has exactly one shape`() {
         assertEquals(
@@ -170,12 +142,6 @@ class ReadReceiptStripTest {
 
     /**
      * WHICH STATES ARE THE SAME ROW, IN LITERALS. This is the whole point of the enum: asking,
-     * sending and queueing are one shape, and only the failure may grow.
-     *
-     * Written out by hand rather than derived: this expectation is what goes red when someone
-     * "tidies" the queued state into a bare sentence, which is the defect — the header would lose
-     * the button's height at the tap, re-key the body's HTML document and cancel the load under the
-     * reader's fingers.
      */
     @Test fun `three of the four states are the same row, and only the failure may grow`() {
         assertEquals(
@@ -193,8 +159,6 @@ class ReadReceiptStripTest {
 
     /**
      * And the failure is only ever reached AFTER a gesture: it cannot be the shape of a question.
-     * (`readReceiptStrip` maps it off [ReadReceiptState.Failed], which only `sendReadReceipt` can
-     * write — see [ReadReceiptTriggerWiringTest].)
      */
     @Test fun `the shape that may grow is never the one that asks`() {
         assertEquals(
@@ -205,15 +169,6 @@ class ReadReceiptStripTest {
 
     /**
      * Which states act, and which may be refused — in literals, both ways.
-     *
-     * `acts` is the button's `enabled`. [ReadReceiptStripBody.ASK] acts because that is the
-     * question; [ReadReceiptStripBody.FAILED] acts because nothing left the device and a refused
-     * enqueue is a retry, not a dead end — the posture `UnsubscribeStripBody` already takes, and
-     * `MessageViewModel.sendReadReceipt` puts the question back through the decision when it
-     * fails. [ReadReceiptStripBody.QUEUED] must never act: what is in the outbox cannot be
-     * recalled and a second tap would answer the stranger twice.
-     *
-     * `declines` is the refusal, offered only while the question stands untouched.
      */
     @Test fun `the question and the failure act, and only the question can be refused`() {
         assertEquals(
@@ -228,14 +183,6 @@ class ReadReceiptStripTest {
 
     /**
      * WHICH WORDS EACH STATE WEARS, by resource name, both the line and the button.
-     *
-     * Nothing else in this class reads either: `names`, `shape`, `acts` and `declines` are the same
-     * on two of these states, so swapping [ReadReceiptStripBody.ASK]'s and
-     * [ReadReceiptStripBody.QUEUED]'s resources leaves every other rule green — and the strip then
-     * says "In the outbox: …" over a LIVE send button, before anything has left at all.
-     *
-     * And the button's label is not constant: a greyed "Send" beside a line saying the answer is
-     * already queued is a button that lies about the state it is in.
      */
     @Test fun `each state wears its own line and its own button label`() {
         assertEquals(
@@ -270,13 +217,6 @@ class ReadReceiptStripTest {
 
     /**
      * SOURCE LINT, NOT A MEASUREMENT. Compose is not run here; these rules read the strip as text
-     * and would still pass if it laid out wrong. What they hold is what a reviewer cannot see: the
-     * height floor, that every ordinary state stands on the same button, and which gesture each
-     * callback is.
-     *
-     * Whole lines, never `contains` for something expected to be present: a substring check is
-     * blind to any mutation that LENGTHENS the line, and that blindness has cost this repo three
-     * defects.
      */
     @Test fun `the strip stands on a button, with a height floor and no padding of its own`() {
         val strip = stripLines()
@@ -293,8 +233,6 @@ class ReadReceiptStripTest {
 
     /**
      * EVERY COMPOSABLE THE STRIP MAY DRAW, IN ORDER — the rule written the other way round, so
-     * it goes red on a line ADDED as well as on one removed. A second sentence, a badge or an icon
-     * beside the line is a second shape and therefore another height.
      */
     @Test fun `the strip draws these composables and no others`() {
         val drawn = stripLines().mapNotNull { line -> DRAW_CALL.find(line)?.value }
@@ -330,12 +268,6 @@ class ReadReceiptStripTest {
 
     /**
      * THE BUTTON, and the two things about it that a swap makes invisible: it fires the SEND,
-     * and it is drawn UNCONDITIONALLY — in every state, not only in those that can be pressed.
-     *
-     * `if (body.acts) { TextButton(…) }` reads like a tidy-up and is the measured defect: the
-     * queued state would fall back to a bare line, the header would lose the button's height, and
-     * the body's document would be re-keyed under the reader. The rule is therefore written as an
-     * enumeration of the strip's `if`s, so it goes red on a condition ADDED as well as removed.
      */
     @Test fun `the one button is drawn in every state, and it sends`() {
         val strip = stripLines()
@@ -388,11 +320,6 @@ class ReadReceiptStripTest {
 
     /**
      * THE PRESENCE OF THE ROW READS THE OFFER, and its divider goes with it.
-     *
-     * Pinned whole, because the two cheap mistakes here are invisible everywhere else: drawing the
-     * row unconditionally leaves a divider and an empty band in the header of every message in the
-     * app, and drawing it on `readReceiptState != Idle` would make the question — the only state
-     * that can send anything — the one state that never appears.
      */
     @Test fun `the header draws the strip on the decision, last, with its own divider`() {
         val header = headerLines().filterNot { it.startsWith("//") }
@@ -423,10 +350,6 @@ class ReadReceiptStripTest {
 
     /**
      * The reader's two flows, collected, and the two callbacks, wired the right way round.
-     *
-     * `onSendReadReceipt = viewModel::declineReadReceipt` compiles, has the same signature, and
-     * makes the button do nothing at all; the swap the other way answers a stranger on a reader who
-     * refused. Nothing else in this suite can see either.
      */
     @Test fun `the screen collects the offer and the state, and wires both gestures by name`() {
         val screen = screenLines()
@@ -552,12 +475,6 @@ class ReadReceiptStripTest {
 
         /**
          * What the screen must carry, whole, from the ViewModel down to the row.
-         *
-         * Every hand-over of the two lambdas is BY NAME, at all three levels. They have the same
-         * type, so a positional call plus a swap of two lines in a signature compiles and wires
-         * the refusal to the send — the cross would then queue a receipt to a stranger while the
-         * button did nothing, and no rule reading either file in isolation could see it. Named,
-         * that mistake cannot be expressed; these lines are what keeps it that way.
          */
         val WIRING = listOf(
             "val readReceiptOffer by viewModel.readReceiptOffer.collectAsStateWithLifecycle()",
@@ -568,12 +485,6 @@ class ReadReceiptStripTest {
 
         /**
          * Every hand-over between the three levels, by name — `ConversationBody`'s and
-         * `MessageHeader`'s.
-         *
-         * The two lambdas are the dangerous pair and the reason this rule exists. The offer and
-         * the state joined them when the header's argument list grew past the point where anyone
-         * could count positions by eye: a header taking a dozen arguments, four of them ours, is
-         * read by nobody, and one slid into the wrong slot compiles.
          */
         val NAMED_HANDOVERS = mapOf(
             "onSendReadReceipt = onSendReadReceipt," to 2,

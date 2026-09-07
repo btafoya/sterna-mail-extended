@@ -12,8 +12,6 @@ import org.junit.Test
 
 /**
  * The reader's Reply/Forward bar switch (#63) must travel in a settings backup like every other
- * preference. The same three checks as [SettingsBackupSignatureTest], for the same reason it
- * states: a setting that silently fails to restore is worse than one that does not exist.
  */
 class SettingsBackupReplyBarTest {
 

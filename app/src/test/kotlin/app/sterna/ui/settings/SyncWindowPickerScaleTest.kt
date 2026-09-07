@@ -9,18 +9,6 @@ import java.io.File
 
 /**
  * What the "Messages to sync" row OFFERS, and the weld between each offered number and the label it
- * is shown under, in all nine languages.
- *
- * The decision itself is a pure function and is EXECUTED here (`syncWindowChoices()`); the screen is
- * a Composable and this module has neither Robolectric nor instrumented tests, so the two lines that
- * plug it in — the `options =` argument and the label `when` — are read as text, whole lines, never
- * a fragment (a `contains` is blind to every mutation that LENGTHENS a line, and
- * `options = syncWindowChoices() + SyncWindow.ALL` is exactly that shape).
- *
- * Why "offered" and "existing" are two different questions. The retired windows (50 / 200 / 500 /
- * "Everything") stay in the enum for ever — their names are the persisted format and deleting one
- * empties every account list that carried it (`SyncWindowStoredNameTest`). So the picker may not
- * show them, and the label `when` must still be able to name them.
  */
 class SyncWindowPickerScaleTest {
 
@@ -66,12 +54,6 @@ class SyncWindowPickerScaleTest {
     @Test fun `the row shows the window the account CARRIES, never one chosen from the offer`() {
         // The survivor an audit found, and it is the worst shape in this volet:
         //     selected = syncWindowChoices().firstOrNull { it == syncWindow } ?: syncWindowChoices().last()
-        // Every other pin here stays green — the `options =` line is untouched, the token
-        // "SyncWindow." does not appear, and the label `when` is not even consulted. What it does
-        // is make the four RETIRED windows unshowable: an account on COUNT_50 would read
-        // "10,000 messages" while caching fifty, and closing the screen without touching anything
-        // writes nothing, so the lie is permanent and silent. That is the exact opposite of the
-        // promise this whole volet is built on.
         //
         // A dialog with NO radio ticked on an unmigrated account is the ACCEPTED cost of that
         // promise: the summary line tells the truth, and nothing is invented to fill a circle.

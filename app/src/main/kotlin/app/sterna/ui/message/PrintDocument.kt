@@ -5,8 +5,6 @@ import app.sterna.core.jmap.model.EmailAddress
 
 /**
  * The header lines of the message to print, ALREADY formatted by the caller: the subject resolved
- * (or the localised "(no subject)"), each participant as "Name <address>" and joined by ", ", the
- * date through `MailDates.formatFull`. Nothing here is escaped yet — [buildPrintDocument] does it.
  */
 internal data class PrintHeader(
     val subject: String,
@@ -22,13 +20,6 @@ internal data class PrintLabels(val from: String, val to: String, val cc: String
 
 /**
  * The complete HTML document to hand to Android's print service — distinct from the reader's
- * ([buildHtmlDocument]) on purpose: that one carries two `vh` bands and inverts the page in dark
- * theme, and paper has neither a header to clear nor a dark theme. Pure: no `Context`, no resource,
- * and [body] is the fragment [readerBody] already decided for the screen.
- *
- * One deliberate exception: the QUOTED history is printed in full, because a sheet does not unfold.
- * That holds by construction — [foldTopLevelQuotes] is called only from [buildHtmlDocument] — so it
- * is pinned by PrintDocumentTest's `the print document never folds the quoted history away`.
  */
 internal fun buildPrintDocument(
     header: PrintHeader,
@@ -82,8 +73,6 @@ internal fun buildPrintDocument(
 
 /**
  * Replace every `cid:` reference in [html] by its data URI — the message's own inline images,
- * which no WebView could fetch by itself. Shared by the reader's document and the print one so the
- * two cannot drift: both spellings, `cid:x` then `cid:<x>`, in that order.
  */
 internal fun embedInlineImages(html: String, inlineImages: Map<String, String>): String {
     var out = html
@@ -95,16 +84,11 @@ internal fun embedInlineImages(html: String, inlineImages: Map<String, String>):
 
 /**
  * The name the print job carries in the system's print queue and in the PDF it may save: the
- * message's subject, trimmed, and the app's name when there is none — a blank job name is what
- * Android shows as an empty row.
  */
 internal fun printJobName(subject: String, appName: String): String = subject.trim().ifBlank { appName }
 
 /**
  * Defang the message's own `prefers-color-scheme: dark` media queries by appending an always-false
- * condition. Android WebView ignores a declared `color-scheme` and matches the device's theme, so
- * without this a marketing email renders its dark variant — on the reader's page (where the invert
- * then turns it light, the "white band" bug) and on paper alike. Shared by both documents.
  */
 internal fun neutraliseDarkModeStyles(html: String): String = html.replace(
     Regex("""prefers-color-scheme\s*:\s*dark""", RegexOption.IGNORE_CASE),
@@ -113,8 +97,6 @@ internal fun neutraliseDarkModeStyles(html: String): String = html.replace(
 
 /**
  * A participant as paper wants it: `Name <address>`, or the bare address — unlike the screen's
- * [EmailAddress.display], which shows the name alone because the address is one tap away. On paper
- * nothing is one tap away.
  */
 internal fun printAddress(address: EmailAddress): String {
     val name = address.name?.trim().orEmpty()

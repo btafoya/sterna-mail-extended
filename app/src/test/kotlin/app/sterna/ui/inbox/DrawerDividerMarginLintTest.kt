@@ -6,36 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
- *
- * It reads `InboxScreen.kt` as text. It proves NOTHING about what the drawer draws: there is no
- * Compose harness in this repo, `InboxScreen` is not instantiable on the JVM, and a margin is a
- * pixel fact no executing test here can measure. What it CAN do is pin, as whole units, the one
- * line that puts air under the divider closing the account list — and pin that the air was not
- * moved onto the entries instead.
- *
- * What the reader sees when the rule falls (issue #179): the entry right under the divider is
- * selectable, and when it IS selected Material draws it as a filled rounded pill. With no margin
- * on the divider, that pill starts flush against the hairline — the fill touches the rule, and the
- * drawer reads as one smeared block instead of a list closed by a line.
- *
- * The mutations it exists for, every one of which compiles and leaves everything else green:
- *  - the margin dropped: `HorizontalDivider()` again, the pill back against the line;
- *  - `top = 12.dp` in place of `bottom`: the air lands ABOVE the divider, where `:738`/`:831`
- *    already pay 8–10 dp of bottom padding, and the pill below is still glued;
- *  - `vertical = 12.dp`: doubles that upper gap, so the account block floats off the divider;
- *  - the value changed (`4.dp`, `24.dp`, or `bottom = 12.dp * 0`, which a `contains` on the
- *    fragment would happily accept) — 12 dp is the inset the drawer entries already carry
- *    horizontally and the only in-repo value of a divider paying its own margin
- * (`SettingsScreen`, `:2092`);
- *  - the margin moved onto the items — `Modifier.padding(horizontal = 12.dp, top = 12.dp)` on
- *    "All inboxes" only, which leaves the single-account install (where "Unread" is the row under
- *    the line) exactly as glued as before;
- *  - a fourth `HorizontalDivider()` in the file given the margin instead of this one: the rule is
- *    anchored on the guard that carries `selectUnified`, not on a line number.
- *
- * Every rule compares a WHOLE unit — the whole call, the whole argument. A `contains` on a
- * fragment is blind to any mutation that LENGTHENS it. The price is that a reformat reddens this
- * file; that direction of error is loud and one line to fix.
  */
 class DrawerDividerMarginLintTest {
 
@@ -57,10 +27,6 @@ class DrawerDividerMarginLintTest {
 
     /**
      * The counterpart, and the reason the rule above is about the DIVIDER: the margin belongs to
-     * the line, never to the rows. Put on "All inboxes" it fixes nothing for a single-account
-     * install, where "Unread" is the row against the line; put on both it drifts apart from the
-     * folder rows below. `UnreadViewWiringLintTest` pins the unread entry's whole argument list and
-     * would redden too — this rule says so out loud, and covers the unified entry it does not read.
      */
     @Test
     fun `the entries under the divider did not take the margin instead`() {
@@ -82,10 +48,6 @@ class DrawerDividerMarginLintTest {
 
     /**
      * The `HorizontalDivider(...)` call that closes the account list, whole.
-     *
-     * Anchored on the `if (accounts.size > 1)` block holding `selectUnified(` and taken as the last
-     * divider before it — never by line number, which the first insertion above would rot. There
-     * are four `HorizontalDivider()` in the file and the other three are somebody else's.
      */
     private fun accountsDividerCall(): String {
         val text = codeText(INBOX_SCREEN)
@@ -198,9 +160,6 @@ class DrawerDividerMarginLintTest {
 
     /**
      * [file] as ONE line of code: comments taken out, runs of whitespace collapsed — so a call the
-     * formatter spreads over eight lines reads like one written on a line. Same scanner as
-     * `UnreadViewWiringLintTest`'s, and for the same reason: a `//` inside a string literal is not
-     * a comment, and a line starting with `*` is not always a comment either.
      */
     private fun codeText(file: File): String = strippedLines(file).joinToString(" ")
         .replace(Regex("""\s+"""), " ").trim()

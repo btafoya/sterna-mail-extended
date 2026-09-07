@@ -6,13 +6,6 @@ import java.util.Base64
 
 /**
  * [MimeParser.decodedHeaderValue] — the same sanitising door as [MimeParser.decodedHeaderOf], for
- * a value that has ALREADY been separated from its message.
- *
- * That is the whole difference and the whole reason it exists: `decodedHeaderOf` takes `(raw,
- * name)` and can only serve a caller holding the message source. JMAP hands over header fields as
- * name/value pairs, with no source to read (#160), and [decodeWords] and the two filters under it
- * are `internal` to this module — so the value has to come here rather than a second copy of the
- * chain growing where it is needed.
  */
 class DecodedHeaderValueTest {
 

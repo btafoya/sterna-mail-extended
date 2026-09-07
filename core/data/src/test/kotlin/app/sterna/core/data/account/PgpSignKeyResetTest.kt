@@ -5,10 +5,6 @@ import org.junit.Test
 
 /**
  * Executes the transformation that runs when the user switches OpenPGP app. Expectations are
- * written out by hand, never recomputed from the function under test.
- *
- * It is the half of the reset a JVM test can reach; the other half — that [AccountStore] actually
- * calls it, on the whole list — is pinned by [AccountStorePgpResetWiringTest].
  */
 class PgpSignKeyResetTest {
 

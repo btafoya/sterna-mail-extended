@@ -13,23 +13,6 @@ import java.sql.DriverManager
 
 /**
  * **v19 → v20** ([MIGRATION_19_20]): `emails` gains `replyToJson`, the sender's `Reply-To`
- * addresses (see [EmailEntity.replyToJson]).
- *
- * Built like [EmailsMigrationSqlTest]: the REAL [androidx.room.migration.Migration] objects are
- * executed against a real SQLite engine (JDBC, in memory) through a tiny [SupportSQLiteDatabase]
- * proxy, starting from the PUBLISHED v15 schema and chained up to a real v19 — never from a copy
- * of the statements, so this test cannot drift from the code that ships.
- *
- * The stake is not the column. `SternaDatabase` ends its builder with
- * `fallbackToDestructiveMigration()`: a schema bump whose migration is missing or wrong makes Room
- * DROP the whole database — the outbox included, i.e. mail written and never sent, and the
- * snoozed rows. So the seed deliberately holds a queued outbox row and a snooze, and every table's
- * row count is compared before and after.
- *
- * Three things are therefore pinned, not one: that the migration WORKS, that the column it adds has
- * the exact shape Room re-validates at open time (affinity, nullability, default), and that the
- * migration is REGISTERED — chained from [SternaDatabase.ALL_MIGRATIONS], the array the builder
- * actually passes to `addMigrations`, since a migration missing from it never runs at all.
  */
 class ReplyToMigrationSqlTest {
     private lateinit var db: Connection
@@ -159,8 +142,6 @@ class ReplyToMigrationSqlTest {
 
     /**
      * A REAL v19 database: the published v15 schema, populated, then carried forward by the very
-     * migration objects that ship — 15→16, 16→17, 17→18, 18→19 — and populated again in the
-     * tables those migrations create.
      */
     private fun seedV19() {
         seedPublishedV15()
@@ -195,9 +176,6 @@ class ReplyToMigrationSqlTest {
 
     /**
      * The DECLARED shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`,
-     * not just its name. Room's `TableInfo.Column.equals` compares the affinity, the nullability
-     * and the default, so a column of the right name and the wrong type fails `validateMigration`
-     * at open time — a crash on every launch, whose only way out is a reinstall.
      */
     private fun columnShapes(table: String): Map<String, Triple<String, Int, String?>> {
         val shapes = mutableMapOf<String, Triple<String, Int, String?>>()
@@ -352,12 +330,6 @@ class ReplyToMigrationSqlTest {
 
     /**
      * Chains the migrations Room is really given ([SternaDatabase.ALL_MIGRATIONS]) over a published
-     * install, and looks at where they arrive.
-     *
-     * A migration object that works perfectly and is absent from that array never runs: Room finds
-     * no path, `fallbackToDestructiveMigration()` takes over and `dropAllTables()` empties the
-     * database — the outbox with it. So the step objects are taken FROM the registered array, in
-     * ascending order, and the chain must be unbroken.
      */
     @Test fun theRegisteredMigrationsCarryAPublishedInstallAllTheWayToTheReplyToColumn() {
         seedPublishedV15()
@@ -392,8 +364,6 @@ class ReplyToMigrationSqlTest {
 
     /**
      * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
-     * annotation is not retained at runtime, so it cannot be read reflectively (measured:
-     * `getAnnotation(Database::class.java)` returns null in this very test source set).
      */
     @Test fun theRegisteredMigrationsReachTheSchemaVersionRoomIsToldToOpen() {
         val reached = SternaDatabase.ALL_MIGRATIONS.filter { it.startVersion >= 15 }.maxOf { it.endVersion }

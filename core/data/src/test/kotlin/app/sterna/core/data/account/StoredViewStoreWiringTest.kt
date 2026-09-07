@@ -5,25 +5,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, same instrument and disclaimer as [UploadSentCopyStoreWiringTest]: it reads
- * `AccountStore.kt` as text and proves nothing about a running store. Nothing in this module can
- * build one (it wants a `Context` and the Keystore, and there is no Robolectric here).
- *
- * It exists because these three lines are the ONLY production code of the drawer-memory change
- * that no test executes. The decision itself is run — `SelectionMemoryTest` calls
- * `encodeSelection`/`restoreSelection` on the JVM — and the wiring is pinned by
- * `SelectionMemoryWiringLintTest`; in between sit a getter, a setter and a key, and every one of
- * these compiles with the whole suite green:
- *  - `fun setStoredView(value: String?) { if (prefs.contains(KEY_VIEW)) return; … }` — the memory
- *    freezes on the FIRST view ever stored and every later one is dropped, so the app reopens on a
- *    folder the reader left weeks ago;
- *  - `fun storedView(): String? = prefs.getString(KEY_CURRENT, null)` — the read answers the
- *    ACCOUNT id, `restoreSelection` sees a one-part string, and the feature silently does not
- *    exist;
- *  - `const val KEY_VIEW = "current"` — the same collision written one line higher, which also
- *    overwrites the stored current account and loses the account across a cold start.
- *
- * Whole trimmed lines, never a `contains`: what goes wrong here reads as an APPENDED guard or a
- * swapped constant, and a fragment match is blind to a line that only got longer.
  */
 class StoredViewStoreWiringTest {
 
@@ -65,9 +46,6 @@ class StoredViewStoreWiringTest {
 
     /**
      * [count] consecutive CODE lines of `AccountStore.kt` from the single one starting with
-     * [prefix], trimmed. Comments and blank lines are dropped first, so no rule can be satisfied by
-     * prose; a prefix matching anything other than exactly one line returns a message, so an
-     * assertion can never pass by matching nothing.
      */
     private fun block(prefix: String, count: Int): List<String> {
         val path = "core/data/src/main/kotlin/app/sterna/core/data/account/AccountStore.kt"

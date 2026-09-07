@@ -7,63 +7,11 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads TWO sources as TEXT — `ComposeViewModel.kt`,
- * where the flag is set, and `ComposeScreen.kt`, where it is handed on — and proves nothing
- * whatsoever about what runs: no composer is built here, no `prepare()` is called, no flow is
- * collected. Nothing in this file says the composer is "tested"; it is not, and there was no defect
- * to fix when these rules were written — the wiring they pin is correct today and they exist to
- * keep it that way.
- *
- * What is pinned is the WHOLE chain, as text, link by link: the write in `prepare`, WHERE in
- * `prepare` that write stands, the field it writes to and the flow that exposes it, the line the
- * screen collects that flow in, and the argument handed to the predicate. Cutting ANY one of those
- * links loses the message while every executed test in the repo stays green — which is why they are
- * pinned as text and not inferred from one another.
- *
- * And, since the chain only carries the truth if it is handed one, the chain's PREMISE: that the
- * draft kept for the undo names no queued row. That premise is held by an OMISSION in `sendInternal`
- * — a field simply not named at a construction site — so it is pinned as an omission, negatively.
- * None of it is executed here.
- *
- * Why text is the only instrument available: `ComposeViewModel` is an `AndroidViewModel` reaching
- * for `Application`, `AppContainer` and Room, and this module has neither Robolectric nor
- * `compose-ui-test` — no JVM test in the repo instantiates it. The DECISION that depends on the
- * flag is executed: [ComposeDirty.isDirty] is pure and [ComposeDirtyTest] runs it, including the
- * `onlyCopy = true` case. What no executed test can see is whether this class still FEEDS it the
- * right value, from the one place that knows the fact.
- *
- * The fact in question: reopening after "Undo" on the send banner destroys the outbox row and its
- * staged directory, so the message exists ONLY on this screen and only in RAM. `_onlyCopy = true`
- * is what makes `dirty` true with nothing typed, which is what makes the back gesture ask
- * "Discard message?" instead of closing. Inverting the feed silences that dialog on the single
- * path where it protects anything, and every executed test — [ComposeDirtyTest] included — stays
- * green, because the pure function is still correct; it is just never told.
- *
- * WHAT IT DOES NOT COVER, said plainly:
- *  - that `prepare` is ever called, or called with `restore = true` on the undo path;
- *  - that `outbox.restored.value` carries a null `editingOutboxId` at RUNTIME after an undo. One
- *    rule below reads the one place that builds that record, and reads it as text: it sees that the
- *    field is not named there. It does not see the queue, the hold window, `SendOutbox` itself, any
- *    other construction of a `ComposeDraft`, nor that the record reaching `prepare` is that one;
- *  - that the lambda holding the pinned write ever runs, or runs with a non-null `restored` — the
- *    position rule reads where the line is WRITTEN, which is not where it executes;
- *  - that the verdict `ComposeDirty.isDirty` returns reaches the back handler or the dialog, or
- *    that the dialog is shown at all — the argument handed to that call is pinned below, as text,
- *    and the chain after it is not;
- *  - anything at all about what is drawn, or about the order these lines run in at RUNTIME beyond
- *    the order they are written in.
  */
 class OnlyCopyWiringTest {
 
     /**
      * WHOLE LINES, never `contains`. The mutation this rule exists for is
-     * `d.editingOutboxId != null` — one character — and the mutation a substring check cannot see
-     * is `d.editingOutboxId == null || true`, which LENGTHENS the line and slips through every
-     * `"…" in body` written in this repo.
-     *
-     * The two lines are pinned together and in order because they are two faces of one fact: the id
-     * that says which queued row this composer is editing, and the flag that says there is no such
-     * row and therefore no other copy. Reading the id and not settling the flag beside it is the
-     * same defect written differently.
      */
     @Test fun `the undone send is marked as the only copy, from the id and nothing else`() {
         val body = bodyOf("bindQueuedRow")
@@ -95,20 +43,6 @@ class OnlyCopyWiringTest {
 
     /**
      * The census the rule above cannot see through. It reads the body of `prepare` only; a
-     * `_onlyCopy.value = false` written ANYWHERE else in the file — in `abandon`, in a `reset`, in
-     * a text-changed callback — falls outside it and used to pass. So EVERY line of this file that
-     * names the flag is listed here, whole and in the order it is written: the declaration, the
-     * exposure, and the one write. A second one has to be argued for here before it can exist.
-     *
-     * The filter names `_onlyCopy`, not `_onlyCopy.value`, because the field is a
-     * `MutableStateFlow`: `tryEmit(false)`, `emit(false)` and `update { false }` are writes too,
-     * they walked straight through a `.value` filter unseen, and they win the way any second write
-     * wins — by running later.
-     *
-     * Sweeping the whole name in also catches the link no other rule here can see: swap
-     * `_onlyCopy.asStateFlow()` for `MutableStateFlow(false).asStateFlow()` and `prepare` still
-     * writes the truth, into a flow nobody collects, while the screen reads false for ever. That
-     * line falls out of this list, so this rule reddens.
      */
     @Test fun `every line naming the flag in the file is one of these three`() {
         val lines = codeLines(COMPOSE_VIEW_MODEL)
@@ -132,23 +66,6 @@ class OnlyCopyWiringTest {
 
     /**
      * The link BETWEEN the two files, pinned as a whole line. The rule above watches the flow
-     * being exposed and the rule below watches the argument reaching the predicate; neither sees
-     * the single line that joins them. Replace it with `val onlyCopy = false` and every other rule
-     * in this file stays green, [ComposeDirtyTest] stays green, and a composer reopened by "Undo"
-     * on the send banner closes on the back gesture in silence, with the only copy of the message
-     * in it.
-     *
-     * WHOLE LINE, never `contains`: `…collectAsStateWithLifecycle().let { false }` LENGTHENS the
-     * line and walks through any substring check.
-     *
-     * And a CENSUS of every `val`/`var` named `onlyCopy` on this screen, not just of the one line
-     * that reads the view model. The rule below compares the TEXT handed to the verdict, so it
-     * cannot tell which declaration that name is bound to — the first hole of `CONTRIBUTING.md`.
-     * Measured, not assumed: a second `val onlyCopy` in the SAME block is refused by the compiler
-     * ("Conflicting declarations"), so that shape needs no lint. What this census adds is the shape
-     * the compiler accepts — a declaration of the name somewhere else in the file, which is where a
-     * rewrite that wrapped the verdict in a scope of its own would put one. It shows up here as an
-     * extra line, and has to be argued for.
      */
     @Test fun `the screen collects the flag from the view model, in this one line`() {
         assertEquals(
@@ -168,11 +85,6 @@ class OnlyCopyWiringTest {
 
     /**
      * The value the screen HANDS the verdict, parsed out of the call and compared whole.
-     * [ComposeDirty.isDirty] is pure and [ComposeDirtyTest] EXECUTES it, `onlyCopy = true` case
-     * included — so the rule is watched, and the argument feeding it is not, by anything else. It is
-     * parsed and not searched for on purpose: `onlyCopy && false` LENGTHENS the line and walks
-     * straight through a `"onlyCopy = onlyCopy" in source`, while here it comes out as a different
-     * value.
      */
     @Test fun `the screen still hands the flag to the leave guard`() {
         val call = callsOf(withoutComments(COMPOSE_SCREEN.readText()), "ComposeDirty.isDirty(").single()
@@ -190,36 +102,6 @@ class OnlyCopyWiringTest {
 
     /**
      * WHERE the write stands, which the rule above cannot see. That rule compares the TEXT of
-     * `_onlyCopy.value = d.editingOutboxId == null`; the file census compares the same text again.
-     * Both are satisfied by a line that has not changed by one character and has moved out of the
-     * `handed?.let { d -> … }` it belongs in — the third hole of `CONTRIBUTING.md`:
-     * textual order is not execution order, and a pinned line says nothing about its position in a
-     * control structure.
-     *
-     * Why the position carries the meaning: outside that lambda the line runs even when NOTHING
-     * was handed over — `restore=true` after the app was killed, an empty composer with nothing to
-     * lose. Rewritten to compile out there (`outbox.restored.value?.editingOutboxId == null`, which
-     * reads like a tidy-up) it then answers TRUE for the empty screen, and the invariant stated at
-     * the head of the restore branch — nothing handed over means an empty composer, so the flag
-     * stays false (#96) — is gone. Measured, not assumed: THAT rewrite also changes the text of
-     * the line, so the two text rules above redden with this one, and here this rule is only a
-     * second opinion carrying a message that names the position. It is the mutation below that
-     * they cannot see at all.
-     *
-     * The two lines are compared as the LAST two of that block, not merely as members of it: a
-     * write buried in a branch inside the lambda — `if (…) { _onlyCopy.value = … }`, the same shape
-     * as `CONTRIBUTING.md`'s assignment moved into a `catch` — keeps its text, keeps its order, and
-     * would satisfy a membership check. It is a closing brace that gives it away here. The price is
-     * that a statement APPENDED to the restore path reddens this rule: that is deliberate, the
-     * write must stay the last thing this branch does before the row is consumed.
-     *
-     * The second assertion pins the boundary the write sits against: `outbox.consumeRestored()` is
-     * the very next line after the lambda, so nothing can be slipped between the write and the
-     * consume, and the write cannot drift past the consume that clears what it reads.
-     *
-     * This rule pins a POSITION, not the surrounding text: it does not read, and must not be
-     * taken to protect, the comment at the head of the restore branch or the one above the write —
-     * those two comments ARE the invariant, in prose, and this lint neither states nor rewrites them.
      */
     @Test fun `the flag is written inside the restored draft, just before the row is consumed`() {
         val body = prepareBody()
@@ -265,37 +147,6 @@ class OnlyCopyWiringTest {
 
     /**
      * The PREMISE of every rule above, and the only one of them that is held by an OMISSION.
-     * `prepare` decides "this is the only copy" from `d.editingOutboxId == null`; that id is null
-     * for an undone send only because the draft built for the undo in `sendInternal` DOES NOT NAME
-     * the field, and takes the data class default (`SendOutbox.kt`, where the documentation states
-     * the rule: null for an undone send, that message lives only on this screen, the row is gone).
-     *
-     * Name the field there — by symmetry with another construction site, which reads as a
-     * correction — and `d.editingOutboxId` stops being null, `onlyCopy` becomes false, the back
-     * gesture closes an undone send in silence and the message is lost. Every other rule in this
-     * file stays green: not one of their lines has moved. That is the first hole of
-     * `CONTRIBUTING.md` — an argument name says nothing about what the name is bound to — and here
-     * the argument that matters is the one nobody wrote.
-     *
-     * The ONE line allowed to name the field is the lost-body refusal's `holdsStoredDraft`,
-     * pinned whole above: it READS the id — a queued row parked `EDITING` behind Outbox → Edit
-     * still holds the text, so the refusal owes "close and reopen the message" rather than the
-     * destructive "type it again" — and it sits above `consumeEditingOutbox()`, so it cannot put
-     * an id anywhere. It is pinned as text, not tolerated as a substring: shortening it, or naming
-     * the field on any second line, reddens this rule.
-     *
-     * This rule forbids ONE field at ONE site, and nothing else about that construction:
-     *  - `consumeEditingOutbox()` stays ABOVE it — the row taken out for editing is dropped from
-     *    the queue rather than given back (#70), which is exactly why the record built below can
-     *    name no row. Not asserted here;
-     *  - `draftEmailId`, `draftUidValidity`, `draftBodyIsLossy` and `requestReceipt` MUST keep
-     *    being named — without them an undone send could no longer destroy the draft it replaces,
-     *    or would destroy one it must spare. They are pinned by their own rules elsewhere
-     *    (`DraftVerdictWiringTest`, `DraftNumberingCarriedWiringTest`, `ReadReceiptWiringTest`).
-     * Do not read this rule as "name nothing here".
-     *
-     * It reads `sendInternal`, not `send`: `fun send(` is expression-bodied, so the brace-walking
-     * helper below runs straight past it into the next function that has a body.
      */
     @Test fun `the draft kept for undo names no queued row`() {
         val body = bodyOf("sendInternal")
@@ -349,8 +200,6 @@ class OnlyCopyWiringTest {
 
     /**
      * [body] split at the `handed?.let { d -> … }` block: what is INSIDE it, and
-     * what follows its closing brace. Braces are walked, not searched for, so a line that keeps its
-     * text and changes block shows up on the other side of the pair.
      */
     private fun restoredLambda(body: String): Pair<String, String> {
         val at = body.indexOf(RESTORED_LAMBDA)
@@ -417,8 +266,6 @@ class OnlyCopyWiringTest {
 
     /**
      * The arguments of every `[call]…)` in [body], as name → value expression; positional arguments
-     * are keyed `#0`, `#1`, …  Recopied from `ReadReceiptWiringTest`, which reads the very same
-     * call for its own argument.
      */
     private fun callsOf(body: String, call: String): List<Map<String, String>> {
         val calls = mutableListOf<Map<String, String>>()
@@ -489,8 +336,6 @@ class OnlyCopyWiringTest {
 
     /**
      * [source] with every comment removed, string literals untouched. Recopied from
-     * `ReadReceiptWiringTest`, where it is called `codeOf`; renamed here because this file already
-     * has a `codeOf` of its own, over the lines of a body.
      */
     private fun withoutComments(source: String): String {
         val out = StringBuilder()

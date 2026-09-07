@@ -7,14 +7,6 @@ import java.nio.charset.Charset
 
 /**
  * The envelope's `Reply-To` (index 4), read off a real socket.
- *
- * When a sender sets `Reply-To` it is not decoration: a mailing list, a ticketing alias or a
- * `no-reply@` sender doubled with a `support@` is saying, in the message, that the From address is
- * not read. Answering the From then looks like a sent reply and is a message nobody receives.
- *
- * The envelope's four address slots sit next to each other — from (2), reply-to (4), to (5),
- * cc (6) — so every case here puts a DIFFERENT address in each: an assertion that cannot tell
- * index 4 from index 6 is not an assertion.
  */
 class ReplyToEnvelopeTest {
 
@@ -73,8 +65,6 @@ class ReplyToEnvelopeTest {
 
     /**
      * THE SLOT, not merely "an address". `cc` is the very next envelope field and carries an
-     * address that has not asked for anything: a reply sent there goes to a bystander while the
-     * one the sender designated gets nothing. This test is what an off-by-one dies on.
      */
     @Test
     fun `the cc addresses are not mistaken for the reply-to`() {
@@ -96,10 +86,6 @@ class ReplyToEnvelopeTest {
 
     /**
      * No `Reply-To` at all — the common case, and the pre-existing behaviour: an empty list.
-     *
-     * The envelope still carries a `sender` (slot 3) here, and that is the point: a fallback to
-     * it, the plausible "robustness" a later fix adds in good faith, would send every answer to a
-     * mailing list's bounce address — an automated mailbox, i.e. the original symptom turned round.
      */
     @Test
     fun `a message without reply-to has an empty list, not a borrowed address`() {
@@ -127,9 +113,6 @@ class ReplyToEnvelopeTest {
 
     /**
      * The address is not displayed and forgotten, it is REPLIED TO. An internationalised address
-     * (RFC 6531, which Stalwart speaks) is non-ASCII, so a conforming server can only hand it over
-     * as a literal — the same treatment `From` already gets, or the reply leaves for an address
-     * that does not exist.
      */
     @Test
     fun `an EAI reply-to address is decoded, not left as octets`() {

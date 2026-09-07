@@ -8,15 +8,6 @@ import org.junit.Test
 
 /**
  * What the "you are leaving without saving" dialog is allowed to claim (#70/#35).
- *
- * The defect it exists to close: a message reopened from the Outbox keeps its row there, so leaving
- * hands it back — while the dialog said "Discard message?" and offered a "Discard" button. The user
- * believed they had destroyed a mail that was still there.
- *
- * There is deliberately no input for where that row lands. `OutboxLogic.stateAfterEdit` sends a
- * spent send back to FAILED and everything else back to QUEUED, so a single wording has to be true
- * of both — which is why it says the message stays in the outbox and stops there, rather than
- * promising it will go out.
  */
 class DiscardWordingTest {
     @Test fun anOrdinaryComposerSaysTheOrdinaryThing() {
@@ -89,10 +80,6 @@ class DiscardWordingTest {
     @Test fun onlyAMessageThatExistsNowhereElseMayBeAnnouncedAsDestroyed() {
         // The rule stated once over the whole input space, so a later branch cannot quietly widen
         // the one title that claims destruction. PLAIN is that title; everything with a copy
-        // somewhere else (a server draft, an outbox row) must say something else — and must SAY SO
-        // through `keepsMessage`, which is what the title and the discard button are drawn from.
-        // Without that second assertion a new variant could be added, be correctly reached, and
-        // still be titled "Discard message?" on screen.
         listOf(true, false).forEach { mayKeepDraft ->
             listOf(true, false).forEach { editingOutbox ->
                 listOf(true, false).forEach { editingDraft ->
@@ -125,9 +112,6 @@ class DiscardWordingTest {
     @Test fun anUndoneSendStartedFromADraftStillHasThatDraftBehindIt() {
         // THE hole, and it is the reported symptom reached by another path. A send started from a
         // draft leaves that draft in Drafts until the message is DELIVERED; Undo only removes the
-        // queued row. The composer is then reopened with restore=true and NO draftId in the route,
-        // so a rule reading the route alone said "nothing behind this screen" and the dialog
-        // announced the destruction of a draft that is still on the server.
         assertTrue(savedDraftBehindScreen(draftId = null, restoredDraftId = "d1"))
     }
 
@@ -167,9 +151,6 @@ class DiscardWordingTest {
     @Test fun whereTheMessageIsOutranksWhyItCannotBeADraft() {
         // Reached by closing the padlock BY HAND on a message reopened from the outbox — an already
         // encrypted row cannot be reopened at all (OutboxLogic.canEdit refuses it, its ciphertext
-        // is not in the row). The encrypted wording ends on "Leaving now discards the message",
-        // which is false here: the row is still in the outbox. An outbox wording wins, because it
-        // is the one that says what actually became of the mail.
         assertTrue(discardWording(editingOutbox = true, mayKeepDraft = false, editingDraft = false).fromOutbox)
     }
 

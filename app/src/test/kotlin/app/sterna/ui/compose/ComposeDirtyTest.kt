@@ -11,8 +11,6 @@ import org.junit.Test
 
 /**
  * The unsaved-changes guard must fire on a real edit and stay quiet on a close that changed nothing
- * (#70/#94): reopening a queued message with a Cc and an attachment, or tapping a chip to edit an
- * address, is not an edit.
  */
 class ComposeDirtyTest {
     private fun dirty(

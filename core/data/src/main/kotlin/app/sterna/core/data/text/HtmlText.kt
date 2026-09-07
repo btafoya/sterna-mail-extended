@@ -39,8 +39,6 @@ fun htmlToText(html: String): String =
 
 /**
  * Decode HTML character references in [s]: common named ones plus every numeric reference
- * (`&#233;` / `&#xE9;`). Single pass, so `&amp;lt;` decodes to the literal text `&lt;` rather
- * than being decoded twice. An unknown or out-of-range reference is left verbatim.
  */
 fun unescapeEntities(s: String): String =
     ENTITY_REF.replace(s) { m ->

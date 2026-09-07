@@ -425,9 +425,6 @@ class ImapMailService(
 
     /**
      * Connect, list folders, and WALK the newest [limit] of the target folder, handing each page to
-     * [onPage] as it lands. [onlySubscribed] is asked of the SERVER (the `LSUB` that fills
-     * [MailboxEntity.isSubscribed], #174); [ImapFolderLoad.walk] carries [ImapFolderWalk.moved],
-     * which a caller that DELETES on this walk must honour. [cachedPreviewsFor] null means READ NONE.
      */
     suspend fun loadFolder(
         credentials: AccountCredentials,
@@ -548,8 +545,6 @@ class ImapMailService(
 
     /**
      * Move a message to [destMailbox], answering its new UID and the destination numbering `COPYUID`
-     * stated — nothing else learns it, so Undo would have nothing to oppose (#99).
-     * [expectedUidValidity] is not defaulted to "proceed", or the guard compares a number with itself.
      */
     suspend fun move(
         credentials: AccountCredentials,
@@ -587,8 +582,6 @@ class ImapMailService(
 
     /**
      * Permanently delete many messages from one folder in a single session (#29). A folder
-     * renumbered since [expectedUidValidity] refuses, and so does one whose numbering the server
-     * STOPS STATING. The block RETURNS a verdict: a throw would be replayed and drop the snapshot.
      */
     suspend fun deleteBatch(
         credentials: AccountCredentials,
@@ -692,8 +685,6 @@ class ImapMailService(
 
     /**
      * The envelope of a message named by CACHE ID ALONE (#159), through [fetchByUid] and so through
-     * [onMailbox], where the #99 check lives. The id must belong to [credentials], or on a
-     * two-account phone B's coordinates go down A's link.
      */
     suspend fun fetchById(credentials: AccountCredentials, emailId: String): EmailEntity? {
         if (accountOf(emailId) != credentials.id) return null
@@ -852,8 +843,6 @@ class ImapMailService(
 
 /**
  * The ONE place a listed IMAP folder becomes a cache row. A folder that CLAIMED trash or junk and
- * lost it keeps a MARKED role, `~trash` / `~junk`, which alone puts it in [NOT_SEARCHED_ROLES]; the
- * mark is erased at [MailboxEntity.toMailbox], but the loss crosses as `Mailbox.lostRoleClaim` (#174).
  */
 internal fun imapMailboxEntity(accountId: String, folder: ImapFolder, index: Int): MailboxEntity {
     val role = folder.role

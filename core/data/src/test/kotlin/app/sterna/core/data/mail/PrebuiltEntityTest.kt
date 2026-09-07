@@ -9,18 +9,6 @@ import java.io.File
 
 /**
  * The pre-built entity seam, decoupled from PGP.
- *
- * `OutgoingMessage.prebuiltEntity` is how a payload this app's MIME builder cannot express reaches
- * the wire byte for byte. It was born for PGP/MIME and the OUTBOX was wired to PGP with it: the
- * entity was written to disk only `if (entity != null && pgpMode != null && pgpMode != OFF)`. Hand
- * one over without a mode — which is exactly what an RFC 8098 receipt does — and the file was never
- * written, the row kept a body nobody composed, and the message went out as a shell. No error, no
- * log, nothing on screen.
- *
- * The fix is NOT to pass a lying `PgpMode.SIGN`: an outbox row that calls itself signed lies to
- * `OutboxLogic.canEdit` and to the failure message as well. The condition is relaxed instead, and
- * both halves of it are pinned here by EXECUTION — [outboxPayload] and [prebuiltEntityAt] are pure,
- * so what the call site can only be read for, they answer for real.
  */
 class PrebuiltEntityTest {
 
@@ -30,8 +18,6 @@ class PrebuiltEntityTest {
 
     /**
      * THE DECOUPLING. An entity with NO PGP mode at all is stored, exactly as one with a mode is.
-     *
-     * Before this, the same call answered "write nothing" and the receipt left as an empty shell.
      */
     @Test fun `an entity with no pgp mode is written beside the row`() {
         assertEquals(
@@ -61,11 +47,6 @@ class PrebuiltEntityTest {
 
     /**
      * The mode that encrypts WITHOUT signing blanks the row exactly like the signed one. The
-     * ciphertext is in the entity file either way; leaving the row's textBody filled would keep the
-     * message in the clear at rest, on the phone, for the whole of its life in the outbox — and the
-     * Outbox screen would show it.
-     *
-     * The question the row asks is "does this mode encrypt", never "is this mode ENCRYPT".
      */
     @Test fun `an unsigned encrypted message keeps no plaintext at rest either`() {
         assertEquals(
@@ -78,8 +59,6 @@ class PrebuiltEntityTest {
 
     /**
      * Blanking the row still needs BOTH the mode and the entity. A row marked ENCRYPT whose
-     * entity never arrived would otherwise be emptied of the only copy of its text — the ciphertext
-     * is not there to replace it, so the message would simply be gone.
      */
     @Test fun `a mode without an entity blanks nothing and writes nothing`() {
         assertEquals(
@@ -106,9 +85,6 @@ class PrebuiltEntityTest {
 
     /**
      * An unreadable file FAILS the delivery. It must never fall back to the row's own body: that
-     * body is either blank (ciphertext) or the human-readable half of the payload (a receipt), and
-     * sending it would deliver a mail nobody wrote and mark the item done. Failing keeps the row in
-     * the Outbox with its error, where a person can see it.
      */
     @Test fun `a file that cannot be read fails the delivery instead of sending a shell`() {
         val thrown = runCatching { prebuiltEntityAt("/outbox/7/gone.mime") { null } }.exceptionOrNull()
@@ -138,16 +114,6 @@ class PrebuiltEntityTest {
 
     /**
      * SOURCE LINT, NOT A BEHAVIOUR TEST — `MailRepository` needs Room, a `Context` and a socket, so
-     * nothing in a JVM test reaches these three lines. Each is pinned WHOLE: a `contains` on a
-     * fragment is blind to anything appended to the line, which is how a condition grows back.
-     *
-     * The three lines are the ones a partial decoupling leaves behind:
-     *
-     *  1. **staging** — re-add `&& pgpMode != null` and the receipt is dropped in silence again;
-     *  2. **the JMAP route** — decide it on `item.pgpMode` instead of the entity and the receipt
-     *     goes out through `Email/set`, where the server rebuilds it from fields and it arrives as
-     *     an ordinary two-part mail no client reads as a receipt;
-     *  3. **the IMAP body** — the entity has to replace the body there too.
      */
     @Test fun `both protocols route on the entity, never on the pgp mode`() {
         val source = repositorySource()
@@ -174,13 +140,6 @@ class PrebuiltEntityTest {
 
     /**
      * SOURCE LINT, on BOTH call sites. `OutboxLogic.canEdit` only refuses a row it is TOLD about:
-     * a literal `false` for the third argument compiles, keeps `OutboxLogicTest` green, and puts
-     * Edit back on a receipt — reopening it as its human half alone and sending that instead.
-     *
-     * The screen is pinned as well as the repository, and they answer different failures. The
-     * repository is the choke point (`takeOutboxForEdit` is where the row flips to EDITING, and it
-     * refuses); the screen only draws the button — so a wrong argument THERE leaves a Modifier
-     * button that does nothing when tapped, which is the dead action #70 set out to remove.
      */
     @Test fun `the edit guard is told whether the row can be rebuilt, at both call sites`() {
         assertTrue(

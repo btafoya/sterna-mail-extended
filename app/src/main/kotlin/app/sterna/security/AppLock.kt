@@ -7,11 +7,6 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Holds the app's lock state. When app lock is enabled the UI is hidden behind a
- * [LockScreen] until the user re-authenticates with the device biometric / PIN.
- *
- * The app locks on a cold start and whenever it returns to the foreground after
- * being in the background longer than [GRACE_MS] (a short window so a quick app
- * switch — e.g. the system file picker while attaching — doesn't demand a re-auth).
  */
 class AppLock(private val store: AccountStore) {
     private val _locked = MutableStateFlow(store.appLockEnabled())

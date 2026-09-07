@@ -13,12 +13,6 @@ import kotlinx.coroutines.launch
 
 /**
  * Brings live push back after a reboot, and after the app is updated in place (#98). Only one of
- * the three delivery paths needs this: the fallback poll is periodic WorkManager work, which the
- * system restores, and UnifiedPush belongs to the distributor app — the direct connection held by
- * [PushService] is the one that stayed down until someone opened the app.
- *
- * Deliberately NOT direct-boot aware: BOOT_COMPLETED is delivered after the initial unlock, and
- * accounts and settings live in credential-encrypted storage, so there is nothing to read before.
  */
 class BootReceiver : BroadcastReceiver() {
 

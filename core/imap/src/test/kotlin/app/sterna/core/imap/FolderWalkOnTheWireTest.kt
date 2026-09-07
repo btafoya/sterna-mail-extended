@@ -8,27 +8,11 @@ import org.junit.Test
 
 /**
  * The paginated folder walk against a scripted server on loopback: what really leaves the client,
- * in what order, and what comes back page by page.
- *
- * Why this file exists at all: until it did, NO test referenced the IMAP sync window. A mutation
- * that made the window mean something else — or made a page skip a message — passed the whole
- * suite green.
  */
 class FolderWalkOnTheWireTest {
 
     /**
      * A folder of [exists] messages whose UID equals its sequence number, answering each `FETCH
-     * <lo>:<hi>` with exactly the messages in that range.
-     *
-     * [uidsFor] overrides that mapping for the tests that need the server to answer a range with
-     * something other than what the client expected (a folder renumbered under the walk), and
-     * [deleted] marks the messages that carry `\Deleted`.
-     *
-     * [onNoop] is what the server volunteers between pages — where RFC 3501 §7.4.1 says an EXPUNGE
-     * belongs. [inFetch] is what it volunteers INSIDE a FETCH response, which the RFC forbids for
-     * EXPUNGE and allows for EXISTS, and which real servers are not all punctilious about. Both
-     * exist because both are read: on a one-page walk there is no NOOP at all, so [inFetch] is then
-     * the only channel there is.
      */
     private fun folder(
         exists: Int,
@@ -114,9 +98,6 @@ class FolderWalkOnTheWireTest {
     @Test fun `an unbounded window walks the folder to its first message`() {
         // The IMAP half of a window bigger than the folder, ON THE WIRE — the twin of
         // `JmapClientTest.queryEmailsWindow_walksAWholeFolderWhenTheWindowIsUnbounded`.
-        // `Int.MAX_VALUE` is the extreme case, kept as the overflow guard on the arithmetic below;
-        // no shipped window carries it any more (the largest is 10 000, pinned in `core:data`,
-        // `SyncWindowScaleTest`), and `core:imap` cannot depend on that module to say so.
         //
         // What this closes: `folderWindowLowest(exists, minOf(limit, 1000))` — one line, at the
         // top of `walkFolder`, restoring the old cap for every IMAP account. Nothing else in the
@@ -199,9 +180,6 @@ class FolderWalkOnTheWireTest {
     @Test fun `⭐ a one-page walk has no NOOP, so the FETCH response is the only detector`() {
         // The reserve this closes. A 50-message window over a big folder — the unified refresh,
         // a small folder, any account left on the default — is ONE request: no NOOP is ever sent.
-        // Reading the untagged lines of the FETCH is then not a second opinion, it is the only
-        // opinion, and without it a message the push path cached during the walk would be deleted
-        // by the reconcile that follows.
         folder(exists = 1000, inFetch = "* 3 EXPUNGE\r\n").use { server ->
             val walked = walk(server, limit = 50, pageSize = 200)
 
@@ -342,9 +320,6 @@ class FolderWalkOnTheWireTest {
     @Test fun `a walk that fails mid-way throws, and never answers with what it had so far`() {
         // The red line, seen from the only place that can break it silently. Everything above
         // this walk — `fullQueryWriteThrough`, and the DELETE at the end of it — treats "the walk
-        // returned" as "the walk finished". A walk that caught its own failure and handed back the
-        // pages it did manage would therefore have the cache reconciled against half a folder, and
-        // the other half deleted. So a page that fails must propagate, whatever was already read.
         var answered = 0
         FakeImapServer { tag, line ->
             when {

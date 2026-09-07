@@ -2,10 +2,6 @@ package app.sterna.ui
 
 /**
  * How many panes the inbox host shows, decided on the window WIDTH alone — never on the
- * orientation (#103). The two thresholds are Material 3's window size classes: 600 dp opens
- * "Medium" (a phone in landscape is 640–914 dp, a small tablet upright 600–800 dp), where a list
- * and a reader fit side by side; 1 200 dp opens "Large", where a permanent drawer fits too. A
- * window under 600 dp gets the one-pane layout it has always had, to the pixel.
  */
 enum class PaneLayout { Narrow, Wide, Desk }
 
@@ -36,10 +32,6 @@ data class PaneSplit(val layout: PaneLayout, val listWidthDp: Int)
 
 /**
  * `null` on a narrow window (one pane, nothing to split). Otherwise the list takes
- * [LIST_PANE_SHARE_PERCENT] of the width available beside it, never under
- * [LIST_PANE_MIN_WIDTH_DP]; on a desk the available width already excludes the
- * [DRAWER_SHEET_WIDTH_DP] a permanent drawer will take on the left, so the split does not move
- * the day that drawer arrives.
  */
 fun paneSplit(widthDp: Int): PaneSplit? {
     val layout = paneLayout(widthDp)

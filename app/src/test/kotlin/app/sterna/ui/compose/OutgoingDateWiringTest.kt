@@ -7,21 +7,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads source files as text, same instrument and
- * disclaimer as `ReplyBarWiringTest`. [OutgoingDateZoneTest] runs the decision; nothing a JVM test
- * can execute proves the composer actually ASKS it: `ComposeViewModel` is an AndroidViewModel. So
- * the call sites are pinned here, as WHOLE lines — a `contains` on a fragment is blind to any
- * mutation that lengthens the line (three found that way on 2026-08-04).
- *
- * The lines pinned are the three places an outgoing date is produced (#120):
- *  1. the quote attribution's date, inside `quote()` — which must take the zone as a parameter
- *     WITHOUT a default, so every caller is forced by the compiler to resolve it;
- *  2. the forwarded header's date, inside `buildForwarded()`;
- *  3. the background-enrichment path (`_replyQuote`), the quote() caller a cache-first prefill
- *     goes through — the one that is forgotten first, since the two buildPrefill callers sit
- *     next to the function and this one does not.
- * Plus the resolution line in buildPrefill and its two quote() calls, and — because a setting that
- * silently fails to restore is worse than none — the snapshot and restore lines in
- * SettingsRepository.
  */
 class OutgoingDateWiringTest {
 

@@ -7,23 +7,6 @@ import org.junit.Test
 
 /**
  * WHICH folder a list row is judged by.
- *
- * "Delete permanently" instead of the Trash-can (#23), an "archive" swipe that unarchives, and a tap
- * that opens the composer instead of the reader (#63) are all decided by a folder ROLE. Until now
- * that role was the VIEW's — the folder selected in the drawer — which is only the row's folder as
- * long as every row on screen lives in the selected folder. It stops being true the moment a list
- * spans several folders of one account.
- *
- * These tests EXECUTE [rowFolderRole]. They never rebuild the lookup to decide what to assert: the
- * role map and the rows are literals, and the expected value is written out.
- *
- * Two halves, and the second is the one that would let the change ship silently:
- *  - the row's own folder wins over the view's, ACCOUNT-QUALIFIED (#121/#31);
- *  - and on the two views that exist today the answer is exactly what it was — otherwise this is not
- *    a preparation, it is a regression wearing one's name.
- *
- * Says nothing about what is drawn. That a "Delete permanently" label follows this role is
- * `InboxScreen` composition, out of reach in a JVM test; the wiring is read as text elsewhere.
  */
 class RowFolderRoleTest {
 
@@ -123,10 +106,6 @@ class RowFolderRoleTest {
     fun `a search hit keeps the view's role however confident its own folder looks`() {
         // The reported walk, and it costs mail: a message is archived and indexed; it is then moved
         // to "Projets" from the webmail. The FTS row still says `archive` — SelectionTargets puts it
-        // in as many words, "a non-empty Email.mailboxId is not evidence of anything". Believed
-        // here, an "archive" swipe on the search hit reads as UNARCHIVE, and moveToMailbox rewrites
-        // the whole mailbox set: the message leaves "Projets" with no way back. The view's role
-        // (Inbox) is what shipped before, and it archives — a no-op on an archived message.
         val inboxView = view("i", listOf(folder("i", "inbox"), folder("arch", "archive")))
         val roles = mapOf(("a" to "i") to "inbox", ("a" to "arch") to "archive")
         val staleHit = row("1", "a", "arch")
@@ -144,9 +123,6 @@ class RowFolderRoleTest {
     fun `a search hit of another account cannot claim a role in the unified view`() {
         // The second damage of the same hole. In the unified list an untrusted hit of account B
         // filed in B's Archive would read `archive`, and the unarchive path then picks its
-        // destination out of ui.mailboxes — the SELECTED account's folders — and files B's message
-        // in A's Inbox (#92/#121). The unified view selects no folder, so the honest answer is null:
-        // no unarchive context, an ordinary archive.
         val unified = view(null, listOf(folder("i-a", "inbox")))
         val roles = mapOf(("b" to "arch-b") to "archive", ("a" to "i-a") to "inbox")
         assertEquals(null, rowFolderRole(row("1", "b", "arch-b"), unified, roles, folderTrusted = false))

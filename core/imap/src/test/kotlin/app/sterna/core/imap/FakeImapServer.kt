@@ -11,53 +11,22 @@ import java.util.Collections
 
 /**
  * A one-connection, scripted IMAP server on loopback, so the folder walk can be driven end to
- * end on the JVM: what SELECT/SEARCH/FETCH commands actually leave the client, in what order,
- * and how many of them. [responder] is handed the tag and the command line (tag stripped) and
- * returns the complete raw response, tagged line included.
- *
- * [responder] alone is strictly request/response, which cannot express the failure of #156: a
- * server that answers, goes quiet, and then GOES AWAY while the client is still waiting on it.
- * [cutAfter] is that server, and it is the same hook, in the same shape, as [FakeSmtpServer]'s.
  */
 internal class FakeImapServer(
     /**
      * Write these lines and then **stop answering, for good** — the IMAP twin of
-     * [FakeSmtpServer]'s hook of the same name, and the one thing [responder] cannot express: a
-     * responder always answers the line it was given and goes back to waiting for the next one.
-     *
-     * Called with the line as [commands] records it (tag stripped), or [GREETING] for the server
-     * banner, which no command of the client precedes, or [LITERAL] once a literal's octets have
-     * been taken in — the server that took an APPEND's message and went away before saying
-     * whether it kept it. An empty list cuts before a single byte is written.
-     *
-     * The cut is a half-close (`shutdownOutput`): the client gets its EOF, and whatever it writes
-     * afterwards is still received and recorded in [commands], tag stripped exactly as the serve
-     * loop records it — that is the witness of a client still talking to a server that has already
-     * gone (the `DONE` of an IDLE, the `LOGOUT` of a close). Tag stripped and not verbatim for a
-     * reason: [issued] hides credentials by matching `LOGIN` at the START of the line, and a line
-     * kept as `a1 LOGIN tester secret` would walk straight past that filter into a failure message.
-     * Wait for these lines with [awaitDone].
      */
     private val cutAfter: (String) -> List<String>? = { null },
     /**
      * The silence between the last line [cutAfter] writes and the half-close: the server that
-     * answers `+ idling`, says nothing for a while, and only then goes away. Without it the EOF
-     * treads on the heels of the continuation and the client is never actually parked in a read,
-     * which is the state the IDLE defect lives in.
      */
     private val cutDelayMs: Long = 0,
     /**
      * What the server says once it has taken in a LITERAL (`APPEND … {N}`): called with the tag
-     * and the command line that announced the literal, and the N bytes as they arrived on the
-     * wire — recorded in [literals] as well. [responder] is still asked about the command line
-     * first, and only a `+` answer from it makes the server read the literal; anything else is
-     * written as-is and the literal is never expected. Defaults to a bare OK.
      */
     private val afterLiteral: (tag: String, line: String, literal: ByteArray) -> String = { tag, _, _ -> ok(tag) },
     /**
      * LAST on purpose, and it must stay last: every existing call site writes
-     * `FakeImapServer { tag, line -> … }`, and a trailing lambda binds to the LAST parameter.
-     * Moving it up compiles nowhere.
      */
     private val responder: (tag: String, line: String) -> String,
 ) : Closeable {
@@ -69,8 +38,6 @@ internal class FakeImapServer(
 
     /**
      * Every literal received, in order, BYTE FOR BYTE: what the client put on the wire after the
-     * server's `+`, exactly [literalSize] octets of it, before any decoding. The one place a
-     * test can see whether an 8-bit byte left the client as itself or as something re-encoded.
      */
     val literals: MutableList<ByteArray> = Collections.synchronizedList(mutableListOf<ByteArray>())
 
@@ -97,12 +64,6 @@ internal class FakeImapServer(
                 accepted = socket
                 // Asymmetric on purpose. READING is UTF-8 because that is what the client writes
                 // (a `UID SEARCH CHARSET UTF-8 SUBJECT "école"` really does go out as UTF-8, and
-                // a test asserts on that line as text). WRITING is ISO-8859-1 so a scripted
-                // response goes out BYTE FOR BYTE: one char of the response string, one octet on
-                // the wire. Without it no test could put a raw 8-bit byte in front of the parser
-                // — the writer would helpfully UTF-8-encode it and the case under test would
-                // never reach the socket. Safe for every existing test: none of them puts a
-                // non-ASCII character in a response (the Cyrillic ones travel in modified UTF-7).
                 //
                 // The reading side is a byte stream with a line reader of its own rather than a
                 // BufferedReader: a literal (`APPEND … {N}` followed by N octets) has to be taken
@@ -139,9 +100,6 @@ internal class FakeImapServer(
 
                 /**
                  * Honour [cutAfter] for [trigger]: write the partial response, go quiet for
-                 * [cutDelayMs], half-close, then keep recording whatever the client still writes
-                 * until it goes quiet ([QUIET_MS]) or closes. True when the session was cut and
-                 * the serve loop must end.
                  */
                 fun cut(trigger: String): Boolean {
                     val partial = cutAfter(trigger) ?: return false
@@ -194,10 +152,6 @@ internal class FakeImapServer(
 
     /**
      * Block until the served connection is finished. After a cut this is what makes an assertion
-     * on [commands] race-free: the client keeps writing for a moment after the EOF, and a test
-     * that read the list before the server had taken those lines in would call that silence a pass.
-     *
-     * A join that merely EXPIRES would hand the test a list still being mutated, silently: fail.
      */
     fun awaitDone(timeoutMs: Long = 10_000) {
         thread.join(timeoutMs)
@@ -248,8 +202,6 @@ internal fun searchResponse(tag: String, uids: List<Long>): String =
 
 /**
  * A canned `UID FETCH` result: one envelope per requested uid, with an attachment part in the
- * BODYSTRUCTURE when [withAttachment] says so — that is exactly what the local attachment
- * filter reads. [flags] gives the FLAGS list of each uid, `\Seen` unless a test says otherwise.
  */
 internal fun fetchResponse(
     tag: String,
@@ -268,11 +220,6 @@ internal fun fetchResponse(
         }
         // DISTINCT addresses in five of the envelope's six address slots — from (2), sender (3),
         // reply-to (4), to (5) and cc (6); only bcc (7) stays NIL, as a server sends it. They used
-        // to be `from` and `to` with NIL either side, and that is a fixture no assertion can be
-        // wrong against: reading index 4, index 6 or nothing at all all produced the same empty
-        // list. A reader that takes the wrong slot — above OR below — now returns somebody else's
-        // address, and slot 3 is the one that matters: on a mailing list it holds the bounce
-        // address, which is where a fallback would quietly send every reply.
         "* $uid FETCH (UID $uid FLAGS ($flagList) INTERNALDATE \"01-Jun-2026 10:00:00 +0000\" " +
             "ENVELOPE (\"Mon, 1 Jun 2026 10:00:0${uid % 10} +0000\" \"Message $uid\" " +
             "((\"Alex Rivera\" NIL \"alex.rivera\" \"masto.top\")) " +

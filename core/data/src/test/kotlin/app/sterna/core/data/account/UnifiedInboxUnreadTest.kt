@@ -14,23 +14,6 @@ import org.junit.Test
 
 /**
  * "All inboxes (N)" is shown twice — in the drawer and on a home-screen widget, which breaks it
- * back down to a line per account when the cell is large — and the three must be unable to
- * disagree. That holds only if ONE piece of code decides which inboxes are counted, so this pins
- * that decision by RUNNING it: what [UnifiedInbox.unreadByAccount] hands the counter, argument by
- * argument, when it asks again, and how [UnifiedInbox.total] folds the answer back into the single
- * number the drawer shows.
- *
- * The tests never re-derive the rule themselves — every expectation is a literal list of pairs
- * or a literal map. A test that recomputed `accounts.mapNotNull { … }` to build its expectation
- * would agree with a shipped rule that had been inverted.
- *
- * The last two tests are source lints, and they are the weakest things here: nothing in this
- * module can build an [AccountStore] or a `MailRepository` (they want a `Context`, the Keystore, a
- * database and a session, and there is no Robolectric), so the two claims that cannot be executed
- * — that the store DELEGATES rather than keeping a second copy of the derivation, and that the
- * no-argument overloads are wired to the LIVE account flow — are pinned as whole lines of shipped
- * source instead. The drawer's end of that same wiring is pinned in the `app` module, by
- * `UnifiedUnreadWiringLintTest`, which is where `InboxViewModel` lives.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class UnifiedInboxUnreadTest {
@@ -45,16 +28,6 @@ class UnifiedInboxUnreadTest {
 
     /**
      * Stands in for `MailRepository.observeUnifiedInboxUnreadByAccount(scopes)` and records what
-     * it was asked — the arguments are the point, not the arithmetic. Each known scope is worth a
-     * fixed number under its own account id, so the collected map also says WHICH inboxes were
-     * counted.
-     *
-     * HOT, and it never completes — a `flowOf(…)` here would be a fake that is FINISHED the
-     * instant it is read, and a finished inner flow makes `flatMapLatest`, `flatMapMerge` and
-     * `flatMapConcat` indistinguishable. The real collaborator hands back a `combine` of Room
-     * flows that never ends, so the fake is a [MutableStateFlow] kept per scope list: [push] can
-     * then feed a subscription the shipped code was supposed to have dropped, and see whether it
-     * still reaches the caller.
      */
     private class Counter(private val perScope: Map<Pair<String, String>, Int> = emptyMap()) {
         val calls = mutableListOf<List<Pair<String, String>>>()
@@ -103,9 +76,6 @@ class UnifiedInboxUnreadTest {
 
     /**
      * Codeberg #121, executed. Two accounts on one server are routinely handed the same mailbox
-     * id; a bare folder id would then match both accounts' rows, counting one inbox twice and the
-     * other never. The account id in each pair is what keeps them apart — and what keeps them two
-     * separate lines on the widget.
      */
     @Test fun `two accounts sharing an inbox id stay two distinct scopes`() = runTest {
         val counter = Counter(mapOf(("a" to "42") to 3, ("b" to "42") to 5))
@@ -160,12 +130,6 @@ class UnifiedInboxUnreadTest {
 
     /**
      * The claim `flatMapLatest` makes, executed rather than believed: a removed account's
-     * subscription is DROPPED, not merely superseded. The real counter is a `combine` of Room
-     * flows that never completes and keeps emitting on every invalidation, so with `flatMapMerge`
-     * the old subscription would still be alive here — and "All inboxes (N)" would flip between
-     * the old total and the new one at every write to a database the widget no longer counts.
-     *
-     * The push below is that emission, aimed at the flow handed out for the scopes as they WERE.
      */
     @Test fun `a removed account's inbox is unsubscribed, not just superseded`() = runTest {
         val counter = Counter(mapOf(("a" to "ia") to 2, ("b" to "ib") to 7))
@@ -195,12 +159,6 @@ class UnifiedInboxUnreadTest {
 
     /**
      * The dedupe's ceiling: a write that moves NOTHING the total is built from must not re-count.
-     * `accountsFlow` republishes on every `saveAccounts` — an OAuth token refreshed, identities
-     * discovered on connect, a sync window, a colour — and each of those otherwise cancels and
-     * rebuilds a `combine` of two global Room aggregates in the collector's context.
-     *
-     * The fields moved here (name and colour) are real [StoredAccount] fields and are settings
-     * screens away from the unread total.
      */
     @Test fun `a write that touches nothing the count is built from does not re-count`() = runTest {
         val counter = Counter(mapOf(("a" to "ia") to 5))
@@ -228,10 +186,6 @@ class UnifiedInboxUnreadTest {
 
     /**
      * The IMAP half, and the reason the dedupe key is NOT the derived scopes alone. An IMAP inbox
-     * contributes `accountStore.account(id)?.unread`, a flat read inside `MailRepository`'s
-     * `combine` block that no Room invalidation ever wakes. The account list changing IS the
-     * notification — and here it changes without the scopes changing at all, so a key made of
-     * scopes only would freeze this number where the flow first found it.
      */
     @Test fun `a stored counter moving re-counts even though the scopes are identical`() = runTest {
         val calls = mutableListOf<List<Pair<String, String>>>()
@@ -264,11 +218,6 @@ class UnifiedInboxUnreadTest {
 
     /**
      * The single number is DERIVED from the breakdown, and this is what "derived" has to mean:
-     * every account's share, ADDED. One subscription feeds both the drawer's "All inboxes (N)" and
-     * the widget's per-account lines, so the two cannot drift apart.
-     *
-     * The three shares are distinct and non-zero on purpose: `sum` (19) is unlike `first` (3),
-     * `max` (11), `size` (3) and `min` (3), so no confusion between them survives here.
      */
     @Test fun `the single unified number is the breakdown added up`() {
         assertEquals(
@@ -286,8 +235,6 @@ class UnifiedInboxUnreadTest {
 
     /**
      * Whole line, not a `contains`: a fragment check passes on anything appended to it. This is
-     * the "one copy" claim — the store must feed [UnifiedInbox.scopes] its stored list and nothing
-     * else. A second `mapNotNull { … inboxId … }` here is a rule that can drift from the widget's.
      */
     @Test fun `AccountStore derives the scopes through the shared rule, not a copy of it`() {
         val source = SourceText.read(
@@ -304,22 +251,6 @@ class UnifiedInboxUnreadTest {
 
     /**
      * SOURCE LINT, and the one hole the tests above cannot reach: they inject their own account
-     * flow, so nothing here ever executes the WIRING — what the shipped overload actually
-     * subscribes to. `MailRepository` needs a `Context`, a database and a session; it cannot be
-     * built in this suite, and no test in this repository instantiates it.
-     *
-     * The mutation this exists for compiles and leaves every other test in the repository green:
-     *
-     *     flowOf(accountStore.accounts())
-     *
-     * A one-shot flow of the list as it is at subscription time. The widget and the drawer would
-     * then be frozen at the number they were built with — mail read, accounts added, IMAP counters
-     * moved, and neither ever moves again.
-     *
-     * Whole lines, never a `contains`: a substring rule is satisfied by every mutation that
-     * LENGTHENS the line, and `flowOf(accountStore.accountsFlow.value)` contains
-     * `accountStore.accountsFlow`. The price is that reformatting the call reddens this test —
-     * loud, and one line to fix.
      */
     @Test fun `MailRepository builds the breakdown on the live account flow`() {
         val source = SourceText.read(
@@ -347,12 +278,6 @@ class UnifiedInboxUnreadTest {
 
     /**
      * And the single number is DERIVED from that one subscription, not observed a second time.
-     * Two derivations would be two `combine`s of the same two global Room aggregates, woken by the
-     * same invalidations, for the same information — the drawer paying twice so the widget can
-     * break it down.
-     *
-     * The mutation this exists for is `UnifiedInbox.unreadCount(accountStore.accountsFlow) { … }`
-     * rebuilt alongside: it compiles, and every executed test above stays green.
      */
     @Test fun `the single number is derived from the breakdown, not observed a second time`() {
         val source = SourceText.read(

@@ -2,19 +2,6 @@ package app.sterna.core.imap
 
     /**
      * One envelope address list — slot 4 (`reply-to`), 5 (`to`), 6 (`cc`) or 7 (`bcc`) of an ENVELOPE
-     * — turned into the addresses the app carries, once, so a test can RUN the decision. It does not
-     * know WHICH slot it was handed: picking the slot stays at the call site, where filling `cc` from
-     * slot 7 would publish blind copies.
-     *
-     * Each entry is RFC 3501's `(name adl mailbox host)`. An entry carrying an address or a display
-     * name is a MEMBER; a group start `(NIL NIL "the-list" NIL)` and a group end `(NIL NIL NIL NIL)`
-     * are RFC 5322 group delimiters. A start followed by a MEMBER is dropped, the group being carried
-     * by its members; one followed by anything else names NOBODY and yields ONE entry with the group's
-     * name and no address — `Cc: undisclosed-recipients:;` used to arrive as an empty Cc, which
-     * reopened a draft with the copy line collapsed. The guard is "not followed by a MEMBER", the
-     * same test the loop uses to emit: looking for the end marker instead would emit the group name
-     * beside a member and put a recipient nobody wrote in the field. The name comes from the mailbox
-     * field (index 2), decoded with [decodeWords] like every other display name.
      */
 internal fun envelopeAddresses(entries: List<Any?>?): List<ImapAddress> {
     val parsed = entries.orEmpty().map(::parseEnvelopeEntry)

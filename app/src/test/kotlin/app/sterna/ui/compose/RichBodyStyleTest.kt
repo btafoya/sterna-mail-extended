@@ -18,8 +18,6 @@ import org.junit.Test
 
 /**
  * What the body field DRAWS for a rich body (#131): the text cut at every span boundary, one
- * `SpanStyle` per segment carrying every family active there. Two overlapping spans that each
- * carry a decoration do not combine on their own in Compose, which is why the cut is per segment.
  */
 class RichBodyStyleTest {
 
@@ -90,9 +88,6 @@ class RichBodyStyleTest {
 
     /**
      * A list AND a link on one body. The two never meet and that is the point: the markers are
-     * laid in the TEXT layer by `bodyTransformation` (executed in [RichBodyMarkersTest]) and
-     * carry no character of `rich.text`, so nothing here shifts by the width of a bullet and the
-     * link's offsets are the model's own.
      */
     @Test
     fun `a body with a list and a link draws the link at the model's own offsets`() {

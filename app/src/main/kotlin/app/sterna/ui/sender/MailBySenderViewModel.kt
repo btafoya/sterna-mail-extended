@@ -39,21 +39,12 @@ internal fun trashFilePath(mailboxes: List<Mailbox>): String? =
 
 /**
  * Whether the "future mail to Trash" entry may appear, from the account's script read ([state],
- * null when the read FAILED) and whether the Trash can be named.
- *
- * No Trash, or Sieve unsupported: no. Another Sieve script active: no either, saving switching that
- * script off and a list row being unable to carry the warning the Filters screen gives in red. But
- * a FAILED read KEEPS the entry. The rule behind those last two: an action that is merely
- * unavailable is left in place, an action that would do something destructive is taken away.
  */
 internal fun canBlockSender(state: FilterRulesState?, trashPath: String?): Boolean =
     blockAvailability(state, trashPath) == BlockAvailability.OFFERED
 
 /**
  * The four answers behind [canBlockSender], kept apart because only one can be explained.
- * [FOREIGN_SCRIPT] is invisible without a word and commoner than it looks — the holiday responder
- * activates a `vacation` script and switches Sterna's off. The other two are the Filters screen's
- * own silences.
  */
 internal enum class BlockAvailability { OFFERED, NO_TRASH, UNSUPPORTED, FOREIGN_SCRIPT }
 
@@ -89,20 +80,6 @@ internal enum class SenderAction { SEARCH, DELETE, BLOCK }
 
 /**
  * What one row's overflow menu holds, given what the account can do, whether the script already
- * handles this sender and whether a batch is in flight.
- *
- * Absent and greyed are two different answers. [canDelete]/[canBlock] false mean the account
- * cannot do this at all, so the entry is ABSENT — one greyed for ever reads as a bug. [working]
- * means not right now, so it STAYS and is greyed; [blocked] is possible and pointless, so its words
- * say why.
- *
- * The ORDER is a decision. Looking comes first, worded "search this sender" because it searches
- * server-wide and answers with a larger set. The rule comes before the delete: the aggregate
- * excludes the Trash, so deleting a sender's mail takes its total to zero and the row disappears,
- * taking the "never again" gesture with it. The destructive entry sits last (#48).
- *
- * [address] and [ownAddresses] are the one reason about the ROW rather than the account: a message
- * from oneself filed in an ordinary folder was offering to file all future mail from oneself away.
  */
 internal fun senderMenuEntries(
     canDelete: Boolean,
@@ -148,9 +125,6 @@ data class PendingDelete(
     val ids: List<String>,
     /**
      * The IMAP numbering each source folder was recorded under WHEN THE IDS WERE READ (#99).
-     * Frozen with the ids in `askDelete`, never re-read in `confirmDelete`: a background pass
-     * that sees the folder renumbered records the new number while these ids belong to the old one,
-     * so a read here would oppose that number to itself and send `UID MOVE` on stale UIDs.
      */
     val numbering: Map<String, Long?> = emptyMap(),
 )

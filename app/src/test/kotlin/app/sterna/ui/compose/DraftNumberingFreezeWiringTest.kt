@@ -7,62 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `ComposeViewModel.kt` as text and proves nothing
- * about what runs. Same instrument and same disclaimer as [ComposeViewModelWiringTest]: there is
- * no Robolectric here and `ComposeViewModel` is an `AndroidViewModel`, so nothing in this module
- * can instantiate it. The decision it guards is executed elsewhere —
- * `UidValidity.destroyableUnderNumbering` runs in `ImapDestroyUnderNumberingTest`; what no
- * executable test can see is WHICH number this class hands it, and WHEN it read it.
- *
- * The defect, in one sentence: an IMAP `UID EXPUNGE` only means anything inside one UIDVALIDITY,
- * and `MailRepository.destroyDraft` used to look that number up at execution. A background pass
- * that noticed the Drafts folder renumbered has already written the NEW number to the store by
- * then, so the guard compared it with itself, said SAME, and expunged a UID from the OLD numbering
- * — destroying whatever message now carries that number in Drafts, silently. The number therefore
- * has to be FROZEN at the earliest moment this composer can answer it — after the fetch, which is
- * the first line that CAN answer it, and above all before the attachment carry, whose per-part
- * network waits are all the room a renumbering needs — carried in memory beside `editingDraftId`,
- * and handed to the repository. Re-reading it at save time is the defect, not a
- * refinement of it: the whole value of freezing is that it happened BEFORE the renumbering.
- *
- * THE INVARIANT THIS PINS CHANGED, and the order below with it. It used to read "the id is laid
- * LAST" (#63: the id is what arms the destroy, so nothing armed it until the attachment carry had
- * answered). A draft reopened over a link that then died came back through `applied` — a
- * `rememberSaveable` — with the editor and the whole bar alive, while `prepare()` re-ran, the fetch
- * threw, and the id was never reached: Save then wrote a SECOND draft with nothing said on screen,
- * because `replacesEmailId = null` makes `finishDraftSave` answer SAVED and `draftSaveNeedsNotice`
- * answer false. The invariant is now "the LICENCE TO DESTROY is laid last": the id and a pessimistic
- * `editingDraftLossy = true` are armed together before the coroutine, and only a draft that was
- * actually READ lowers that verdict. An id on its own destroys nothing any more, so freezing the
- * numbering after it is as safe as it ever was — it is the PAIR (id + clean verdict) that destroys.
- *
- * AND THE INVARIANT THIS FILE NOW EXISTS FOR, restored after the move above broke it:
- * **A SERVER DRAFT ID NEVER TRAVELS WITHOUT THE ACCOUNT IT WAS READ UNDER.** They are armed
- * together, at the entry of the reopen branch, before the coroutine — one gesture, two adjacent
- * lines, nothing between them.
- *
- * It is not decoration, it is what `unlessDraftBelongsElsewhere`
- * (`core/data/…/mail/LocalDraftReopen.kt`) ASSUMES in order to let a NULL draft account through:
- * null is read as "no server draft is open behind this composer", which is only true while the two
- * are laid together. Freeze the account inside the coroutine — as this branch did for a while,
- * after `repo.fetchEmail` — and every failed reopen leaves an armed id beside a null account:
- * offline, the process killed and `prepare()` re-run under a bar `applied` has already redrawn, or
- * the early `credentials() ?: return@launch`, which never even reaches the catch. WHAT THE READER
- * LOSES THEN: she reopens draft D of account A, the link dies, her text is still on screen, she
- * switches "From" to an identity of account B — the picker covers every account and resets
- * nothing — and taps Save. The guard sees a null draft account and waves D through, so
- * `repo.saveDraft(B, …, replacesEmailId = D)` goes down into `forServerDraft(B, D)`; server draft
- * ids COLLIDE between two accounts of one server (#31, `LocalDraftSave`), so B's own pending local
- * draft is UPDATED IN PLACE with A's text and a fresh Message-ID. That text was its only copy.
- * Without a collision the row written under B carries `replacesEmailId = D` and HIDES the real
- * server draft D from B's Drafts list (`LocalDraftRows.hidesServerRow`).
- *
- * Whole lines are compared, never `contains`: a substring check is blind to any mutation that
- * LENGTHENS the line, and `?: repo.recordedUidValidityForDraft(credentials, draftId)` appended to
- * a re-read would sail straight through one.
- *
- * WHAT IT DOES NOT COVER: that any of this is reached at runtime, that the repository does
- * anything with the value (pinned in `core/data`), and the outbox reopen path, which deliberately
- * still freezes null — V2 carries the number with the outbox row.
  */
 class DraftNumberingFreezeWiringTest {
 
@@ -206,13 +150,6 @@ class DraftNumberingFreezeWiringTest {
 
     /**
      * The account is frozen exactly twice — the restore, and the reopen — and never looked up
-     * again on the way out.
-     *
-     * The defect it closes: the empty-save expunged under `credentials()`, i.e. the account of
-     * the identity the "From" picker was showing, over an id and a numbering frozen at the open.
-     * Any THIRD write here is that re-read wearing the frozen field's name — `editingDraftAccountId
-     * = _selectedFrom.value?.accountId` slipped in beside the picker, and every rule in this suite
-     * stays green while the destroy goes back to the wrong server.
      */
     @Test fun `the account is frozen where the numbering is, and written nowhere else`() {
         val lines = codeLines(source())

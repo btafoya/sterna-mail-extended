@@ -5,24 +5,11 @@ import org.junit.Test
 
 /**
  * The back-stack half of a widget tap, RUN — not read as source, not recomputed here. Every
- * expectation is a literal [WidgetTapReturn], so a shipped rule whose arms were swapped or widened
- * disagrees with this file instead of agreeing with it.
- *
- * THE ROUTES BELOW ARE THE REAL ONES, copied out of `SternaApp.kt`'s NavHost as declared —
- * arguments and all, because that is the form `nav.currentBackStack.value.map { …route }` hands
- * back. A rule written against invented names would pass here and do nothing on a phone.
- *
- * AND THEY ARE HANDED OVER AS STACKS, first entry first, each one preceded by the NavGraph's own
- * entry — whose route is `null`, because `SternaApp` builds its NavHost with a start destination
- * and no `route` of its own. Every stack below therefore starts with that null: a rule tested on
- * clean lists would be tested on something the app never produces.
  */
 class WidgetTapNavigationTest {
 
     /**
      * The defect (#112): `selectUnified()` moves the LIST, which is a destination underneath, so a
-     * tap taken while reading a message changed nothing the user could see. "the counter should
-     * open All Inboxes" is what was published; a list that is not on screen is not opened.
      */
     @Test fun `a message on screen is popped, so the unified list is what gets shown`() {
         assertEquals(
@@ -46,10 +33,6 @@ class WidgetTapNavigationTest {
 
     /**
      * THE TEST THIS FILE EXISTS FOR — a data-loss rule, not an ergonomic one.
-     *
-     * Popping the composer would take a half-written mail off the screen because a counter was
-     * touched somewhere else, and a draft that goes is not coming back. No number is worth that.
-     * The list underneath is still switched; the user meets it when they choose to leave.
      */
     @Test fun `the composer is NEVER popped, because that would take a live draft off the screen`() {
         assertEquals(
@@ -63,12 +46,6 @@ class WidgetTapNavigationTest {
 
     /**
      * THE SAME DRAFT, LOST THROUGH THE BACK DOOR — the composer BURIED under a reader.
-     *
-     * Reachable, and not exotically: the composer is open, a new-mail banner arrives and is tapped
-     * (`SternaApp`'s notification effect navigates unguarded and stacks the reader over the
-     * composer), then the widget is tapped. A rule that looked at the TOP entry saw `message`,
-     * answered BackToList, and `popBackStack("inbox", inclusive = false)` dropped the composer with
-     * it, draft and all — the very thing the test above swears never happens.
      */
     @Test fun `a composer BURIED under a reader is not popped either, draft and all`() {
         assertEquals(
@@ -106,8 +83,6 @@ class WidgetTapNavigationTest {
 
     /**
      * Everything else the graph declares, sitting alone on the list. Asserted route by route rather
-     * than as "not the reader": the rule is stated positively — only readers are popped — and a
-     * fourth screen written tomorrow inherits that, not an exception.
      */
     @Test fun `every other declared route is left where it is`() {
         val others = mapOf(
@@ -128,8 +103,6 @@ class WidgetTapNavigationTest {
 
     /**
      * No entries at all — the composition that receives a COLD-start tap, before the NavHost has
-     * composed its start destination. Nothing is on screen to unwind, and guessing would mean
-     * popping a stack that does not exist yet.
      */
     @Test fun `an empty stack is left alone`() {
         assertEquals(
@@ -154,8 +127,6 @@ class WidgetTapNavigationTest {
 
     /**
      * An entry the rule does not recognise, ABOVE the list, must not be popped past. A null is
-     * the shape a nested graph's entry would take if one were ever added, and "unknown" is the only
-     * honest reading of it.
      */
     @Test fun `an unknown entry above the list stops the unwind`() {
         assertEquals(
@@ -182,8 +153,6 @@ class WidgetTapNavigationTest {
     private companion object {
         /**
          * The NavGraph's own entry, first in `currentBackStack`. `SternaApp` calls
-         * `NavHost(navController, startDestination = "inbox", …)` with no `route`, so the graph has
-         * none and this entry's route is null.
          */
         val GRAPH: String? = null
 

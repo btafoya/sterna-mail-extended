@@ -8,10 +8,6 @@ import org.junit.Test
 
 /**
  * What reading an account's filters answers — [loadedFilterRules], executed.
- *
- * `MailRepository` cannot be built in a JVM test (session, JMAP client, device), so the decision
- * lives outside it and is called here with the two things it actually depends on: the body of the
- * `sterna` script, and whether another script is active. Nothing here reads a line of source.
  */
 class FilterRulesReadTest {
 
@@ -34,11 +30,6 @@ class FilterRulesReadTest {
 
     /**
      * THE BUG. A `sterna` script with content nobody can decode used to come back as
-     * `Loaded(rules = [], foreignActiveScript = false)` — an ordinary account with no filters.
-     * The per-sender gesture was then offered, and confirming it recompiled the entire script
-     * from that one rule, deleting whatever the unreadable script held.
-     *
-     * The flag every writer already refuses is the answer: no new state, no new string.
      */
     @Test fun `an unreadable sterna script warns instead of reporting no rules`() {
         val state = loadedFilterRules("if header :is \"subject\" \"x\" { discard; }", otherActiveScript = false)
@@ -56,8 +47,6 @@ class FilterRulesReadTest {
 
     /**
      * The two causes are told apart on the way out even though they add up on the way in. Without
-     * this, "unreadable" is indistinguishable from "another script is active" and the screen keeps
-     * announcing the wrong cost.
      */
     @Test fun `only the unreadable script raises the unreadable flag`() {
         assertFalse(
@@ -88,8 +77,6 @@ class FilterRulesReadTest {
 
     /**
      * The witness. A blank script is not unreadable — it holds nothing, so rewriting it loses
-     * nothing. Without this, every account whose `sterna` script is an empty stub would be
-     * refused the gesture for ever.
      */
     @Test fun `a blank sterna script is zero rules, and no warning`() {
         for (blank in listOf("", "   ", "\n\n")) {
@@ -132,9 +119,6 @@ class FilterRulesReadTest {
 
     /**
      * THE BUG THIS BRANCH FIXES. A perfectly valid marker line, and around it Sieve this app
-     * never wrote — a rule added from Roundcube. The marker parsed, so the script was called fully
-     * understood: the per-sender gesture was offered, and saving recompiled the whole script from
-     * the JSON alone, dropping the hand-written rule without a word.
      */
     @Test fun `a rule written by hand after our own marks the script unreadable`() {
         val state = loadedFilterRules(
@@ -157,18 +141,6 @@ class FilterRulesReadTest {
 
     /**
      * **THE LIKELIEST SHAPE OF THE BUG, and the one every other test here misses.** Sterna
-     * creates the `sterna` script the first time the filters screen is opened, the user adds no
-     * rule, and the marker decodes to an EMPTY list. Another client — Roundcube edits whichever
-     * script is active — then adds its own rule to that same file.
-     *
-     * Every other foreign-Sieve test above hands in a non-empty rule list, so this one is what
-     * stands between the fix and a mutation that guts it:
-     *
-     *     parsed == null || (parsed.isNotEmpty() && holdsForeignSieve(sternaScript, parsed))
-     *
-     * Measured: that edit left the whole suite green, and it reopens the reported bug exactly —
-     * the per-sender gesture is offered again, and its save recompiles the script from an empty
-     * list, taking the hand-written rule with it and saying nothing.
      */
     @Test fun `an empty rule list with hand-written Sieve around it is still unreadable`() {
         val state = loadedFilterRules(
@@ -279,13 +251,6 @@ class FilterRulesReadTest {
 
     /**
      * THE WITNESS THAT FIXES THE COMPARED VALUE. A script written by an OLDER version of this
-     * app: the Sieve below is byte-for-byte what we emit, but the marker's JSON carries a key we
-     * do not know (a field added later, or dropped later).
-     *
-     * Comparing the WHOLE script would call every one of those foreign — on the entire installed
-     * base, the day a ninth field is added to [FilterRule], because `encodeDefaults = true` writes
-     * them all. The marker line is therefore removed from the comparison, and only the Sieve is
-     * compared.
      */
     @Test fun `a marker written by another version of this app is not foreign`() {
         val extraKey =
@@ -325,8 +290,6 @@ class FilterRulesReadTest {
 
     /**
      * The non-regression witness. A blank script holds nothing to lose, so it is zero rules and
-     * NO alarm — the guard is written into the comparison itself, not left to the luck of what
-     * `generate(emptyList())` happens to normalise to.
      */
     @Test fun `a blank script is never foreign`() {
         for (blank in listOf("", "   ", "\n\n", "\r\n\r\n")) {
@@ -356,12 +319,6 @@ class FilterRulesReadTest {
         )
         // Measured on 2026-08-12, and left standing: deleting the `script.isBlank()` guard from
         // holdsForeignSieve leaves the whole suite green. It is EQUIVALENT BY CONSTRUCTION, not a
-        // hole — a blank script and the script we write for zero rules normalise to the same empty
-        // body, and `parseRulesOrNull` answers emptyList() for a blank script, so the only call
-        // loadedFilterRules can ever make is the one asserted here. The guard stays as the written
-        // form of a rule that must not be rediscovered by accident (a blank script holds nothing to
-        // lose), NOT because a test needs it. Pinning it would have meant asserting a state no
-        // caller can reach.
         assertFalse("blank is never foreign", holdsForeignSieve("   \n\t\n", emptyList()))
         assertFalse("what we write is never foreign", holdsForeignSieve(SieveCodec.generate(listOf(rule)), listOf(rule)))
     }
@@ -370,20 +327,6 @@ class FilterRulesReadTest {
 
     /**
      * Everything above executes the decision; this one cannot. `MailRepository` opens shared
-     * preferences in its constructor and needs a JMAP session, so no JVM test builds one — and a
-     * decision that is correct but never called is worth nothing. A mutation campaign measured
-     * exactly that: replacing the script argument with `null` in `loadFilterRules` left the whole
-     * suite green.
-     *
-     * So the ARGUMENTS are pinned, not the fact that a function of the right name is called: that
-     * the blob it downloaded is what gets handed over, and that the answer is no longer assembled
-     * on the spot from `parseRules`. A rename fails this loudly rather than quietly passing.
-     *
-     * What a `contains` does NOT prove: a substring is satisfied by every mutation that makes
-     * the line LONGER. `val managed = scripts.firstOrNull { … }?.takeIf { it.isActive }` contains
-     * the text asserted below and walked straight past the first version of this lint. The line
-     * that carries the selection is therefore compared WHOLE, the way
-     * `MailBySenderWiringTest.the dialog is bound to the row it was opened over` does.
      */
     @Test fun `the repository hands the decision the script it downloaded`() {
         val body = loadFilterRulesBody()
@@ -401,11 +344,6 @@ class FilterRulesReadTest {
         )
         // Measured: narrowing this selection to the ACTIVE script left the whole suite green, and
         // it reopens the very bug above — an unreadable script that is merely INACTIVE is then not
-        // seen at all, so the gesture is offered and the save recompiles the script from an empty
-        // list. The same edit also reports zero rules for a healthy but inactive script, which is
-        // the state the return from holiday leaves every account in. Measured again on this lint:
-        // `?.takeIf { it.isActive }` appended to the line CONTAINS the text that used to be
-        // asserted, so the whole line is compared instead.
         assertEquals(
             "the account's own script must be selected BY NAME ALONE, as exactly `val managed = " +
                 "scripts.firstOrNull { it.name == SieveCodec.SCRIPT_NAME }` and nothing more on " +
@@ -422,10 +360,6 @@ class FilterRulesReadTest {
 
     /**
      * Every WHOLE line of [body] declaring `val [name]`, trimmed, comments dropped.
-     *
-     * The instrument of `MailBySenderWiringTest`: the line, never a substring of it. Returned as a
-     * list so that a second declaration of the same name — the other half of a mutation — fails
-     * the comparison instead of being hidden by the first.
      */
     private fun declarationsOf(body: String, name: String): List<String> =
         SourceText.codeLines(body).filter { it.substringBefore(" =") == "val $name" }

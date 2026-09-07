@@ -15,20 +15,6 @@ import org.junit.Test
 
 /**
  * WHICH inboxes the "latest messages" home-screen widget follows, and WHEN it asks again — pinned
- * by RUNNING [UnifiedInbox.recentRows], the way [UnifiedInboxUnreadTest] runs the counter's rule
- * next door. The widget's rows and the drawer's "All inboxes (N)" must be unable to disagree about
- * which accounts are in, so the derivation exists once and both call it.
- *
- * The tests never re-derive the rule themselves — every expectation is a literal list of pairs. A
- * test that recomputed `accounts.mapNotNull { … }` to build its expectation would agree with a
- * shipped rule that had been inverted.
- *
- * The last two tests are source lints, and they are the weakest things here: nothing in this module
- * can build a `MailRepository` (it wants a `Context`, a database and a session, and there is no
- * Robolectric), and nothing here runs Room at all. So the two claims that cannot be executed — that
- * the shipped function is wired to the LIVE account flow and reuses the widget query the snapshot
- * read already runs, and that the DAO's observed read is woken by both the mail and the snoozes —
- * are pinned as whole lines of shipped source instead.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class UnifiedInboxRecentRowsTest {
@@ -58,13 +44,6 @@ class UnifiedInboxRecentRowsTest {
 
     /**
      * Stands in for `MailRepository.observeRecentUnifiedInbox(limit)` and records what it was
-     * ASKED — the arguments are the point. Each scope list gets a flow of its own, so the rows
-     * collected also say WHICH subscription produced them.
-     *
-     * HOT, and it never completes: a `flowOf(…)` here would be finished the instant it was read,
-     * and a finished inner flow makes `flatMapLatest`, `flatMapMerge` and `flatMapConcat`
-     * indistinguishable. The real collaborator is a Room flow that never ends, so [push] can feed a
-     * subscription the shipped code was supposed to have dropped and see whether it still arrives.
      */
     private class Reader {
         val calls = mutableListOf<List<Pair<String, String>>>()
@@ -120,8 +99,6 @@ class UnifiedInboxRecentRowsTest {
 
     /**
      * Codeberg #121, on this read too. Two accounts on one server are routinely handed the same
-     * mailbox id; a bare folder id would then match both accounts' rows, listing one inbox twice
-     * and the other never. The account id in each pair is what keeps them apart.
      */
     @Test fun `two accounts sharing an inbox id stay two distinct scopes, in order`() = runTest {
         val reader = Reader()
@@ -141,14 +118,6 @@ class UnifiedInboxRecentRowsTest {
 
     /**
      * THE ARBITRAGE THIS FILE EXISTS TO PIN, and the one place this rule DIVERGES from
-     * [UnifiedInbox.unreadByAccount]: the key is the scopes, not [UnifiedInbox.countedInboxes].
-     *
-     * The count keys on the stored counter because its IMAP half reads that record flat inside a
-     * `combine`, which no Room invalidation wakes. These rows come entirely from Room, so the
-     * stored counter cannot move one of them — and `accountsFlow` republishes on every
-     * `saveAccounts`, some 27 call sites: an OAuth token refreshed on a timer, a colour, identities
-     * discovered on connect. Keyed on `countedInboxes`, each of those would cancel and rebuild an
-     * observed query and redraw a home-screen cell for rows that cannot have changed.
      */
     @Test fun `a stored counter moving does not re-subscribe the rows`() = runTest {
         val reader = Reader()
@@ -212,10 +181,6 @@ class UnifiedInboxRecentRowsTest {
 
     /**
      * The claim `flatMapLatest` makes, executed rather than believed: a removed account's
-     * subscription is DROPPED, not merely superseded. The real reader is a Room flow that never
-     * completes and re-runs on every write to `emails`, so with `flatMapMerge` the old subscription
-     * would still be alive — and the home screen would flip between the accounts as they are and
-     * the accounts as they were, at every sync.
      */
     @Test fun `a removed account's rows are unsubscribed, not just superseded`() = runTest {
         val reader = Reader()
@@ -247,22 +212,6 @@ class UnifiedInboxRecentRowsTest {
 
     /**
      * NO ACCOUNT LEFT IS ONE EMISSION, IT SAYS `configured = false`, AND IT READS NOTHING.
-     *
-     * One emission, because removing the last account has to reach the home screen: an
-     * `emptyFlow()` here is silence, and the cell would go on listing a deleted account's mail
-     * until something else redrew it. Not a read, because `folderScopeSql(0, …)` is the constant
-     * `0` — a statement that matches nothing while still subscribing Room to every write to
-     * `emails`, on behalf of someone who has no account at all.
-     *
-     * And `configured` rides along, decided by `recentUnifiedInboxFrom` — the same function the
-     * snapshot read runs, so the two cannot answer differently. It is what the cell draws as the
-     * app's own name rather than "No messages".
-     *
-     * WHAT THIS TEST CANNOT SEE: the value BEFORE this one is a non-empty read, so it never
-     * crosses the de-duplication the app's collector applies on the way to the draw. An inbox that
-     * was ALREADY empty when the last account went is the case that does, and it is pinned in the
-     * `app` module by `RecentMailWidgetPushTest` — on rows alone those two values are equal and the
-     * second is swallowed.
      */
     @Test fun `no account left emits one unconfigured read and reads nothing`() = runTest {
         val reader = Reader()
@@ -296,21 +245,6 @@ class UnifiedInboxRecentRowsTest {
 
     /**
      * SOURCE LINT, and the hole the tests above cannot reach: they inject their own account flow
-     * and their own reader, so nothing here executes the WIRING. `MailRepository` needs a
-     * `Context`, a database and a session; no test in this repository instantiates it.
-     *
-     * Two mutations this exists for, both of which compile and leave every other test green:
-     *
-     *     flowOf(accountStore.accounts())   — a snapshot: the widget then follows the accounts it
-     *                                         started with, and an account added or removed never
-     *                                         reaches the home screen;
-     *     a second SQL string built here    — a twin of `recentUnifiedQuery` to keep in step with
-     *                                         the list's predicate by hand. That is the shape of
-     *                                         #126: the observed query and the drawn query drift,
-     *                                         and the cell redraws on the wrong writes.
-     *
-     * Whole lines, never a `contains`: a substring rule is satisfied by every mutation that
-     * LENGTHENS the line.
      */
     @Test fun `MailRepository observes the SAME widget query, over the live account flow`() {
         val source = SourceText.read(
@@ -334,24 +268,6 @@ class UnifiedInboxRecentRowsTest {
 
     /**
      * SOURCE LINT, and the only kind available for this one: what makes the widget's read REACTIVE
-     * is a Room annotation, and no test in this repository runs Room. There is no in-memory
-     * database here and no instrumentation — `RecentUnifiedInboxSqlTest` runs the statement against
-     * plain SQLite, which knows nothing about invalidation.
-     *
-     * Both entities are load bearing and each is one identifier:
-     *
-     *  - `EmailEntity` dropped: nothing wakes the query when mail is read, deleted or moved, and
-     *    the whole pane is undone — the unread dot stays on the home screen exactly as it was
-     *    measured at the bench on 2026-08-18, with every test still green;
-     *  - `SnoozedEntity` dropped: a message snoozed away, or one whose snooze expires, changes
-     *    which rows this statement returns without a single write to `emails` — the shared
-     *    predicate `listRowsWhereSql` carries `notSnoozedSql`. The cell would keep showing a
-     *    message the app has hidden, and hide one the app has brought back.
-     *
-     * `pagingSource` declares the same two for the same reason, and that is the agreement being
-     * held still here.
-     *
-     * Whole lines, never a `contains`.
      */
     @Test fun `the widget's observed read is woken by BOTH the mail and the snoozes`() {
         val lines = SourceText.codeLines(

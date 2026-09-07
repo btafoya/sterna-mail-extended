@@ -7,22 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as [UploadSentCopyWiringTest].
- * The decision itself is executed next door in `core:data` (`ShowOnlySubscribedFoldersTest`); what
- * no test in this module can run is Compose code and an `AndroidViewModel` reaching into the app
- * container.
- *
- * Four silent edits it exists to catch:
- *  1. the switch writing only on "Save" (or on nothing at all): this screen has one Save button for
- *     the text fields, and a toggle that waits for it is a toggle the user leaves behind by pressing
- *     back — the state on screen would not be the stored one;
- *  2. the switch seeded from something other than the stored value, so it shows "on" over an
- *     account that is off — and this switch's "on" is the one that HIDES folders;
- *  3. the view model no longer writing through the store, so the switch moves and nothing is kept;
- * 4. the row drifting INTO the `if (isImap)` block, where the neighbouring "Upload sent
- *     messages" switch legitimately lives. This setting is about what the FOLDER LISTS show, and
- *     both protocols carry the subscription (IMAP `LSUB`, JMAP `Mailbox.isSubscribed`): inside that
- *     branch it would silently disappear for every JMAP account, which is the app's default
- *     protocol and the reporter's own case (#174).
  */
 class ShowOnlySubscribedFoldersWiringTest {
 
@@ -79,27 +63,6 @@ class ShowOnlySubscribedFoldersWiringTest {
 
     /**
      * The store write, then the folder sync that ON owes — and the SCOPE that sync runs on (#174).
-     *
-     * The decision is executed next door ([app.sterna.core.data.account.subscriptionSyncOnToggle],
-     * run against a real IMAP server by `SubscriptionToggleAsksTheServerTest`); what only a source
-     * lint can see here is that this view model asks it at all, hands it THIS account and THIS
-     * value, and passes its answer through untouched. Drop the launch and the shipped defect is
-     * back whole: the box moves, no `LSUB` goes out, nothing is hidden until a pull-to-refresh
-     * happens to re-list the folders.
-     *
-     * **`appScope`, never `viewModelScope` — and this line is the fix, not a preference.** This
-     * screen is a `NavHost` destination, so its `ViewModelStoreOwner` is the `NavBackStackEntry`:
-     * `popBackStack()` clears the store and CANCELS `viewModelScope`. The gesture in the report is
-     * exactly tick-then-back, and the sync is a whole IMAP round trip (connect, `LIST`, `LSUB`,
-     * `SELECT`, `FETCH`) — cancelled halfway, `mailboxDao.replaceAll` is never reached, nothing is
-     * cached, and the only rescue left is the next full listing, i.e. the pull-to-refresh this
-     * branch exists to remove. Same reasoning, and the same house pattern, as
-     * `ComposeViewModel.releaseLocalDraftEdit` and `ScheduledSendsViewModel.cancel`.
-     *
-     * `runCatching` stays (offline must not take the settings screen down, and the setting is
-     * already written one line up) but it may no longer swallow the failure without a word:
-     * `onFailure` logs it. A silent catch on a scope that can be cancelled is how this defect hid
-     * in the first place.
      */
     @Test fun `the view model stores the value, then syncs the folders on a scope the back gesture cannot kill`() {
         assertEquals(

@@ -7,42 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [ShowOnlySubscribedFoldersWiringTest]. The decision itself is executed next door in `core:data`
- * (`IdentitiesToCreateTest` runs [app.sterna.core.data.account.identitiesToCreate] and
- * [app.sterna.core.data.account.mayCreateIdentities] over real accounts); what no test in this
- * module can run is an `AndroidViewModel` reaching into the app container, nor Compose code.
- *
- * What it exists to catch — each one is a single-line edit that kills #172 in silence, with the
- * whole suite still green:
- *  1. `val before = store.account(id)` moving down, below the writes. `before` would then hold the
- *     list this very Save has just written, `identitiesToCreate` would filter EVERYTHING, and no
- *     `Identity/set` would ever leave the phone again;
- *  2. the call at the end of `save` disappearing, or being handed something other than `before`;
- *  3. `appScope` becoming `viewModelScope`, which the back gesture after Save cancels mid round
- *     trip;
- *  4. `name` / `email` swapped in the `createIdentity` call — both are `String`, so it compiles and
- *     every identity is created with the display name in the address field;
- *  5. the `try` moving OUTSIDE the loop, so one refused address stops the ones behind it;
- *  6. the `catch` going back to logging only, or being narrowed to one exception type, which is
- *     exactly the state V3 was written to end: the server refuses, nothing is retried ever, and
- *     the user is told nothing;
- *  7. the refusal drifting away from the Save button, or being read once instead of collected, or
- *     losing the accountId filter and reporting one account's refusal on another's screen;
- *  8. the server's identity list stopping being READ before the decision — the whole of V5. Handing
- *     `identitiesToCreate` anything other than the list `mail.serverIdentities` has just returned
- *     puts the shipped defect back: on a freshly added account the stored list is empty because
- *     nobody ever read it, and not one `Identity/set` leaves, in silence and for good;
- *  9. the OFFLINE pre-filter [app.sterna.core.data.account.mayCreateIdentities] disappearing, which
- *     would open a JMAP session on every Save of an IMAP account, or growing a round trip of its
- *     own;
- * 10. the failed READ going quiet, which is the offline case: nothing is created and nothing is
- *     said, so an address the user typed stays local for good with no sign of it;
- * 11. either report handing the exception's message STRAIGHT to the screen. The server's sentence
- *     ends with a full stop and `settings_identity_not_created` writes its own after `%2$s`, in
- *     all nine languages, so the S7 read '…for this account.. The address is saved…' on
- *     2026-08-31. Both reports go through [failureDetail], whose behaviour is executed in
- *     [IdentityFailureDetailTest]; and both keep the fallback to the exception class name, without
- *     which a message made of punctuation alone leaves a hole in the sentence.
  */
 class IdentityCreationWiringTest {
 

@@ -28,21 +28,6 @@ class NumberedReadsAreNotSwallowedTest {
 
     /**
      * MUTATION: the body of `rawSource` reduced to `openEmail(credentials, emailId, markRead =
-     * false)`, or `markRead` flipped to `true`. Both compile, both keep every other pinned line of
-     * the file byte-identical, and neither names a numbering — so the numbering lints, which filter
-     * on that vocabulary, cannot see either.
-     *
-     * What they cost:
-     *  - the `cachedEmail(…) ?:` dropped ⇒ EVERY line of EVERY move between accounts opens with a
-     *    full unopposed FETCH of the message from the server (and the Autocrypt key import that
-     *    rides on `openEmail`), on a path whose whole point is that the server is asked once, under
-     *    a numbering it has confirmed;
-     *  - `markRead = true` ⇒ every move marks the message READ ON THE SERVER before it is read for
-     *    the copy. Under the renumbering this branch exists for, that is someone else's message
-     *    flagged `\Seen`, and nothing takes it back.
-     *
-     * So the body is pinned WHOLE, as a closed list of lines, on `MoveToAccountWiringTest`'s model:
-     * anything added, removed, reordered or lengthened reddens it.
      */
     @Test fun `the whole body of the public read is these lines, and nothing else decides`() {
         val body = DaoQuerySource.mailFunctionBody("MailRepository", "rawSource")
@@ -68,14 +53,6 @@ class NumberedReadsAreNotSwallowedTest {
 
     /**
      * MUTATION: `fetchRawSource`'s default flipped from `FrozenNumbering.NothingFrozen` to
-     * `FrozenNumbering.Frozen(null)`. One token, no call site touched, suite green.
-     *
-     * What it costs: the two callers that pass nothing are ordinary reads. `rawHeaders` would stop
-     * being served by the raw-source cache AND — on IMAP — be REFUSED outright, because a tick that
-     * froze nothing is refused at the wire. The headers of a message would simply stop appearing.
-     *
-     * The default is the one place this can be said. Every OTHER pin on this path reads the
-     * argument at a CALL site, and these callers have no argument to read.
      */
     @Test fun `the fetch defaults to nothing frozen, in its signature`() {
         val signature = signatureOf("fetchRawSource")
@@ -99,23 +76,6 @@ class NumberedReadsAreNotSwallowedTest {
 
     /**
      * MUTATION: a `runCatching { … }` — or a `try/catch` — around the IMAP block of
-     * `MailRepository.delete`. It reads as defensive, it compiles, and every line pinned elsewhere
-     * stays byte-identical.
-     *
-     * What it costs is the worst outcome this branch has: `delete` is `trashSource`, the second
-     * step of a move between accounts. Swallow its refusal and the step LOOKS like it succeeded,
-     * so `crossAccountMove` reports [CrossAccountMove.Moved] — a permanent duplicate on account B,
-     * announced to the user as a completed move, on the one path with no Undo. Both exceptions are
-     * lost that way: `ImapNumberingUnconfirmed` (the server confirmed nothing) and
-     * `ImapUidValidityChanged` (the folder WAS renumbered).
-     *
-     * So the rule is about ENCLOSURE, not about a line, and that is why no line-by-line list
-     * could ever have caught it: [openBlocksAt] answers which blocks are still open over each
-     * command that goes out under a numbering.
-     *
-     * Deliberately NOT `imap.moveBatch(`: the bulk mover is wrapped in a `runCatching` on
-     * purpose, because it reports its refusals per id through `BulkResult.failed` instead of
-     * throwing them at the caller. Adding it here would red the shipped code.
      */
     @Test fun `no IMAP command that carries a numbering sits inside a block that catches`() {
         val lines = DaoQuerySource.mailSource("MailRepository").lines()

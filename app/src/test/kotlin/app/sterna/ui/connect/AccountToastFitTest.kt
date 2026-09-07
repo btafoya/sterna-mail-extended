@@ -7,71 +7,16 @@ import java.io.File
 
 /**
  * SOURCE + RESOURCE LINT, NOT A BEHAVIOUR TEST — said first, because what it guards is a RENDERING
- * defect, and nothing in this module can render anything.
- *
- * An add that lands on an account already installed refreshes it in place and says so in a
- * `Toast` ([accountAddedToast], executed in [AccountAddedToastTest]). A `Toast` is TWO LINES, hard,
- * with no setting anywhere: what does not fit is cut, with no ellipsis and nothing on screen saying
- * text was lost. Measured on the virtual bench on 2026-08-18 (`emu`, Android 16, 411 dp, release
- * variant), `connect_account_refreshed`:
- *
- * | locale        | chars | rendered                                              |
- * |---------------|-------|-------------------------------------------------------|
- * | `values` (en) |    71 | whole                                                 |
- * | `values-it`   |    72 | whole                                                 |
- * | `values-de`   |    80 | CUT — "… Seine Verbindung wurde **a…**"                |
- * | `values-pl`   |    82 | CUT — "… Połączenie zostało **od…**"                   |
- *
- * The cut therefore falls between 72 and 80 characters at 411 dp. That is the ONLY measurement that
- * exists; everything below is derived from it and from nothing else.
- *
- * **Two limits, written down rather than left to be discovered** (the same two
- * [app.sterna.ui.SenderRuleDialogFitTest] states, for the same reason):
- *
- *  - a character count is a **proxy** for rendered width. It is blind to the script (Cyrillic and
- *    German set wider than English at equal length), to the font, and to the font scale. It cannot
- *    prove a sentence fits; it can only refuse the ones that certainly do not.
- *  - the threshold comes from a **bench measurement, not from Android**. There is no spec behind
- *    `Toast`'s two lines being 72-to-80 characters wide, and no way to derive one here.
- *
- * The identifiers are EXTRACTED, never listed: a list typed into a test is a copy of the code, and
- * a copy stays green while the code changes underneath it (the lesson `SenderVolumeCopyTest`
- * carries, and the one `SenderRuleDialogFitTest` was written around).
  */
 class AccountToastFitTest {
 
     /**
      * 56 characters, and where the number comes from — a bench reading, three steps, all of them
-     * arguable and none of them a specification:
-     *
-     *  1. 72 characters rendered WHOLE at 411 dp (`values-it`, above). 80 did not.
-     *  2. the narrow bench is 360 dp (`ultranabla`), i.e. 360/411 of that width: ≈ 63 characters.
-     *  3. 63 is a LATIN reading. Cyrillic and German set wider per character at equal length, so
-     *     the plafond keeps a margin under it: **56**.
-     *
-     * It is not a width. It is a count of characters standing in for one, and the sentence that
-     * exactly hits 56 in Russian may still be cut. What this number is good for is refusing the
-     * sentences already known to be too long.
-     *
-     * NOT COVERED — THE FONT SCALE, and it is the axis that produced the defect in the file this
-     * one is modelled on. Every figure above was read at the DEFAULT font scale, while
-     * [app.sterna.ui.SenderRuleDialogFitTest] derives its own threshold from a measurement at
-     * `font_scale 2.0`. Two lines hold far fewer characters there — an extrapolation from the 411 dp
-     * reading puts it somewhere around 36 to 40, which the nine sentences shipped today (41 to 52
-     * characters) would straddle. That range is arithmetic, not a measurement: nobody has rendered
-     * this toast at a large font scale. It is deliberately NOT acted on here — shortening the
-     * sentences on a number nobody measured would cost one of the two propositions the rule below
-     * demands, and buy an unproven fit. The large-font-scale check belongs to the bench, and until
-     * it happens this plafond says nothing whatsoever about it.
      */
     private val maxToastChars = 56
 
     /**
      * The rule that keeps the other two honest: what is being measured is FOUND.
-     *
-     * A lint that extracts its subject can extract nothing — a renamed function, a route that stops
-     * passing a resource, a `<string>` tag the pattern misses — and then report success over an
-     * empty set, for as long as nobody looks. A rule quietly matching nothing is worse than no rule.
      */
     @Test fun `the sentences a finished add can show are found, and there is at least one`() {
         val body = decisionBody()
@@ -99,10 +44,6 @@ class AccountToastFitTest {
 
     /**
      * FAIL CLOSED on the resources, second half. An id the string map does not resolve is measured
-     * by NOTHING, silently, at any length: a sentence declared in a res file this rule does not
-     * read (a split into `values/labels.xml`, ordinary once a file grows), or one whose `<string>`
-     * tag this file's pattern misses (an attribute written BEFORE `name`, which neither this
-     * pattern nor `TranslationParityTest`'s matches — so parity would be happy too).
      */
     @Test fun `every sentence an add ends on resolves in the nine languages`() {
         val strings = locales().associate { it.name to stringsOf(it) }
@@ -122,11 +63,6 @@ class AccountToastFitTest {
 
     /**
      * THE DEFECT: a two-line box, and a sentence longer than two lines.
-     *
-     * What the reader loses is not decoration. The toast is the ONLY thing that says the address
-     * she typed was already installed and that its connection was refreshed rather than a second
-     * account created; cut at "Seine Verbindung wurde a…" she is told an account exists and not
-     * what happened to it, which is the half that stops her from adding the same mailbox again.
      */
     @Test fun `no sentence an add ends on is too long for a toast`() {
         val strings = locales().associate { it.name to stringsOf(it) }
@@ -154,33 +90,6 @@ class AccountToastFitTest {
 
     /**
      * THE OTHER HALF, and the one the plafond above cannot see: a sentence can FIT and still be
-     * the wrong sentence.
-     *
-     * The mutation that survived the first version of this file, with the whole suite green:
-     *
-     * ```xml
-     * <string name="connect_account_refreshed">Konto hinzugefügt.</string>
-     * ```
-     *
-     * 18 characters, comfortably under the plafond — and `connect_account_added` IS "Konto
-     * hinzugefügt" in German. A re-add then announces a created account again: the defect this
-     * whole branch exists to remove, back, with every length rule green. Its variant survived too:
-     * `<string name="connect_account_refreshed">@string/connect_account_added</string>`, which
-     * AAPT2 resolves at build time while this lint counts 29 characters of XML literal.
-     *
-     * So three things are pinned on the re-add sentence, in all nine languages:
-     *
-     *  1. it DIFFERS from every sentence a route says on a real create — compared normalised
-     *     (trimmed, lowercased, trailing punctuation dropped), because a full stop is otherwise
-     *     all it takes to make "Konto hinzugefügt." a different string from "Konto hinzugefügt";
-     *  2. it is a LITERAL, never a resource reference: everything this file measures is the XML
-     *     text, never what Android renders, so an `@string/…` alias is text this rule reads and
-     *     the reader never sees. Refused for the create sentences too, since rule 1 compares
-     *     against their literals as well;
-     *  3. it carries TWO propositions — two non-empty fragments around a full stop. That is the
-     *     substance of the message: *the account was already there*, AND *its connection was
-     *     refreshed*. A sentence keeping only one of the two leaves the reader unable to tell what
-     *     just happened to the address she typed.
      */
     @Test fun `the re-add sentence says a re-add, in every language, and not a create`() {
         val strings = locales().associate { it.name to stringsOf(it) }
@@ -262,32 +171,12 @@ class AccountToastFitTest {
 
     /**
      * Every string id a finished add can put on screen:
-     *  - what the DECISION itself names — the body of `accountAddedToast`, which is where the
-     *    re-add sentence is chosen;
-     *  - plus every `R.string.<id>` a route hands in as its second argument, wherever it is called.
-     *
-     * Extracted both ways on purpose: neither end knows the whole set. The decision holds the
-     * sentence no route is allowed to name, and each route holds the sentence it says on a real
-     * create — today `null`, `connect_account_added`, `connect_outlook_added`.
-     *
-     * A SEVENTH ROUTE INHERITS THESE RULES ONLY IF IT CALLS [accountAddedToast]. One that shows
-     * a string of its own is invisible here, and silently so: the three rules above fail closed
-     * when this lint goes TOTALLY blind (no decision body, no call site, no id at all), never when
-     * it goes PARTIALLY blind — the sets stay comfortably non-empty on the six routes that do call
-     * it, and the seventh's sentence is simply never measured. What keeps that from happening is
-     * `ConnectPrimingWiringTest` / `OAuthCodeWiringTest`, which read the routes themselves; this
-     * file cannot see a route it is not led to.
      */
     private fun toastIds(): Set<String> =
         (resourceIds(decisionBody()) + callSites().flatMap { createdResOf(it) }).toSet()
 
     /**
      * The body of `accountAddedToast`: its declaration line plus every indented line under it (a
-     * top-level declaration starts at column 0, so that is where the body ends).
-     *
-     * Fails loudly when the declaration is gone: the alternative is reading an empty string and
-     * measuring the routes only, with the re-add sentence — the reason this file exists — silently
-     * out of scope.
      */
     private fun decisionBody(): String {
         val lines = code(VIEW_MODEL).lines()
@@ -316,13 +205,6 @@ class AccountToastFitTest {
 
     /**
      * The `createdRes` argument of one call, as a list: empty for `null` (a route that stays silent
-     * on a create), one id for `R.string.<id>`.
-     *
-     * Anything else FAILS. A resource reached through a variable, a `when`, or an argument built
-     * on the spot renders characters this file cannot count, and the honest answer is to refuse it
-     * rather than pass over it — the shape of the mutation that survived `SenderRuleDialogFitTest`'s
-     * first version, where the label stopped being one whole resource and every length rule stayed
-     * green.
      */
     private fun createdResOf(callSite: String): List<String> {
         val args = arguments(callSite.substringAfter(": "))
@@ -431,9 +313,6 @@ class AccountToastFitTest {
 
         /**
          * A `<string>` with its text — attributes ALLOWED, as `TranslationParityTest` reads them.
-         * A pattern demanding `<string name="x">` exactly is silently blind to
-         * `<string name="x" formatted="false">`: the key would still exist for the parity rule and
-         * the sentence would simply drop out of the length rule, unchecked, at any length.
          */
         val STRING = Regex("""<string\s+name="([^"]+)"[^>]*>(.*?)</string>""", RegexOption.DOT_MATCHES_ALL)
 

@@ -5,11 +5,6 @@ import org.junit.Test
 
 /**
  * The letter drawn inside a badge, pinned as literals.
- *
- * [initialOf] used to be private and was only ever exercised through [Monogram], which needs a
- * composition; the home-screen widget draws the same badge into a Bitmap with no composition at all,
- * so the rule now has to hold on its own. Every expectation below is written out by hand rather than
- * recomputed from `label`: a test that re-derives the answer would follow the code wherever it went.
  */
 class MonogramInitialTest {
 

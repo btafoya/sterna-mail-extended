@@ -14,39 +14,6 @@ import org.junit.Test
 
 /**
  * WHEN the browse list's pager is rebuilt.
- *
- * Every emission of [pageKeyFlow] rebuilds it: the ViewModel's `flatMapLatest` cancels the running
- * `Pager` and constructs a new one, which starts from `initialKey = null` — the first page of the
- * cache. On screen that is the list snapping back to the top, and the reader's swipe-to-next-message
- * losing its place with it, since it pages the same flow.
- *
- * The reported gesture: read far down a folder, open a message, tap "always show images from this
- * sender", come back — top of the list. Nothing about the list had changed. DataStore republishes
- * the WHOLE `Preferences` on every write, whatever key was touched, so `settings.sortOrder` and
- * `settings.conversationView` handed out the value they already had, an EQUAL key was built, and the
- * pager was thrown away and rebuilt. `cachedIn` does not help: it caches the pages, not the decision
- * to build a new source.
- *
- * These tests RUN the function and COUNT what it emits. They never recompute the key to decide what
- * to feed it: the inputs are fixed literals and the assertion is the number — and the content — of
- * the emissions.
- *
- * Both directions matter, and the second one more:
- *  - an equal value re-emitted upstream must produce NOTHING (the bug);
- *  - a change in ANY ONE of the seven members must produce a key (a dedupe that swallows a real
- *    change is worse than the bug it fixes: the list would keep showing another folder's, another
- *    account's or another sort's rows). That second half is also what pins [PageKey]'s value
- *    equality — a member added later without it, or added and never read here, reddens exactly one
- *    of the seven.
- *
- * The inputs are [MutableSharedFlow]s rather than `MutableStateFlow`s on purpose: a StateFlow
- * conflates an equal assignment all by itself, so it cannot even express the re-emission this is
- * about, and a test built on one would pass against the broken code. `dataStore.data.map { … }`, the
- * flow the bug actually travels down, is a cold flow with no such conflation.
- *
- * Nothing here says a word about the screen keeping its scroll position: `PageFetcher`,
- * `LazyListState` and Room are all out of reach in a JVM test. This proves the pager is not ASKED to
- * rebuild; that the list then stays put is bench work.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PageKeyFlowTest {

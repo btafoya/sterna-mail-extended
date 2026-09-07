@@ -15,15 +15,6 @@ import java.io.IOException
 
 /**
  * [getOrElseUnlessCancelled] and [rethrowIfCancelled]: what a `runCatching` around suspending work
- * may and may not recover from (Codeberg #99, then #129 for the Result that is kept rather than
- * unwrapped).
- *
- * The trap it exists for: `runCatching` catches [CancellationException] too, so a cancelled
- * coroutine emerges looking like a plain failure and the recovery branch runs for a caller that
- * no longer exists — the Empty-trash photograph falling back to the cache after an Undo, or the
- * view model tearing down a pending purge that had passed to another job. Both call sites are
- * unreachable from a JVM test (an `Application` and thirteen constructor dependencies), so what
- * is pinned here is the shared decision they both now go through.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class CancellationTest {
@@ -84,8 +75,6 @@ class CancellationTest {
 
     /**
      * The #129 shape: the sub-account probe stores its Result instead of unwrapping it, so a
-     * swallowed cancellation would be filed as "this account failed, so keep it" and the reconcile
-     * would go on to write for a connect() that was stopped.
      */
     @Test fun aKeptCancellationIsRethrownInsteadOfBeingFiledAsAFailedProbe() {
         var filed: Result<List<String>>? = null
@@ -102,8 +91,6 @@ class CancellationTest {
 
     /**
      * And the discarded-Result shape beside it: `runCatching { … }` whose value nobody reads
-     * (best-effort work). Swallowed, the cancellation lets the caller return normally — which is
-     * how `ConnectViewModel` would write `Connected` for a screen the user has just left.
      */
     @Test fun aCancelledBestEffortBlockStopsTheCallerInsteadOfReturningNormally() = runTest {
         var reportedConnected = false
@@ -124,9 +111,6 @@ class CancellationTest {
 
     /**
      * The real shape: work suspended inside the `runCatching` (the paged id walk) and cancelled
-     * from outside (Undo). The cancellation arrives as a `JobCancellationException`, which a
-     * plain `getOrElse` would have swallowed — leaving the coroutine to run on past the point
-     * where it was stopped.
      */
     @Test fun aCoroutineCancelledMidCallDoesNotFallBackAndDoesNotCarryOn() = runTest {
         var fellBack = false

@@ -15,17 +15,6 @@ import java.sql.DriverManager
 
 /**
  * What a full folder-list sync purges, and in statements SQLite will actually accept.
- *
- * Codeberg #142: an account with ~1 040 IMAP folders failed EVERY refresh with "too many SQL
- * variables", because `MailboxDao.replaceAll` deleted with a `NOT IN (:keepIds)` holding one bound
- * variable per server folder (999 max below Android 12). The statement never compiled, the whole
- * `@Transaction` rolled back — so the upsert went too — and the drawer stayed empty forever.
- *
- * The refusal itself is NOT reproducible here: these tests run on sqlite-jdbc, whose variable
- * limit is not the device's. What is testable is the DECISION — which ids go, in batches of what
- * size — which is why it lives in [mailboxEvictions] instead of inside the DAO body. The three
- * levels below are deliberate: the decision executed, the call site executed, and a source lint
- * that the dangerous statement is gone from the DAO.
  */
 class MailboxEvictionsTest {
 
@@ -109,14 +98,6 @@ class MailboxEvictionsTest {
     @Test fun idsForAccountReadsEVERYFolderOfOneAccountAndNoOtherAccounts() {
         // The purge deletes whatever this returns, so anything this statement leaves out is a
         // folder the purge stops touching — silently. Two ways to lose rows, and the fixture must
-        // be able to tell BOTH apart from the shipped statement:
-        //  - a lost `WHERE accountId`: another account's ids reach a delete scoped to this one;
-        //  - any extra `AND …` on parentId or role: on a 1 040-folder Dovecot tree nearly every
-        //    folder is nested, so the purge becomes a no-op there — a folder deleted on the server
-        //    stays in the drawer, and a RENAME shows the old name beside the new one, the old one
-        //    opening a dead folder.
-        // Hence rows of all four shapes: nested/top-level × roled/role-less. The statement is read
-        // out of the shipped DAO, not retyped.
         Class.forName("org.sqlite.JDBC")
         DriverManager.getConnection("jdbc:sqlite::memory:").use { db ->
             db.createStatement().use {
@@ -186,8 +167,6 @@ class MailboxEvictionsTest {
 
     /**
      * A [MailboxDao] whose `replaceAll` is the SHIPPED default method: the test executes the real
-     * call site and records what it passes down, so an inverted pair of lists or a lost account
-     * scope shows up as wrong arguments and not as a missing call.
      */
     private class FakeMailboxDao(private val cachedByAccount: Map<String, List<String>>) : MailboxDao {
 

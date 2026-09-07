@@ -6,9 +6,6 @@ import app.sterna.core.jmap.OAuthClient
 
 /**
  * Hands out a currently-valid OAuth access token for an account, refreshing it (and
- * persisting the rotated tokens) when the cached one is within a minute of expiry.
- * Shared by the JMAP Bearer path and the IMAP/SMTP XOAUTH2 path so both refresh the
- * same way.
  */
 class OAuthTokenRefresher(
     private val oauthClient: OAuthClient,

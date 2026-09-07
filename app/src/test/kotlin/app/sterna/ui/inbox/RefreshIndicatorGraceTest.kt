@@ -15,21 +15,6 @@ import org.junit.Test
 
 /**
  * The refresh indicator's grace and floor (#178), executed — never read.
- *
- * The reported defect is the ordinary one: opening a folder, switching account or starting the app
- * fires a refresh that lands in a few dozen milliseconds, and the tern blinked on every single one
- * of them. The rule is split in two here, and BOTH halves have a test that reddens on their own:
- * a short refresh must draw NOTHING at any instant whatsoever, and a refresh that did get drawn
- * must stay drawn long enough to be looked at.
- *
- * The test that tells the shipped rule from the naive one is
- * [`a refresh that lands inside the grace is never drawn, at any instant`]. Applying the floor to
- * every stretch — the obvious implementation — lights the indicator from 250 ms to 750 ms for a
- * refresh that was over at 80 ms, i.e. it swaps one blink for a later, longer one and leaves #178
- * standing. That mutation leaves every other test in this file green.
- *
- * The clock is virtual ([runTest]), the same bench as `OutboxBadgeCountTest` for the outbox badge's
- * grace, which this file deliberately copies rather than inventing a second shape.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class RefreshIndicatorGraceTest {
@@ -55,9 +40,6 @@ class RefreshIndicatorGraceTest {
 
     /**
      * The two numbers themselves, EXECUTED on literal instants rather than read back from the
-     * constants. Every other test in this file spells `grace` and `floor`, so it would follow the
-     * shipped rule wherever it was moved to: raise the grace to five seconds and they all stay
-     * green while the tern never appears again. These two do not move.
      */
     @Test fun `a refresh of 240 ms is never drawn and one of 260 ms is`() {
         val short = RefreshRun(startedAt = 0, endedAt = 240)
@@ -139,14 +121,6 @@ class RefreshIndicatorGraceTest {
 
     /**
      * The case the first version of [startRefreshRun] got wrong, and the one the floor is FOR.
-     *
-     * Shown at 250, landed at 300 with the floor owed until 750, a second folder tapped at 400.
-     * Replacing the stretch — which is what "it has ended, so start a new one" does — turned the
-     * indicator OFF at 400 and back on at 650: dark for a quarter of a second BETWEEN two folder
-     * taps, i.e. two more edges than before the fix, on the very gesture #178 names.
-     *
-     * Written on literal instants, and it fails on the replacing version: `startedAt` would be 400
-     * and `refreshIndicatorShowing(second, 400)` false.
      */
     @Test fun `a refresh starting while the indicator is still drawn does not blink it off`() {
         val shown = RefreshRun(startedAt = 0, endedAt = 300)
@@ -291,8 +265,6 @@ class RefreshIndicatorGraceTest {
 
     /**
      * One wake-up per transition, never a poll: the clock is counted, not just read. A loop ticking
-     * every frame would answer every assertion above and put the screen back on the scheduler tens
-     * of times per refresh — on a list that is being scrolled.
      */
     @Test fun `the flow reads the clock a handful of times, not on a tick`() = runTest {
         var reads = 0

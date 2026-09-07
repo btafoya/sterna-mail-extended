@@ -9,20 +9,6 @@ import org.junit.Test
 
 /**
  * [presetMillisAtTap] is the decision the "send later" menu takes AT THE TAP, instead of scheduling
- * whatever the menu captured when it was drawn. It is pure and takes both clocks and the zone, so
- * the whole defect — a menu drawn before 6 PM and tapped after it — is playable here without moving
- * the bench's clock.
- *
- * What it guards, on both sides:
- *  - a LAPSED instant reaching `ScheduledSends.enqueue` is coerced to a zero delay, which sends the
- *    message AT ONCE while the banner names the evening. A send has no way back, so the answer is a
- *    refusal (null), never a corrected instant;
- *  - an ABSOLUTE entry re-computed at the tap MOVES A DAY across midnight. "Tomorrow, 8 AM" drawn
- *    on the 18th at 11:50 PM means the 19th; re-computed at 00:05 it would mean the 20th, and the
- *    message would leave 32 hours after a label that said 8.
- *
- * Every expected instant is written out in full, never recomputed from the rule under test.
- * Same dates and idiom as [SchedulePresetsTest], whose subject is the list this one is fed from.
  */
 class PresetMillisAtTapTest {
     private val utc = ZoneId.of("UTC")
@@ -61,9 +47,6 @@ class PresetMillisAtTapTest {
     @Test fun `tomorrow morning drawn before midnight keeps the day the menu showed`() {
         // THE REGRESSION this test exists for. Absolute entries are NOT re-computed at the tap:
         // drawn on the 18th at 11:50 PM, "Tomorrow, 8 AM" is the 19th at 8. Asking the rule again
-        // at 00:05 on the 19th answers the 20th — the label says 8 AM and the message leaves 32
-        // hours later. main scheduled the 19th; anything but the 19th here is a data-visible
-        // regression, not a nicety.
         assertEquals("drawn on the 18th at 11:50 PM, Tomorrow 8 AM is the 19th at 8", millis(utc, 8, day = 19), drawn(SchedulePreset.TOMORROW_MORNING, millis(utc, 23, 50, day = 18)))
         assertEquals(
             "tapped five minutes past midnight the entry must still be worth the 19th at 8 AM — " +

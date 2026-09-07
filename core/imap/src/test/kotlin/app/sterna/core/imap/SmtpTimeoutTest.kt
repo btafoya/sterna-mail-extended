@@ -10,47 +10,21 @@ import java.util.concurrent.atomic.AtomicReference
 
 /**
  * A submission against a server that ACCEPTS and then makes the client wait.
- *
- * Nothing of the SMTP dialogue used to be bounded in time: no `soTimeout` existed anywhere in
- * `SmtpClient`, so a server that took the connection and then said nothing left `send()` blocked on
- * a read for good — the outbox row stuck on "sending", with no error, nothing to cancel and nothing
- * to edit. What is asserted here is that `send()` COMES BACK, and that the one read which is
- * legitimately slow (the 250 that answers the body) still does not.
- *
- * The wait bounds below are far under the shipped defaults (20 s connect / 30 s command), so a
- * client that ignored the arguments and used its defaults would fail these just as an unbounded one
- * does: what is pinned is the value that was PASSED, not merely that some timeout exists.
  */
 class SmtpTimeoutTest {
 
     /**
      * How long a bounded send is given to come back: ten times the bound handed to the client, a
-     * sixth of the 20 s connect default and of the 30 s command default.
-     *
-     * Wide on purpose. It only bounds the FAILING cases, so widening it costs a green suite nothing,
-     * and the container is capped at four cores with other Gradle workers on them: a 500 ms margin
-     * here would turn one GC pause into a red verdict on correct code.
-     *
-     * What it still pins is WHICH value the client used — a client that ignored the argument, or
-     * took the wrong one of the two, lands on a default far above this and hangs.
      */
     private val waitMs = 5_000L
 
     /**
      * Short bound on the COMMANDS only; the connect keeps its shipped default and is never passed.
-     * That is what tells the two apart: on loopback the connect is instantaneous, so a `send()` that
-     * bounded its command reads with `connectTimeoutMs` would read at 20 s and blow [waitMs] — where
-     * passing a short connect timeout too would have let that confusion pass unseen.
      */
     private val commandTimeoutMs = 500
 
     /**
      * Run [block] on a daemon thread and give it [millis] to return; the throwable it ended with,
-     * or null when it returned normally.
-     *
-     * A thread and not `@Test(timeout = …)`: without the fix these sends never return at all, and
-     * the thread left behind must not be one that keeps the Gradle test worker alive. The `check`
-     * message IS the red witness of the defect.
      */
     private fun sendWithin(millis: Long, block: () -> Unit): Throwable? {
         val outcome = AtomicReference<Result<Unit>>()
@@ -108,12 +82,6 @@ class SmtpTimeoutTest {
 
     /**
      * B-J8 — the acknowledgement of the BODY takes far longer than the command timeout, and the
-     * send must succeed anyway.
-     *
-     * This is the witness that the two regimes exist. The server behind that read queues, signs
-     * (DKIM) and scans the message; minutes are normal. A short bound here would fail a submission
-     * the server went on to accept, `OutboxWorker` would retry it, and the message would go out
-     * TWICE — which no later fix can take back.
      */
     @Test
     fun `a slow acknowledgement of the body is waited for, past the command timeout`() {
@@ -145,11 +113,6 @@ class SmtpTimeoutTest {
 
     /**
      * B-J9 — a send that FAILS closes its connection.
-     *
-     * Proven by the server, which is the only party that can see it: its read returns EOF and its
-     * serving thread ends, which is what [FakeSmtpServer.awaitDone] waits for. Before the fix
-     * `socket.close()` was reached only after a successful send, so every rejected recipient — and
-     * every timeout added by this change — leaked a descriptor.
      */
     @Test
     fun `a rejected recipient still closes the connection`() {
@@ -190,22 +153,11 @@ class SmtpTimeoutTest {
 
 /**
  * SOURCE LINT, and it is a lint and not a measurement: `FakeSmtpServer` speaks no TLS, so
- * neither the implicit-TLS handshake nor the STARTTLS upgrade is reachable by a behaviour test.
- * `startHandshake()` reads from the socket, so it hangs on a mute server exactly as a command read
- * does — and a bound armed AFTER it would not cover it. Only the order of two lines states that.
- *
- * The shipped default VALUES are the second thing no behaviour test can state (a test that waited
- * 20 s to observe a 20 s bound would be a test nobody runs), so they are pinned on the declaration.
- *
- * Whole lines, never `contains`: a substring check is blind to every mutation that LENGTHENS the
- * line it looks at.
  */
 class SmtpTimeoutLintTest {
 
     /**
      * The STATEMENTS of `send()`. Comment lines are dropped, and only they: what is asserted below
-     * is the order in which things happen, and a comment that names `startHandshake()` is not a
-     * handshake. Nothing else is filtered — a mutation that lengthens a line still shows up whole.
      */
     private val body = ImapSource.functionBody("SmtpClient", "send")
         .filterNot { Regex("""^(//|/?\*)""").containsMatchIn(it) }
@@ -252,12 +204,6 @@ class SmtpTimeoutLintTest {
 
     /**
      * The hostname check, on both TLS sockets.
-     *
-     * This volet is what put `.verifyingHostname()` on a line of its own (it used to be welded to
-     * `…​.apply { startHandshake() }`), so it is now a one-line deletion, between two lines this
-     * class pins — which would make the area LOOK covered. Nothing else in the repo names it. Drop
-     * it and any certificate from any CA is accepted for any host: the submission can be
-     * intercepted, and the password goes out in base64 three commands later.
      */
     @Test
     fun `every TLS socket verifies the hostname before it shakes hands`() {
@@ -305,15 +251,6 @@ class SmtpTimeoutLintTest {
 
     /**
      * Every read bound `send()` sets, in order, whole line — what is armed AND what is disarmed.
-     *
-     * "A disarm exists" is not the claim: the claim is WHICH sockets it puts back to blocking. Two
-     * were armed (the plain one at the connect, the TLS one layered over it), so two are disarmed.
-     * A disarm of only the current socket would rely on `SSLSocket.setSoTimeout` reaching the socket
-     * it wraps; where that does not hold, the 250 that answers the body stays bounded at 30 s over
-     * TLS and a slow-but-successful send is cut, retried, and delivered twice.
-     *
-     * A lint, not a measurement: `FakeSmtpServer` speaks no TLS, so no test here can watch a
-     * submission survive a slow acknowledgement over TLS.
      */
     @Test
     fun `every read bound is armed and put back, on every socket that was armed`() {

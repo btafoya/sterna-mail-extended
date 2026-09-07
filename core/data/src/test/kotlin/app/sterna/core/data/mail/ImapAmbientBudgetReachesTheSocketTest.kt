@@ -20,19 +20,6 @@ import kotlin.coroutines.EmptyCoroutineContext
 
 /**
  * **That the budget installed on the COROUTINE actually reaches the socket** (#95) — a real
- * [ImapMailService], a real `APPEND`, and a scripted server that takes the message and then says
- * nothing at all.
- *
- * This is the only test of the volet that proves anything about the mechanism. `ImapBudgetTest`
- * executes the arithmetic and the wiring tests read the source; between the two there is a whole
- * chain — the element surviving `withContext(Dispatchers.IO)`, `runWithRetry` reading it, the
- * deadline reaching `withReadTimeoutSuspending`, and that setting `soTimeout` — that no assertion
- * on a pure function can see. Every link of it can be broken while both stay green.
- *
- * The server is the exact shape of the reported failure (gesture B9): it accepts the connection,
- * accepts the literal, and never sends the tagged response. That is `read()` on a live socket with
- * nothing to read — the case a coroutine cancellation does NOT end, which is why the bound has to
- * be on the socket and not on the job.
  */
 class ImapAmbientBudgetReachesTheSocketTest {
 
@@ -76,9 +63,6 @@ class ImapAmbientBudgetReachesTheSocketTest {
         //
         // Bounded on the TEST side only, and it has to be: there is no bound on the app side,
         // which is the whole point. The call is made on a daemon thread that is knowingly left
-        // parked on the socket for the rest of the JVM's life — it cannot be interrupted, a
-        // `withTimeout` around it would cancel the job without the thread ever coming off the
-        // read (which is the defect itself), and a daemon thread holds nothing up at exit.
         muteServer().use { server ->
             val outcome = appendOnItsOwnThread(server) { EmptyCoroutineContext }
 
@@ -100,12 +84,6 @@ class ImapAmbientBudgetReachesTheSocketTest {
 
     /**
      * `appendDraft` against [server] under [context], on a DAEMON thread.
-     *
-     * The thread is knowingly abandoned when the call does not come back — the witness case, and
-     * the defect itself. It cannot be interrupted (a blocking `read()` is not interruptible), and a
-     * `withTimeout` around it would cancel the job while the thread stayed on the socket, which is
-     * precisely what this whole volet is about. A daemon thread holds nothing up at JVM exit; a
-     * non-daemon one would hang the Gradle worker at the end of the suite.
      */
     private fun appendOnItsOwnThread(
         server: ScriptedImapServer,
@@ -128,11 +106,6 @@ class ImapAmbientBudgetReachesTheSocketTest {
 
     /**
      * A server that greets, logs in, takes the `APPEND` literal — and then answers NOTHING.
-     *
-     * `ScriptedImapServer` writes whatever the responder returns and goes straight back to reading
-     * the next command, so an empty answer is a peer that is alive, connected, and mute. That is
-     * the link cut mid-`APPEND` of the bench measurement, minus the TCP reset that would have made
-     * it easy.
      */
     private fun muteServer() = ScriptedImapServer { tag, line ->
         when {
@@ -167,8 +140,6 @@ class ImapAmbientBudgetReachesTheSocketTest {
 
         /**
          * Short on purpose: the shipped value is a minute ([LOCAL_DRAFT_UPLOAD_BUDGET_MS]) and a
-         * test that waited it out would be a minute of bench time per run. What is under test is
-         * that the number reaches the socket, not which number it is.
          */
         const val BUDGET_MS = 500
 

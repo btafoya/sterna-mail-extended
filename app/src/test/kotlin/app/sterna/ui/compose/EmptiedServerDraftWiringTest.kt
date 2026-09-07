@@ -7,15 +7,6 @@ import java.io.File
 
 /**
  * The empty-save of a draft opened straight off the SERVER, on its way from the composer to the
- * expunge — SOURCE LINT, the last resort, for [DraftVerdictWiringTest]'s reason: nothing in this
- * module can instantiate `ComposeViewModel` (an `AndroidViewModel`, no Robolectric here). The
- * decision itself is EXECUTED by [EmptiedServerDraftTest] ([emptiedServerDraftIsKept]); what nothing
- * else can see is whether this route still asks it, and asks it about THIS screen's verdict.
- *
- * A test that checks a call EXISTS proves nothing about what is handed to it: arguments are parsed
- * out of the call and compared whole ([callsOf]), and the block is pinned line by line and IN ORDER —
- * a `contains` is blind to every mutation that lengthens a line (`editingDraftLossy && false` reads
- * as harmless) and to a notice moved out of the lambda.
  */
 class EmptiedServerDraftWiringTest {
 
@@ -62,10 +53,6 @@ class EmptiedServerDraftWiringTest {
                 "submit(to) { _, _ ->",
                 // The account is resolved by a LOCAL FUN and not into a val up front: a
                 // lossy draft keeps its copy whatever the account says, and resolving an account
-                // removed from the phone during the edit would turn that true notice into a
-                // "could not save" banner over a gesture that failed at nothing. Called only
-                // where an answer is used — and never with a fallback, which is what the
-                // `?: error(...)` line below pins.
                 "fun destroyingCredentials(): AccountCredentials =",
                 "credentialsDestroyingEmptiedServerDraft(",
                 "openedUnderAccountId = originalAccountId,",
@@ -74,11 +61,6 @@ class EmptiedServerDraftWiringTest {
                 ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
                 // The second term of the guard, and the whole correction: the addressing
                 // of the copy about to be expunged, PROVEN empty or not proven at all. Read under
-                // the account the draft was OPENED from — `credentials` here reads another
-                // server's Drafts. The `!editingDraftLossy &&` only skips a read whose answer
-                // cannot change the outcome; drop the term itself and a Cc this composer never
-                // managed to display is expunged with the copy that held it (#63 on the emptying
-                // route). `= true` written here is the defect with a parameter bolted on top.
                 "val addressingIsProvenEmpty = !editingDraftLossy &&",
                 "repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
                 "if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {",
@@ -94,18 +76,6 @@ class EmptiedServerDraftWiringTest {
 
     /**
      * …and WHOSE server hears the expunge. `submit`'s own credentials are the account of the
-     * identity the "From" picker is showing, and that picker covers every account: with "From"
-     * switched, this route sent the id and the numbering read off account A's draft to account B.
-     * JMAP spares an id B never issued — the draft stays in A's Drafts and comes back on the next
-     * sync — and IMAP compares two NUMBERS, so an equal UIDVALIDITY expunges in B's Drafts; even
-     * the refusal has already invalidated B's cached Drafts bodies. The screen closes as a success
-     * in every one of those.
-     *
-     * The lambda therefore takes NO credentials (`{ _, _ ->`, pinned above) and the account is the
-     * one FROZEN when the draft was read. The decision is executed in [EmptiedServerDraftTest];
-     * what no executable test can see is that this call site still asks it, asks it about the
-     * frozen account, and asks it ONCE — a second look-up is a fallback, and the fallback is the
-     * defect.
      */
     @Test fun `the account it is addressed to is resolved once, from the freeze, with no fallback`() {
         val save = codeOf(COMPOSE_VIEW_MODEL.readText())
@@ -143,21 +113,6 @@ class EmptiedServerDraftWiringTest {
 
     /**
      * And the GATE that decides whether the destroying branch is entered at all.
-     *
-     * **The guard above only runs once "this draft is empty" has been answered**, and that answer
-     * is `hasDraftContent`, a one-line wrapper whose body was pinned NOWHERE: only its call site
-     * (`ComposeViewModelWiringTest`) and `draftHasContent` itself (`DraftContentTest`, executed) were.
-     * Between the two, the sixth argument — "does this composer hold attachments" — could be turned
-     * into `false` and every suite stayed green.
-     *
-     * The damage that mutation buys: a server draft whose only content is its ATTACHMENTS is carried
-     * whole, so `editingDraftLossy` is false and the guard above answers "destroy" — the copy is
-     * expunged on the server while the attachment chips are on screen and Save is still enabled,
-     * because `ComposeScreen` asks `draftHasContent` with its OWN attachment term and the two drift
-     * apart in silence. It is the emptied-draft destruction with the word "empty" quietly redefined.
-     *
-     * Whole line, arguments included: this is the composer's only bridge to the shared rule, and
-     * `ComposeScreen`'s call must keep meaning the same thing as this one.
      */
     @Test fun `what counts as empty is the shared rule, holding this screen's own attachments`() {
         assertEquals(

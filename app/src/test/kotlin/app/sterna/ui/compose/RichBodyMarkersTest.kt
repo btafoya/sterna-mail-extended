@@ -21,11 +21,6 @@ import org.junit.Test
 
 /**
  * The markers a list is DRAWN with (#131), and the offset arithmetic that goes with them —
- * EXECUTED, not read as source: [markedText] and [listKindAt] are pure and this file runs them.
- *
- * The half that breaks visibly is the mapping. It is what the caret, the selection, the drag
- * handles and the IME are expressed in; a mapping off by the width of one bullet puts the cursor
- * one character away from where the finger landed, on every line of every list.
  */
 class RichBodyMarkersTest {
 
@@ -60,8 +55,6 @@ class RichBodyMarkersTest {
 
     /**
      * The reason the text is rebuilt from `subSequence` and not from its plain characters: the
-     * inline styling of #131 is laid over this very AnnotatedString, and a transformation that
-     * dropped it would show a body with its bold gone while the model still carries it.
      */
     @Test fun `the inline styling rides along, shifted by the markers`() {
         val text = AnnotatedString.Builder().apply {
@@ -159,9 +152,6 @@ class RichBodyMarkersTest {
 
     /**
      * Why these run `bodyTransformation` and not just `markedText`: the body field has exactly
-     * ONE `visualTransformation`, and since the value it is handed must stay FLAT (a span in
-     * there drops the IME's composing region on every keystroke — see `ComposeBodyWiringTest`),
-     * that one transformation has to carry the styling too. These execute it.
      */
     @Test fun `a styled body with no list is drawn with its spans, and nothing moves`() {
         val rich = RichBody("abcdef", mapOf(Inline.BOLD to listOf(Span(2, 4))))
@@ -182,8 +172,6 @@ class RichBodyMarkersTest {
 
     /**
      * The two halves at once, which is the whole point: a bold word INSIDE a bullet item. The
-     * span has to ride across the marker insertion, and the caret arithmetic has to be the
-     * markers' own, untouched.
      */
     @Test fun `a styled body inside a list is drawn with its spans shifted by the markers`() {
         val rich = RichBody(
@@ -212,9 +200,6 @@ class RichBodyMarkersTest {
 
     /**
      * The case that catches a free path widened by mistake to `ranges.isEmpty()` alone: no
-     * family anywhere, one link. A body whose only styling is a link is exactly what the model
-     * refuses to call plain (`RichBody.isPlain` counts the links), and skipping it here would
-     * draw a hyperlink as ordinary text while the model still carries the address.
      */
     @Test fun `a body whose only styling is a link is still drawn as a link`() {
         val rich = RichBody("site", emptyMap(), emptyList(), listOf(Link(Span(0, 4), "https://x")))
@@ -229,8 +214,6 @@ class RichBodyMarkersTest {
 
     /**
      * The free path, and it is not a nicety: this runs on every keystroke of a body this screen
-     * is sized to hold at 324 kB (see [ComposerResumeSlot]), in a field whose smoothness is the
-     * subject of #5, #6 and #26. A plain body must be handed straight back, not copied.
      */
     @Test fun `a plain body is handed back as the very same instance, not a copy`() {
         val text = AnnotatedString("abcd")
@@ -244,10 +227,6 @@ class RichBodyMarkersTest {
 
     /**
      * The free path is `ranges` AND `links`, NOT [RichBody.isPlain] — which also counts the
-     * blocks. A body in bullets with no bold, no italic and no link anywhere has nothing to lay
-     * on it, and `isPlain` there would send a 324 kB reply through `toAnnotatedString`, whose
-     * first act is `append(rich.text)`: a full copy of the body on every keystroke, in the field
-     * whose smoothness is #5, #6 and #26. The markers are inserted afterwards either way.
      */
     @Test fun `a body that is only a list, with no styling at all, is still handed straight back`() {
         val text = AnnotatedString("abc\ndef")
@@ -263,9 +242,6 @@ class RichBodyMarkersTest {
 
     /**
      * …and the same thing seen from the SITE OF THE CALL, which is what actually runs. An
-     * `assertSame` on [styledBody] alone is satisfied by
-     * `styledBody(AnnotatedString(text.text), …)` one layer up — the copy is simply moved, on the
-     * most frequent path of all: a plain body with no list, which is most of every message.
      */
     @Test fun `a plain body crosses the whole transformation without being copied once`() {
         val text = AnnotatedString("abcd")
@@ -280,9 +256,6 @@ class RichBodyMarkersTest {
 
     /**
      * The defensive guard. The field's value and the model it is drawn from are two pieces of
-     * state and can differ for the length of one frame. Laying spans of one text over another
-     * mismaps the caret at best and throws `IndexOutOfBounds` under the user's finger at worst;
-     * one frame without styling is the cheaper of the two.
      */
     @Test fun `a model whose text has drifted from the field's draws no style, and does not throw`() {
         val text = AnnotatedString("abcdef")
@@ -337,8 +310,6 @@ class RichBodyMarkersTest {
 
     /**
      * The lit button must be the one that TURNS THE LIST OFF. `listKindAt` and `toggleBlock`
-     * each decide "does this run already carry that kind"; the two are run here against each
-     * other, so a rule that drifts in one of them cannot stay hidden behind a lint on a name.
      */
     @Test fun `the lit button is exactly the one whose tap removes the list`() {
         val plain = RichBody("shopping\nmilk\neggs", emptyMap())

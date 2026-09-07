@@ -9,14 +9,6 @@ import java.sql.DriverManager
 
 /**
  * Verifies, against in-memory SQLite, the selection semantics of
- * [app.sterna.core.data.db.EmailDao.cachedThreadEmails] — the query that lists a thread's
- * cached members when a conversation row is unfolded inline. Checks that query's WHERE /
- * ORDER BY (account scope, thread grouping by COALESCE(threadId, id), newest-first) so the
- * data-layer contract is checked without an Android device.
- *
- * The statement executed here is read out of the shipped DAO by [DaoQuerySource], not retyped, so
- * changing the DAO's SQL changes this test's SQL with it — a retyped copy would keep passing
- * against a query the app no longer runs.
  */
 class ThreadMembersSqlTest {
     private lateinit var db: Connection
@@ -55,8 +47,6 @@ class ThreadMembersSqlTest {
 
     /**
      * The shipped `cachedThreadEmails`, run over [mailboxes] — Room expands `mailboxId IN
-     * (:mailboxIds)` into one `?` per element, and [DaoQuerySource.bindOrder] hands back the order
-     * the placeholders must be filled in, which is the statement's order and not the signature's.
      */
     private fun cachedThreadEmails(accountId: String, mailboxes: List<String>, threadKey: String): List<String> {
         val (sql, order) = DaoQuerySource.bindOrder(
@@ -86,8 +76,6 @@ class ThreadMembersSqlTest {
 
     /**
      * The binding that populates an unfolded conversation: the viewed folder PLUS the account's
-     * Sent mailbox in the IN-list — Sent replies are interleaved, while members living in
-     * Trash/Spam/Drafts stay out (they belong to their own folder's conversation).
      */
     private fun membersViewPlusSent(accountId: String, mailbox: String, sent: String, threadKey: String): List<String> =
         cachedThreadEmails(accountId, listOf(mailbox, sent), threadKey)

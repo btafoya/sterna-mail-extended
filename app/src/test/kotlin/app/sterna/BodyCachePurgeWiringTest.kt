@@ -6,16 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, and a narrow one: nothing in this chain runs in a JVM test — `AppContainer.init`
- * needs an Application, a database and a socket, and `BodyCachePurge` holds a `SharedPreferences`.
- * The DECISION is executed next door in `BodyCacheUpgradeTest` (`bodyCachePurgeVersion`, a pure
- * function, thresholds written as bare literals); what is pinned here is the CALL SITE that carries
- * it, whole line by whole line. Never `contains`: a `contains` is blind to every mutation that
- * LENGTHENS the line.
- *
- * The purge has two load-bearing pieces and only one of them was pinned. The threshold `170` is
- * held by a literal in `BodyCacheUpgradeTest`; the ARGUMENT handed to `onceForVersion` was held by
- * nothing at all — `BuildConfig.VERSION_CODE` could become `169`, or `BODY_CACHE_PURGE_VERSION`,
- * and the whole suite stayed green while the purge simply never ran again on any install.
  */
 class BodyCachePurgeWiringTest {
 

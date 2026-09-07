@@ -6,11 +6,6 @@ import org.junit.Test
 
 /**
  * `Email.replyTo` (RFC 5322 §3.6.2 / RFC 8621 §4.1.2) exists on the model and costs nothing to a
- * response that does not carry it.
- *
- * The property is not requested from the server yet — the fetch paths land separately — so the
- * decoder has to survive its absence. It is decoded with the client's own `DefaultJson`, not a
- * local `Json {}`, so what is measured here is the configuration that actually ships.
  */
 class EmailReplyToTest {
     private val json = JmapClient.DefaultJson

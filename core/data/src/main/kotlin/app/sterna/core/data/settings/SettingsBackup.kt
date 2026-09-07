@@ -6,12 +6,6 @@ import kotlinx.serialization.json.Json
 
 /**
  * A portable snapshot of the app's preferences — everything in the settings
- * [DataStore][SettingsRepository] plus the push scope, the UI language and the account
- * *configuration* (see [accounts]).
- *
- * No credential: passwords and OAuth refresh tokens are sealed with a device-bound
- * AndroidKeyStore key, so imported accounts arrive without a secret and stay inert until the user
- * signs in. Every field is nullable so a backup written by an older or newer build still imports.
  */
 @Serializable
 data class SettingsBackup(
@@ -72,8 +66,6 @@ data class SettingsBackup(
 ) {
     /**
      * True when this decoded to something that looks like a Sterna backup — at least one known
-     * field is present. An unrelated JSON file decodes to an all-null instance; that is invalid,
-     * not "import nothing".
      */
     fun isPlausible(): Boolean =
         themeMode != null || dynamicColor != null || listDensity != null || previewLines != null ||

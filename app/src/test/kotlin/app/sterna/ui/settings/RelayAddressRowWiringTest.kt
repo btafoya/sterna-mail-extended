@@ -7,38 +7,6 @@ import java.io.File
 
 /**
  * SOURCE AND RESOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [SecretFieldRevealWiringTest] and [SettingsScreenHonestyTest]: it reads files as text and proves
- * nothing about what is drawn. Nothing here is executable in this module — the block is a
- * composable, and `PushController.statusFor` reads `Application.container`; there is no
- * Robolectric, no `compose-ui-test` and no `androidTest` (adding one is a dependency decision).
- *
- * Every rule compares WHOLE LINES (trimmed), never `"fragment" in line`, except where it screens
- * for something that must be ABSENT: a containment check is blind to every mutation that LENGTHENS
- * the line — `if (!distributorInstalled || true) {` contains the call.
- *
- * The silent edits it exists to catch:
- *
- *  1. the address block escaping the `notificationsEnabled` guard. A copyable address on an account
- *     that no longer fetches is a trap: the relay posts, Sterna is told not to look, and nothing
- *     ever arrives — with the address on screen saying it should;
- *  2. the same block escaping the `isImap` guard, offering a relay address to a JMAP account that
- *     holds a real PushSubscription and needs none;
- *  3. the relay branch of `statusFor` moved, or dropped: `up.isActive` is true for an armed relay
- *     too, so the branch AFTER it is dead code and the screen goes back to claiming
- *     "Push: UnifiedPush (…)" for an address nothing has posted to in weeks (#177) — and below
- *     `NotWatched` it is dead in the other direction, on an account a relay really does wake;
- *  4. the distributor check moved out of first place in the block, which offers a "Get an address"
- *     button that can do nothing — the on-screen lie this volet exists to remove;
- * 5. a health verdict creeping into the status line, IN ANY OF THE NINE LANGUAGES. The app
- *     CANNOT know a relay is alive. It knows when a wake last arrived, and that is a dated fact,
- *     never "active" or "connected" — and never "actif" or "aktiv" either, which is how eight of
- *     the nine translations used to be able to say the forbidden thing under a green suite;
- *  6. a state of the block with no way out of it. "Waiting for an address…" can be FINAL — for an
- *     account outside the watched set the tap is the only registration attempt of its life, and a
- *     failed one left that sentence on screen for ever with no button under it;
- *  7. the per-tick read growing a PackageManager call. The 500 ms loop is a loop: what it reads
- *     must be SharedPreferences served from memory, and the distributor list is a binder round
- *     trip (`queryBroadcastReceivers`), so it is read once per visit and not on the tick.
  */
 class RelayAddressRowWiringTest {
 
@@ -233,11 +201,6 @@ class RelayAddressRowWiringTest {
 
     /**
      * What `TranslationParityTest` already covers, and which is deliberately NOT repeated here:
-     * every key of `values/` exists in every translation, no translation carries an orphan, and the
-     * format arguments of a key survive translation. What it cannot cover is this: its rules all
-     * compare against `values/`, so a set of keys that vanishes from `values/` too — or never lands
-     * there — is green everywhere. Naming the eight keys is the only way to hold them, exactly as
-     * that file names the widget's texts and the OLED switch's for the same reason.
      */
     @Test fun `the nine languages all carry the eight relay strings`() {
         val files = stringFiles()
@@ -295,12 +258,6 @@ class RelayAddressRowWiringTest {
 
     /**
      * The lines that open the blocks the call to [RELAY_CALL] is written inside, outermost first —
-     * a brace stack over the whole file. A line that closes and reopens (`} else {`) replaces the
-     * top of the stack, which is what makes an `else` branch distinguishable from its `if`.
-     *
-     * Reading the STRUCTURE, not a substring: the guard is the whole point here, and
-     * `"if (notificationsEnabled)" in file` is true of a file where the block sits three sections
-     * further down, outside every guard.
      */
     private fun ancestorsOf(call: String): List<String> {
         val stack = ArrayDeque<String>()
@@ -318,10 +275,6 @@ class RelayAddressRowWiringTest {
 
     /**
      * The branch condition lines of `statusFor`'s `when`, in source order.
-     *
-     * Anchored on the function's own signature first, and that is not a detail: `transportFor`
-     * above it opens a `return when {` of its own, so a bare search for the `when` reads the
-     * WRONG decision and this rule would be about a function it was never written for.
      */
     private fun statusForBranches(): List<String> {
         val lines = codeLinesOf(PUSH_CONTROLLER)
@@ -350,8 +303,6 @@ class RelayAddressRowWiringTest {
 
     /**
      * The block's branches: each condition line with the lines drawn under it, in source order.
-     * Split on the branch lines themselves, so a state is whatever sits between two of them —
-     * the question asked is what each state OFFERS, not how it is written.
      */
     private fun relayBranches(): List<Pair<String, List<String>>> {
         val out = mutableListOf<Pair<String, MutableList<String>>>()
@@ -472,8 +423,6 @@ class RelayAddressRowWiringTest {
 
         /**
          * The words that would turn the dated fact into a verdict, per shipped language. Compared
-         * against a lowercased value, so every entry is lowercase; stems where the ending varies
-         * (Russian «подключ…»), whole words where it does not.
          */
         val HEALTH_WORDS = mapOf(
             "values" to listOf("active", "alive", "healthy", "connected"),

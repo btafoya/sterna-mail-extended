@@ -9,11 +9,6 @@ import org.junit.Test
 
 /**
  * [reopenedDraftIsLossy], EXECUTED — the verdict the composer computes when it reopens a saved
- * draft, and the one thing standing between that draft and its destruction on the next send
- * ([SendReplacesDraftTest] runs the decision that reads it, [DraftSaveTest] the rule underneath).
- *
- * Every case below is a hand-written pair (inputs → verdict): the test never recomputes the rule
- * it is checking, so inverting any leg of the shipped function has to turn a line red here.
  */
 class ReopenedDraftLossyTest {
 
@@ -65,8 +60,6 @@ class ReopenedDraftLossyTest {
 
     /**
      * The defect this leg closes: the draft asked for a read receipt, the composer's checkbox
-     * comes back clear (debt D1), so the message goes out asking for nothing — and destroying the
-     * original takes the only copy that carried the request, silently.
      */
     @Test fun aReadReceiptRequestAloneIsLossy() {
         assertTrue(
@@ -131,12 +124,6 @@ class ReopenedDraftLossyTest {
 
     /**
      * A header that is THERE but names no address (`<>`, the shape a server hands back for a
-     * request it could not parse) is PRESENT-BUT-UNREADABLE, and that is an unknown, not a "no".
-     * The sender wrote something in that header; this composer cannot reproduce it and cannot say
-     * what it was, so the original is kept — exactly what [copiedAddressesOrNull] does with an
-     * envelope entry it cannot read. [ReadReceiptHeader.recipients] must NOT be the judge here:
-     * it answers the same empty list for "absent" and for "unreadable", and using it would make
-     * this case authorise the destroy of the only copy holding the request.
      */
     @Test fun aReceiptHeaderNamingNoAddressIsLossy() {
         assertTrue(
@@ -170,13 +157,6 @@ class ReopenedDraftLossyTest {
 
     /**
      * Since #131 the composer does not hand this leg "there is an html part": it hands it
-     * `draftHtmlIsLossy(draft.htmlContent())` — "there is one AND it does not parse". The two cases
-     * below are the composition, EXECUTED, because that is what actually reaches this function
-     * (the wiring itself is a source lint, `DraftVerdictWiringTest`).
-     *
-     * Getting this pair the wrong way round is not cosmetic: `true` for our own html keeps a
-     * duplicate in Drafts on every re-save of a styled draft, and `false` for a foreign one
-     * authorises the destroy of an original whose formatting this editor cannot give back.
      */
     @Test fun anHtmlThisEditorCanGiveBackIsNotLossy() {
         assertFalse(
@@ -205,13 +185,6 @@ class ReopenedDraftLossyTest {
 
     /**
      * **The pair that is a DESTROY, end to end**: a draft whose `text/plain` part has the user's
-     * text and whose `text/html` part is EMPTY — a shape another client is free to write.
-     *
-     * Both halves of the reopen are asked here, because the defect is the two of them disagreeing:
-     * `richBodyFrom` must open the composer on the TEXT part (an empty html parses to an empty
-     * body, so reading it would show a blank composer), and the verdict must say LOSSY (an html
-     * part we cannot use is an unknown). "Blank composer" plus "faithful" is the original expunged
-     * in favour of a copy of nothing, and the text exists nowhere else.
      */
     @Test fun aDraftWhoseHtmlPartIsEmptyOpensOnItsTextAndKeepsItsOriginal() {
         val html = ""

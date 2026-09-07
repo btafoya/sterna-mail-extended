@@ -5,10 +5,6 @@ import org.junit.Test
 
 /**
  * The header search a move between accounts falls back on (#189): when B's server names no uid
- * for the copy it took (no UIDPLUS), the copy is looked for by its `Message-ID` before A's
- * original is touched. What leaves the socket is pinned whole — the key, the header name and the
- * value quoted through the same guard as every other user-supplied IMAP argument — and the cap
- * holds: the caller wants to know "exactly one?", so two is all it needs to hear.
  */
 class UidSearchHeaderOnTheWireTest {
 

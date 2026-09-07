@@ -129,9 +129,6 @@ class AccountBlobGateTest {
 
     /**
      * The whole incident, played end to end on a fake of the store's storage: the read-modify-write
-     * that used to destroy the list now leaves the bytes untouched, and the accounts come back by
-     * themselves. The blob is compared as a WHOLE STRING before and after, so a rewrite that happens
-     * to produce something similar is not mistaken for "nothing was written".
      */
     @Test fun `changing a setting over an unreadable blob leaves the stored bytes untouched`() {
         var blob: String? = fourAccountsOneUnknownName

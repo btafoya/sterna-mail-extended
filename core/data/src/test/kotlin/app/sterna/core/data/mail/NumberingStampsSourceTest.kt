@@ -5,25 +5,6 @@ import org.junit.Test
 
 /**
  * Where the stamp factory is PLUGGED IN — the source half of [NumberingStampsTest], which runs the
- * decision itself (Codeberg #99).
- *
- * SOURCE LINT, NOT A BEHAVIOUR TEST, and a last resort: `MailRepository` needs Room and a
- * `Context` and builds an `android.util.LruCache` in a property initialiser, so nothing in this
- * module can instantiate it. What it pins is the one thing the executed test cannot see: that
- * `numberingRowsWereReadUnder` still HANDS its work to [numberingStampsOfRows], with the account
- * id and with the CHUNK.
- *
- * The two silent, legal-Kotlin mutations it exists for:
- *  - `emailDao.numberingOfRows(credentials.id, emailIds)` — the lambda ignores the chunk it was
- *    given and closes over the whole selection instead. Compiles, runs, and binds thousands of
- *    variables into one `IN (...)`: below Android 12 SQLite refuses past 999, and this read sits
- *    BEFORE the eviction and OUTSIDE any `runCatching`, so the delete does not fail, it crashes;
- *  - dropping `credentials.id` (or naming another account's) — two accounts on one server carry
- *    identical ids (Codeberg #31), and the guard would then oppose the neighbouring account's
- *    numbering.
- *
- * Everything is pinned as WHOLE LINES compared as a LIST, never `in` / `contains`: a substring
- * rule is blind to anything appended to what it matched.
  */
 class NumberingStampsSourceTest {
 
@@ -41,8 +22,6 @@ class NumberingStampsSourceTest {
 
     /**
      * Any mention of a numbering under any spelling — the same needle as
-     * [ImapMoveUnderNumberingTest]. A rule pinned to one identifier is blind to the same value
-     * under another name, and Kotlin's shadowing leaves the guarded line byte-identical.
      */
     private val anyNumbering = Regex("(?i)(numbering|validity|frozen|recorded|stamp)")
 

@@ -9,11 +9,6 @@ import org.junit.Test
 
 /**
  * What the composer's top bar calls the message it is holding (#96).
- *
- * The rule used to live inside the `TopAppBar` composable, where no test could reach it, and it was
- * wrong in a case nobody could see from the outside: `restore=true` alone said "Edit", so a composer
- * that came back EMPTY after the app was killed still claimed to be editing a queued message. Every
- * way of opening the composer is enumerated here, once and for all.
  */
 class ComposeTitleTest {
     private fun title(

@@ -13,15 +13,6 @@ import org.junit.Test
 
 /**
  * What a failed row action (swipe delete/archive, and the Undo that puts it back) SAYS.
- *
- * The decision is [actionFailureMessage], a pure function, so every case below EXECUTES it with the
- * two arguments it takes rather than reading the code that contains it — a test that re-derived
- * "network + offline" for itself would stay green with the shipped branch inverted.
- *
- * The wiring the call sites have to get right — that they consult this at all, that they pass the
- * LIVE connectivity reading, and that the exception text goes to logcat instead of the snackbar —
- * cannot be executed here (`InboxViewModel` is an `AndroidViewModel`); that is
- * [ActionFailureWiringTest]'s job.
  */
 class ActionFailureMessageTest {
 

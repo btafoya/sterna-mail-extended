@@ -158,10 +158,6 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
             }
             // Outside the try, and after the state that lets a "save then leave" go: that exit
             // cancels this read, and inside the catch above a cancellation would be painted as a
-            // failed save over a write the server has already taken. `responderEnabled = s.enabled`
-            // is what was just written, not what the switch shows. A failed read keeps the line
-            // already on screen: switching the responder off leaves no script active, so the rules
-            // are dead exactly when a swallowed failure would blank the warning.
             if (written) {
                 val status = repo.loadFilterScriptStatus(credentials)
                 _state.update {

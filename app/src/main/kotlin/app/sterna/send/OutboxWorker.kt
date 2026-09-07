@@ -10,14 +10,6 @@ import app.sterna.core.data.mail.accountDepartureIsProven
 
 /**
  * Delivers one persistent outbox item. WorkManager persists and fires this and gates it on
- * connectivity, so a send queued offline goes out when the network returns; a HELD item reschedules
- * until due. Transient failures retry with backoff up to [OutboxLogic.MAX_ATTEMPTS], after which the
- * item is parked as FAILED, never silently lost. A failure the SERVER ruled on (#183) skips the
- * retries entirely.
- *
- * A run KILLED mid-delivery is not a failure: the row was left saying SENDING and the message may
- * or may not have reached the server, so it is parked by [OutboxLogic.parkOnPickup] the moment the
- * worker reads it. A duplicate cannot be recalled; a parked row is one Retry away.
  */
 class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -61,9 +53,6 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             }
             // Unproven ⇒ nothing is destroyed, and NOTHING is written on the row: no state, no
             // attemptCount, no lastError. Nothing was attempted here, so a bump would spend a retry
-            // the user never used and an overwrite would erase an earlier, genuine failure's reason.
-            // And a bare retry(): MAX_ATTEMPTS counts DELIVERY attempts, and this message has not
-            // left the phone.
             return Result.retry()
         }
 

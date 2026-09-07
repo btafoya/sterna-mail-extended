@@ -7,41 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `MessageScreen.kt` as text and proves nothing about
- * what happens on screen. Same instrument and disclaimer as [ReplyBarWiringTest].
- *
- * [BodyDragOwnerTest] runs the decision itself, but nothing in a JVM test can build a `WebView` and
- * watch `onTouchEvent` call it, so the edits that matter most here are silent — the whole suite
- * stays green through every one of them:
- *
- *  1. `downX = event.x` dropped from `ACTION_DOWN`: the origin stays 0, dx becomes the raw abscissa,
- *     and EVERY drag reads as clearly horizontal to the right. The worst damage this file can take;
- *  2. the two courses swapped — the one behind given as `canScrollForward` and vice versa: the body
- *     scrolls sideways only when it has already hit the edge that way, i.e. #152 comes back mirrored
- *     and the pager also gets stuck;
- *  3. the deltas handed over as `abs(...)` again: the sign is gone, every sideways drag reads as
- *     "to the right", and a right-to-left language document behaves inversely;
- *  4. `axisDecided = true && owner == BodyDrag.CLAIM`: the axis is no longer frozen on a RELEASE,
- *     so the body re-claims mid-drag while the pager is already animating;
- *  5. the `ACTION_POINTER_DOWN` branch gone: a second finger is judged like a one-finger drag, so
- *     pinching to zoom out — with `builtInZoomControls` on, a supported gesture — hands the gesture
- *     to the pager and the reader loses the message she was zooming;
- *  6. the `ACTION_DOWN` claim gone, or its `parent?.requestDisallowInterceptTouchEvent(true)` dropped:
- *     [bodyTakesGestureAtDown] keeps returning the right answer to nobody, no sideways MOVE ever
- *     reaches this view (the pager consumes it first and the view gets an ACTION_CANCEL), and #152 is
- *     back whole — which is exactly how the FIRST fix passed a full green suite and measured no
- *     change at all on two benches;
- *  7. `axisDecided = true` dropped from that same branch: the claim holds, but the first MOVE then
- *     re-arbitrates on [bodyDragOwner] and can RELEASE a gesture already claimed — a verdict that,
- *     per that function's own doc, is never given back;
- *  8. the threshold or the measurement weakened at the call: `minTravel = 0`, or `travelForward`
- *     given a raw `computeHorizontalScrollRange()`. [bodyTakesGestureAtDown] then answers correctly
- *     to a number that means nothing, and 3px of table border kills swipe-between-messages again —
- *     the defect the bench measured on 2026-08-12, which no executing test can see, because the
- *     decision is only ever as good as what it is handed.
- *
- * It therefore compares whole text — the call argument by argument, the handler line for line. Every
- * assertion here is an EQUALITY: a `contains` is blind to any mutation that LENGTHENS the line it
- * pins, and 4 above is exactly that mutation.
  */
 class BodySideScrollWiringTest {
 
@@ -65,11 +30,6 @@ class BodySideScrollWiringTest {
     @Test fun `the threshold is the view's own touch slop, taken whole`() {
         // THE value behind the whole fix, and the one thing the pins above cannot see: they hold the
         // NAME `touchSlop`, never what it is worth. `ViewConfiguration.get(context).scaledTouchSlop / 8`
-        // compiles, keeps every argument-by-argument pin intact, and hands minTravel 2 or 3 px — the
-        // 2403/2400 table claims the gesture again and #152 is back whole. Nothing executing can see
-        // it either: BodyTakesGestureAtDownTest passes its own slop, BodyDragOwnerTest its own.
-        // The same local is also bodyDragOwner's axis slop, so the same edit silently re-tunes the
-        // #97 near-vertical guard.
         val declarations = code(MESSAGE_SCREEN).lines()
             .map { it.trim() }
             .filter { it.startsWith("private val touchSlop") }
@@ -88,9 +48,6 @@ class BodySideScrollWiringTest {
     @Test fun `both branches measure the two sideways courses the same way`() {
         // The measurement, not the decision: ACTION_DOWN and ACTION_MOVE must each derive the two
         // courses from offset / range - extent - offset. Handing bodyTakesGestureAtDown a raw
-        // computeHorizontalScrollRange() as travelForward (a body 2400px wide would then read 2403px
-        // of course instead of 3) is invisible to every executing test — the decision function is
-        // given the number it is given.
         val flat = code(MESSAGE_SCREEN).replace(Regex("""\s+"""), " ")
         assertEquals(
             "ACTION_DOWN and ACTION_MOVE must BOTH read: $COURSES — the forward course is what is " +
@@ -129,9 +86,6 @@ class BodySideScrollWiringTest {
     @Test fun `the whole touch handler is what it is meant to be, line for line`() {
         // EQUALITY, not `in`: a substring assertion is blind to every mutation that LENGTHENS the
         // line it pins. `axisDecided = true && owner == BodyDrag.CLAIM` still contains
-        // "if (owner != BodyDrag.PENDING) { axisDecided = true", so the sub-string form stayed green
-        // while the axis was no longer frozen on a RELEASE — the body could re-claim mid-drag, with
-        // the pager already animating, which is the very oscillation this is here to forbid.
         assertEquals(
             "MessageScreen.BodyWebView.onTouchEvent, whole, is the wiring no JVM test can execute. " +
                 "Everything it holds is silent if edited:\n" +

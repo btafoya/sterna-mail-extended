@@ -6,23 +6,11 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as
- * [app.sterna.ui.connect.OAuthRedirectManifestTest]. A widget declaration is not code this module
- * can run: `res/xml`, the merged manifest and the build script only mean anything inside a build,
- * and there is no Robolectric here. What is held below is what a build would not complain about
- * and what nobody would notice on screen.
- *
- * Two rules, both of them whole-line comparisons. Never a `contains`: a substring check is blind
- * to every mutation that LENGTHENS the line, which is how the first version of another lint in this
- * repo was walked straight past.
  */
 class UnreadWidgetDeclarationTest {
 
     /**
      * The widget polls nothing. Any `updatePeriodMillis` other than 0 asks the system to wake
-     * this app on a timer — 30 minutes at the very least, for a number that usually has not moved —
-     * and nothing on screen would say so: the widget looks identical either way, and the only
-     * symptom is battery. Both variants of the declaration are checked; the v31 one is a copy, and
-     * a copy is exactly where a value drifts unnoticed.
      */
     @Test fun `every widget asks the system for no periodic update`() {
         val found = INFO_FILES.associate {
@@ -47,12 +35,6 @@ class UnreadWidgetDeclarationTest {
 
     /**
      * The picker's entry name goes through the build placeholder, never a literal. The test app
-     * installs BESIDE production (`app.sterna.test`); with a literal here both offer the same
-     * entry in the same list, and a bench pass cannot tell which install it just put on the home
-     * screen — the one failure mode where the maintainer's real mail is a tap away.
-     *
-     * The three lines are pinned together because they are one mechanism split across two files:
-     * the manifest that spends the placeholder, and the two branches of the build that fill it.
      */
     @Test fun `the picker entry is a placeholder, resolved to the string in production and to a distinct label under -PtestApp`() {
         assertEquals(
@@ -73,15 +55,6 @@ class UnreadWidgetDeclarationTest {
 
     /**
      * AND THE TEST LABEL IS INSIDE `if (testApp)` — WHICH THE RULE ABOVE CANNOT SEE.
-     *
-     * That rule collects the `widgetLabel` lines and compares the list. Move
-     * `manifestPlaceholders["widgetLabel"] = "Unread count (test)"` one line DOWN, out of the
-     * `if (testApp)` block, and the list is byte-for-byte identical: same lines, same order, green.
-     * The shipped app would then offer the widget picker an entry called "Unread count (test)", in
-     * English, to every user in all nine languages — the production build's own label, gone.
-     *
-     * So the block itself is pinned, brace to brace. It is the same class of mistake as the source
-     * lints in the widget package: the line existing says nothing about where it lives.
      */
     @Test fun `the test app's label lives INSIDE the testApp gate, not merely somewhere in the build`() {
         assertEquals(
@@ -104,25 +77,6 @@ class UnreadWidgetDeclarationTest {
 
     /**
      * Both layouts must have text in them, and NOT the same text.
-     *
-     * The preview (`res/xml-v31`'s `previewLayout`, Android 12+) is what the widget picker draws
-     * before anyone places anything, so it carries an example figure and the label the widget
-     * usually wears. Pointed at the runtime layout instead, the picker would show "… / Sterna Mail"
-     * — true, and useless as an advertisement.
-     *
-     * THE RUNTIME LAYOUT'S TEXT IS THE OTHER HALF, and this rule used to say the opposite: it
-     * required `@layout/widget_unread` to carry no `android:text` at all. That was right about the
-     * danger and wrong about the moment. The layout is the `initialLayout`: it is what the system
-     * inflates the instant a cell is dropped on the home screen, before the provider has drawn
-     * anything, and on a cold start that draw opens Room and can take seconds — or time out at 5 s
-     * and never arrive, since nothing here draws on failure. Textless, the user's first sight of
-     * this widget was an EMPTY rectangle. "The cell keeps its old number" was the argument, and at
-     * the first placement there is no old number.
-     *
-     * What is still forbidden is what the old rule was protecting: a plausible, wrong COUNT sitting
-     * there as if it were true. So the figure must not be a number — the ellipsis is not one, and
-     * cannot be misread as "no unread mail" the way a "0" would be. Pinned twice below: once as the
-     * exact lines, once as "no digit anywhere in it", which survives a change of character.
      */
     @Test fun `the picker preview advertises the widget, and the runtime layout says the app is waking up`() {
         assertEquals(
@@ -160,17 +114,6 @@ class UnreadWidgetDeclarationTest {
 
     /**
      * THE OTHER HALF OF THE RULE ABOVE, and on its own it looks like its opposite.
-     *
-     * `@layout/widget_unread` MUST carry text because it is the `initialLayout`: the system
-     * inflates it the instant a cell is dropped, before any draw comes back. The enlarged layout
-     * and its row are the `initialLayout` of NOBODY — they are only ever handed to the launcher
-     * already filled in, inside the size map `UnreadWidgetDraw.draw` builds. A literal left in
-     * either one would therefore be drawn before `UnreadWidgetContent.byAccount` had decided
-     * anything: a name, or a figure, for an account the app lock says must not be named at all, and
-     * a row that stays on the cell even when the rule returned no lines.
-     *
-     * Pinned as "no `android:text` line anywhere in the file", not as a list of expected lines: a
-     * text added to a THIRD view in either layout has to redden this too.
      */
     @Test fun `neither layout of the enlarged cell carries any text of its own`() {
         assertEquals(
@@ -190,37 +133,6 @@ class UnreadWidgetDeclarationTest {
 
     /**
      * THE WHOLE BODY OF `draw`, LINE BY LINE — and it is the only thing standing between this
-     * widget and any of the mutations below. Nothing in this module renders: there is no
-     * Robolectric, `android.util.SizeF` is a stub that throws, and `draw` wants an `Application`,
-     * its container and the widget manager. Every decision it takes is therefore reachable only as
-     * text, and each of these lines was silently mutable before this rule existed:
-     *
-     *  - `store.appLockEnabled()` → `false`: every account's name, which falls back to its owner's
-     *    mail address, drawn permanently on a LOCKED home screen. The twin widget's own read is
-     *    pinned for exactly this ([app.sterna.widget.RecentMailWidgetWiringLintTest]); this one was
-     *    not, and it is the guard the branch was written around;
-     *  - `unreadByAccount.values.sum()` → `.maxOrNull() ?: 0`: the small cell shows the busiest
-     *    account's figure while the drawer beside it shows the true total. The arithmetic is
-     *    repeated here because `UnifiedInbox.total` is internal to `core:data`, so nothing in that
-     *    module's tests covers this copy of it;
-     *  - dropping `rows.isNotEmpty() &&`: under an app lock, or on a single account, an enlarged
-     *    cell draws an empty account list — a blank rounded rectangle, no total, no lines;
-     *  - swapping the two entries of the map: the branch runs backwards. Account lines crammed
-     *    into a 110x40dp cell, one figure in the large one;
-     *  - `ventilatedHeightDp(rows.size, …)` → any constant: the enlarged cell goes back to
-     *    promising the launcher a fixed height, and the reader with one account more than that
-     *    height holds loses that account off the bottom edge, in silence;
-     *  - dropping `fontScale`: the same erasure, kept for the readers who enlarge their text;
-     *  - a SECOND `store.accounts()`: the label, the tap target and the lines would come from
-     *    three different moments — a cell reading "All inboxes" that opens a single folder;
-     *  - dropping `palette` from either render call: the map hands the launcher TWO layouts for
-     *    one cell, so painting one of them alone is a cell that CHANGES THEME as it is dragged
-     *    larger. `UnreadWidgetPaletteWiringLintTest` holds what each render then does with it;
-     *    this line is where it would stop arriving at all.
-     *
-     * Whole lines, never a `contains`: every mutation above is the same length or longer than
-     * the line it replaces. The price is that reformatting this function reddens the test — loud,
-     * and one line to fix.
      */
     @Test fun `the draw decides the total, the lock and the size map exactly once each`() {
         assertEquals(
@@ -350,14 +262,6 @@ class UnreadWidgetDeclarationTest {
 
     /**
      * The weight goes to the NAME, and only to the name — the one line of the row layout that
-     * decides what survives a narrow screen.
-     *
-     * On a 360dp phone the cell is narrow enough that a translated label already overflows (the
-     * note at the top of `@layout/widget_unread`), and an account's name can be a full mail
-     * address. With the weight on the name, the NAME ellipsises and the digits stay at the end of
-     * the line. Put a weight on the figure as well, or take it off entirely, and the number — the
-     * only thing this widget exists to show — is what gets cut off instead. Nothing renders in
-     * this suite, so this is the only thing standing between that and a bench pass.
      */
     @Test fun `the enlarged row gives its weight to the name, so the figure is never what is cut`() {
         assertEquals(
@@ -381,9 +285,6 @@ class UnreadWidgetDeclarationTest {
 
     /**
      * The file's lines, comments removed WHOLE — an `<!-- … -->` block is cut out before the split,
-     * and a `//` line is dropped. Without that, every rule below also matches the prose written to
-     * explain it: the first run of this file failed on its own comment quoting the attribute it
-     * pins.
      */
     private fun codeLines(file: File): List<String> = file.readText()
         .replace(XML_COMMENT, "")
@@ -393,12 +294,6 @@ class UnreadWidgetDeclarationTest {
 
     /**
      * The whole brace-balanced block that opens with [opener] and contains [marker] — so a rule can
-     * pin WHERE a line lives and not merely that it exists. Same helper as the two source lints in
-     * this package.
-     *
-     * Deliberately returns an empty list when [marker] is nowhere in the file: moving the line out
-     * of the block is the mutation the caller exists to catch, and an assertion showing the
-     * expected lines against `[]` says more than an exception would.
      */
     private fun blockContaining(file: File, marker: String, opener: String): List<String> {
         val lines = codeLines(file)
@@ -444,8 +339,6 @@ class UnreadWidgetDeclarationTest {
 
         /**
          * EVERY widget declaration the app ships, both resource directories, found rather than
-         * listed: the rule above must not be a rule about the counter that a second widget walks
-         * straight past.
          */
         val INFO_FILES: List<File> by lazy {
             listOf("xml", "xml-v31")
@@ -464,8 +357,6 @@ class UnreadWidgetDeclarationTest {
 
         /**
          * Pinned whole, `suspend` INCLUDED. The keyword is what buys the colour read: dropped, the
-         * three DataStore `first()` calls have nowhere to happen and the cell goes back to the
-         * colours `res/values-night` froze into it (#117).
          */
         const val DRAW_SIGNATURE =
             "suspend fun draw(app: Application, ids: IntArray, unreadByAccount: Map<String, Int>) {"

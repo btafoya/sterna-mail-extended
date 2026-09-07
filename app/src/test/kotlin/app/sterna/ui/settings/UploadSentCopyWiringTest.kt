@@ -7,17 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as [NotificationsGateWiringTest].
- * The decision itself is executed next door in `core:data` (`SentCopyUploadTest`); what no test in
- * this module can run is Compose code and an `AndroidViewModel` reaching into the app container.
- *
- * Three silent edits it exists to catch:
- *  1. the switch writing only on "Save" (or on nothing at all): the account detail screen has one
- *     Save button for the text fields, and a toggle that waits for it is a toggle the user leaves
- *     behind by pressing back — the WYSIWYG state on screen would not be the stored one;
- *  2. the switch seeded from something other than the stored value, so it shows "on" over an
- *     account that is off;
- *  3. the row drifting out of the IMAP block or in among the SMTP fields — it applies to IMAP
- *     accounts only (JMAP has no second write to cut) and belongs after the server fields.
  */
 class UploadSentCopyWiringTest {
 

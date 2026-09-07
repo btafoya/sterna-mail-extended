@@ -9,11 +9,6 @@ import org.junit.Test
 
 /**
  * The "send later" menu is built from [schedulePresetsAt], which is handed the instant instead of
- * reading the clock: the 6 PM boundary is otherwise unplayable without moving the bench's clock.
- *
- * The rule under test is that a lapsed preset is REMOVED, never folded to the next day: folding
- * kept a "This evening, 6 PM" entry that scheduled TOMORROW and said so at the present tense, and
- * made it an exact duplicate of the "Tomorrow, 6 PM" entry right below it.
  */
 class SchedulePresetsTest {
     private val utc = ZoneId.of("UTC")

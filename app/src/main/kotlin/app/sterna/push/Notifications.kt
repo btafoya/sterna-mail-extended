@@ -41,9 +41,6 @@ object Notifications {
 
     /**
      * The buttons a new-mail notification carries (#57). The question is not which setting is on
-     * but whether the notification NAMES the message: a Delete over something the user cannot
-     * identify loses mail. BODY_PREVIEW adds nothing here — an opening line says what was written,
-     * never by whom. [hasSender]/[hasSubject] mean the mail has its own, non-blank one.
      */
     fun actionsFor(
         content: NotificationContent,
@@ -74,13 +71,6 @@ object Notifications {
 
     /**
      * Which of [departedIds] a pass may unpost: messages the server said left the folder that still
-     * have a live banner, minus anything it still holds. Candidates, not a verdict — a delta cannot
-     * tell a departure from a keyword change, so they are put to the server first (#134).
-     *
-     * [departedIds] may only come from a signal AUTHORITATIVE about the message, never a cache
-     * eviction: a reconcile drops what fell outside the page, and that mail is alive on the server.
-     * One banner too many is dismissed; one too few is unread mail never announced. Liveness goes
-     * through [isChildActive], so both id shapes count and the account qualifies the id.
      */
     fun departuresToCancel(
         active: Set<Int>,
@@ -114,9 +104,6 @@ object Notifications {
 
     /**
      * The new-mail channel, and only it — every function that posts a banner calls this first: on an
-     * install whose push was never armed [PushService] never starts, and Android drops each banner
-     * in silence. It must not create [CHANNEL_SERVICE] too, which promises a live connection that
-     * on exactly these installs does not exist.
      */
     fun ensureMailChannel(context: Context) {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
@@ -143,11 +130,6 @@ object Notifications {
 
     /**
      * A one-off notification that a queued message could not be sent. [body] is text the app is
-     * holding and cannot deliver — a quick reply with nobody to answer; tapping opens the composer
-     * carrying it through the `mailto:` route (#15), with no `to=` deliberately, the recipient being
-     * what is missing. [content] has no default, a default having put the real subject on the lock
-     * screen against the user's choice (#84). [subject] still travels in the notification KEY and
-     * in the `mailto:` — identity and salvage, not display.
      */
     fun notifySendFailed(context: Context, subject: String, content: NotificationContent, body: String = "") {
         ensureMailChannel(context)
@@ -200,10 +182,6 @@ object Notifications {
 
     /**
      * [folderName] marks non-inbox mail (#16), null for the inbox; [mailboxId] is that folder's id,
-     * carried in the tap intent (#91) and NOT null for the inbox, the list having to switch back to
-     * it. [silent] and [content] have no defaults deliberately: they are user settings, and the
-     * defaults let a snooze wake-up post loudly against the user's choice (#84). [summarised] says
-     * whether a group summary announces this batch, in which case this one stays quiet (#56).
      */
     fun notifyNewMail(
         context: Context,
@@ -299,26 +277,12 @@ object Notifications {
 
     /**
      * Whether tearing the group summary down can be UNDONE, given what the caller expects to keep
-     * and what the shade shows right now.
-     *
-     * Cancelling a `FLAG_GROUP_SUMMARY` notification cascades every live child away, and the only
-     * repair is [repostSilently], which COPIES a notification the shade handed over: an expected id
-     * not yet on screen has no such object. NOT "the two sets are equal" — a child the shade
-     * shows and the caller never heard of is re-postable. What neither set holds still falls.
      */
     fun teardownRepairable(expectedChildIds: Set<Int>, shownChildIds: Set<Int>): Boolean =
         shownChildIds.containsAll(expectedChildIds)
 
     /**
      * Rebuild the account's group summary from the currently active children, so successive
-     * per-folder passes accumulate instead of overwriting each other.
-     *
-     * Two sets: [cancelledChildIds] is what the caller has JUST cancelled, [expectedChildIds] what
-     * the account keeps once the pass is done. The shade is read for the notification OBJECTS,
-     * never for the verdict — `cancel` and `notify` both return before the handler has run, so the
-     * read is stale in both directions (#134). The filter may NOT be "what the caller expects":
-     * the cascade takes children this caller never heard of, and dropping them leaves nobody to put
-     * them back. No defaults: a caller that forgets one must fail to COMPILE.
      */
     fun updateGroupSummary(
         context: Context,
@@ -368,9 +332,6 @@ object Notifications {
 
     /**
      * Put a per-message banner back under its own id after the summary's cascade took it.
-     * `recoverBuilder` re-uses the shade's own clone; rebuilding from the extras would lose the
-     * buttons in silence, [actionsFor] being unable to tell a real sender from the stand-in.
-     * GROUP_ALERT_SUMMARY keeps it mute: this re-posts mail already announced (#56).
      */
     private fun repostSilently(context: Context, manager: NotificationManager, child: StatusBarNotification) {
         ensureMailChannel(context)
@@ -399,10 +360,6 @@ object Notifications {
 
     /**
      * Among [active] — one `(id, group key)` pair per live notification — the ids belonging to
-     * [accountId]'s group: children AND summary. Matches on the GROUP, child and summary being the
-     * only grouped notifications in the app, so one filter also catches an older id shape. It
-     * does NOT skip the summary the way [activeChildIds] does: a sign-out would leave "3 new
-     * messages" standing for an account that no longer exists.
      */
     fun accountGroupIds(active: List<Pair<Int, String?>>, accountId: String): List<Int> {
         val group = GROUP_PREFIX + accountId

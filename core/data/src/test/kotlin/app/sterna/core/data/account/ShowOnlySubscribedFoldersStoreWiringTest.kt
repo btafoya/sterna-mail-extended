@@ -5,20 +5,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, same instrument and disclaimer as [UploadSentCopyStoreWiringTest]: it reads
- * `AccountStore.kt` as text and proves nothing about a running store, which this module cannot
- * build (a `Context` and the Keystore, no Robolectric here).
- *
- * It exists because the executable half stops at this door. [ShowOnlySubscribedFoldersTest] runs
- * both decisions on real arguments — but a perfect `withShowOnlySubscribedFolders` is worth nothing
- * if the store calls it on `listOf(accounts().first())`, saves the list it was handed instead of
- * the mapped one, or answers the getter with a constant. All three compile, keep every behavioural
- * test green, and make the switch command nothing at all.
- *
- * Whole trimmed lines, as a CONTIGUOUS block, never a `contains`: a `contains` is blind to
- * anything APPENDED to a line, and a per-line check is blind to a statement slipped between two.
- * The block starts one line above the setter's signature, on `@Synchronized` — this is a
- * read-modify-write over the whole account list, and without it an edit made from another thread
- * between `accounts()` and `saveAccounts()` is silently overwritten.
  */
 class ShowOnlySubscribedFoldersStoreWiringTest {
 
@@ -53,10 +39,6 @@ class ShowOnlySubscribedFoldersStoreWiringTest {
 
     /**
      * [count] consecutive CODE lines of `AccountStore.kt` from the single one starting with
-     * [prefix], [before] lines earlier when the annotation above it is part of the rule. Comments
-     * and blank lines are dropped first, so no rule can be satisfied by prose; a prefix matching
-     * anything other than exactly one line returns a message, so an assertion never passes by
-     * matching nothing.
      */
     private fun block(prefix: String, count: Int, before: Int = 0): List<String> {
         val path = "core/data/src/main/kotlin/app/sterna/core/data/account/AccountStore.kt"

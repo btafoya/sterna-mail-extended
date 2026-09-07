@@ -5,21 +5,6 @@ import org.junit.Test
 
 /**
  * THIS TEST READS SOURCE TEXT — the last resort, and for the usual reason: `ImapMailService`
- * needs a real account, a socket and a token refresher, so no JVM test can reach either APPEND.
- * What the parameter DOES is executed in `:core:imap` (`OutgoingMimeTest`, and
- * `SmtpBccStaysOffTheWireTest` on a real socket); this pins WHICH call site gets it.
- *
- * `OutgoingMime.build` takes `blindCopies: BlindCopies`, defaulting to `OMITTED`, and the two
- * APPENDs of this file are on opposite sides of it. Both mistakes are silent, and they are not the
- * same mistake:
- *
- *  - the draft APPEND WITHOUT `BlindCopies.WRITTEN` writes a draft with no `Bcc:` header, so the
- *    Cci the composer typed is gone the moment the draft is reopened — the defect this exists for;
- *  - `WRITTEN` added to the Sent copy, or to any third call site, writes a `Bcc:` into bytes we no
- *    longer control the fate of.
- *
- * Whole trimmed lines against a closed list, never a `contains`: every mutation that matters here
- * LENGTHENS the line, and a fragment check is blind to that.
  */
 class DraftAppendCarriesBccWiringTest {
 
@@ -53,19 +38,6 @@ class DraftAppendCarriesBccWiringTest {
 
     /**
      * The other side of the same parameter, and the risk that is NOT on this bench at all.
-     *
-     * `MailRepository` builds a third message with the same builder — the JMAP pre-built path
-     * (PGP/MIME, read receipts), whose bytes go to `client.importAndSendEmail` and are SUBMITTED
-     * verbatim. That call is written over several lines, so pinning call lines cannot see it; and
-     * it is a JMAP path, so nothing an IMAP bench does could ever show the damage. Hence the rule
-     * is stated over the whole file, as an absence.
-     *
-     * The needle is the TYPE's name, and that is the whole repair of 2026-08-25. This rule read
-     * `includeBcc` while the parameter was a `Boolean`, and a counter-expertise walked through it
-     * in one line: `OutgoingMime.build(msg, true)` — positional — writes the header while the
-     * string `includeBcc` appears nowhere, so the guard stayed green and the hidden recipients
-     * went out to everyone. `BlindCopies.WRITTEN` cannot be passed without spelling `BlindCopies`
-     * on the line, positionally or not, which is what makes an absence rule able to see it at all.
      */
     @Test
     fun `the repository names the blind-copy type nowhere, so its submitted bytes keep the default`() {

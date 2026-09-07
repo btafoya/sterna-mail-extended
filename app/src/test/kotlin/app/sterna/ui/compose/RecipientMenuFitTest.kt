@@ -7,37 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — said first, as `SenderRuleDialogFitTest` says it, because the
- * defect it guards is a LAYOUT one and nothing in this module can measure a layout: there is no
- * Robolectric, no compose-ui-test and no androidTest here, and adding one is a dependency decision.
- *
- * The defect (#143, Unihertz Jelly Pro, 240 × 432 px, Android 8.1): the recipient suggestion menu
- * was capped at a flat 256 dp, which on that screen is taller than everything under the To: field.
- * The menu covered the keyboard, so no further character could be typed to narrow it down.
- *
- * The arithmetic of the fix is executed by `SuggestionMenuFitTest` against the pure function
- * [suggestionMenuMaxHeight]. That test cannot see where the numbers come from — and an independent
- * audit broke this fix three ways without a single test going red, every one of them by feeding
- * the right function the wrong number or by removing what makes a short menu usable:
- *
- *  - **A** — `fieldBottomPx` measured without `+ it.size.height`: the room is overstated by the
- *    height of the field itself (48 dp empty, ~116 dp with a full chip area), and the menu is back
- *    over the first row of keys. A first version of this file never read that block at all.
- *  - **B** — `WindowInsets.ime.getBottom(density) / 2`: the read is still there, still once, still
- *    before the popup, and half the keyboard is covered. Counting occurrences measures nothing.
- *  - **C** — the menu's `verticalScroll` removed: with the old flat cap that was a comfort; under a
- *    96 dp cap it is the only access to four of the six suggestions.
- *
- * So every rule below pins WHAT IS MEASURED, as a WHOLE LINE or a whole expression — never with a
- * `contains`, which is blind to any mutation that lengthens the line it guards (this repo's lesson,
- * found three times) — and every rule fails CLOSED: an extraction that finds nothing fails loudly
- * instead of asserting over an empty string, and a shape this file cannot read is refused rather
- * than passed over.
- *
- * **Limits, written down rather than left to be discovered:** this file reads text. It cannot tell
- * whether `positionInRoot` and the IME inset share a coordinate frame, whether the root really
- * stays full-height on API 26-29 (`adjustResize` is still in the manifest — see the rule below and
- * `SuggestionMenuFit.kt`), or what the menu looks like on the reporter's screen. Only a device
- * answers those.
  */
 class RecipientMenuFitTest {
 
@@ -67,10 +36,6 @@ class RecipientMenuFitTest {
 
     /**
      * Mutation M1, the one that puts #143 straight back: hand `heightIn` the flat 256.dp again.
-     * The pure function stays green beside it, still computing a cap nobody uses.
-     *
-     * The whole argument is compared, never searched: `max = menuMaxHeight` is a prefix of
-     * `max = menuMaxHeight * 2`.
      */
     @Test fun `the suggestion menu is capped by the computed height, not by a constant`() {
         val body = fieldBody()
@@ -94,13 +59,6 @@ class RecipientMenuFitTest {
 
     /**
      * Mutation A: the field measures itself, and this is the block where a wrong number is born
-     * without any test noticing. Dropping `+ it.size.height` overstates the room by the height of
-     * the field; `size.height` → `size.width` reads a number that has nothing to do with the
-     * question. Both compile, both keep every other rule green, both bring #143 back.
-     *
-     * Whole right-hand sides are compared. They are not read from a list of forbidden shapes —
-     * there is exactly one right expression for each of the two measurements, and anything else is
-     * refused until someone changes this rule on purpose.
      */
     @Test fun `the field measures its own bottom edge and the root's height, whole`() {
         val block = positionedBlock(fieldBody())
@@ -120,9 +78,6 @@ class RecipientMenuFitTest {
 
     /**
      * Mutation B, half of it: the keyboard is read, once, before the popup — and halved. This
-     * rule compares the WHOLE binding line, so `… / 2`, `… - 100` or `….coerceAtMost(200)` are all
-     * refused; the count and the ordering rules that follow are kept because they answer different
-     * questions (a second read somewhere, and a read inside the popup's own window).
      */
     @Test fun `the keyboard height is read whole, once, in the field, before the popup`() {
         val body = fieldBody()
@@ -146,13 +101,6 @@ class RecipientMenuFitTest {
 
     /**
      * Mutation A and B together, at the seam neither the pure function nor the lines above can
-     * see: WHICH measurement reaches WHICH parameter. `window − field − ime` is symmetric in the
-     * last two, so swapping them is invisible to `SuggestionMenuFitTest` — it is caught here, and
-     * only here, by tying every named argument to the identifier that holds that measurement.
-     *
-     * The expected identifiers are DERIVED (from the measurement block and from the keyboard
-     * binding), never listed: renaming a local variable keeps this rule green, changing what it
-     * holds does not.
      */
     @Test fun `each measurement reaches the parameter it belongs to`() {
         val body = fieldBody()
@@ -177,19 +125,6 @@ class RecipientMenuFitTest {
 
     /**
      * Mutation M4, the one that is invisible in a diff review: drop the keys.
-     *
-     * `remember { … }` with no key holds its first value for the life of the composition. The
-     * keyboard's height is not this composable's state — it changes while nothing here changes —
-     * so the cap would be computed once, keyboard down, and the menu would be full-size again the
-     * instant the keyboard slides in. Every other rule in this file, and the whole behaviour test,
-     * stay green through that.
-     *
-     * THIS RULE FAILS CLOSED, and that is the point. Its first version filtered the arguments
-     * down to bare identifiers before comparing them to the keys: replacing one argument with an
-     * expression (`imeHeightPx = imeBottomPx.coerceAtMost(0)`) left NOTHING to compare, and the
-     * rule reported success over an empty list. An argument this rule cannot follow to a key is a
-     * failure of the rule, and it is reported as one — a rule that satisfies itself by having
-     * nothing left to check is worse than no rule.
      */
     @Test fun `every measurement fed to the height computation is a remember key`() {
         val keyed = keyedRemember(fieldBody())
@@ -216,12 +151,6 @@ class RecipientMenuFitTest {
 
     /**
      * Mutation C: the menu scrolls, and under a computed cap that is no longer a comfort.
-     *
-     * Six suggestions are about 341 dp of rows; a cap of 96 dp shows one and a half of them. The
-     * scroll is what makes a short menu lose nothing, and it is what the comment beside the cap
-     * promises. Pinned as a WHOLE LINE, immediately after the cap in the same modifier chain:
-     * `verticalScroll(rememberScrollState(), enabled = false)` scrolls nothing and contains the
-     * shorter form, which is how a `contains` would have passed it.
      */
     @Test fun `the menu still scrolls under its cap`() {
         val body = fieldBody()
@@ -247,17 +176,6 @@ class RecipientMenuFitTest {
 
     /**
      * The line this whole fix rests on, and it is not in `ComposeScreen.kt`.
-     *
-     * `WindowInsets.ime` only reports a height when the activity is told to react to the keyboard.
-     * On API 30+ `enableEdgeToEdge()` plus the framework's inset animation carry it; on API 26-29 —
-     * `minSdk` is 26 and the reporter's device is API 27 — the manifest's `adjustResize` is what
-     * makes the IME inset exist at all. Dropping it is a one-word edit in a file nobody reading
-     * `ComposeScreen.kt` would open, and it turns the cap into "the keyboard is never up".
-     *
-     * What is NOT settled here: whether that same `adjustResize` also SHRINKS the compose root
-     * on those API levels, in which case the keyboard is subtracted twice and no menu is shown at
-     * all on the reporter's phone. The bench (Moto G, API 28) answers that; this rule only makes
-     * sure the line does not vanish silently in the meantime.
      */
     @Test fun `the activity is still told to react to the keyboard`() {
         val lines = MANIFEST.readLines().map { it.trim() }
@@ -274,9 +192,6 @@ class RecipientMenuFitTest {
 
     /**
      * Decision of the fix, at the call site: under one row of room there is NO menu. A cropped menu
-     * lies about what it holds and takes back the very space being freed. `SuggestionMenuFitTest`
-     * pins that the function returns null; this pins that the null is obeyed rather than defaulted
-     * away with an `?:`.
      */
     @Test fun `no menu at all is composed when no height came back`() {
         val body = fieldBody()

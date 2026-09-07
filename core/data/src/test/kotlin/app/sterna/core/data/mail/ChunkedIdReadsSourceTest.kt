@@ -6,15 +6,6 @@ import org.junit.Test
 
 /**
  * THIS TEST READS SOURCE TEXT. It is a last resort, not a proof of execution: `MailRepository`
- * needs Room and a `Context` and cannot be instantiated in a JVM test, so nothing here can run the
- * wiring it checks. The decision it guards — chunking itself — is EXECUTED by [IdChunksTest]; this
- * only pins WHERE that decision is plugged in, and it pins the ARGUMENT of each call, not just the
- * presence of a name.
- *
- * What it exists for: `SELECT * FROM emails WHERE id IN (:ids)` fed a whole select-all. Below
- * Android 12 SQLite refuses past 999 bound variables, and these reads sit OUTSIDE the
- * `runCatching` the bulk paths wrap their server call in — so the refusal crashed the action
- * instead of failing it. A new unbounded call site has to fail here.
  */
 class ChunkedIdReadsSourceTest {
 
@@ -67,12 +58,6 @@ class ChunkedIdReadsSourceTest {
 
         // Two shapes are safe, and nothing else is:
         //  - `listOf(<one id>)`     — a single message, one binding;
-        //  - `chunk` / `slice`      — the parameter of a splitter, byIdsChunked or an explicit
-        //                             `.chunked(MAX_CHANGES)` loop. (`slice` is the inner name
-        //                             where a byIdsChunked sits INSIDE a `.chunked` loop, so the
-        //                             two parameters cannot share one name.)
-        // Anything else is a caller-supplied list of unbounded size. The names alone would prove
-        // nothing — the two tests below are what say each of those functions really splits.
         val unbounded = calls.map { lastArg(it) }
             .filterNot { it == "chunk" || it == "slice" || it.startsWith("listOf(") }
 
@@ -99,16 +84,6 @@ class ChunkedIdReadsSourceTest {
             "fetchThreadMembers",
             // The freeze of a held-back destroy (`numberingRowsWereReadUnder`, #99) is NOT in
             // this list any more, and that is a tightening, not a hole: its id list IS the
-            // selection, and it runs BEFORE the eviction and outside any runCatching, so
-            // unbounded it would crash the delete rather than fail it — but the split now lives
-            // in `numberingStampsOfRows`, where `NumberingStampsTest` EXECUTES it on 1201 ids and
-            // pins the size of every chunk. A rule that reads the word `byIdsChunked(` in a body
-            // could never say that. What is left un-executed is only the hand-over, and
-            // `NumberingStampsSourceTest` pins that line whole — including the `chunk` argument
-            // this test could only have seen as a name.
-            // Its network loop is bounded by JMAP_BATCH_CEILING, which lives in core:jmap and is
-            // documented as a NETWORK limit. Raising it must not push this SELECT past SQLite's
-            // 999 bindings, so the read carries its own split as well.
             "setReadAll",
         )
         val missing = routed.filterNot {

@@ -5,22 +5,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, same instrument and disclaimer as [StoredViewStoreWiringTest]: it reads
- * `AccountStore.kt` as text and proves nothing about a running store. Nothing in this module can
- * build one (it wants a `Context` and the Keystore, and there is no Robolectric here).
- *
- * These three lines are the only production code of #178's freshness register that no test
- * executes — the decision is run by `RefreshFreshnessTest` in :app, the wiring is pinned by
- * `RefreshFreshnessWiringLintTest` — and each of these compiles with the whole suite green:
- *  - the getter pointed at another key: every read answers something the decoder throws away, the
- *    register is always empty, and the guard silently never fires (the feature does not exist,
- *    and nothing is broken enough to notice);
- *  - the setter pointed at another key: it OVERWRITES data it does not own. `KEY_VIEW` is the
- *    drawer memory and `KEY_CURRENT` is the current account — the second is account loss across a
- *    cold start;
- *  - the key changing value, which is the same collision written one line higher.
- *
- * Whole trimmed lines, never a `contains`: what goes wrong here reads as a swapped constant or an
- * appended guard, and a fragment match is blind to a line that only got longer.
  */
 class RefreshFreshnessStoreWiringTest {
 
@@ -64,10 +48,6 @@ class RefreshFreshnessStoreWiringTest {
 
     /**
      * [count] consecutive CODE lines of `AccountStore.kt` from the single one starting with
-     * [prefix], trimmed and rejoined so a wrapped declaration reads as one line. Comments and
-     * blank lines are dropped first, so no rule can be satisfied by prose; a prefix matching
-     * anything other than exactly one line returns a message, so an assertion can never pass by
-     * matching nothing.
      */
     private fun block(prefix: String, count: Int): List<String> {
         val path = "core/data/src/main/kotlin/app/sterna/core/data/account/AccountStore.kt"

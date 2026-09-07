@@ -10,17 +10,6 @@ import java.sql.PreparedStatement
 
 /**
  * Verifies, against in-memory SQLite, the anchor selection of
- * [app.sterna.core.data.db.EmailDao.oldestRepresentativeEmailId] (and its companion count,
- * [app.sterna.core.data.db.EmailDao.representativeCountForMailbox]): the fetch-older page is
- * anchored on the oldest cached row that is its thread's NEWEST within the folder — a cached
- * older thread member may sit below the contiguous window (fetched on expand), and anchoring
- * on it would skip the gap.
- *
- * Both statements are read out of the shipped DAO by [DaoQuerySource], not retyped, so changing
- * the DAO's SQL changes this test's SQL with it — a retyped copy would keep passing against a
- * query the pager no longer runs. Each query names `:accountId` and `:mailboxId` twice (outer
- * scope, then correlated sub-select), so [DaoQuerySource.bindOrder] is what says which `?` is
- * which: the statement's order, not the signature's.
  */
 class RepresentativeAnchorSqlTest {
     private lateinit var db: Connection
@@ -112,10 +101,6 @@ class RepresentativeAnchorSqlTest {
         insert("in1", threadId = "T1", sortKey = 100)
         insert("sent1", threadId = "T1", sortKey = 300, mailbox = "sent") // newer, other folder
         // The sibling account's member is NEWER than in1 (issue #31: same-server accounts share
-        // thread ids). It has to be: at a lower sortKey it cannot win the correlated sub-select's
-        // MAX whether or not that sub-select is account-scoped, and dropping `accountId = :accountId`
-        // from it — the very regression this case is named for — went unnoticed, the two queries
-        // simply binding one `?` fewer under Room's named parameters.
         insert("other1", threadId = "T1", sortKey = 500, accountId = "accB")
         // Within (acc, inbox), in1 is T1's newest — neither the Sent reply nor the sibling
         // account's newer member demotes it.
@@ -126,18 +111,9 @@ class RepresentativeAnchorSqlTest {
     @Test fun aSiblingAccountsIdenticalCopyIsNeitherAnchorNorCounted() {
         // The case [scopesToAccountAndMailbox] cannot see, and the reason the OUTER
         // `accountId = :accountId AND mailboxId = :mailboxId` has to stay: both parameters survive
-        // in the correlated sub-select, so dropping the outer scope still compiles, still binds the
-        // same names, and every other case here still passes — the sub-select keeps answering for
-        // (acc, inbox) and other accounts' rows simply fail the `sortKey =` comparison.
         //
         // Unless they TIE. Two sub-accounts of one server (issue #31) receive the same message —
         // same receivedAt, so the same sortKey, and the same server thread id — and the sibling's
-        // copy then equals the MAX the sub-select computed for THIS account: unscoped, it joins the
-        // result. It inflates the representative count, which is the end-of-pagination test, and it
-        // can BE the anchor handed to the server as a pagination id — an id of another account,
-        // which the server does not find, dropping the pager onto the positional fallback the code
-        // itself calls jump-prone. Inserted first, so a tie is not resolved in the shipped query's
-        // favour by insertion order.
         insert("B-dup", threadId = "T-dup", sortKey = 100, accountId = "accB")
         insert("A-dup", threadId = "T-dup", sortKey = 100)
         insert("A-new", threadId = "T-a", sortKey = 300)

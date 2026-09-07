@@ -10,11 +10,6 @@ import org.junit.Test
 
 /**
  * Which folders the screens show when an account asks for its SUBSCRIBED folders only (#174) — the
- * rule, executed, never read as text.
- *
- * Every case pins a hard list of ids. None of them recomputes "subscribed, or a role, or a visible
- * descendant" to decide what to expect: a test that restates the rule stays green when the shipped
- * one is inverted.
  */
 class VisibleFoldersTest {
 
@@ -114,16 +109,6 @@ class VisibleFoldersTest {
 
     /**
      * The defect. An IMAP account with both a `Junk` and a `Spam`: only one can be THE junk
-     * (`ImapClient.assignRoles`), and the loser is stored with a marked role, then reaches the
-     * screen with NO role at all (`MailboxMapper.toMailbox`). Unsubscribed, role-less and no
-     * routing target, it fell through all four earlier guards at once — out of the drawer, out of
-     * both move pickers, out of the unread view, out of the ⋮ menu. It is out of search and out of
-     * the FTS index by an older and deliberate decision, so the drawer was its last way in: the
-     * folder holding the false positives became unreachable from the app, with its mail still
-     * sitting on the server.
-     *
-     * The ordinary unsubscribed folder in the same list still goes. The claim is what buys the
-     * reprieve, not the filter having been softened.
      */
     @Test fun `an unsubscribed folder that claimed a role and LOST it stays`() {
         val folders = listOf(
@@ -191,13 +176,6 @@ class VisibleFoldersTest {
 
     /**
      * The reprieve KEEPS the row, it does not rewrite it: the folder comes out of the filter with
-     * the `role == null` it went in with, which is what `InboxScreen` gates Rename / Delete / New
-     * subfolder on.
-     *
-     * This pins the filter and nothing more. That the losing folder ARRIVES here role-less is
-     * the erasure's doing, one module away, and it is pinned where it happens
-     * (`UnelectedRoleStopsAtTheDataBoundaryTest`) — not here, where the fixture would just be
-     * reading back its own input.
      */
     @Test fun `the filter hands back the row it kept, role and all`() {
         val loser = folder("Spam", name = "Spam", subscribed = false, lostClaim = true)

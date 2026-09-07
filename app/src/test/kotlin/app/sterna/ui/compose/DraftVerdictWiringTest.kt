@@ -7,16 +7,6 @@ import java.io.File
 
 /**
  * The fidelity verdict of an edited draft ([ComposeViewModel.editingDraftLossy]) on its way from
- * the composer to the outbox row — SOURCE LINT, the last resort, for [ReadReceiptWiringTest]'s
- * reason: nothing in this module can instantiate `ComposeViewModel` (an `AndroidViewModel`, no
- * Robolectric here) or run a WorkManager worker. The decision the verdict feeds is EXECUTED in
- * `core:data` ([SendReplacesDraftTest] runs `replaceableDraftIdOrNull`); what nothing else can see
- * is whether this class still hands the verdict over — and a verdict dropped anywhere on this path
- * is not a missing bit, it is `false`, i.e. "destroy authorised": the send goes out without what
- * the composer could not carry and the draft that held the only copy is destroyed behind it.
- *
- * Arguments are parsed out of each call and compared whole ([callsOf]) — a `contains` is blind to
- * any mutation that lengthens a line ('editingDraftLossy && false' reads as harmless).
  */
 class DraftVerdictWiringTest {
 
@@ -153,32 +143,12 @@ class DraftVerdictWiringTest {
     @Test fun `the reopened draft's id and a pessimistic verdict are armed together, before the coroutine`() {
         // THIS INVARIANT IS THE INVERSE OF THE ONE THIS TEST USED TO PIN, and the old race is why
         // it existed: editingDraftId was once set BEFORE carryDraftAttachments, so sending while
-        // the carry was still downloading went out without the attachments — verdict still false —
-        // and destroyed the only copy (#63). The answer then was to lay the id LAST, after the
-        // carry had answered: no id, no destroy, at the price of a duplicate if the user saved
-        // during those seconds.
         //
         // That answer paid for the race with a hole. `applied` (a `rememberSaveable` in
         // ComposeScreen) survives process death, so a draft reopened before the process was killed
-        // comes back with its editor, its text and a live bar, while prepare() re-runs; offline,
-        // repo.fetchEmail throws, the catch runs, and the last line of the try — the id — is never
-        // reached. Save then sees `replacesEmailId = null`, finishDraftSave answers SAVED,
-        // draftSaveNeedsNotice answers false: a SECOND draft on the server and not one word on
-        // screen. Two more legs of the same hole never even reached the catch — the seconds while
-        // the fetch is in flight (the bar is already alive), and the `credentials() ?: return`.
         //
         // So the id no longer buys the safety; the VERDICT does, and the invariant moved WITH it:
         // it is not "the id is laid last", it is "the LICENCE TO DESTROY is laid last". The pair is
-        // armed together on entry — id + `editingDraftLossy = true` — and the single line allowed
-        // to lower that verdict is the LAST statement of the try, once the body has been read AND
-        // the attachment carry has answered. Lowering it in two steps (compute into the field,
-        // harden afterwards) puts the whole carry — which suspends per part, publishing nothing
-        // until it ends — inside a window where the id is armed and the verdict is clean. That is
-        // #63 restored, and it is what this rule now refuses. An id with a lossy verdict destroys
-        // nothing: `draftReplacementIsFaithful` is `!bodyIsLossy && …`
-        // (`core/data/.../mail/DraftSave.kt`). Same rule as `SendOutbox.ComposeDraft.draftBodyIsLossy`
-        // and as `LocalDraftDao.revertStagedToPendingLossy`: a site that cannot prove fidelity says
-        // `true`.
         val lines = bodyOf(COMPOSE_VIEW_MODEL, "prepare").lines().map { it.trim() }
         val assignments = lines.withIndex()
             .filter { Regex("""\beditingDraftId\s*=""").containsMatchIn(it.value) }
@@ -273,11 +243,6 @@ class DraftVerdictWiringTest {
 
     /**
      * AND THE ANSWER THE WHOLE THING NOW RESTS ON. Since the verdict is lowered from
-     * `lossy || !carried`, everything #63 buys hangs off the one line `carryDraftAttachments`
-     * returns: answer `true` unconditionally and a draft whose attachment failed to download comes
-     * back looking complete, with a clean verdict, and the next save destroys the original that
-     * held the only copy of the file. The two rules above pin the CALL SITE as text; neither can
-     * see the answer, and a counter-expertise walked straight through that gap.
      */
     @Test fun `the attachment carry answers whether EVERY part came across`() {
         val body = bodyOf(COMPOSE_VIEW_MODEL, "carryDraftAttachments")

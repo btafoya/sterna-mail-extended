@@ -15,19 +15,6 @@ import org.junit.Test
 
 /**
  * The twin of [DestroyNeedsTheNumberingStatedNowTest], for the gesture the user actually makes:
- * a MOVE may only go out under a numbering the server states in the SELECT it is about to move
- * under (Codeberg #99).
- *
- * `deleteBatch` has opposed the frozen numbering since 1.4.9; `move` and `moveBatch` opposed
- * NOTHING. The only guard left on them was `ImapSession.select`, which refuses solely when two
- * POSITIVE numbers disagree — so a SELECT carrying no `UIDVALIDITY` line at all sailed through and
- * the `UID MOVE` went out on yesterday's UIDs. And "delete", for the user, IS a move: on an
- * account with a Trash, `MailRepository.delete` moves the message there. So the most ordinary
- * gesture in the app was the one confirming nothing, while the 1.4.9 release note says a delete
- * that cannot confirm the server's numbering is refused instead of risked.
- *
- * Everything below RUNS against a real [ImapMailService] driven onto a scripted socket, and the
- * witness is the command list that actually left the client.
  */
 class MoveNeedsTheNumberingStatedNowTest {
 
@@ -120,12 +107,6 @@ class MoveNeedsTheNumberingStatedNowTest {
 
     /**
      * And a move that opposes nothing is refused even on a PERFECTLY HEALTHY server — the case
-     * that decides the whole design, and the one a dropped argument turns any call site back into.
-     *
-     * Carrying nothing lets the SELECT fall back on the number the app has recorded RIGHT NOW,
-     * which an ordinary refresh has already updated if the folder was renumbered; the guard then
-     * compares that number with itself, concludes SAME, and the move goes out on UIDs that name
-     * other, live messages. `mayDestroyUnderStatedNumbering(null, 42)` is false for that reason.
      */
     @Test fun `a move that opposes nothing is refused, on a perfectly healthy server`() {
         val store = RememberedNumbering()
@@ -159,8 +140,6 @@ class MoveNeedsTheNumberingStatedNowTest {
 
     /**
      * What the call sites do now: they carry the number the folder was last seen under. The
-     * refusal then NAMES it, which is what a caller (and a log line) needs to tell "the server
-     * went quiet" from "this path forgot to freeze anything".
      */
     @Test fun `a frozen numbering the server no longer states refuses the move and names it`() {
         val store = RememberedNumbering()
@@ -195,8 +174,6 @@ class MoveNeedsTheNumberingStatedNowTest {
 
     /**
      * The inverse witness. Without it "refuse always" satisfies every case above, and that is a
-     * total regression rather than a guard: no IMAP archive, no move to a folder, no delete to the
-     * Trash would ever go through again — the app would stop being a mail client.
      */
     @Test fun `a server still stating the same numbering moves exactly as before`() {
         val store = RememberedNumbering()
@@ -230,15 +207,6 @@ class MoveNeedsTheNumberingStatedNowTest {
 
     /**
      * THE COST OF GETTING THIS WRONG, and it was wrong: a folder the user has never OPENED, met
-     * only through a server-side search, had no recorded numbering — `searchFolders` SELECTed it
-     * and threw the `UIDVALIDITY` away. There was then nothing to freeze, so archiving, moving or
-     * deleting a search hit from an old archive was REFUSED, on a server that had done nothing
-     * wrong and renumbered nothing. A guard that fires at a healthy server is not a guard, it is
-     * an outage — and this one would have shipped as "search results cannot be acted on".
-     *
-     * The fix is to stop discarding what the SELECT already said: the hits carry the numbering,
-     * and `ImapMailService.search` hands it to `reconcileNumbering`, which is documented for
-     * exactly this — apply what a SELECT observed, WITHOUT refusing anything.
      */
     @Test fun `a search records the numbering of the folder it looked in, so a hit can be moved`() {
         val store = RememberedNumbering()
@@ -282,23 +250,6 @@ class MoveNeedsTheNumberingStatedNowTest {
 
     /**
      * WHERE THE REFUSAL IS RAISED, read as the only thing that can show it: the number of
-     * sockets the whole scenario opened.
-     *
-     * The `throw` lives AFTER `onMailbox` returns, and that placement is the guard, not a style.
-     * Raised INSIDE the block it lands in `runWithRetry`'s `catch (t: Throwable)`
-     * (`ImapMailService`) — `ImapNumberingUnconfirmed` is deliberately neither an
-     * `ImapException` nor an `ImapUidValidityChanged`, so it does not take that catch's
-     * `throw renumbered` escape — and the client then closes the session, drops it from the pool,
-     * RECONNECTS, LOGINs and re-SELECTs, only to refuse a second time. A full round trip on a
-     * mobile link that is probably already bad, for a verdict that was decided offline from what
-     * the SELECT had already said. And two attempts in, what surfaces is whatever the second
-     * attempt threw, which need not be the exception the caller is written to recognise.
-     *
-     * One socket for the whole test, not one per call: `withSession` pools a session per account
-     * (`ImapMailService`), so every call here rides the same connection — which is exactly
-     * why a SECOND one can only mean a reconnect. `issued()` cannot say this: it filters the
-     * `LOGIN` line out, so a replayed LOGIN + SELECT would show up as one more `SELECT` and
-     * nothing else. Read inside `use`, before the server is closed.
      */
     private fun assertOneConnection(server: ScriptedImapServer) = assertEquals(
         "the refusal must have cost exactly ONE connection. A second means the throw moved " +
@@ -312,9 +263,6 @@ class MoveNeedsTheNumberingStatedNowTest {
 
     /**
      * A server whose Nth SELECT announces [announce] `(n)` — null meaning NO `UIDVALIDITY` line at
-     * all, which is exactly what a server that stops stating its numbering sends. The `EXISTS`
-     * line stays, so the folder still reads as a live folder. Twin of the responder in
-     * [DestroyNeedsTheNumberingStatedNowTest], plus the `COPYUID` a move has to answer with.
      */
     private fun scripted(announce: (Int) -> Long?): (String, String) -> String {
         var selects = 0

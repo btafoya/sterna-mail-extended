@@ -141,9 +141,6 @@ class PushService : Service() {
                 onClosed = {
                     // Drop the dead connection now, not at the delayed retry: a retired socket that
                     // leaves its entry behind keeps isConnected answering true with nothing to
-                    // trigger an arm (#130). Paired with the handle, never
-                    // connections.remove(loginId): this callback is asynchronous and can fire after
-                    // the NEXT generation stored ITS handle under the same key.
                     retractOwnConnection(connections, loginId, mine.get())
                     // Deliberately silent when the generation is retired: this fires on every arm,
                     // so a line would print once per healthy arm while saying nothing about the race.
@@ -155,9 +152,6 @@ class PushService : Service() {
             )
             // Store first, check after — whoever writes LAST checks LAST. The baseline pass can run
             // for tens of seconds, and checking BEFORE the write only narrows the defect (#130).
-            // Reading after it, the map ends up holding either the current generation's live handle
-            // or nothing at all, never a dead one — and no entry is the safe side, a wasted delta
-            // costing a request where a wrong skip costs mail.
             mine.set(handle)
             connections[loginId] = handle
             val after = generation
@@ -231,10 +225,6 @@ class PushService : Service() {
 
         /**
          * Whether the connection carrying [accountId] is open right now. Asked with an ACCOUNT id,
-         * answered from a map keyed by LOGIN id — the two are the same string only for a standalone
-         * account, so resolving first is what makes the answer mean the same thing everywhere (#61).
-         * "Carried by an open connection" is not "instant": what a linked sub-account's socket buys
-         * it is the group catch-up, not its own StateChanges (#31).
          */
         fun isConnected(accountId: String): Boolean {
             val service = instance ?: return false
@@ -257,9 +247,6 @@ class PushService : Service() {
 
 /**
  * Is [accountId] carried by one of the [openConnections] right now? The service holds ONE connection
- * per login (#31), so [openConnections] holds LOGIN ids while every caller of the status line holds
- * an ACCOUNT id. An account missing from [carriedBy] is its own login, which is why looking an
- * account id up directly appeared to work — it does, but only for standalone accounts (#61).
  */
 internal fun isCarriedByOpenConnection(
     accountId: String,
@@ -269,14 +256,6 @@ internal fun isCarriedByOpenConnection(
 
 /**
  * Take [loginId] out of [connections] only if the entry sitting there IS [mine], and say whether
- * anything was removed. A closing connection must drop its own entry, or [isConnected] answers true
- * until the next arm and on the path this fixes nothing triggers one (#130).
- *
- * The obvious `connections.remove(loginId)` is worse than the defect it fixes: a close callback is
- * ASYNCHRONOUS, so a retired socket can call back long after the next generation stored ITS handle
- * under the same key, and a removal by key alone would expel a live connection. Pairing is by
- * IDENTITY: two handles that compare equal are still two sockets. The read and the removal are two
- * steps, so a handle swapped in between survives — the safe way round.
  */
 internal fun <T : Any> retractOwnConnection(
     connections: MutableMap<String, T>,

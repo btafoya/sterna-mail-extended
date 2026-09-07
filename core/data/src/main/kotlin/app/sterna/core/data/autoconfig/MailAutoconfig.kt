@@ -67,11 +67,6 @@ fun substitutedUsername(raw: String, emailAddress: String): String {
 
 /**
  * The HTTP client the published-config tiers fetch with — NOT the JMAP client (attaches an
- * Authorization header).
- *
- * Follows NO redirect on its own: a 302 from `autoconfig.<domain>` could otherwise carry the
- * fetch to a third party. 3xx answers are walked by hand in [fetchPublishedConfig], each hop
- * passing [redirectAllowed].
  */
 internal fun defaultAutoconfigHttpClient(): OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(15, TimeUnit.SECONDS)
@@ -85,8 +80,6 @@ internal const val MAX_AUTOCONFIG_REDIRECTS = 5
 
 /**
  * Whether a redirect to [target] is allowed: only https, and only [domain] itself or a
- * subdomain — never a host that merely CONTAINS the domain (`evil-<domain>`,
- * `<domain>.evil.tld`, hence the leading dot in the suffix check).
  */
 internal fun redirectAllowed(target: HttpUrl, domain: String): Boolean {
     if (target.scheme != "https") return false
@@ -100,8 +93,6 @@ private const val TLS_PROBE_TIMEOUT_MS = 5_000
 
 /**
  * TLS probe behind a guessed host: connect, handshake, verify the certificate FOR THAT NAME.
- * A bare [SSLSocket] does not check the hostname; `endpointIdentificationAlgorithm = "HTTPS"`
- * is what makes a successful handshake mean a certificate valid for this exact name.
  */
 internal suspend fun realTlsProbe(host: String, port: Int): Boolean = withContext(Dispatchers.IO) {
     try {
@@ -130,11 +121,6 @@ suspend fun discoverMailAutoconfig(emailAddress: String): MailAutoconfigResult =
 
 /**
  * Discover IMAP/SMTP settings for [emailAddress], first found wins: the domain's PUBLISHED config
- * ([autoconfigUrlsFor]), else guessed hosts kept only if a TLS handshake succeeds on BOTH sides.
- *
- * [budgetMs] bounds only the CALLER's wait: the work runs in a child job cancelled but never
- * joined at the deadline, since a blocking OkHttp/socket call ignores cancellation until its own
- * timeout. [autoconfigUrls]/[httpClient]/[tlsProbe] are seams.
  */
 suspend fun discoverMailSettings(
     emailAddress: String,
@@ -182,12 +168,6 @@ private suspend fun runCascade(
 
 /**
  * Fetch ONE published-config URL, or null for "this tier said nothing". HTTP 200 is NOT a
- * verdict: [parsePublishedConfig] decides on the XML root, since catch-all reverse proxies answer
- * 200 with an HTML page on both autoconfig paths.
- *
- * 3xx is walked here BY HAND, at most [MAX_AUTOCONFIG_REDIRECTS] hops: a domain may park the
- * well-known path behind a 3xx (#54/#137), but each hop must stay on the same origin or pass
- * [redirectAllowed].
  */
 private suspend fun fetchPublishedConfig(
     httpClient: OkHttpClient,
@@ -223,8 +203,6 @@ private suspend fun fetchPublishedConfig(
 
 /**
  * Read a Thunderbird-autoconfig document (hardened like the K-9 import), or null to reject the
- * WHOLE tier: wrong root, missing `incomingServer type="imap"` / `outgoingServer type="smtp"`,
- * or any endpoint [endpointOf] refuses.
  */
 internal fun parsePublishedConfig(body: InputStream, emailAddress: String): MailAutoconfigResult.Found? {
     val document = try {
@@ -253,8 +231,6 @@ internal fun parsePublishedConfig(body: InputStream, emailAddress: String): Mail
 
 /**
  * One server element as a stored endpoint, or null to reject it and the tier. `socketType` is
- * an allow-list (`SSL`, `STARTTLS`): anything else, including `plain`, is refused rather than
- * mapped to [ConnectionSecurity.NONE] — an unauthenticated fetch does not get to allow cleartext.
  */
 private fun endpointOf(server: Element): MailEndpoint? {
     val host = server.childText("hostname")
@@ -271,8 +247,6 @@ private fun endpointOf(server: Element): MailEndpoint? {
 
 /**
  * The guessed tier: `imap.`/`mail.` at 993, `smtp.`/`mail.` at 465 — implicit TLS only, so a kept
- * guess is always [ConnectionSecurity.TLS]. Both incoming and outgoing must pass [tlsProbe] or
- * nothing is answered: half a configuration prefilled is worse than an empty form.
  */
 private suspend fun guessedSettings(
     domain: String,

@@ -7,12 +7,6 @@ import org.junit.Test
 
 /**
  * The CONVEYANCE: the section the server named in the BODYSTRUCTURE that came with the envelope,
- * carried from the sync page to the notification layer — never asked for a second time.
- *
- * [previewSourcesOf] is pure and is executed here. The two ends it is plugged into cannot be built
- * on the JVM (`ImapMailService` needs a token refresher and a socket, `MailRepository` a database),
- * so they are read as source text, whole lines at a time — including the claim that carries the
- * whole point: `loadWatchedFolders` makes no server call it did not already make.
  */
 class PreviewConveyanceTest {
 
@@ -37,8 +31,6 @@ class PreviewConveyanceTest {
 
     /**
      * Keyed by the SAME cache id the page's rows get, so the notifier can look one up for a message
-     * it is holding without taking an id apart — and the section and its encoding travel whole,
-     * because reading a part under a charset nobody announced is mojibake on a lock screen.
      */
     @Test fun `each message's section is carried out under that message's cache id`() {
         assertEquals(
@@ -56,8 +48,6 @@ class PreviewConveyanceTest {
 
     /**
      * A message with no `text/…` part at all is ABSENT, not present-and-null. It has no opening
-     * line, so it must cost neither a round trip nor one of the pass's few preview slots — the
-     * notification pre-pass counts what is in this map.
      */
     @Test fun `a message with no readable text is not in the map at all`() {
         assertEquals(
@@ -76,9 +66,6 @@ class PreviewConveyanceTest {
 
     /**
      * THE WHOLE POINT: the page is carried, never re-fetched. These are every server call the
-     * watched-folder load makes, and there is no second BODYSTRUCTURE among them — the structure
-     * arrives with the envelope of the page below and, until this change, was thrown away by
-     * `toEntity`. A `fetchPage` or a `select` added here is one per watched folder per push pass.
      */
     @Test fun `the watched-folder load asks the server for nothing new`() {
         val body = DaoQuerySource.mailFunctionBody("ImapMailService", "loadWatchedFolders")
@@ -117,8 +104,6 @@ class PreviewConveyanceTest {
 
     /**
      * And it reaches the notifier's own carrier. IMAP fills it from the load; JMAP states that it
-     * has nothing to convey, because its rows already carry `preview` — filling it there would buy
-     * a round trip for a string the notifier is holding.
      */
     @Test fun `the refresh carries the sources on IMAP and states there are none on JMAP`() {
         assertEquals(
@@ -132,8 +117,6 @@ class PreviewConveyanceTest {
 
     /**
      * The read the notification layer is offered is the bounded one, and its deadline is a
-     * parameter with no default at BOTH ends: the block behind it is blocking, holds the account's
-     * mutex and has no suspension point, so nothing outside it can cut it short.
      */
     @Test fun `the notification read is a passthrough that cannot lose its deadline`() {
         val source = DaoQuerySource.mailSource("MailRepository")
@@ -180,10 +163,6 @@ class PreviewConveyanceTest {
 
     /**
      * ONLY WHAT IS MISSING IS ASKED FOR. This is what makes the openings of a folder cost one
-     * read each EVER: the pager walks the same folder again on every step and the pull-to-refresh
-     * re-reads the newest page, so without this filter a page of two hundred rows would be
-     * re-downloaded — up to 1.6 MB at 8 KB a message — every single time, on the account's one
-     * connection, for text already sitting in the database.
      */
     @Test fun `only the rows with no cached opening are asked for`() {
         val recorder = Recorder(mapOf(2L to "two", 3L to "three", 5L to "five"))
@@ -205,10 +184,6 @@ class PreviewConveyanceTest {
 
     /**
      * ONE REQUEST PER SECTION, never one per message. A round trip per message would be up to two
-     * hundred sequential commands on the account's SINGLE connection, held under its mutex — with
-     * opening a message, marking one read and emptying the trash queued behind all of them. The
-     * server names the section in the BODYSTRUCTURE it already sent, and real mail uses two to four
-     * of them across a page.
      */
     @Test fun `the page is asked for one section at a time, not one message at a time`() {
         val recorder = Recorder()
@@ -230,8 +205,6 @@ class PreviewConveyanceTest {
 
     /**
      * EACH BODY UNDER ITS OWN MESSAGE'S CACHE ID. The grouped answer comes back keyed by UID for
-     * exactly this reason; anything that pairs it by position instead puts one correspondent's
-     * words under another correspondent's name, in the list, silently.
      */
     @Test fun `each body comes back under its own message's cache id`() {
         val previews = previewsForPage(
@@ -267,9 +240,6 @@ class PreviewConveyanceTest {
 
     /**
      * NOTHING TO ASK MEANS NO COMMAND AT ALL — not an empty one. A page whose rows are all filled
-     * is the ordinary case of every refresh after the first, and a page of attachments-only mail has
-     * no text to read; either one putting a `UID FETCH` on the wire would spend the radio to learn
-     * what was already in hand.
      */
     @Test fun `a page with nothing to read touches the server not at all`() {
         val allFilled = Recorder()
@@ -295,8 +265,6 @@ class PreviewConveyanceTest {
 
     /**
      * The octets are read by [BodyPreview.fromPart] and by nothing written here: the transfer
-     * encoding is undone, the charset applied, and HTML flattened — in that order, which is the
-     * order the message imposes. A row showing `=C3=A9` or a `<p>` is the visible failure.
      */
     @Test fun `the bodies are decoded, not shown as they came off the wire`() {
         val previews = previewsForPage(
@@ -323,9 +291,6 @@ class PreviewConveyanceTest {
 
     /**
      * A body that decodes to nothing readable is an ORDINARY answer and does not become a key —
-     * the same rule [BodyPreview.fromPart] states for the notification. A blank string written into
-     * the column would be indistinguishable from a real opening line for every later reader, and
-     * would stop this row ever being asked about again.
      */
     @Test fun `a body that decodes to blank is not a key`() {
         val previews = previewsForPage(

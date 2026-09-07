@@ -10,16 +10,6 @@ import org.junit.Test
 
 /**
  * EXECUTES the browser round-trip's decisions; it reads no source file.
- *
- * The three things this covers are the three ways an authorization-code sign-in goes wrong in a
- * way the user cannot see: a redirect that is not ours being exchanged anyway, a code being
- * redeemed twice, and the redirect URI drifting from the package that registered it. Every
- * expectation is a literal written by hand — nothing here recomputes the rule, so inverting a
- * branch in `OAuthRedirect.kt` has to show up as a mismatch.
- *
- * WHAT IT DOES NOT SAY. It does not prove the manifest registers the scheme (that is a text
- * rule, [OAuthRedirectManifestTest]), nor that `MainActivity` hands the redirect over, nor that
- * `state` comes from a cryptographic source — only that two draws differ and stay URL-safe.
  */
 class OAuthRedirectTest {
 
@@ -47,9 +37,6 @@ class OAuthRedirectTest {
 
     /**
      * The mutation this kills: `"app.sterna://oauth"` written as a constant. The test build is
-     * `app.sterna.test` and sits NEXT TO production; with one literal scheme both packages claim
-     * the return and Android picks — so a sign-in "verified" on the bench may have completed in
-     * the maintainer's production app, on her real mail.
      */
     @Test fun `the redirect uri follows the package it is asked about`() {
         assertEquals("app.sterna.test://oauth", oauthRedirectUri("app.sterna.test"))
@@ -137,9 +124,6 @@ class OAuthRedirectTest {
 
     /**
      * The verifier is the one this request drew. A freshly drawn one is non-blank, survives
-     * `PendingAuthorization`'s guard and reads perfectly at a call site — and the server holds the
-     * challenge of the OTHER one, so PKCE stops proving anything. Compared as a whole value, so
-     * neither an empty verifier nor a re-drawn one can pass.
      */
     @Test fun `the exchange carries the verifier of the request being redeemed`() {
         val verdict = redirectVerdict(request(state = "STATE-1", verifier = "VERIFIER-1"), "STATE-1", "CODE-42", null)

@@ -7,54 +7,6 @@ import java.io.File
 
 /**
  * Volet B of "a live banner must survive its own group summary".
- *
- * Cancelling a notification that carries `FLAG_GROUP_SUMMARY` makes the system run
- * `cancelGroupChildrenLocked(…)`: EVERY live child of the group falls with it
- * (`REASON_GROUP_SUMMARY_CANCELED`, and it has been so since API 21). So when
- * [Notifications.updateGroupSummary] drops the summary because the account is down to a single
- * child, that lone child — unread mail the server still holds — loses its banner too. Shipped
- * since v1.2.0: two unread messages, one is deleted or read from another client, and the second
- * is never announced again.
- *
- * And the teardown decides on a STALE read. `NotificationManager.cancel` returns as soon as the
- * system has posted the work on its own handler, and `getActiveNotifications` reads the list
- * without draining that queue, so a banner this same pass has just cancelled is still in the
- * answer. Summary plus one child, that child deleted elsewhere: the count still says one, the
- * summary is torn down, and the child that was just cancelled is put straight BACK — the re-post
- * queued behind the pending cancel wins. The banner the user dismissed returns; for a message
- * deleted elsewhere it never leaves (Codeberg #134). The cure is that the verdict comes from
- * `expectedChildIds`, the set the caller computed for AFTER the pass ([Notifications.liveChildIdsAfter]).
- *
- * And the verdict may only demolish what the repair can REBUILD ([Notifications.teardownRepairable]).
- * The repair is `repostSilently`, which copies a `StatusBarNotification` the shade handed over, so
- * an id the caller expects while the shade does not show it yet has nothing to copy: it is counted
- * into the teardown, cascaded away by it, and put back by nobody. Two banners read from another
- * client while a third arrives, one push pass over all three: the new mail rings, its banner goes
- * within seconds, and nothing announces that message again — `seed` has taken it into the folder's
- * baseline. So while `expectedChildIds` holds an id `shownChildIds` does not, the function declines
- * to demolish and returns; the next pass decides on a shade that has caught up. Never
- * "re-post the expected ones too": `expectedChildIds` is a `Set<Int>`, there is nothing to post.
- *
- * TWO sets, and the split is load-bearing. What is dropped from the shade's answer is what the
- * caller has just CANCELLED (`cancelledChildIds`, both id shapes, [Notifications.childIdsOf]), never
- * "what the caller expects": the cascade takes down every live child of the group, including the
- * ones the caller never heard of, and a child dropped from `children` is one nobody puts back. The
- * verdict and the published count are the union of what the caller expects with what is on screen
- * and staying — the first carries a banner posted a moment ago that the shade does not show yet,
- * the second carries the banners the caller does not know about.
- *
- * ITS OWN LIMIT, written here so this file is never read as a proof: this is a SOURCE LINT.
- * It proves the TEXT of the wiring and nothing else. It does not prove that Android re-posts the
- * children, that the re-posted banner is silent, or that the shade ends up right — no JVM test in
- * this module can, because nothing here executes [Notifications.updateGroupSummary] (there is
- * neither Robolectric nor an `androidTest` source set, and no fake `NotificationManager`).
- * What the decision itself does IS executed, next door in [GroupAlertTest], on the pure
- * [Notifications.liveChildIdsAfter] / [Notifications.summaryShownFor] pair; this file only pins
- * that the pair is what the shade-facing code obeys. The proof of the fix is the bench run,
- * not this suite.
- *
- * Whole lines only, never a `contains` on a fragment: a `contains` is blind to every mutation
- * that LENGTHENS the line, and this repo has been caught by that three times.
  */
 class LiveBannerSurvivesItsSummaryWiringTest {
 
@@ -409,8 +361,6 @@ class LiveBannerSurvivesItsSummaryWiringTest {
 
     /**
      * The code lines of [body] naming [needle], comments and blank lines dropped. An empty
-     * [needle] therefore enumerates the body WHOLE, which is the only pin a mutation cannot slip
-     * a new line past.
      */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }

@@ -18,17 +18,6 @@ import org.junit.Test
 
 /**
  * The decisions behind "a draft the server has not got is visible in the Drafts folder, and inert"
- * (#95), EXECUTED — which folder shows them, which server row one of them hides, what such a row
- * looks like, and what a gesture may do to it.
- *
- * Every expectation here is a VALUE, never the rule recomputed: no test below asks
- * `showsLocalDrafts` what it should expect, and none rebuilds a projection to compare against the
- * projection. Inverting a condition in `LocalDraftRows.kt` has to redden something here.
- *
- * The one thing this file cannot reach is WHERE the merge is applied in the ViewModel (upstream or
- * downstream of `cachedIn`, which screen collects it): `InboxViewModel` is an `AndroidViewModel` and
- * `PagingData` cannot be read back without the `paging-testing` artifact. That is held as text by
- * [LocalDraftListWiringLintTest], which says so itself.
  */
 class LocalDraftRowsTest {
 

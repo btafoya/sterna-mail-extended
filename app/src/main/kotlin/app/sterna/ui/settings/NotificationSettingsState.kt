@@ -7,9 +7,6 @@ import kotlinx.coroutines.flow.combine
 
 /**
  * The five stored values the notifications screen shows, carried as one value (#57).
- * They must not be exposed as five flows seeded with defaults: the radio rows are clickable
- * during the frame before DataStore answers, and a tap landing on the default writes the default,
- * silently losing a privacy setting. [combine] emits nothing until all five have answered.
  */
 data class NotificationSettingsState(
     val deliveryMode: DeliveryMode,

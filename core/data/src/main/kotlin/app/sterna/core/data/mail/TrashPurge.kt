@@ -40,11 +40,6 @@ object TrashPurge {
 
     /**
      * The WHOLE folder as the server enumerates it, not merely the synced window; [cap] takes the
-     * head of its ascending-UID order, so the two protocols cap at OPPOSITE ENDS. Two failures are
-     * told apart: an unreachable server falls back on the [cached] ids, which is why the enumeration
-     * is bounded AT THE SOCKET — a coroutine timeout would arrive as a [CancellationException] and
-     * could not be told from a withdrawn confirmation, which must propagate. A RENUMBERED folder
-     * takes the first route, and the old number recorded with it makes the purge refuse.
      */
     suspend fun imapSnapshotIds(
         accountId: String,
@@ -65,9 +60,6 @@ object TrashPurge {
 
     /**
      * A JMAP id does not change when the message changes folder, so one rescued out of the Trash by
-     * ANOTHER client is still on the frozen list; every wave asks the server (#122). SETS are
-     * compared, not `contains(expected)`: a message filed elsewhere WITHOUT leaving the Trash would
-     * be destroyed in that folder too. A blank [expectedMailboxId] destroys NOTHING.
      */
     fun destroyableIds(
         requested: List<String>,

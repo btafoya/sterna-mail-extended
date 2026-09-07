@@ -6,45 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — said first, because what it guards is the one part of the
- * chip-fill fix that nothing in this repo can execute.
- *
- * [ChipFillTest] runs `chipFill` as the pure function it is and pins its decision from every angle:
- * an unread row lifts its chips to `surfaceContainerLowest`, a read or selected one keeps
- * `surfaceVariant`, every result is opaque, and in both real schemes the chip stands at least
- * 16/255 clear of the row it sits on. All of that stays green while the composable never calls it,
- * calls it with the wrong arguments, or hands the result to only some of the three chips — because
- * there is no Robolectric, no `compose-ui-test`, no `androidTest` in this repo, and adding one is a
- * dependency decision, not a test decision. Five mutations of the WIRING survived [ChipFillTest]:
- *
- *  1. ONE of the three chips left reading `MaterialTheme.colorScheme.surfaceVariant` — the defect
- *     comes back on that chip alone, on unread rows only, with the pure function still perfect and
- *     the other two chips right. This is why the account chip, the [ThreadPill] and the
- *     [DraftLabel] are each pinned on their own line below: a lint covering one of them is green
- *     with the other two erased;
- *  2. `unread = unread` → `unread = false` at the call site: the fix does nothing at all,
- *     everywhere, and every value test stays green;
- *  3. `selected = selected` → `selected = false`: a selected unread row lifts its chips to
- *     `surfaceContainerLowest` against `secondaryContainer`, the one state the role was not chosen
- *     for;
- *  4. the origin chip's `originColor.copy(alpha = 0.16f)` branch rewritten to use the fill: the
- *     account's own accent, the only thing that chip is for, disappears from the unified inbox;
- *  5. `.background(fill)` → `.background(fill.copy(alpha = 0.5f))` in either pill: the row shows
- *     through the chip again, at half strength, on every row — and a substring check accepts it.
- *
- * **How it compares, and why.** Every rule below asserts the equality of a WHOLE line (leading and
- * trailing blanks removed, nothing else). Never a `contains` / `in` for something it expects to
- * find: a substring check is blind to every mutation that LENGTHENS the line, which is mutation 5
- * exactly. `contains` appears only where this file screens for something that must NOT be there.
- *
- * **Three limits, written down rather than left to be discovered:**
- *
- *  - it reads TEXT. It cannot tell whether any of it is ever drawn, nor with what. Rewrite the same
- *    wiring in a different shape and this file fails on correct code; that is the deliberate trade,
- *    it fails loudly and gets taught the new shape rather than passing quietly.
- *  - it says nothing about `chipFill`'s own decision, nor about the CONTRAST that decision buys.
- *    That is [ChipFillTest]'s job, and this file is worth nothing without it.
- *  - it pins `EmailListItem.kt`. Chips painted from another file — the conversation child rows'
- *    own decorations, say — are outside it entirely.
  */
 class EmailListItemChipFillWiringTest {
 
@@ -83,8 +44,6 @@ class EmailListItemChipFillWiringTest {
 
     /**
      * Every background painted in this file, in source order: the row itself, the account chip's
-     * two-branch block, then the three pills — the thread count, "not uploaded" (#95) and
-     * "(Draft)". Mutation 5, and mutation 1 for the pills.
      */
     private val expectedBackgrounds = listOf(
         ".background(rowColor)",
@@ -96,9 +55,6 @@ class EmailListItemChipFillWiringTest {
 
     /**
      * Mutations 2 and 3: the arguments the composable actually hands the decision.
-     *
-     * The block is compared line by line and in order. The closing `)` is part of the expected
-     * block on purpose: an argument appended after `unread` pushes it out of place and is caught.
      */
     @Test fun `the composable hands chipFill its own selected and unread`() {
         val lines = codeLines()
@@ -115,8 +71,6 @@ class EmailListItemChipFillWiringTest {
 
     /**
      * The rule that keeps the one above honest about WHERE the decision is taken: one declaration,
-     * one call site. A row is one state and decides once; a second call is a chip deciding for
-     * itself, which is how the three chips drift apart again.
      */
     @Test fun `chipFill is declared once and called from exactly one place`() {
         assertEquals(
@@ -130,8 +84,6 @@ class EmailListItemChipFillWiringTest {
 
     /**
      * Site 1 of 3, and mutation 4 with it: the account chip falls back to the row-aware fill,
-     * and ONLY in the fallback. With an account colour set the chip is that colour at 16% — the
-     * only thing that chip exists for — and this fix must not have touched that branch.
      */
     @Test fun `the account chip falls back to the row-aware fill`() {
         assertBlock(expectedAccountChip, "the account chip's background")
@@ -183,11 +135,6 @@ class EmailListItemChipFillWiringTest {
 
     /**
      * Mutation 5, plus mutation 1 for both pills at once: every background modifier in the file,
-     * WHOLE and in source order.
-     *
-     * Collected by prefix and compared whole, because `.background(fill.copy(alpha = 0.5f))`
-     * contains the expected text as a prefix while letting the row show through the chip again.
-     * A `.background(MaterialTheme.colorScheme.surfaceVariant)` left in either pill lands here too.
      */
     @Test fun `the file paints exactly these backgrounds and no others`() {
         assertEquals(
@@ -203,9 +150,6 @@ class EmailListItemChipFillWiringTest {
 
     /**
      * The negative screen — a `contains`, deliberately, because it is looking for something that
-     * must be absent: no composable in this file may read `surfaceVariant` off the theme any more.
-     * The role survives in exactly one place, `chipFill`'s own body, reached through its `scheme`
-     * parameter. (`onSurfaceVariant`, the chips' ink, is a different string and stays.)
      */
     @Test fun `no composable in the file reads surfaceVariant off the theme`() {
         assertEquals(
@@ -221,8 +165,6 @@ class EmailListItemChipFillWiringTest {
 
     /**
      * Locates [expected]'s first line — which must appear exactly once — and compares the block
-     * that follows it line by line, whole, in order. Reports every mismatch by name rather than as
-     * a vague "the block changed".
      */
     private fun assertBlock(expected: List<String>, what: String) {
         val lines = codeLines()

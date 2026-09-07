@@ -15,21 +15,6 @@ import org.junit.Test
 
 /**
  * **What ticking "show only subscribed folders" ON actually puts on the wire** (#174).
- *
- * The measured defect: the tick wrote the setting and nothing else. `LSUB` is sent only when a
- * folder listing is asked for WITH the flag, so at the first tick the cache held no subscription at
- * all — every `MailboxEntity.isSubscribed` still at its `true` default — and the drawer hid
- * nothing until a pull-to-refresh happened to re-list the folders.
- *
- * This test does not re-derive the rule, it EXECUTES it: [subscriptionSyncOnToggle] is called
- * with the value the switch was moved to, and the answer it gives is what drives a REAL
- * [ImapMailService] against a scripted server on loopback. Invert the shipped decision and the
- * `LSUB` assertion below fails, because no LSUB reaches the socket.
- *
- * What it does NOT cover: the two call sites between the switch and here — `AccountsViewModel`
- * (an `AndroidViewModel` reaching into the app container) and `MailRepository` (a `Context`, Room
- * and the Keystore in its constructor), neither of which this bench can instantiate. Those are
- * pinned line by line by `ShowOnlySubscribedFoldersWiringTest` and [SubscribedFoldersWiringTest].
  */
 class SubscriptionToggleAsksTheServerTest {
 
@@ -130,16 +115,6 @@ class SubscriptionToggleAsksTheServerTest {
 
     /**
      * **Everything the tick really puts on the wire** — the whole command list, in order.
-     *
-     * It was written first with what the KDocs used to CLAIM — "a listing, no message
-     * re-downloaded" — and it failed on the three lines below: a `SELECT`, a `SEARCH` and a real
-     * `FETCH` whose rows are thrown away, plus the `reconcileNumbering` those imply. The PROSE was
-     * corrected, not the code: making this path genuinely bare is another job. What stayed true,
-     * and stays written, is that no message body is cached here (`onPage = {}`) and no sync cursor
-     * is purged.
-     *
-     * The whole list, by equality, in order: a `contains` here would be blind to exactly the
-     * kind of extra round trip this is meant to keep honest.
      */
     @Test(timeout = 30_000)
     fun `the tick costs a listing, a select and one discarded fetch`() {
@@ -183,8 +158,6 @@ class SubscriptionToggleAsksTheServerTest {
 
     /**
      * Three mailboxes, two of them subscribed. [lsub] scripts the LSUB answer, tag included, so a
-     * test can make the server refuse it. An empty INBOX (`0 EXISTS`) so the folder-list listing
-     * walks no message — this caller asks for the folders and nothing else.
      */
     private fun server(exists: Int = 0, lsub: (String) -> String = ::subscriptions) = ScriptedImapServer { tag, line ->
         when {

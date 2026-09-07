@@ -8,16 +8,6 @@ import org.junit.Test
 
 /**
  * The "show only subscribed folders" setting (#174), EXECUTED: the two decisions `AccountStore`
- * delegates to, run on real arguments. Nothing here re-derives a rule from the source it is
- * checking, so inverting either one turns this file red.
- *
- * Why they are functions at all rather than the two one-liners the neighbouring settings use:
- * nothing in this module can build an `AccountStore` (it wants a `Context` and the Keystore, and
- * there is no Robolectric here), so a write folded into the store is reachable by a source lint and
- * by nothing else. The guard that decides WHICH account the switch writes to is exactly the part a
- * lint cannot run: `if (it.id == id)` dropped, and ticking the box on one account ticks it on all
- * of them — every other test still green. The wiring of these two into the store is pinned next
- * door by [ShowOnlySubscribedFoldersStoreWiringTest].
  */
 class ShowOnlySubscribedFoldersTest {
 
@@ -102,10 +92,6 @@ class ShowOnlySubscribedFoldersTest {
 
     /**
      * There is no migration here and there must not be one: the account list is one `@Serializable`
-     * blob and every record on every phone was written before this field. The whole compatibility
-     * story is the default, and the only way to prove it is to DECODE a record that does not carry
-     * the key — `StoredAccount()` in Kotlin applies the same default without going through the
-     * parser, and would pass just as well if the field were `@Required`.
      */
     private val json = Json { ignoreUnknownKeys = true }
 

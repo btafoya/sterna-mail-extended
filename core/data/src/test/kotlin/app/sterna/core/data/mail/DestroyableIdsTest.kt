@@ -5,13 +5,6 @@ import org.junit.Test
 
 /**
  * The decision behind Codeberg #122, RUN rather than restated: given what the server says about a
- * wave's ids, which of them may still be destroyed.
- *
- * Measured on the bench, twice, on both entry points (Empty trash and a selection + Delete
- * forever): two messages in the Trash, the destroy held back, another client moves one of them
- * back to the Inbox 2.5 s later, and at t+7.5 s the destroy takes it out IN THE INBOX. The
- * message existed nowhere any more. The first test below is that run, in the terms this function
- * decides in.
  */
 class DestroyableIdsTest {
 

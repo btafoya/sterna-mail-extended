@@ -4,8 +4,6 @@ import kotlinx.serialization.Serializable
 
 /**
  * A JMAP SieveScript (RFC 9661 "JMAP for Sieve Scripts"): a server-side mail
- * filtering script. The script text lives in the blob referenced by [blobId];
- * at most one script per account is [isActive] (the one the server runs).
  */
 @Serializable
 data class SieveScript(

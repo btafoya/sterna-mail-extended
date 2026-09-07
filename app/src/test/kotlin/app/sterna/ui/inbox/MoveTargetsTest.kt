@@ -70,9 +70,6 @@ class MoveTargetsTest {
     @Test fun `a three-level Dovecot account keeps a grandchild under its parent`() {
         // Three levels, because a two-level tree cannot tell a WHOLE ancestor chain from its last
         // segment: with one ancestor, "keep only the nearest one" is the identity. On a Dovecot
-        // account everything hangs under INBOX, so "Acme" has TWO ancestors — drop the outer one
-        // and its key becomes ["Clients", "Acme"], which files it ahead of "Boulot" and ahead of
-        // its own parent.
         //
         // "INBOX.Zeta" is named "Alpha" on purpose: an id whose last segment is not the folder's
         // name claims no path at all (imapParentPath refuses it), so it sorts on "Alpha" and

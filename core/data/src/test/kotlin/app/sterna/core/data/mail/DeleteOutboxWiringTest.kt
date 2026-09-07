@@ -5,26 +5,6 @@ import org.junit.Test
 
 /**
  * THIS TEST READS SOURCE TEXT — the last resort, as [LocalDraftSaveWiringTest] does and for the
- * same reason: `MailRepository` needs Room, a `Context` and a socket, so no JVM test can build one,
- * and nothing here EXECUTES a single line of it. Only SHAPE is covered — text, whole lines and in
- * order. Whether those lines do what they say on a phone is not in scope of this file, and nothing
- * below should be read as saying otherwise. The lines they pin are the ones written today; that is
- * a starting point to notice a change from, not a verdict on them.
- *
- * TWO rules, two different questions, deliberately not merged:
- *
- *  1. `deleteOutbox`'s body, whole. Its second statement is SILENT: removing it breaks no test,
- *     logs nothing, and leaves the Outbox row's persistent staging directory on disk for good — on
- *     all six callers at once (`OutboxWorker` ×2, `ComposeViewModel` ×2, `OutboxViewModel`, and
- *     `stageOrRollback`'s rollback). Staged attachments then pile up invisibly and the app's
- *     storage grows with nothing on screen to explain it.
- *
- *  2. The census of every line of `MailRepository` naming `outboxFilesDir`. Local drafts have a
- *     `localDraftDir(id)` that computes their directory once; the Outbox has no such function, so
- *     its durable directory is spelled out BY HAND at three sites — two that create it, one (rule
- *     1's second statement) that destroys it. Nothing in the compiler or in rule 1 keeps those
- *     three spellings equal to one another. Extracting an `outboxDir(id)` is production surgery
- *     and was ruled out of scope, so this census is what stands in for it.
  */
 class DeleteOutboxWiringTest {
 
@@ -71,9 +51,6 @@ class DeleteOutboxWiringTest {
     @Test fun `every line naming the outbox files dir spells the same directory`() {
         // A CENSUS, not a search and not a count: three occurrences counted would still pass with
         // one of them pointing somewhere else, and a `contains` is blind to anything that lengthens
-        // the line. The whole list, whole lines, in file order — the declaration, then the two
-        // sites that CREATE the directory (staging under stageOrRollback, persistAttachments), then
-        // the one that DESTROYS it (deleteOutbox).
         //
         // Rule 1 above cannot see this: it reads deleteOutbox's body only, so the two creating
         // sites could drift under it with every test green.

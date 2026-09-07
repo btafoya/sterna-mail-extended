@@ -4,9 +4,6 @@ import androidx.room.Entity
 
 /**
  * One message an "Empty trash" is allowed to destroy. Frozen at CONFIRMATION time, not at the
- * held-back destroy (#99): re-reading the folder used to destroy mail moved into Trash during
- * the undo window too. A table, not the worker's [androidx.work.Data] (10 KiB input cap) —
- * fails safe: a destructively rebuilt cache loses the snapshot, so the purge destroys nothing.
  */
 @Entity(tableName = "purge_snapshot", primaryKeys = ["purgeId", "accountId", "emailId"])
 data class PurgeSnapshotEntity(

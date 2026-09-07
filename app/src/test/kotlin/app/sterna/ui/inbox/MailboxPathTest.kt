@@ -9,9 +9,6 @@ import org.junit.Test
 
 /**
  * Where a folder sits, as a picker row says it (#109) and as a server-side rule must name it.
- *
- * The reported case: "ProjectA.Done" and "ProjectB.Done" both read "Done" in the move-to-folder
- * picker, so there is no telling which is which — while the drawer's tree has always shown it.
  */
 class MailboxPathTest {
 

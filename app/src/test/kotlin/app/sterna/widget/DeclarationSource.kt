@@ -4,12 +4,6 @@ import java.io.File
 
 /**
  * Reading a DECLARATION as text — the mechanics shared by the widgets' source lints, and nothing
- * else. There is no decision in this file: what is pinned, and to what, lives in the lints
- * themselves.
- *
- * It exists because there are now two widgets, and a third would make three copies of the same
- * brace counter. It is not a rule and must never grow one: a helper that decides what is
- * acceptable is a lint no test names.
  */
 internal object DeclarationSource {
 
@@ -29,8 +23,6 @@ internal object DeclarationSource {
 
     /**
      * The file's lines, comments removed WHOLE — an `<!-- … -->` block is cut out before the split,
-     * and a `//` line is dropped. Without that, every rule also matches the prose written to
-     * explain it.
      */
     fun codeLines(file: File): List<String> = file.readText()
         .replace(XML_COMMENT, "")
@@ -40,11 +32,6 @@ internal object DeclarationSource {
 
     /**
      * The whole brace-balanced block that opens with [opener] and contains [marker] — so a rule can
-     * pin WHERE a line lives and not merely that it exists.
-     *
-     * Deliberately returns an empty list when [marker] is nowhere in the file: moving the line out
-     * of the block is the mutation the caller exists to catch, and an assertion showing the
-     * expected lines against `[]` says more than an exception would.
      */
     fun blockContaining(file: File, marker: String, opener: String): List<String> {
         val lines = codeLines(file)
@@ -65,10 +52,6 @@ internal object DeclarationSource {
 
     /**
      * The XML element that carries [marker], whole: from the `<tag` line above it down to the line
-     * that closes the element. Same purpose as [blockContaining] one language over — an attribute
-     * exists on SOME element, and which one is the thing worth pinning.
-     *
-     * Empty when [marker] is nowhere in the file, for the same reason.
      */
     fun element(file: File, marker: String): List<String> {
         val lines = codeLines(file)
@@ -84,8 +67,6 @@ internal object DeclarationSource {
 
     /**
      * The same for KOTLIN: KDoc and `//` lines dropped, trailing `//` cut outside string literals.
-     * [codeLines] only knows XML comments, and a Kotlin lint run through it pins the prose written
-     * to explain the rule as if it were the rule.
      */
     fun kotlinLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val code = line.trim()
@@ -111,8 +92,6 @@ internal object DeclarationSource {
 
     /**
      * The code lines of the Kotlin function opening with [signature], its own closing brace
-     * excluded. Fails loudly when the signature is gone: a rename must redden the rule rather than
-     * satisfy it against an empty list.
      */
     fun functionBody(file: File, signature: String): List<String> {
         val lines = kotlinLines(file)

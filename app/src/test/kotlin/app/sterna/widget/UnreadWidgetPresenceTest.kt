@@ -5,19 +5,6 @@ import org.junit.Test
 
 /**
  * The gate's answer, RUN — the half of [UnreadWidgetPresence] that needs no Android.
- *
- * WHY THIS FILE EXISTS. The seed used to read `UnreadWidgetDraw.placedIds(context).isNotEmpty()`
- * inline, nothing in the suite referenced [UnreadWidgetPresence] at all, and the wiring lint next
- * door pins that the seed is CALLED, never what it answers. Inverting that one call to `isEmpty()`
- * left the whole suite green — and it breaks the app in both directions at once:
- *
- *  - a user who HAS placed a cell: the gate stays shut for the life of the process, the collection
- *    never starts, and the number stops following the mail. That is the very defect the push pane
- *    was written to close;
- *  - a user who has NOT: two global Room aggregates subscribed for the life of every process, for
- *    a widget that does not exist. That expense is the reason the gate exists.
- *
- * Neither shows on screen for the user who is not looking, and neither would have reddened anything.
  */
 class UnreadWidgetPresenceTest {
 
@@ -50,8 +37,6 @@ class UnreadWidgetPresenceTest {
 
     /**
      * The callbacks' end. `onEnabled` fires for the FIRST cell and `onDisabled` for the LAST one
-     * going, and the collection follows this flow without a restart — so what they write has to
-     * arrive, and it has to arrive the right way round.
      */
     @Test fun `the system's callbacks move the live answer, both ways`() {
         UnreadWidgetPresence.set(true)

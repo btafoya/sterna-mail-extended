@@ -17,10 +17,6 @@ object Jmap {
 
         /**
          * The per-id "failure" type a batched `Email/set` reports for ids it never got an answer for:
-         * the batch whose request failed at transport level, and every batch after it. Deliberately
-         * NOT a `SetError` type from RFC 8620 §5.3, and above all not `"notFound"`, which callers treat
-         * as "destroyed elsewhere" and DELETE the local row for. Prefixed, so it cannot be confused
-         * with anything a server can send.
          */
     const val SET_ERROR_TRANSPORT = "sterna:transportFailed"
 

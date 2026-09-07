@@ -6,31 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — the instrument of [SubscribedFoldersSurfaceWiringTest],
- * copied. The decisions of this branch are EXECUTED next door
- * ([app.sterna.core.data.account.CollapsedFoldersTest], [DefaultCollapsedFoldersTest],
- * [CollapsedFolderIdsTest]); what no JVM test in this module can run is the Compose drawer and an
- * `AndroidViewModel` reaching the account store, and that is where the memory is either kept per
- * account or lost.
- *
- * Whole lines are compared, never `contains`: a `contains` is blind to every mutation that
- * LENGTHENS a line, and three regressions have walked through that hole in this repo. The
- * ARGUMENTS are the point — a lint that only sees the call `viewModel.setFolderCollapsed(…)` stays
- * green when the fold and the unfold are swapped.
- *
- * What it is here to catch:
- *  1. the drawer keeping its own `remember`ed collapse state again — the whole defect: every
- *     rotation, every trip into a message, every cold start forgets the chevrons;
- *  2. the "reveal the new child" write folding the parent instead of unfolding it, or going back
- *     to a screen-local write (which would forget itself on the next launch);
- *  3. the registry not being re-read on an account switch — on IMAP the ids are paths, so the
- *     neighbouring account's namesake folder is drawn folded with nobody having asked (#92/#121);
- *  4. the flow being touched from `init`, which NPEs during ViewModel construction;
- *  5. the row's unread badge going back to the folder's own count, which makes the mail under a
- *     folder folded by default vanish before anyone has touched a chevron;
- *  6. the account's badge-availability flag (`MailRepository.folderRowsBadgeUnread`) not reaching
- *     the derivation, or not being re-read on an account switch — on an account whose folder rows
- *     carry no unread count at all (IMAP, measured 2026-09-01) the default must fold NOTHING, and
- *     a flag stuck on the departing account's answer is that rule applied to the wrong account.
  */
 class CollapsedFoldersSurfaceWiringTest {
 
@@ -93,20 +68,6 @@ class CollapsedFoldersSurfaceWiringTest {
 
     /**
      * The badge, pinned with its ARGUMENTS and with the branch that reads it.
-     *
-     * [drawerUnreadCount] is EXECUTED next door ([DrawerUnreadCountTest]); what only this lint can
-     * hold is WHICH list and WHICH folded set the row asks it about, and both are invisible to
-     * every behavioural test:
-     *
-     *  - handed `ui.mailboxes` instead of `ui.visibleMailboxes`, a folded parent advertises unread
-     *    sitting in a descendant the "only subscribed folders" setting hides (#174) — a number no
-     *    gesture in this drawer can reach;
-     *  - handed anything but `collapsedIds`, the badge and the tree disagree about what is hidden,
-     *    so a row sums mail that is drawn right underneath it, or hides mail it drew nothing for;
-     *  - `mailbox.unreadForList` back in either place is the shipped defect itself.
-     *
-     * The `if (unread > 0)` branch is pinned with it: it is what keeps a quiet folder's row showing
-     * the bare name, with no "(0)" after it.
      */
     @Test fun `the row's badge is the folded-aware count, asked about the drawn list and the same folded set`() {
         assertEquals(
@@ -130,11 +91,6 @@ class CollapsedFoldersSurfaceWiringTest {
 
     /**
      * The two writes, pinned with their ARGUMENTS and in source order.
-     *
-     * The second is the chevron. The FIRST is the one nobody would think to protect: creating a
-     * subfolder under a folded parent must reveal it, or the folder the user just made is nowhere
-     * on screen. It must write `false` — an explicit "unfolded" — and not remove the key: an
-     * absent key means "nobody decided", which is not what just happened.
      */
     @Test fun `both writes go through the ViewModel, with the argument each one owes`() {
         assertEquals(
@@ -180,8 +136,6 @@ class CollapsedFoldersSurfaceWiringTest {
 
     /**
      * The account switch. `InboxScreen` switches accounts IN PLACE, so without this re-read the
-     * departing account's registry stays on screen — and IMAP mailbox ids are paths, so a folder
-     * named "Travail" on the arriving account inherits the fold decided on the other one (#92/#121).
      */
     @Test fun `the registry is re-read on an account switch, and REPLACED not merged`() {
         assertEquals(
@@ -235,17 +189,6 @@ class CollapsedFoldersSurfaceWiringTest {
 
     /**
      * V5's flag, end to end, in the two places nothing else can see it.
-     *
-     * The decision itself is EXECUTED next door ([DefaultCollapsedFoldersTest],
-     * [CollapsedFolderIdsTest]) on real arguments. What no JVM test in this module can run is the
-     * `AndroidViewModel` that asks the repository, nor the Composable that collects the answer —
-     * and a perfect rule handed a constant `true` is the shipped defect untouched.
-     *
-     *  - seeded from `init` it NPEs during construction (init runs before this declaration's
-     *    initialiser), which is why the seed is pinned inline and from the CURRENT account;
-     *  - seeded from a literal `true`, the drawer folds by default on an IMAP account at every
-     *    cold start with no badge anywhere to say what it hid;
-     *  - collected but not passed on, the derivation next door never sees it.
      */
     @Test fun `the badge-availability flag is seeded inline, and reaches the screen`() {
         assertEquals(
@@ -271,21 +214,6 @@ class CollapsedFoldersSurfaceWiringTest {
 
     /**
      * The two lines that EXPOSE the flows, pinned whole — the weakest link of the chain above.
-     *
-     * Everything else in this file watches how the private flows are seeded and re-read, and the
-     * decision itself is executed next door. None of it reads what the SCREEN is actually handed:
-     * between the private flow and the Composable sits one assignment per flow, and rewriting
-     * either of them as a constant is a one-line mutation that compiles, keeps every other
-     * assertion here green, and ships the defect whole.
-     *
-     *  - `= MutableStateFlow(true)` on the badge-availability flow puts the IMAP default back: a
-     *    user folder with children folds itself at every cold start on an account where not one row
-     *    can badge what it hides;
-     *  - `= MutableStateFlow(emptyMap())` on the registry forgets every chevron again, which is the
-     *    whole defect this branch closes.
-     *
-     * The private flow keeps being written by `refreshCollapsedFolders`, so neither mutation even
-     * raises an unused warning.
      */
     @Test fun `both flows are exposed as themselves, never as a constant`() {
         assertEquals(

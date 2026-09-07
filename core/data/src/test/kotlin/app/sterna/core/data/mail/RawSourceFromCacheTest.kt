@@ -7,15 +7,6 @@ import org.junit.Test
 
 /**
  * EXECUTES [rawSourceFromCache] — the decision that decides whether the raw-source cache is asked
- * at all. Not a source lint: the function is pure, so the rule is run against its own inputs and
- * inverting it cannot stay green (#189).
- *
- * What it is here to hold. `MailRepository.fetchRawSource` answered from a four-entry LRU keyed
- * `accountId:emailId` BEFORE any SELECT. A cross-account move that freezes the numbering of the
- * tick therefore had its refusal short-circuited on the read side whenever the message had just
- * been opened — which is the ordinary case, since the user reads a message and then moves it. The
- * octets went to the other account under an APPEND that is never replayed, and only the Trash half
- * refused: a permanent duplicate on B, with no Undo on this path.
  */
 class RawSourceFromCacheTest {
 
@@ -30,8 +21,6 @@ class RawSourceFromCacheTest {
 
     /**
      * THE CASE THAT COSTS THE DUPLICATE: a caller carrying a frozen numbering. The cache holds
-     * no numbering at all, so it cannot answer for one — and the read must reach the server, where
-     * the SELECT opposes the number and refuses.
      */
     @Test fun `a stated numbering skips the cache, and does not even look`() {
         val lookup = Lookup("Subject: whoever holds that uid now\r\n")
@@ -63,10 +52,6 @@ class RawSourceFromCacheTest {
 
     /**
      * THE CASE A `Long?` COULD NOT EXPRESS, and the one this volet adds: a row that WAS ticked
-     * and carries no numbering. It is refused downstream (`numberingToOppose`) — but a cache hit
-     * would answer BEFORE the refusal was reached, the octets would go to account B under an APPEND
-     * that is never replayed, and only the bin would refuse afterwards: a permanent duplicate, with
-     * no Undo on that path. So anything frozen skips, absent value included.
      */
     @Test fun `a frozen absence skips the cache too, so the refusal is never late`() {
         val lookup = Lookup("Subject: the octets of whoever holds that uid now\r\n")
@@ -81,9 +66,6 @@ class RawSourceFromCacheTest {
 
     /**
      * THE INVERSE WITNESS, without which "never answer from the cache" satisfies the case above
-     * and is a total regression: every ordinary read — opening a message, viewing its headers,
-     * saving it as `.eml`, retrying an OpenPGP interaction — would refetch the whole message from
-     * the server, in the reader, on a mobile link.
      */
     @Test fun `no stated numbering answers from the cache, exactly as before`() {
         val lookup = Lookup("Subject: the message that was read\r\n")
@@ -98,15 +80,6 @@ class RawSourceFromCacheTest {
 
     /**
      * THE OTHER PROTOCOL, AND IT IS NOT A DETAIL. On JMAP `numberingStampsOfRows` answers an
-     * EMPTY map by construction (`EmailEntity.uidValidity` is null on every JMAP row), so the
-     * selection's move between accounts hands EVERY row a `Frozen(null)`. Skipping on that would
-     * re-download a whole blob per message to reach a refusal that cannot exist there: a JMAP
-     * `blobId` belongs to no numbering, so there is nothing for a SELECT to oppose and the cache is
-     * as safe as it has always been.
-     *
-     * This decision runs ABOVE `fetchRawSource`'s protocol test — it is the one reader of a
-     * FrozenNumbering that no gate protects — which is why the protocol is an argument here and
-     * why this witness exists at all.
      */
     @Test fun `a JMAP read is served by the cache whatever was frozen`() {
         listOf(FrozenNumbering.NothingFrozen, FrozenNumbering.Frozen(null), FrozenNumbering.Frozen(42L))

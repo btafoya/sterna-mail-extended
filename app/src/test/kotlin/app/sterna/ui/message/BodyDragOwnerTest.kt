@@ -5,15 +5,6 @@ import org.junit.Test
 
 /**
  * The body's once-per-gesture axis decision (Codeberg #152): a message wider than the viewport — a
- * 600px table on a 360dp screen, or any zoomed body — must scroll sideways under the finger instead
- * of flipping to another message. This runs [bodyDragOwner] itself; the arguments the WebView hands
- * it are pinned by [BodySideScrollWiringTest], since no JVM test can build a WebView. They are no
- * longer `canScrollHorizontally` answers: the view measures each course in pixels and passes it
- * through [bodyCanTravel], so [canScrollBack] here means "at least a touch slop of course behind",
- * and [canScrollForward] the same ahead.
- *
- * Expected verdicts are written out, never recomputed from the ratio: inverting the shipped rule has
- * to turn this red.
  */
 class BodyDragOwnerTest {
 

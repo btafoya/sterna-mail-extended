@@ -11,39 +11,6 @@ import org.junit.Test
 
 /**
  * A move the server refused says so in the user's language, and does not take the reader down
- * with it (Codeberg #99).
- *
- * Since `ImapMailService` refuses a move whose folder numbering the server will not confirm, five
- * ordinary gestures can raise `ImapNumberingUnconfirmed`: swipe-archive, swipe-delete, the
- * reader's archive/delete/move, "report spam" and "not spam". Its message is a hard-coded English
- * sentence that names a folder, a numbering and a "destroy" — for what the user asked to be an
- * archive — and both single-message sites used to put an exception's own text on screen verbatim,
- * in all nine languages.
- *
- * And since `07d2abd7` — same branch — a `UID MOVE` the server answers `NO` to is no longer
- * swallowed by a destructive copy: it comes up carrying the echoed command, so the reader was
- * replaced by "Could not load message: UID MOVE 1234 \"Junk\" failed: NO [OVERQUOTA] …" over a
- * message that had loaded perfectly well. The reader therefore reports EVERY failure of these
- * gestures transiently now; only the numbering refusal changes words.
- *
- * THE LIST IS NOT HERE ANY MORE, AND THAT IS THE ARBITRATION. `main` closed the same leak at the
- * swipe site from the other end (`afbfcef7`): its arm returns a resource for EVERY failure through
- * `actionFailureMessage`, so no exception text reaches the snackbar at all — a stricter rule than
- * the one this branch wrote, reached separately for the offline swipe, and one that pins the whole
- * arm. Two closed-list rules over one arm cannot both be true, so this one gave way; what it owed
- * that `main` cannot know — that a refusal is not an outage — is
- * `app.sterna.ui.inbox.MoveRefusalIsNotOfflineTest`. What remains here is the reader, which `main`
- * does not touch.
- *
- * The decision lives in a pure function ([readerActionFailureText]) so the tests below EXECUTE it.
- * They must: `MessageViewModel` is an `AndroidViewModel` that reaches for the application container
- * and cannot be instantiated here (`ReaderStateResetOnLoadTest` says the same), so a decision left
- * inside it is one a test can only re-read — and re-reading a rule is copying it. The three SOURCE
- * rules at the bottom hold only what an executable test cannot reach — that the site ASKS the
- * decision and writes ONE screen surface, that the clear really clears, and WHERE the effect that
- * shows the word lives — and they pin WHOLE LINES in closed lists: a `contains` is blind to a
- * mutation that appends the technical text to the translated sentence, which is the exact leak this
- * file exists to close.
  */
 class RefusedMoveKeepsItsJargonOffTheScreenTest {
 
@@ -97,11 +64,6 @@ class RefusedMoveKeepsItsJargonOffTheScreenTest {
 
     /**
      * SOURCE RULE — the reader's site, where the leak was worse: `MessageState.Error` REPLACES the
-     * open message with "Could not load message: <text>", over a message that had loaded fine.
-     *
-     * THE STRONGEST OF THE FOUR IS THE EMPTY ONE: `act` must not touch `_state` at all. That is
-     * what makes the screen safe for failures nobody has thought of yet — an `[OVERQUOTA]`, an
-     * expired password — instead of only for the one type this branch introduced.
      */
     @Test fun `the reader's actions never replace the message being read`() {
         val body = body(MESSAGE_VIEW_MODEL, "act")
@@ -136,12 +98,6 @@ class RefusedMoveKeepsItsJargonOffTheScreenTest {
 
     /**
      * SOURCE RULE — the clear, whose BODY nothing else watches.
-     *
-     * Emptying `clearActionStatus()` to `{ }` compiles, breaks no other rule here (the call line
-     * in `MessageScreen` still exists) and is silently destructive: `MutableStateFlow` conflates,
-     * so a second refused "report spam" on the same message republishes the SAME string, the
-     * `LaunchedEffect` key does not change, and nothing is toasted at all. The user taps, and the
-     * app says nothing — worse than the jargon this file removed.
      */
     @Test fun `the transient word is really cleared, not merely cleared on paper`() {
         assertEquals(
@@ -154,15 +110,6 @@ class RefusedMoveKeepsItsJargonOffTheScreenTest {
 
     /**
      * SOURCE RULE — the channel is drawn, AND WHERE. A transient flow nobody collects is a refusal
-     * reported nowhere at all, which is worse than the jargon: the gesture would look like it
-     * worked.
-     *
-     * THE PLACE IS HALF THE RULE, and pinning the lines does not pin it. Moved verbatim inside
-     * the reader's `DropdownMenu`, these same six lines pass a rule that only compares text: the
-     * menu closes on the tap that fails, the effect is disposed with it, and nothing is ever
-     * toasted. So the lines are compared WITH THEIR INDENTATION — four spaces is the composable's
-     * own body, anything nested is deeper — and they are required to sit immediately after the
-     * sender-rule effect that already lives there.
      */
     @Test fun `the reader draws the transient word where it survives the tap`() {
         val lines = codeLines(MESSAGE_SCREEN)

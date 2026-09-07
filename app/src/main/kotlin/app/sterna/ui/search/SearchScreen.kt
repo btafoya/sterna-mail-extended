@@ -130,9 +130,6 @@ fun SearchScreen(
     //
     // Not an Animatable, which can only be moved from a coroutine: a nested scroll must answer
     // "how much did you take?" the instant it is asked, and two touch events drained in one pass of
-    // the event loop would both read the position from before either was applied — the first delta
-    // silently dropped after being reported as consumed. Writing the float directly makes "what
-    // moved" and "what was reported" the same arithmetic, as dispatchRawDelta does.
     var offsetPx by remember { mutableFloatStateOf(0f) }
     // Kept only to DRIVE the settle animation, not to hold the position. Its mutex is the point:
     // two settles racing cancel each other instead of both writing.
@@ -216,10 +213,6 @@ fun SearchScreen(
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 // Release. Settle only if this gesture actually moved the panel: when it merely
                 // scrolled the panel's content, the fling belongs to that content and taking it
-                // would stop the list dead. The exact equality is safe because offsetPx only moves
-                // by whole amounts this code applied itself — it was NOT safe while the position
-                // lagged, where a stale read could strand the panel a few pixels off its rest with
-                // nothing to pull it back.
                 val committed = if (form.expanded) panelHeightPx.toFloat() else 0f
                 if (panelHeightPx == 0 || offsetPx == committed) return Velocity.Zero
                 settle(searchPanelSettlesOpen(offsetPx, panelHeightPx.toFloat(), available.y))
@@ -287,9 +280,6 @@ fun SearchScreen(
                         Text(
                             // "At least N" whenever the search stopped short of the whole answer: a
                             // truncated scan counted as a total would be a number the user cannot
-                            // check. Same call as the inbox's search bar, so the two surfaces cannot
-                            // word one situation differently. loading = false: this screen runs one
-                            // pass, and the rows on screen are always a finished one.
                             when (searchCount(results.complete, loading = false)) {
                                 SearchCount.EXACT ->
                                     pluralStringResource(R.plurals.search_result_count, results.emails.size, results.emails.size)
@@ -382,12 +372,6 @@ fun SearchScreen(
                 Surface(
                     // No tonalElevation. Material 3 implements it by tinting the surface with
                     // the primary colour, and in this theme `background` and `surface` are the same
-                    // colour, so a tinted panel was the only tinted thing on the screen — most
-                    // visibly in the dark theme. shadowElevation is kept, but do not read it as
-                    // what carries the panel's depth: every edge of that shadow is covered. It is
-                    // here as a correct declaration, and for the day the handle stops sitting flush.
-                    // Which leaves the scrim as the ONE thing saying the panel floats over the
-                    // results: a real reduction, and deliberate.
                     shadowElevation = 6.dp,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -518,9 +502,6 @@ fun SearchScreen(
 
 /**
  * The folded panel's one line: "From: alex · Has attachment · After: 3 Jun 2026". Text rather than
- * chips on purpose — chips would wrap to three rows on a phone and take back the space folding just
- * freed, for an affordance the screen does not offer. Nothing at all when only free text was
- * searched: its field is right above, still filled in.
  */
 @Composable
 private fun CriteriaSummary(query: SearchQuery, onClick: () -> Unit) {

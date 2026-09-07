@@ -17,9 +17,6 @@ import androidx.compose.ui.unit.dp
 
 /**
  * A lightweight scroll position indicator drawn on the right edge of a scrolling
- * list. The thumb size/position is index-based (rows are near-uniform height), so
- * it is approximate but gives the user a sense of where they are in a long list.
- * Fades in while scrolling and out when idle.
  */
 fun Modifier.verticalScrollbar(
     state: LazyListState,

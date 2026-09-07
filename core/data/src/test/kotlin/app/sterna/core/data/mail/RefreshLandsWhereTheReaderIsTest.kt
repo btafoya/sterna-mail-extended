@@ -15,21 +15,6 @@ private const val DELEGATED = -777
 
 /**
  * The list must stay where the reader put it while the mediator writes the pages it just fetched.
- *
- * WHAT THIS CAN AND CANNOT PROVE. It cannot prove "no more jumps": neither `InboxScreen` nor
- * Paging's fetcher runs on the JVM here. What it executes is the DECISION the fix owns — the row
- * a refresh reloads around — driven through the shipped [pagingConfig], plus a replay of the two
- * library rules the decision has to fit into, quoted from the sources of the exact versions this
- * app builds against:
- *
- *   - `androidx.room.paging.util.getOffset` (room 2.6.1): a Refresh whose key is smaller than the
- *     row count is loaded as `LIMIT loadSize OFFSET key` — the key is an offset in the FOLDER.
- *   - `androidx.paging.PageFetcherSnapshotState` (paging 3.3.5): `anchorPosition` is built up from
- *     `placeholdersBefore`, which its getter forces to 0 while placeholders are disabled — so the
- *     anchor handed to `getRefreshKey` is an index in the LOADED WINDOW.
- *
- * The scenario below is those two rules run three times in a row. Whether the reader is thrown
- * back to the newest mail is then a property of the key alone, which is what the fix changes.
  */
 class RefreshLandsWhereTheReaderIsTest {
 
@@ -38,9 +23,6 @@ class RefreshLandsWhereTheReaderIsTest {
 
     /**
      * One invalidation: the reader sits at folder row [readerRow] in a window that starts at
-     * [windowStart], a write lands, Paging asks for a refresh key and Room reloads at it.
-     *
-     * Returns the row the reloaded window starts at.
      */
     private fun reloadAfterAWrite(windowStart: Int, folderRows: Int = 5_000): Int {
         val config = pagingConfig()
@@ -176,9 +158,6 @@ class RefreshLandsWhereTheReaderIsTest {
 
     /**
      * Stands in for `LimitOffsetPagingSource`: same LIMIT/OFFSET loading and the same `itemsBefore`
-     * accounting, and a refresh key that is deliberately absurd — if the wrapper delegated the key
-     * instead of computing it, the tests below would say so, without this fake having to restate
-     * the rule under test.
      */
     private class OffsetSource(private val folderRows: Int) : PagingSource<Int, String>() {
         val loadedOffsets = mutableListOf<Int>()
@@ -202,11 +181,6 @@ class RefreshLandsWhereTheReaderIsTest {
 
     /**
      * The state Paging hands `getRefreshKey`: the loaded window as the list of pages it really is
-     * ([window]: each page's folder offset, and how many rows it holds), in load order.
-     *
-     * SEVERAL pages, always available: the fetcher never drops a page here (no `maxSize`), so from
-     * the second scroll step on the window is a first page plus every appended one, and the first
-     * and the last no longer carry the same offset. A single-page state cannot tell them apart.
      */
     private fun stateOver(
         window: List<Pair<Int, Int>>,
@@ -311,9 +285,6 @@ class RefreshLandsWhereTheReaderIsTest {
 
     /**
      * SOURCE LINT. `MailRepository` needs Room, an Android `Context` and a live JMAP session, so
-     * the four Pagers cannot be built here. WHOLE LINES, never a fragment: a `contains` check is
-     * blind to anything that lengthens the line, and "unwrap this one factory" is exactly the
-     * mutation this has to catch.
      */
     @Test
     fun `all four paged lists page through the anchored source`() {

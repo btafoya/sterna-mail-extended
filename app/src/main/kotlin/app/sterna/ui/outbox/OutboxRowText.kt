@@ -25,8 +25,6 @@ fun outboxStateLabel(state: OutboxState): Int = when (state) {
 
 /** Whether [outboxStateLabel]'s string takes the row's `lastError` as its one argument. Asked
  *  separately from [outboxStateIsError] even though both answer "FAILED" today: one is about the
- *  format arguments, the other about a colour, and a row that kept a `lastError` from a real send
- *  failure before being saved as a draft (#95 × #70) must not have it printed under a state that is
  *  not about it. */
 fun outboxStateShowsReason(state: OutboxState): Boolean = when (state) {
     OutboxState.FAILED -> true
@@ -37,12 +35,6 @@ fun outboxStateShowsReason(state: OutboxState): Boolean = when (state) {
 
 /**
  * Whether a WAITING row prints its `lastError` as an EXTRA line — not the same question as
- * [outboxStateShowsReason], since this changes neither the words nor the colour.
- *
- * `!lastError.isNullOrBlank()` is the guard of the NORMAL case: offline no attempt runs at all, so
- * a QUEUED row carries no reason and every waiting row would grow an empty complement.
- * KEPT_AS_DRAFT is excluded: printing an older failure's reason under a save that did what was asked
- * hands it to a state that is not its own.
  */
 fun outboxShowsWaitingReason(state: OutboxState, lastError: String?): Boolean = when (state) {
     OutboxState.QUEUED, OutboxState.HELD -> !lastError.isNullOrBlank()
@@ -72,13 +64,6 @@ sealed class OutboxFailureReason {
 
 /**
  * What a row's `lastError` means on screen. A row parked because its EDIT WAS INTERRUPTED carries a
- * SENTINEL rather than a sentence: a localized sentence written into the row would stay in the
- * language of the day it was written, on a row that may sit here for weeks. All three [Words] are
- * FRAGMENTS substituted into a frame; none is ever printed on its own.
- *
- * [OutboxLogic.NOT_ARMED_LEGACY_PREFIX] is the same event under the words 1.5.2 and 1.5.3 wrote,
- * no migration rewriting those rows. The server's words (#183) are of another nature: never ours
- * to translate, printed as they came.
  */
 fun outboxFailureReason(lastError: String?): OutboxFailureReason = when {
     lastError == null -> OutboxFailureReason.Words(R.string.outbox_state_failed_unknown)
@@ -93,8 +78,6 @@ fun outboxFailureReason(lastError: String?): OutboxFailureReason = when {
 
 /**
  * Whether the line is painted in the error colour. KEPT_AS_DRAFT is not an error (#95): the user
- * asked for a draft and got one. INTERRUPTED is not one either: red says the send went wrong, and
- * this one may have gone through — the row is parked because the phone cannot tell.
  */
 fun outboxStateIsError(state: OutboxState): Boolean = when (state) {
     OutboxState.FAILED -> true
@@ -105,10 +88,6 @@ fun outboxStateIsError(state: OutboxState): Boolean = when (state) {
 
 /**
  * The body of the delete confirmation for a row in [state] — read at the one moment the only copy of
- * a message is about to be destroyed. The default body opens with "It hasn't been sent", and over
- * INTERRUPTED that is a claim this phone cannot make: told the message never left, the reader
- * deletes her only trace of one the recipient may have. Seen and LEFT: SENDING and KEPT_AS_DRAFT
- * take the default body too, wording older than this fix and out of its scope.
  */
 @StringRes
 fun outboxDeleteBody(state: OutboxState): Int = when (state) {

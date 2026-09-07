@@ -6,38 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, and it has to be: [Notifications] is an Android object — every function here
- * takes a `Context` and ends in `NotificationManager.notify`, so none of them can be called from
- * a JVM test in this module. What is pinned is the WIRING, whole line by whole line; `contains`
- * is blind to any mutation that lengthens a line.
- *
- * The defect: on an install whose push was never armed in DIRECT mode (battery saver,
- * UnifiedPush only, a linked sub-account — `Transport.isDirect` is EVENT_SOURCE/IMAP_IDLE only,
- * `BootRestart`), `PushService` never starts, so `PushService.onCreate`'s
- * `ensureChannels` never runs. The `new_mail` channel then does not exist and Android drops
- * every banner in silence, with nothing in the app's own log:
- *
- *     E NotificationService: No Channel found for pkg=app.sterna, channelId=new_mail
- *
- * What the three rules protect:
- *
- *  1. every function that posts on `CHANNEL_MAIL` calls `ensureMailChannel(context)` as its FIRST
- *     code line — first, not merely somewhere: after the `notify` it is too late, the banner is
- *     already gone. The list is DISCOVERED from the source (any function whose body names
- *     `NotificationCompat.Builder(` and `CHANNEL_MAIL`), so a fourth posting site added to THIS
- *     file, building its notification in its own body, is held to the same rule without this test
- * being touched. Its reach stops there: a poster written in another file, or one whose
- *     builder comes from a helper, names neither literal and is not seen.
- *  2. the discovery still finds the three sites this lint exists for — without it, a rename or a
- *     refactor that empties the scan would leave rule 1 comparing two empty lists, green and
- *     blind.
- *  3. what `ensureMailChannel` actually creates, whole line by whole line. Rules 1 and 2 only see
- *     that a NAME is called; the channel id and the importance live one call deeper, where
- *     `CHANNEL_MAIL` → `CHANNEL_SERVICE` re-opens the whole defect and `IMPORTANCE_HIGH` →
- *     `IMPORTANCE_MIN` makes every banner silent — both with the two rules above still green.
- *
- * `createNotificationChannel` is idempotent and does not overwrite a channel the user has
- * retuned, so calling it on every post costs nothing and loses no setting. Never delete and
- * recreate.
  */
 class NoBannerWithoutItsChannelWiringTest {
 
@@ -56,10 +24,6 @@ class NoBannerWithoutItsChannelWiringTest {
 
     /**
      * The banner path must ensure the MAIL channel ALONE. `ensureChannels` also creates
-     * `push_service` — "Keeps a live connection to your mail server for instant mail" — and on
-     * precisely the installs this repairs no such connection is ever opened, so posting a banner
-     * would put a settings entry on screen that says something untrue. That channel belongs to
-     * [PushService], which creates it when it really starts.
      */
     @Test fun `the mail channel is created alone, at the importance a banner needs`() {
         assertEquals(
@@ -113,8 +77,6 @@ class NoBannerWithoutItsChannelWiringTest {
 
     /**
      * The code lines of a member's body. A block body opens on the first declaration line ending
-     * in `{` (the parameter list may span several lines); anything else is an expression body,
-     * whose first "line" is what follows the `=`.
      */
     private fun bodyOf(member: List<String>): List<String> {
         val decl = member.indexOfFirst { FUN_DECL.containsMatchIn(it) }
@@ -126,9 +88,6 @@ class NoBannerWithoutItsChannelWiringTest {
 
     /**
      * The members of the single `object` in [file], each as its trimmed code lines, comments cut.
-     * Members are declared at four-space indentation and their bodies deeper, so a member runs
-     * from its own declaration (or its KDoc) to the next one; a continuation line — `) {`, `}` —
-     * never starts one.
      */
     private fun membersOf(file: File): List<List<String>> {
         val lines = file.readLines()

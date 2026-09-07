@@ -6,15 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, and a narrow one: nothing in this chain runs in a JVM test — the receiver needs
- * an Application and a NotificationManager, the repository a database and a socket. The DECISION
- * is executed next door in [QuickReplyOutcomeTest]; what is pinned here is the WIRING that carries
- * it, whole line by whole line. Never `contains`: a `contains` is blind to every mutation that
- * LENGTHENS the line (adding `to=` to a mailto, widening a timeout, re-adding a cancel).
- *
- * The harm: a quick reply typed into a notification disappeared — sent nowhere, saved nowhere, and
- * the notification dismissed on the way out. Four links close it: the recipient is read through
- * the SAME function the composer uses; the only network call is on a short leash; the notification
- * comes down only after the Outbox took the text; and every other end hands the text back.
  */
 class QuickReplyWiringTest {
 
@@ -76,14 +67,6 @@ class QuickReplyWiringTest {
 
     /**
      * The end where there is nobody to act for. A signed-out account has no credentials, so none of
-     * the actions above runs — and nothing picks the work up later either: NewMailNotifier only ever
-     * sees accounts AccountStore.allCredentials() can hand credentials for. So the dismissal has to
-     * live INSIDE that block; outside it, the banner falls on a Delete and a Mark as read that did
-     * nothing whatever, which is a receipt for work nobody performed.
-     *
-     * This one is read as STRUCTURE, not as text: the fix moves no character of the dismissal
-     * line, it moves the line into another block. [codeLinesNaming] trims every line and is blind to
-     * both indentation and nesting, so a pin written with it alone stays green either way.
      */
     @Test fun `with no credentials nothing runs, so nothing may claim it did`() {
         val block = blockAfter(bodyOf(RECEIVER, "onReceive"), "if (credentials != null)")
@@ -109,9 +92,6 @@ class QuickReplyWiringTest {
 
     /**
      * The banner's Delete, whose whole job is to ask — locally — the question the screen asks over
-     * the network. `deleteWouldDestroy` resolves the Trash with an IMAP LIST or a JMAP connect();
-     * this receiver runs under goAsync's ~10 s and cannot pay for that, so a network probe here is
-     * not a nicety, it is the failure mode this path exists to avoid.
      */
     @Test fun `the banner's delete asks the local caches, and only the local caches`() {
         val body = bodyOf(RECEIVER, "deleteFromBanner")
@@ -240,9 +220,6 @@ class QuickReplyWiringTest {
     @Test fun `the fetch is abandoned on the budget, not waited for`() {
         // The leash that was not one: `withTimeoutOrNull { repo.fetchEmail(…) }` only ever regains
         // control at a SUSPENSION point, and fetchEmail blocks its thread all the way down (IMAP
-        // opens the session with timeout = 0 and retries once; JMAP does an OkHttp execute()). A
-        // reachable-but-silent server — captive portal, dropped VPN, stale pooled connection — then
-        // held the receiver far past goAsync's ~10 s, and the enqueue below it never ran.
         val body = bodyOf(RECEIVER, "fetchWithinBudget")
         assertEquals(
             "the blocking call must run in a job of its OWN scope — a child would keep the parent " +
@@ -356,10 +333,6 @@ class QuickReplyWiringTest {
 
     /**
      * The banner of a failed send is the one notification that never asked what it was allowed to
-     * show: it put the subject in the collapsed line AND in the expanded one, at IMPORTANCE_HIGH,
-     * whatever the notification-content setting said. The DECISION is executed next door
-     * ([MailNotificationTextTest]); pinned here is that the banner is built from that decision's
-     * result and from nothing else — the leak cannot come back through the builder.
      */
     @Test fun `the failure banner shows the decided line, never the raw subject`() {
         val body = bodyOf(NOTIFICATIONS, "notifySendFailed")
@@ -417,8 +390,6 @@ class QuickReplyWiringTest {
 
     /**
      * Both callers, and the same failure for both: a scheduled send that gave up leaks the subject
-     * exactly as a quick reply does. The setting has to be READ at each of them — a constant
-     * compiles, reads as deliberate, and is invisible to the decision's own tests.
      */
     @Test fun `the scheduled send reads the setting too, and passes what it read`() {
         val body = bodyOf(SCHEDULED, "doWork")
@@ -461,10 +432,6 @@ class QuickReplyWiringTest {
 
     /**
      * The braced block opened right after [header] in [body] — braces included.
-     *
-     * Same brace matching as [bodyOf], on a statement rather than on a function: what this file
-     * needs to hold here is which block a line SITS IN, and every other helper here works on
-     * trimmed lines and cannot see nesting at all.
      */
     private fun blockAfter(body: String, header: String): String {
         val start = body.indexOf(header)

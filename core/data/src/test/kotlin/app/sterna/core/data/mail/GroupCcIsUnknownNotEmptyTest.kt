@@ -13,29 +13,6 @@ import org.junit.Test
 
 /**
  * **A Cc that is nothing but a group must read as UNKNOWN, never as empty** — executed on a real
- * [ImapMailService] over a socket, from the ENVELOPE bytes to the set the destroy decision reads.
- *
- * The data loss this holds shut, in the order it happened:
- *
- * 1. a draft the server keeps in Drafts whose only addressing header is
- *    `Cc: undisclosed-recipients:;`. An IMAP ENVELOPE hands that over as RFC 5322 group
- *    delimiters — a start `(NIL NIL "undisclosed-recipients" NIL)` and an end `(NIL NIL NIL NIL)`,
- *    neither of which is an address;
- * 2. both were dropped, so [ccAndBccOf] read an EMPTY cc off a message that has one;
- * 3. `copiedAddressesOrNull(emptyList())` answers `emptySet()` — "read, and there is nothing in
- *    it" — and `draftAddressingIsCarried(emptySet(), …)` answers true: the replacement provably
- *    carries everything the original had. The server copy is EXPUNGED, taking the only remaining
- *    trace of the header with it. Silently.
- *
- * So the assertion below is `assertNull`, never `isNullOrEmpty()`: `null` (unknown, keep the
- * original) and `emptySet()` (empty, destroying is safe) are the two answers the defect confused,
- * and a test that accepts either proves nothing. [ccAndBccOfADraftWithNeitherCcNorBcc] is the
- * other side of that same coin and is not optional — without it, "always answer null" passes
- * every other test here and stops every draft in the app from ever being replaced in place.
- *
- * What runs above the socket is only this read. The save that consumes it
- * ([DraftSave.draftAddressingIsCarried]) needs Room and cannot be built in a JVM; its decision is
- * executed as a pure function in `DraftSaveTest`, including on the very entry the group produces.
  */
 class GroupCcIsUnknownNotEmptyTest {
 
@@ -70,11 +47,6 @@ class GroupCcIsUnknownNotEmptyTest {
 
     /**
      * A group start with NO end. HYPOTHETICAL, and kept on purpose: no server here has been
-     * seen to send it. The bench (`emu`/Stalwart, 2026-08-26) showed the opposite — a bare atom
-     * `Cc: undisclosed-recipients` comes back as `cc = NIL`, i.e. not at all, which is why the
-     * APPEND now writes `undisclosed-recipients:;` (`localDraftOutgoing`). This pins the reading
-     * for a server that would hand a half-spelled group over: still unknown, so a second save is
-     * not the one that authorises the expunge.
      */
     @Test(timeout = 30_000)
     fun `a Cc holding a group start with no end reads as unknown too`() {
@@ -88,9 +60,6 @@ class GroupCcIsUnknownNotEmptyTest {
 
     /**
      * THE witness that gives the two above their meaning: a real address in the Cc comes back
-     * as that address, not as `null`. Without it, "answer unknown whenever a Cc is present" passes
-     * everything above, and no IMAP draft with a Cc is ever replaced in place again — it would be
-     * duplicated on the server at every save.
      */
     @Test(timeout = 30_000)
     fun `a Cc holding a real address reads as that address`() {
@@ -105,9 +74,6 @@ class GroupCcIsUnknownNotEmptyTest {
 
     /**
      * THE OTHER witness, and the one the defect's whole shape rests on: a draft with neither Cc
-     * nor Bcc answers an EMPTY SET — empty and KNOWN. This is the answer that keeps authorising
-     * the replace-in-place of the overwhelmingly common draft, and it is what the first test has
-     * to be different from.
      */
     @Test(timeout = 30_000)
     fun ccAndBccOfADraftWithNeitherCcNorBcc() {
@@ -123,8 +89,6 @@ class GroupCcIsUnknownNotEmptyTest {
 
     /**
      * Both halves are read together (`message.cc + message.bcc`), so a group naming nobody in the
-     * BCC makes the whole read unknown even though the Cc beside it is perfectly readable. A draft
-     * saved with `Bcc: undisclosed-recipients:;` loses its blind copies exactly the same way.
      */
     @Test(timeout = 30_000)
     fun `an empty group in the Bcc makes the read unknown though the Cc is readable`() {
@@ -141,8 +105,6 @@ class GroupCcIsUnknownNotEmptyTest {
 
     /**
      * The shipped call, POSITIONALLY: folder then uid, the order the save and the send both pass
-     * them in. Swapped at the declaration it would still compile, and the SELECT would name a
-     * number — the command list in the first test is what catches that.
      */
     private suspend fun ccAndBccOf(server: ScriptedImapServer): Set<String>? =
         service().ccAndBccOf(credentials(server), DRAFTS, UID, ImapBudget.NO_BUDGET)
@@ -195,9 +157,6 @@ class GroupCcIsUnknownNotEmptyTest {
 
         /**
          * An [OAuthTokenRefresher] that is never used and cannot be built — the same trick, and for
-         * the same reason, as `ImapDraftAppendGoesOutOnceTest`'s: the REAL service is required, it
-         * needs a refresher, and a refresher needs an Android `Context`. `freshAccessToken` returns
-         * at `credentials.oauth ?: return null` for a password account, so no field is ever read.
          */
         fun unusedTokenRefresher(): OAuthTokenRefresher {
             val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")

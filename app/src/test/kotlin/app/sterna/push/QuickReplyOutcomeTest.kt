@@ -7,12 +7,6 @@ import org.junit.Test
 
 /**
  * The decision behind a notification quick reply, EXECUTED — not re-derived. Every expectation
- * below is a literal: nothing here re-runs the rule it is meant to hold, so inverting the shipped
- * condition turns these red.
- *
- * The reported harm: text typed in the notification's reply field vanished. It lives nowhere but
- * in that one broadcast intent — no draft, no autosave — so the only two acceptable ends for it
- * are "queued in the Outbox" and "handed back to the user". Silence is a lost message.
  */
 class QuickReplyOutcomeTest {
 

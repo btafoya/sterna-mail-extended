@@ -17,19 +17,6 @@ import org.junit.Test
 
 /**
  * **The round trip a draft naming nobody has to survive**, measured on `emu`/Stalwart on
- * 2026-08-26 and closed here: the bytes [localDraftOutgoing] hands the APPEND, given back in the
- * ENVELOPE shape the server answers for them, must still name the group on the second open.
- *
- * What the bench showed, in order:
- *
- * 1. the first save appended `Cc: undisclosed-recipients` — a BARE ATOM, the `:;` dropped;
- * 2. Stalwart then answered `cc = NIL` for that message. Not a group start, not a malformed
- *    entry: nothing. The value never reached [app.sterna.core.imap.envelopeAddresses];
- * 3. so the second open showed an empty Cc, and the second save read "addressing proved empty"
- *    and EXPUNGED the copy that still carried the header.
- *
- * So the assertion below is on the NAME, not on "something came back": an empty cc list is
- * exactly what the defect produced, and a test happy with `emptyList()` would pin the loss.
  */
 class GroupTokenSurvivesTheAppendRoundTripTest {
 
@@ -46,9 +33,6 @@ class GroupTokenSurvivesTheAppendRoundTripTest {
 
         // The server's half of the trip, and the ONLY thing modelled here: RFC 5322 group syntax
         // `name:;` is handed back as a start `(NIL NIL "name" NIL)` and an end `(NIL NIL NIL NIL)`
-        // — the exact bytes Stalwart answered for this field on the bench. A token that is not
-        // group syntax is not handed back at all (`cc = NIL`), which is the defect itself, so it
-        // is refused here rather than scripted into something the server never says.
         assertTrue(
             "⛔ what the APPEND writes must BE group syntax. Got \"$written\", which Stalwart " +
                 "answers `cc = NIL` for — the field vanishes on the second open and the copy " +

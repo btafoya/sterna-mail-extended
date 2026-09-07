@@ -19,20 +19,6 @@ import org.junit.Test
 
 /**
  * A mailbox Sterna creates is a mailbox Sterna subscribes to (#174).
- *
- * `isSubscribed` is writable at create time (RFC 8621 §2), and a `Mailbox/set create` that omits
- * it reads back `false` — probed against Stalwart on 2026-08-25, where the same probe confirmed
- * that `"isSubscribed": true` at create is accepted (`notCreated: null`, re-read `true`). Without
- * it, the panel that hides unsubscribed folders hides the folder the user has just created, the
- * instant it is created.
- *
- * Scope, and it is deliberate: **Sterna does not drive subscriptions.** The property is set on
- * the one mailbox it creates itself, and nowhere else — not on rename, not on delete, and there
- * is no subscription control on screen.
- *
- * The request is PARSED as JSON, never matched as a substring: a `contains("isSubscribed")` is
- * blind to any mutation that lengthens the line (`"isSubscribed": false`, or the property moved
- * out of `create.new` into the method arguments, where the server ignores it).
  */
 class CreatedMailboxIsSubscribedTest {
 
@@ -82,8 +68,6 @@ class CreatedMailboxIsSubscribedTest {
 
     /**
      * T5a — a plain folder: adding the property must not have moved `name`, nor invented a `role`
-     * or a `parentId` where the caller gave none (a `role` sent as null makes Stalwart refuse the
-     * whole create).
      */
     @Test fun `a folder with no role and no parent still sends name alone`() = runBlocking {
         server.enqueue(created())

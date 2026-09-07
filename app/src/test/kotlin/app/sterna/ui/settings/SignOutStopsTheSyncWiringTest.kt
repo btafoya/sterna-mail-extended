@@ -7,17 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT. `AccountsViewModel` is an `AndroidViewModel` and this module has neither
- * Robolectric nor instrumented tests; what this pins is the ORDER inside `signOut`, and the order
- * is what makes the sign-out stop the sync at all.
- *
- * The mechanism, since it is not visible from the function itself: nothing here cancels a sync in
- * flight — it runs in the list screen's scope, not the settings screen's. What ends it is the
- * account leaving the store, because every page a walk writes is checked against that list first
- * (`MailRepository` → `checkAccountStillConfigured`, executed by
- * `SignedOutAccountStopsWritingTest`). So `removeCascading` is not merely the line that deletes the
- * account, it is the line that stops the writers — and it has to run BEFORE the cache purge and
- * before the orphan sweep, or the walk keeps writing pages after the sweep that was supposed to
- * collect them (Codeberg #121's ghosts, re-created seconds after being removed).
  */
 class SignOutStopsTheSyncWiringTest {
 
@@ -52,13 +41,6 @@ class SignOutStopsTheSyncWiringTest {
 
     /**
      * The leading whitespace of [line] inside the body, as written.
-     *
-     * Why this exists: every other assertion in this file compares TRIMMED lines and their
-     * relative order, which knows nothing of blocks. Wrapping a pinned line in `if (…) { … }`
-     * leaves its text and its order untouched, so the whole file stays green while the line no
-     * longer runs. Indentation is the cheapest true reading of nesting available to a source lint,
-     * and ktlint already enforces it here, so a wrapper cannot dodge this by leaving the indent
-     * alone.
      */
     private fun indentOfLine(line: String): Int {
         val raw = signOutBody().lines().firstOrNull { it.trim() == line }
@@ -104,21 +86,6 @@ class SignOutStopsTheSyncWiringTest {
 
     /**
      * SOURCE LINT, and it has to be one: `AccountsViewModel` is an `AndroidViewModel` that no JVM
-     * test in this module can construct, so the three lines below are only readable as text. The
-     * DECISIONS they carry are executed elsewhere — `SelectionMemoryTest.prunedView…` and
-     * `RefreshFreshnessTest.prunedFreshness…` run them on literal strings — and what is left here
-     * is the wiring itself, which those two cannot see: whether the pruning is called at all, and
-     * with WHICH ids.
-     *
-     * `removedIds` comes from `removed`, never from `setOf(id)`: `removeCascading` also removes
-     * the sub-accounts linked to a login (#31), and their entries have to go with them. The two are
-     * one keystroke apart, both compile, and `setOf(id)` leaves a sub-account's folder path on the
-     * disk after its login is gone — the exact leak this volet closes. Hence the WHOLE argument
-     * pinned, via indexOfLine's whole-line comparison.
-     *
-     * The position is pinned too: after the removal (the ids are not known before it) and BEFORE
-     * `viewModelScope.launch`, i.e. synchronously. Moved into the coroutine, a process death
-     * between the two leaves both preferences behind for good, with no second sign-out to come.
      */
     @Test fun `both account-scoped preferences are pruned, with the ids that were really removed`() {
         val removal = indexOfLine("val removed = store.removeCascading(id).ifEmpty { toRemove }")

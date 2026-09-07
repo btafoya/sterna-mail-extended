@@ -19,8 +19,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The ONE way the widget is drawn, and the one place that knows which cells exist: a second
- * `RemoteViews` built elsewhere is the same fault as a second way of counting. The numbers are
- * never decided here either — every path asks `observeUnifiedInboxUnreadByAccount()` (#112).
  */
 internal object UnreadWidgetDraw {
 
@@ -33,9 +31,6 @@ internal object UnreadWidgetDraw {
 
     /**
      * Draw [unreadByAccount] into [ids]. Not free — `accounts()` decodes the whole blob and
-     * `updateAppWidget` is a binder call — so the caller only reaches here on a breakdown that
-     * actually CHANGED. ONE `RemoteViews` for every cell: built from a map of sizes, it lets the
-     * LAUNCHER pick per cell and on every resize, so nothing here has to know a geometry.
      */
     suspend fun draw(app: Application, ids: IntArray, unreadByAccount: Map<String, Int>) {
         if (ids.isEmpty()) return
@@ -98,14 +93,6 @@ internal object UnreadWidgetDraw {
 
     /**
      * The cell as it has always been: one figure, one label under it. It reads nothing — [palette]
-     * arrives decided, this function not being suspending.
-     *
-     * [palette] may be null, and null posts NO colour line at all: the three lines below are
-     * frozen into a `RemoteViews` the launcher caches, and skipped, the cell keeps resources the
-     * launcher re-resolves through `values-night` at every inflation. All three go together, or
-     * the cell is half this theme and half the other. The background is set with
-     * `setBackgroundResource`, never `setBackgroundColor`, which would leave it square among
-     * rounded neighbours.
      */
     private fun renderTotal(
         context: Context,
@@ -124,12 +111,6 @@ internal object UnreadWidgetDraw {
 
     /**
      * The enlarged cell: [rows] and nothing else. `removeAllViews` first, not because this object
-     * carries anything over but because the LAUNCHER's side does — `reapply` on a container already
-     * holding three lines appends three more.
-     *
-     * [palette] is posted on the rows too: this layout names the colours the small cell used
-     * before #117, so painting one layout of the map and not the other is worse than painting
-     * neither. Null still posts nothing, for the reason [renderTotal] gives.
      */
     private fun renderAccounts(
         context: Context,
@@ -155,14 +136,6 @@ internal object UnreadWidgetDraw {
 
     /**
      * What a tap opens (#112): the unified inbox when the app has one, the app plainly otherwise.
-     * [UnreadWidgetTap] decides, with no Android type in hand so the rule can be executed.
-     *
-     * The ACTION is load-bearing. A `PendingIntent`'s identity ignores extras, and every new-mail
-     * notification builds a `MainActivity` intent with neither action nor data, told apart by a
-     * request code hashed over the whole `Int` range. Without an action of our own, the first
-     * colliding `childId` has its extras rewritten by `FLAG_UPDATE_CURRENT` and that banner opens
-     * the unified inbox instead of the message. `FLAG_UPDATE_CURRENT` is deliberate for the other
-     * direction: the target changes when a second account is added.
      */
     private fun tapIntent(context: Context, target: WidgetTapTarget): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
@@ -205,12 +178,6 @@ internal object UnreadWidgetDraw {
 
 /**
  * Is at least one widget placed? — the condition [UnreadWidgetPush] gates its collection on, held
- * here because answering it needs Android and the rule that reads it must not.
- *
- * Two sources that agree by construction: the SEED, the only answer a process born with a cell
- * already placed would get, and the CALLBACKS, for the answer changing under a running process.
- * `onEnabled` fires for the first instance only and `onDisabled` for the last going, which is
- * exactly the granularity wanted.
  */
 internal object UnreadWidgetPresence {
 
@@ -237,8 +204,5 @@ internal object UnreadWidgetPresence {
 
 /**
  * Does this set of placed cell ids mean the app has a widget? — the seed's decision, pulled out
- * where it can be RUN. Nothing referenced [UnreadWidgetPresence] in the suite and the wiring lint
- * pins only that the seed EXISTS, so inverting this to `isEmpty()` left every test green while
- * breaking both sides of the gate.
  */
 internal fun anyWidgetPlaced(ids: IntArray): Boolean = ids.isNotEmpty()

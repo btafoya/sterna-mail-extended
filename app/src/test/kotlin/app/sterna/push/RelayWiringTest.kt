@@ -6,48 +6,6 @@ import java.io.File
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [app.sterna.ui.settings.SecretFieldRevealWiringTest]: it reads `UnifiedPushManager.kt` and the
- * transport decision of `PushController.kt` as text
- * and proves nothing about what runs. [RelayPushTest] EXECUTES every decision that could be moved
- * into [RelayPush]; what is left here cannot be executed by anything in this module — the manager
- * needs a Context, an AccountStore, a MailRepository and the UnifiedPush connector, and there is no
- * Robolectric and no `androidTest` in this repo (adding one is a dependency decision, not a test
- * decision). Until this file existed, `UnifiedPushManager.kt` was crossed by NO test at all, and a
- * counter-expertise found three mutations of it that stayed green.
- *
- * Every rule compares WHOLE LINES (trimmed), never `"fragment" in line`, except where it screens
- * for something that must be ABSENT: a containment check is blind to every mutation that LENGTHENS
- * the line — `if (relay || false)` contains the guard. That trap has been found three times here.
- *
- * The silent edits it exists to catch:
- *
- *  1. the `relay` guard dropped from the VAPID lookup. `pushVapidKey` is a JMAP session call, and a
- *     relay account's host speaks IMAP: without the guard the account's credentials are offered to
- *     the wrong server on every registration. That is the central promise of this whole branch, and
- *     nothing was watching it;
- *  2. the `return@launch` dropped from the Relay branch of `onNewEndpoint`, which sends an IMAP
- *     account straight into `createPushSubscription`;
- *  3. a forged `PushVerification` reaching `verifyPushSubscription`. The relay address is a topic
- *     ANYONE may post to; a payload that reads `{"@type":"PushVerification"}` used to be handed
- *     to `jmapAuth` with the account's credentials, and its failure called `markFailed` — so
- *     whoever knew the address could switch the relay off for fifteen minutes, in silence;
- *  4. `recordDelivery` called from the verification arm (a JMAP account counterfeiting its own
- *     ACTIVE), or dropped from an arm that really carries mail;
- *  5. the two settings gates reading and writing outside the lock that protects `ensureRegistered`,
- *     where a withdrawal in flight is overwritten by a coroutine holding a stale `prev`;
- *  6. `relayEndpoint` handing back the stored endpoint whatever the status — `markFailed` and
- *     `onUnregistered` both keep that field, so the screen shows a dead address as a live one;
- *  7. `ensureDistributor()` moved back behind the registration window, which leaves a JMAP account
- *     blind to a newly installed distributor for the whole 15-minute cooldown;
- * 8. `PushController.transportFor` widened to switch an account onto UnifiedPush on the mere
- *     EXISTENCE of a relay address. That single line carries the whole promise of this branch —
- *     an IMAP account keeps IDLE until a payload has REALLY arrived — and nothing was reading it:
- *     `transportFor` needs `Application.container`, so no test in this module can execute it
- *     ([PushWatchTest]'s KNOWN GAP), and the screen's lint anchors on `statusFor` and skips it;
- *  9. the `@Synchronized` taken off `ensureRegistered`, or a state write moved out from under the
- *     monitor. `recordDelivery` is the only write that ARMS the transport: run outside the lock,
- *     a payload that arrived on the old endpoint persists {old address, ACTIVE, woken just now}
- *     over a rotation written under it — IDLE dropped for an address that is already dead.
  */
 class RelayWiringTest {
 
@@ -407,18 +365,12 @@ class RelayWiringTest {
 
     /**
      * The arms of `transportFor`'s `when`, in source order.
-     *
-     * Anchored on the private overload's own signature first: `statusFor` further down opens a
-     * `return when {` of its own, and a bare search for the `when` would read the wrong decision.
      */
     private fun transportForArms(): List<String> =
         blockOf(transportForBody(), "return when {", "PushController.transportFor")
 
     /**
      * The lines of [body] that are NOT nested inside a `synchronized(this…) {` block.
-     *
-     * Reading the STRUCTURE, not a substring: `"synchronized" in body` is true of a function whose
-     * lock closes three lines above the write this rule is about.
      */
     private fun outsideTheMonitor(body: List<String>): List<String> {
         var depth = 0

@@ -32,11 +32,6 @@ internal const val REFRESH_BUDGET_MS = 180_000L
 
 /**
  * Run [work] under [budgetMs] and answer with which end it reached.
- * `withTimeoutOrNull(budgetMs) { work() }` only bounds a body that notices cancellation, and a
- * refresh sits in a blocking OkHttp `execute()`: hence a child [Job] never joined, a
- * [CompletableDeferred] the budget awaits, a `finally` that asks it to stop. At the deadline a
- * verdict already landed wins over the clock; a [CancellationException] is no verdict and leaves
- * unchanged, so a superseding refresh does not stomp the status it replaced.
  */
 internal suspend fun refreshWithin(
     /** Defaulted on purpose, production passing nothing: the shipped bound then lives only in

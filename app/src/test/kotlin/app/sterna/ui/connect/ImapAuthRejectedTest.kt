@@ -8,10 +8,6 @@ import java.io.File
 
 /**
  * The decision behind "Wrong email or password." on the IMAP connect screen — EXECUTED, not
- * re-read from the source. The defect this pins: the old rule read the MESSAGE, whose template
- * says "AUTHENTICATE … failed: …" for every failure during authentication, so a server that was
- * merely down (`NO [UNAVAILABLE] busy`) accused the user's password. The server's RFC 5530
- * response code, when present, is its own typed verdict and must prime the text.
  */
 class ImapAuthRejectedTest {
 
@@ -63,21 +59,6 @@ class ImapAuthRejectedTest {
 
 /**
  * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
- * [ConnectPrimingWiringTest]: the catch of `connectImap` lives in an `AndroidViewModel` this
- * module cannot instantiate, so the decision itself is EXECUTED above ([ImapAuthRejectedTest])
- * and only the WIRING is held here, by reading the source. Three mutations proved the seam was
- * loose with the executed tests alone: showing `t.message` instead of the code (the server's
- * free text back on screen — it has already leaked a bearer token once, 8e942069), nulling
- * `code` before the decision (the original defect back: `[UNAVAILABLE]` accuses the password),
- * and deleting the coded branch (the body falls through the `else`).
- *
- * Every pin is a WHOLE LINE, trimmed, compared by strict equality, and required to occur
- * exactly once — never `contains` on a fragment, which is blind to any mutation that lengthens
- * the line (the repo has been bitten by that three times, twice on irreversible server writes).
- *
- * What this does NOT hold: that the catch runs, that the branches are in this order, or that a
- * second `try` upstream swallows the exception first. A text lint cannot see scope; the decision
- * the lines feed is what the executed tests above prove.
  */
 class ImapAuthRejectedWiringTest {
 

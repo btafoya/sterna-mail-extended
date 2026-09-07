@@ -6,22 +6,6 @@ import org.junit.Test
 
 /**
  * SOURCE LINT, same instrument and disclaimer as [CollapsedFoldersStoreWiringTest]: it reads
- * `AccountStore.kt` as text and proves nothing about a running store, which this module cannot
- * build (a `Context` and the Keystore, no Robolectric here).
- *
- * It exists because the executable half stops at this door. [LinkedAccountMemoryTest] runs the
- * whole decision on real arguments — but a perfect [reconciledAccounts] is worth nothing if the
- * store never calls it, hands it a memory it read from nowhere, saves the list it was given instead
- * of the reconciled one, or forgets to persist the memory it just computed. All of those compile,
- * and every behavioural test in this repo stays green: the defect only shows up on a phone, one
- * revocation later, as notifications the user had switched off coming back on their own.
- *
- * Whole trimmed lines, as a CONTIGUOUS block, never a `contains`: a `contains` is blind to
- * anything APPENDED to a line, and a per-line check is blind to a statement slipped between two.
- * The reconcile block starts one line above the signature, on `@Synchronized` — this is a
- * read-modify-write over the WHOLE account list, and an edit made from another thread (push
- * service, workers, this very method on every connect) between `accounts()` and `saveAccounts()`
- * is then lost, taking a watch flag, an identity or a whole linked account with it.
  */
 class LinkedAccountMemoryStoreWiringTest {
 
@@ -84,9 +68,6 @@ class LinkedAccountMemoryStoreWiringTest {
 
     /**
      * The THIRD removal path, pinned like its sibling. `remove(id)` is what `dismissImport`
-     * (AccountsViewModel) and the connect flow call, and an imported record keeps its `loginId`,
-     * so a linked share can reach it. Leaving this one unwired would make PRIVACY.md's "everything
-     * above is removed when you remove the account" false on one path out of three.
      */
     @Test fun `remove forgets what it removes too, on the third removal path`() {
         assertEquals(
@@ -105,11 +86,6 @@ class LinkedAccountMemoryStoreWiringTest {
 
     /**
      * The key's LITERAL value, and that it is not the account list's. Everything the memory
-     * promises rests on this one string: point it at "accounts" and `saveLinkedMemory` overwrites
-     * KEY_ACCOUNTS with a map, `AccountBlobGate` cannot decode it on the next launch, the store
-     * refuses every write, and the user meets "I could not read your accounts" with all of them
-     * gone. Every other test in this module — and in the repo — pins the IDENTIFIER and never the
-     * value, so that mutation passed the whole suite green.
      */
     @Test fun `the memory has its own key, and it is not the account list's`() {
         assertEquals(
@@ -148,10 +124,6 @@ class LinkedAccountMemoryStoreWiringTest {
 
     /**
      * The write, pinned as hard as the read, and pinned for what it does NOT do: it writes its
-     * own key directly and never goes through [AccountBlobGate]. The gate exists to protect the
-     * ACCOUNT LIST; routing a comfort blob through it would let a memory that failed to decode
-     * refuse the write of `KEY_ACCOUNTS` — a convenience feature taking the user's accounts down
-     * with it. The `runCatching` is the other half of the same rule.
      */
     @Test fun `the memory is written outside the account blob's gate, and cannot throw`() {
         assertEquals(
@@ -174,10 +146,6 @@ class LinkedAccountMemoryStoreWiringTest {
 
     /**
      * [count] consecutive CODE lines of `AccountStore.kt` from the single one starting with
-     * [prefix], [before] lines earlier when the annotation above it is part of the rule. Comments
-     * and blank lines are dropped first, so no rule can be satisfied by prose; a prefix matching
-     * anything other than exactly one line returns a message, so an assertion never passes by
-     * matching nothing.
      */
     private fun block(prefix: String, count: Int, before: Int = 0, path: String = ACCOUNT_STORE): List<String> {
         val code = codeLines(path)

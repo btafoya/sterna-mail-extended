@@ -7,17 +7,6 @@ import org.junit.Test
 
 /**
  * What a send destroys, and what leaving the composer gives back — both EXECUTED (#95).
- *
- * Nothing here restates the rule to pick what it expects: every expectation is a literal, and
- * the arguments differ from case to case, so inverting either shipped decision goes red. The source
- * lints in the app module can only see that `ComposeViewModel` still ASKS these two; the answers
- * are proved here.
- *
- * Two defects, one file:
- *  - a send of a REOPENED LOCAL draft named nothing at all, so the server draft the row stood in
- *    for came back into Drafts with its pre-edit text the moment the row was consumed;
- *  - closing the screen during a send re-armed the upload of the row the send was already
- *    consuming, filing a copy of the sent message in Drafts.
  */
 class SendDraftTargetTest {
 
@@ -439,9 +428,6 @@ class SendDraftTargetTest {
     @Test fun `closing over a lost body parks the queued row instead of giving it back`() {
         // The defect this closes. The send route refuses a lost body over a queued row with
         // "Close this screen and reopen the message" — and closing gave the row back to the queue,
-        // re-armed at 0: the message left in under a second (2/2 on the bench), the very message
-        // she was told to reopen. Parked, the row stays in the Outbox as FAILED and says why; the
-        // local row goes back to the upload worker as on any other close, the two being independent.
         assertEquals(
             AbandonPlan(LOCAL_DRAFT_ID_PREFIX + "d10", null, 42L),
             abandonPlan(
@@ -504,12 +490,6 @@ class SendDraftTargetTest {
     @Test fun `a save that went through hands the row back, or it stays EDITING for ever`() {
         // The defect this closes. `abandon()` is the only other release and only the CANCEL
         // of the screen calls it: a save closes on ComposeState.Done without passing through, on
-        // the understanding that the save rewrote the row itself. Move the "From" picker to
-        // another account — it covers every account on the phone — and it did not:
-        // unlessDraftBelongsElsewhere answers SendDraftTarget(null, null), a NEW row is minted
-        // under the account being written as, and the reopened row is left EDITING, which no
-        // startup sweep takes back. It then sits at the top of its own account's Drafts under its
-        // "not on the server yet" pill, masking the server draft it names, and never goes up.
         assertEquals(
             "the row must go back to the upload worker. Under the SAME account this is a real " +
                 "no-op — the save already rewrote the row PENDING and giveLocalDraftEditBack " +
@@ -523,9 +503,6 @@ class SendDraftTargetTest {
     @Test fun `a save that failed keeps the row, or the worker uploads the text being typed`() {
         // And giving it back on the failure is NOT the fix — word for word abandonPlan's
         // own argument, one gesture along. The composer is still open, the user still holds the
-        // row, EDITING is the true state. Released here, the upload worker takes the half-typed
-        // text up to the server and discardLocalDraft then deletes the row with its attachment
-        // folder, while the screen still shows "couldn't save the draft".
         assertNull(
             "a failed save releases NOTHING: the screen is still open on that row",
             localDraftLeaseAfterSave(LOCAL_DRAFT_ID_PREFIX + "d2", saved = false),

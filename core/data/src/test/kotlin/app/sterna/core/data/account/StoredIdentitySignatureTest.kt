@@ -7,8 +7,6 @@ import org.junit.Test
 
 /**
  * The signature split (plain text + optional HTML) must cost nothing to existing installs:
- * [StoredIdentity] is kotlinx JSON inside `AccountStore`, not a Room entity, so an added field with
- * a default value reads old stored accounts back unchanged. No DB migration.
  */
 class StoredIdentitySignatureTest {
 

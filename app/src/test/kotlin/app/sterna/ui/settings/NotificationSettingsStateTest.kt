@@ -15,11 +15,6 @@ import org.junit.Test
 
 /**
  * The gate of the notifications screen, EXECUTED (#57): the screen may show a value only once the
- * stored one is known, because its radio rows are clickable and a tap on the wrong one writes it.
- *
- * The stored values below are all different from the repository's defaults (INSTANT,
- * SENDER_AND_SUBJECT, false, 22:00, 07:00) and all different from each other — quiet-hours start
- * and end especially, so swapping the two is visible.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class NotificationSettingsStateTest {

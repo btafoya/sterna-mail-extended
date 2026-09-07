@@ -6,17 +6,6 @@ import org.junit.Test
 
 /**
  * THE DECISION, RUN — not a source read. [revealIconOffered] is the whole of "is there an eye on
- * this field", extracted out of `SettingTextField` so that something in this module can execute it:
- * the composable itself is unreachable here (no Robolectric, no `compose-ui-test`, no `androidTest`).
- *
- * The defect it closes (#118): on Settings → Accounts → an account, the secret field is deliberately
- * never filled from storage ("leave blank to keep current"), so the eye sat on an empty field and
- * revealed nothing at all — tapping it flipped the icon and changed no pixel. The rule is therefore
- * NOT "is this a password field" but "is there something to reveal".
- *
- * Every case below is written out by hand. Nothing here recomputes `isPassword && value.isNotEmpty()`
- * to decide what to expect: a test that re-derives the rule agrees with any rule, including the
- * inverted one.
  */
 class RevealIconOfferedTest {
 

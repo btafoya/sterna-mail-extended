@@ -8,20 +8,6 @@ import app.sterna.core.data.mail.uploadLocalDraftRebooking
 
 /**
  * Puts one draft the phone kept (#95) onto the server, whenever the network allows. WorkManager
- * persists and fires this across app death and reboot, and gates it on connectivity, so a draft
- * saved with no network leaves on its own once there is one.
- *
- * **Three things it does not do, and they are why it is not `OutboxWorker`:**
- *  - it counts no attempts against a cap. `OutboxLogic.MAX_ATTEMPTS` exists because an
- *    undeliverable MESSAGE has a recipient waiting; a draft has nobody waiting and no deadline, and
- *    a phone can be weeks from the network its account is on;
- *  - it parks nothing in a terminal state — there is none to park a row in;
- *  - it deletes nothing, ever. Not on a failure, not on a hundredth failure, and not when the
- *    account cannot be found. The row is consumed by an upload that went through, in the
- *    repository, and by nothing else.
- *
- * Every decision it does make is `uploadLocalDraftOnce`'s and `uploadLocalDraftRebooking`'s, both
- * executed by a JVM test; what is left here is asking, and handing them the queue to book on.
  */
 class LocalDraftUploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {

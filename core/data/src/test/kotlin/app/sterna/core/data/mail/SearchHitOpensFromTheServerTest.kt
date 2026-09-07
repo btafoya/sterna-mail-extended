@@ -16,18 +16,6 @@ import org.junit.Test
 
 /**
  * **A hit of a SERVER-side search opens** (#159), which until now it did not: the folder it lives
- * in was never synced, so no row of `emails` carries it, and `MailRepository.openEmailImap` ended
- * the open on `error("Message is not in the cache.")` over a blank message screen — while the id
- * itself, `imap:<account>:<folder>:<uid>`, already names the folder and the UID to ask for, and the
- * rest of that same function reads the BODY from the server anyway.
- *
- * Three of the four parts below EXECUTE the recovery, against a scripted server on loopback; the
- * fourth reads source text and says so.
- *
- * **Why the recovery lives in [ImapMailService].** No JVM test can instantiate `MailRepository`
- * (Room, a `Context`, a socket) — it is not one of the 119 test files of this module. Putting the
- * derivation and the fetch in the service is what makes the decision runnable at all; what is left
- * in the repository is the ORDER of four lines, and that order is the only thing part 4 pins.
  */
 class SearchHitOpensFromTheServerTest {
 
@@ -35,8 +23,6 @@ class SearchHitOpensFromTheServerTest {
 
     /**
      * Literal couples, never a recomputation. A test that split the id itself and compared
-     * against its own split would stay green with the shipped rule inverted — it would be a copy of
-     * the decision, not a check of it.
      */
     @Test fun anOrdinaryIdNamesItsFolderAndItsUid() {
         assertEquals(
@@ -71,8 +57,6 @@ class SearchHitOpensFromTheServerTest {
 
     /**
      * The segment [ImapMailService.targetOf] throws away, pinned on its own: a folder and a UID
-     * are valid coordinates on ANY server, so the account is the only thing in an id that says
-     * whose mail it is.
      */
     @Test fun anIdAlsoNamesTheAccountItWasBuiltFor() {
         assertEquals("acc1", ImapMailService.accountOf("imap:acc1:Archive/2024:4242"))
@@ -120,9 +104,6 @@ class SearchHitOpensFromTheServerTest {
     fun `an id that is not an IMAP id costs neither a connection nor a command`() {
         // The witness of part 1, executed one level up: a local draft must not even cost a
         // connection, let alone a SELECT of a folder called "local-draft".
-        // `issued()` alone would NOT say that: it filters the LOGIN line out, so a
-        // `withSession(credentials) { }` slipped in ahead of the derivation would connect, log in,
-        // and still leave this list empty. The connection count is what closes that.
         folderHolding(uid = UID).use { server ->
             val entity = runBlocking { service().fetchById(credentials(server), "local-draft:9f1c") }
             assertNull("nothing to fetch for an id the server knows nothing about", entity)
@@ -138,10 +119,6 @@ class SearchHitOpensFromTheServerTest {
     fun `an id belonging to another account is refused before a single packet`() {
         // THE partition, and it is load-bearing precisely because the cache read this fetch
         // stands in for carried it: `emailsByIds(credentials.id, …)` finds nothing for another
-        // account's id, and the open used to stop there. A folder and a UID are valid coordinates
-        // on ANY server, so with this guard gone account B's id, opened with account A's
-        // credentials, fetches whatever A happens to keep at "Archive/2024" UID 4242 and shows it
-        // under the expected header — then marks it read on A.
         //
         // Reachable without contrivance: MessageViewModel opens with the CURRENT account whenever
         // the intent carries no account id, which is what a notification without
@@ -189,9 +166,6 @@ class SearchHitOpensFromTheServerTest {
         //
         // What this proves, exactly: the fixture PRELOADS the numbering (9), so the guard has
         // something to compare against. #159's own case does NOT reach that state — the folder of
-        // a search hit was never synced, so nothing is recorded for it, `onMailbox` reads a first
-        // sight and records rather than refuses. The guard is intact and this shows it is wired
-        // into the new path; it is not a claim that a search hit is protected by it.
         val numbering = RememberedNumbering().apply { numbers["$ACCOUNT/$FOLDER"] = 9L }
         ScriptedImapServer { tag, line ->
             when {
@@ -222,9 +196,6 @@ class SearchHitOpensFromTheServerTest {
 
     /**
      * THIS PART READS SOURCE TEXT, for [DraftReceiptWiringTest]'s reason and with its rules:
-     * `MailRepository` is not instantiable on the JVM, so the ORDER of these four lines is
-     * reachable no other way. Whole lines are compared, arguments included — a `contains` on a
-     * fragment is blind to every mutation that lengthens a line.
      */
     private fun openBody(): String = DaoQuerySource.mailFunctionBody("MailRepository", "openEmailImap")
 
@@ -242,9 +213,6 @@ class SearchHitOpensFromTheServerTest {
     @Test fun theFirstThingTheOpenDoesIsRefuseAnIdThatIsNotAnImapMessage() {
         // THE half that matters is the POSITION. This guard used to be third, and what stopped a
         // `local-draft:` id from reaching the server was the cache miss above it — which now goes
-        // to the server instead. Moved back down, or dropped, the composer's only copy of a text
-        // buys a SELECT of a folder named after a UUID, and the failure the user sees changes from
-        // "not an IMAP message" to whatever the server says about it.
         assertEquals(
             "the uid guard must be the FIRST code line of openEmailImap: " +
                 codeLines(openBody()).take(3),
@@ -281,9 +249,6 @@ class SearchHitOpensFromTheServerTest {
     @Test fun theServerIsAskedWhenTheCacheHasNothingAndOnlyThen() {
         // The CONDITION, which the three assertions above cannot see: they pin the call, the
         // cache read and the absence of the old message, and every one of them survives
-        // `if (cached == null) null else …`. Inverted, a cache miss yields `fetched = null`, the
-        // open throws MessageUnavailableException, and #159 is back whole — while every message
-        // that IS cached pays a needless round trip. Whole line, arguments and branches included.
         assertEquals(
             "the server is the fallback for a cache MISS, never the first stop nor the answer to " +
                 "a hit",
@@ -295,9 +260,6 @@ class SearchHitOpensFromTheServerTest {
     @Test fun openingAMessageFilesNoRowInTheEmailsTable() {
         // We go and GET the envelope to show it; we do not file it. A row of a folder that was
         // never synced would be exposed to the next `reconcileMailbox` (which deletes what its walk
-        // did not see), to the drawer counts, and to the FTS index.
-        // Scope: the `emails` table. The BODY still goes to `email_bodies` further up in
-        // `openMessage`, exactly as for any other open — that is unchanged and not what this pins.
         val body = openBody()
         assertEquals(
             "no write of the fetched envelope may appear in the open",
@@ -370,9 +332,6 @@ class SearchHitOpensFromTheServerTest {
 
         /**
          * An [OAuthTokenRefresher] that is never used and cannot be built — the same trick, and for
-         * the same reason, as [ImapDraftAppendGoesOutOnceTest]'s: the real service is required, it
-         * needs a refresher, and a refresher needs an Android `Context`. `freshAccessToken` returns
-         * at `credentials.oauth ?: return null` for a password account, so no field is ever read.
          */
         fun unusedTokenRefresher(): OAuthTokenRefresher {
             val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")

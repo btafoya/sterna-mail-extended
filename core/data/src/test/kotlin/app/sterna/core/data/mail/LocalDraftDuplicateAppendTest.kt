@@ -14,17 +14,6 @@ import java.io.IOException
 
 /**
  * **One text, one copy on the server** (#95), executed: the shipped
- * [appendDraftUnlessAlreadyThere] and [localDraftMayAlreadyBeOnServer] driven with a search and an
- * append that record what they were CALLED WITH.
- *
- * The defect these close is reachable without anything exotic: the `APPEND` leaves, the link dies
- * before the server's tagged answer, the client throws, the attempt is recorded — and the deferred
- * worker appends the same text again, and again at every retry. Nothing on the phone can see the
- * copies, because IMAP `APPEND` hands back no id.
- *
- * No test here recomputes the rule to choose what to replay: every row below states its own
- * `attemptCount` and every expectation is written out. Invert the shipped condition and these turn
- * red rather than following it.
  */
 class LocalDraftDuplicateAppendTest {
 
@@ -48,9 +37,6 @@ class LocalDraftDuplicateAppendTest {
     @Test fun `a draft with no name at all is not something the server can be asked about`() {
         // The abstention is only ever safe because a NAME is being compared. A row with none has
         // nothing that could match, and asking anyway would spend a round trip on a folder read
-        // whose every answer means "not there". Unreachable today (the column is NOT NULL and every
-        // save mints a name); it stays because the failure it would cause is the losing one — an
-        // abstention consumes the row and the text is then nowhere.
         assertFalse(localDraftMayAlreadyBeOnServer(row(attemptCount = 3, messageId = "")))
         assertFalse(localDraftMayAlreadyBeOnServer(row(attemptCount = 3, messageId = "   ")))
     }
@@ -163,11 +149,6 @@ class LocalDraftDuplicateAppendTest {
     @Test fun `a lookup the server REFUSES appends, and that failure is an ImapException`() {
         // The type is the whole test. `ImapException` is what a refused `UID SEARCH` throws
         // (`core/imap/ImapClient.kt`: `class ImapException(…) : Exception(message)`) — it is NOT an
-        // `IOException`, so narrowing the catch to that one, which detekt's
-        // `TooGenericExceptionCaught` invites and which the suppression above it exists to hold
-        // off, would kill the rule for the ONLY failure this path actually produces: the lookup
-        // would throw out of the upload, the draft would stay local, retry for ever and never
-        // reach the server.
         val wentOut = runBlocking {
             appendDraftUnlessAlreadyThere(
                 row(attemptCount = 3, messageId = "abc-123@masto.top"),

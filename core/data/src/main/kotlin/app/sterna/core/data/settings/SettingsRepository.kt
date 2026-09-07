@@ -28,8 +28,6 @@ enum class SwipeAction { NONE, TOGGLE_READ, DELETE, ARCHIVE, FLAG }
 
 /**
  * How the message list is ordered. [FLAGGED_FIRST] is a sort like any other, not a modifier: until
- * 1.4.5 favourites were pinned above every order unconditionally (#111). Entries are persisted BY
- * NAME, so appending is safe and reorders nothing already stored.
  */
 enum class SortOrder { DATE_DESC, DATE_ASC, SUBJECT, SENDER, UNREAD_FIRST, FLAGGED_FIRST }
 
@@ -38,19 +36,11 @@ enum class MessageTextSize(val zoom: Int) { SMALL(85), NORMAL(100), LARGE(125), 
 
 /**
  * How new mail reaches the device (#17, outcome-framed — never a transport choice): INSTANT keeps
- * live push (UnifiedPush, or a direct connection when needed); BATTERY_SAVER drops every connection
- * Sterna holds and relies on the 30-minute periodic check. UnifiedPush subscriptions stay active
- * either way.
  */
 enum class DeliveryMode { INSTANT, BATTERY_SAVER }
 
 /**
  * How much a new-mail notification reveals on the lock screen (#25), most talkative first.
- *
- * [BODY_PREVIEW] is the only one that shows anything of the message itself and is never the
- * default. Stored BY NAME, so a build that predates it fails its `valueOf` and falls back to
- * [SENDER_AND_SUBJECT] — less revealing than what was asked for, which is the direction a downgrade
- * must fail in.
  */
 enum class NotificationContent { BODY_PREVIEW, SENDER_AND_SUBJECT, SENDER_ONLY, NONE }
 
@@ -58,8 +48,6 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
 
 /**
  * Reactive app-preferences store backed by a Preferences [DataStore]. Separate from
- * [app.sterna.core.data.account.AccountStore], which holds accounts and credentials. Each setting
- * is a [Flow] so the UI and the theme collect changes live.
  */
 class SettingsRepository(context: Context) {
     private val dataStore = context.applicationContext.settingsDataStore
@@ -214,8 +202,6 @@ class SettingsRepository(context: Context) {
 
     /** The OpenPGP app the user picked, by package name; `null` = no choice expressed (#151). null
      *  is NOT "no provider": it means the app decides, through `PgpProviders.resolve`.
-     *
-     * Deliberately absent from [SettingsBackup]: a package name is a fact about ONE device, and
      *  restored onto a phone without that app it would name a provider that cannot be bound. */
     val pgpProvider: Flow<String?> = dataStore.data.map { it[KEY_PGP_PROVIDER] }
 
@@ -298,13 +284,6 @@ class SettingsRepository(context: Context) {
 
     /**
      * Whether an opened message that asks for a read receipt (RFC 8098's
-     * `Disposition-Notification-To:`) may raise the question at all — off by default.
-     *
-     * Two positions, never three: off ignores the header, on ASKS. There is no "always send".
-     * Turning this on is consent to be asked, one message at a time.
-     *
-     * A reader of this flow drives an ACTION, and DataStore answers a beat late: see
-     * `app.sterna.ui.message.ReadReceiptSetting.NOT_LOADED`, a THIRD value and not a boolean.
      */
     val askReadReceipt: Flow<Boolean> = dataStore.data.map(::askReadReceiptFrom)
 
@@ -504,19 +483,11 @@ internal val KEY_NOTIFICATION_CONTENT = stringPreferencesKey("notification_conte
 
 /**
  * What a new-mail notification shows when nobody has chosen a position, and what an unreadable
- * stored value falls back to (#25). The position travels by name, so a downgrade reads a name its
- * enum does not have — the fallback must therefore reveal LESS than what was stored, never more.
- *
- * `internal`, unlike the switch defaults next to it: exported to the `app` module it becomes
- * something a screen can seed itself with before DataStore has answered (#57).
  */
 internal val NOTIFICATION_CONTENT_DEFAULT = NotificationContent.SENDER_AND_SUBJECT
 
 /**
  * A stored position name, or null when there is nothing usable to read. Null means "no answer", NOT
- * "the default": the flow substitutes [NOTIFICATION_CONTENT_DEFAULT], while restoring a backup
- * leaves the stored position alone, so a newer build's backup cannot make notifications more
- * talkative than what is on the device.
  */
 internal fun notificationContentOrNull(stored: String?): NotificationContent? =
     stored?.let { name -> NotificationContent.entries.firstOrNull { it.name == name } }
@@ -536,11 +507,6 @@ const val REPLY_BAR_DEFAULT = true
 
 /**
  * Whether the reader shows its bottom Reply/Forward bar, read from the stored preferences.
- *
- * The LOOKUP is in here, not the flow, and every `…From(prefs)` in this file follows that rule.
- * As a function of the stored `Boolean?` the default stays reachable from outside —
- * `replyBarFrom(prefs[KEY] ?: false)` takes the bar away from every user who never touched the
- * switch — and no test can see it, since the argument is already defaulted by then.
  */
 internal fun replyBarFrom(prefs: Preferences): Boolean = prefs[KEY_REPLY_BAR] ?: REPLY_BAR_DEFAULT
 
@@ -549,8 +515,6 @@ internal val KEY_UNREAD_TINT = booleanPreferencesKey("unread_tint")
 
 /**
  * What the message list does when nobody has touched the switch: tint unread rows (#141). One
- * definition, read by [unreadTintFrom], the settings screen, the activity's first frame and the
- * CompositionLocal's fallback — the copies that make a literal dangerous.
  */
 const val UNREAD_TINT_DEFAULT = true
 
@@ -574,17 +538,11 @@ internal val KEY_ASK_READ_RECEIPT = booleanPreferencesKey("ask_read_receipt")
 
 /**
  * Off, and this is the one value in this file that must never be flipped by a refactor: a read
- * receipt tells a stranger that a person opened their mail, at a time, on a device, and
- * `SECURITY.md` promises none of that leaves on open.
- *
- * Two positions only: off ignores the header, on ASKS. There is no third value for "always send".
  */
 const val ASK_READ_RECEIPT_DEFAULT = false
 
 /**
  * Whether an opened message may raise the read-receipt question, read from the stored preferences.
- * A reader of the flow has a second problem this cannot solve: DataStore answers a beat late, and
- * "not answered yet" is not "off"; see `app.sterna.ui.message.ReadReceiptSetting`.
  */
 internal fun askReadReceiptFrom(prefs: Preferences): Boolean =
     prefs[KEY_ASK_READ_RECEIPT] ?: ASK_READ_RECEIPT_DEFAULT

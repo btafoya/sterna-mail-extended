@@ -7,23 +7,11 @@ import java.io.File
 
 /**
  * "Save" on an attachment row has no decision a JVM test can execute on the app side: the
- * ViewModel needs an `Application` and a `ContentResolver`, the screen is a `@Composable`.
- * `AttachmentFileNameTest` in `core/data` executes the one decision that is a pure function (the
- * name proposed to the picker); this pins that the app is still WIRED to it, and that the bytes
- * take the route they are supposed to take.
- *
- * Whole trimmed lines compared by list equality, never `contains` on a fragment for the
- * assertion itself — that is blind to every mutation which LENGTHENS the line. Comment lines are
- * dropped, so prose can neither satisfy nor break a rule.
  */
 class SaveAttachmentCallSiteTest {
 
     /**
      * The bytes come from the repository and go into the picked document, and nothing else happens
-     * to them. Rewrite the download to `rawSource` and the file is the whole message instead of the
-     * attachment; drop the `"wt"` and a re-saved file keeps the tail of a longer one; `write` a
-     * String instead of the bytes and every attachment leaves re-encoded as UTF-8 text, which for a
-     * PDF or a photo means a corrupt file she cannot open and no warning anywhere.
      */
     @Test fun `the saved bytes come from the server and go into the picked document`() {
         val body = saveAttachmentBody()
@@ -43,15 +31,6 @@ class SaveAttachmentCallSiteTest {
 
     /**
      * And they are REFUSED when there are none of them. `MimeParser.decodeBytes("", …)` answers a
-     * zero-length ByteArray without throwing (MimeParser-427), and its "" is what
-     * `ImapClient.bodyItem()` yields whenever a `UID FETCH (BODY.PEEK[…])` came back OK with no
-     * untagged FETCH at all — measured on the test server for a UID destroyed server-side between
-     * opening the message and the Save tap. Unguarded, `openOutputStream(…, "wt")` truncates the
-     * picked document to nothing and the next line announces `message_export_saved` with its name:
-     * she leaves with a 0-byte `rapport.pdf` she believes is her attachment, and no toast ever
-     * hinted otherwise. The DECISION is EXECUTED next door in core/data by
-     * `AttachmentCouldNotBeReadTest`; what nothing else can see is whether this call site still
-     * asks it, with the right ARGUMENTS, and EARLY ENOUGH.
      */
     @Test fun `zero bytes are refused instead of written and announced as saved`() {
         val body = saveAttachmentBody()
@@ -79,11 +58,6 @@ class SaveAttachmentCallSiteTest {
 
     /**
      * THE hole every trimmed-line assertion is blind to: wrapping the refusal in an
-     * `if (…) { … }` leaves it word for word where it is, one level deeper, and disarms it.
-     * [saveAttachmentBody] trims, so nesting is invisible to it by construction, and the rank
-     * assertion above would still read the same order. Indentation is the only witness — and it is
-     * compared to the DOWNLOAD's and the WRITE's own indentation, never to a literal count of
-     * spaces: a reformat of the whole function must not turn this red, only a change of block must.
      */
     @Test fun `the refusal sits in the same block as the download and the write`() {
         val raw = saveAttachmentRawLines()
@@ -104,11 +78,6 @@ class SaveAttachmentCallSiteTest {
 
     /**
      * And they never touch the app's cache on the way. `storage.cacheAttachment` belongs to the
-     * OPEN path, which needs a file it can hand to a viewer app; saving needs no such file. Routed
-     * through it, every attachment she saves would also exist as a second copy inside the app,
-     * sitting in the cache until something cleared it — twice the disk, for nothing she asked for.
-     * The whole file's `cacheAttachment` lines are pinned, not just this function's: a call added
-     * anywhere on this path is the same defect.
      */
     @Test fun `saving never writes a copy into the app's cache`() {
         assertEquals(
@@ -128,11 +97,6 @@ class SaveAttachmentCallSiteTest {
 
     /**
      * The owner guard, on TWO keys. The reader is a conversation: the row hands over `msg.id`,
-     * which may be another message of the thread than the settled page, so `loadedId` is the wrong
-     * question and the message must be re-resolved from `_messages`. An activity recreated behind
-     * the picker can come back on another page, or on the same message with another attachment —
-     * and part B's bytes written under part A's name is a file in her Downloads that lies about
-     * what it holds. An empty key means the saved state was lost, and is refused too.
      */
     @Test fun `the picker's result is refused unless it names the very part it was launched for`() {
         val body = saveAttachmentBody()
@@ -163,11 +127,6 @@ class SaveAttachmentCallSiteTest {
 
     /**
      * `CreateDocument` has the provider create the document BEFORE the callback runs. So all three
-     * ways out — the owner refusal, our own "too large" refusal, and any failure — delete it again,
-     * or she finds an empty `rapport.pdf` in Downloads and believes the attachment saved. The
-     * toast alone would not undo that — and neither would a cancelled scope, which is why there is
-     * a FOURTH exit here and why the helper is [NonCancellable]. The whole file's list is pinned:
-     * six call sites (two for "Save as .eml", four here) plus the helper and its one deletion.
      */
     @Test fun `every way out of a save deletes the document the picker created`() {
         assertEquals(
@@ -201,11 +160,6 @@ class SaveAttachmentCallSiteTest {
 
     /**
      * The fourth exit, and the one nobody watches: each pager page owns its ViewModel, so swiping
-     * two messages away mid-download cancels this scope. Caught as an ordinary throwable, the
-     * cancellation would take the `discardDocument` down with it — `withContext` throws at once in a
-     * cancelled scope — and the empty `rapport.pdf` the picker created would stay in her folder,
-     * with no page left to show a toast about it. So: cancellation is caught FIRST, the document is
-     * discarded [NonCancellable], and the cancellation is rethrown rather than swallowed.
      */
     @Test fun `a save cancelled under its own page still takes the created document with it`() {
         val body = saveAttachmentBody()
@@ -226,17 +180,6 @@ class SaveAttachmentCallSiteTest {
 
     /**
      * THE mutation that pinning the NUMBER of discards cannot see, and the worst one on this
-     * path. A FOURTH catch, slipped in just above the general one:
-     *
-     *     } catch (t: MessageUnavailableException) {
-     *         _actionStatus.value = getApplication<Application>()
-     *             .getString(R.string.message_export_saved, proposedName)
-     *
-     * It compiles. The four discards and the eight are still four and eight, the refusal's own line
-     * and its indentation are untouched, so every other assertion in this file stays green — and
-     * she is handed the whole defect back: the 0-byte `rapport.pdf` stays in her Downloads, under a
-     * toast that says "Saved as rapport.pdf". What closes it is not a count but a PAIRING — the
-     * exact list of catch clauses, and a success announcement that lives outside every one of them.
      */
     @Test fun `no fourth catch turns a refusal back into an announced save`() {
         val body = saveAttachmentBody()
@@ -273,12 +216,6 @@ class SaveAttachmentCallSiteTest {
 
     /**
      * And the general catch does not put the exception's own English on her screen. The message
-     * `requireAttachmentBytes` raises names the part key and the message id, in English, for a bug
-     * report — interpolated raw into `status_save_attachment_failed` it reads, in French,
-     * "Impossible d'enregistrer la pièce jointe : Attachment 2.1 of M8fa4… came back empty", which
-     * is exactly what the #159 doctrine at the top of this file forbids. `readFailureStringRes` is
-     * the wiring that maps it to the already-translated `status_message_unavailable`, and
-     * `exportSource` — the twin this path copies — has consulted it all along.
      */
     @Test fun `the failure sentence is translated before the exception's own text is used`() {
         val body = saveAttachmentBody()
@@ -307,10 +244,6 @@ class SaveAttachmentCallSiteTest {
 
     /**
      * The screen's half. The picker is registered with a wildcard type, ONCE (the contract freezes
-     * its type at registration, so a per-part type would need a recomposition between the tap and
-     * `launch()`); the name it proposes goes through `attachmentFileName`, which is what carries
-     * the extension — handed `part.name` raw, a part called `Re: budget/2026.pdf` proposes a name
-     * with a `/` in it, which no provider will create.
      */
     @Test fun `the row launches a wildcard picker with a sanitised name`() {
         val lines = codeLines(screen().readText())
@@ -341,9 +274,6 @@ class SaveAttachmentCallSiteTest {
 
     /**
      * And the three keys are `rememberSaveable`, not `remember`. The picker is another activity:
-     * the system may recreate this one behind it, and a plain `remember` comes back empty. Empty is
-     * what the ViewModel's guard refuses, so the save would be dropped without a word — the guard
-     * falling on the wrong side of its own question.
      */
     @Test fun `the three picker keys survive an activity recreated behind the picker`() {
         val lines = codeLines(screen().readText())
@@ -361,8 +291,6 @@ class SaveAttachmentCallSiteTest {
 
     /**
      * The row's own tap is untouched: the name still opens the attachment, the icon saves it —
-     * K-9 and Gmail both put the two side by side. Fold the save into the row's `clickable` and
-     * the reader can no longer open anything.
      */
     @Test fun `the row still opens on its body, and saves on its icon`() {
         val lines = codeLines(screen().readText())
@@ -398,9 +326,6 @@ class SaveAttachmentCallSiteTest {
 
     /**
      * The same span, RAW — indentation intact. A sibling of [saveAttachmentBody] rather than a
-     * second span of its own: every assertion above compares TRIMMED lines, and the one assertion
-     * that has to read the leading spaces would be defeated by that trim. Both views read this,
-     * so they cannot drift onto different spans.
      */
     private fun saveAttachmentRawLines(): List<String> {
         val lines = viewModel().readText().lines()

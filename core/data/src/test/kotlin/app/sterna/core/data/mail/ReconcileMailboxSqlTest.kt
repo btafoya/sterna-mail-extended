@@ -10,25 +10,6 @@ import java.sql.DriverManager
 
 /**
  * `EmailDao.reconcileMailbox` RUN, against in-memory SQLite, with the arguments the shipped body
- * passes — not with arguments this test chose.
- *
- * Why it has to exist. Since the streaming volet, this function is a DELETE that is callable on
- * its own, from both protocols, with nothing before it to make the deletion safe. What it deletes
- * is decided by ONE call — `reconcileEvictions(cachedIds = …, keepIds = …, spareIds = …)` — and
- * substituting one of those arguments for another compiles (they are all id collections) while
- * turning every full re-query into "empty the folder except the handful of recently mutated rows".
- * A statement-list check does not see it: the statements are the same. A `@Transaction` check does
- * not see it. A test with its own reconcile does not see it, because it never calls this one.
- *
- * So the argument EXPRESSIONS are read out of the shipped body ([shippedEvictionArguments]) and
- * evaluated, rather than restated here. `keepIds = keepIds` and `keepIds = spareIds.toHashSet()`
- * are then two different runs producing two different sets of rows in a real table. What this test
- * must never do is decide for itself which set to keep — that is the copy this repository has been
- * caught making three times.
- *
- * The eviction statement is the shipped SQL too, so swapping `evictFromCacheKeepingIndex` for
- * `deleteByIds` shows up as index rows disappearing — an irreversible loss on IMAP, where nothing
- * re-indexes a message the cache no longer holds.
  */
 class ReconcileMailboxSqlTest {
     private lateinit var db: Connection
@@ -98,8 +79,6 @@ class ReconcileMailboxSqlTest {
 
     /**
      * The named arguments of the ONE `reconcileEvictions(…)` call in the shipped reconcile, as
-     * source text. Positional arguments are refused rather than guessed at: the whole point is that
-     * this test does not decide which id set plays which role.
      */
     private fun shippedEvictionArguments(): Map<String, String> {
         val body = DaoQuerySource.daoFunctionBody("EmailDao", RECONCILE_BODY)
@@ -135,8 +114,6 @@ class ReconcileMailboxSqlTest {
 
     /**
      * One shipped argument expression, evaluated. Deliberately tiny and deliberately loud: anything
-     * it does not recognise fails the test rather than being silently approximated, because an
-     * approximation here is a test that stops watching the decision it exists for.
      */
     private fun idSet(expression: String, keepIds: Set<String>, spareIds: List<String>): Set<String> =
         when (expression) {
@@ -154,12 +131,6 @@ class ReconcileMailboxSqlTest {
 
     /**
      * `idsForMailbox`'s shipped SQL, run for real, then the shipped bound applied to it — together
-     * they are what the body hands to `reconcileEvictions` as `cachedIds`.
-     *
-     * The bound is not optional and dropping it is not a simplification: this read happens inside
-     * the transaction, AFTER the caller has stopped looking, so an unbounded `cachedIds` deletes
-     * whatever committed in between (#165). A change of shape fails loudly here rather than being
-     * approximated.
      */
     private fun cachedIdsOf(
         expression: String,
@@ -197,8 +168,6 @@ class ReconcileMailboxSqlTest {
 
     /**
      * `EmailDao.reconcileMailbox`, replayed: the shipped read, the shipped decision with the
-     * shipped arguments, the shipped eviction statement. Returns the batches, so a caller can
-     * assert on the size no statement may exceed.
      */
     private fun reconcileMailboxRows(
         accountId: String,
@@ -341,9 +310,6 @@ class ReconcileMailboxSqlTest {
     @Test fun `no single statement is handed more ids than SQLite will bind`() {
         // Codeberg #29. Below Android 12 SQLite binds at most 999 variables; past that the
         // statement throws, and it threw BEFORE the sync cursor was stored, so the folder
-        // re-queried whole for ever. The bound is the batch size and nothing else — sqlite-jdbc
-        // here binds far more than an Android 11 device would, so the engine cannot be the witness
-        // and the batch size has to be asserted directly.
         (1..450).forEach { cache("m$it") }
 
         val batches = reconcileMailboxRows("acc", "mb-inbox", keepIds = emptySet())
@@ -360,8 +326,6 @@ class ReconcileMailboxSqlTest {
     private companion object {
         /**
          * The `EmailDao` function whose body carries the reconcile decision. Named once, here, so
-         * that splitting or renaming it fails this test loudly instead of leaving it reading a
-         * function the app no longer runs.
          */
         const val RECONCILE_BODY = "reconcileMailboxRows"
     }

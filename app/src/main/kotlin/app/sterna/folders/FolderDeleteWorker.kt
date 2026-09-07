@@ -17,10 +17,6 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Executes a confirmed folder delete after its undo window. WorkManager persistence
- * means the delete survives the ViewModel and the process: previously the hold-back
- * lived in viewModelScope, so backing out of the inbox within 5 s silently dropped
- * a delete the user had explicitly confirmed. Undo = [cancel] before the initial
- * delay (which carries a margin over the snackbar window) elapses.
  */
 class FolderDeleteWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 

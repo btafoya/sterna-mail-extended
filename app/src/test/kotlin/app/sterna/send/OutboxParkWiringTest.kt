@@ -7,16 +7,6 @@ import java.io.File
 
 /**
  * SOURCE LINT. `OutboxWorker` is a `CoroutineWorker` reaching for `AppContainer` (Room,
- * WorkManager, a `Context`), and this module has neither Robolectric nor instrumented tests: a
- * `when` written inside `doWork` is unreachable from every test we own. The decision itself is
- * EXECUTED in `core/data` — `OutboxLogic.parkOnPickup` says what to do with the row that was just
- * read, `OutboxLogic.isReadyToSend` says whether it may go out at all, and
- * `accountDepartureIsProven` says whether a `null` from `credentials()` really means the account
- * left (`AccountDepartureProofTest` runs it on its four inputs).
- *
- * What those two cannot see is whether the worker asks them, and in which ORDER. That is what is
- * pinned here, as WHOLE LINES in sequence: a `contains` is blind to a lengthened line and to a line
- * moved inside a condition, and moving one line is exactly the mutation that reopens this defect.
  */
 class OutboxParkWiringTest {
 
@@ -32,25 +22,10 @@ class OutboxParkWiringTest {
 
     /**
      * Pins THREE things in one sequence, because it is their ORDER that is the fix.
-     *
-     * 1. The parking runs on the row as it was READ, ahead of every other question.
-     * 2. `SENDING` is written on the row BEFORE the message is handed to the server.
-     * 3. A `null` from `credentials()` destroys nothing until the departure is PROVEN, and the
-     *    proof is DELEGATED to `accountDepartureIsProven` — the one place a JVM test can execute
-     *    the rule (`AccountDepartureProofTest`) — instead of being restated here as a `null` check.
-     *    The unproven arm writes NOTHING on the row: no state, no attemptCount, no lastError. That
-     *    is not the same contract as the parking above it, which does write the row back; here
-     *    nothing was attempted, so a bump would spend one of `OutboxLogic.MAX_ATTEMPTS` the user
-     *    never used and an overwrite would erase an earlier failure's reason.
      */
     @Test fun `a delivery the worker finds already begun is parked, before anything else happens to it`() {
         // THE ORDER IS THE FIX. The parking must run on the row as it was READ, before
         // isReadyToSend, before the FAILED guard and before a single byte goes to the server.
-        // Pushed down past isReadyToSend it is dead code today (a SENDING row is refused there and
-        // the worker returns), and pushed down past the delivery it parks a message that has just
-        // been sent for the second time — which is the bench measurement: reply, kill the process
-        // 1.2 s later, reopen, and the recipient receives the same message twice, 46 s apart, with
-        // two Message-Ids and an empty outbox left behind.
         val lines = linesOf(WORKER)
         assertEquals(
             "OutboxWorker.doWork must park the row it has just read BEFORE it asks whether the row " +
@@ -107,9 +82,6 @@ class OutboxParkWiringTest {
                 "}",
                 // SENDING, on the row, BEFORE the message leaves. This is the fact parkOnPickup
                 // reads at the next pickup and the only proof this phone ever has that a delivery
-                // was begun: a run killed one line below leaves SENDING written, and that is what
-                // gets parked instead of sent again. Its own attemptCount and lastError are carried
-                // through — nothing has failed at this point.
                 "repo.updateOutboxState(id, OutboxState.SENDING, item.attemptCount, item.lastError)",
                 "return try {",
                 "repo.performSend(credentials, item)",
@@ -131,10 +103,6 @@ class OutboxParkWiringTest {
 
     /**
      * Its own test, and the one that closes a window the block above cannot see through. That
-     * block pins 33 lines; a `repo.deleteOutbox(id)` added ELSEWHERE in the file — in the catch, or
-     * a line above `return try {` — falls outside it and used to pass. It is the mutation that
-     * survived the same fix on the scheduled arm. So the destruction sites are counted: two, in
-     * this order, and a third has to be argued for here before it can exist.
      */
     @Test fun `the queued row is destroyed in two places, and nowhere else`() {
         assertEquals(
