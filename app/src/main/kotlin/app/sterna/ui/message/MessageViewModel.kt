@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import app.sterna.core.data.mail.MessageCrypto
 import app.sterna.core.data.mail.MessageUnavailableException
@@ -39,6 +40,7 @@ import app.sterna.core.data.mail.preferredAction
 import app.sterna.core.data.mail.unsubscribePreview
 import app.sterna.core.data.settings.REPLY_BAR_DEFAULT
 import app.sterna.core.data.settings.MessageTextSize
+import app.sterna.core.data.text.attachmentMimeType
 import app.sterna.core.data.unsubscribe.UnsubscribeFailure
 import app.sterna.core.data.unsubscribe.UnsubscribeResult
 import app.sterna.core.jmap.ContentTooLargeException
@@ -147,7 +149,7 @@ enum class SenderRuleEntry {
 }
 
 /**
- * What the reader knows about the account's Sieve script — THREE states, because "not read yet" and
+ * What the reader knows of the account's Sieve script. "Not asked yet" and "no script" are not the same answer.
  */
 sealed interface SenderScript {
     /** Nothing has been asked. The panel arms the read; until it answers there is no opinion. */
@@ -161,7 +163,7 @@ sealed interface SenderScript {
 }
 
 /**
- * Whether the reader may add "file future mail from this address into the Trash, marked read" from the
+ * Whether the open message may offer the block rule at all, and which refusal it names when it may not.
  */
 fun senderRuleEntry(
     isSender: Boolean,
@@ -232,7 +234,7 @@ data class PendingUnsubscribe(
 }
 
 /**
- * The gesture still on offer for [options] in [state], or null. ONE decision, executed by the banner,
+ * The gesture still on offer for [options] in [state], or null. Once sending has begun, nothing is.
  */
 fun offeredUnsubscribeAction(options: UnsubscribeOptions?, state: UnsubscribeState): UnsubscribeAction? =
     when (state) {
@@ -340,7 +342,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     )
 
     /**
-     * Whether an opened message that asked for a read receipt may raise the question — the setting of
+     * Whether a message that asked for a read receipt may raise the question at all: the setting alone.
      */
     val readReceiptSetting: StateFlow<ReadReceiptSetting> = settings.askReadReceipt
         .map { if (it) ReadReceiptSetting.ON else ReadReceiptSetting.OFF }
@@ -507,7 +509,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     val accountAddresses = _accountAddresses.asStateFlow()
 
     /**
-     * The addresses the user has DECLARED as her own on this account — her send-as identities, and
+     * The addresses declared as her own on this account: her send-as identities, not every address mail arrived on.
      */
     private val _identityAddresses = MutableStateFlow<List<String>>(emptyList())
     val identityAddresses = _identityAddresses.asStateFlow()
@@ -519,7 +521,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     fun clearSenderRuleStatus() { _senderRuleStatus.value = null }
 
     /**
-     * One-shot word about an action taken ON the open message (report spam / not spam). Its own flow,
+     * One-shot word about a save or a refusal on the open message. Its own flow, so the rule status survives it.
      */
     private val _actionStatus = MutableStateFlow<String?>(null)
     val actionStatus = _actionStatus.asStateFlow()
@@ -658,7 +660,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * "Save as .eml": [MailRepository.rawSource]'s bytes, one per octet, into the document picked at
+     * "Save as .eml": [MailRepository.rawSource]'s bytes, one per octet, into the document the picker created.
      */
     fun exportSource(uri: Uri, proposedName: String, ownerId: String) {
         viewModelScope.launch {
@@ -851,7 +853,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     // ---- read receipt (RFC 8098) ----
 
     /**
-     * The question standing on the open message, or null when there is none to ask. RAISED in
+     * The question standing on the open message, or null when there is none to ask. Only [maybeOfferReadReceipt] raises it.
      */
     private val _readReceiptOffer = MutableStateFlow<ReadReceiptRequest?>(null)
     val readReceiptOffer = _readReceiptOffer.asStateFlow()
@@ -946,7 +948,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     private var accountId: String? = null
 
     /**
-     * The (account, id) whose cached body [warmFromCache] has already painted on this page — the
+     * The (account, id) whose cached body [warmFromCache] has already painted here. A pair, because ids repeat across accounts.
      */
     private var warmedId: String? = null
     private var warmedAccountId: String? = null
@@ -957,7 +959,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     private var anchorMarked = false
 
     /**
-     * How this page's message came to be marked read, once the pager settled on it. Written in
+     * How this page's message came to be marked read, once the pager settled on it. Null until it settles.
      */
     private var settleMarking: ReadMarking? = null
 
@@ -1310,7 +1312,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * Put — or take away — the read-receipt question, by RUNNING the decision against the state as it
+     * Put — or take away — the read-receipt question, by running the decision against the state as it stands now.
      */
     private fun maybeOfferReadReceipt() {
         val marking = settleMarking ?: return
@@ -1340,7 +1342,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 val file = storage.cacheAttachment(part.name, bytes)
                 val uri = FileProvider.getUriForFile(app, "${app.packageName}.fileprovider", file)
                 val view = Intent(Intent.ACTION_VIEW)
-                    .setDataAndType(uri, part.type ?: "*/*")
+                    .setDataAndType(uri, attachmentMimeType(part.type, part.name, MimeTypeMap.getSingleton()::getMimeTypeFromExtension))
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 // unguarded: not a tap. The tap was handled above, where [openingAttachment] holds
                 // the second one back; there is no composition here to hang the leave guard on.
