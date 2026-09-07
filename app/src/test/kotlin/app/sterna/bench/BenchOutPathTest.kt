@@ -12,7 +12,7 @@ import org.junit.Test
  * itself lives in `src/benchShared/kotlin`, plain Kotlin with no Android import, so the verdict
  * here is the real one. Invert the rule and these cases go red.
  *
- * ⚠ The paths below are written out ONE BY ONE, as literals. Deriving them from [BENCH_OUT_DIR]
+ * The paths below are written out ONE BY ONE, as literals. Deriving them from [BENCH_OUT_DIR]
  * (or from any part of the predicate) would make this test a copy of the decision: it would follow
  * the rule wherever the rule went and stay green under a mutation of it.
  */

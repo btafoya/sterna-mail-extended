@@ -88,7 +88,7 @@ class OAuthErrorMessagesTest {
     }
 
     /**
-     * ⛔ The admin-consent sentence NAMES MICROSOFT. Until this screen started going through this
+     * The admin-consent sentence NAMES MICROSOFT. Until this screen started going through this
      * function it was only ever reached from the Microsoft paths; a self-hosted Stalwart, Keycloak
      * or Authelia answering the ordinary prose "invalid_client, contact your administrator" now
      * reaches it too, and would tell its own owner to ask Microsoft for approval.
@@ -185,7 +185,7 @@ class OAuthErrorMessagesTest {
     }
 
     /**
-     * ⚠ The fixture lost its authorization endpoint on purpose (#55): a server that publishes one
+     * The fixture lost its authorization endpoint on purpose (#55): a server that publishes one
      * IS signable-into now, through the authorization-code grant, so it is no longer a failure at
      * all — that case is `a code-only server is no discovery failure any more` below. What this
      * one still holds is the sentence for a server advertising OAuth with NEITHER grant.
@@ -229,7 +229,7 @@ class OAuthErrorMessagesTest {
         deviceAuthorizationEndpoint = if (deviceFlow) "https://$host/device" else null,
     )
 
-    /** ⭐ The user the fix broke: the website advertises OAuth, the mail server has the flow. */
+    /** The user the fix broke: the website advertises OAuth, the mail server has the flow. */
     @Test fun `the site answering first does not beat the mail server that has the flow`() {
         val discovered = listOf(
             "example.org" to meta("example.org", deviceFlow = false),
@@ -281,7 +281,7 @@ class OAuthErrorMessagesTest {
     // browser and comes back through an intent; the device flow does not leave at all, it is what
     // every account signed in so far uses, and it stays first whenever a server offers both.
 
-    /** ⛔ The witness of non-regression: inverting the two arms of chooseOAuthGrant reddens here. */
+    /** The witness of non-regression: inverting the two arms of chooseOAuthGrant reddens here. */
     @Test fun `a server that speaks both grants keeps the device flow`() {
         assertEquals(
             OAuthGrant.DEVICE_CODE,
@@ -315,7 +315,7 @@ class OAuthErrorMessagesTest {
         assertEquals(OAuthGrant.NONE, chooseOAuthGrant(halfway))
     }
 
-    /** ⭐ Ranking across hosts, where the two grants live on different servers. */
+    /** Ranking across hosts, where the two grants live on different servers. */
     @Test fun `the code grant does not beat the device flow on another host`() {
         val discovered = listOf(
             "example.org" to meta("example.org", deviceFlow = false, codeFlow = true),
@@ -351,7 +351,7 @@ class OAuthErrorMessagesTest {
     // The list `chooseOAuthHost` ranks is not given: it is what the probe loop collected, and the
     // loop can make its promise unreachable. `Jmap.autodiscoverHosts` asks the BARE DOMAIN first.
 
-    /** ⭐ The regression this pins: the website has an authorization endpoint, the mail server has
+    /** The regression this pins: the website has an authorization endpoint, the mail server has
      *  the device flow, and stopping at the website sends a working sign-in off to a browser. */
     @Test fun `a website publishing an authorization endpoint does not end the search`() = runBlocking {
         val asked = mutableListOf<String>()
@@ -425,7 +425,7 @@ class OAuthErrorMessagesTest {
     // returns; nothing here recomputes the rule, so inverting the order of the two `NONE` arms,
     // or dropping the `&& NONE` conjunction, has to redden.
 
-    /** ⚠ Built the way `discoverMetadata` returns it: every endpoint refused, so the token
+    /** Built the way `discoverMetadata` returns it: every endpoint refused, so the token
      *  endpoint is BLANK (not null) and the two others are null, with the fact carried alongside. */
     @Test fun `a document blanked down to nothing says the sign-in was handed elsewhere`() {
         val blanked = OAuthMetadata(
@@ -439,7 +439,7 @@ class OAuthErrorMessagesTest {
     }
 
     /**
-     * ⛔ The witness that keeps the new branch from eating the old one: nothing was refused here,
+     * The witness that keeps the new branch from eating the old one: nothing was refused here,
      * the server itself advertises OAuth with no grant this app can drive. Same `NONE`, same empty
      * flow, different fact — and this one keeps the sentence it already had.
      */
@@ -467,7 +467,7 @@ class OAuthErrorMessagesTest {
     }
 
     /**
-     * ⛔ THE WITNESS OF THE CONJUNCTION. Only the device endpoint was off-domain and blanked; the
+     * THE WITNESS OF THE CONJUNCTION. Only the device endpoint was off-domain and blanked; the
      * authorization and token endpoints survived, so the code grant still runs. Refusing here would
      * break a sign-in that works. `endpointsOffDomain` alone must say NOTHING.
      */
@@ -496,7 +496,7 @@ class OAuthErrorMessagesTest {
     }
 
     /**
-     * ⛔ THE WITNESS OF THE SHAPE, and it is the one the suite was missing. The token endpoint is
+     * THE WITNESS OF THE SHAPE, and it is the one the suite was missing. The token endpoint is
      * on-domain and SURVIVES; only the device endpoint was sent to a third party, and there is no
      * authorization endpoint — so nothing can be driven, and the reason is the third party.
      *
@@ -516,7 +516,7 @@ class OAuthErrorMessagesTest {
         assertEquals(R.string.connect_oauth_elsewhere, oauthDiscoveryFailure(handed))
     }
 
-    /** ⛔ No metadata at all stays "this server has no OAuth" — see also
+    /** No metadata at all stays "this server has no OAuth" — see also
      *  `no metadata means the server has no OAuth`; the elsewhere branch must not reach it. */
     @Test fun `nothing discovered is still no OAuth, not a handover`() {
         assertNotEquals(R.string.connect_oauth_elsewhere, oauthDiscoveryFailure(null))

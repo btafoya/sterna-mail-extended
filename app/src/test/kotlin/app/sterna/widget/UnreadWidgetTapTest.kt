@@ -14,7 +14,7 @@ import org.junit.Test
  * exists — the drawer posts the entry only from two accounts up. Asking for it below that is the
  * widget ordering a screen the app does not have.
  *
- * ⛔ What the tap does with the answer (an `Intent`, a `PendingIntent`, `MainActivity`) cannot run
+ * What the tap does with the answer (an `Intent`, a `PendingIntent`, `MainActivity`) cannot run
  * in this suite; it is pinned by [UnreadWidgetTapWiringLintTest].
  */
 class UnreadWidgetTapTest {
@@ -44,7 +44,7 @@ class UnreadWidgetTapTest {
     }
 
     /**
-     * ⛔ The arm the whole file exists for. Asserted on the VALUE returned, not on the absence of
+     * The arm the whole file exists for. Asserted on the VALUE returned, not on the absence of
      * one: "not UnifiedInbox" would be satisfied by anything at all, including a third arm nobody
      * handles.
      */

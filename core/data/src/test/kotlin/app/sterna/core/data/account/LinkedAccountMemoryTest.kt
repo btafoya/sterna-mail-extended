@@ -346,15 +346,15 @@ class LinkedAccountMemoryTest {
      * empty on every read, every re-granted share would come back factory-fresh, and the feature
      * would be inert with nothing on screen saying so.
      *
-     * ⚠ What it does NOT prove: the store's `json` is private, so this builds its own with the
-     * same configuration (`ignoreUnknownKeys = true`, `AccountStore.kt:243`). Reconfigure the
+     * What it does NOT prove: the store's `json` is private, so this builds its own with the
+     * same configuration (`ignoreUnknownKeys = true`, `AccountStore`). Reconfigure the
      * store's parser and this test stays green. What it does prove is the one thing that would
      * otherwise fail in total silence: kotlinx can round-trip THIS shape at all. Run on a map
      * carrying the collection-valued settings — the collection-valued ones
      * are the shapes worth pinning, and the nested `StoredIdentity` list is the deepest of them.
      */
     /**
-     * ⛔ The reset list, pinned WHOLE — every field of the minted record, against one literal.
+     * The reset list, pinned WHOLE — every field of the minted record, against one literal.
      *
      * The `copy` in [mintLinkedAccount] names seventeen fields, and the assertions above reach
      * seven of them. Deleting any of the other ten — `importPending`, `inboxName`, the OAuth

@@ -69,7 +69,7 @@ internal class FakeSmtpServer(
     /**
      * The DATA payload of the accepted message, or null when nothing was accepted.
      *
-     * ⚠ **Line endings here prove NOTHING about the ones the client wrote.** This is rebuilt
+     * **Line endings here prove NOTHING about the ones the client wrote.** This is rebuilt
      * from `BufferedReader.readLine()`, which ends a line on a bare LF, on a bare CR and on CRLF
      * alike, and the loop below glues `\r\n` back on. A client writing an entity full of bare LFs
      * therefore lands in [delivered] perfectly conforming, and a witness for the CRLF defect built
@@ -83,7 +83,7 @@ internal class FakeSmtpServer(
     private val wireBytes = ByteArrayOutputStream()
 
     /**
-     * ⭐ The raw octets the client put on the socket, greeting to `QUIT`, exactly as written.
+     * The raw octets the client put on the socket, greeting to `QUIT`, exactly as written.
      *
      * The one view of the session in which a bare LF is still a bare LF: [commands] and [delivered]
      * both come out of a [BufferedReader], which normalises the very bytes an SMTP conformance

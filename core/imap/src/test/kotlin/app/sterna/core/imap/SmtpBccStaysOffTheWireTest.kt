@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⭐ THE BLIND COPY, read off a real socket. `OutgoingMime.build` can now write a `Bcc:` header —
+ * THE BLIND COPY, read off a real socket. `OutgoingMime.build` can now write a `Bcc:` header —
  * the Drafts-folder APPEND needs it, or a Cci typed into the composer is gone the moment the draft
  * is reopened — and this is the test that says the submission path did NOT get it too.
  *

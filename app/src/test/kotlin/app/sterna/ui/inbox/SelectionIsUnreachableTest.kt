@@ -11,7 +11,7 @@ import org.junit.Test
  * decision itself, [selectionIsUnreachable], EXECUTED. Two ways in: the folder was deleted (#89),
  * or the account just ticked "show only subscribed folders" and it is not one of them (#174).
  *
- * ⛔ No case here recomputes "subscribed, or a role, or a visible descendant" to decide what it
+ * No case here recomputes "subscribed, or a role, or a visible descendant" to decide what it
  * expects: every expectation is a literal. A test that restates the shipped rule stays green when
  * that rule is inverted, which is the whole failure this file exists to avoid.
  */

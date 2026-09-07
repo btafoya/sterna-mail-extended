@@ -21,7 +21,7 @@ import org.junit.Test
  * reads them back in a dozen sequential queries, so a tap on Move or Delete straight afterwards
  * took a map that was empty or half full.
  *
- * ⛔ What that costs is not the same before and after the previous volet. It used to be SILENCE: a
+ * What that costs is not the same before and after the previous volet. It used to be SILENCE: a
  * row with no stamp opposed nothing and went. It is now a REFUSAL, because a ticked row with no
  * numbering is refused at both ends of the move between accounts. So the race turned a quiet loss
  * into a frequent, visible failure on the one gesture people use it for, and that cost is this
@@ -67,7 +67,7 @@ class TickedNumberingBarrierTest {
     // ---- the wait, RUN ------------------------------------------------------------------------
 
     /**
-     * ⭐ THE WITNESS OF THE RACE, and the only test that tells a barrier apart from a `delay`: the
+     * THE WITNESS OF THE RACE, and the only test that tells a barrier apart from a `delay`: the
      * flow publishes a PARTIAL map first, the gesture asks, and it must still be waiting; the full
      * map lands afterwards and that is what the gesture gets.
      */
@@ -94,17 +94,17 @@ class TickedNumberingBarrierTest {
     }
 
     /**
-     * ⛔ THE INVERSE WITNESS, without which "always sleep for the budget" satisfies the one above
+     * THE INVERSE WITNESS, without which "always sleep for the budget" satisfies the one above
      * and every selection gesture in the app grows a second and a half of dead time. A `StateFlow`
      * replays its current value, so an already-covered map costs no virtual time at all.
      *
-     * ⚠ DECLARED SURVIVING MUTATION, still open: a `yield()` — or any re-dispatch — at the head of
+     * DECLARED SURVIVING MUTATION, still open: a `yield()` — or any re-dispatch — at the head of
      * `tickedNumberingWhenCovered`. This test measures VIRTUAL TIME, and `runTest` does not advance
      * the clock for a re-dispatch, so it stays green while the ordinary gesture stops being
      * answered synchronously and goes through the dispatcher. "Costs no time" is not "never
      * suspends".
      *
-     * ⛔ The probe that would close it is known and was written: start the call
+     * The probe that would close it is known and was written: start the call
      * `CoroutineStart.UNDISPATCHED` on `Dispatchers.Unconfined` and assert `job.isCompleted` when
      * `launch` returns — a body that never suspended is complete inline. It COMPILED, and it was
      * then thrown away rather than shipped, because the run that would have falsified it never
@@ -125,12 +125,12 @@ class TickedNumberingBarrierTest {
     }
 
     /**
-     * ⛔ AND IT IS BOUNDED, because coverage can become UNREACHABLE — and the reason is the
+     * AND IT IS BOUNDED, because coverage can become UNREACHABLE — and the reason is the
      * SELECTION MOVING, not a key nobody can resolve. `rememberTickedNumbering` ends on
      * `filterKeys { it in still }`, so it publishes only what is still ticked: once the selection
      * changes, no publication will ever contain the awaited keys again.
      *
-     * ⛔ The `credentialsFor`-is-null story this used to tell is very nearly unreachable —
+     * The `credentialsFor`-is-null story this used to tell is very nearly unreachable —
      * `InboxViewModel.credentialsFor` falls back on `store.load()`, so it answers null only when no
      * account is usable at all, a state in which there is no selection to act on. A comment naming
      * an inaccessible mechanism hides the one that actually happens.
@@ -156,7 +156,7 @@ class TickedNumberingBarrierTest {
     }
 
     /**
-     * ⛔ THE REGRESSION THIS CLOSES, and the reachable path that produces it. While the wait runs,
+     * THE REGRESSION THIS CLOSES, and the reachable path that produces it. While the wait runs,
      * the selection bar is still up and the gesture gives no visual answer; `InboxScreen` binds the
      * system Back gesture to `clearSelection()`. So: Select all over a large folder, Move, Back
      * before the stamps land — the collector republishes `filterKeys { it in still }` over an empty
@@ -188,7 +188,7 @@ class TickedNumberingBarrierTest {
     }
 
     /**
-     * ⛔ THE SHIPPED BUDGET, EXECUTED. Without this the constant is pinned nowhere: the two tests
+     * THE SHIPPED BUDGET, EXECUTED. Without this the constant is pinned nowhere: the two tests
      * that use the default are satisfied by ANY budget longer than the publication delay, and the
      * timeout witness passes its own. `TICKED_NUMBERING_BUDGET_MS = 600_000L` would leave the whole
      * suite green while the gesture holds the screen for ten minutes, selection bar up — the bound
@@ -210,7 +210,7 @@ class TickedNumberingBarrierTest {
     // ---- one wait, both gestures ---------------------------------------------------------------
 
     /**
-     * ⚠ Source lint, the last resort: `InboxViewModel` needs an `Application` and Room. What only
+     * Source lint, the last resort: `InboxViewModel` needs an `Application` and Room. What only
      * the text can say is that BOTH gestures go through the ONE wait — "a barrier posted on one
      * side leaves the other open", and the two sides destroy the same mail.
      */

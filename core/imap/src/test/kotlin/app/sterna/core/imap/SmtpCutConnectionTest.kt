@@ -15,7 +15,7 @@ import org.junit.Test
  * for a successful one — the EHLO capabilities were then read off a PARTIAL list, and the failure
  * surfaced much later on a step that was not the cause.
  *
- * ⭐ ONE read is the exception, and it is the one whose cut is irreversible: the acknowledgement of
+ * ONE read is the exception, and it is the one whose cut is irreversible: the acknowledgement of
  * the message BODY, where a `250-` already means the server took the message (J2 below).
  *
  * The server here ANNOUNCES and CUTS; the client is the shipped one, unchanged for the tests. What
@@ -53,7 +53,7 @@ class SmtpCutConnectionTest {
     }
 
     /**
-     * J2 ⭐ — the cut lands inside the 250 that acknowledges the message BODY, after a continuation
+     * J2 — the cut lands inside the 250 that acknowledges the message BODY, after a continuation
      * line. THE OTHER WAY ROUND from every case above, and this test used to assert the opposite.
      *
      * RFC 5321 § 4.2.1: every line of a reply carries the same code, so a server that has written
@@ -61,7 +61,7 @@ class SmtpCutConnectionTest {
      * send the server went on to queue, and the recipient would get it TWICE — the one outcome
      * nothing later can take back, and the one `SMTP_BLOCKING_READ` exists to prevent.
      *
-     * ⚠ `delivered` is deliberately not asserted: a cut on the dot is taken before the fixture
+     * `delivered` is deliberately not asserted: a cut on the dot is taken before the fixture
      * records the body. What is asserted is the normal return, and that the dialogue reached the
      * body at all — so this really is the acknowledgement that was cut.
      */
@@ -87,7 +87,7 @@ class SmtpCutConnectionTest {
      * never reached the body at all, would pass J2 just as well. Here the dot really was written
      * and the server really took the message, which only `delivered` can state.
      *
-     * ⚠ What it does NOT witness, and what nothing here can: that the client read the
+     * What it does NOT witness, and what nothing here can: that the client read the
      * acknowledgement to its LAST line. `delivered` is set by the fixture before it answers
      * (`FakeSmtpServer`), and the connection ends on this reply — a client that gave up after the
      * first line would leave the second one unread, with nobody left to trip over it. That claim is
@@ -299,7 +299,7 @@ class SmtpCutConnectionTest {
 }
 
 /**
- * ⚠ SOURCE LINT (J11), the belt to the braces of the four tests above: the `break` that swallowed a
+ * SOURCE LINT (J11), the belt to the braces of the four tests above: the `break` that swallowed a
  * cut connection must not come back. Whole lines, never `contains`: a substring check is blind to
  * every mutation that LENGTHENS the line.
  */

@@ -8,11 +8,11 @@ import org.junit.Test
  * expectation is a literal [WidgetTapReturn], so a shipped rule whose arms were swapped or widened
  * disagrees with this file instead of agreeing with it.
  *
- * ⛔ THE ROUTES BELOW ARE THE REAL ONES, copied out of `SternaApp.kt`'s NavHost as declared —
+ * THE ROUTES BELOW ARE THE REAL ONES, copied out of `SternaApp.kt`'s NavHost as declared —
  * arguments and all, because that is the form `nav.currentBackStack.value.map { …route }` hands
  * back. A rule written against invented names would pass here and do nothing on a phone.
  *
- * ⛔ AND THEY ARE HANDED OVER AS STACKS, first entry first, each one preceded by the NavGraph's own
+ * AND THEY ARE HANDED OVER AS STACKS, first entry first, each one preceded by the NavGraph's own
  * entry — whose route is `null`, because `SternaApp` builds its NavHost with a start destination
  * and no `route` of its own. Every stack below therefore starts with that null: a rule tested on
  * clean lists would be tested on something the app never produces.
@@ -45,7 +45,7 @@ class WidgetTapNavigationTest {
     }
 
     /**
-     * ⛔ THE TEST THIS FILE EXISTS FOR — a data-loss rule, not an ergonomic one.
+     * THE TEST THIS FILE EXISTS FOR — a data-loss rule, not an ergonomic one.
      *
      * Popping the composer would take a half-written mail off the screen because a counter was
      * touched somewhere else, and a draft that goes is not coming back. No number is worth that.
@@ -62,7 +62,7 @@ class WidgetTapNavigationTest {
     }
 
     /**
-     * ⛔⛔ THE SAME DRAFT, LOST THROUGH THE BACK DOOR — the composer BURIED under a reader.
+     * THE SAME DRAFT, LOST THROUGH THE BACK DOOR — the composer BURIED under a reader.
      *
      * Reachable, and not exotically: the composer is open, a new-mail banner arrives and is tapped
      * (`SternaApp`'s notification effect navigates unguarded and stacks the reader over the
@@ -153,7 +153,7 @@ class WidgetTapNavigationTest {
     }
 
     /**
-     * ⛔ An entry the rule does not recognise, ABOVE the list, must not be popped past. A null is
+     * An entry the rule does not recognise, ABOVE the list, must not be popped past. A null is
      * the shape a nested graph's entry would take if one were ever added, and "unknown" is the only
      * honest reading of it.
      */

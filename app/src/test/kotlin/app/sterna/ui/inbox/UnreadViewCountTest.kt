@@ -12,7 +12,7 @@ import org.junit.Test
  * retyping a list of folder ids: a test that spells the excluded roles again is a copy of the rule,
  * and stays green when the rule is inverted.
  *
- * ⛔ What is NOT claimed here, because it is not true: that the number equals the rows you land on.
+ * What is NOT claimed here, because it is not true: that the number equals the rows you land on.
  * In conversation view the badge sums per-folder counts while the list groups a thread over the
  * whole scope, so a thread unread in two folders of the scope is counted twice and drawn once. The
  * honest definition is the one below: the same aggregate the folder rows are badged with.
@@ -77,7 +77,7 @@ class UnreadViewCountTest {
     }
 
     /**
-     * ⚠ This proves ONE thing: which FIELD is read. `unreadForList` is what the folder rows below
+     * This proves ONE thing: which FIELD is read. `unreadForList` is what the folder rows below
      * the entry are badged with, so reading it is what keeps the drawer from contradicting itself;
      * `unreadEmails` is the server's stored count, and the two differ on any folder the app has
      * already marked read locally. It says nothing about the two being equal in general — for an

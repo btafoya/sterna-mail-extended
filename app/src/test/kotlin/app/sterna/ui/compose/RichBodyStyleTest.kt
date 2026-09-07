@@ -89,7 +89,7 @@ class RichBodyStyleTest {
     }
 
     /**
-     * A list AND a link on one body. ⛔ The two never meet and that is the point: the markers are
+     * A list AND a link on one body. The two never meet and that is the point: the markers are
      * laid in the TEXT layer by `bodyTransformation` (executed in [RichBodyMarkersTest]) and
      * carry no character of `rich.text`, so nothing here shifts by the width of a bullet and the
      * link's offsets are the model's own.

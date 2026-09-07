@@ -46,7 +46,7 @@ class PresetMillisAtTapTest {
     }
 
     @Test fun `this evening drawn yesterday morning and tapped this morning is refused`() {
-        // ⛔ THE TRAP the refusal must not be built on: read against a FRESH list this tap looks
+        // THE TRAP the refusal must not be built on: read against a FRESH list this tap looks
         // perfectly legal — at 10 AM on the 19th "This evening" is offered again. The entry under
         // the finger is not that one: it was drawn on the 18th and is worth 6 PM ON THE 18TH,
         // sixteen hours gone. Reading the fresh list would let it through, i.e. send at once.
@@ -59,7 +59,7 @@ class PresetMillisAtTapTest {
     }
 
     @Test fun `tomorrow morning drawn before midnight keeps the day the menu showed`() {
-        // ⛔ THE REGRESSION this test exists for. Absolute entries are NOT re-computed at the tap:
+        // THE REGRESSION this test exists for. Absolute entries are NOT re-computed at the tap:
         // drawn on the 18th at 11:50 PM, "Tomorrow, 8 AM" is the 19th at 8. Asking the rule again
         // at 00:05 on the 19th answers the 20th — the label says 8 AM and the message leaves 32
         // hours later. main scheduled the 19th; anything but the 19th here is a data-visible

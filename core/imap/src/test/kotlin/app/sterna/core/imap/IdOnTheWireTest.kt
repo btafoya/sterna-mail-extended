@@ -14,7 +14,7 @@ import org.junit.Test
  * shows a bare `ID NIL` accepted and the SELECT still refused: the server wants the client to
  * NAME itself.
  *
- * ⚠ Every assertion below is on the WHOLE command line, never `contains("ID (")`: a mutation that
+ * Every assertion below is on the WHOLE command line, never `contains("ID (")`: a mutation that
  * adds a field, drops the quoting or renames the client all LENGTHEN the line, and `contains`
  * would witness none of them. The expected strings are pinned literals — this file must not
  * recompute what the client is supposed to say.
@@ -90,7 +90,7 @@ class IdOnTheWireTest {
     }
 
     /**
-     * ⭐ The heart of the best-effort: a server that advertises ID and then answers NO to it must
+     * The heart of the best-effort: a server that advertises ID and then answers NO to it must
      * not cost the user their mailbox. The refusal is swallowed, the SELECT that follows works,
      * and the socket is not leaked (openSession has no `try/finally` to close it).
      */
@@ -123,7 +123,7 @@ class IdOnTheWireTest {
     }
 
     /**
-     * ⛔ A version string carrying CR/LF sends NOTHING. `quote` refuses the newline, the refusal
+     * A version string carrying CR/LF sends NOTHING. `quote` refuses the newline, the refusal
      * lands in the best-effort wrapper, and the session goes on unnamed — instead of shipping a
      * second, AUTHENTICATED command of somebody else's choosing on the back of the first.
      */
@@ -184,7 +184,7 @@ class IdOnTheWireTest {
      * `hasCapability`, which CACHE what they learn, so the next reader pays for its own round
      * trip, and that is how the coldness is visible from outside at all.
      *
-     * ⚠ This once protected mail: `ImapSession.move` read "the capability probe could not be
+     * This once protected mail: `ImapSession.move` read "the capability probe could not be
      * answered" as "the socket is gone, do not copy", so a cache filled at connect made that
      * question unfailable and a `UID MOVE` cut mid-command walked into the destructive copy
      * fallback. It no longer does — the fallback now requires a tagged NO/BAD from the server

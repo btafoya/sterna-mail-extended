@@ -151,7 +151,7 @@ class DraftVerdictWiringTest {
     }
 
     @Test fun `the reopened draft's id and a pessimistic verdict are armed together, before the coroutine`() {
-        // ⭐ THIS INVARIANT IS THE INVERSE OF THE ONE THIS TEST USED TO PIN, and the old race is why
+        // THIS INVARIANT IS THE INVERSE OF THE ONE THIS TEST USED TO PIN, and the old race is why
         // it existed: editingDraftId was once set BEFORE carryDraftAttachments, so sending while
         // the carry was still downloading went out without the attachments — verdict still false —
         // and destroyed the only copy (#63). The answer then was to lay the id LAST, after the
@@ -171,7 +171,7 @@ class DraftVerdictWiringTest {
         // it is not "the id is laid last", it is "the LICENCE TO DESTROY is laid last". The pair is
         // armed together on entry — id + `editingDraftLossy = true` — and the single line allowed
         // to lower that verdict is the LAST statement of the try, once the body has been read AND
-        // the attachment carry has answered. ⛔ Lowering it in two steps (compute into the field,
+        // the attachment carry has answered. Lowering it in two steps (compute into the field,
         // harden afterwards) puts the whole carry — which suspends per part, publishing nothing
         // until it ends — inside a window where the id is armed and the verdict is clean. That is
         // #63 restored, and it is what this rule now refuses. An id with a lossy verdict destroys
@@ -272,7 +272,7 @@ class DraftVerdictWiringTest {
     }
 
     /**
-     * ⭐ AND THE ANSWER THE WHOLE THING NOW RESTS ON. Since the verdict is lowered from
+     * AND THE ANSWER THE WHOLE THING NOW RESTS ON. Since the verdict is lowered from
      * `lossy || !carried`, everything #63 buys hangs off the one line `carryDraftAttachments`
      * returns: answer `true` unconditionally and a draft whose attachment failed to download comes
      * back looking complete, with a clean verdict, and the next save destroys the original that

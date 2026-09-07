@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ SOURCE LINT, same instrument and disclaimer as [ShowOnlySubscribedFoldersStoreWiringTest]: it
+ * SOURCE LINT, same instrument and disclaimer as [ShowOnlySubscribedFoldersStoreWiringTest]: it
  * reads `AccountStore.kt` — and, for the rename, `MailRepository.kt` — as text, and proves nothing
  * about a running store, which this module cannot build (a `Context` and the Keystore, no
  * Robolectric here); nor about a running repository, which wants Room and a socket.
@@ -14,7 +14,7 @@ import org.junit.Test
  * the wrong id, saves the list it was given instead of the mapped one, or answers the getter with a
  * constant. All three compile and keep every behavioural test green.
  *
- * ⛔ Whole trimmed lines, as a CONTIGUOUS block, never a `contains`: a `contains` is blind to
+ * Whole trimmed lines, as a CONTIGUOUS block, never a `contains`: a `contains` is blind to
  * anything APPENDED to a line, and a per-line check is blind to a statement slipped between two.
  * The block starts one line above the setter's signature, on `@Synchronized` — this is a
  * read-modify-write over the WHOLE account list, and an edit made from another thread (push
@@ -53,7 +53,7 @@ class CollapsedFoldersStoreWiringTest {
     }
 
     /**
-     * ⭐ The re-key after an IMAP rename, pinned like its twin. On IMAP the id IS the path, so a
+     * The re-key after an IMAP rename, pinned like its twin. On IMAP the id IS the path, so a
      * rename CHANGES it: without this the user's `false` stays under the old path, the renamed
      * folder reads as "nobody decided" and the drawer's default folds it on the spot.
      *
@@ -81,7 +81,7 @@ class CollapsedFoldersStoreWiringTest {
     }
 
     /**
-     * ⭐ The two re-keys, SIDE BY SIDE in `MailRepository.renameFolder`, with the same delimiter.
+     * The two re-keys, SIDE BY SIDE in `MailRepository.renameFolder`, with the same delimiter.
      *
      * Pinned together and not one at a time: they answer the same fact (an IMAP id is a path and
      * the rename changed it), they were written years apart (#16 then #185), and either one can be
@@ -104,7 +104,7 @@ class CollapsedFoldersStoreWiringTest {
     }
 
     /**
-     * ⭐ V5's one line of repository, and the only thing that can read it: nothing in this module
+     * V5's one line of repository, and the only thing that can read it: nothing in this module
      * builds a `MailRepository` (Room, a `Context`, a socket), and nothing in the app module can
      * either.
      *

@@ -13,7 +13,7 @@ import java.io.ByteArrayInputStream
  * [ImapParser], so what the decision is handed here is the token tree it is handed in production.
  * A test that built the tree by hand would be free to build one no server sends.
  *
- * ⛔ The rule under test is "the first text/… part", and the mutation it exists against is "the
+ * The rule under test is "the first text/… part", and the mutation it exists against is "the
  * first part": on a mail whose first part is a PDF or an inline image, that mutation puts base64 on
  * the lock screen, and on a `multipart/mixed` read at the top level it puts a `--boundary` line
  * there. Several cases below therefore lead with a NON-text part on purpose.
@@ -55,7 +55,7 @@ class FirstTextPartTest {
     // ---- a text part is not automatically the message -------------------------------------------
 
     /**
-     * ⛔ THE MUTATION CASE, and the one the app already answers elsewhere: `MimeParser.walk` calls a
+     * THE MUTATION CASE, and the one the app already answers elsewhere: `MimeParser.walk` calls a
      * part with a filename or an `attachment` disposition a FILE. Reading it here as the message
      * would put the contents of `notes.txt` in the notification, next to the sender who did not
      * write it there.
@@ -79,7 +79,7 @@ class FirstTextPartTest {
         assertNull(textPart(PLAIN_NAMED))
     }
 
-    /** ⛔ An invitation's payload is `BEGIN:VCALENDAR VERSION:2.0 PRODID:…`. It is text, and it is
+    /** An invitation's payload is `BEGIN:VCALENDAR VERSION:2.0 PRODID:…`. It is text, and it is
      *  not something to read on a lock screen. */
     @Test fun `a calendar invitation is not the message text`() {
         assertNull(textPart(CALENDAR))
@@ -118,7 +118,7 @@ class FirstTextPartTest {
         )
     }
 
-    /** ⛔ THE MUTATION CASE. "The first part" here is a PDF: its base64 is what would be shown. */
+    /** THE MUTATION CASE. "The first part" here is a PDF: its base64 is what would be shown. */
     @Test fun `a mail whose first part is an attachment still finds its text`() {
         assertEquals(
             ImapTextPart(section = "2", mime = "text/plain", encoding = "quoted-printable", charset = "iso-8859-1"),
@@ -126,7 +126,7 @@ class FirstTextPartTest {
         )
     }
 
-    /** ⛔ THE MUTATION CASE, one level down: the text of the commonest mail there is sits at 1.1,
+    /** THE MUTATION CASE, one level down: the text of the commonest mail there is sits at 1.1,
      *  and "the first part" of the message is a multipart — whose own first field is not a type. */
     @Test fun `the text of a nested alternative is found at its own section`() {
         assertEquals(
@@ -192,7 +192,7 @@ class FirstTextPartTest {
     // ---- the same decision, off a real socket ---------------------------------------------------
 
     /**
-     * ⭐ The wiring, end to end: the structure is asked for by every envelope fetch already, so the
+     * The wiring, end to end: the structure is asked for by every envelope fetch already, so the
      * part must arrive ON the message without a second command. Nothing else in [ImapMessage] moves
      * — the fields the lists and the cache read are asserted beside it, because "additive" is the
      * claim that made this safe to add.

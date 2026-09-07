@@ -15,7 +15,7 @@ import java.io.File
  * [draftLoadNoticeFor] in [DraftReopenViewTest] — but what feeds it, and whether the screen obeys
  * it, can only be read.
  *
- * ⛔ Every rule below compares a WHOLE trimmed line, or the whole list of matching lines. Never
+ * Every rule below compares a WHOLE trimmed line, or the whole list of matching lines. Never
  * `in` / `contains` on a fragment: a substring check is blind to any mutation that LENGTHENS the
  * line, which is how three defects got through in this repo.
  *
@@ -33,7 +33,7 @@ class DraftReopenWiringTest {
     // -- the ViewModel: when the flag goes up, and when it comes back down ----------------------
 
     /**
-     * ⭐ THE FLAG IS RAISED BEFORE THE COROUTINE, not on its first line. The composer's first frame
+     * THE FLAG IS RAISED BEFORE THE COROUTINE, not on its first line. The composer's first frame
      * is composed from this flow's value, and a `launch` body has not run by then: moved inside,
      * the editor is on screen — editable, with Save, Send and the padlock live — for the frames in
      * between, which is exactly the window a fast finger types into. That mutation is a one-line
@@ -54,7 +54,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * ⭐ EVERY WAY OUT LOWERS IT — hence a `finally` and not a line at the end of the `try`. The
+     * EVERY WAY OUT LOWERS IT — hence a `finally` and not a line at the end of the `try`. The
      * silent `return@launch` when there are no credentials leaves the try by neither the success
      * path nor the catch; without the `finally` that exit, and any throw from outside the try,
      * freezes the composer on a spinner for good: no fields, no actions, no sentence, no way back
@@ -70,7 +70,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * ⭐ BOTH WRITES TO THE FLAG, WHOLE LINES, AND ONLY THOSE TWO. Pinned as a list so a third
+     * BOTH WRITES TO THE FLAG, WHOLE LINES, AND ONLY THOSE TWO. Pinned as a list so a third
      * write — a well-meant `_draftLoading.value = false` slipped in before the attachment carry,
      * say — cannot be added without this failing.
      */
@@ -84,7 +84,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * ⭐ EVERY LINE OF THE FILE THAT NAMES THE FLAG, DECLARATION INCLUDED. The rule above reads the
+     * EVERY LINE OF THE FILE THAT NAMES THE FLAG, DECLARATION INCLUDED. The rule above reads the
      * draftId branch only, and both read a `startsWith`, so three neighbours of the same defect walk
      * straight through: `MutableStateFlow(true)` at the declaration (starts with `private val`),
      * `if (replyToId != null) _draftLoading.value = true` before the reply's `launch` (starts with
@@ -127,7 +127,7 @@ class DraftReopenWiringTest {
     // -- the ViewModel: the one place a reopened draft is prefilled from --------------------------
 
     /**
-     * ⭐ EVERY LINE OF THE BRANCH THAT NAMES THE PREFILL — ONE. [ComposeViewModelWiringTest] pins
+     * EVERY LINE OF THE BRANCH THAT NAMES THE PREFILL — ONE. [ComposeViewModelWiringTest] pins
      * this line with a `contains` assertion, and a `startsWith` filter only sees writes that open
      * the line. Neither sees the abandoned two-step design coming back ABOVE it, which is how it
      * would actually be written:
@@ -141,7 +141,7 @@ class DraftReopenWiringTest {
      *
      * The damage is the reported symptom, word for word, dressed up as an improvement: the cache
      * lands BEFORE the fetch, so `applied` latches on the cached fields and the editor is drawn and
-     * frozen on them — on data the server never confirmed, with the whole bar live over it. ⚠ The
+     * frozen on them — on data the server never confirmed, with the whole bar live over it. The
      * second half of that sentence used to read "Save is armed while `editingDraftId` is still null
      * — it is set last, after the attachment carry"; that is no longer true and has not been since
      * the id moved to the top of the branch, armed together with a pessimistic `editingDraftLossy`
@@ -165,7 +165,7 @@ class DraftReopenWiringTest {
     // -- the ViewModel: what a failure records ---------------------------------------------------
 
     /**
-     * ⭐ THE VERDICT IS THE APP'S ONE OFFLINE VERDICT, WITH ITS ARGUMENTS. The whole line, because
+     * THE VERDICT IS THE APP'S ONE OFFLINE VERDICT, WITH ITS ARGUMENTS. The whole line, because
      * every plausible mutation lengthens it or swaps an argument: `isOfflineFailure(t)` alone
      * cannot exist (it needs the link state), and hard-coding `offline = true` here would tell
      * someone with a working connection to come back online — the wording that sends nobody looking
@@ -186,7 +186,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * ⭐ AND EVERY LINE OF THE FILE THAT NAMES IT, DECLARATION INCLUDED — the symmetric rule to the
+     * AND EVERY LINE OF THE FILE THAT NAMES IT, DECLARATION INCLUDED — the symmetric rule to the
      * wait flag's. The rule above says those two writes are IN the branch, which this one cannot
      * say; this one says there is no third write anywhere, and that the flow is BORN null, which
      * that one cannot say. Both are needed, neither replaces the other.
@@ -223,7 +223,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * ⭐ ONE STRING, ONE MEANING. `compose_prefill_failed` says "the quoted original of a reply is
+     * ONE STRING, ONE MEANING. `compose_prefill_failed` says "the quoted original of a reply is
      * missing"; it was ALSO shown under an empty reopened draft, where it read as a footnote to a
      * composer that looked perfectly usable. It keeps its single meaning on the reply path, and has
      * no business on this one. Both halves are asserted: removing it from the reply path to make
@@ -247,7 +247,7 @@ class DraftReopenWiringTest {
     // -- the screen: where the decision comes from ------------------------------------------------
 
     /**
-     * ⭐ THE CALL SITE, WHOLE, WITH ITS THREE ARGUMENTS NAMED. Everything else in this class checks
+     * THE CALL SITE, WHOLE, WITH ITS THREE ARGUMENTS NAMED. Everything else in this class checks
      * what the screen does with `reopen`; nothing checked where `reopen` came from, and that hole
      * let a one-word mutation through the entire suite:
      *
@@ -275,7 +275,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * ⭐ AND THE TWO FLOWS IT READS, WHOLE LINES. `by … collectAsStateWithLifecycle()` is what makes
+     * AND THE TWO FLOWS IT READS, WHOLE LINES. `by … collectAsStateWithLifecycle()` is what makes
      * the screen RECOMPOSE when the fetch ends; `= viewModel.draftLoading.value` compiles, reads
      * true once and never changes again, freezing the composer on its spinner for good. A `contains`
      * on the flow's name would not see it, and neither would anything that runs.
@@ -296,7 +296,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * ⭐ THE FLAG IT READS IS THE SAVED ONE. `applied` is the whole point of the third argument: it
+     * THE FLAG IT READS IS THE SAVED ONE. `applied` is the whole point of the third argument: it
      * survives process death, so it is the only thing that still knows the text on screen belongs
      * to the reader after the ViewModel has been rebuilt and the fetch replayed. Re-declared as a
      * plain `remember`, or as anything but `rememberSaveable`, the third argument comes back
@@ -316,7 +316,7 @@ class DraftReopenWiringTest {
     // -- the screen: it obeys the decision -------------------------------------------------------
 
     /**
-     * ⭐ THE WHOLE ACTION BAR IS GATED, IN ONE PLACE. Not each button disabled on its own: Save,
+     * THE WHOLE ACTION BAR IS GATED, IN ONE PLACE. Not each button disabled on its own: Save,
      * Send, Schedule, Delete, the padlock, the paperclip and the overflow all act on fields that
      * hold nothing while the draft is being read, or that will never hold anything once it failed.
      * The first line inside `actions` is compared whole — a gate widened to
@@ -337,7 +337,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * ⭐ THREE SCREENS, AND THE EDITOR IS ONE OF THEM — it is not drawn behind a spinner, it is not
+     * THREE SCREENS, AND THE EDITOR IS ONE OF THEM — it is not drawn behind a spinner, it is not
      * drawn at all. Pinned as the whole list of branch lines, so both what each case draws and the
      * fact that there are exactly three survive a refactor. The Kotlin compiler already refuses a
      * non-exhaustive `when` over a sealed interface; what it cannot refuse is a branch that quietly
@@ -391,7 +391,7 @@ class DraftReopenWiringTest {
      * with a `when` over which store the id belongs to, and this is the arm that still goes to the
      * network — the one every rule in this class is about.
      *
-     * ⛔ The LOCAL arm is outside these rules, and NOT because it has nothing to wait for: it
+     * The LOCAL arm is outside these rules, and NOT because it has nothing to wait for: it
      * raises `_draftLoading` before its own coroutine and lowers it from its own `finally`, exactly
      * as this one does. A Room read is fast, not instantaneous, and `credentials()` plus the lease
      * take happen before a single field is filled — the window where an editor drawn anyway offers

@@ -19,12 +19,12 @@ import java.sql.DriverManager
  * [SupportSQLiteDatabase] proxy, from the PUBLISHED v15 schema chained up to a real v25 — never
  * from a copy of the statements, so this test cannot drift from the code that ships.
  *
- * ⭐ The column is `INTEGER NOT NULL DEFAULT 1`, and the `1` is the whole decision, not SQLite
+ * The column is `INTEGER NOT NULL DEFAULT 1`, and the `1` is the whole decision, not SQLite
  * paperwork: a row cached before this step has no idea whether its folder is subscribed, and the
  * unknown must never hide a folder. `DEFAULT 0` would take every folder of every existing install
  * out of the drawer at the first launch after the update, on no evidence at all.
  *
- * ⛔ And the step has to be REGISTERED, not merely written. `SternaDatabase` ends its builder with
+ * And the step has to be REGISTERED, not merely written. `SternaDatabase` ends its builder with
  * `fallbackToDestructiveMigration()`, so a v26 declared with no 25→26 path in
  * [SternaDatabase.ALL_MIGRATIONS] does not degrade anything: Room DROPS every table — `outbox`,
  * `scheduled_sends` and `local_drafts` included, i.e. mail the user wrote that never left the
@@ -134,7 +134,7 @@ class SubscribedFolderMigrationSqlTest {
                 "INSERT INTO `scheduled_sends` (`accountId`, `recipients`, `subject`, `textBody`, " +
                     "`sendAtMillis`) VALUES ('accA', 'bob@example.org', 'Later', 'body', 500)",
             )
-            // ⭐ The rows this step is about: folders cached by an install that never heard of
+            // The rows this step is about: folders cached by an install that never heard of
             // subscription. Two of them, so "the whole table reads back subscribed" can be said.
             st.executeUpdate("INSERT INTO `mailboxes` VALUES ('accA', 'mb1', 'Inbox', 'inbox', NULL, 0, 2, 1)")
             st.executeUpdate("INSERT INTO `mailboxes` VALUES ('accA', 'mb2', 'Projekte', NULL, NULL, 6001, 4, 0)")
@@ -297,7 +297,7 @@ class SubscribedFolderMigrationSqlTest {
     // --- (b) what a row cached BEFORE the step reads back ------------------------------------------
 
     /**
-     * ⭐ The decision this migration carries. A folder cached before v26 was cached by a build that
+     * The decision this migration carries. A folder cached before v26 was cached by a build that
      * never asked the server about subscription: what it reads back is not "unsubscribed", it is
      * "unknown" — and the unknown never hides anything. `DEFAULT 0` would empty the drawer of every
      * install on the first launch after the update, on no evidence at all.
@@ -397,7 +397,7 @@ class SubscribedFolderMigrationSqlTest {
     }
 
     /**
-     * ⚠ Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
+     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
      * annotation is not retained at runtime, so it cannot be read reflectively.
      */
     @Test fun theRegisteredMigrationsReachTheDeclaredSchemaVersion() {

@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⭐ Defect: Settings → Appearance → App language lists ten entries (system default + nine
+ * Defect: Settings → Appearance → App language lists ten entries (system default + nine
  * locales), and the bottom ones are not clipped at paint time, they are MEASURED SHORT — so their
  * pointer area has zero height (the tap does nothing), the `RadioButton` still shows (its drawing
  * spills past its bounds) and the label is gone (a `Text` clips its own drawing to the size it was

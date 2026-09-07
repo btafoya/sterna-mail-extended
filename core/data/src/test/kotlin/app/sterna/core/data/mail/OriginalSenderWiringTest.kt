@@ -27,7 +27,7 @@ class OriginalSenderWiringTest {
     // --- 1. executed: what may be written to the body cache -------------------------------------
 
     /**
-     * ⛔ The row that costs the feature: a JMAP read that FAILED must not be cached. `openMessage`
+     * The row that costs the feature: a JMAP read that FAILED must not be cached. `openMessage`
      * serves the cache before any network call, so a body written with a null nobody measured says
      * "no origin" for the life of the install.
      */
@@ -41,7 +41,7 @@ class OriginalSenderWiringTest {
     }
 
     /**
-     * ⭐ IMAP caches either way: there the header came off the message source already in hand, so
+     * IMAP caches either way: there the header came off the message source already in hand, so
      * there is no separate read to fail. Making IMAP depend on a flag that path never sets would
      * stop it caching bodies altogether.
      */
@@ -73,7 +73,7 @@ class OriginalSenderWiringTest {
     }
 
     /**
-     * ⛔ And `openEmail` must NOT read it. Three callers reach it (`openMessage`, `rawHeaders`,
+     * And `openEmail` must NOT read it. Three callers reach it (`openMessage`, `rawHeaders`,
      * `decryptMessage`) and only the first shows this line, so a read there costs a round trip to
      * two paths that throw it away — one of them before an OpenPGP decrypt. It also puts the
      * failure out of reach of the site that decides to cache.
@@ -116,7 +116,7 @@ class OriginalSenderWiringTest {
     }
 
     /**
-     * The prefetch: ONE grouped read for the window, and ⛔ nothing persisted at all when it fails.
+     * The prefetch: ONE grouped read for the window, and nothing persisted at all when it fails.
      * Persisting twenty bodies with a null nobody measured would cost the line on precisely the
      * twenty messages the reporter will try the update on.
      */

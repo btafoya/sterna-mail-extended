@@ -20,13 +20,13 @@ import java.io.File
  * moves your own reply out of Sent into the Inbox. Same shape as the `showRecipientsFor` /
  * `showDraftBadgeFor` pair beside it, which are per-child for exactly this reason.
  *
- * ⛔ WHOLE LINES, compared as a whole list. A `contains` on a fragment is blind to every mutation
+ * WHOLE LINES, compared as a whole list. A `contains` on a fragment is blind to every mutation
  * that LENGTHENS the line, which has bitten this repo three times, and here it is not theoretical:
  * `rowFolderRole(child, …)` contains `rowFolderRole(`, and `rowRole` is a substring of nothing
  * useful. The price is that a reformat reddens this file. That direction of error is loud and one
  * line to fix; the other direction is a fix that silently comes undone.
  *
- * ⛔ It covers the CALL SITES only. The predicates' own bodies and `rowFolderRole`'s are behaviour,
+ * It covers the CALL SITES only. The predicates' own bodies and `rowFolderRole`'s are behaviour,
  * and belong to the tests that run them.
  */
 class RowFolderRoleWiringLintTest {

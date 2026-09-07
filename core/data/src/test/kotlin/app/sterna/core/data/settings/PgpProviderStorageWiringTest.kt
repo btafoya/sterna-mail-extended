@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ WHAT THIS FILE IS WORTH. It proves the SHAPE of the two members that store the chosen OpenPGP
+ * WHAT THIS FILE IS WORTH. It proves the SHAPE of the two members that store the chosen OpenPGP
  * app, by reading the shipped source and comparing whole trimmed lines. It is not a behaviour test:
  * `SettingsRepository` needs a `Context` and a real DataStore, and there is no Robolectric here.
  * The decisions taken ON that stored value are executed elsewhere (`PgpProviders.resolve` and
@@ -15,7 +15,7 @@ import org.junit.Test
  * resolver then only ever sees "no choice expressed", so the picker becomes decorative and #151 is
  * not fixed. Nothing reads this flow's VALUE anywhere a JVM test can reach.
  *
- * ⛔ Whole lines, as CONTIGUOUS blocks, never `contains`: a fragment check is blind to anything
+ * Whole lines, as CONTIGUOUS blocks, never `contains`: a fragment check is blind to anything
  * appended to a line (bitten twice on 2026-08-04).
  */
 class PgpProviderStorageWiringTest {

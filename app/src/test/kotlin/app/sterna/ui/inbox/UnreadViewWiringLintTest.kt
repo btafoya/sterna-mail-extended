@@ -31,12 +31,12 @@ import java.io.File
  *  - the search hint left on its two arms, promising a search of the Inbox over a search of the
  *    whole account.
  *
- * ⛔ Every rule compares a WHOLE unit — the whole argument, the whole condition, the whole line.
+ * Every rule compares a WHOLE unit — the whole argument, the whole condition, the whole line.
  * A `contains` on a fragment is blind to any mutation that LENGTHENS it: `selected = ui.unreadView`
  * is contained in `selected = ui.unreadView && false`. The price is that a reformat reddens this
  * file; that direction of error is loud and one line to fix.
  *
- * ⭐ ONE rule is not a comparison of whole units, and cannot be: `the ViewModel declares no
+ * ONE rule is not a comparison of whole units, and cannot be: `the ViewModel declares no
  * isAtInbox of its own` proves an ABSENCE, so it searches for a pattern and expects nothing back.
  * There is no line to compare when the point is that no such line may exist.
  */
@@ -86,7 +86,7 @@ class UnreadViewWiringLintTest {
     }
 
     /**
-     * ⭐ The one difference from the unified entry, and the reason this rule exists: the unread view
+     * The one difference from the unified entry, and the reason this rule exists: the unread view
      * is a view of ONE account, so it has a meaning on an install that has only one. Written inside
      * the `accounts.size > 1` guard it would be dead for exactly the readers it was built for.
      */
@@ -135,7 +135,7 @@ class UnreadViewWiringLintTest {
     // -- the state the screen reads ---------------------------------------------------------------
 
     /**
-     * ⚠ The regex is `\bunreadView(Count)?\b`, and the parenthesis is not decoration: `\bunreadView\b`
+     * The regex is `\bunreadView(Count)?\b`, and the parenthesis is not decoration: `\bunreadView\b`
      * does NOT match `unreadViewCount` (there is no word boundary between "w" and "C"), so a rule
      * written that way leaves every line that carries the NUMBER unguarded — `= base.unread` in
      * place of `= base.unreadViewCount` is two `Int`s, compiles, and puts the current folder's count
@@ -158,7 +158,7 @@ class UnreadViewWiringLintTest {
     }
 
     /**
-     * ⛔ SOURCE LINT, and the rule the one above cannot be: it pins WHERE THE VALUES COME FROM.
+     * SOURCE LINT, and the rule the one above cannot be: it pins WHERE THE VALUES COME FROM.
      *
      * Three mutations live here, all of them type-correct and all of them silent:
      *  - `combine(baseState, unifiedInboxScopes, currentAccountId)` — same type, and the entry then
@@ -192,7 +192,7 @@ class UnreadViewWiringLintTest {
     }
 
     /**
-     * ⛔ Not this volet's feature, but this volet's accident. `atInbox` drives the system Back
+     * Not this volet's feature, but this volet's accident. `atInbox` drives the system Back
      * gesture: true means "this IS the inbox", and Back then LEAVES THE APP.
      *
      * Written as `(sel as? Sel.Folder)?.id == store.inboxMailboxId()`, the unread view answers
@@ -222,7 +222,7 @@ class UnreadViewWiringLintTest {
     }
 
     /**
-     * ⛔ The delegation above is only worth what the NAME resolves to. Kotlin resolves a member
+     * The delegation above is only worth what the NAME resolves to. Kotlin resolves a member
      * before a top-level function of the same package, so a `private fun isAtInbox(sel: Sel,
      * inboxMailboxId: String?)` declared anywhere inside `InboxViewModel` captures both call sites
      * in silence: the rule above still reads exactly the two lines it expects, `AtInboxTest` still
@@ -249,7 +249,7 @@ class UnreadViewWiringLintTest {
     }
 
     /**
-     * ⛔ The last link, and the only one: `InboxScreen.kt` is where `atInbox` is READ. Everything
+     * The last link, and the only one: `InboxScreen.kt` is where `atInbox` is READ. Everything
      * above proves the flag is computed by the one rule; nothing above notices if the screen stops
      * asking that rule the right question, or stops acting on its answer.
      *

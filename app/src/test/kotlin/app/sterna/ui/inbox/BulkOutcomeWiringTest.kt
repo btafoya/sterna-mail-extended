@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST — same disclaimer as [ConversationScopeWiringTest]: it reads
+ * SOURCE LINT, NOT A BEHAVIOUR TEST — same disclaimer as [ConversationScopeWiringTest]: it reads
  * a file as text and proves nothing about what runs. `InboxViewModel` is an `AndroidViewModel` and
  * this module has neither Robolectric nor instrumented tests, so the decision itself is executed by
  * [BulkOutcomeTest] and only its PLUG is checked here.
@@ -60,7 +60,7 @@ class BulkOutcomeWiringTest {
     }
 
     /**
-     * ⭐ WHOLE BRANCHES, not the first `R.string` each names. The total-failure branch no longer
+     * WHOLE BRANCHES, not the first `R.string` each names. The total-failure branch no longer
      * reaches for one sentence: it asks the shared decision when a batch let a throwable escape,
      * and falls back to the generic sentence when none did (a server refusal, an over-quota, a
      * numbering the server would not confirm — none of them a transport failure). A rule reading

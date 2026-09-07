@@ -21,19 +21,19 @@ import java.sql.DriverManager
  * the schema it just migrated to, and the user's way out is a reinstall — which takes the outbox
  * with it.
  *
- * ⚠ Half of this test reads SOURCE TEXT, which is a last resort, and the reason is the same one
+ * Half of this test reads SOURCE TEXT, which is a last resort, and the reason is the same one
  * [SCHEMA_VERSION] is a named constant: `@Entity` is not retained at runtime (`AnnotationRetention`
  * is CLASS for Room's annotations), so what the entity declares cannot be read reflectively in a
  * JVM test, and `EmailEntity` cannot be handed to a real Room without a device. The other half
  * EXECUTES the shipped migration and reads the index back out of SQLite, so the agreement is
  * measured on one real artefact and one pinned line rather than on two pinned lines.
  *
- * ⛔ And it reads that index back through `PRAGMA index_xinfo` / `PRAGMA index_list`, the two
+ * And it reads that index back through `PRAGMA index_xinfo` / `PRAGMA index_list`, the two
  * pragmas Room itself uses — never `PRAGMA index_info`, which gives the column names and hides the
  * direction, the uniqueness and the collation. Those three are the ways the two sources can drift
  * apart while every name-level assertion stays green.
  *
- * ⛔ The source half pins the WHOLE `indices = …` line by equality, never `contains`: a `contains`
+ * The source half pins the WHOLE `indices = …` line by equality, never `contains`: a `contains`
  * is satisfied by every mutation that makes the line LONGER — adding a third index, widening the
  * composite one — and that exact blind spot has been found three times in this repository.
  *
@@ -71,7 +71,7 @@ class EmailIndexEntityAndMigrationAgreeTest {
     // --- (a) the entity's declaration, pinned whole -------------------------------------------------
 
     /**
-     * ⭐ Equality on the whole line. It fails if the composite index disappears (the defect this
+     * Equality on the whole line. It fails if the composite index disappears (the defect this
      * branch fixes comes straight back), and it fails just as loudly if something is ADDED — a
      * fourth column, a third index, a `unique = true` — because every one of those is a schema
      * change that needs its own migration step, and Room will refuse to open an updated install
@@ -191,7 +191,7 @@ class EmailIndexEntityAndMigrationAgreeTest {
      * The full SHAPE of [index]: `unique=<0|1> partial=<0|1>` then its key columns in index order,
      * each with direction and collation.
      *
-     * ⛔ `PRAGMA index_xinfo` and `PRAGMA index_list`, never `PRAGMA index_info` — the latter
+     * `PRAGMA index_xinfo` and `PRAGMA index_list`, never `PRAGMA index_info` — the latter
      * returns column names and nothing else, and direction / uniqueness / collation are precisely
      * the three ways the migration can build something the entity does not declare while every
      * name-level assertion stays green. These are the two pragmas Room itself reads.

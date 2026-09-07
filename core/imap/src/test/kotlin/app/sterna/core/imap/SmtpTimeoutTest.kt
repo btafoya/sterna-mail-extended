@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicReference
  * to edit. What is asserted here is that `send()` COMES BACK, and that the one read which is
  * legitimately slow (the 250 that answers the body) still does not.
  *
- * ⚠ The wait bounds below are far under the shipped defaults (20 s connect / 30 s command), so a
+ * The wait bounds below are far under the shipped defaults (20 s connect / 30 s command), so a
  * client that ignored the arguments and used its defaults would fail these just as an unbounded one
  * does: what is pinned is the value that was PASSED, not merely that some timeout exists.
  */
@@ -37,7 +37,7 @@ class SmtpTimeoutTest {
     private val waitMs = 5_000L
 
     /**
-     * ⚠ Short bound on the COMMANDS only; the connect keeps its shipped default and is never passed.
+     * Short bound on the COMMANDS only; the connect keeps its shipped default and is never passed.
      * That is what tells the two apart: on loopback the connect is instantaneous, so a `send()` that
      * bounded its command reads with `connectTimeoutMs` would read at 20 s and blow [waitMs] — where
      * passing a short connect timeout too would have let that confusion pass unseen.
@@ -107,7 +107,7 @@ class SmtpTimeoutTest {
     }
 
     /**
-     * B-J8 ⭐ — the acknowledgement of the BODY takes far longer than the command timeout, and the
+     * B-J8 — the acknowledgement of the BODY takes far longer than the command timeout, and the
      * send must succeed anyway.
      *
      * This is the witness that the two regimes exist. The server behind that read queues, signs
@@ -189,7 +189,7 @@ class SmtpTimeoutTest {
 }
 
 /**
- * ⚠ SOURCE LINT, and it is a lint and not a measurement: `FakeSmtpServer` speaks no TLS, so
+ * SOURCE LINT, and it is a lint and not a measurement: `FakeSmtpServer` speaks no TLS, so
  * neither the implicit-TLS handshake nor the STARTTLS upgrade is reachable by a behaviour test.
  * `startHandshake()` reads from the socket, so it hangs on a mute server exactly as a command read
  * does — and a bound armed AFTER it would not cover it. Only the order of two lines states that.
@@ -221,7 +221,7 @@ class SmtpTimeoutLintTest {
         // core/jmap JmapClient.defaultHttpClient(): connectTimeout(20, SECONDS) / readTimeout(30, SECONDS).
         assertEquals(20_000, SMTP_CONNECT_TIMEOUT_MS)
         assertEquals(30_000, SMTP_COMMAND_TIMEOUT_MS)
-        // ⛔ 0 is the socket's own default and means "no deadline of ours".
+        // 0 is the socket's own default and means "no deadline of ours".
         assertEquals(0, SMTP_BLOCKING_READ)
         assertEquals(
             "send() no longer takes its two bounds as parameters defaulting to the shipped values:\n" +
@@ -240,7 +240,7 @@ class SmtpTimeoutLintTest {
 
     @Test
     fun `the connect is the form that takes a deadline, and it is given one`() {
-        // ⛔ `Socket(host, port)` connects in its constructor, with no timeout at all: minutes at
+        // `Socket(host, port)` connects in its constructor, with no timeout at all: minutes at
         // the OS's discretion. The two-step form is the only one that can be bounded.
         assertEquals(
             "the connect no longer passes the connect timeout:\n" + body.joinToString("\n"),
@@ -253,7 +253,7 @@ class SmtpTimeoutLintTest {
     /**
      * The hostname check, on both TLS sockets.
      *
-     * ⛔ This volet is what put `.verifyingHostname()` on a line of its own (it used to be welded to
+     * This volet is what put `.verifyingHostname()` on a line of its own (it used to be welded to
      * `…​.apply { startHandshake() }`), so it is now a one-line deletion, between two lines this
      * class pins — which would make the area LOOK covered. Nothing else in the repo names it. Drop
      * it and any certificate from any CA is accepted for any host: the submission can be
@@ -304,7 +304,7 @@ class SmtpTimeoutLintTest {
     }
 
     /**
-     * ⭐ Every read bound `send()` sets, in order, whole line — what is armed AND what is disarmed.
+     * Every read bound `send()` sets, in order, whole line — what is armed AND what is disarmed.
      *
      * "A disarm exists" is not the claim: the claim is WHICH sockets it puts back to blocking. Two
      * were armed (the plain one at the connect, the TLS one layered over it), so two are disarmed.
@@ -312,7 +312,7 @@ class SmtpTimeoutLintTest {
      * it wraps; where that does not hold, the 250 that answers the body stays bounded at 30 s over
      * TLS and a slow-but-successful send is cut, retried, and delivered twice.
      *
-     * ⚠ A lint, not a measurement: `FakeSmtpServer` speaks no TLS, so no test here can watch a
+     * A lint, not a measurement: `FakeSmtpServer` speaks no TLS, so no test here can watch a
      * submission survive a slow acknowledgement over TLS.
      */
     @Test
@@ -328,7 +328,7 @@ class SmtpTimeoutLintTest {
             ),
             body.filter { "soTimeout" in it },
         )
-        // ⚠ The line moved from `expect("250", "message body")` to a dedicated reader, because a
+        // The line moved from `expect("250", "message body")` to a dedicated reader, because a
         // reply CUT after its first line is an accepted message here (SmtpCutConnectionTest J2).
         // The claim below is unchanged: whatever reads the body's acknowledgement, there is one of
         // it and it comes straight after the two statements that unbound the socket.

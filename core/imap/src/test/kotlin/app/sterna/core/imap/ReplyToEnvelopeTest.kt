@@ -72,7 +72,7 @@ class ReplyToEnvelopeTest {
     }
 
     /**
-     * ⭐ THE SLOT, not merely "an address". `cc` is the very next envelope field and carries an
+     * THE SLOT, not merely "an address". `cc` is the very next envelope field and carries an
      * address that has not asked for anything: a reply sent there goes to a bystander while the
      * one the sender designated gets nothing. This test is what an off-by-one dies on.
      */
@@ -97,7 +97,7 @@ class ReplyToEnvelopeTest {
     /**
      * No `Reply-To` at all — the common case, and the pre-existing behaviour: an empty list.
      *
-     * ⭐ The envelope still carries a `sender` (slot 3) here, and that is the point: a fallback to
+     * The envelope still carries a `sender` (slot 3) here, and that is the point: a fallback to
      * it, the plausible "robustness" a later fix adds in good faith, would send every answer to a
      * mailing list's bounce address — an automated mailbox, i.e. the original symptom turned round.
      */

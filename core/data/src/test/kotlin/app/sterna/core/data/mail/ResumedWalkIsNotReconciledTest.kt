@@ -9,7 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⭐ A full re-query whose walk had to RESTART ON A POSITION must delete nothing.
+ * A full re-query whose walk had to RESTART ON A POSITION must delete nothing.
  *
  * The defect, executed. The JMAP walk pages by anchor; when the anchor leaves the folder mid-walk
  * the server answers `anchorNotFound` and the walk restarts once at an absolute index, one row
@@ -20,7 +20,7 @@ import org.junit.Test
  * `JmapClientTest.queryEmailsWindow_skipsMessagesWhenTheAnchorLeavesWithABurst` plays that out
  * against a real server.
  *
- * ⛔ What turns a gap into a LOSS is what happens next, and it is all here. Those k ids are missing
+ * What turns a gap into a LOSS is what happens next, and it is all here. Those k ids are missing
  * from `WindowWalk.ids`, therefore missing from the keep set, therefore — since they were cached
  * BEFORE the walk, so the #165 bound does not protect them — evicted by the reconcile. The sync
  * cursor is stored immediately afterwards, the deltas resume, and a delta never re-sends a message
@@ -28,12 +28,12 @@ import org.junit.Test
  * "Clear this account's cache".
  *
  * The fix is the one IMAP already carries for a renumbered folder (`ImapFolderWalk.moved` →
- * `reconcilableIds` → null): the walk SAYS it resumed by position, and the keep rule refuses. ⛔ It
+ * `reconcilableIds` → null): the walk SAYS it resumed by position, and the keep rule refuses. It
  * does not recover the skipped messages and is not meant to — replaying a walk against a list that
  * is moving has no stopping rule. It refuses the delete, and the next full query re-lists the
  * folder from the top.
  *
- * ⚠ What the refusal costs is stated by `a walk that did NOT resume still caps the cache`: on that
+ * What the refusal costs is stated by `a walk that did NOT resume still caps the cache`: on that
  * pass the folder is allowed to hold more than the window, including rows the server no longer has.
  * That is the survivable direction, and it is the same posture `FullQuerySync` already takes for an
  * interrupted walk.
@@ -115,10 +115,10 @@ class ResumedWalkIsNotReconciledTest {
     // one row the server really has destroyed since.
     private fun folderBeforeTheWalk() = Folder(cached = listOf("e501", "e502", "destroyed-on-server"))
 
-    // -- ⭐ the volet ------------------------------------------------------------------------------
+    // -- the volet ------------------------------------------------------------------------------
 
     @Test fun `a walk that resumed on a position deletes nothing at all`() {
-        // ⭐ THE test of this volet. e501 and e502 were cached before the walk and are named by no
+        // THE test of this volet. e501 and e502 were cached before the walk and are named by no
         // page of it, so the reconcile is entitled to delete them — the #165 bound protects rows
         // that arrived DURING the walk, and these did not. They are on the server. Deleting them
         // here is permanent: `putSyncState` runs on the next lines.
@@ -140,7 +140,7 @@ class ResumedWalkIsNotReconciledTest {
         )
         assertTrue("e501 was deleted although the server still holds it", "e501" in folder.cache)
         assertTrue("e502 was deleted although the server still holds it", "e502" in folder.cache)
-        // ⚠ The cost, stated: this pass also keeps a row the server destroyed. The next full query
+        // The cost, stated: this pass also keeps a row the server destroyed. The next full query
         // re-lists the folder and removes it; nothing loses a message in the meantime.
         assertTrue(
             "the refusal is expected to spare the stale row too — that is what it costs",
@@ -150,7 +150,7 @@ class ResumedWalkIsNotReconciledTest {
     }
 
     @Test fun `a walk that did NOT resume still caps the cache — the witness`() {
-        // ⛔ The witness for the test above. The same fixture, the same pages, the same rows named
+        // The witness for the test above. The same fixture, the same pages, the same rows named
         // by nothing — with the resume withheld, the reconcile runs and clears them. Without this,
         // "nothing was deleted" could be got by switching the reconcile off altogether, and the
         // full query would stop being the only thing that ever caps this folder.
@@ -206,7 +206,7 @@ class ResumedWalkIsNotReconciledTest {
         }
 
         // …and the tokens themselves, in grid order, so a rename or a re-ordered `when` shows up
-        // as a failure here instead of as a silent change in what the bench reads back. ⛔ The
+        // as a failure here instead of as a silent change in what the bench reads back. The
         // last four say that the resume is tested FIRST: a walk that resumed answers `skip/resumed`
         // even when it listed ids, which is the only case where the loss can happen at all.
         assertEquals(
@@ -223,7 +223,7 @@ class ResumedWalkIsNotReconciledTest {
     // -- the plug, which no JVM test can execute ---------------------------------------------------
 
     @Test fun `the full query prints the token it decided with`() {
-        // ⚠ SOURCE LINT, and a whole line: `MailRepository` needs Room, a Context and a live
+        // SOURCE LINT, and a whole line: `MailRepository` needs Room, a Context and a live
         // session, so the one thing a JVM test cannot do is watch this line run. The decision above
         // is executed; what is read here is that the log line calls THIS function with THE walk —
         // a token computed from anything else would be a second decision.

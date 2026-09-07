@@ -20,7 +20,7 @@ import java.io.File
  * `Sending…` / `Vaciando…` / `Отправка…` already do elsewhere in these files. It deliberately does
  * NOT pin the 27 sentences: that would prove only itself and would freeze every translation fix.
  *
- * ⛔ WHAT IT DOES NOT PROVE, and that is written debt, not covered ground:
+ * WHAT IT DOES NOT PROVE, and that is written debt, not covered ground:
  * - that a value is GRAMMATICALLY the present. "Papierkorb geleert…" carries the mark and lies
  *   exactly as before; only a reader of that language can see it. The forbidden list below catches
  *   the 27 sentences we shipped, and nothing else.
@@ -86,9 +86,9 @@ class PendingDeletionLabelTest {
     }
 
     /**
-     * ⛔ THE #99 GUARD: a second tap has to repost the SAME text.
+     * THE #99 GUARD: a second tap has to repost the SAME text.
      *
-     * `InboxViewModel.confirmEmptyTrash` refuses to re-schedule a purge already pending, and what
+     * The empty-trash path refuses to re-schedule a purge already pending, and what
      * keeps the screen showing ONE snackbar rather than two stacked ones is that the label is
      * byte-identical — the flow conflates the repost with the one already up. Give either label a
      * counter or a folder name and the second tap posts a DIFFERENT string: a second snackbar,
@@ -182,7 +182,7 @@ class PendingDeletionLabelTest {
          * A Java format specifier, wider than the parity test's `%s`/`%d`: anything that would make
          * a repost differ from the label already on the screen counts, `%.1f` and `%,d` included.
          *
-         * ⚠ The SPACE flag (`% d`) is deliberately left out of the flag class, and that is a
+         * The SPACE flag (`% d`) is deliberately left out of the flag class, and that is a
          * trade, not an oversight: a class holding a space matches the `%` of a percentage written
          * with the typographic space French and Russian put before it — `à 100 % en cours…` — and
          * would redden this rule on a reword that carries no argument at all. A label formatting a
@@ -191,13 +191,13 @@ class PendingDeletionLabelTest {
          */
         val FORMAT = Regex("%(?:\\d+\\$)?[-#+0,(]*\\d*(?:\\.\\d+)?[a-zA-Z]")
 
-        /** U+2026, the single character. ⚠ Three full stops are NOT this and must not be. */
+        /** U+2026, the single character. Three full stops are NOT this and must not be. */
         const val ELLIPSIS = "…"
 
         /** A permanent destroy, held behind the Undo window (`heldBackDestroy`). */
         const val DESTROY = "status_message_deleted_forever"
 
-        /** Empty trash, held the same way (`confirmEmptyTrash`). */
+        /** Empty trash, held the same way. */
         const val EMPTY = "status_trash_emptied"
 
         /** A folder delete, hidden locally now and deleted on the server by `FolderDeleteWorker`. */

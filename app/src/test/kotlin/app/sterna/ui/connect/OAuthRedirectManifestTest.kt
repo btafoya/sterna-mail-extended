@@ -18,7 +18,7 @@ import java.io.File
  * — on her real mail. The URI the code builds is covered by execution, in [OAuthRedirectTest]
  * (`oauthRedirectUri`); this is the other half, the registration.
  *
- * ⚠ Whole trimmed lines, anchored: a `contains` on `${applicationId}` would stay green if a second
+ * Whole trimmed lines, anchored: a `contains` on `${applicationId}` would stay green if a second
  * `<data>` element added a literal scheme next to it. The forbidden-token rule is the one place a
  * substring search is sound.
  */

@@ -13,7 +13,7 @@ import org.junit.Test
  * the pure functions cannot see is what these two FEED them and what they do with the answer, so
  * that is what is pinned: whole contiguous lines, arguments included.
  *
- * ⛔ Whole lines as a block, never `contains`: a `contains` check is blind to anything appended to
+ * Whole lines as a block, never `contains`: a `contains` check is blind to anything appended to
  * a line, and a per-line check is blind to a statement slipped between two.
  *
  * WHAT IT DOES NOT COVER: that either method is ever reached at runtime, that the provider answers,

@@ -16,14 +16,14 @@ import org.junit.Test
  * server-side list was never re-read, and the new address stayed invisible in Settings and unusable
  * in the composer until the next cold start — the restart the reporter had to do by hand.
  *
- * ⚠ HALF SOURCE LINT, and the disclaimer is the point. `MailRepository` cannot be built in a JVM
+ * HALF SOURCE LINT, and the disclaimer is the point. `MailRepository` cannot be built in a JVM
  * test: it takes eleven Room DAOs plus an `AccountStore(context: Context)`, which wants a device
  * and the Keystore, and there is no Robolectric in this module. So the MockWebServer test that
  * would post an `Identity/set` and watch a second `Identity/get` come back is out of reach here,
  * and what CAN be executed was extracted to be executed: [storedServerIdentities] is the payload
  * that lands in `StoredAccount.serverIdentities`, and it is run below on real arguments.
  *
- * ⛔ The wiring around it is read as WHOLE trimmed lines, as contiguous blocks, never a `contains`:
+ * The wiring around it is read as WHOLE trimmed lines, as contiguous blocks, never a `contains`:
  * a `contains` is satisfied by every mutation that makes a line longer, and one such mutation
  * already walked past the first version of a `MailRepository` lint.
  */

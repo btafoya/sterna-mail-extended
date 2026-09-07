@@ -12,7 +12,7 @@ import java.sql.DriverManager
  * permanent delete freezes with the user's confirmation and opposes to the server minutes later
  * (Codeberg #99).
  *
- * ⛔ Why this file exists at all: every other test of that read hands the numbering over as a map
+ * Why this file exists at all: every other test of that read hands the numbering over as a map
  * built in Kotlin, so the SQL itself was executed by NOTHING. Room generates the implementation, so
  * nobody reads it either. A statement that answered the folder's LATEST numbering instead of each
  * row's own — one correlated sub-select, and it still compiles, still returns both columns of
@@ -49,7 +49,7 @@ class NumberingOfRowsSqlTest {
     @After fun tearDown() = db.close()
 
     /**
-     * ⭐ THE ONE THAT MATTERS. One folder, two numberings — the state a folder is left in when a
+     * THE ONE THAT MATTERS. One folder, two numberings — the state a folder is left in when a
      * background pass finds it renumbered and writes the new page beside the old rows. Each row
      * must answer ITS OWN number: answer them both the folder's latest and the older ids go out
      * under a numbering they do not belong to, which is the accident.

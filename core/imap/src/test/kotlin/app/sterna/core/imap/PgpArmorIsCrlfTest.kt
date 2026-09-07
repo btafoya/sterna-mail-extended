@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⭐ **A PGP armor arrives with bare LFs, and nothing downstream fixes them.**
+ * **A PGP armor arrives with bare LFs, and nothing downstream fixes them.**
  *
  * The armored bytes are not built here: they come from the OpenPGP provider (OpenKeychain /
  * BouncyCastle `ArmoredOutputStream`), which separates its lines with bare `\n`. [PgpMime]
@@ -58,7 +58,7 @@ class PgpArmorIsCrlfTest {
 
     @Test
     fun `a signed entity crosses the delivery seam with its signed bytes intact`() {
-        // ⭐ The property the whole change puts at risk, and the only test that exercises it end to
+        // The property the whole change puts at risk, and the only test that exercises it end to
         // end: canonicalising AT THE SEAM must not disturb the octets the signature covers.
         // A long body on purpose — the base64 is folded, so the signed payload is many lines and
         // there are separators to get wrong.
@@ -80,7 +80,7 @@ class PgpArmorIsCrlfTest {
 
     @Test
     fun `a bare CR inside signed bytes crosses the seam untouched`() {
-        // ⛔ The one thing canonicalisation must NOT tidy up. An entity signed before dee4a346
+        // The one thing canonicalisation must NOT tidy up. An entity signed before dee4a346
         // and still sitting in the outbox contains "\r\r\n" INSIDE the octets the signature was
         // computed over. Straightening it on the way out changes the signed bytes, and the
         // recipient's client reads "invalid signature" — a wrong message delivered, where a bare
@@ -119,7 +119,7 @@ class PgpArmorIsCrlfTest {
  * The lines of a provider armor, as literals — the ONE description of the fixture, from which both
  * the bare-LF input and the expected CRLF output are joined.
  *
- * ⛔ Two joins of this list, never a transformation of one into the other: an expected value
+ * Two joins of this list, never a transformation of one into the other: an expected value
  * derived from the input by a `replace` would be a second copy of [PgpMime.canonicalize], and any
  * mutation of the real one would be reproduced by the test instead of caught by it.
  *

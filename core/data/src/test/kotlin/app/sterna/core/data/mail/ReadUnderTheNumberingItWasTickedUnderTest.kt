@@ -17,7 +17,7 @@ import org.junit.Test
  * The READ half of the numbering guard, RUN against a real [ImapMailService] on a scripted socket
  * — the twin of [MoveNeedsTheNumberingStatedNowTest], which does the same for the move (#99, #189).
  *
- * ⭐ THE SITUATION IT REPRODUCES, and it is the whole point of the volet. The folder is renumbered
+ * THE SITUATION IT REPRODUCES, and it is the whole point of the volet. The folder is renumbered
  * while the "move to another account" loop is running. The FIRST iteration meets the renumbering,
  * `onMailbox` invalidates, and the folder's RECORDED number is realigned to the server's. From
  * then on the record and the server agree — so every path that re-reads the record opposes the new
@@ -32,7 +32,7 @@ import org.junit.Test
 class ReadUnderTheNumberingItWasTickedUnderTest {
 
     /**
-     * ⛔ NOT ONE OCTET. The refusal has to land here, on the read, because [crossAccountMove] runs
+     * NOT ONE OCTET. The refusal has to land here, on the read, because [crossAccountMove] runs
      * the read BEFORE the write on the other account: refused here the move is a `Failed` and
      * nothing at all was written. Refused only at the Trash — which is what happens when the read
      * opposes nothing — the copy is already appended on B under an APPEND that is never replayed,
@@ -95,7 +95,7 @@ class ReadUnderTheNumberingItWasTickedUnderTest {
     }
 
     /**
-     * ⛔ THE INVERSE WITNESS. Without it, "refuse every read that carries a stamp" satisfies the
+     * THE INVERSE WITNESS. Without it, "refuse every read that carries a stamp" satisfies the
      * case above — and every cross-account move on every healthy server would fail, for ever.
      */
     @Test fun `the numbering the folder still carries reads the message`() {
@@ -122,13 +122,13 @@ class ReadUnderTheNumberingItWasTickedUnderTest {
      * And a read that carries NOTHING keeps the behaviour every ordinary reader depends on: the
      * fallback on the folder's recorded number, inside [ImapMailService] `onMailbox`.
      *
-     * ⛔ This is why the stamp is carried as `Long?` DOWN HERE and not made mandatory. Opening a
+     * This is why the stamp is carried as `Long?` DOWN HERE and not made mandatory. Opening a
      * message, viewing its headers, saving it as `.eml` and retrying an OpenPGP interaction all
      * read the source with nothing frozen — a row cached before the numbering column existed, or
      * one evicted and re-cached, carries no stamp at all — and refusing them would be "this app can
      * no longer show mail".
      *
-     * ⚠ AND A "FROZEN BUT ABSENT" NEVER ARRIVES HERE (#189). Since the move between accounts
+     * AND A "FROZEN BUT ABSENT" NEVER ARRIVES HERE (#189). Since the move between accounts
      * carries a `FrozenNumbering`, `MailRepository.fetchRawSource` refuses `Frozen(null)` upstream
      * of this layer and hands `ImapMailService` a number only when there is one to hand. So the
      * `null` this test drives is exclusively "no tick froze anything", the fallback below is

@@ -27,7 +27,7 @@ class SendReplacesDraftTest {
         )
     }
 
-    /** ⭐ The defect: a body the composer could not reproduce must keep the id off the row. */
+    /** The defect: a body the composer could not reproduce must keep the id off the row. */
     @Test fun aLossyBodyKeepsTheIdOffTheRow() = runTest {
         assertNull(
             "a send that cannot reproduce the draft must not authorise destroying it",
@@ -43,7 +43,7 @@ class SendReplacesDraftTest {
     }
 
     /**
-     * ⭐ Offline, dropped socket, a row that is gone: the proof cannot be ESTABLISHED. An unknown
+     * Offline, dropped socket, a row that is gone: the proof cannot be ESTABLISHED. An unknown
      * is not an innocence — it forbids the destroy, end to end through the same
      * [draftAddressingIsCarried] the save path runs (no `catch` may round it up to "faithful").
      */

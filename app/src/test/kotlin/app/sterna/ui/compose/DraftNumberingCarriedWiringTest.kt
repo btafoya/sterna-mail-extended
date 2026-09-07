@@ -31,7 +31,7 @@ import java.io.File
  *     compared WHOLE, never `contains` — a substring rule is blind to any mutation that lengthens
  *     the line.
  *
- * ⛔ NOT covered: that the value written to SQLite is read back (that is the migration test), that
+ * NOT covered: that the value written to SQLite is read back (that is the migration test), that
  * the repository does anything with it (pinned in `core:data`), and the on-device behaviour —
  * reopening a queued message and sending it must leave exactly one copy in Drafts.
  */
@@ -132,7 +132,7 @@ class DraftNumberingCarriedWiringTest {
 
     /**
      * The four arguments the composer must hand `sendDraftTarget`, by name and whole — both send
-     * sites. ⛔ The numbering is only frozen if BOTH pairs go in: drop
+     * sites. The numbering is only frozen if BOTH pairs go in: drop
      * `replacedServerDraftUidValidity` and a draft reopened off this phone's own store names the
      * server copy it replaces with no numbering at all, so an IMAP destroy silently deletes
      * nothing; drop `replacedServerDraftId` and nothing names that copy any more, which is the
@@ -181,7 +181,7 @@ class DraftNumberingCarriedWiringTest {
     }
 
     @Test fun `the outbox screen reopens through the pure mapping, never by building a draft itself`() {
-        // ⭐ The second consumer of `composeDraftOf`, and the one nothing in this repository read:
+        // The second consumer of `composeDraftOf`, and the one nothing in this repository read:
         // the Outbox screen's Edit. An inline `SendOutbox.ComposeDraft(...)` written here can copy
         // the other thirteen fields and leave this one out — it compiles, it reads as harmless, and
         // every rule in this suite stays green while every reopened queued message goes back with

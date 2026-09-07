@@ -24,7 +24,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * ⛔ This assertion used to read the other way round, under the name
+     * This assertion used to read the other way round, under the name
      * `queuedAndSendingAlwaysDue`: SENDING was due like QUEUED. That was not an oversight in the
      * pinning, it was the decision — and it is the decision that was wrong.
      */
@@ -197,7 +197,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * ⛔ THE CHAIN, not the links. Parking a refusal as FAILED is worth nothing on its own:
+     * THE CHAIN, not the links. Parking a refusal as FAILED is worth nothing on its own:
      * [OutboxLogic.canEdit] offers Edit on a FAILED row, the user opens it precisely because an
      * address needs fixing, and closing the composer untouched runs [OutboxLogic.stateAfterEdit] on
      * whatever count was written. With `attemptCount = 1` that answers QUEUED and the message goes
@@ -242,7 +242,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * ⛔ The counter-test of the ruse above, and it is the expensive one to get wrong: forcing the
+     * The counter-test of the ruse above, and it is the expensive one to get wrong: forcing the
      * cap on an ORDINARY failure would park every send that only needed a second try — offline
      * sends first of all.
      */
@@ -268,7 +268,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * ⛔ And the other side of it, which is the easy thing to break: every ORDINARY failure keeps
+     * And the other side of it, which is the easy thing to break: every ORDINARY failure keeps
      * exactly the behaviour it had. A dropped network or a server hiccup says nothing about whether
      * the message left, and the retries are what gets a queued send out when the link comes back.
      */
@@ -412,7 +412,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * ⚠ The three rows below are the ONLY three shapes production ever writes, and the tests that
+     * The three rows below are the ONLY three shapes production ever writes, and the tests that
      * follow use them rather than free combinations of the two arguments. `ComposeViewModel` builds
      * an entity for every send that is not `PgpMode.OFF`, and `enqueueSend` stores `null` for OFF —
      * so "SIGN with no entity" and "ENCRYPT with no entity" do not exist, and a test pinning one is
@@ -430,7 +430,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * ⛔ A read receipt cannot be reopened: nothing can build its entity a second time.
+     * A read receipt cannot be reopened: nothing can build its entity a second time.
      *
      * Reopening throws the entity file away and Send enqueues a fresh row from the composer's
      * fields — which hold the human-readable half only. The `message/disposition-notification`
@@ -445,7 +445,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * ⭐ THE WITNESS, and the regression it caught. A SIGNED row carries a pre-built entity too —
+     * THE WITNESS, and the regression it caught. A SIGNED row carries a pre-built entity too —
      * and it keeps Edit, exactly as it has since #70. The composer holds its body, signs it again
      * at send time, and the new entity is as good as the old one.
      *
@@ -461,7 +461,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * ⭐ WHAT THE OUTBOX COLUMN IS FOR, executed end to end: [OutboxLogic.outboxPgpModeName] writes
+     * WHAT THE OUTBOX COLUMN IS FOR, executed end to end: [OutboxLogic.outboxPgpModeName] writes
      * it, [OutboxLogic.canEdit] reads it back as text.
      *
      * The column does not name the author's choice; it says how the body must be treated at rest,

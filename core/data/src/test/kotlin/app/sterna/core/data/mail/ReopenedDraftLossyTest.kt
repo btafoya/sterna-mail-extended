@@ -64,7 +64,7 @@ class ReopenedDraftLossyTest {
     }
 
     /**
-     * ⭐ The defect this leg closes: the draft asked for a read receipt, the composer's checkbox
+     * The defect this leg closes: the draft asked for a read receipt, the composer's checkbox
      * comes back clear (debt D1), so the message goes out asking for nothing — and destroying the
      * original takes the only copy that carried the request, silently.
      */
@@ -130,11 +130,11 @@ class ReopenedDraftLossyTest {
     }
 
     /**
-     * ⭐ A header that is THERE but names no address (`<>`, the shape a server hands back for a
+     * A header that is THERE but names no address (`<>`, the shape a server hands back for a
      * request it could not parse) is PRESENT-BUT-UNREADABLE, and that is an unknown, not a "no".
      * The sender wrote something in that header; this composer cannot reproduce it and cannot say
      * what it was, so the original is kept — exactly what [copiedAddressesOrNull] does with an
-     * envelope entry it cannot read. ⛔ [ReadReceiptHeader.recipients] must NOT be the judge here:
+     * envelope entry it cannot read. [ReadReceiptHeader.recipients] must NOT be the judge here:
      * it answers the same empty list for "absent" and for "unreadable", and using it would make
      * this case authorise the destroy of the only copy holding the request.
      */
@@ -169,12 +169,12 @@ class ReopenedDraftLossyTest {
     // --- the html leg, as the composer now feeds it (#131) --------------------------------------
 
     /**
-     * ⭐ Since #131 the composer does not hand this leg "there is an html part": it hands it
+     * Since #131 the composer does not hand this leg "there is an html part": it hands it
      * `draftHtmlIsLossy(draft.htmlContent())` — "there is one AND it does not parse". The two cases
      * below are the composition, EXECUTED, because that is what actually reaches this function
      * (the wiring itself is a source lint, `DraftVerdictWiringTest`).
      *
-     * ⛔ Getting this pair the wrong way round is not cosmetic: `true` for our own html keeps a
+     * Getting this pair the wrong way round is not cosmetic: `true` for our own html keeps a
      * duplicate in Drafts on every re-save of a styled draft, and `false` for a foreign one
      * authorises the destroy of an original whose formatting this editor cannot give back.
      */
@@ -204,7 +204,7 @@ class ReopenedDraftLossyTest {
     }
 
     /**
-     * ⛔ **The pair that is a DESTROY, end to end**: a draft whose `text/plain` part has the user's
+     * **The pair that is a DESTROY, end to end**: a draft whose `text/plain` part has the user's
      * text and whose `text/html` part is EMPTY — a shape another client is free to write.
      *
      * Both halves of the reopen are asked here, because the defect is the two of them disagreeing:
@@ -246,7 +246,7 @@ class ReopenedDraftLossyTest {
         )
     }
 
-    /** ⛔ …but the OTHER legs still decide beside a readable html: fidelity is not one term. */
+    /** …but the OTHER legs still decide beside a readable html: fidelity is not one term. */
     @Test fun ourOwnHtmlDoesNotRescueAnInlineImageOrAReceipt() {
         assertTrue(
             reopenedDraftIsLossy(

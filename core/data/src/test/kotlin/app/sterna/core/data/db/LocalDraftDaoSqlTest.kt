@@ -12,7 +12,7 @@ import java.sql.DriverManager
  * [LocalDraftDao]'s statements, read out of the shipped DAO and RUN against the table
  * [LOCAL_DRAFTS_CREATE_SQL] builds — not against a copy of either.
  *
- * ⛔ What this is for: the account scope. Ids collide between two accounts of one server (#31), and
+ * What this is for: the account scope. Ids collide between two accounts of one server (#31), and
  * a background write that outlived its account is what #121 was. Here the victim would be text the
  * user typed and that exists nowhere else, so every statement is executed with a second account's
  * row sitting next to the first, and that row has to be there afterwards.
@@ -162,7 +162,7 @@ class LocalDraftDaoSqlTest {
 
         // UPLOADING is in: it is what a process killed mid-upload leaves behind, and leaving it out
         // would strand exactly the draft whose fate is least certain. EDITING is out: the composer
-        // is holding it (#70's rule). ⛔ STAGING is out too, and stays out: its `attachmentsJson` is
+        // is holding it (#70's rule). STAGING is out too, and stays out: its `attachmentsJson` is
         // still "[]" while its files are being copied, so uploading it sends the draft amputated.
         // The startup re-arm is what makes STAGING transitory; this query never touches such a row.
         // And the other account's is out because the query is scoped.
@@ -203,7 +203,7 @@ class LocalDraftDaoSqlTest {
     }
 
     @Test fun `the queue comes out in the order the drafts may next be tried`() {
-        // ⛔ And the instant comes from the CALLER: a query that reads the clock itself cannot be
+        // And the instant comes from the CALLER: a query that reads the clock itself cannot be
         // tested, and this one is bound with a fixed 1000 above and below.
         insert("accA", "local-draft:soonest", createdAtMillis = 900, notBeforeMillis = 10)
         insert("accA", "local-draft:later", createdAtMillis = 100, notBeforeMillis = 20)
@@ -215,11 +215,11 @@ class LocalDraftDaoSqlTest {
     }
 
     @Test fun `the sweep rescues what died mid-upload, and only in the account it was asked about`() {
-        // ⛔ A sweep of account A must not touch account B's rows at all. B's EDITING row is a
+        // A sweep of account A must not touch account B's rows at all. B's EDITING row is a
         // composer the user has open; B's UPLOADING row belongs to B's own worker, which may be
         // running right now in this very process.
-        // ⛔ With a REAL history of failures on it, not the zeroes the other rows carry: this
-        // statement rescues the state and ⛔ **nothing else**, and the two columns it must keep its
+        // With a REAL history of failures on it, not the zeroes the other rows carry: this
+        // statement rescues the state and **nothing else**, and the two columns it must keep its
         // hands off are exactly the two that mean "this draft has already been tried". Left at 0
         // they cannot tell a statement that preserves them from one that resets them.
         insert(
@@ -237,30 +237,30 @@ class LocalDraftDaoSqlTest {
         assertEquals("PENDING", stateOf("accA", "local-draft:interrupted"))
         assertEquals("UPLOADING", stateOf("accB", "local-draft:elsewhere-interrupted"))
         assertEquals("EDITING", stateOf("accB", "local-draft:being-typed"))
-        // ⛔ And it comes back WHOLE: an UPLOADING row already carries the descriptors of its staged
+        // And it comes back WHOLE: an UPLOADING row already carries the descriptors of its staged
         // files, so it may replace the server draft it names. Marking it lossy would leave the user
         // a duplicate to delete on every process death, for nothing.
         assertEquals("a row re-armed mid-upload is faithful, and must stay so", 0, lossyOf("accA", "local-draft:interrupted"))
-        // ⛔ **And it comes back with its history, which is the other half of "state and nothing
+        // **And it comes back with its history, which is the other half of "state and nothing
         // else".** `attemptCount` reset to 0 makes `localDraftMayAlreadyBeOnServer` answer no, so
         // the re-upload skips the Message-ID search that stops a second copy — an UPLOADING row is
         // precisely the one most likely to be on the server already, so the user gets a DUPLICATE
         // in Drafts. `notBeforeMillis` reset to 0 retries a refusing server at full speed at every
         // start, on battery, which is what the backoff exists to stop.
         assertEquals("the rescue restores the state and nothing else", 4 to 9_000L, historyOf("accA", "local-draft:interrupted"))
-        // ⛔ Nothing was deleted on the way: an interrupted draft is requeued, never dropped.
+        // Nothing was deleted on the way: an interrupted draft is requeued, never dropped.
         assertEquals(3, rows().size)
     }
 
     @Test fun `an EDITING row of the swept account is left EDITING, whatever its id`() {
-        // ⛔ THE defect. This UPDATE runs from `appScope` at every start, and Android restores the
+        // THE defect. This UPDATE runs from `appScope` at every start, and Android restores the
         // back stack: the composer killed with a draft open comes back and reads its row a moment
         // LATER (`localDraftMayBeTakenForEdit` accepts EDITING on purpose). Flipped to PENDING in
         // between, the row is due for `pending`, the upload worker takes it, and a successful upload
         // calls `discardLocalDraft` — the row AND its attachment directory deleted while the user is
         // typing into them; her "Save" then mints a second row, i.e. two drafts on the server.
         //
-        // ⛔ There is no id to spare and no parameter that could carry one: a cold start cannot know
+        // There is no id to spare and no parameter that could carry one: a cold start cannot know
         // whether a composer is about to be restored, so it lets EDITING alone. EDITING is written
         // by the composer and given back by the composer (`giveLocalDraftEditBack`), by nobody else.
         insert("accA", "local-draft:being-typed", state = LocalDraftState.EDITING)
@@ -271,16 +271,16 @@ class LocalDraftDaoSqlTest {
 
         assertEquals("EDITING", stateOf("accA", "local-draft:being-typed"))
         assertEquals("EDITING", stateOf("accA", "local-draft:another-open"))
-        // ⛔ UPLOADING still comes back: nobody is looking at such a row, and no composer may hold
+        // UPLOADING still comes back: nobody is looking at such a row, and no composer may hold
         // it (`localDraftMayBeTakenForEdit` refuses it), so left alone it is frozen for ever.
         assertEquals("PENDING", stateOf("accA", "local-draft:interrupted"))
         assertEquals("one row swept, the two open ones untouched", 1, swept)
-        // ⛔ And the statement binds the account and NOTHING else: no lease, no id, no exception.
+        // And the statement binds the account and NOTHING else: no lease, no id, no exception.
         assertEquals(listOf("accountId"), sweepBindOrder())
     }
 
     @Test fun `startup also picks up the row a process death left mid-staging`() {
-        // ⛔ The defect: a process killed between the two upserts of `saveDraftLocalFirst` leaves the
+        // The defect: a process killed between the two upserts of `saveDraftLocalFirst` leaves the
         // row in STAGING. `LocalDraftDao.pending` skips it (above, and it must keep skipping it), so
         // if the re-arm skips it too the row is stranded FOR EVER: it is drawn in the Drafts list,
         // opening it answers Busy, no swipe/select/star reaches a local row, and if it names a
@@ -292,7 +292,7 @@ class LocalDraftDaoSqlTest {
         // descriptors of what was attached only ever lived in the composer's memory — no column
         // holds them.
         //
-        // ⛔ AND IT COMES BACK LOSSY, which is the half that keeps this from destroying mail. When
+        // AND IT COMES BACK LOSSY, which is the half that keeps this from destroying mail. When
         // the row names a `replacesEmailId`, the attachments are NOT gone: they are on the SERVER,
         // in the draft being replaced. Uploaded as-is, "[]" carries 0 parts, so
         // `draftReplacementIsFaithful` reads 0 == 0 and says faithful, and `finishDraftSave`
@@ -310,7 +310,7 @@ class LocalDraftDaoSqlTest {
         assertEquals(1, run("revertStagedToPendingLossy", mapOf("accountId" to "accA")))
 
         assertEquals("PENDING", stateOf("accA", "local-draft:mid-copy"))
-        // ⛔ The composer's row is NOT part of the rescue: it is the one row of the four a restored
+        // The composer's row is NOT part of the rescue: it is the one row of the four a restored
         // screen can still be holding.
         assertEquals("EDITING", stateOf("accA", "local-draft:open"))
         assertEquals("PENDING", stateOf("accA", "local-draft:interrupted"))
@@ -318,16 +318,16 @@ class LocalDraftDaoSqlTest {
             "⛔ a re-armed staging row must refuse to be called a faithful replacement",
             1, lossyOf("accA", "local-draft:mid-copy"),
         )
-        // ⛔ Scope: the other account's staging row is a save that may be running RIGHT NOW in its
+        // Scope: the other account's staging row is a save that may be running RIGHT NOW in its
         // own process. The re-arm of one account never reaches it — neither its state nor its flag.
         assertEquals("STAGING", stateOf("accB", "local-draft:elsewhere-mid-copy"))
         assertEquals(0, lossyOf("accB", "local-draft:elsewhere-mid-copy"))
-        // ⛔ Nothing was deleted on the way: a stranded draft is requeued, never dropped.
+        // Nothing was deleted on the way: a stranded draft is requeued, never dropped.
         assertEquals(4, rows().size)
     }
 
     @Test fun `a startup finds the account whose only draft is stranded mid-staging`() {
-        // ⛔ The enumeration is the FIRST link of the re-arm: `SternaApplication` walks
+        // The enumeration is the FIRST link of the re-arm: `SternaApplication` walks
         // `accountsWithDrafts` and calls the revert for each. An account whose only row is STAGING
         // is exactly the account that needs it — left out here, nothing else ever looks at that row
         // and the whole fix is undone one query earlier, in silence. Nothing executed this
@@ -369,7 +369,7 @@ class LocalDraftDaoSqlTest {
             assertEquals(1, ps.executeUpdate())
         }
 
-        // ⛔ Nine failures and the draft is still PENDING, still there, still whole. There is no
+        // Nine failures and the draft is still PENDING, still there, still whole. There is no
         // attempt cap in this store and no state to be parked in — see [LocalDraftState].
         db.createStatement().use { st ->
             st.executeQuery(

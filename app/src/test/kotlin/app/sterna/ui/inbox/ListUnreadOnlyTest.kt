@@ -12,7 +12,7 @@ import org.junit.Test
  * shipped rule is: the toolbar funnel says what the reader asked for, and [Sel.Unread] says what the
  * view IS — a scope named "Unread" shows unread mail whatever the funnel is set to.
  *
- * ⛔ The defect this exists for is not "the pager filters wrongly". It is the pager and the SELECTION
+ * The defect this exists for is not "the pager filters wrongly". It is the pager and the SELECTION
  * disagreeing. `InboxViewModel.selectAll` asks `MailRepository.selectableIds(scopes, filtered)` for
  * the keys a bulk action may take. With the scope forcing the filter on and `filtered` read from the
  * raw toggle (false by default), the list draws twelve unread rows while the selection covers every

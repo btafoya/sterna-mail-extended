@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⚠ THIS TEST READS SOURCE TEXT — the last resort, as [DraftAddressingWiringTest] does and for the
+ * THIS TEST READS SOURCE TEXT — the last resort, as [DraftAddressingWiringTest] does and for the
  * same reason: `MailRepository` needs Room, a `Context` and a socket, so no JVM test can build one.
  * The DECISIONS are executed by [LocalDraftSaveTest]; this pins only WHERE they are plugged in, and
  * it pins WHOLE LINES — `contains` is blind to any mutation that lengthens a line.
@@ -43,7 +43,7 @@ class LocalDraftSaveWiringTest {
     }
 
     @Test fun `saveDraft itself touches no network at all`() {
-        // ⛔ The point of the volet, stated where it can rot: every byte that leaves goes through
+        // The point of the volet, stated where it can rot: every byte that leaves goes through
         // uploadDraft, which is reached only after the row is durable. A single `imap.` or
         // `connect(` back in this body is the old order restored.
         val body = codeOf(bodyOf("saveDraft"))
@@ -107,13 +107,13 @@ class LocalDraftSaveWiringTest {
     }
 
     @Test fun `the things saveDraftLocalFirst is given are the real store, whole lines`() {
-        // ⛔ `record` is the newest of them and the easiest to drop: a save that fails offline
+        // `record` is the newest of them and the easiest to drop: a save that fails offline
         // leaves the row for the upload worker, and if the attempt is not written down the row's
         // `notBeforeMillis` never moves. `LocalDraftDao.pending` then hands it back at once, and
         // against a server that is REFUSING rather than absent the worker retries as fast as it is
         // allowed to, on battery, for as long as the refusal lasts.
         //
-        // ⛔ And two that are about the draft ALREADY saved:
+        // And two that are about the draft ALREADY saved:
         //  - `existing` is what tells the orchestration whether this save created the row it is
         //    about. Handed `null`, a failed staging rolls back a row a PREVIOUS save wrote, i.e.
         //    deletes the text and the staged bytes of a draft that was safely on the phone;
@@ -149,14 +149,14 @@ class LocalDraftSaveWiringTest {
     }
 
     @Test fun `the booking seam does not suspend, and the signature says so`() {
-        // ⛔ THE guard the whole cancelled path rests on, and it had no witness at all: put
+        // THE guard the whole cancelled path rests on, and it had no witness at all: put
         // `suspend` back on `schedule` and everything stays green, because the harness's fake never
         // suspends. On a phone it would: from a cancelled coroutine every suspension point throws,
         // so a suspending booking seam books NOTHING on the one path that exists to book — the
         // composer closing mid-upload. The compiler is what enforces it (a `localDraftDao.…` added
         // in that lambda would not compile), and this is what stops the type being widened.
         //
-        // ⛔ WHOLE LINES: `schedule: suspend (LocalDraftUploadJob) -> Unit,` is a LONGER line, so
+        // WHOLE LINES: `schedule: suspend (LocalDraftUploadJob) -> Unit,` is a LONGER line, so
         // any `contains`-style check would be blind to exactly the mutation this exists for.
         val source = DaoQuerySource.mailSource("LocalDraftSave")
         val at = source.indexOf("internal suspend fun saveDraftLocalFirst(")
@@ -181,7 +181,7 @@ class LocalDraftSaveWiringTest {
     }
 
     @Test fun `every value the composer hands over is on the row, argument by argument`() {
-        // ⭐ THE mutation that survived the first pass: `bodyIsLossy = bodyIsLossy` → `= false`
+        // THE mutation that survived the first pass: `bodyIsLossy = bodyIsLossy` → `= false`
         // compiles and leaves the whole suite green. `uploadDraft` reads its verdict off the ROW
         // now, so a false there tells draftReplacementIsFaithful that a draft the composer could
         // only show as flattened text reproduces its HTML original — and finishDraftSave destroys
@@ -222,12 +222,12 @@ class LocalDraftSaveWiringTest {
                 "mailboxUidValidityDao.recorded(credentials.id, mailboxId)",
                 "},",
                 "bodyIsLossy = bodyIsLossy,",
-                // ⛔ Beside it, NOT instead of it. The column keeps the disjunction (every destroy
+                // Beside it, NOT instead of it. The column keeps the disjunction (every destroy
                 // guard downstream reads it); this one is the composer's own loss, and it is all
                 // the WRITE guard weighs — folded back together, erasing a marked draft's body is
                 // refused in silence again.
                 "composerBodyWasLost = composerBodyWasLost,",
-                // ⛔ …and the EMPTINESS of what was TYPED, which travels beside it and not
+                // …and the EMPTINESS of what was TYPED, which travels beside it and not
                 // inside `body` (#131). `body` is the plain-text projection now, and a bullet on
                 // an empty composer projects to `"- "`: read there, the lost-body guard stands
                 // down and those two characters replace the only copy of the draft. Dropped from
@@ -293,7 +293,7 @@ class LocalDraftSaveWiringTest {
     }
 
     @Test fun `the appended draft is built from the row and not from the arguments`() {
-        // ⭐ The one line the whole Message-ID story rests on. `outgoing(credentials, …)` here — the
+        // The one line the whole Message-ID story rests on. `outgoing(credentials, …)` here — the
         // shape main had — mints a fresh id inside and the row's name never reaches the server.
         assertEquals(
             "the IMAP APPEND must be built by localDraftOutgoing from the row that was just written",
@@ -322,7 +322,7 @@ class LocalDraftSaveWiringTest {
     @Test fun `a local draft's files are its own, never the outbox's`() {
         // Read over the WHOLE file, not one function: what matters is that `localDraftFilesDir`
         // is resolved in exactly one place and that no draft path ever names `outboxFilesDir`.
-        // ⛔ An outbox item's staged bytes die with the send; a draft's wait as long as the draft
+        // An outbox item's staged bytes die with the send; a draft's wait as long as the draft
         // does. One directory for both is one purge away from an amputated draft.
         val source = DaoQuerySource.mailSource("MailRepository")
         assertEquals(
@@ -362,7 +362,7 @@ class LocalDraftSaveWiringTest {
     }
 
     @Test fun `parking an edited row writes the state and NOTHING else`() {
-        // ⛔ The whole body, in order. Two things it must not do, and both were in the first draft
+        // The whole body, in order. Two things it must not do, and both were in the first draft
         // of this fix:
         //  - it must not force `attemptCount` to MAX_ATTEMPTS. That was a ruse to make
         //    OutboxLogic.stateAfterEdit keep the row parked — needed only while the parked state

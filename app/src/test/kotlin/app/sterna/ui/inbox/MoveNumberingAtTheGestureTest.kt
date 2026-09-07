@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
  * [BulkSelectionWiringTest]: it reads the ViewModels as text and proves nothing about what happens
  * on screen.
  *
@@ -18,7 +18,7 @@ import java.io.File
  * "nothing frozen", which refuses everything — so a dropped argument here does not fail to
  * compile and does not fail either of them.
  *
- * ⛔ And the read must not slide down into the batch lambda. `bulkBatched` runs it later, after
+ * And the read must not slide down into the batch lambda. `bulkBatched` runs it later, after
  * `resolveSelectionTargets`, after a `hidingThreadMembers`, and per ACCOUNT; between the tap and
  * that point a background pass may have seen the folder renumbered and written the new number to
  * the store. Read there, the guard would oppose the new number to itself, conclude SAME, and the
@@ -180,7 +180,7 @@ class MoveNumberingAtTheGestureTest {
         )
     }
 
-    /** ⛔ And nowhere else. A second call, inside `bulkBatched` or inside a batch lambda, is a
+    /** And nowhere else. A second call, inside `bulkBatched` or inside a batch lambda, is a
      *  read at execution — see this class's header. */
     @Test fun `the numbering is read at the five gestures and nowhere else`() {
         assertEquals(
@@ -206,7 +206,7 @@ class MoveNumberingAtTheGestureTest {
      * CONFIRMATION, so it is the one where the gap between reading the ids and moving them is
      * widest — the dialog stays up for as long as the user looks at it.
      *
-     * ⛔ WHICH END OF THAT GAP the freeze sits at is the whole point, and it was wrong first time:
+     * WHICH END OF THAT GAP the freeze sits at is the whole point, and it was wrong first time:
      * frozen at the confirmation, a background pass that saw the folder renumbered while the
      * dialog was up has already called `UidValidityStore.invalidate`, which RECORDS the new
      * number. The read then answers post-renumbering, the guard opposes it to itself, concludes
@@ -235,7 +235,7 @@ class MoveNumberingAtTheGestureTest {
         )
     }
 
-    /** ⛔ And the confirmation must READ NOTHING: it takes what was frozen, exactly as it takes
+    /** And the confirmation must READ NOTHING: it takes what was frozen, exactly as it takes
      *  the ids. A `?:` fallback here "for a confirmation opened before the field existed" is the
      *  defect back, in the shape that reads as harmless. */
     @Test fun `the sender confirmation opposes what was frozen and reads no numbering itself`() {
@@ -257,7 +257,7 @@ class MoveNumberingAtTheGestureTest {
     // -- the closed list of callers ------------------------------------------------------------
 
     /**
-     * ⭐ THE BLIND SPOT that got the first delivery rejected: every rule above looks at a gesture
+     * THE BLIND SPOT that got the first delivery rejected: every rule above looks at a gesture
      * it already knows about, so a bulk mover called from somewhere ELSE simply was not looked at.
      * `reportSpamSelected` / `notSpamSelected` were exactly that — plain `repo.reportSpamAll(c, ids)`
      * calls, no numbering, therefore refused 100 % of the time on IMAP once the guard landed, with

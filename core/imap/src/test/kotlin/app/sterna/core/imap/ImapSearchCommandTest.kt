@@ -98,7 +98,7 @@ class ImapSearchCommandTest {
     // ---- no HEADER key comes out of here, whatever is asked for (#95) ----
 
     /**
-     * ⛔ The witness for the key this builder no longer has. A `HEADER "Message-ID"` key was how a
+     * The witness for the key this builder no longer has. A `HEADER "Message-ID"` key was how a
      * draft kept on the phone used to be looked for, and Stalwart answers every shape of it with an
      * empty `* SEARCH` while answering `HEADER "Subject"` perfectly — a "no" that cannot be told
      * apart from "not there", so a second copy of the same text was appended. The question moved to

@@ -7,7 +7,7 @@ import org.junit.Test
 
 /**
  * The CONVEYANCE: the section the server named in the BODYSTRUCTURE that came with the envelope,
- * carried from the sync page to the notification layer — ⛔ never asked for a second time.
+ * carried from the sync page to the notification layer — never asked for a second time.
  *
  * [previewSourcesOf] is pure and is executed here. The two ends it is plugged into cannot be built
  * on the JVM (`ImapMailService` needs a token refresher and a socket, `MailRepository` a database),
@@ -55,7 +55,7 @@ class PreviewConveyanceTest {
     }
 
     /**
-     * ⛔ A message with no `text/…` part at all is ABSENT, not present-and-null. It has no opening
+     * A message with no `text/…` part at all is ABSENT, not present-and-null. It has no opening
      * line, so it must cost neither a round trip nor one of the pass's few preview slots — the
      * notification pre-pass counts what is in this map.
      */
@@ -75,7 +75,7 @@ class PreviewConveyanceTest {
     }
 
     /**
-     * ⛔⭐ THE WHOLE POINT: the page is carried, never re-fetched. These are every server call the
+     * THE WHOLE POINT: the page is carried, never re-fetched. These are every server call the
      * watched-folder load makes, and there is no second BODYSTRUCTURE among them — the structure
      * arrives with the envelope of the page below and, until this change, was thrown away by
      * `toEntity`. A `fetchPage` or a `select` added here is one per watched folder per push pass.
@@ -110,13 +110,13 @@ class PreviewConveyanceTest {
         )
     }
 
-    // ⛔ "READS no preview" is the whole of what that line says, and it must not be read as "writes
+    // "READS no preview" is the whole of what that line says, and it must not be read as "writes
     // none": `@Upsert` replaces the whole row, so the `null` above wipes whatever opening line the
     // cache holds for these rows unless the WRITE carries it over. That is one layer up, in
     // `MailRepository`, and it is stated and executed in `PushPassKeepsCachedPreviewsTest`.
 
     /**
-     * ⛔ And it reaches the notifier's own carrier. IMAP fills it from the load; JMAP states that it
+     * And it reaches the notifier's own carrier. IMAP fills it from the load; JMAP states that it
      * has nothing to convey, because its rows already carry `preview` — filling it there would buy
      * a round trip for a string the notifier is holding.
      */
@@ -131,7 +131,7 @@ class PreviewConveyanceTest {
     }
 
     /**
-     * ⛔ The read the notification layer is offered is the bounded one, and its deadline is a
+     * The read the notification layer is offered is the bounded one, and its deadline is a
      * parameter with no default at BOTH ends: the block behind it is blocking, holds the account's
      * mutex and has no suspension point, so nothing outside it can cut it short.
      */
@@ -179,7 +179,7 @@ class PreviewConveyanceTest {
     private fun page(vararg uids: Long, part: ImapTextPart) = uids.map { message(it, part) }
 
     /**
-     * ⭐ ONLY WHAT IS MISSING IS ASKED FOR. This is what makes the openings of a folder cost one
+     * ONLY WHAT IS MISSING IS ASKED FOR. This is what makes the openings of a folder cost one
      * read each EVER: the pager walks the same folder again on every step and the pull-to-refresh
      * re-reads the newest page, so without this filter a page of two hundred rows would be
      * re-downloaded — up to 1.6 MB at 8 KB a message — every single time, on the account's one
@@ -204,7 +204,7 @@ class PreviewConveyanceTest {
     }
 
     /**
-     * ⭐ ONE REQUEST PER SECTION, never one per message. A round trip per message would be up to two
+     * ONE REQUEST PER SECTION, never one per message. A round trip per message would be up to two
      * hundred sequential commands on the account's SINGLE connection, held under its mutex — with
      * opening a message, marking one read and emptying the trash queued behind all of them. The
      * server names the section in the BODYSTRUCTURE it already sent, and real mail uses two to four
@@ -229,7 +229,7 @@ class PreviewConveyanceTest {
     }
 
     /**
-     * ⛔ EACH BODY UNDER ITS OWN MESSAGE'S CACHE ID. The grouped answer comes back keyed by UID for
+     * EACH BODY UNDER ITS OWN MESSAGE'S CACHE ID. The grouped answer comes back keyed by UID for
      * exactly this reason; anything that pairs it by position instead puts one correspondent's
      * words under another correspondent's name, in the list, silently.
      */
@@ -266,7 +266,7 @@ class PreviewConveyanceTest {
     }
 
     /**
-     * ⛔ NOTHING TO ASK MEANS NO COMMAND AT ALL — not an empty one. A page whose rows are all filled
+     * NOTHING TO ASK MEANS NO COMMAND AT ALL — not an empty one. A page whose rows are all filled
      * is the ordinary case of every refresh after the first, and a page of attachments-only mail has
      * no text to read; either one putting a `UID FETCH` on the wire would spend the radio to learn
      * what was already in hand.
@@ -322,7 +322,7 @@ class PreviewConveyanceTest {
     }
 
     /**
-     * ⛔ A body that decodes to nothing readable is an ORDINARY answer and does not become a key —
+     * A body that decodes to nothing readable is an ORDINARY answer and does not become a key —
      * the same rule [BodyPreview.fromPart] states for the notification. A blank string written into
      * the column would be indistinguishable from a real opening line for every later reader, and
      * would stop this row ever being asked about again.

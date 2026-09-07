@@ -21,7 +21,7 @@ import java.io.File
  * Robolectric nor instrumentation (same reason, and the same instrument, as
  * [ReadReceiptTriggerWiringTest] and [ReaderStateResetOnLoadTest]).
  *
- * ⛔ Both assertions compare WHOLE trimmed lines by list equality. Never `contains` for something
+ * Both assertions compare WHOLE trimmed lines by list equality. Never `contains` for something
  * expected to be present: a substring check is blind to every mutation that LENGTHENS the line.
  * Comment lines are dropped, so no amount of prose can satisfy or break a rule.
  */

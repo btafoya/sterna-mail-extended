@@ -21,7 +21,7 @@ import java.sql.DriverManager
  *
  * So these cases exercise the DECISION, not the queries: each one resolves the folders exactly as
  * the two call sites do — `conversationQuery` through [ConversationScope.sentFolders],
- * `InboxViewModel.expansionMailboxIds` through [ConversationScope.folders] — and then runs the two
+ * the inbox's thread expansion through [ConversationScope.folders] — and then runs the two
  * SHIPPED statements over what it got. The equality is asserted on the outcome the reader sees,
  * the chip's number against the messages the row unfolds into.
  *
@@ -99,7 +99,7 @@ class ConversationScopeTest {
      * `ConversationExpansion.membersBelow` only keeps it out of the list drawn beneath. So the chip
      * equals the size of this, not one less.
      *
-     * Built exactly as `InboxViewModel.expansionMailboxIds` builds it — the folders are
+     * Built exactly as the inbox's thread expansion builds it — the folders are
      * [ConversationScope.folders] of the same [resolution] — and run through the DAO's own
      * `cachedThreadEmails`, read out of the shipped source.
      */

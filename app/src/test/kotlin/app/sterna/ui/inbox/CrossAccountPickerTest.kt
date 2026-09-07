@@ -148,7 +148,7 @@ class CrossAccountPickerTest {
      * A batch where nothing was CONFIRMED written says so — "Couldn't complete the action", not
      * "SOME messages couldn't be processed" (#189).
      *
-     * ⚠ And that is the whole guarantee: `CrossAccountMove.Failed` also covers a lost answer to
+     * And that is the whole guarantee: `CrossAccountMove.Failed` also covers a lost answer to
      * an APPEND, so a copy MAY exist on account B. What is certain is that no original left A,
      * which is what the served sentence says.
      *
@@ -177,7 +177,7 @@ class CrossAccountPickerTest {
         assertEquals(CrossAccountOutcome.PARTLY_FAILED, crossAccountBanner(listOf(failed, moved), skipped = 0))
         // And a copy whose original stayed is still the truth said first.
         assertEquals(CrossAccountOutcome.SOME_COPIED_NOT_REMOVED, crossAccountBanner(listOf(failed, copied), skipped = 0))
-        // ⛔ NO VERDICT AT ALL IS NOT A TOTAL FAILURE, and this change must not turn it into one.
+        // NO VERDICT AT ALL IS NOT A TOTAL FAILURE, and this change must not turn it into one.
         // An empty `results` is the race where the batch wrote nothing anywhere (already ruled
         // out of scope): it stays exactly as it shipped.
         assertEquals(CrossAccountOutcome.ALL_MOVED, crossAccountBanner(emptyList(), skipped = 0))
@@ -244,7 +244,7 @@ class CrossAccountPickerTest {
     /**
      * …and in the order the batch tried them, which is the order the rows were ticked in.
      *
-     * ⚠ NOT because a shuffle would show the user the wrong thing: the order of the rows on
+     * NOT because a shuffle would show the user the wrong thing: the order of the rows on
      * screen comes from the LIST, and the selection is only ever read by membership and by
      * `.size`, so a sorted or shuffled give-back would look identical. What is kept here is
      * determinism — one batch, one answer, and `tickedUnder` written from it in a fixed order —
@@ -325,7 +325,7 @@ class CrossAccountPickerTest {
             R.string.status_action_partly_failed,
             crossAccountSelectionFailedRes(CrossAccountOutcome.PARTLY_FAILED),
         )
-        // ⛔ TWO OUTCOMES, TWO SENTENCES, AND NEVER ONE BRANCH FOR BOTH. Both expected ids are
+        // TWO OUTCOMES, TWO SENTENCES, AND NEVER ONE BRANCH FOR BOTH. Both expected ids are
         // written out by hand: merge the two branches in the shipped `when` and one of these two
         // lines goes red, which is the whole point of splitting them here. `status_action_failed`
         // already exists in all nine languages (the same reuse, for the same distinction, as

@@ -29,7 +29,7 @@ import org.junit.Test
  * [UnreadWidgetPushTest] does next door — a returned value would say nothing about the subscription
  * that produced it.
  *
- * ⛔ The fake is HOT and never completes, on purpose. A `flowOf(…)` is finished the instant it is
+ * The fake is HOT and never completes, on purpose. A `flowOf(…)` is finished the instant it is
  * read, and a finished inner flow makes `flatMapLatest`, `flatMapMerge` and `flatMapConcat`
  * indistinguishable — the real query never ends, so a subscription the shipped code failed to drop
  * stays alive and goes on arriving. [Reader.push] is that arrival, aimed at a flow handed out
@@ -153,7 +153,7 @@ class RecentMailWidgetPushTest {
     }
 
     /**
-     * ⛔ The claim [kotlinx.coroutines.flow.flatMapLatest] makes, executed rather than believed: the
+     * The claim [kotlinx.coroutines.flow.flatMapLatest] makes, executed rather than believed: the
      * subscription is DROPPED when the last cell goes, not merely superseded. With `flatMapMerge`
      * the app would keep an observed query alive for a widget that no longer exists, re-running it
      * on every write to the mail table for as long as the process lives — and nothing on any screen
@@ -227,7 +227,7 @@ class RecentMailWidgetPushTest {
     }
 
     /**
-     * ⛔ THE SAME READ TWICE IS ONE REDRAW. Nothing upstream says so: Room invalidates per TABLE,
+     * THE SAME READ TWICE IS ONE REDRAW. Nothing upstream says so: Room invalidates per TABLE,
      * so a sync writing a page of some other folder's mail re-runs this query and hands back the
      * identical answer.
      *
@@ -236,7 +236,7 @@ class RecentMailWidgetPushTest {
      * and `notifyAppWidgetViewDataChanged` the launcher re-inflates on — and every repeat redrew
      * rows already on the cell.
      *
-     * ⚠ The [Reader] above cannot show this: it hands back a [MutableStateFlow], which drops a value
+     * The [Reader] above cannot show this: it hands back a [MutableStateFlow], which drops a value
      * equal to the one it holds all by itself. The repetition being defended against comes from
      * Room, so it is written here as a flow that really does repeat.
      */
@@ -263,7 +263,7 @@ class RecentMailWidgetPushTest {
     }
 
     /**
-     * ⛔ THE TWO EMPTIES ARE NOT THE SAME EMPTY, and this is the test the first version of this
+     * THE TWO EMPTIES ARE NOT THE SAME EMPTY, and this is the test the first version of this
      * pane did not have.
      *
      * `RecentMailWidgetContent.cell` draws an empty inbox as "No messages" and an unreadable one —
@@ -275,7 +275,7 @@ class RecentMailWidgetPushTest {
      * then removes their last account would be left with a cell still affirming "No messages", and
      * someone who adds a first account to an empty mailbox would be left on the app's name forever.
      *
-     * ⚠ It is written HERE and not against `UnifiedInbox.recentRows`, which is where the two values
+     * It is written HERE and not against `UnifiedInbox.recentRows`, which is where the two values
      * are produced: that function is exercised on its own in `core:data`, where the value BEFORE the
      * empty one is never empty, so it crosses this de-duplication only in the composition — which
      * is the composition the app ships.
@@ -301,7 +301,7 @@ class RecentMailWidgetPushTest {
     }
 
     /**
-     * ⛔ THE ROWS DO NOT MOVE AND THE CELL MUST STILL BE REDRAWN — the defect this pane closes.
+     * THE ROWS DO NOT MOVE AND THE CELL MUST STILL BE REDRAWN — the defect this pane closes.
      *
      * `RecentMailWidgetContent.accountColors` paints a coloured dot per line only above
      * [AllInboxesView.existsFor], i.e. from two accounts up; below it the map is empty and no line
@@ -314,7 +314,7 @@ class RecentMailWidgetPushTest {
      * `updatePeriodMillis="0"` nothing else was coming: on a quiet mailbox the cell showed dots for
      * an account that had been removed, or none for one that had just arrived, for days.
      *
-     * ⚠ The expected emissions are written out in full and NOT recomputed from `existsFor` here —
+     * The expected emissions are written out in full and NOT recomputed from `existsFor` here —
      * a test that re-derived the bound would stay green with the shipped bound inverted.
      */
     @Test fun `crossing the two-account bound redraws, on rows that did not move`() = runTest {
@@ -346,7 +346,7 @@ class RecentMailWidgetPushTest {
     }
 
     /**
-     * ⛔ THE PRICE OF THE ARM ABOVE, and the reason it carries a BOUND and not the account list.
+     * THE PRICE OF THE ARM ABOVE, and the reason it carries a BOUND and not the account list.
      *
      * `saveAccounts` is the choke point of some twenty-seven writes — a refreshed OAuth token, a
      * colour, identities discovered on a sync — and every one of them republishes `accountsFlow`.
@@ -358,7 +358,7 @@ class RecentMailWidgetPushTest {
      * (`UnifiedInbox.recentRows`), so an account list that moves must not cancel and rebuild the
      * observed Room query.
      *
-     * ⚠ A recolour is deliberately not redrawn from here: `AccountsViewModel.setColor` forgets the
+     * A recolour is deliberately not redrawn from here: `AccountsViewModel.setColor` forgets the
      * snapshot and refreshes at the gesture.
      */
     @Test fun `an account list that does not cross the bound costs nothing`() = runTest {
@@ -395,7 +395,7 @@ class RecentMailWidgetPushTest {
         job.cancel()
     }
     /**
-     * ⛔ ONE ACCOUNT IS NOT AN ABSENCE OF ACCOUNTS, and this test exists because the arm added for
+     * ONE ACCOUNT IS NOT AN ABSENCE OF ACCOUNTS, and this test exists because the arm added for
      * the colour dots reads a BOUND: on a single-account install — the large majority — that bound
      * is `false` for the whole life of the process.
      *
@@ -429,7 +429,7 @@ class RecentMailWidgetPushTest {
     }
 
     /**
-     * ⛔ THE GATE GOVERNS BOTH ARMS, and this is the half a combine placed outside [flatMapLatest]
+     * THE GATE GOVERNS BOTH ARMS, and this is the half a combine placed outside [flatMapLatest]
      * would lose. Such a combine RETAINS the last value of each arm, and the gated arm never
      * completes — it only falls silent — so an account added or removed after the last cell was
      * taken off the home screen would pair a stale read with a fresh bound, get past the

@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
  * [SelectAllWiringTest] and [HeldBackDestroyCarriesItsFolderTest]: it reads `InboxViewModel.kt` as
  * text, proves nothing about what happens on screen, and would still pass if the code it points at
  * were broken inside.

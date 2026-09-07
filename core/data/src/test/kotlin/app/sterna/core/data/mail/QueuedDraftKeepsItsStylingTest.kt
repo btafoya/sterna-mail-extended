@@ -19,7 +19,7 @@ import org.junit.Test
  *     (`app.sterna.core.jmap.DraftHtmlOnTheWireTest`); that the ROW's value is what it receives can
  *     be pinned only here.
  *
- * ⛔ Both are silent when they break: the message goes out and is stored whole, only stripped of
+ * Both are silent when they break: the message goes out and is stored whole, only stripped of
  * the styling the composer showed while writing it.
  */
 class QueuedDraftKeepsItsStylingTest {

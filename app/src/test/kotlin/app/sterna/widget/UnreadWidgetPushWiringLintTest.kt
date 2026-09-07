@@ -14,7 +14,7 @@ import java.io.File
  * Neither end can be built in this suite: `AppContainer` wants a `Context`, the Keystore and a
  * database; `FetchAndNotify.run` wants all of that plus a server. There is no Robolectric here.
  *
- * ⛔ Whole lines, never a `contains`: a substring rule is satisfied by every mutation that LENGTHENS
+ * Whole lines, never a `contains`: a substring rule is satisfied by every mutation that LENGTHENS
  * the line. The price is that reformatting either call reddens this test — loud, and one line to fix.
  */
 class UnreadWidgetPushWiringLintTest {
@@ -56,13 +56,13 @@ class UnreadWidgetPushWiringLintTest {
      * delete, a multi-select, a push arriving with the app open. One collection instead of the
      * fifteen-odd write sites in `MailRepository` that would each have to be wired by hand.
      *
-     * ⛔ And it is GATED. The whole block is pinned, not just the launch, because the gate is what
+     * And it is GATED. The whole block is pinned, not just the launch, because the gate is what
      * keeps this from being paid by every install: `UnreadWidgetPush.redraws(…)` collected on a
      * flow that is not `UnreadWidgetPresence.placed(…)` — a `flowOf(true)`, say — compiles, keeps
      * every other test in this repository green, and subscribes two global Room aggregates for the
      * life of every process on earth for a widget nobody placed.
      *
-     * ⛔ THE SECOND ARGUMENT IS PART OF THE RULE. `accountStore.accountsFlow` is what carries the
+     * THE SECOND ARGUMENT IS PART OF THE RULE. `accountStore.accountsFlow` is what carries the
      * account COUNT, and the cell's label and tap target are both decided on it
      * ([AllInboxesView]); the breakdown cannot report it, being keyed on
      * `UnifiedInbox.countedInboxes`, which drops any account whose `inboxId` is still null — how an
@@ -97,7 +97,7 @@ class UnreadWidgetPushWiringLintTest {
     }
 
     /**
-     * ⛔ THE GATE'S THREE WRITERS, whole lines, because two of them are `override fun`s the system
+     * THE GATE'S THREE WRITERS, whole lines, because two of them are `override fun`s the system
      * calls and nothing in this suite can invoke.
      *
      * [anyWidgetPlaced] is executed by `UnreadWidgetPresenceTest`, and so is `set`. What no test in

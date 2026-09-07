@@ -18,7 +18,7 @@ import org.junit.Test
  * compiled and left the whole suite green. Each is a defect a reader would meet on their home
  * screen and could not diagnose. The rules below are what closes them.
  *
- * ⛔ WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
+ * WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
  * LENGTHENS the line, which is how the first version of another lint in this repo was walked past
  * twice. The price is that reformatting any pinned line reddens this test — loud, and one line to
  * fix.
@@ -29,7 +29,7 @@ class RecentMailWidgetWiringLintTest {
      * The four facts that decide what a row may say, what it wears and which mailbox it came from,
      * must be READ — from the store and the settings, every time the widget is read.
      *
-     * ⭐ The fourth is the sender-initials switch (#144). It is a matter of TASTE and not of
+     * The fourth is the sender-initials switch (#144). It is a matter of TASTE and not of
      * privacy, which is exactly why it is easy to leave out: nothing breaks, nothing leaks, and a
      * reader who removed the initials from her message list simply finds them back on her home
      * screen with no switch anywhere that turns them off.
@@ -40,7 +40,7 @@ class RecentMailWidgetWiringLintTest {
      * `val appLockEnabled = false` is the app lock ceasing to exist for the home screen while
      * `SECURITY.md` goes on promising it, with no pixel anywhere to say so.
      *
-     * ⛔ AND THE ACCOUNT LIST IS READ EXACTLY ONCE, which is why the whole body is pinned rather
+     * AND THE ACCOUNT LIST IS READ EXACTLY ONCE, which is why the whole body is pinned rather
      * than the lines of interest. `accountColors = emptyMap()` is a list whose dots never appear,
      * on an install with several mailboxes, and nothing on the cell says why. A SECOND
      * `accountStore.accounts()` is the defect [UnreadWidgetDraw.draw] documents one file over: two
@@ -48,12 +48,12 @@ class RecentMailWidgetWiringLintTest {
      * cell would then colour its rows from one list while the count it sits beside came from
      * another.
      *
-     * ⚠ The read now also carries the cell's PALETTE, held with the rows rather than beside them —
+     * The read now also carries the cell's PALETTE, held with the rows rather than beside them —
      * why that pairing exists is [RecentWidgetDrawing]'s own rule and is pinned by
      * [RecentMailWidgetPaletteWiringLintTest]. It appears here because this test pins the body
      * whole, which is what makes a second, separate read of anything visible at all.
      *
-     * ⚠ That palette may be NULL, and this line is deliberately unchanged by that: the decision to
+     * That palette may be NULL, and this line is deliberately unchanged by that: the decision to
      * post nothing belongs to [WidgetThemeReader.palette], not here. The call site does not test
      * it, does not default it and must not start to — a `?: somePalette` here would put back, in
      * one line, exactly the frozen colours the nullability exists to avoid.
@@ -124,7 +124,7 @@ class RecentMailWidgetWiringLintTest {
     }
 
     /**
-     * ⛔ THE SECOND WIDGET MUST NOT TOUCH THE FIRST ONE'S PRESENCE, and the whole bodies are pinned
+     * THE SECOND WIDGET MUST NOT TOUCH THE FIRST ONE'S PRESENCE, and the whole bodies are pinned
      * because the mutation is one identifier long.
      *
      * `UnreadWidgetPresence` is process-global and seeded from the COUNTER's placed cells. Written
@@ -156,7 +156,7 @@ class RecentMailWidgetWiringLintTest {
     }
 
     /**
-     * ⛔ TURNING THE LOCK ON MUST REACH THE HOME SCREEN, and so must tightening the content
+     * TURNING THE LOCK ON MUST REACH THE HOME SCREEN, and so must tightening the content
      * setting.
      *
      * This is the one the review found and the one that matters most. The cell is redrawn when the
@@ -173,10 +173,10 @@ class RecentMailWidgetWiringLintTest {
      * under the OLD setting. Without dropping it, a slow read right after the tightening redraws
      * the very names the reader has just asked to hide.
      *
-     * ⭐ AND THE COUNTER IS REDRAWN WITH IT, on the lock only. Enlarged, that cell draws a line per
+     * AND THE COUNTER IS REDRAWN WITH IT, on the lock only. Enlarged, that cell draws a line per
      * account, and an account's label falls back to its username — the reader's own mail address.
      * Its redraws are driven by the count MOVING, and flipping the lock moves no count, so it has
-     * exactly the same days-long gap this rule was written for. ⛔ It is deliberately absent from
+     * exactly the same days-long gap this rule was written for. It is deliberately absent from
      * `setNotificationContent`: that setting governs what a MESSAGE says about itself, sender and
      * subject, and the counter shows neither.
      */
@@ -221,7 +221,7 @@ class RecentMailWidgetWiringLintTest {
     }
 
     /**
-     * ⛔ AND SO MUST TAKING THE SENDER INITIALS OFF — the fourth setter that reaches this cell, and
+     * AND SO MUST TAKING THE SENDER INITIALS OFF — the fourth setter that reaches this cell, and
      * the one that is NOT a theme setting, which is why it is pinned here beside the lock and the
      * content position rather than in [WidgetThemeRedrawWiringLintTest].
      *
@@ -231,12 +231,12 @@ class RecentMailWidgetWiringLintTest {
      * redraw triggers are fed by MAIL, so the cell keeps the initials until a message ARRIVES: on a
      * quiet mailbox, days. Nothing on the cell says why and there is nothing she can do about it.
      *
-     * ⛔ ONE WIDGET AND NOT TWO. `UnreadWidgetDraw.refresh` has no business here: the counter draws
+     * ONE WIDGET AND NOT TWO. `UnreadWidgetDraw.refresh` has no business here: the counter draws
      * a number and no badge at all, so waking it would be a read of the account store and of Room
      * for a cell that cannot possibly have changed. The three theme setters call it because a
      * theme repaints the counter too; this one does not.
      *
-     * ⛔ `forget()` BEFORE `refresh()`, for the reason written at every other setter: the row
+     * `forget()` BEFORE `refresh()`, for the reason written at every other setter: the row
      * factory falls back to the last `RecentWidgetDrawing` it read when its own read times out, and
      * that carrier was projected under the OLD switch — a slow read right after the change would
      * redraw the very badges the reader has just removed.
@@ -263,7 +263,7 @@ class RecentMailWidgetWiringLintTest {
     }
 
     /**
-     * ⛔ RECOLOURING AN ACCOUNT MUST REACH THE HOME SCREEN TOO, and by the same two calls.
+     * RECOLOURING AN ACCOUNT MUST REACH THE HOME SCREEN TOO, and by the same two calls.
      *
      * Since this batch every row of the cell carries the dot of the account it came from
      * (`RecentMailWidgetDraw.read` passes `RecentMailWidgetContent.accountColors(accounts)`). The
@@ -273,7 +273,7 @@ class RecentMailWidgetWiringLintTest {
      * until mail happens to ARRIVE, which on a quiet mailbox is days. The state on screen is a
      * colour the app no longer holds.
      *
-     * ⛔ AND THE ARRIVAL TRIGGER DOES NOT COVER IT — this is why the two lines are needed here and
+     * AND THE ARRIVAL TRIGGER DOES NOT COVER IT — this is why the two lines are needed here and
      * not somewhere cheaper. `RecentMailWidgetPush.redraws` is fed by
      * `MailRepository.observeRecentUnifiedInbox`, i.e. `UnifiedInbox.recentRows`, which keys the
      * account list on `map(::scopes).distinctUntilChanged()`: a colour changes no (account, inbox)
@@ -286,7 +286,7 @@ class RecentMailWidgetWiringLintTest {
      * `forget()` before `refresh()`, as at both settings writes: the row factory falls back to the
      * last snapshot it managed to read when its own read times out, and that snapshot was projected
      * under the OLD colour. Without dropping it first, a slow read right after the change repaints
-     * exactly the dots the reader has just replaced. ⭐ The whole body is pinned for that reason —
+     * exactly the dots the reader has just replaced. The whole body is pinned for that reason —
      * the two calls in the wrong order are the mutation this rule exists to catch, and a check for
      * their mere presence would be satisfied by it.
      */

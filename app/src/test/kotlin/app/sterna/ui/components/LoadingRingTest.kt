@@ -9,7 +9,7 @@ import java.io.File
  * The one decision behind the centred loading ring (#63), RUN — plus a source lint holding the two
  * indicators the reader shows on a single tap, which no test in this module can render.
  *
- * ⛔ The expected values below are written out as literals on purpose. A test that recomputes
+ * The expected values below are written out as literals on purpose. A test that recomputes
  * `if (motionOn) …` to decide what it expects is a copy of the rule: invert the shipped condition
  * and it stays green.
  */
@@ -42,7 +42,7 @@ class LoadingRingTest {
     // -- 2. the composable asks the decision, and animates in ONE of its two branches -------------
 
     /**
-     * ⚠ SOURCE LINT. `LoadingRing` cannot be rendered here — no Robolectric and no
+     * SOURCE LINT. `LoadingRing` cannot be rendered here — no Robolectric and no
      * `compose-ui-test` in this module — so what is held is its SIGNATURE (the fourteen callers that
      * pass no stroke get Material 3's own default), that it reads the setting, hands it to the
      * decision above, composes the animated Material 3 indicator ONLY on the `null` answer (the
@@ -147,7 +147,7 @@ class LoadingRingTest {
     // -- 4. the fourteen other converted sites -------------------------------------------------------
 
     /**
-     * ⚠ SOURCE LINT, and the widest one: twenty sites now draw a [LoadingRing] instead of a raw
+     * SOURCE LINT, and the widest one: twenty sites now draw a [LoadingRing] instead of a raw
      * `CircularProgressIndicator`, and six of them are held by the tests above and
      * by the wiring tests (`RootRefreshWiringTest`, `NotificationsGateWiringTest`,
      * `MailBySenderWiringTest`). These are the other fourteen. None can be rendered in this module, so
@@ -280,7 +280,7 @@ class LoadingRingTest {
     }
 
     /**
-     * ⚠ SOURCE LINT, run over the whole of `app/src/main/kotlin/`. §4 pins the sites we know; this
+     * SOURCE LINT, run over the whole of `app/src/main/kotlin/`. §4 pins the sites we know; this
      * one refuses the sites nobody has thought of yet, which is the only thing that closes the
      * relapse.
      */
@@ -329,7 +329,7 @@ class LoadingRingTest {
     /** The file's lines, trimmed, without comments or blanks — a rule must not be met by prose. */
     private fun codeLines(path: String): List<String> =
         File(repoRoot(), path)
-            // ⛔ Not a bare readLines(): a pinned screen that gets renamed or deleted would die on a
+            // Not a bare readLines(): a pinned screen that gets renamed or deleted would die on a
             // FileNotFoundException naming neither the site nor what to do about it, and the whole
             // point of the lints below is the sentence they fail with.
             .also { require(it.isFile) { "$path is not in the tree any more. A screen was renamed " +

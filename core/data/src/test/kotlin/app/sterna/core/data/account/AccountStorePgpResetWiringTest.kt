@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ WHAT THIS FILE IS WORTH, same caveat as [AccountStoreGateWiringTest]: it proves the SHAPE of
+ * WHAT THIS FILE IS WORTH, same caveat as [AccountStoreGateWiringTest]: it proves the SHAPE of
  * one method of `AccountStore.kt`, not its behaviour, by reading the shipped source and comparing
  * whole trimmed lines. Nothing in this module can build an `AccountStore` (it needs a `Context` and
  * the Keystore, no Robolectric here). The behaviour is executed next door by [PgpSignKeyResetTest].
@@ -14,13 +14,13 @@ import org.junit.Test
  * one. Both leave every behavioural test green and every account still showing a key id belonging
  * to the OpenPGP app the user just left.
  *
- * ⛔ Whole lines, as a CONTIGUOUS block: a `contains` check is blind to anything appended to a line,
+ * Whole lines, as a CONTIGUOUS block: a `contains` check is blind to anything appended to a line,
  * and a per-line check is blind to a statement slipped between two.
  */
 class AccountStorePgpResetWiringTest {
 
     @Test fun `clearPgpSignKeys saves the mapped list, over the whole account list, under the lock`() {
-        // ⛔ The block starts ONE LINE ABOVE the signature, on `@Synchronized`. Every mutator of
+        // The block starts ONE LINE ABOVE the signature, on `@Synchronized`. Every mutator of
         // this store carries it, and this one is a read-modify-write over the whole account list:
         // without it, an edit made from another thread between `accounts()` and `saveAccounts()`
         // is silently overwritten. An annotation is invisible to a block anchored at `fun`, so it
@@ -53,7 +53,7 @@ class AccountStorePgpResetWiringTest {
     }
 
     @Test fun `setPgpPublicKey goes through the guarded write, under the lock`() {
-        // ⛔ Anchored one line above the signature, on @Synchronized, for the same reason as
+        // Anchored one line above the signature, on @Synchronized, for the same reason as
         // clearPgpSignKeys: this is a read-modify-write of the whole account list, and it runs
         // after a round-trip to another app — the window for a concurrent edit is wide.
         assertEquals(

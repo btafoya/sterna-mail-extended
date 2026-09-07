@@ -12,7 +12,7 @@ import org.junit.Test
  * `Cc: undisclosed-recipients:;` reopened with an empty Cc, the copy line collapsed and "Save
  * draft" greyed out — the composer could no longer save the draft the server had.
  *
- * ⛔ The four slots sit next to each other — reply-to (4), to (5), cc (6), bcc (7) — and only the
+ * The four slots sit next to each other — reply-to (4), to (5), cc (6), bcc (7) — and only the
  * call sites know which is which, so every socket case here leaves the other three at their
  * distinct defaults and asserts them: a test that cannot tell slot 6 from slot 7 would let a
  * blind copy be published as a visible one.
@@ -144,7 +144,7 @@ class GroupSyntaxEnvelopeTest {
     /**
      * A group start with nothing after it: no member follows, so the name is carried.
      *
-     * ⚠ HYPOTHETICAL, and named so since the bench denied the premise this used to state: no
+     * HYPOTHETICAL, and named so since the bench denied the premise this used to state: no
      * server here has been seen to hand a half-spelled group over. `emu`/Stalwart, 2026-08-26,
      * answers `cc = NIL` for the bare atom `Cc: undisclosed-recipients` — nothing arrives at all —
      * which is why the APPEND now writes the group form itself (`localDraftOutgoing`, `core/data`).
@@ -167,7 +167,7 @@ class GroupSyntaxEnvelopeTest {
         )
     }
 
-    /** The same shape alone in the slot. ⚠ Hypothetical too: our own round trip now writes
+    /** The same shape alone in the slot. Hypothetical too: our own round trip now writes
      *  `undisclosed-recipients:;` and gets a start AND an end back. */
     @Test
     fun `a cc that is a bare group start alone reopens with its name`() {
@@ -184,7 +184,7 @@ class GroupSyntaxEnvelopeTest {
             cc = "((NIL NIL \"=?utf-8?B?w4lxdWlwZSBTw6ljdXJpdMOp?=\" NIL)(NIL NIL NIL NIL))",
         )
 
-        // ⛔ The name of a group lives in the MAILBOX field (index 2); index 0 is NIL, which is
+        // The name of a group lives in the MAILBOX field (index 2); index 0 is NIL, which is
         // why the field was lost in the first place. It gets decodeWords like any other display
         // name — decodeHeaderBytes alone would hand back the raw =?utf-8?B?…?= to the composer.
         assertEquals(
@@ -231,7 +231,7 @@ class GroupSyntaxEnvelopeTest {
 
     @Test
     fun `pure - a group start followed by a name-only entry is dropped`() {
-        // ⛔ `Cc: the-list: "Nobody";` — a member can be a display name with no address at all.
+        // `Cc: the-list: "Nobody";` — a member can be a display name with no address at all.
         // A rule that only looked for the `(NIL NIL NIL NIL)` end marker would emit the group
         // name too, and the field would carry a recipient nobody wrote.
         assertEquals(
@@ -249,7 +249,7 @@ class GroupSyntaxEnvelopeTest {
 
     @Test
     fun `pure - two group ends in a row yield nothing`() {
-        // ⛔ The guard that drops an entry with neither an address nor a name is only NARROWED
+        // The guard that drops an entry with neither an address nor a name is only NARROWED
         // by the empty group, never removed: a delimiter must never become a nameless, addressless
         // recipient in the composer's Cc field.
         assertEquals(emptyList<ImapAddress>(), envelopeAddresses(listOf(groupEnd, groupEnd)))

@@ -8,13 +8,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⛔ `SyncWindow` is `@Serializable` and stored in every account record BY CONSTANT NAME
+ * `SyncWindow` is `@Serializable` and stored in every account record BY CONSTANT NAME
  * ([StoredAccount.syncWindow]) — so the names are a persisted format, not an implementation detail.
  * kotlinx throws on a name it does not know, and `AccountStore` decodes the whole account list in
  * one go: rename one entry and every account carrying it stops decoding, which takes the accounts
  * that did NOT carry it down with the same exception.
  *
- * ⛔ And the exception never reaches anyone. `AccountStore.accounts()` answers a decode failure with
+ * And the exception never reaches anyone. `AccountStore.accounts()` answers a decode failure with
  * **an empty account list**, because its constructor and 62 call sites take a list and nothing else,
  * so the observable result of a renamed constant is not a crash: it is a device that shows no
  * accounts. What no longer follows is the permanent part — [AccountBlobGate] remembers that the
@@ -23,14 +23,14 @@ import org.junit.Test
  * corrective release. That shape is executed below rather than described, because it is the whole
  * reason this file exists.
  *
- * ⭐ This volet WITHDRAWS four members from the settings picker (50 / 200 / 500 / "Everything") and
+ * This volet WITHDRAWS four members from the settings picker (50 / 200 / 500 / "Everything") and
  * offers three new ones. Withdrawing them from the PICKER is all it does: every one of the four is
  * still in the enum, still decodes, and still carries a number, because the alternative — deleting
  * or renaming names that are written in the account records of practically every install — is the
  * silent, permanent account loss described above. One record per retired member is decoded below,
  * not one sample: a member can only be lost one at a time.
  *
- * ⚠ Whole values, never a `contains`: `"ALL" in json` would still be true of `"ALL_MAIL"`, and of
+ * Whole values, never a `contains`: `"ALL" in json` would still be true of `"ALL_MAIL"`, and of
  * an account whose display name happens to contain the word.
  */
 class SyncWindowStoredNameTest {
@@ -58,7 +58,7 @@ class SyncWindowStoredNameTest {
     }
 
     /**
-     * ⭐ THE TEST OF THIS VOLET. Seven account records, exactly as an install written BEFORE the
+     * THE TEST OF THIS VOLET. Seven account records, exactly as an install written BEFORE the
      * scale changed has them on disk — one per member that is no longer offered, plus the three age
      * windows that are. Each must decode, and each must still hand back the number its window
      * always meant (only `ALL` changes, and only downwards, to the largest window now offered).

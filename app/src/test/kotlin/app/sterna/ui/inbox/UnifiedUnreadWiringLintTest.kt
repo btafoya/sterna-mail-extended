@@ -25,11 +25,11 @@ import java.io.File
  *  - the same line totalled some other way — `.map { it.values.maxOrNull() ?: 0 }` reads perfectly
  *    well and shows the busiest account's figure as if it were every inbox's.
  *
- * ⚠ The scoped overload returns a `Map` since the breakdown replaced the sum, so the two mutations
+ * The scoped overload returns a `Map` since the breakdown replaced the sum, so the two mutations
  * this rule was first written against no longer compile as they stood. They are written above in
  * the form they now take; the rule is unchanged, and so is what it is worth.
  *
- * ⛔ Whole line, never a `contains`: a substring rule is satisfied by every mutation that LENGTHENS
+ * Whole line, never a `contains`: a substring rule is satisfied by every mutation that LENGTHENS
  * the line, and both mutations above CONTAIN `repo.observeUnifiedInboxUnread(`. The price is that
  * reformatting the declaration reddens this test — loud, and one line to fix.
  */

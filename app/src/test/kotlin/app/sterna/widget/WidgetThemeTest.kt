@@ -132,7 +132,7 @@ class WidgetThemeTest {
     // ---- the tones a home-screen badge is painted in ----
 
     /**
-     * ⭐ THE BADGE TONES ARE NOT A PALETTE, AND THEY ARE NEVER NULL — the difference that makes
+     * THE BADGE TONES ARE NOT A PALETTE, AND THEY ARE NEVER NULL — the difference that makes
      * this a separate function rather than a fourth field of [WidgetPalette].
      *
      * A `WidgetPalette` may be withheld (null) because `res/values` and `res/values-night` already
@@ -171,7 +171,7 @@ class WidgetThemeTest {
     }
 
     /**
-     * ⛔ AS MANY RAMPS AS [MONOGRAM_FAMILIES], on every theme. That count is the modulus
+     * AS MANY RAMPS AS [MONOGRAM_FAMILIES], on every theme. That count is the modulus
      * `monogramSlot` reduces an address by: a slot chosen against three families and resolved
      * against two ramps is an `IndexOutOfBoundsException` on a launcher's binder thread, not a
      * miscoloured badge.
@@ -205,7 +205,7 @@ class WidgetThemeTest {
     }
 
     /**
-     * ⚠ PINNED AS A FACT, NOT AS A DESIGN: pure black changes NOTHING about a badge today.
+     * PINNED AS A FACT, NOT AS A DESIGN: pure black changes NOTHING about a badge today.
      *
      * `applyPureBlack` is called on this path for the same reason [widgetPalette] calls it — the
      * OLED option must cover the brand palette and `dynamicDarkColorScheme` alike — but
@@ -239,9 +239,9 @@ class WidgetThemeTest {
     }
 
     /**
-     * ⭐ THE DECISION THIS PANE TURNS ON, executed here on every combination of the three settings.
+     * THE DECISION THIS PANE TURNS ON, executed here on every combination of the three settings.
      *
-     * The eight answers below are written as LITERALS. ⛔ A test that recomputed the condition to
+     * The eight answers below are written as LITERALS. A test that recomputed the condition to
      * decide what to expect would be a copy of the rule, and inverting the shipped rule would leave
      * it green.
      *

@@ -23,7 +23,7 @@ import org.junit.Test
  * 2. **the retention floor** — "keep at least the newest N whatever their age" (Codeberg #110),
  *    [retentionEvictions]'s `keepNewest`, which is the window and NEVER a request size.
  *
- * ⚠ Stated exactly: the FETCH WINDOW is exercised below for every new value; the RETENTION FLOOR is
+ * Stated exactly: the FETCH WINDOW is exercised below for every new value; the RETENTION FLOOR is
  * exercised on the function, but NO new value reaches it in service. `pruneRetention` only runs
  * under `pruneBeforeMillis != null` and every count window has `maxAgeDays = null`, so the prune is
  * skipped entirely for 100 / 1 000 / 10 000 and for `ALL` (the guards are pinned by
@@ -35,7 +35,7 @@ import org.junit.Test
  * `COUNT_1000.limit == COUNT_1000.limit` would agree with the code whatever the code said. The walks
  * are driven by the shipped decision — this file counts pages, it does not decide how big they are.
  *
- * ⚠ What is NOT covered here: the wire, and the arithmetic of a target near [Int.MAX_VALUE] (no
+ * What is NOT covered here: the wire, and the arithmetic of a target near [Int.MAX_VALUE] (no
  * shipped window carries one any more — `core:jmap`'s `JmapClientTest` and `core:imap`'s
  * `FolderWalkDecisionTest` keep that guard, where the arithmetic lives).
  */
@@ -168,7 +168,7 @@ class SyncWindowScaleTest {
     }
 
     @Test fun `a background pass walks a deep folder in the server's pages, not in fifties`() {
-        // ⛔ The push/worker and unified passes carry a hard-coded 50, and until the sizing of the
+        // The push/worker and unified passes carry a hard-coded 50, and until the sizing of the
         // full-query branch was derived from the account they made every REQUEST ask for fifty. A
         // 10 000-message window is then 200 sequential round trips instead of 20 — on the pass that
         // runs FIRST after the setting changed, because the cursor has just fallen.
@@ -225,7 +225,7 @@ class SyncWindowScaleTest {
     }
 
     @Test fun `the floor is the window and NEVER the size of a request`() {
-        // ⛔ Codeberg #110, and the trap folderSyncSizing exists for: the two numbers are handed
+        // Codeberg #110, and the trap folderSyncSizing exists for: the two numbers are handed
         // out by the same function and one of them is capped. Capping the other makes the prune
         // delete, seconds after the refresh, mail the user asked to keep — under the 10 000 window
         // it would keep the server's 500 and evict the other 9 500.

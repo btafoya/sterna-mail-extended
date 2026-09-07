@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * ⛔ THE NOTIFICATION PASS MUST NOT ERASE WHAT THE FOLDER WALK JUST WROTE (#187).
+ * THE NOTIFICATION PASS MUST NOT ERASE WHAT THE FOLDER WALK JUST WROTE (#187).
  *
  * `ImapMailService.loadWatchedFolders` builds its rows with `preview = null` — it reads no body,
  * on purpose: it is the push path, it has its own budget, and filling six rows of a page of fifty
@@ -41,7 +41,7 @@ class PushPassKeepsCachedPreviewsTest {
     private fun pushRow(uid: Long) = message(uid).toEntity("acct-1", "INBOX", 42L, preview = null)
 
     /**
-     * ⭐ THE WITNESS. The pass hands over a page it read no bodies for; the cache holds the opening
+     * THE WITNESS. The pass hands over a page it read no bodies for; the cache holds the opening
      * lines the folder walk paid for. The rows that go to the upsert must carry them.
      *
      * Without this the user sees the opening lines after a pull-to-refresh and loses them at the
@@ -64,7 +64,7 @@ class PushPassKeepsCachedPreviewsTest {
     }
 
     /**
-     * ⛔ EACH LINE UNDER ITS OWN ROW'S ID, never by position. The map is keyed by cache id for
+     * EACH LINE UNDER ITS OWN ROW'S ID, never by position. The map is keyed by cache id for
      * exactly this reason: pairing it by order would put one correspondent's words under another
      * correspondent's name, in the list, silently — the same failure the page fetch is keyed by UID
      * to avoid.
@@ -86,7 +86,7 @@ class PushPassKeepsCachedPreviewsTest {
     }
 
     /**
-     * ⛔ A row that ALREADY carries an opening line keeps its OWN. The row is the fresher of the
+     * A row that ALREADY carries an opening line keeps its OWN. The row is the fresher of the
      * two and the cached value is what it was about to replace; letting the cache win would freeze
      * a stale line onto a row whose message the server has since changed under the same id.
      */
@@ -103,7 +103,7 @@ class PushPassKeepsCachedPreviewsTest {
     }
 
     /**
-     * ⛔ And a row the cache knows nothing about stays BLANK. On this path blank means "no opening
+     * And a row the cache knows nothing about stays BLANK. On this path blank means "no opening
      * line read yet", which is what the next folder walk fetches a body for; inventing anything
      * here — an empty string above all — would make that row indistinguishable from one whose
      * message has no readable text, and nothing would ever ask about it again.
@@ -117,12 +117,12 @@ class PushPassKeepsCachedPreviewsTest {
     }
 
     /**
-     * ⚠ SOURCE TEXT, AND A LAST RESORT — `MailRepository` cannot be instantiated on the JVM. The
+     * SOURCE TEXT, AND A LAST RESORT — `MailRepository` cannot be instantiated on the JVM. The
      * decision above is executed; what is pinned here is only that the shipped write goes through
      * it, with these ARGUMENTS: `loads.forEach { emailDao.upsertAll(it.messages) }` is the defect
      * itself, and it carries no name this file could otherwise see.
      *
-     * ⭐ One cache read per FOLDER page, inside the loop. `EmailDao.cachedPreviews` binds one host
+     * One cache read per FOLDER page, inside the loop. `EmailDao.cachedPreviews` binds one host
      * variable per id and SQLite caps them at 999: joining every watched folder's page into a
      * single call would throw on an account watching enough folders, and this write is the one
      * that lands the push pass's mail.
@@ -147,7 +147,7 @@ class PushPassKeepsCachedPreviewsTest {
     }
 
     /**
-     * ⛔ AND THE READ IS BOUNDED BY THE NUMBERING THE PAGE WAS READ UNDER — the half `keepingCachedPreviews`
+     * AND THE READ IS BOUNDED BY THE NUMBERING THE PAGE WAS READ UNDER — the half `keepingCachedPreviews`
      * cannot do anything about, because it never sees a numbering (#99 inside #187).
      *
      * A row id is `imap:$accountId:$mailboxId:$uid` and carries no UIDVALIDITY, and
@@ -162,7 +162,7 @@ class PushPassKeepsCachedPreviewsTest {
      * answerable to the very rows it is guarding. `loadWatchedFolders` puts the SELECT's answer on
      * the load, once.
      *
-     * ⛔ NO DEFAULT on that field, for the reason already written on `previewSources` and
+     * NO DEFAULT on that field, for the reason already written on `previewSources` and
      * `folderStatedEmpty`: it is an answer the server gave, and a default is a way of not asking.
      * A defaulted `null` would silently mean "unknown numbering" for every folder and quietly match
      * only the rows of servers that state no UIDVALIDITY.

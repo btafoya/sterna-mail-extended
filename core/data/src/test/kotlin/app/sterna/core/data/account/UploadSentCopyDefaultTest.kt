@@ -15,7 +15,7 @@ import org.junit.Test
  * going through the parser, and would pass just as well if the field were `@Required`.
  *
  * The parser is the store's own configuration (`Json { ignoreUnknownKeys = true }`,
- * `AccountStore.kt:243`); `StoredAccountReferenceRecordTest` is what pins it to the shipped source.
+ * `AccountStore`); `StoredAccountReferenceRecordTest` is what pins it to the shipped source.
  */
 class UploadSentCopyDefaultTest {
 

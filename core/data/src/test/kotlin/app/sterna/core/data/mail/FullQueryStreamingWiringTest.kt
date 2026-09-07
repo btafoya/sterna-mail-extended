@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST. The order this pins — write each page, reconcile once, only
+ * SOURCE LINT, NOT A BEHAVIOUR TEST. The order this pins — write each page, reconcile once, only
  * on a walk that finished — is EXECUTED by [FullQueryWriteThroughTest]. What no JVM test can reach
  * is `MailRepository`, which needs Room, an Android `Context` and a live JMAP session; so the plug
  * between the two is read here, as WHOLE LINES.
@@ -32,7 +32,7 @@ class FullQueryStreamingWiringTest {
     // -- the decision function, pinned whole -------------------------------------------------------
 
     @Test fun `fullQueryWriteThrough is these six statements, in this order, with no guard`() {
-        // ⛔ The red line of the volet, as source. It is short precisely so it can be pinned
+        // The red line of the volet, as source. It is short precisely so it can be pinned
         // entire: the mutations this exists to catch are INSERTIONS (a try/catch around the walk,
         // a finally around the reconcile), and no presence check can see an inserted line.
         //
@@ -78,10 +78,10 @@ class FullQueryStreamingWiringTest {
         //  - reconcile: `reconcileMailbox` with BOTH the keep set and the spare set.
         assertLine("MailRepository", "syncMailbox", "val full = fullQuerySizing(")
         assertLine("MailRepository", "syncMailbox", "val walked = fullQueryWriteThrough<List<Email>, WindowWalk>(")
-        // ⭐ #165: the folder as it stood BEFORE the walk, which travels to the reconcile as the
+        // #165: the folder as it stood BEFORE the walk, which travels to the reconcile as the
         // bound on what may be DELETED. `localAccountId` and `mailboxId` are the SAME two the
         // reconcile is given below — a bound read off another folder would evict nothing at all
-        // and switch the reconcile off. ⛔ On this path it is never null: the folder is known.
+        // and switch the reconcile off. On this path it is never null: the folder is known.
         assertLine(
             "MailRepository", "syncMailbox",
             "folderIds = { emailDao.idsForMailbox(localAccountId, mailboxId).toSet() },",
@@ -90,7 +90,7 @@ class FullQueryStreamingWiringTest {
             "MailRepository", "syncMailbox",
             "walk = { onPage -> client.queryEmailsWindow(session, accountId, mailboxId, full.windowTarget, full.pageSize, auth, onPage) },",
         )
-        // ⚠ writePage became a block when the sign-out guard moved into it: the page is refused
+        // writePage became a block when the sign-out guard moved into it: the page is refused
         // when the account is no longer configured. The guard line and its position inside the
         // block are pinned by SignedOutAccountWiringTest; what this test still owns is that the
         // write itself is an `upsertAll` of the whole page, tagged with the walk's account.
@@ -155,7 +155,7 @@ class FullQueryStreamingWiringTest {
     }
 
     @Test fun `exactly one transaction, whichever way into the reconcile`() {
-        // ⛔ The two entry points are transactional and the shared body is NOT. If the body were,
+        // The two entry points are transactional and the shared body is NOT. If the body were,
         // `replaceMailbox` would open a transaction inside a transaction — supported by Room and
         // by SQLite, but the only place in this DAO that would rely on it, on the one path whose
         // failure mode is deleted mail, and on both protocols. Nothing in this repository can
@@ -183,11 +183,11 @@ class FullQueryStreamingWiringTest {
     }
 
     @Test fun `the reconcile is these four lines, and evicts WITHOUT un-indexing`() {
-        // ⛔ Pinned whole, because the mutations that matter here are ARGUMENT substitutions:
+        // Pinned whole, because the mutations that matter here are ARGUMENT substitutions:
         // `keepIds` and `spareIds` are both id collections, so handing reconcileEvictions the wrong
         // one compiles, leaves the statement list identical, and turns every full re-query into
         // "delete the folder except the rows mutated in the last 45 seconds". A `chunk = 1_000`
-        // added to the same call is #29 reopened. ⭐ And `cachedIds` is the folder's own read
+        // added to the same call is #29 reopened. And `cachedIds` is the folder's own read
         // BOUNDED by `evictableIds` (#165): this body runs inside the @Transaction and re-reads the
         // folder AFTER the caller has stopped looking, so dropping the bound here deletes whatever
         // committed in between. Both are EXECUTED against real SQLite by
@@ -207,7 +207,7 @@ class FullQueryStreamingWiringTest {
             DaoQuerySource.daoFunctionBody("EmailDao", "reconcileMailboxRows")
                 .lines().map { it.trim() }.filter { it.isNotEmpty() },
         )
-        // ⛔ `deleteByIds` instead of `evictFromCacheKeepingIndex` is an IRREVERSIBLE loss on IMAP:
+        // `deleteByIds` instead of `evictFromCacheKeepingIndex` is an IRREVERSIBLE loss on IMAP:
         // these messages are still in their folder on the server, and nothing re-indexes a row the
         // cache no longer holds (the crawl is JMAP only).
         val statements = DaoQuerySource.emailDaoStatements("reconcileMailbox")

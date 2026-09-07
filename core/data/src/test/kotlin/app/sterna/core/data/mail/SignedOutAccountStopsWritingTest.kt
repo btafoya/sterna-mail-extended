@@ -10,7 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⭐ Signing an account out while it syncs must stop what writes in its name — EXECUTED, decision
+ * Signing an account out while it syncs must stop what writes in its name — EXECUTED, decision
  * and consequence.
  *
  * The defect: `AccountsViewModel.signOut` tears down push, removes the account, purges its cache
@@ -20,16 +20,16 @@ import org.junit.Test
  * under an account that no longer exists, drawn in the unified list with no chip.
  *
  * What is executed here is the shipped decision ([checkAccountStillConfigured]) inside the shipped
- * order ([fullQueryWriteThrough]). ⛔ What no JVM test can reach is `MailRepository`, which needs
+ * order ([fullQueryWriteThrough]). What no JVM test can reach is `MailRepository`, which needs
  * Room, a `Context` and a live session — that its walks really call this, with THEIR OWN account
  * id, is pinned as source by [SignedOutAccountWiringTest].
  *
- * ⚠ Every walk below counts the pages it OFFERED, not the pages that were written. That is the
+ * Every walk below counts the pages it OFFERED, not the pages that were written. That is the
  * whole point of the fixture: "the walk was abandoned" and "the walk ran to the end and wrote
  * nothing" leave the same cache behind, and only the offered count tells them apart. A fix that
  * merely skipped the writes would leave `offered` at five in every test here.
  *
- * ⛔ But the walk below is this test's OWN [Walk] class, so what it proves is that the refusal, when
+ * But the walk below is this test's OWN [Walk] class, so what it proves is that the refusal, when
  * it propagates, stops a walk — not that the SHIPPED walks let it propagate. That second half is one
  * line in each of two other modules (`JmapClient`, `ImapClient`), it is reachable from no JVM test,
  * and wrapping it in a `runCatching` leaves this whole file green. It is pinned, whole-line, by
@@ -134,10 +134,10 @@ class SignedOutAccountStopsWritingTest {
         return walk to thrown
     }
 
-    // -- ⭐ the walk of a signed-out account ---------------------------------------------------------
+    // -- the walk of a signed-out account ---------------------------------------------------------
 
     @Test fun `a sign-out mid-walk stops the walk and leaves nothing new under the removed id`() {
-        // ⭐ THE test of this volet. The account goes after two pages. What must hold:
+        // THE test of this volet. The account goes after two pages. What must hold:
         //  - the walk STOPPED (three pages offered out of five, the third being the one refused);
         //  - nothing of pages 3..5 is in the cache;
         //  - the reconcile never ran — abandoning a walk must not DELETE anything either, and the
@@ -238,7 +238,7 @@ class SignedOutAccountStopsWritingTest {
     }
 
     @Test fun `an empty account list refuses, it does not wave everything through`() {
-        // ⚠ The opposite of OrphanedAccountCache.orphans, deliberately. There an empty inventory
+        // The opposite of OrphanedAccountCache.orphans, deliberately. There an empty inventory
         // must sweep NOTHING, because sweeping deletes; here an empty list must refuse, because
         // refusing only stops a write. Both fail on the side that cannot destroy data.
         assertThrows(AccountGoneException::class.java) {

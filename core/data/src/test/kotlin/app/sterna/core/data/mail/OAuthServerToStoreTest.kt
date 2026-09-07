@@ -13,7 +13,7 @@ import org.junit.Test
  * identity, so the duplicate guard never saw the two adds as the same mailbox — two inboxes, two
  * badges, two sets of notifications for one account.
  *
- * ⛔ The values below are LITERAL on both sides. Recomputing the rule here (asking the result
+ * The values below are LITERAL on both sides. Recomputing the rule here (asking the result
  * whether it is `Found`, re-deriving the host) would be a copy of the decision: the shipped
  * condition could be inverted and this file would stay green.
  */
@@ -28,7 +28,7 @@ class OAuthServerToStoreTest {
     }
 
     /**
-     * ⛔ And a silent resolution must not cost the user the account. Autodiscovery can answer
+     * And a silent resolution must not cost the user the account. Autodiscovery can answer
      * nothing for reasons that have nothing to do with this sign-in (the budget ran out, the apex
      * is behind a captive portal, the domain simply has no `/.well-known/jmap`) — the tokens are
      * already granted and valid at that point, so the add goes through under the document's host,
@@ -53,7 +53,7 @@ class OAuthServerToStoreTest {
     }
 
     /**
-     * ⛔ A blank winner is not a host. `Found("")` stored as the server yields an account whose
+     * A blank winner is not a host. `Found("")` stored as the server yields an account whose
      * session URL cannot be built, i.e. an account that can never sync and that the user can only
      * fix by typing everything in again.
      */

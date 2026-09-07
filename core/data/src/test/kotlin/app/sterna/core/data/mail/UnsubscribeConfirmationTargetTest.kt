@@ -24,7 +24,7 @@ class UnsubscribeConfirmationTargetTest {
     }
 
     /**
-     * ⛔ A page load names the WHOLE URL — path and query included, exactly like the reader's
+     * A page load names the WHOLE URL — path and query included, exactly like the reader's
      * ordinary external-link dialog. Consenting to "open a page on l.example.com" is not the same
      * as consenting to open one specific address; this is the only path where a browser runs
      * whatever comes back, so it is the one where the least is left unsaid.

@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST, and worth only what it says. It reads `SternaApp.kt` and
+ * SOURCE LINT, NOT A BEHAVIOUR TEST, and worth only what it says. It reads `SternaApp.kt` and
  * `AccountsUnreadableScreen.kt` as TEXT and compares whole trimmed lines. It exists because
  * `RootViewModel` cannot be built here (an `Application`, the account store, the Keystore — no
  * Robolectric in this module) and no composable can be rendered here either. The DECISION is
@@ -13,14 +13,14 @@ import java.io.File
  * WHICH ARGUMENTS, that each root state reaches its own screen, and that the screen written for the
  * new state hands both labels over and offers nothing to tap.
  *
- * ⛔ What it CANNOT prove, and no test in this repo can: that anything is actually drawn, that the
+ * What it CANNOT prove, and no test in this repo can: that anything is actually drawn, that the
  * text fits, that the layout survives a large font scale, or that the strings reach the right slots
  * on screen. That is bench work.
  *
  * Neither file is enough alone: the rule can be perfect and called by nobody, and the call can be
  * perfect around a rule that returns the wrong screen.
  *
- * ⛔ Whole trimmed lines, compared as a CONTIGUOUS block, never `contains` and never one line in
+ * Whole trimmed lines, compared as a CONTIGUOUS block, never `contains` and never one line in
  * isolation: a fragment check is blind to anything appended to a line, and a per-line check is
  * blind to a statement moved one line down.
  */
@@ -80,7 +80,7 @@ class RootRefreshWiringTest {
     }
 
     /**
-     * ⚠ THE SHAPE OF THE SCREEN, NOT ITS RENDERING. No composable can be rendered in this module,
+     * THE SHAPE OF THE SCREEN, NOT ITS RENDERING. No composable can be rendered in this module,
      * so what is held here is that the two labels reach [app.sterna.ui.components.EmptyState] —
      * `body` above all, which carries the only statement the user is really owed: nothing was
      * deleted. `TranslationParityTest` proves that sentence EXISTS in nine languages and can say
@@ -103,7 +103,7 @@ class RootRefreshWiringTest {
     }
 
     /**
-     * ⛔ NOTHING TAPPABLE ON THIS SCREEN, held as an absence.
+     * NOTHING TAPPABLE ON THIS SCREEN, held as an absence.
      *
      * `EmptyState` takes an `action: (@Composable () -> Unit)?`, so a "Start over" button wired to
      * `AccountStore.clear()` is ONE line away — on the one screen a user reaches while her accounts

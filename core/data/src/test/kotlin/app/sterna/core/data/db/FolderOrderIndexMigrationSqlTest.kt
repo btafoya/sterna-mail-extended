@@ -21,7 +21,7 @@ import java.sql.DriverManager
  * WHOLE primary key once per collapsed thread, and the two `GROUP BY` sub-queries reached the
  * folder through `index_emails_mailboxId` — the mailbox id alone, so every account's rows carrying
  * that server-assigned id, in no useful order. Switching folders with the conversation view ON left
- * the list blank for a second or two on cached mail. ⛔ They did not re-scan the table: the witness
+ * the list blank for a second or two on cached mail. They did not re-scan the table: the witness
  * `ConversationIndexPlanSqlTest.withoutTheStepThePlanFallsBackToTheMailboxIdAlone` shows what the
  * plan really was, and it is a SEARCH.
  *
@@ -29,7 +29,7 @@ import java.sql.DriverManager
  * SQLite engine (JDBC, in memory) through a tiny [SupportSQLiteDatabase] proxy, from the PUBLISHED
  * v15 schema — never from a copy of the statements, so this test cannot drift from what ships.
  *
- * ⭐ One deliberate difference with the model: the steps are taken FROM
+ * One deliberate difference with the model: the steps are taken FROM
  * [SternaDatabase.ALL_MIGRATIONS] ([registeredStep]) rather than named one by one. Naming the val
  * would prove the object works while it sits unregistered, and an unregistered step is not a
  * degraded fix, it is the destructive case: `SternaDatabase` ends its builder with
@@ -37,7 +37,7 @@ import java.sql.DriverManager
  * `scheduled_sends` and `local_drafts` included, i.e. mail the user wrote that never left the
  * phone. Reading the array Room is really handed makes "written" and "registered" one proof.
  *
- * ⚠ The whole value is the column ORDER, not the existence of an index: `(sortKey, accountId,
+ * The whole value is the column ORDER, not the existence of an index: `(sortKey, accountId,
  * mailboxId)` would be an index all the same, and would serve none of the three accesses above.
  * [v26to27_theIndexColumnsAreScopeThenOrder] is the test that would catch that, and the plan-level
  * proof lives in `ConversationIndexPlanSqlTest`.
@@ -114,7 +114,7 @@ class FolderOrderIndexMigrationSqlTest {
     /**
      * The step Room really has for `from` → …, read out of [SternaDatabase.ALL_MIGRATIONS].
      *
-     * ⛔ A migration that is written, correct and simply absent from that array never runs, and the
+     * A migration that is written, correct and simply absent from that array never runs, and the
      * builder's `fallbackToDestructiveMigration()` turns "no path" into `dropAllTables()`.
      */
     private fun registeredStep(from: Int): Migration {
@@ -181,7 +181,7 @@ class FolderOrderIndexMigrationSqlTest {
      * Two accounts holding the same email id in the same server-assigned mailbox id — the reason
      * the index leads on `accountId` and the reason the scope is a PAIR (Codeberg #121).
      *
-     * ⚠ Only possible from v16 on: the PUBLISHED v15 table keys on `id` alone, which is the very
+     * Only possible from v16 on: the PUBLISHED v15 table keys on `id` alone, which is the very
      * collision [MIGRATION_15_16] widened the key to fix (issue #31).
      */
     private fun fillTheTwinRowOfASiblingAccount() {
@@ -303,7 +303,7 @@ class FolderOrderIndexMigrationSqlTest {
      * The full SHAPE of [index], as one comparable string: `unique=<0|1> partial=<0|1>` then the
      * key columns in index order, each with its direction and collation.
      *
-     * ⛔ Read through `PRAGMA index_xinfo` and `PRAGMA index_list`, deliberately NOT through
+     * Read through `PRAGMA index_xinfo` and `PRAGMA index_list`, deliberately NOT through
      * `PRAGMA index_info`. `index_info` returns the column NAMES and nothing else — not the
      * direction, not the uniqueness, not the collation — and those are exactly the three ways an
      * updated install can end up holding an index that is not the one the entity declares.
@@ -378,7 +378,7 @@ class FolderOrderIndexMigrationSqlTest {
     // --- (b) the ORDER of the columns, which is the whole point -------------------------------------
 
     /**
-     * ⭐ Scope first, order last. `accountId` then `mailboxId` is the pair `folderScopeSql` binds
+     * Scope first, order last. `accountId` then `mailboxId` is the pair `folderScopeSql` binds
      * (never a bare mailbox id — Codeberg #121), and `sortKey` last is what lets the same index
      * answer `ORDER BY sortKey DESC` and the representative join `e.sortKey = g.maxKey` on the rows
      * the first two columns already narrowed to. Any other order is an index that costs a write on
@@ -520,7 +520,7 @@ class FolderOrderIndexMigrationSqlTest {
     }
 
     /**
-     * ⚠ Reads [SCHEMA_VERSION], the constant `@Database(version = …)` is itself written from — the
+     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` is itself written from — the
      * annotation is not retained at runtime, so it cannot be read reflectively.
      */
     @Test fun theRegisteredMigrationsReachTheDeclaredSchemaVersion() {

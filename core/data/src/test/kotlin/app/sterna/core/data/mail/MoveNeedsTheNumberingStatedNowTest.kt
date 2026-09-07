@@ -229,7 +229,7 @@ class MoveNeedsTheNumberingStatedNowTest {
     // ---- the guard must not fire at a healthy server -------------------------------------------
 
     /**
-     * ⛔ THE COST OF GETTING THIS WRONG, and it was wrong: a folder the user has never OPENED, met
+     * THE COST OF GETTING THIS WRONG, and it was wrong: a folder the user has never OPENED, met
      * only through a server-side search, had no recorded numbering — `searchFolders` SELECTed it
      * and threw the `UIDVALIDITY` away. There was then nothing to freeze, so archiving, moving or
      * deleting a search hit from an old archive was REFUSED, on a server that had done nothing
@@ -281,12 +281,12 @@ class MoveNeedsTheNumberingStatedNowTest {
     // ---- what the refusal must COST ------------------------------------------------------------
 
     /**
-     * ⭐ WHERE THE REFUSAL IS RAISED, read as the only thing that can show it: the number of
+     * WHERE THE REFUSAL IS RAISED, read as the only thing that can show it: the number of
      * sockets the whole scenario opened.
      *
      * The `throw` lives AFTER `onMailbox` returns, and that placement is the guard, not a style.
      * Raised INSIDE the block it lands in `runWithRetry`'s `catch (t: Throwable)`
-     * (`ImapMailService.kt:410`) — `ImapNumberingUnconfirmed` is deliberately neither an
+     * (`ImapMailService`) — `ImapNumberingUnconfirmed` is deliberately neither an
      * `ImapException` nor an `ImapUidValidityChanged`, so it does not take that catch's
      * `throw renumbered` escape — and the client then closes the session, drops it from the pool,
      * RECONNECTS, LOGINs and re-SELECTs, only to refuse a second time. A full round trip on a
@@ -295,8 +295,8 @@ class MoveNeedsTheNumberingStatedNowTest {
      * attempt threw, which need not be the exception the caller is written to recognise.
      *
      * One socket for the whole test, not one per call: `withSession` pools a session per account
-     * (`ImapMailService.kt:359`), so every call here rides the same connection — which is exactly
-     * why a SECOND one can only mean a reconnect. ⚠ `issued()` cannot say this: it filters the
+     * (`ImapMailService`), so every call here rides the same connection — which is exactly
+     * why a SECOND one can only mean a reconnect. `issued()` cannot say this: it filters the
      * `LOGIN` line out, so a replayed LOGIN + SELECT would show up as one more `SELECT` and
      * nothing else. Read inside `use`, before the server is closed.
      */

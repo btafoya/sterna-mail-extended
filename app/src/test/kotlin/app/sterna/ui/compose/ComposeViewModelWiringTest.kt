@@ -95,7 +95,7 @@ class ComposeViewModelWiringTest {
     }
 
     /**
-     * ⭐ Who a reply is addressed to is decided in ONE place, [replyRecipient] /
+     * Who a reply is addressed to is decided in ONE place, [replyRecipient] /
      * [replyAllRecipients], and this class must keep asking it.
      *
      * The notification path is pinned this way already (`QuickReplyWiringTest`), the composer's
@@ -123,7 +123,7 @@ class ComposeViewModelWiringTest {
     }
 
     /**
-     * ⛔ The queued row a composer was editing is DESTROYED by `consumeEditingOutbox` —
+     * The queued row a composer was editing is DESTROYED by `consumeEditingOutbox` —
      * `repo.deleteOutbox(id)` takes the row and its staged attachment directory. Since #95 a save
      * can come back having reached nothing: KEPT_ON_DEVICE means the draft is on the phone alone,
      * and no screen shows local drafts yet. Consuming the queued row on that outcome removes the
@@ -145,7 +145,7 @@ class ComposeViewModelWiringTest {
     }
 
     /**
-     * ⛔ The other half of the same outcome, and the one that decides whether the message is SENT.
+     * The other half of the same outcome, and the one that decides whether the message is SENT.
      * A row that is not consumed is not "left alone": left in `EDITING` it is on no screen (the
      * Outbox screen and the badge both filter EDITING out) and the next launch reverts it to QUEUED
      * and delivers the PRE-EDIT text, with no undo window, after the user tapped "save as draft".
@@ -177,7 +177,7 @@ class ComposeViewModelWiringTest {
     }
 
     /**
-     * ⛔ THE WHOLE BODY, line by line and in order — a filter on one name is blind to the mutation
+     * THE WHOLE BODY, line by line and in order — a filter on one name is blind to the mutation
      * that costs the least to write: MOVE the park line into the `if (draftSaveNeedsNotice(outcome))`
      * block right above it. Nothing is added, nothing is lengthened, every `contains` rule and every
      * "these are the lines naming parkEditingOutbox" rule stays green — and the fix is disarmed
@@ -196,13 +196,13 @@ class ComposeViewModelWiringTest {
                 "submit block itself (not nested in a condition) and must come before the consume. " +
                 "Body was:\n$body",
             listOf(
-                // ⛔ FIRST, and above everything that writes: a queued row reopened by Outbox →
+                // FIRST, and above everything that writes: a queued row reopened by Outbox →
                 // Edit and redrawn empty over a resume slot that lost the body is saved as an empty
                 // draft, and `consumeEditingOutbox()` at the foot of this list then deletes the row
                 // and its staged attachment directory — the only copy of the text. The decision is
                 // executed in LostBodySendTest; that this list holds it ABOVE the consume is what
                 // makes this pin the test that watches the QUEUED ROW and not the sentence.
-                // ⛔ Whole line, arguments included: `body` is the RAW body handed to saveDraft,
+                // Whole line, arguments included: `body` is the RAW body handed to saveDraft,
                 // and `holdsQueuedRow` is the outbox row alone — the local and server routes lose
                 // nothing on a save (localDraftBodyToWrite, unlessBodyIsLossy) and refusing there
                 // would cost a subject or a recipient just typed.
@@ -217,11 +217,11 @@ class ComposeViewModelWiringTest {
                 "if (!hasDraftContent(to, cc, bcc, subject, body.text)) {",
                 "val original = editingDraftId",
                 "val originalUidValidity = editingDraftUidValidity",
-                // ⛔ …and the ACCOUNT both were read from, captured with them: the expunge below is
+                // …and the ACCOUNT both were read from, captured with them: the expunge below is
                 // addressed to it, never to `credentials()` — the account of the identity the
                 // "From" picker is showing, and that picker covers every account (#31 × #63).
                 "val originalAccountId = editingDraftAccountId",
-                // ⛔ The close that accompanies a deletion hands the phone's own row to NOBODY —
+                // The close that accompanies a deletion hands the phone's own row to NOBODY —
                 // abandon() would otherwise put it back PENDING and re-arm its upload, sending the
                 // pre-edit text of the draft just emptied up to the server (#95 × #69) — and it is
                 // said AS AN ARGUMENT. Said by blanking `editingLocalDraftId` first, as it was, a
@@ -230,25 +230,25 @@ class ComposeViewModelWiringTest {
                 "abandon(emptying = true, body = body.text)",
                 "if (original == null) {",
                 "_state.value = ComposeState.Done",
-                // ⛔ A `local-draft:` id names nothing repo.discardDraft can destroy: under IMAP
+                // A `local-draft:` id names nothing repo.discardDraft can destroy: under IMAP
                 // numbering it answers an empty list, so the emptied draft survived and went up on
                 // the next network while the screen closed as a success. And the row is not taken
                 // away on its own either: while it exists it MASKS the server draft it replaces, so
                 // consuming it alone brings that draft back with its pre-edit text (#95 × #69).
-                // ⛔ And the credentials submit() resolved are NOT passed on: they are the account
+                // And the credentials submit() resolved are NOT passed on: they are the account
                 // of the identity the "From" picker shows, which covers every account, while the
                 // row and the server draft it replaces belong to the account it was opened from.
                 "} else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {",
                 "submit(to) { _, _ -> destroyReplacedServerDraft(original) }",
                 "} else {",
-                // ⛔ And the server route reads the SAME verdict the local one does: a draft this
+                // And the server route reads the SAME verdict the local one does: a draft this
                 // composer never read whole keeps its server copy and the screen says so
                 // (emptiedServerDraftIsKept). Unconditional, this line expunged a draft made of one
                 // inline image the instant it was saved — drawn empty, because draftHasContent
                 // counts neither inline images nor calendar parts. The notice sits INSIDE the
                 // lambda: submit() reaches Done after it returns.
                 "submit(to) { _, _ ->",
-                // ⛔ The account is resolved by a LOCAL FUN and not into a val up front: a
+                // The account is resolved by a LOCAL FUN and not into a val up front: a
                 // lossy draft keeps its copy whatever the account says, and resolving an account
                 // removed from the phone during the edit would turn that true notice into a
                 // "could not save" banner over a gesture that failed at nothing. Called only
@@ -260,7 +260,7 @@ class ComposeViewModelWiringTest {
                 "composingAsAccountId = _selectedFrom.value?.accountId ?: accountId,",
                 "lookup = { store.credentials(it) },",
                 ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
-                // ⭐ The second term of the guard, and the whole correction: the addressing
+                // The second term of the guard, and the whole correction: the addressing
                 // of the copy about to be expunged, PROVEN empty or not proven at all. Read under
                 // the account the draft was OPENED from — `credentials` here reads another
                 // server's Drafts. The `!editingDraftLossy &&` only skips a read whose answer
@@ -280,7 +280,7 @@ class ComposeViewModelWiringTest {
                 "}",
                 "submit(to) { credentials, recipients ->",
                 "val identity = selectedIdentity()",
-                // ⛔ What the save REPLACES is one answer — the id frozen at the open with the
+                // What the save REPLACES is one answer — the id frozen at the open with the
                 // numbering it belongs to — and it is withheld WHOLE when that pair was read under
                 // another account than the one being saved as (#31 × #63): the new copy is created
                 // on the account being written as while the original stays on the one it was opened
@@ -289,15 +289,15 @@ class ComposeViewModelWiringTest {
                 "val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)",
                 ".unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)",
                 "val outcome = repo.saveDraft(",
-                // ⛔ The text part is `toPlainText(body)` and NOT `body.text` (#131): a list is
+                // The text part is `toPlainText(body)` and NOT `body.text` (#131): a list is
                 // written `- ` / `1. ` there and a link is written `label <url>`, so a recipient
                 // — or a client — reading only the text part still gets both. `body.text` here
                 // stores a draft whose text part disagrees with the html part beside it, built
                 // from the very same body.
                 "credentials, recipients, subject, toPlainText(body),",
-                // ⛔ The styling as a SECOND part, from the one pure function every route uses:
+                // The styling as a SECOND part, from the one pure function every route uses:
                 // null for a body with no styling, so a plain draft is written EXACTLY as it was
-                // before #131. ⛔ NOT `htmlBodyWithSignature(...)` — that is the SEND's html, it
+                // before #131. NOT `htmlBodyWithSignature(...)` — that is the SEND's html, it
                 // substitutes an imported signature verbatim, and a draft stored with it reopens
                 // as unparseable markup, i.e. as text, one save later.
                 "html = draftHtmlToSave(body),",
@@ -307,12 +307,12 @@ class ComposeViewModelWiringTest {
                 "replacesUidValidity = replaces.uidValidity,",
                 "attachments = _attachments.value,",
                 "bodyIsLossy = editingDraftLossy,",
-                // ⛔ Both, and each with its own name. The disjunction goes on the row and licenses
+                // Both, and each with its own name. The disjunction goes on the row and licenses
                 // the destroy (#63); the composer's own loss is the only term the write guard may
                 // weigh. Passing `editingDraftLossy` here too refuses an erasure the user made on
                 // purpose on every reopened HTML draft, in silence.
                 "composerBodyWasLost = composerBodyWasLost,",
-                // ⛔ …and the EMPTINESS of what was typed, which travels apart from the text since
+                // …and the EMPTINESS of what was typed, which travels apart from the text since
                 // the text is derived (#131). `toPlainText(body)` of an empty body carrying one
                 // bullet is `"- "`, and `"- ".isBlank()` is false: read off the body handed over,
                 // the lost-body guard stands down on a composer that had nothing, and those two
@@ -333,7 +333,7 @@ class ComposeViewModelWiringTest {
     }
 
     /**
-     * ⛔ And the park has to SURVIVE the screen going away — the whole body again, for the same
+     * And the park has to SURVIVE the screen going away — the whole body again, for the same
      * reason: `viewModelScope.launch` here instead of `appScope.launch` is one word, and it is the
      * defect. The save runs in `viewModelScope` (through `submit`), the user's back gesture during
      * the spinner cancels it, and a park scheduled on that scope never writes: the row stays
@@ -362,7 +362,7 @@ class ComposeViewModelWiringTest {
     }
 
     /**
-     * ⛔ And the park of an INTERRUPTED EDIT has to survive the screen going away too — `abandon`
+     * And the park of an INTERRUPTED EDIT has to survive the screen going away too — `abandon`
      * runs from the back gesture and the X, which pop the screen and cancel `viewModelScope` on the
      * spot. Whole lines, in order: a `viewModelScope.launch` here is one word, and a
      * `repo.releaseOutboxEdit(id)` written in the park's slot is the shipped defect itself (the row

@@ -15,7 +15,7 @@ import org.junit.Test
  */
 class SourceCouldNotBeReadTest {
 
-    /** ⛔ THE case: `ImapClient.bodyItem` answers "" when the FETCH carried no body item. */
+    /** THE case: `ImapClient.bodyItem` answers "" when the FETCH carried no body item. */
     @Test fun anEmptySourceCouldNotBeRead() {
         assertTrue(
             "an empty source is a message that did not come back, never an empty draft",
@@ -24,9 +24,9 @@ class SourceCouldNotBeReadTest {
     }
 
     /**
-     * ⭐ The case that forbids `isEmpty()`, and it is a DELIBERATE over-refusal, not an observed
+     * The case that forbids `isEmpty()`, and it is a DELIBERATE over-refusal, not an observed
      * producer: every producer known today hands back exactly "" (`ImapParser.readLiteral` returns
-     * "" after draining an oversized literal, ImapParser.kt:143-151 — it does not leave a CRLF
+     * "" after draining an oversized literal, ImapParser-151 — it does not leave a CRLF
      * behind). Nothing found so far yields a whitespace-only source; the guard refuses it anyway,
      * because it must stay at least as strong as [receiptRequestedInSource], which treats
      * present-but-unreadable as an unknown, and because a bare line ending names no header and no
@@ -60,7 +60,7 @@ class SourceCouldNotBeReadTest {
     }
 
     /**
-     * ⭐ THE control that forbids refusing too much: a draft with an empty text body is ordinary
+     * THE control that forbids refusing too much: a draft with an empty text body is ordinary
      * mail — a subject and recipients typed, nothing written yet — and it must keep opening. A
      * guard that judged the parsed body instead of the source would swallow this one, and every
      * such draft would become unopenable in exchange for the defect above.
@@ -85,7 +85,7 @@ class SourceCouldNotBeReadTest {
 }
 
 /**
- * ⚠ THIS TEST READS SOURCE TEXT — the last resort, exactly as [DraftReceiptWiringTest] does:
+ * THIS TEST READS SOURCE TEXT — the last resort, exactly as [DraftReceiptWiringTest] does:
  * `MailRepository` needs Room, a `Context` and a socket, so no JVM test can call `openEmailImap`.
  * The DECISION is EXECUTED next door by [SourceCouldNotBeReadTest]; what nothing else can see is
  * whether the call site still asks it, with the right ARGUMENT, and EARLY ENOUGH. So whole lines
@@ -105,7 +105,7 @@ class SourceCouldNotBeReadTest {
  * - an `.ifBlank { … }` hung on the fetch line itself, which would turn the unknown back into a
  *   value before the guard ever sees it.
  *
- * ⚠ The trimmed-line assertions cannot see either of the last two: [codeLinesNaming] trims, so
+ * The trimmed-line assertions cannot see either of the last two: [codeLinesNaming] trims, so
  * nesting is invisible to it by construction, and no assertion looked at the fetch line at all.
  * Hence the two below that read the RAW indentation and the whole fetch line.
  */
@@ -144,7 +144,7 @@ class SourceRefusalWiringTest {
     }
 
     /**
-     * ⛔ The line right UNDER the guard, and nothing else. A "does openEmailImap contain a
+     * The line right UNDER the guard, and nothing else. A "does openEmailImap contain a
      * `throw MessageUnavailableException(` somewhere" check is worthless here: the function
      * carried two of them before this work, so it was green on `main` and would stay green with
      * the guard deleted. What has to be pinned is the throw THIS guard raises —
@@ -166,9 +166,9 @@ class SourceRefusalWiringTest {
     }
 
     /**
-     * ⛔ THE hole every trimmed-line assertion is blind to: wrapping the guard in
+     * THE hole every trimmed-line assertion is blind to: wrapping the guard in
      * `if (markRead) { … }` leaves it word for word where it is, one level deeper, and disarms it
-     * on the one path that costs the data — `fetchEmail` (MailRepository.kt:6154) opens the
+     * on the one path that costs the data — `fetchEmail` (MailRepository) opens the
      * composer's copy with `markRead = false`. Indentation is the only witness, and it is compared
      * to the PARSE's own indentation rather than to a literal eight spaces: a reformat of the whole
      * function must not turn this red, only a change of block must.
@@ -187,7 +187,7 @@ class SourceRefusalWiringTest {
     }
 
     /**
-     * ⛔ And the fetch line itself, whole. Nothing else pinned it, so an `.ifBlank { "" }` — or
+     * And the fetch line itself, whole. Nothing else pinned it, so an `.ifBlank { "" }` — or
      * an `.ifBlank { cachedBodyText }` — hung on the end of it would answer the guard with a value
      * that is no longer blank, and the refusal would never fire on a source that never arrived.
      */
@@ -201,7 +201,7 @@ class SourceRefusalWiringTest {
     }
 
     /**
-     * ⛔ The size guard is a different answer ("too large" is not "unknown") and stays where it is,
+     * The size guard is a different answer ("too large" is not "unknown") and stays where it is,
      * after the parse: it reads `body.tooLarge`, which does not exist before `parseBody`.
      */
     @Test fun theSizeGuardIsUntouchedAndStillAsksTheParsedBody() {

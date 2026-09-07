@@ -12,7 +12,7 @@ import java.io.File
  * name proposed to the picker); this pins that the app is still WIRED to it, and that the bytes
  * take the route they are supposed to take.
  *
- * ⛔ Whole trimmed lines compared by list equality, never `contains` on a fragment for the
+ * Whole trimmed lines compared by list equality, never `contains` on a fragment for the
  * assertion itself — that is blind to every mutation which LENGTHENS the line. Comment lines are
  * dropped, so prose can neither satisfy nor break a rule.
  */
@@ -42,8 +42,8 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * ⛔ And they are REFUSED when there are none of them. `MimeParser.decodeBytes("", …)` answers a
-     * zero-length ByteArray without throwing (MimeParser.kt:421-427), and its "" is what
+     * And they are REFUSED when there are none of them. `MimeParser.decodeBytes("", …)` answers a
+     * zero-length ByteArray without throwing (MimeParser-427), and its "" is what
      * `ImapClient.bodyItem()` yields whenever a `UID FETCH (BODY.PEEK[…])` came back OK with no
      * untagged FETCH at all — measured on the test server for a UID destroyed server-side between
      * opening the message and the Save tap. Unguarded, `openOutputStream(…, "wt")` truncates the
@@ -78,7 +78,7 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * ⛔ THE hole every trimmed-line assertion is blind to: wrapping the refusal in an
+     * THE hole every trimmed-line assertion is blind to: wrapping the refusal in an
      * `if (…) { … }` leaves it word for word where it is, one level deeper, and disarms it.
      * [saveAttachmentBody] trims, so nesting is invisible to it by construction, and the rank
      * assertion above would still read the same order. Indentation is the only witness — and it is
@@ -103,7 +103,7 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * ⛔ And they never touch the app's cache on the way. `storage.cacheAttachment` belongs to the
+     * And they never touch the app's cache on the way. `storage.cacheAttachment` belongs to the
      * OPEN path, which needs a file it can hand to a viewer app; saving needs no such file. Routed
      * through it, every attachment she saves would also exist as a second copy inside the app,
      * sitting in the cache until something cleared it — twice the disk, for nothing she asked for.
@@ -200,7 +200,7 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * ⛔ The fourth exit, and the one nobody watches: each pager page owns its ViewModel, so swiping
+     * The fourth exit, and the one nobody watches: each pager page owns its ViewModel, so swiping
      * two messages away mid-download cancels this scope. Caught as an ordinary throwable, the
      * cancellation would take the `discardDocument` down with it — `withContext` throws at once in a
      * cancelled scope — and the empty `rapport.pdf` the picker created would stay in her folder,
@@ -225,7 +225,7 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * ⛔ THE mutation that pinning the NUMBER of discards cannot see, and the worst one on this
+     * THE mutation that pinning the NUMBER of discards cannot see, and the worst one on this
      * path. A FOURTH catch, slipped in just above the general one:
      *
      *     } catch (t: MessageUnavailableException) {
@@ -272,7 +272,7 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * ⛔ And the general catch does not put the exception's own English on her screen. The message
+     * And the general catch does not put the exception's own English on her screen. The message
      * `requireAttachmentBytes` raises names the part key and the message id, in English, for a bug
      * report — interpolated raw into `status_save_attachment_failed` it reads, in French,
      * "Impossible d'enregistrer la pièce jointe : Attachment 2.1 of M8fa4… came back empty", which
@@ -340,7 +340,7 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * ⛔ And the three keys are `rememberSaveable`, not `remember`. The picker is another activity:
+     * And the three keys are `rememberSaveable`, not `remember`. The picker is another activity:
      * the system may recreate this one behind it, and a plain `remember` comes back empty. Empty is
      * what the ViewModel's guard refuses, so the save would be dropped without a word — the guard
      * falling on the wrong side of its own question.
@@ -409,7 +409,7 @@ class SaveAttachmentCallSiteTest {
         }
         assertTrue("MessageViewModel must still declare saveAttachment(uri, proposedName, ownerId, partKey)", start >= 0)
         val rest = lines.drop(start + 1)
-        // ⚠ `private ` and not `private fun `: the next member is `private suspend fun
+        // `private ` and not `private fun `: the next member is `private suspend fun
         // discardDocument`, and a narrower marker runs the body straight past the end of it.
         val end = rest.indexOfFirst { it.startsWith("    fun ") || it.startsWith("    private ") }
             .let { if (it < 0) rest.size else it }

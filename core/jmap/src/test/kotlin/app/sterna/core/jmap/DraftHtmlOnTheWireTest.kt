@@ -28,7 +28,7 @@ import org.junit.Test
  * part naming a `partId` with no `bodyValues` entry behind it is a create a strict server (e.g.
  * Stalwart) refuses outright, which would turn "save draft" into an error banner.
  *
- * ⛔ And the other direction is the one that must not move: a draft with NO styling has to leave
+ * And the other direction is the one that must not move: a draft with NO styling has to leave
  * exactly as it always did — one `textBody` part, one `bodyValues` entry, nothing else. Every
  * draft ever saved by this app is that shape, and giving them all a second MIME part changes how
  * every other client renders them.

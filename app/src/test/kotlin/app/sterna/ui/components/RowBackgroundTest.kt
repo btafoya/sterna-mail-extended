@@ -116,7 +116,7 @@ class RowBackgroundTest {
     // -- the switch off: exactly the list as it was before the branch (#141 follow-up) -----------
 
     /**
-     * ⭐ The reader who turns the tint off gets the OLD list back, not a third look: an unread row
+     * The reader who turns the tint off gets the OLD list back, not a third look: an unread row
      * is plain `surface`, the same colour a read row has always been, and the bold text is once
      * more the only difference. Run on the same sentinel scheme as everything above, so a row that
      * quietly kept `surfaceContainerHighest` comes out as a plain inequality.
@@ -133,7 +133,7 @@ class RowBackgroundTest {
     }
 
     /**
-     * ⭐ The invariant the switch may never reach: selection is the only signal saying which rows
+     * The invariant the switch may never reach: selection is the only signal saying which rows
      * the destructive actions will hit, and it wins with the tint off exactly as it does with it on.
      */
     @Test fun `selection still wins with the tint off`() {

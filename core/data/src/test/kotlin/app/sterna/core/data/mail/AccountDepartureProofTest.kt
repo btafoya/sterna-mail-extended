@@ -12,7 +12,7 @@ import org.junit.Test
  * cancel path, `app.sterna.send.ScheduledSendFireWiringTest` for the worker): neither the ViewModel
  * nor the worker can be built in a JVM test.
  *
- * ⛔ The expectations are written out as literal `true`/`false`, never recomputed from the same
+ * The expectations are written out as literal `true`/`false`, never recomputed from the same
  * expression: a test that rebuilds the rule to decide what to expect passes on an inverted rule too.
  */
 class AccountDepartureProofTest {

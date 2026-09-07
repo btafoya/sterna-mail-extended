@@ -26,7 +26,7 @@ import org.junit.Test
  * be the one guarded line of `deleteBatch`, verbatim. Whole lines, never substrings — a rule that
  * searches inside a line is blind to anything appended to it.
  *
- * ⛔ What this rule does NOT say, and must not be read as saying: that the file destroys in one
+ * What this rule does NOT say, and must not be read as saying: that the file destroys in one
  * place. It pins the destroys spelled `delete`, and nothing else. `setFlag` is public, takes an
  * arbitrary flag, drops the SELECT's status the same way, and an `imap.setFlag(…, "\\Deleted", …)`
  * would mark for destruction under no opposed numbering at all — reachable, unguarded, and named
@@ -34,7 +34,7 @@ import org.junit.Test
  * predate this branch, neither has a destructive caller today, and both are filed rather than
  * fixed here.
  *
- * ⭐ Source text, and here the last-resort clause does not apply the usual way: this file's own
+ * Source text, and here the last-resort clause does not apply the usual way: this file's own
  * neighbour [DestroyNeedsTheNumberingStatedNowTest] instantiates the real [ImapMailService] on the
  * JVM and drives it onto a scripted socket, so "not instantiable" would be false. The reason is
  * simpler and it is total: an ABSENT function cannot be executed. Nothing can call a door that is
@@ -55,9 +55,9 @@ class ImapServiceDestroysInOnePlaceTest {
         codeLinesNaming(source, Regex(Regex.escape(needle)))
 
     /**
-     * ⚠ The needle is the WORD, not the call. `delete(` — a name glued to a parenthesis — is a
+     * The needle is the WORD, not the call. `delete(` — a name glued to a parenthesis — is a
      * filter on one spelling of one syntax, and the shortest way round it is the overload
-     * `core/imap` deliberately keeps (`ImapClient.delete(uid: Long)`, `ImapClient.kt:910`):
+     * `core/imap` deliberately keeps (`ImapClient.delete(uid: Long)`, `ImapClient`):
      *
      *     onMailbox(credentials, mailboxId) { session, _ ->
      *         val erase: (Long) -> Unit = session::delete

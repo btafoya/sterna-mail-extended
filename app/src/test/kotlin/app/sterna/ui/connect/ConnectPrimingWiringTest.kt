@@ -69,7 +69,7 @@ class ConnectPrimingWiringTest {
      * per-account row (`updateSelected`) instead of the screen's state, so they carry the guard in a
      * second shape — see [IMPORT_OFFLINE_GUARD].
      *
-     * ⚠ Neither list can find a route nobody wrote down: this file reads names, it does not
+     * Neither list can find a route nobody wrote down: this file reads names, it does not
      * enumerate the screen. These two were missed on the first pass for exactly that reason. A new
      * way to sign an account in belongs in one of these lists on the day it is written.
      */
@@ -188,7 +188,7 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * ⚠ WHAT THIS PROMISES, EXACTLY — and it is narrower than "the account-creating functions of
+     * WHAT THIS PROMISES, EXACTLY — and it is narrower than "the account-creating functions of
      * this file are the ones this lint knows about", which is what it used to be called: every
      * occurrence of one of the THREE STRINGS in [accountCreation] sits in a function that has been
      * judged, either as an add path or as a documented exception. That is a vocabulary check, not a
@@ -269,7 +269,7 @@ class ConnectPrimingWiringTest {
      *  - `discoverJmapServer` is still called HERE. Without that, the two rules above are satisfied
      *    trivially by moving the call into a helper — the rule would then guard an empty room.
      *
-     * ⚠ Still not held: a second, nested `try` that swallows before this one sees it. Declared debt
+     * Still not held: a second, nested `try` that swallows before this one sees it. Declared debt
      * — a text lint cannot see scope, and `ConnectViewModel` cannot be run in this module.
      */
     @Test fun `neither discovery path turns a cancelled probe into "no server found"`() {
@@ -294,12 +294,12 @@ class ConnectPrimingWiringTest {
      * timeout, per candidate host. The guard is three lines and there is no decision to extract
      * from it — [app.sterna.net.hasUsableNetwork] IS the decision.
      *
-     * ⚠ And that decision has NO test of its own: it reads `ConnectivityManager`, so this module
+     * And that decision has NO test of its own: it reads `ConnectivityManager`, so this module
      * (no Robolectric, no instrumented tests) cannot run it. Inverting `hasUsableNetwork` itself
      * leaves this file green. Say that plainly rather than let the rule below imply cover it does
      * not give.
      *
-     * ⛔ Matched as the WHOLE four-line shape, condition included, and anchored at the function
+     * Matched as the WHOLE four-line shape, condition included, and anchored at the function
      * body's own indentation. A fragment test is blind to every mutation that lengthens the line
      * (`if (!hasUsableNetwork(app) && false)`); a test that accepts any indentation is blind to the
      * one that wraps the whole guard in a condition —
@@ -351,7 +351,7 @@ class ConnectPrimingWiringTest {
      * through the per-account row rather than the screen's state, so they carry the guard in that
      * shape — but the wait they used to take is the identical one.
      *
-     * ⚠ These are the routes that matter MOST offline, not the least: importing a `.k9s` file is an
+     * These are the routes that matter MOST offline, not the least: importing a `.k9s` file is an
      * entirely local operation, so it is exactly what someone does with no connection. The screen
      * then opens straight onto the "accounts to sign in" list, whose buttons are these two.
      */
@@ -409,7 +409,7 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * ⚠ REWRITTEN. This test used to read two fragments of the token path's hand-written re-add
+     * REWRITTEN. This test used to read two fragments of the token path's hand-written re-add
      * branch — `container.accountStore.updatePassword(existing.id, token)` and
      * `AddedAccount(existing.id, created = false)` — with `in body`, which is the blindness this
      * repo has paid for three times: any mutation that LENGTHENS those lines matched happily. And
@@ -442,7 +442,7 @@ class ConnectPrimingWiringTest {
      * and `accountKeyOf(MailProtocol.IMAP, "", imapHost, username)` are different questions, and a
      * route that asks the wrong one gets "no, it is new" for an account it is about to refresh.
      *
-     * ⛔ Whole trimmed lines, compared for equality. `contains` on `resolveExistingLogin(` is blind
+     * Whole trimmed lines, compared for equality. `contains` on `resolveExistingLogin(` is blind
      * to every mutation that lengthens the line — `… == null || true` being exactly that.
      */
     @Test fun `each add path asks the shared identity whether the account is already there`() {
@@ -495,7 +495,7 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * ⛔ Sub-account reconciliation runs on a CREATION only, and this is the rule that keeps it
+     * Sub-account reconciliation runs on a CREATION only, and this is the rule that keeps it
      * there. A re-add now lands on the login that was already there — with whatever shared
      * sub-accounts it carries — and it may have just moved that login from OAuth onto a password.
      * `diffLinkedAccounts` derives its evictions from the RAW discovered list, so a session that
@@ -503,7 +503,7 @@ class ConnectPrimingWiringTest {
      * five tables: a real shared mailbox deleted (#129). Ungated, that destruction becomes
      * reachable from the Add account screen.
      *
-     * ⛔ Whole trimmed line: `contains` on `reconcileLinkedAccountsAfterAdd(` matches the gated and
+     * Whole trimmed line: `contains` on `reconcileLinkedAccountsAfterAdd(` matches the gated and
      * the ungated call alike, which is the whole difference.
      */
     @Test fun `sub-account reconciliation only runs when the add created the account`() {
@@ -524,14 +524,14 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * ⛔ The last stretch, which every one of the four routes above goes through. `accountAddedToast`
+     * The last stretch, which every one of the four routes above goes through. `accountAddedToast`
      * is executed by a test and hands back the right resource id; NOTHING followed that id to the
      * Toast until this rule. Written `Toast.makeText(app, string(R.string.connect_account_added), …)`
      * the helper puts "Account added" on every re-add — the exact sentence this change removes —
      * and every other test stays green, because the call lines above are untouched and no test in
      * this module can build a ConnectViewModel.
      *
-     * ⛔ Whole trimmed lines, as a contiguous block: `contains` on `Toast.makeText(` is blind to
+     * Whole trimmed lines, as a contiguous block: `contains` on `Toast.makeText(` is blind to
      * every mutation that lengthens it.
      */
     @Test fun `the toast helper shows the resource it was handed, and names none of its own`() {
@@ -549,7 +549,7 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * ⛔ And no route may name the re-add sentence itself. That is the reproach `OAuthWiringTest`
+     * And no route may name the re-add sentence itself. That is the reproach `OAuthWiringTest`
      * already makes of `oauthRanOutMessage`: naming one of the two answers on the spot is taking
      * the decision back from the function that is tested, into a route no test can run.
      */
@@ -578,7 +578,7 @@ class ConnectPrimingWiringTest {
      * baseline — `FetchAndNotify.onInboxRefreshed` returns on its first line for IMAP — so the add
      * is the only place left to write it.
      *
-     * ⛔ Whole trimmed lines, as the whole body, in order, and that is the point:
+     * Whole trimmed lines, as the whole body, in order, and that is the point:
      *  - `contains("seedInboxBaseline(")` would stay green on
      *    `seedInboxBaseline(credentials.id, meta.mailboxName)`, which writes the baseline under a
      *    key no pass ever reads back — the defect intact, with a green lint;
@@ -609,7 +609,7 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * SOURCE LINT, NEGATIVE SPACE — ⛔ this screen writes ONE baseline, and there is no second.
+     * SOURCE LINT, NEGATIVE SPACE — this screen writes ONE baseline, and there is no second.
      *
      * The rule above asks that a line be PRESENT, and a presence check cannot see a line that was
      * ADDED. A seed written anywhere else on this screen — a re-authentication path, an import
@@ -791,7 +791,7 @@ class ConnectPrimingWiringTest {
          * turned into something that falls through, fails to match instead of hiding inside a
          * `contains`.
          *
-         * ⛔ The indentation is part of the pattern, and it is the point. Eight spaces is the top
+         * The indentation is part of the pattern, and it is the point. Eight spaces is the top
          * level of a method body in this file; twelve is one condition deep. Written `[ \t]*` this
          * matched a guard buried inside `if (imapPort == 993) { … }`, which re-arms the whole
          * timeout for every other port while the lint reports the route as guarded. A guard that

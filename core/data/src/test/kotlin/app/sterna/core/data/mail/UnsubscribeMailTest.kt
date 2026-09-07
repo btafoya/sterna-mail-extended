@@ -13,7 +13,7 @@ import java.io.File
  * subject or an identity that goes missing IN IT fails here rather than on a list that never
  * removes the address.
  *
- * ⚠ What that does NOT cover is the last step. `MailRepository.sendUnsubscribeMail` copies the
+ * What that does NOT cover is the last step. `MailRepository.sendUnsubscribeMail` copies the
  * fields of the returned [UnsubscribeMail] into the named arguments of `enqueueSend` one by one,
  * and that hand-over cannot be executed here (the repository needs a session, a JMAP client and a
  * device). Swap two of those arguments and everything above stays green while the mail leaves
@@ -54,7 +54,7 @@ class UnsubscribeMailTest {
     /**
      * The witness: with nothing in the URI, a fixed subject and an empty body.
      *
-     * ⛔ And the subject is fixed in ENGLISH, not translated. It used to be the reader's own
+     * And the subject is fixed in ENGLISH, not translated. It used to be the reader's own
      * interface label, so a French account sent a mail whose subject line was "Se désabonner" and
      * a Russian one "Отписаться" — to a list whose software matches on that line. What the reader
      * sees is translated; what a stranger's robot has to understand is not. The default is not a

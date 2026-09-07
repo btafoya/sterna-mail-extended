@@ -5,7 +5,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
- * ⚠ SOURCE LINT, same instrument and disclaimer as [CollapsedFoldersStoreWiringTest]: it reads
+ * SOURCE LINT, same instrument and disclaimer as [CollapsedFoldersStoreWiringTest]: it reads
  * `AccountStore.kt` as text and proves nothing about a running store, which this module cannot
  * build (a `Context` and the Keystore, no Robolectric here).
  *
@@ -16,7 +16,7 @@ import org.junit.Test
  * and every behavioural test in this repo stays green: the defect only shows up on a phone, one
  * revocation later, as notifications the user had switched off coming back on their own.
  *
- * ⛔ Whole trimmed lines, as a CONTIGUOUS block, never a `contains`: a `contains` is blind to
+ * Whole trimmed lines, as a CONTIGUOUS block, never a `contains`: a `contains` is blind to
  * anything APPENDED to a line, and a per-line check is blind to a statement slipped between two.
  * The reconcile block starts one line above the signature, on `@Synchronized` — this is a
  * read-modify-write over the WHOLE account list, and an edit made from another thread (push
@@ -83,7 +83,7 @@ class LinkedAccountMemoryStoreWiringTest {
     }
 
     /**
-     * ⭐ The THIRD removal path, pinned like its sibling. `remove(id)` is what `dismissImport`
+     * The THIRD removal path, pinned like its sibling. `remove(id)` is what `dismissImport`
      * (AccountsViewModel) and the connect flow call, and an imported record keeps its `loginId`,
      * so a linked share can reach it. Leaving this one unwired would make PRIVACY.md's "everything
      * above is removed when you remove the account" false on one path out of three.
@@ -104,7 +104,7 @@ class LinkedAccountMemoryStoreWiringTest {
     }
 
     /**
-     * ⛔ The key's LITERAL value, and that it is not the account list's. Everything the memory
+     * The key's LITERAL value, and that it is not the account list's. Everything the memory
      * promises rests on this one string: point it at "accounts" and `saveLinkedMemory` overwrites
      * KEY_ACCOUNTS with a map, `AccountBlobGate` cannot decode it on the next launch, the store
      * refuses every write, and the user meets "I could not read your accounts" with all of them
@@ -147,7 +147,7 @@ class LinkedAccountMemoryStoreWiringTest {
     }
 
     /**
-     * ⭐ The write, pinned as hard as the read, and pinned for what it does NOT do: it writes its
+     * The write, pinned as hard as the read, and pinned for what it does NOT do: it writes its
      * own key directly and never goes through [AccountBlobGate]. The gate exists to protect the
      * ACCOUNT LIST; routing a comfort blob through it would let a memory that failed to decode
      * refuse the write of `KEY_ACCOUNTS` — a convenience feature taking the user's accounts down

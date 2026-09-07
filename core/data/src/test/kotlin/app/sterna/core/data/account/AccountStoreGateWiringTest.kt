@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ WHAT THIS FILE IS WORTH, first, because it is easy to over-read. It proves the SHAPE of
+ * WHAT THIS FILE IS WORTH, first, because it is easy to over-read. It proves the SHAPE of
  * `AccountStore.kt`, not its behaviour: it reads the shipped source and compares whole lines. It
  * exists only because nothing in this module can build an `AccountStore` (it needs a `Context` and
  * the Keystore, and there is no Robolectric here). The behaviour is proved next door, by
@@ -22,7 +22,7 @@ import org.junit.Test
  *     exist nowhere else, so taking the write outside means re-encoding the list by hand — a new
  *     statement, which the block below also shows.
  *
- * ⛔ Whole trimmed lines, compared as a CONTIGUOUS block, never `contains` and never one line in
+ * Whole trimmed lines, compared as a CONTIGUOUS block, never `contains` and never one line in
  * isolation: a fragment check is blind to anything appended to the line (bitten twice on
  * 2026-08-04), and a per-line check is blind to a statement moved one line down.
  */

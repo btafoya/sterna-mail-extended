@@ -18,14 +18,14 @@ import org.junit.Test
  * `res/values-night`, i.e. from the SYSTEM's day/night mode, so the theme chosen in the app, the
  * pure-black option (#117) and Material You never reached the home screen.
  *
- * ⛔ WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
+ * WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
  * LENGTHENS the line. The price is that reformatting a pinned call reddens this test — loud, and
  * one line to fix.
  */
 class RecentMailWidgetPaletteWiringLintTest {
 
     /**
-     * ⛔ `setBackgroundResource`, NEVER `setBackgroundColor`.
+     * `setBackgroundResource`, NEVER `setBackgroundColor`.
      *
      * `RemoteViews.setInt(id, "setBackgroundColor", …)` calls `View.setBackgroundColor(int)`, which
      * REPLACES the shape drawable with a flat fill: the cell comes out SQUARE, a rectangle of solid
@@ -89,11 +89,11 @@ class RecentMailWidgetPaletteWiringLintTest {
      * resolved through `values-night` from the SYSTEM's mode, so a reader who forced the app to
      * light on a dark phone reads near-white text on the app's light surface.
      *
-     * ⛔ AND THE DOT IS PINNED HERE, UNCHANGED, in the same list. Its colour is the ACCOUNT's (#112)
+     * AND THE DOT IS PINNED HERE, UNCHANGED, in the same list. Its colour is the ACCOUNT's (#112)
      * and it is the only thing on an interleaved list saying which mailbox a line came from; painted
      * from `palette.accent` — one plausible-looking edit — every dot becomes the same colour and the
      * row stops answering the only question it was added to answer, with nothing broken to see.
-     * ⛔ The weight is not in scope here either: read and unread are told apart by `weighted(…)` and
+     * The weight is not in scope here either: read and unread are told apart by `weighted(…)` and
      * by nothing else, and a colour must not start saying it too.
      */
     @Test fun `a served row takes its text colours from the palette, and its dot from the account`() {
@@ -171,7 +171,7 @@ class RecentMailWidgetPaletteWiringLintTest {
     }
 
     /**
-     * ⭐ THE CARRIED PALETTE IS NULLABLE, and it is the same `null` [RecentMailWidgetFactory]
+     * THE CARRIED PALETTE IS NULLABLE, and it is the same `null` [RecentMailWidgetFactory]
      * already knew how to draw: "a row drawn with no `setTextColor` keeps the colour its layout
      * froze in … not a regression".
      *
@@ -181,7 +181,7 @@ class RecentMailWidgetPaletteWiringLintTest {
      * on two paths, a read that timed out and an app that does not diverge from the system
      * ([widgetFollowsResources], executed in [WidgetThemeTest]).
      *
-     * ⛔ Make this field non-null again and the second path cannot exist: every draw would bake a
+     * Make this field non-null again and the second path cannot exist: every draw would bake a
      * literal int into the `RemoteViews`, there is no `-night` twin behind those ints, no trigger
      * listens for `ACTION_CONFIGURATION_CHANGED` and `updatePeriodMillis="0"` means no timer — so
      * the cell would keep the day's colours through the evening switch until mail arrived.
@@ -217,7 +217,7 @@ class RecentMailWidgetPaletteWiringLintTest {
     }
 
     /**
-     * ⛔ THE ROWS AND THEIR COLOURS COME OUT OF ONE READ, and the whole body is pinned because the
+     * THE ROWS AND THEIR COLOURS COME OUT OF ONE READ, and the whole body is pinned because the
      * mutation is one line long: `palette = RecentMailWidgetDraw.drawing?.palette` reads perfectly
      * well and is a second read.
      *
@@ -228,7 +228,7 @@ class RecentMailWidgetPaletteWiringLintTest {
      * same drift the held snapshot exists to prevent for the text, and the same fix: one
      * [RecentWidgetDrawing], both fields off it.
      *
-     * ⛔ [kotlinx.coroutines.withTimeoutOrNull] and not `withTimeout` stays pinned with it: this
+     * [kotlinx.coroutines.withTimeoutOrNull] and not `withTimeout` stays pinned with it: this
      * runs on a binder thread the launcher is waiting on, and a `CancellationException` from here
      * escapes a binder callback, which takes the process down.
      */
@@ -269,7 +269,7 @@ class RecentMailWidgetPaletteWiringLintTest {
     }
 
     /**
-     * ⭐ THE CACHE IS KEYED ON THE COLOUR IT ACTUALLY PAINTED — the one decision of this pane that
+     * THE CACHE IS KEYED ON THE COLOUR IT ACTUALLY PAINTED — the one decision of this pane that
      * no executed test can reach, because it is an ARGUMENT and not a rule.
      *
      * [widgetMonogramKey] is pure and is run next door ([WidgetMonogramRulesTest]), so what a key
@@ -280,7 +280,7 @@ class RecentMailWidgetPaletteWiringLintTest {
      * `updatePeriodMillis="0"` means nothing ever redraws on a schedule and there is no invalidation
      * anywhere to catch up.
      *
-     * ⛔ And the bound is in BYTES. A cap counted in entries means a different amount of memory on
+     * And the bound is in BYTES. A cap counted in entries means a different amount of memory on
      * every phone — a badge at xxxhdpi is sixteen times the pixels of an mdpi one — and it is the
      * largest screens that would hold the most.
      */
@@ -317,7 +317,7 @@ class RecentMailWidgetPaletteWiringLintTest {
     }
 
     /**
-     * ⭐ AND THE DISC ITSELF — the one place in this pane where a one-character mutation is
+     * AND THE DISC ITSELF — the one place in this pane where a one-character mutation is
      * invisible to everything else.
      *
      * [widgetMonogramLetterArgb] is pure and is RUN next door ([WidgetMonogramRulesTest]), so the
@@ -337,7 +337,7 @@ class RecentMailWidgetPaletteWiringLintTest {
      * - the letter's size is `side * LETTER_SCALE`, the ratio the app's own badge draws at, which
      *   is what makes the home screen's badge read as the same badge as the list's.
      *
-     * ⚠ WHAT THIS CANNOT SEE: the pixels. `Bitmap`, `Canvas` and `Paint` do not run in this suite
+     * WHAT THIS CANNOT SEE: the pixels. `Bitmap`, `Canvas` and `Paint` do not run in this suite
      * — merely touching [WidgetMonogram] would run the class initialiser of its `LruCache` — so
      * that the disc comes out round, centred and legible is a bench claim. This rule pins the
      * ARGUMENTS; nothing here executes a single line of drawing.

@@ -58,7 +58,7 @@ class ComposeDeleteWiringTest {
     }
 
     /**
-     * ⛔ **The SAME rule for the draft the phone is keeping** (#95), and it was not held: that
+     * **The SAME rule for the draft the phone is keeping** (#95), and it was not held: that
      * branch ended on `ComposeState.Done`, so the screen played the tern's flight — 300 ms of
      * animation written for a message that went OUT — and then popped to `"inbox"` instead of the
      * Drafts list the composer was opened from. A deletion is not a departure, and the rule above
@@ -66,8 +66,8 @@ class ComposeDeleteWiringTest {
      * ViewModel rather than through the navigation handler.
      *
      * So the deletion says when it is over and the screen leaves the way `onCancel` leaves — the
-     * bare `popBackStack()` this file already pins on the route. ⛔ Not `onDone`: that one is the
-     * flight AND the pop to the inbox, both wrong here. ⛔ And not a pop fired from the tap either:
+     * bare `popBackStack()` this file already pins on the route. Not `onDone`: that one is the
+     * flight AND the pop to the inbox, both wrong here. And not a pop fired from the tap either:
      * the destroy must be made durable, the server copy evicted and the row consumed before the
      * screen goes, and a failure keeps the screen up with its banner.
      */
@@ -103,7 +103,7 @@ class ComposeDeleteWiringTest {
     }
 
     /**
-     * ⭐ **The BINDING, whole line — the mutation every rule in this file was blind to.**
+     * **The BINDING, whole line — the mutation every rule in this file was blind to.**
      *
      * `val editingLocalDraftId by viewModel.attachmentStatus.collectAsStateWithLifecycle()` has the
      * same type (`StateFlow<String?>`), compiles, and leaves this whole file green: every other rule
@@ -203,7 +203,7 @@ class ComposeDeleteWiringTest {
     }
 
     /**
-     * ⛔ **One title, two BODIES, and which one is drawn is pinned WHOLE-LINE** (#95).
+     * **One title, two BODIES, and which one is drawn is pinned WHOLE-LINE** (#95).
      *
      * `compose_delete_draft_body` says the draft "goes to the Trash, or is deleted if this account
      * has no Trash folder", and behind it sits the list's move-to-Trash with its Undo snackbar.
@@ -212,13 +212,13 @@ class ComposeDeleteWiringTest {
      * go at once. Drawn there, the app promises a way back that does not exist — on the one dialog
      * whose whole job is to say what is about to be lost.
      *
-     * ⛔ And the local body may not go the other way either: it says NOTHING about a copy on the
+     * And the local body may not go the other way either: it says NOTHING about a copy on the
      * server. A draft this phone never read whole KEEPS the server copy it replaced
      * (`planForEmptiedLocalDraft`, `bodyIsLossy`), so "it exists nowhere else" would be a lie in
      * exactly that case — which is why no `outbox_*` string may be borrowed here, and the rule
      * above already forbids it.
      *
-     * ⛔ **Which is why the kept copy is SAID HERE, before the finger** (#95). Saying it afterwards
+     * **Which is why the kept copy is SAID HERE, before the finger** (#95). Saying it afterwards
      * was the whole defect: the dialog announced "this draft hasn't reached the server … this can't
      * be undone", the row went, the mask over the server copy lifted, and the draft from BEFORE the
      * edit came back at the top of Drafts — with, for only correction, a toast naming a gesture
@@ -261,7 +261,7 @@ class ComposeDeleteWiringTest {
     }
 
     /**
-     * ⛔ **The confirming button's two branches, WHOLE, and they are two different gestures.**
+     * **The confirming button's two branches, WHOLE, and they are two different gestures.**
      *
      * A SERVER draft is moved to the Trash by the list's own ViewModel, through `onDeleteDraft` and
      * the navigation guard — unchanged, and the rule above still pins it. A draft the phone is
@@ -295,7 +295,7 @@ class ComposeDeleteWiringTest {
     }
 
     /**
-     * ⭐ The body of this confirmation must SCROLL, because Material's `text` slot is a
+     * The body of this confirmation must SCROLL, because Material's `text` slot is a
      * height-bounded box with no scrolling of its own: a bare `Text` in it is CLIPPED — not
      * ellipsised, not scrollable, just cut, with nothing on screen saying more text existed.
      *

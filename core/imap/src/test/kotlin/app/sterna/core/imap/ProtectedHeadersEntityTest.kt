@@ -227,7 +227,7 @@ class ProtectedHeadersEntityTest {
     }
 
     @Test fun theEnvelopeSubjectIsUntouchedWhileTheEntityCarriesItsOwn() {
-        // ⛔ The feature is INTEGRITY, not masking. `build` writes the real subject in the clear
+        // The feature is INTEGRITY, not masking. `build` writes the real subject in the clear
         // exactly as before; nothing here is allowed to remove or rewrite it.
         val mime = OutgoingMime.build(plain)
         assertEquals(

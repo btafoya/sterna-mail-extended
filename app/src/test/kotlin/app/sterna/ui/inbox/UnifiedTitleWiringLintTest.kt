@@ -22,7 +22,7 @@ import java.io.File
  *  - the role arm — swapping `mailboxDisplayName(selectedRole, ui.mailboxName)` for the unified
  *    string in EVERY case would render Sent / Trash / Drafts in raw English instead.
  *
- * ⛔ Every rule compares a WHOLE unit — the whole argument, the whole condition, the whole call —
+ * Every rule compares a WHOLE unit — the whole argument, the whole condition, the whole call —
  * never a fragment. A `contains` on a piece is blind to any mutation that LENGTHENS it:
  * `if (ui.unified)` is contained in `if (ui.unified && false)`, and
  * `mailboxDisplayName(selectedRole, …)` contains `mailboxDisplayName(`. The price is that a reformat

@@ -33,7 +33,7 @@ internal class FakeImapServer(
      * The cut is a half-close (`shutdownOutput`): the client gets its EOF, and whatever it writes
      * afterwards is still received and recorded in [commands], tag stripped exactly as the serve
      * loop records it — that is the witness of a client still talking to a server that has already
-     * gone (the `DONE` of an IDLE, the `LOGOUT` of a close). ⛔ Tag stripped and not verbatim for a
+     * gone (the `DONE` of an IDLE, the `LOGOUT` of a close). Tag stripped and not verbatim for a
      * reason: [issued] hides credentials by matching `LOGIN` at the START of the line, and a line
      * kept as `a1 LOGIN tester secret` would walk straight past that filter into a failure message.
      * Wait for these lines with [awaitDone].
@@ -55,7 +55,7 @@ internal class FakeImapServer(
      */
     private val afterLiteral: (tag: String, line: String, literal: ByteArray) -> String = { tag, _, _ -> ok(tag) },
     /**
-     * ⛔ LAST on purpose, and it must stay last: every existing call site writes
+     * LAST on purpose, and it must stay last: every existing call site writes
      * `FakeImapServer { tag, line -> … }`, and a trailing lambda binds to the LAST parameter.
      * Moving it up compiles nowhere.
      */

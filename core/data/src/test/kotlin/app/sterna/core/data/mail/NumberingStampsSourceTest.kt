@@ -7,7 +7,7 @@ import org.junit.Test
  * Where the stamp factory is PLUGGED IN — the source half of [NumberingStampsTest], which runs the
  * decision itself (Codeberg #99).
  *
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST, and a last resort: `MailRepository` needs Room and a
+ * SOURCE LINT, NOT A BEHAVIOUR TEST, and a last resort: `MailRepository` needs Room and a
  * `Context` and builds an `android.util.LruCache` in a property initialiser, so nothing in this
  * module can instantiate it. What it pins is the one thing the executed test cannot see: that
  * `numberingRowsWereReadUnder` still HANDS its work to [numberingStampsOfRows], with the account

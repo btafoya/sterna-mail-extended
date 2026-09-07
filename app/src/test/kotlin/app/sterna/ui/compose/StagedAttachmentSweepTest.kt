@@ -16,8 +16,8 @@ import java.io.File
  * stays open through that, the chip stays drawn, and the first thing that notices is Save — a red
  * banner with a raw English detail in nine locales, and no draft written.
  *
- * ⛔ THE GUARD IS THE WHOLE TEST. A part in `_attachments` has a `partId` ONLY when it was staged
- * locally — IMAP, or JMAP with PGP on (`ComposeViewModel.kt:2097`). Plain JMAP uploads a blob and
+ * THE GUARD IS THE WHOLE TEST. A part in `_attachments` has a `partId` ONLY when it was staged
+ * locally — IMAP, or JMAP with PGP on (`ComposeViewModel`). Plain JMAP uploads a blob and
  * comes back with `partId = null, blobId = …` (`MailRepository.uploadAttachment`), and a reopened
  * draft's parts are rebuilt from the same descriptors (`localDraftUploadAttachments`). A sweep that
  * asked the filesystem about EVERY part would answer "gone" for every one of those and empty the
@@ -85,7 +85,7 @@ class StagedAttachmentSweepTest {
     }
 
     /**
-     * ⭐ THE ONE THAT MUST NEVER GO GREEN BY ACCIDENT. The predicate says no to everything, exactly
+     * THE ONE THAT MUST NEVER GO GREEN BY ACCIDENT. The predicate says no to everything, exactly
      * as a filesystem does when handed a blob id; the blob part must still be kept, and must never
      * have been handed to the predicate in the first place.
      */
@@ -124,10 +124,10 @@ class StagedAttachmentSweepTest {
     }
 
     /**
-     * ⭐ AN INLINE PART THE BODY POINTS AT IS NEVER SWEPT, file or no file. On a forward, an inline
+     * AN INLINE PART THE BODY POINTS AT IS NEVER SWEPT, file or no file. On a forward, an inline
      * image is staged like any other attachment and enters the list with `disposition = "inline"`
      * and a `cid`, and the forwarded HTML block that carries `<img src="cid:…">` is built ONCE
-     * (`ComposeViewModel.kt:2101`, from `carriedCids`) and reused as-is at send. Taking the part off
+     * (`ComposeViewModel`, from `carriedCids`) and reused as-is at send. Taking the part off
      * the list therefore does not take the `cid:` out of the body: the message goes out with a
      * broken image. Before this sweep existed the send REFUSED (`persistAttachments`, "refuse
      * rather than shorten") and nothing left the phone, which is the state kept here — the chip
@@ -153,7 +153,7 @@ class StagedAttachmentSweepTest {
     }
 
     /**
-     * ⛔ THE CONDITION IS THE CONJUNCTION, half 1: a regular attachment that happens to carry a
+     * THE CONDITION IS THE CONJUNCTION, half 1: a regular attachment that happens to carry a
      * `cid` is not referenced by the body and is swept like any other.
      */
     @Test
@@ -168,7 +168,7 @@ class StagedAttachmentSweepTest {
         assertEquals(listOf(File(part.partId!!)), existenceProbes)
     }
 
-    /** ⛔ THE CONJUNCTION, half 2: inline with no `cid` is nothing the body can reference. */
+    /** THE CONJUNCTION, half 2: inline with no `cid` is nothing the body can reference. */
     @Test
     fun `an inline part without a cid is still swept`() {
         val part = stagedInline("3-photo.png", cid = null)
@@ -197,7 +197,7 @@ class StagedAttachmentSweepTest {
     }
 
     /**
-     * ⛔ The root is a PREFIX, not a substring: a sibling directory whose name starts with the same
+     * The root is a PREFIX, not a substring: a sibling directory whose name starts with the same
      * letters is not inside it. `/…/cache/outgoing-old/1-x` starts with `/…/cache/outgoing`.
      */
     @Test

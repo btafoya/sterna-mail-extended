@@ -7,14 +7,14 @@ import org.junit.Test
 /**
  * The arguments Sterna hands the OpenPGP provider, EXECUTED — not read as text.
  *
- * ⭐ **Why it is worth its own file.** `ACTION_GET_KEY` is the hinge between the provider and the
+ * **Why it is worth its own file.** `ACTION_GET_KEY` is the hinge between the provider and the
  * network: what comes back is base64'd into the `Autocrypt:` header of every message this account
  * sends. Nothing executed it until this file, and a counter-expertise measured the hole — swapping
  * `EXTRA_MINIMIZE` for `EXTRA_REQUEST_ASCII_ARMOR` kept every test in the repo green while the
  * announced key became an armored blob no correspondent's client can import: a dead feature with a
  * flawless-looking wire format.
  *
- * ⛔ The expectations are the protocol's own LITERALS (`"minimize"`, not `OpenPgpApi.EXTRA_MINIMIZE`)
+ * The expectations are the protocol's own LITERALS (`"minimize"`, not `OpenPgpApi.EXTRA_MINIMIZE`)
  * and whole maps, never `containsKey`. A test that re-derives its expectation from the same
  * constants the code uses is a copy of the code; and a per-key check cannot see an extra that was
  * ADDED, which is exactly how the armor mutation survives.

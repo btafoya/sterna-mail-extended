@@ -72,7 +72,7 @@ class ReadReceiptImapSourceTest {
     }
 
     /**
-     * ⛔ The pre-standard spellings are NOT read. RFC 8098 §2.1 defines one field name; the two
+     * The pre-standard spellings are NOT read. RFC 8098 §2.1 defines one field name; the two
      * below are vendor extensions this app neither writes nor honours, and reading them would
      * make Sterna answer requests it never agreed to recognise — silently, since nothing on
      * screen would say which header it came from.
@@ -92,7 +92,7 @@ class ReadReceiptImapSourceTest {
     // ---- the decision the draft save runs on this source, executed --------------------------
 
     /**
-     * ⛔ THE case that costs data. `ImapClient.fetchSource` answers an EMPTY STRING when the FETCH
+     * THE case that costs data. `ImapClient.fetchSource` answers an EMPTY STRING when the FETCH
      * response carries no body item at all (see `ImapClient.bodyItem`) — a folder renumbered under
      * us, a UID that has gone, a server answering `FETCH … ()`. Read as "this draft asks for
      * nothing", it authorises the destroy of the copy that holds the header, and the request goes

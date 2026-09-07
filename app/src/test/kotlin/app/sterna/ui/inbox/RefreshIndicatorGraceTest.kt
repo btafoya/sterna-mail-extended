@@ -22,7 +22,7 @@ import org.junit.Test
  * a short refresh must draw NOTHING at any instant whatsoever, and a refresh that did get drawn
  * must stay drawn long enough to be looked at.
  *
- * ⭐ The test that tells the shipped rule from the naive one is
+ * The test that tells the shipped rule from the naive one is
  * [`a refresh that lands inside the grace is never drawn, at any instant`]. Applying the floor to
  * every stretch — the obvious implementation — lights the indicator from 250 ms to 750 ms for a
  * refresh that was over at 80 ms, i.e. it swaps one blink for a later, longer one and leaves #178
@@ -138,7 +138,7 @@ class RefreshIndicatorGraceTest {
     }
 
     /**
-     * ⭐ The case the first version of [startRefreshRun] got wrong, and the one the floor is FOR.
+     * The case the first version of [startRefreshRun] got wrong, and the one the floor is FOR.
      *
      * Shown at 250, landed at 300 with the floor owed until 750, a second folder tapped at 400.
      * Replacing the stretch — which is what "it has ended, so start a new one" does — turned the

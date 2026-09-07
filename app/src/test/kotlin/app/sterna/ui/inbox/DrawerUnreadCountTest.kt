@@ -9,10 +9,10 @@ import org.junit.Test
  * hides, an open one answers its own. The rule lives in a function precisely so this file can run
  * it: at the call site it sits inside a Composable nothing in this module can build.
  *
- * ⛔ Every expectation is a number written out in full. Re-summing the list under test here would
+ * Every expectation is a number written out in full. Re-summing the list under test here would
  * be a copy of the shipped rule, and the condition could then be inverted with this file green.
  *
- * ⚠ What this file does NOT reach: that the drawer resolves the count against
+ * What this file does NOT reach: that the drawer resolves the count against
  * `MailUi.visibleMailboxes` and against the SAME folded set the tree is built from, and that a
  * zero leaves the bare folder name on the row. Those three are call-site facts, held by
  * [CollapsedFoldersSurfaceWiringTest] and [SubscribedFoldersSurfaceWiringTest] as a source lint.
@@ -33,7 +33,7 @@ class DrawerUnreadCountTest {
     private fun folder(id: String) = tree.first { it.id == id }
 
     /**
-     * ⭐ The defect this volet closes: since the fold default, `Travail` is folded on the very
+     * The defect this volet closes: since the fold default, `Travail` is folded on the very
      * first launch, so its row is the only place the mail under it can still be seen.
      */
     @Test fun `a folded folder carries its own unread plus every descendant's, grandchild included`() {
@@ -48,12 +48,12 @@ class DrawerUnreadCountTest {
     }
 
     /**
-     * ⭐ THE state the app STARTS in, which no other case here plays: a parent and one of its own
+     * THE state the app STARTS in, which no other case here plays: a parent and one of its own
      * descendants folded at once. [defaultCollapsedFolderIds] folds every user folder that has
      * children, so on this tree the very first launch folds `Travail` AND `Client A` together —
      * this is the nominal state, not an edge case.
      *
-     * ⛔ The mutation it exists for: `if (child.id in collapsed) return@forEach` after the cycle
+     * The mutation it exists for: `if (child.id in collapsed) return@forEach` after the cycle
      * guard ("do not walk into a descendant that is itself folded"). It reads like a sound
      * refinement and every other case in this file stays green under it, while on the first launch
      * `Travail` badges its own 1 and the 3+4 unread of `Client A` and `Devis` sit on no row at all
@@ -100,7 +100,7 @@ class DrawerUnreadCountTest {
     }
 
     /**
-     * ⭐ The sum follows what is HIDDEN, not the hierarchy. With Travail open and Client A folded,
+     * The sum follows what is HIDDEN, not the hierarchy. With Travail open and Client A folded,
      * Devis is the only row off screen, and it is Client A's row that has to account for it.
      */
     @Test fun `an open parent of a folded child stays on its own count, the folded child sums`() {
@@ -121,7 +121,7 @@ class DrawerUnreadCountTest {
     }
 
     /**
-     * ⛔ The scope. The drawer hands its DRAWN list (`MailUi.visibleMailboxes`); a descendant the
+     * The scope. The drawer hands its DRAWN list (`MailUi.visibleMailboxes`); a descendant the
      * "only subscribed folders" setting hides (#174) has no row and is inside no chevron, so
      * counting it advertises mail no gesture in this drawer reaches.
      */

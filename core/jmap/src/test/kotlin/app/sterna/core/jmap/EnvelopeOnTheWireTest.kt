@@ -32,7 +32,7 @@ import org.junit.Test
  * [JmapClient.importAndSendEmail] (raw PGP/MIME bytes). They now share one builder, and the point
  * of testing both is that they cannot be allowed to drift back apart.
  *
- * ⛔ The default — no envelope — must put NOTHING extra on the wire: a server deriving its own
+ * The default — no envelope — must put NOTHING extra on the wire: a server deriving its own
  * envelope is the ordinary, working case, and an empty or half-written `envelope` key would break
  * every account that sends under an identity the server knows.
  */
@@ -68,7 +68,7 @@ class EnvelopeOnTheWireTest {
            ]}"""
 
     /**
-     * ⭐ The second request every JMAP send now makes: it reads back what the server did with the
+     * The second request every JMAP send now makes: it reads back what the server did with the
      * submission it just created (#183). Nothing is refused here, so the send goes through — but the
      * response must be QUEUED, or the call sits on the read timeout.
      */
@@ -171,7 +171,7 @@ class EnvelopeOnTheWireTest {
     }
 
     /**
-     * ⭐ Every recipient, one entry each: RFC 8621 §7.5 makes `rcptTo` mandatory when an envelope
+     * Every recipient, one entry each: RFC 8621 §7.5 makes `rcptTo` mandatory when an envelope
      * is given, so the server does NOT fall back to the message's To/Cc/Bcc. A list amputated of
      * the copies delivers to nobody but the To — with a send that reports success.
      */

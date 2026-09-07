@@ -19,11 +19,11 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
- * ⭐ **That the budget installed on the COROUTINE actually reaches the socket** (#95) — a real
+ * **That the budget installed on the COROUTINE actually reaches the socket** (#95) — a real
  * [ImapMailService], a real `APPEND`, and a scripted server that takes the message and then says
  * nothing at all.
  *
- * ⛔ This is the only test of the volet that proves anything about the mechanism. `ImapBudgetTest`
+ * This is the only test of the volet that proves anything about the mechanism. `ImapBudgetTest`
  * executes the arithmetic and the wiring tests read the source; between the two there is a whole
  * chain — the element surviving `withContext(Dispatchers.IO)`, `runWithRetry` reading it, the
  * deadline reaching `withReadTimeoutSuspending`, and that setting `soTimeout` — that no assertion
@@ -39,7 +39,7 @@ class ImapAmbientBudgetReachesTheSocketTest {
     @Test(timeout = 30_000)
     fun `an APPEND under an ambient budget gives up on a mute server, in the budget`() {
         muteServer().use { server ->
-            // ⚠ On a thread of its own, exactly as the witness below, and for the same reason: what
+            // On a thread of its own, exactly as the witness below, and for the same reason: what
             // is under test is whether this call COMES BACK. Made on the test's own thread, a
             // budget that never reached the socket would park the suite on the socket too and be
             // reported, minutes later, as a timeout rather than as the assertion it is.
@@ -69,12 +69,12 @@ class ImapAmbientBudgetReachesTheSocketTest {
 
     @Test(timeout = 30_000)
     fun `the witness - without the element the same call never comes back`() {
-        // ⛔ THE witness, and without it the test above proves nothing: a server that answered
+        // THE witness, and without it the test above proves nothing: a server that answered
         // quickly, an APPEND that failed for another reason, or a budget that was never consulted
         // would all produce the same green. So: the same server, the same call, no context element
         // — and it must NOT return.
         //
-        // ⚠ Bounded on the TEST side only, and it has to be: there is no bound on the app side,
+        // Bounded on the TEST side only, and it has to be: there is no bound on the app side,
         // which is the whole point. The call is made on a daemon thread that is knowingly left
         // parked on the socket for the rest of the JVM's life — it cannot be interrupted, a
         // `withTimeout` around it would cancel the job without the thread ever coming off the
@@ -101,7 +101,7 @@ class ImapAmbientBudgetReachesTheSocketTest {
     /**
      * `appendDraft` against [server] under [context], on a DAEMON thread.
      *
-     * ⚠ The thread is knowingly abandoned when the call does not come back — the witness case, and
+     * The thread is knowingly abandoned when the call does not come back — the witness case, and
      * the defect itself. It cannot be interrupted (a blocking `read()` is not interruptible), and a
      * `withTimeout` around it would cancel the job while the thread stayed on the socket, which is
      * precisely what this whole volet is about. A daemon thread holds nothing up at JVM exit; a
@@ -115,7 +115,7 @@ class ImapAmbientBudgetReachesTheSocketTest {
         Thread {
             outcome.thrown = runCatching {
                 runBlocking {
-                    // ⭐ NOTHING is passed to appendDraft: it names no budget, and it cannot — the
+                    // NOTHING is passed to appendDraft: it names no budget, and it cannot — the
                     // same call serves the interactive save. The bound, when there is one, is on
                     // the CONTEXT, exactly as MailRepository.uploadLocalDraft installs it.
                     withContext(context()) { service().appendDraft(credentials(server), DRAFTS, message()) }

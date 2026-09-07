@@ -163,7 +163,7 @@ class CachedBodySeenTest {
     }
 
     @Test fun `what the Room cache path RETURNS is the reconciled body`() {
-        // ⛔ The mutation the test above cannot see: `reconcileCachedSeen(…)` on its own line,
+        // The mutation the test above cannot see: `reconcileCachedSeen(…)` on its own line,
         // followed by `return cached`. The call is still there, with the very arguments pinned
         // above, and the bug is back whole — this is the most travelled of the two cache paths.
         // So the returned EXPRESSION is pinned, whole, not merely the existence of a call.
@@ -180,7 +180,7 @@ class CachedBodySeenTest {
     }
 
     @Test fun `the in-memory decrypted cache reconciles too, and returns what it reconciled`() {
-        // ⭐ The path a partial fix leaves mute: an OpenPGP message decrypted earlier in this
+        // The path a partial fix leaves mute: an OpenPGP message decrypted earlier in this
         // process never touches Room again, so fixing `cachedMessage` alone leaves it re-asking.
         val branch = blockAfter(codeOf(bodyOf("openMessage")), "decryptedCache.get(")
 
@@ -248,7 +248,7 @@ class CachedBodySeenTest {
      * The expression every `return` of [body] hands back, whole and in source order — labelled
      * returns (`return@…`, which leave a lambda and not the function) left out.
      *
-     * ⭐ Why this exists next to [callsOf]: the arguments of a call say what was ASKED, never what
+     * Why this exists next to [callsOf]: the arguments of a call say what was ASKED, never what
      * is handed to the caller. `reconcileCachedSeen(cached = cached, rowSeen = …)` on one line and
      * `return cached` on the next satisfies every rule written about the call and ships the bug
      * intact. Whole, again, and not a `contains`: a mutation that lengthens the expression must

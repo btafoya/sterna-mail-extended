@@ -9,7 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⭐ The invariant: **a folder one of the app's actions can file mail into stays visible** under
+ * The invariant: **a folder one of the app's actions can file mail into stays visible** under
  * "show subscribed folders only" (#174).
  *
  * Measured on the bench on 2026-08-25 (`ultranabla`, release, JMAP/Stalwart): `Archive` comes back
@@ -17,7 +17,7 @@ import org.junit.Test
  * Archive button went on filing mail into it (`mailboxIds: ['Archive']` at the server). Archived
  * mail was unreachable from the app. The role guard cannot see it: there is no role.
  *
- * ⚠ Every case EXECUTES the shipped functions. The witness below runs the ROUTING election and the
+ * Every case EXECUTES the shipped functions. The witness below runs the ROUTING election and the
  * VISIBILITY election on the same folder and demands the same answer, rather than restating either.
  */
 class RoutingTargetsStayVisibleTest {
@@ -96,7 +96,7 @@ class RoutingTargetsStayVisibleTest {
         )
     }
 
-    // ── ⭐ the witness: ONE list of names, read by both sides ─────────────────────────────────────
+    // ── the witness: ONE list of names, read by both sides ─────────────────────────────────────
 
     @Test fun `routing and visibility answer the same on every name the tables hold`() {
         val disagree = (ARCHIVE_FOLDER_NAMES + TRASH_FOLDER_NAMES).filter { name ->

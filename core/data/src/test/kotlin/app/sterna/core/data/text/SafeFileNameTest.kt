@@ -30,7 +30,7 @@ class SafeFileNameTest {
         assertEquals("aaaaa", safeFileName(long, "message", maxLength = 5))
     }
 
-    /** ⚠ Never seen red on a bench: added with its fix after review, on the final run's budget. */
+    /** Never seen red on a bench: added with its fix after review, on the final run's budget. */
     @Test fun `the cut never splits a surrogate pair`() {
         // 79 letters then U+1F600 (two code units): a cut at 80 would keep the high surrogate alone.
         val subject = "a".repeat(79) + "\uD83D\uDE00"
@@ -42,7 +42,7 @@ class SafeFileNameTest {
         assertEquals("message", safeFileName(null, "message"))
         assertEquals("message", safeFileName("", "message"))
         assertEquals("message", safeFileName("   ", "message"))
-        // ⭐ Pinned as is: a subject made only of slashes is still a subject; it is the
+        // Pinned as is: a subject made only of slashes is still a subject; it is the
         // replacement that turns it into `___`, and that is a name, not nothing.
         assertEquals("___", safeFileName("///", "message"))
     }

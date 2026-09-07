@@ -24,7 +24,7 @@ import java.io.File
  *  3. the default written out as a literal in the view model — a second copy, free to disagree with
  *     the repository for as long as DataStore takes to answer, so the switch shows the wrong
  *     position on entry;
- *  4. ⭐ the field dropped from `snapshotBackup` or from `restoreBackup`: re-importing one's own
+ * 4. the field dropped from `snapshotBackup` or from `restoreBackup`: re-importing one's own
  *     settings then silently turns the mode off, and every value test stays green.
  *
  * Every rule compares WHOLE lines (trimmed, nothing else), never a `contains` for something it
@@ -77,7 +77,7 @@ class PlainTextReadingWiringTest {
         )
     }
 
-    // -- ⭐ the backup, both ways ------------------------------------------------------------------
+    // -- the backup, both ways ------------------------------------------------------------------
 
     @Test fun `the setting is exported and restored like every other preference`() {
         val repository = codeLines(SETTINGS_REPOSITORY)

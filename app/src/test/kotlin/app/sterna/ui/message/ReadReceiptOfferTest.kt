@@ -18,7 +18,7 @@ import org.junit.Test
  * The read-receipt decision, EXECUTED — the whole truth table of [offeredReadReceipt], the capture
  * that feeds it, and the relay of what was queued back to the reader.
  *
- * ⛔ Nothing here recomputes the rule to decide what to assert. Every expectation is written out by
+ * Nothing here recomputes the rule to decide what to assert. Every expectation is written out by
  * hand, one row at a time: a test that derives its expectation from the code under test is a copy
  * of the decision, and inverting the delivered condition leaves it green.
  *
@@ -52,7 +52,7 @@ class ReadReceiptOfferTest {
     }
 
     /**
-     * ⭐ The setting nobody has answered yet is NOT the setting turned on. This is the row the
+     * The setting nobody has answered yet is NOT the setting turned on. This is the row the
      * whole tri-state exists for: mapped to a boolean, the frames before DataStore answers would
      * either ask everyone (mapped true) or be safe only by coincidence of the default (mapped
      * false, indistinguishable from a reader's own "no").
@@ -81,7 +81,7 @@ class ReadReceiptOfferTest {
     }
 
     /**
-     * ⭐ The eight other ways a message becomes read. A swipe, a multi-select, "mark all read", a
+     * The eight other ways a message becomes read. A swipe, a multi-select, "mark all read", a
      * notification action, the marking on archive/delete, a Sieve rule, a `$seen` arriving from
      * another device: mail marked read that nobody looked at. A receipt sent for one of those says
      * "your message was displayed" about a message nobody displayed.
@@ -119,7 +119,7 @@ class ReadReceiptOfferTest {
     }
 
     /**
-     * ⚠ The header was there and named nothing usable — `<>`, a bare word, a group with no
+     * The header was there and named nothing usable — `<>`, a bare word, a group with no
      * members. Empty offers nothing and, above all, throws nothing: `enqueueSend` opens with
      * `require(recipients.isNotEmpty())`, and this is the guard that means it is never reached.
      */
@@ -135,7 +135,7 @@ class ReadReceiptOfferTest {
     }
 
     /**
-     * ⭐ REPLAYING THE DECISION IS NOT FORGETTING THE ANSWER.
+     * REPLAYING THE DECISION IS NOT FORGETTING THE ANSWER.
      *
      * The decision is re-run every time the setting changes, so that turning the switch ON with a
      * message open puts the question. That same replay must not resurrect a question the reader
@@ -187,12 +187,12 @@ class ReadReceiptOfferTest {
     // -- 2. the capture ---------------------------------------------------------------------------
 
     /**
-     * ⭐ `deliveredTo` is carried into the request, and it is the address the message ARRIVED at —
+     * `deliveredTo` is carried into the request, and it is the address the message ARRIVED at —
      * handed in by the caller, never derived from the account here. An account with several
      * aliases has several addresses; only one of them was written to, and answering under another
      * tells a stranger they wrote to a mailbox they never used.
      *
-     * ⚠ TWO message ids on purpose. RFC 8098's `Original-Message-ID` names ONE message, and a JMAP
+     * TWO message ids on purpose. RFC 8098's `Original-Message-ID` names ONE message, and a JMAP
      * `Email` carries the field as a list: with a one-element list, `first` and `last` are the same
      * value and the test cannot tell the app apart from one that answers about the wrong message.
      */
@@ -243,7 +243,7 @@ class ReadReceiptOfferTest {
     }
 
     /**
-     * ⛔ THE SUBJECT THAT LEAVES THE DEVICE IS THE COVER ONE, and the one on the [Email] is not
+     * THE SUBJECT THAT LEAVES THE DEVICE IS THE COVER ONE, and the one on the [Email] is not
      * consulted at all.
      *
      * The reader shows the PROTECTED subject of a decrypted PGP/MIME message since #128, and the
@@ -269,7 +269,7 @@ class ReadReceiptOfferTest {
     }
 
     /**
-     * ⛔ No fallback when the cover is unknown. A null subject is a receipt titled "Read" with no
+     * No fallback when the cover is unknown. A null subject is a receipt titled "Read" with no
      * title in it (`readReceiptPreview`), which is a loss of nothing; falling back to the message
      * on screen is the leak this whole capture exists to prevent.
      */
@@ -319,7 +319,7 @@ class ReadReceiptOfferTest {
     // -- 4. what the reader is told after saying yes -----------------------------------------------
 
     /**
-     * ⭐ The preview is RELAYED, never rebuilt. The strings below are deliberately not the ones
+     * The preview is RELAYED, never rebuilt. The strings below are deliberately not the ones
      * this app would compose for a receipt: if anything downstream recomputed the wording, they
      * could not come out the other end.
      */
@@ -343,7 +343,7 @@ class ReadReceiptOfferTest {
     // -- 5. what an OPEN is allowed to write into the cover ---------------------------------------
 
     /**
-     * ⭐ THE ROW THIS WHOLE FUNCTION EXISTS FOR — re-opening a message decrypted earlier in this
+     * THE ROW THIS WHOLE FUNCTION EXISTS FOR — re-opening a message decrypted earlier in this
      * process (leave the list, come back, tap it again).
      *
      * `openMessage` serves the decrypt cache first, so what comes back is the DECRYPTED body and
@@ -362,7 +362,7 @@ class ReadReceiptOfferTest {
     }
 
     /** Locked is still the ENVELOPE — nothing has been decrypted yet, so its subject is the cover
-     *  and it is the freshest read of it there is. ⛔ Not swept up by a wider guard. */
+     * and it is the freshest read of it there is. Not swept up by a wider guard. */
     @Test fun `an encrypted message that is still locked hands over its own subject`() {
         assertEquals(
             "Invoice 4021",
@@ -388,7 +388,7 @@ class ReadReceiptOfferTest {
         assertEquals("[...]", coverSubjectAfterOpen("[...]", email(subject = null), decrypted))
     }
 
-    /** ⛔ And no fallback the other way either: nothing held plus a decrypted open is NOTHING. The
+    /** And no fallback the other way either: nothing held plus a decrypted open is NOTHING. The
      *  receipt then goes out untitled, which loses nothing and leaks nothing. */
     @Test fun `nothing held and a decrypted open stays nothing`() {
         assertNull(coverSubjectAfterOpen(null, email(subject = "Quarterly budget review"), decrypted))

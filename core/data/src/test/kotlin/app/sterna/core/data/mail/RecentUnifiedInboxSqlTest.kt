@@ -83,7 +83,7 @@ class RecentUnifiedInboxSqlTest {
     /**
      * The widget's read AS THE REPOSITORY BUILDS IT — statement and binds together.
      *
-     * ⛔ The binding is NOT retyped here. [recentUnifiedQuery] is the only thing that decides which
+     * The binding is NOT retyped here. [recentUnifiedQuery] is the only thing that decides which
      * argument lands in which placeholder, and a test that re-types that order proves nothing about
      * it: swapping the (account, mailbox) pair compiles, executes, and asks about a folder named
      * after an account — zero rows, and a widget that calmly reports an empty inbox. Same lesson,
@@ -226,7 +226,7 @@ class RecentUnifiedInboxSqlTest {
      * running it and reading back which columns it actually selected.
      *
      * [RecentEmailRow] omitting `preview` is the structural half of this promise; this is the half
-     * that still bites if someone reaches for `SELECT *` or adds the field back. ⛔ Read from the
+     * that still bites if someone reaches for `SELECT *` or adds the field back. Read from the
      * result set's metadata, never from the SQL text: a source `contains` check is blind to a
      * mutation that lengthens the line, and this is the one guard the whole widget rests on
      * (a home screen is read by exactly the person an app lock is supposed to stop).
@@ -259,7 +259,7 @@ class RecentUnifiedInboxSqlTest {
     /**
      * What a line actually CARRIES — every drawn field compared to a value, not just counted.
      *
-     * ⛔ The column-label check below is not enough on its own: `preview AS subject` keeps the
+     * The column-label check below is not enough on its own: `preview AS subject` keeps the
      * labels identical and hands the body over under an approved name. The fixture puts
      * `'SECRET BODY'` in `preview` on every row precisely so that a mis-aliased SELECT shows up
      * here as the body appearing in a field a widget draws.
@@ -287,7 +287,7 @@ class RecentUnifiedInboxSqlTest {
     /**
      * A bound that is not a bound. The number of rows is the most natural thing for a widget to
      * derive from its own height, and that arithmetic reaches zero on a short cell and goes
-     * negative on a bad one. ⛔ In SQLite `LIMIT -1` means NO limit: the whole unified inbox would
+     * negative on a bad one. In SQLite `LIMIT -1` means NO limit: the whole unified inbox would
      * be read into the launcher's process. And `LIMIT 0` answers zero rows with accounts present,
      * which the drawer is entitled to render as "your inbox is empty" — a lie.
      */

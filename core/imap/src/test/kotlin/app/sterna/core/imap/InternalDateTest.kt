@@ -14,7 +14,7 @@ import org.junit.Test
  * this file holds are: read the real instant, and answer `null` — never `0L`, never "now" — for
  * anything that is not a `date-time`, because the import refuses an unreadable date outright.
  *
- * ⛔ Expected values are epoch LITERALS. Recomputing them here with `java.time` would be a copy of
+ * Expected values are epoch LITERALS. Recomputing them here with `java.time` would be a copy of
  * the rule under test, and would stay green if the zone sign, the month table or the offset were
  * inverted in the code.
  */
@@ -36,7 +36,7 @@ class InternalDateTest {
         assertEquals(1_780_326_000_000L, imapDateTimeMillis("01-Jun-2026 10:00:00 -0500"))
         // A half-hour zone, so the minutes of the offset cannot be silently ignored.
         assertEquals(1_772_674_689_000L, imapDateTimeMillis("05-Mar-2026 07:08:09 +0530"))
-        // ⛔ The one shape no case above and no round trip below can reach: a NEGATIVE sign AND
+        // The one shape no case above and no round trip below can reach: a NEGATIVE sign AND
         // non-zero minutes. `ZoneOffset.ofHoursMinutes` refuses mixed signs outright, so a `sign *`
         // dropped from the offset's MINUTES alone throws here, `runCatching` eats it and the
         // reading answers null — which on a server in -0330 (Newfoundland), -0430 or -0930 means no

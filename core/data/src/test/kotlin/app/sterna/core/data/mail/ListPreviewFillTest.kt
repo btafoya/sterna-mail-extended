@@ -12,7 +12,7 @@ import org.junit.Test
  * built on the JVM: `MailRepository` needs Room and an Android `Context`, `EmailDao` is generated
  * by Room at build time. Whole lines, never a fragment.
  *
- * ⛔ The property that matters and that nothing else states: `ImapMailService` never learns about
+ * The property that matters and that nothing else states: `ImapMailService` never learns about
  * the settings or about the database. It is handed a lambda or null, and null means "read nothing".
  */
 class ListPreviewFillTest {
@@ -23,17 +23,17 @@ class ListPreviewFillTest {
             .filter { needle in it }
 
     /**
-     * ⭐ The cache lambda is built in the REPOSITORY, from the two things `ImapMailService` has not
+     * The cache lambda is built in the REPOSITORY, from the two things `ImapMailService` has not
      * and must not grow: the settings, and the cache. [previewWantedInList] is the rule, called
      * rather than restated here; the DAO answers what is already filled — ids AND values, because
      * the IMAP side needs the ids to bound its fetch and the values to write back the rows it
      * therefore skipped ([pageOpenings]).
      *
-     * ⛔ `settings == null` — the shape a test repository is built in — answers null, i.e. NO
+     * `settings == null` — the shape a test repository is built in — answers null, i.e. NO
      * network read at all. That is the cheap side of being wrong: a list with no opening lines,
      * never a page of body fetches nobody asked for.
      *
-     * ⛔ AND AN UNREADABLE PREFERENCE ANSWERS THE SAME NULL. Before #187 the folder walk read no
+     * AND AN UNREADABLE PREFERENCE ANSWERS THE SAME NULL. Before #187 the folder walk read no
      * DataStore at all (`AccountStore` is SharedPreferences-backed); this function put one on its
      * path. DataStore raises the `IOException` of a failed read INSIDE the flow and
      * `SettingsRepository` puts no `catch` on `dataStore.data`, so an unguarded `.first()` here
@@ -68,7 +68,7 @@ class ListPreviewFillTest {
     }
 
     /**
-     * ⛔ The three call sites, and what each of them passes.
+     * The three call sites, and what each of them passes.
      *
      * The two that CACHE a page ask for the cache; the folder-list refresh passes null, because it
      * walks with `limit = 1` and `onPage = {}` — it throws its page away, so a body read there
@@ -90,14 +90,14 @@ class ListPreviewFillTest {
     }
 
     /**
-     * ⛔ The "already filled" question is bound to a COUPLE, and both halves are load-bearing.
+     * The "already filled" question is bound to a COUPLE, and both halves are load-bearing.
      *
      * THE ACCOUNT. Since the composite (accountId, id) key of #31 an email id is not unique across
      * accounts: an unbound `IN (:ids)` would find a same-server sibling account's row, report this
      * account's row as filled, and leave it blank for good — a row that can never be repaired,
      * because the gap is what drives the read.
      *
-     * ⛔ AND THE NUMBERING, which is the harder one and the reason this test changed (#99 inside
+     * AND THE NUMBERING, which is the harder one and the reason this test changed (#99 inside
      * #187). An IMAP row id is `imap:$accountId:$mailboxId:$uid` and it carries NO UIDVALIDITY: a
      * UID means something only inside one numbering. When a server renumbers a folder — a
      * migration, a restore, a folder deleted and recreated — the UIDs start low again and collide
@@ -115,7 +115,7 @@ class ListPreviewFillTest {
      *
      * And it asks for the id AND THE VALUE, of rows whose column is NOT NULL: the ids are what the
      * fetch subtracts, the values are what BOTH writers copy back onto their blank rows — the push
-     * pass (`keepingCachedPreviews`) and the folder walk itself ([pageOpenings]). ⛔ ONE query for
+     * pass (`keepingCachedPreviews`) and the folder walk itself ([pageOpenings]). ONE query for
      * the two, deliberately: two near-twins would drift, and the direction that hurts is a gap
      * saying "already filled" about a row the write then blanks — nothing would ever ask for that
      * body again. The numbering filter keeps both halves moving together: a row of another
@@ -132,7 +132,7 @@ class ListPreviewFillTest {
 
     // -- what the walk WRITES for a row it did not re-read: pageOpenings, executed --------------
     //
-    // ⛔ The defect these three stand on (#187): the folder walk asks the server only for the rows
+    // The defect these three stand on (#187): the folder walk asks the server only for the rows
     // the cache lacks — that is what makes an opening line cost one read ever — and then wrote the
     // page with what came BACK. Room's `@Upsert` replaces the whole row, so every row that was
     // skipped for being already filled had its column set to null: 17 openings out of 20, then 1
@@ -141,7 +141,7 @@ class ListPreviewFillTest {
     // by hand, never recomputed from the arguments, or this file would agree with any rule at all.
 
     /**
-     * ⭐ The rows the page did NOT re-read come out carrying the value the cache already holds —
+     * The rows the page did NOT re-read come out carrying the value the cache already holds —
      * the whole of the fix. `keepingCachedPreviews` makes the same refusal at the other writer
      * (the push pass); this one is the folder walk's.
      */
@@ -168,7 +168,7 @@ class ListPreviewFillTest {
     }
 
     /**
-     * ⛔ A page that read NOTHING — every row already filled, which is what a second pull-to-refresh
+     * A page that read NOTHING — every row already filled, which is what a second pull-to-refresh
      * over the same page is, and what the walk is on a folder nobody has touched — must still write
      * the openings it has. This is the exact shape the flip was measured in.
      */
@@ -191,7 +191,7 @@ class ListPreviewFillTest {
     }
 
     /**
-     * ⛔ Which ARGUMENT wins on a collision, pinned. It cannot happen on the shipped path — the
+     * Which ARGUMENT wins on a collision, pinned. It cannot happen on the shipped path — the
      * fetch is asked only for the ids the cache does not have — but the two operands are two maps
      * of the same type, so their order is invisible to the compiler and to every other assertion
      * here. The freshly read body is the fresher of the two and must win.

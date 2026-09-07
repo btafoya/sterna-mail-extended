@@ -23,7 +23,7 @@ import java.sql.DriverManager
  * The statement is read out of `MailboxDao.kt` by [DaoQuerySource] rather than retyped, so editing
  * the DAO changes what runs here.
  *
- * ⚠ WHAT THIS DOES NOT PROVE. The schema below is recopied by hand, so it does not prove the table
+ * WHAT THIS DOES NOT PROVE. The schema below is recopied by hand, so it does not prove the table
  * the app creates matches it; Room binds the parameters and maps the columns onto
  * [AccountMailboxRole] by name, and neither of those runs here — the binding order and the column
  * names are the test's own reading of the statement. It proves what the SQL selects, over rows a

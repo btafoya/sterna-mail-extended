@@ -69,7 +69,7 @@ class UnsubscribeClientTest {
     }
 
     /**
-     * ⛔ The URL is used VERBATIM — path and query string, byte for byte (decision D6).
+     * The URL is used VERBATIM — path and query string, byte for byte (decision D6).
      *
      * The subscriber token lives in the query on most large senders, and `LinkCleaner`, which
      * strips tracking parameters everywhere else in the app, is deliberately not applied here:
@@ -90,7 +90,7 @@ class UnsubscribeClientTest {
     }
 
     /**
-     * ⛔ The invariant this whole class exists for. The POST goes to a domain named by the sender
+     * The invariant this whole class exists for. The POST goes to a domain named by the sender
      * of an email; carrying the account's credentials there would hand them to a stranger. There
      * is no global interceptor in the project, so this holds as long as nobody routes the call
      * through `JmapClient.postWithRetry`, which demands a token.
@@ -106,7 +106,7 @@ class UnsubscribeClientTest {
     }
 
     /**
-     * ⛔ A 3xx is a FAILURE, and the decisive assertion is the second one: OkHttp follows a
+     * A 3xx is a FAILURE, and the decisive assertion is the second one: OkHttp follows a
      * 301/302/303 by re-issuing the call as a GET, which would turn the one request that loads
      * nothing into exactly the page fetch — with its IP address, its User-Agent and its pixel —
      * that this feature exists to avoid (decision D3). Nothing may leave after the redirect.
@@ -294,7 +294,7 @@ class UnsubscribeClientTest {
      * (or a lambda it called once and remembered) answers the same thing twice and fails here.
      * The count is the other half — one question per failed attempt, no more.
      *
-     * ⚠ What this canNOT reach: that `MessageViewModel` hands over `hasUsableNetwork(app)` rather
+     * What this canNOT reach: that `MessageViewModel` hands over `hasUsableNetwork(app)` rather
      * than a constant. That call needs an `Application` and a `ConnectivityManager`, and the app
      * module has neither Robolectric nor instrumentation — see the report; it is a bench check.
      */

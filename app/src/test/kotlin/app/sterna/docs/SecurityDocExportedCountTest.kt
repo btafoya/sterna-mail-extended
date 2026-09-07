@@ -17,7 +17,7 @@ import java.io.File
  * with the declaration, so nobody saw either drift. A security document that under-reports its own
  * attack surface is worse than no document: a reader counts two and stops looking.
  *
- * ⛔ WHY THIS IS NOT A `contains`. The repo has been bitten three times by source lints that assert
+ * WHY THIS IS NOT A `contains`. The repo has been bitten three times by source lints that assert
  * a FRAGMENT belongs to a file: `"exported" in text` stays green when the line grows, is rewritten,
  * or moves, so it measures the presence of a word and not the truth of a claim. Here a NUMBER is
  * read from each side and the two numbers are compared. The manifest side counts the component tags
@@ -39,7 +39,7 @@ import java.io.File
  *    so gutting a decision to `emptyList()` or `0` would leave it comparing two equally wrong
  *    numbers. The pinned fragments are what go red then — verified by mutation, both ways.
  *
- * ⭐ This test is red on purpose the day it lands: the manifest exports four, the document announces
+ * This test is red on purpose the day it lands: the manifest exports four, the document announces
  * two. Fixing the DOCUMENT is what turns it green — never this test, and never the manifest.
  */
 class SecurityDocExportedCountTest {
@@ -209,7 +209,7 @@ class SecurityDocExportedCountTest {
             fail("the number-word reader no longer reads ${wrong.keys.joinToString(", ")} as pinned")
         }
 
-        // ⛔ An unknown word must NOT quietly become 0: a 0 read from the prose would compare equal
+        // An unknown word must NOT quietly become 0: a 0 read from the prose would compare equal
         // to a manifest that exports nothing, and the day someone writes "Thirteen" the lint would
         // go green instead of asking to be taught the word.
         val unknown = runCatching { toInt("umpteen") }
@@ -300,7 +300,7 @@ class SecurityDocExportedCountTest {
                 "no `$SECTION` heading in $DOC_PATH — the inventory sentence lives under it; if the " +
                     "section was renamed, rename SECTION here too"
             }
-            // ⛔ Fenced code is skipped, not read for headings: a `# comment` at column 0 inside a
+            // Fenced code is skipped, not read for headings: a `# comment` at column 0 inside a
             // shell snippet is not the end of the section, and truncating there would redden the
             // suite over a purely cosmetic doc edit.
             var inFence = false
@@ -335,7 +335,7 @@ class SecurityDocExportedCountTest {
         }
 
         /**
-         * The inverse, for the failure message. ⛔ Never a DIGIT above [WORDS]: the sentence
+         * The inverse, for the failure message. Never a DIGIT above [WORDS]: the sentence
          * pattern reads a word, so "13 components are exported" would satisfy the instruction and
          * leave the lint failing on a second, more confusing message.
          */

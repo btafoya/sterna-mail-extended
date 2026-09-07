@@ -15,7 +15,7 @@ import java.io.File
  * reopens a message that is not there any more. Nothing in the tree cancelled a banner from a LOCAL
  * gesture: the only two `Notifications.dismiss` callers are the "mark read" paths.
  *
- * The fix does it beside the sync rather than through it — ⛔ `departedIds` may only ever be fed
+ * The fix does it beside the sync rather than through it — `departedIds` may only ever be fed
  * from an AUTHORITATIVE signal (see `Notifications.departuresToCancel`'s KDoc) — by remembering the
  * (account, id) couple AS IT WAS AT THE GESTURE and taking the banners down when the Undo window
  * closes unused.
@@ -162,7 +162,7 @@ class LocalRemovalDropsItsBannerTest {
      *    action this deadline was posted for, and nothing else;
      *  - the clear dropped altogether: the bar is `Indefinite` now, so it would hang for good.
      *
-     * ⛔ NOT an effect of the screen: `clearUndo()` has ONE caller, the "no Undo" branch of the
+     * NOT an effect of the screen: `clearUndo()` has ONE caller, the "no Undo" branch of the
      * snackbar in `InboxScreen.kt`, and when the list leaves the composition the `LaunchedEffect` is
      * cancelled and NEITHER branch runs. Hung there, the banner of a message deleted just before
      * leaving the list never comes down at all — the very defect this branch closes.

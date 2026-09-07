@@ -8,7 +8,7 @@ import org.junit.Test
  * Runs the drawer's memory of the current view — [encodeSelection] and [restoreSelection] — as the
  * pure functions they are, on the JVM, with LITERAL expectations.
  *
- * ⛔ Nothing here recomputes the rule it checks. A test that rebuilt the stored string from the
+ * Nothing here recomputes the rule it checks. A test that rebuilt the stored string from the
  * same pieces the code uses would stay green with the condition inverted; the encoded strings and
  * the restored selections below are written out by hand, character by character.
  *
@@ -47,7 +47,7 @@ class SelectionMemoryTest {
     }
 
     /**
-     * ⭐ An unknown folder id is not a memory. Storing `Folder(null)` would reopen on a list with no
+     * An unknown folder id is not a memory. Storing `Folder(null)` would reopen on a list with no
      * folder instead of falling back on the Inbox as soon as its id IS known — the state the app is
      * in before the first sync of a fresh account.
      */
@@ -77,14 +77,14 @@ class SelectionMemoryTest {
     }
 
     /**
-     * ⭐ A folder id CAN carry the separator, and the answer is to FORGET the view, not to escape
+     * A folder id CAN carry the separator, and the answer is to FORGET the view, not to escape
      * it. An IMAP path is decoded from modified UTF-7 with nothing filtered out of it
      * (`ImapFolder.path`), and a mailbox named with a line feed travels as `&AAo-` and decodes back
      * to a path holding U+000A (`ImapUtf7`) — so the string below is one the app writes ITSELF, not
      * a preference corrupted from elsewhere. Four parts, refused, and the launch lands on the
      * Inbox: a folder we decline to remember beats a folder we reopen wrong.
      *
-     * ⛔ Not covered by `anything that is not three parts is refused`, which hands restoreSelection
+     * Not covered by `anything that is not three parts is refused`, which hands restoreSelection
      * strings written by hand and says nothing about what encodeSelection may produce. Adding an
      * escaping pair to both functions would keep every other test in this file green and change
      * only these two lines.
@@ -114,7 +114,7 @@ class SelectionMemoryTest {
     }
 
     /**
-     * ⭐ The central guard: the memory belongs to ONE account. Deleted account, account switched
+     * The central guard: the memory belongs to ONE account. Deleted account, account switched
      * between two launches, preferences restored from another install — every one of those lands
      * here, and without it the app opens a row of a NEIGHBOUR account under the current account's
      * header. All three forms, because a guard written on the folder arm alone still lets the
@@ -128,7 +128,7 @@ class SelectionMemoryTest {
     }
 
     /**
-     * ⭐ The unified view has no drawer entry on a single-account install (`InboxScreen` posts it
+     * The unified view has no drawer entry on a single-account install (`InboxScreen` posts it
      * under `accounts.size > 1`): restored there, it would draw a list the reader cannot leave by
      * the way they entered it, under a title naming a view the app does not offer.
      * `selectionIsUnreachable` does NOT cover this — it only ever judges `Sel.Folder`.
@@ -169,7 +169,7 @@ class SelectionMemoryTest {
     // -- what a sign-out takes with it (PRIVACY.md: "removed when you remove the account") --------
 
     /**
-     * ⛔ Pins the string RETURNED, not merely whether it is null: a `prunedView` answering `""`, or
+     * Pins the string RETURNED, not merely whether it is null: a `prunedView` answering `""`, or
      * answering the removed account's own id back, satisfies an assertNotNull and is still a
      * memory nobody can read and nobody removed.
      */
@@ -202,7 +202,7 @@ class SelectionMemoryTest {
     }
 
     /**
-     * ⭐ The FIRST field decides, not a well-formed value. A folder id can hold a line feed — an
+     * The FIRST field decides, not a well-formed value. A folder id can hold a line feed — an
      * IMAP path decoded from modified UTF-7 — so a memory can arrive with FOUR fields, which
      * [restoreSelection] refuses to reopen and which therefore sat on the disk for ever. It is also
      * the shape carrying a folder the reader named herself, in cleartext.
@@ -217,7 +217,7 @@ class SelectionMemoryTest {
     }
 
     /**
-     * ⛔ The removed id is matched as the WHOLE first field, never looked for anywhere in the
+     * The removed id is matched as the WHOLE first field, never looked for anywhere in the
      * string: a folder whose name happens to be a removed account's id must not take a surviving
      * account's memory down with it.
      */

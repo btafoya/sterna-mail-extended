@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT. `AccountsViewModel` is an `AndroidViewModel` and this module has neither
+ * SOURCE LINT. `AccountsViewModel` is an `AndroidViewModel` and this module has neither
  * Robolectric nor instrumented tests; what this pins is the ORDER inside `signOut`, and the order
  * is what makes the sign-out stop the sync at all.
  *
@@ -53,7 +53,7 @@ class SignOutStopsTheSyncWiringTest {
     /**
      * The leading whitespace of [line] inside the body, as written.
      *
-     * ⚠ Why this exists: every other assertion in this file compares TRIMMED lines and their
+     * Why this exists: every other assertion in this file compares TRIMMED lines and their
      * relative order, which knows nothing of blocks. Wrapping a pinned line in `if (…) { … }`
      * leaves its text and its order untouched, so the whole file stays green while the line no
      * longer runs. Indentation is the cheapest true reading of nesting available to a source lint,
@@ -67,7 +67,7 @@ class SignOutStopsTheSyncWiringTest {
     }
 
     @Test fun `the account leaves the store before anything is purged, and before the coroutine`() {
-        // ⛔ The removal is synchronous and the purges are not. Moving the removal into the
+        // The removal is synchronous and the purges are not. Moving the removal into the
         // coroutine — or below the purge, which looks tidier — reopens the window this volet
         // closed: the walk goes on writing under an id that is still configured while its cache is
         // being purged, and the sweep at the end runs before the pages it should have collected.
@@ -103,14 +103,14 @@ class SignOutStopsTheSyncWiringTest {
     }
 
     /**
-     * ⚠ SOURCE LINT, and it has to be one: `AccountsViewModel` is an `AndroidViewModel` that no JVM
+     * SOURCE LINT, and it has to be one: `AccountsViewModel` is an `AndroidViewModel` that no JVM
      * test in this module can construct, so the three lines below are only readable as text. The
      * DECISIONS they carry are executed elsewhere — `SelectionMemoryTest.prunedView…` and
      * `RefreshFreshnessTest.prunedFreshness…` run them on literal strings — and what is left here
      * is the wiring itself, which those two cannot see: whether the pruning is called at all, and
      * with WHICH ids.
      *
-     * ⭐ `removedIds` comes from `removed`, never from `setOf(id)`: `removeCascading` also removes
+     * `removedIds` comes from `removed`, never from `setOf(id)`: `removeCascading` also removes
      * the sub-accounts linked to a login (#31), and their entries have to go with them. The two are
      * one keystroke apart, both compile, and `setOf(id)` leaves a sub-account's folder path on the
      * disk after its login is gone — the exact leak this volet closes. Hence the WHOLE argument
@@ -139,7 +139,7 @@ class SignOutStopsTheSyncWiringTest {
                 "never reached again leaves the register behind",
             fresh < launch,
         )
-        // ⛔ BOTH, not just the register. The stored view is the value that carries the IMAP folder
+        // BOTH, not just the register. The stored view is the value that carries the IMAP folder
         // PATH in cleartext, so it is the one that must not slip below the coroutine — and pinning
         // only `fresh < launch` let exactly that move through green.
         assertTrue(
@@ -147,7 +147,7 @@ class SignOutStopsTheSyncWiringTest {
                 "holds a folder path the reader named herself",
             view < launch,
         )
-        // ⛔ And order is not enough: `indexOfLine` compares trimmed lines, so wrapping all three
+        // And order is not enough: `indexOfLine` compares trimmed lines, so wrapping all three
         // in `if (removed.size > 1) { … }` keeps every line and every relation above true while
         // the pruning stops running on an ordinary single-account sign-out — the defect reopened
         // in full, suite still green. The pruning runs UNCONDITIONALLY or it does not run.

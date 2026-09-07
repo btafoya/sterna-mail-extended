@@ -14,13 +14,13 @@ import java.io.File
  * (EXECUTED in [ComposeSignatureTest], which runs the substitution and the "a style range over the
  * signature block is an edit" rule), but WHICH BODY it is handed is visible nowhere else.
  *
- * ⛔ The mutation this exists for: `htmlBodyWithSignature(RichBody.plain(userBody.text), …)`. It
+ * The mutation this exists for: `htmlBodyWithSignature(RichBody.plain(userBody.text), …)`. It
  * compiles, it type-checks, the whole suite stays green — and every message leaves with its bold
  * and its italics silently stripped from the html alternative, while the composer that sent it
  * showed them. The plain-text alternative is unaffected, so nothing on the sender's side ever
  * looks wrong.
  *
- * ⛔ WHOLE LINES, and exactly one occurrence of each. A `contains` is blind to every mutation that
+ * WHOLE LINES, and exactly one occurrence of each. A `contains` is blind to every mutation that
  * LENGTHENS the line, which is the shape this one takes; a count of one is what stops a second
  * call being added beside the first and answering for it.
  */
@@ -55,10 +55,10 @@ class SendBodiesWiringTest {
      * markers live only in the drawing and in the html. A recipient reading the text part would
      * get the items as a run of loose lines, and so would the copy the sender keeps.
      *
-     * ⛔ Both call sites, because the forward path builds its own string: fixing one and leaving
+     * Both call sites, because the forward path builds its own string: fixing one and leaving
      * the other means a plain reply is fine and a forwarded one is not.
      *
-     * ⛔ And both as WHOLE LINES, the class promise this test did not keep: the forward's return
+     * And both as WHOLE LINES, the class promise this test did not keep: the forward's return
      * was counted by its PREFIX, so removing the appended original from its tail left the count at
      * one and the suite green.
      */
@@ -94,10 +94,10 @@ class SendBodiesWiringTest {
     }
 
     /**
-     * ⭐ THE SAME ANSWER FOR THE DRAFT (#131), and it is a different call site: `saveDraft` takes
+     * THE SAME ANSWER FOR THE DRAFT (#131), and it is a different call site: `saveDraft` takes
      * the text part as its own argument, and it said `body.text` until the links landed.
      *
-     * ⛔ A draft stored with `body.text` is one whose text part has the list markers nowhere and
+     * A draft stored with `body.text` is one whose text part has the list markers nowhere and
      * every URL missing, while the html part beside it — `draftHtmlToSave(body)`, on the very same
      * body — carries both. One body, two parts, two different messages: whichever part the next
      * reader takes decides what the draft says. And on a reopen the text part is the FALLBACK, so
@@ -131,7 +131,7 @@ class SendBodiesWiringTest {
      * The undo round trip, both ends. The record kept for the undo window lives in memory, and the
      * branch that reopens from it is `prepare()`'s: nothing in this module can execute either.
      *
-     * ⛔ Either line dropped and undoing a send hands the composer back a message with its bold
+     * Either line dropped and undoing a send hands the composer back a message with its bold
      * REMOVED — and the message that finally goes out carries the removal, since re-sending
      * enqueues a fresh row from the composer's state. Both are silent: the text is all there.
      */

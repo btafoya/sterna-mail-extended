@@ -162,7 +162,7 @@ class MessagePagingTest {
 
     // --- needsLoad: the reading view's load guard (settle-gating, then #92) ---
     //
-    // ⛔ The first question is `settled`: the pager composes one page each side of the one being
+    // The first question is `settled`: the pager composes one page each side of the one being
     // read, and on an IMAP account a load fetches the whole source, which imports the sender's
     // announced key into OpenKeychain. A load on an unsettled page is a key deposited from a
     // message nobody opened, and nothing in this app can take it back.
@@ -182,7 +182,7 @@ class MessagePagingTest {
     }
 
     @Test fun `an unsettled page in the error state does not load either`() {
-        // ⛔ The trap the old shape fell into: the guard read "no reload needed AND not in error",
+        // The trap the old shape fell into: the guard read "no reload needed AND not in error",
         // an OR in disguise, so an error state re-loaded whatever the page's status. A neighbour
         // whose previous fetch failed is still a message nobody touched.
         assertFalse(
@@ -289,7 +289,7 @@ class MessagePagingTest {
 
     @Test fun `the guard agrees with the page key, once the page has settled`() {
         // One rule, two uses: on the settled page, a reload is needed exactly when the entry key
-        // changes. ⛔ Unsettled, the two part company on purpose — see the tests above.
+        // changes. Unsettled, the two part company on purpose — see the tests above.
         fun agree(id1: String, acc1: String?, id2: String, acc2: String?) {
             val differentKey = MessagePaging.entryKey(id1, acc1) != MessagePaging.entryKey(id2, acc2)
             assertEquals(differentKey, settledOk(id1, acc1, id2, acc2))
@@ -303,7 +303,7 @@ class MessagePagingTest {
 
     // --- settledEntry: which MESSAGE the reader is settled on (bench G-décalage, 2026-09-04) ---
     //
-    // ⛔ The answer is an entry, never a page number. A page number is refreshed only around a
+    // The answer is an entry, never a page number. A page number is refreshed only around a
     // scroll, so a list that moves underneath an open reader leaves it naming the neighbour above
     // — which then loads, and on IMAP a load files that sender's announced key in OpenKeychain.
 
@@ -341,7 +341,7 @@ class MessagePagingTest {
      * number pointed at the neighbour, whose page believed itself settled, loaded, and put that
      * sender's key in OpenKeychain from a message nobody opened.
      *
-     * ⚠ What this does NOT prove: that `PagerState` re-anchors itself onto the same message when
+     * What this does NOT prove: that `PagerState` re-anchors itself onto the same message when
      * the list moves under it. That is the library's behaviour, it is why the screen holds an
      * entry rather than an index, and it is only measurable on a device — it was, on 2026-09-04,
      * where the screen still showed GB-OPEN after the injection while its key import fired for
@@ -398,7 +398,7 @@ class MessagePagingTest {
 
     // --- warmable: may this cached body be put on screen before the finger arrives? ---
     //
-    // ⭐ The decision is EXECUTED here, on values, never re-derived by the test. The call site
+    // The decision is EXECUTED here, on values, never re-derived by the test. The call site
     //    that feeds it (MessageViewModel.warmFromCache) is pinned separately, line for line, by
     //    LoadOnSettleCallSiteTest: a pure function is green against any arguments at all.
 
@@ -414,7 +414,7 @@ class MessagePagingTest {
     }
 
     @Test fun `an encrypted body is never warmed, whatever its images`() {
-        // ⛔ Warming one would paint the PGP armour, in clear, on a page nobody has swiped to.
+        // Warming one would paint the PGP armour, in clear, on a page nobody has swiped to.
         assertFalse(
             MessagePaging.warmable(
                 cryptoKind = CryptoKind.PGP_ENCRYPTED,
@@ -491,13 +491,13 @@ class MessagePagingTest {
     }
 
     /**
-     * ⛔ THE REFUSAL, PINNED — but ⚠ NOT for the reason first written here. That reason was: a
+     * THE REFUSAL, PINNED — but NOT for the reason first written here. That reason was: a
      * warmed page composes the `WebView`, the allowlist answers `senderAllowed`, "`manualShow` is
      * false there", `blockRemote` goes false and the request leaves. The parenthesis was a
      * coincidence, not a guard: nothing gated the manual override, whose "Show images" button a
      * warmed page composes live and whose only reset sits in `load()`, which never runs there.
      *
-     * ⭐ What holds the pixel now is `MessagePage`'s one-way `everActive` latch, which gates BOTH
+     * What holds the pixel now is `MessagePage`'s one-way `everActive` latch, which gates BOTH
      * producers (`manualShow` and `senderAllowed`) — pinned line by line in
      * [LoadOnSettleCallSiteTest], since neither can be reached from a JVM bench. This refusal is
      * kept for COMFORT: without it the settle flips `blockRemote`, half of the WebView's load key,

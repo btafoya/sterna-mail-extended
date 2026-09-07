@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, and a narrow one: nothing in this chain can be instantiated in a JVM test
+ * SOURCE LINT, and a narrow one: nothing in this chain can be instantiated in a JVM test
  * ([NewMailNotifier] and [FetchAndNotify] need an Application, a NotificationManager and a
  * repository). The DECISION it carries is executed next door in [DepartedBannerDecisionTest];
  * what is pinned here is the CHAIN, whole line by whole line — `contains` is blind to any

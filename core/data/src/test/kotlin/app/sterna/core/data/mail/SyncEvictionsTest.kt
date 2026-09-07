@@ -569,7 +569,7 @@ class SyncEvictionsTest {
     }
 
     @Test fun theSetToDropIsDecidedAgainstTheWHOLEKeptListBeforeItIsCutUp() {
-        // ⛔ The trap of the obvious fix: chunking a `NOT IN (:keepIds)` into several statements
+        // The trap of the obvious fix: chunking a `NOT IN (:keepIds)` into several statements
         // deletes everything outside each chunk in turn — the whole folder, one batch at a time.
         // Here nothing was dropped from the page, so nothing may be evicted, however it is cut.
         val cached = (1..1000).map { "e$it" }

@@ -22,7 +22,7 @@ import org.junit.Test
  *  - and on the two views that exist today the answer is exactly what it was — otherwise this is not
  *    a preparation, it is a regression wearing one's name.
  *
- * ⛔ Says nothing about what is drawn. That a "Delete permanently" label follows this role is
+ * Says nothing about what is drawn. That a "Delete permanently" label follows this role is
  * `InboxScreen` composition, out of reach in a JVM test; the wiring is read as text elsewhere.
  */
 class RowFolderRoleTest {

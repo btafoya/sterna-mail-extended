@@ -15,7 +15,7 @@ import java.io.IOException
  * OPPOSE (the held-back destroy, and the move between accounts), and which nothing ran until this
  * test.
  *
- * ⛔ Not every stamp in the app: `MailRepository.recordedUidValidity` makes a SECOND one, at
+ * Not every stamp in the app: `MailRepository.recordedUidValidity` makes a SECOND one, at
  * FOLDER level, opposed just as late (`MailBySenderViewModel.askDelete` → `PendingDelete.numbering`
  * → `repo.deleteAll(credentials, ids, pending.numbering)`, pinned by
  * `MoveNumberingAtTheGestureTest`). Covering this function covers the ROW stamp, nothing else.
@@ -141,7 +141,7 @@ class NumberingStampsTest {
     }
 
     /**
-     * ⛔ A READ THAT THROWS MUST TAKE THE WHOLE GESTURE DOWN WITH IT, and the reason is the exact
+     * A READ THAT THROWS MUST TAKE THE WHOLE GESTURE DOWN WITH IT, and the reason is the exact
      * opposite of what a defensive reflex suggests.
      *
      * `emailDao.numberingOfRows` is a Room `@Query`: it throws on I/O, on a locked database, and

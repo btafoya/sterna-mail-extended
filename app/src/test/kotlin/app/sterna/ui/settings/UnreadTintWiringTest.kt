@@ -15,7 +15,7 @@ import java.io.File
  * all Compose or Android code, and this module has no Robolectric, no `compose-ui-test`, no
  * `androidTest` — adding one is a dependency decision, not a test decision. Four silent edits:
  *
- *  1. ⭐ **the default written out as a literal.** It exists in THREE copies — the repository, the
+ * 1. **the default written out as a literal.** It exists in THREE copies — the repository, the
  *     activity's `initial =` and the CompositionLocal's fallback. A `false` in either of the last
  *     two paints the whole list flat for the first frames after launch (or for good, under any
  *     provider-less preview) while every value test still reads `UNREAD_TINT_DEFAULT` and passes;

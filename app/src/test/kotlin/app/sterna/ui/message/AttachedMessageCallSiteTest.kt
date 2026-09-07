@@ -13,7 +13,7 @@ import java.io.File
  * Read out of the shipped source because neither `MessageViewModel` nor a `@Composable` can be
  * built on a JVM bench (same last resort, same reasoning, as [OriginalSenderCallSiteTest]).
  *
- * ⛔ Whole trimmed lines compared by list equality — never `contains` on a fragment, which is
+ * Whole trimmed lines compared by list equality — never `contains` on a fragment, which is
  * blind to every mutation that LENGTHENS the line. Comment lines are dropped.
  */
 class AttachedMessageCallSiteTest {
@@ -82,7 +82,7 @@ class AttachedMessageCallSiteTest {
     }
 
     /**
-     * ⛔ Nothing is written to disk on this path, and no app is asked to open anything: the
+     * Nothing is written to disk on this path, and no app is asked to open anything: the
      * attached message is parsed in memory and shown. `cacheAttachment`, `FileProvider` and
      * `Intent(` are the three ways the viewer-app path leaves the process.
      */

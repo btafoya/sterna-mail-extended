@@ -16,7 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⭐ **The round trip a draft naming nobody has to survive**, measured on `emu`/Stalwart on
+ * **The round trip a draft naming nobody has to survive**, measured on `emu`/Stalwart on
  * 2026-08-26 and closed here: the bytes [localDraftOutgoing] hands the APPEND, given back in the
  * ENVELOPE shape the server answers for them, must still name the group on the second open.
  *
@@ -28,7 +28,7 @@ import org.junit.Test
  * 3. so the second open showed an empty Cc, and the second save read "addressing proved empty"
  *    and EXPUNGED the copy that still carried the header.
  *
- * ⛔ So the assertion below is on the NAME, not on "something came back": an empty cc list is
+ * So the assertion below is on the NAME, not on "something came back": an empty cc list is
  * exactly what the defect produced, and a test happy with `emptyList()` would pin the loss.
  */
 class GroupTokenSurvivesTheAppendRoundTripTest {

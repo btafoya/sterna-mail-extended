@@ -9,7 +9,7 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * ⭐ The row an INTERRUPTED EDIT leaves behind, run against a REAL SQLite engine through the
+ * The row an INTERRUPTED EDIT leaves behind, run against a REAL SQLite engine through the
  * statement the app ships — the twin of [KeptAsDraftRowTest], for the close instead of the save.
  *
  * The decision to park (`closingParksQueuedRow`, executed in `LostBodySendTest`) and the plan that
@@ -18,12 +18,12 @@ import java.sql.DriverManager
  * JVM test, so it is read out of the shipped DAO by [DaoQuerySource] and EXECUTED here. "The row is
  * parked and nothing else is touched" is then a fact about the statement the phone runs.
  *
- * ⛔ The failure this guards is the reported one: a queued message reopened over a lost body,
+ * The failure this guards is the reported one: a queued message reopened over a lost body,
  * closed on the app's own advice, and DELIVERED in under a second because the close put it back in
  * the queue. The parked row must read FAILED at the attempt cap (the proxy `OutboxLogic.stateAfterEdit`
  * keeps it parked on the next close too, #70) with the sentinel reason the Outbox screen translates.
  *
- * ⭐ The SECOND door is the startup sweep (`MailRepository.parkInterruptedOutboxEdits`): a row left
+ * The SECOND door is the startup sweep (`MailRepository.parkInterruptedOutboxEdits`): a row left
  * EDITING by a process death used to be put back to QUEUED at the next launch and re-armed at 0, so
  * it left on its own — and the composer restored afterwards could send the same message again.
  * The sweep is replayed here as the repository issues it, both statements in the shipped order,
@@ -63,7 +63,7 @@ class EditInterruptedRowTest {
     }
 
     /**
-     * ⛔ The sentinel is STORED, in every user's database, from the first version that ships it. It
+     * The sentinel is STORED, in every user's database, from the first version that ships it. It
      * is pinned as a literal so that renaming the constant is seen for what it is: every row already
      * parked would stop being translated and print "Failed: edit-interrupted" in nine languages.
      */
@@ -187,7 +187,7 @@ class EditInterruptedRowTest {
     }
 
     /**
-     * ⛔ THE ORDER OF THE TWO STATEMENTS is what keeps an exhausted row's own reason (the SQLite
+     * THE ORDER OF THE TWO STATEMENTS is what keeps an exhausted row's own reason (the SQLite
      * test above shows the consequence; this pins the cause). Both statements name EDITING, so
      * whichever runs first claims the exhausted rows. The repository body is read line by line,
      * WHOLE lines: a `contains` would still pass with the two lines swapped.

@@ -18,13 +18,13 @@ import java.io.File
  * was only found by following a 301 to ANOTHER HOST — while her domain publishes a perfectly good
  * mail autoconfig. No persona could be added by the default path any more.
  *
- * ⛔ Every expected list below is HARD-CODED. A test that re-derives "drop the bare domain" from
+ * Every expected list below is HARD-CODED. A test that re-derives "drop the bare domain" from
  * the address it feeds in is a copy of the decision: the shipped rule could be inverted under it
  * and stay green.
  */
 class MailOAuthCandidatesTest {
 
-    /** ⭐ The persona the defect was measured on: her domain also hosts a Mastodon. */
+    /** The persona the defect was measured on: her domain also hosts a Mastodon. */
     @Test fun `the site the organisation runs is not asked how the mail signs in`() {
         assertEquals(
             "the default path may ask ONLY the mail-named hosts. `masto.top` is the website: its " +
@@ -48,7 +48,7 @@ class MailOAuthCandidatesTest {
     }
 
     /**
-     * ⛔ Exactly ONE candidate is dropped, and it is the bare domain. Both halves matter: a rule
+     * Exactly ONE candidate is dropped, and it is the bare domain. Both halves matter: a rule
      * that returned an empty list would silence OAuth on the default path for everyone, and one
      * that dropped `api.` (Fastmail) instead would be invisible to the two tests above only if
      * they were written loosely.
@@ -79,7 +79,7 @@ class MailOAuthCandidatesTest {
     }
 
     /**
-     * ⛔ A DOMAIN OF THREE LABELS OR MORE, and the reason it is here rather than "for completeness":
+     * A DOMAIN OF THREE LABELS OR MORE, and the reason it is here rather than "for completeness":
      * every other case in this class has a two-label domain, and a rule spelled "keep the hosts
      * with exactly two dots" satisfies all of them while returning, for `example.co.uk`, THE BARE
      * DOMAIN AND NOTHING ELSE — the original defect in its purest form, for every address in the
@@ -117,7 +117,7 @@ class MailOAuthCandidatesTest {
  * build one, so the DECISION is executed above ([MailOAuthCandidatesTest]) and what is left is
  * that each of the two call sites acts on the list it is entitled to — which is text.
  *
- * ⚠ Both sites are read INSIDE THEIR OWN FUNCTION BODY, never over the whole file. A pin on a
+ * Both sites are read INSIDE THEIR OWN FUNCTION BODY, never over the whole file. A pin on a
  * whole line is blind to the two lines being swapped between the two functions, and swapping them
  * is precisely the mutation that reopens the defect while narrowing the one door that must stay
  * wide: it would show a browser page to everyone at the address step AND tell the manual button's
@@ -156,7 +156,7 @@ class MailOAuthCandidatesWiringTest {
     /**
      * The manual fallback's OAuth button keeps ALL FOUR candidates, deliberately.
      *
-     * ⛔ Here the reader has asserted that her server does OAuth, and may have typed its host. It
+     * Here the reader has asserted that her server does OAuth, and may have typed its host. It
      * is the only door left for an OAuth published on the bare domain; narrowing it would answer
      * "this server doesn't support OAuth sign-in" to a sign-in that worked yesterday.
      */

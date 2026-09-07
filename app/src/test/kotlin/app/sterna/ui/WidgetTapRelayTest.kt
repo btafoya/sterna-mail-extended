@@ -8,7 +8,7 @@ import org.junit.Test
  * is a literal [WidgetTapStep], never the rule recomputed here. A shipped rule whose arms were
  * swapped or narrowed disagrees with this file instead of agreeing with it.
  *
- * ⛔ A COLD START IS PLAYED AS A SEQUENCE OF FRAMES, not as one call. That is the whole defect
+ * A COLD START IS PLAYED AS A SEQUENCE OF FRAMES, not as one call. That is the whole defect
  * (bench cell C1, 2026-08-17): a tap that STARTS the process arrives in a composition where the
  * NavHost has not composed its start destination, so `listViewModel` is still null. A single call
  * asked in that frame answers honestly "no list"; what matters is what the NEXT frame is told, and
@@ -16,7 +16,7 @@ import org.junit.Test
  * sequence `MainNavHost` walks — `Hold` consumes the activity's order and raises the local flag,
  * `Deliver` consumes and lowers it — and each frame's state is asked of the rule in turn.
  *
- * ⛔ WHAT THIS FILE CANNOT PROVE, and must not be read as proving: the frames are supplied here,
+ * WHAT THIS FILE CANNOT PROVE, and must not be read as proving: the frames are supplied here,
  * not produced. That consuming the activity's flag is what BRINGS the composition where the list
  * exists is read in `MainNavHost`, and no line of production code is traversed by this file — the
  * rule is a truth table over three booleans and nothing else. Bench cell C1 is what settles it.
@@ -24,7 +24,7 @@ import org.junit.Test
 class WidgetTapRelayTest {
 
     /**
-     * ⛔ THE TEST THIS FILE EXISTS FOR — the tap that starts the process, frame by frame.
+     * THE TEST THIS FILE EXISTS FOR — the tap that starts the process, frame by frame.
      *
      * Shipped, the effect returned on the null list and never ran again: its keys
      * (`pendingUnifiedOpen`, `listViewModel`) both changed in the SAME later composition only if

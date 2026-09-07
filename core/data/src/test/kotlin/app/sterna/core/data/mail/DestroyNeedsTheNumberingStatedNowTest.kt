@@ -101,7 +101,7 @@ class DestroyNeedsTheNumberingStatedNowTest {
     }
 
     /**
-     * ⛔ THE ARGUMENT ITSELF, on a perfectly healthy server. The twin of
+     * THE ARGUMENT ITSELF, on a perfectly healthy server. The twin of
      * `MoveNeedsTheNumberingStatedNowTest`'s "a move that opposes nothing is refused, on a
      * perfectly healthy server", and the only thing that kills this mutation:
      *

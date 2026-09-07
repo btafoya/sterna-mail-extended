@@ -20,14 +20,14 @@ import java.sql.DriverManager
  * proxy, from the PUBLISHED v15 schema chained up to a real v21 — never from a copy of the
  * statements, so this test cannot drift from the code that ships.
  *
- * ⚠ This one touches the two tables that hold UNSENT MAIL, which makes the stake higher than for
+ * This one touches the two tables that hold UNSENT MAIL, which makes the stake higher than for
  * the `emails` columns before it. `SternaDatabase` ends its builder with
  * `fallbackToDestructiveMigration()`: a step that is missing, wrong, or merely absent from
  * [SternaDatabase.ALL_MIGRATIONS] has Room drop every table — the queued sends and the scheduled
  * ones with them, i.e. messages the user wrote that never left the phone. So the seed holds a
  * QUEUED outbox row and a scheduled send, and every table's row count is compared before and after.
  *
- * ⚠ **Two** tables, each asserted on its own. Adding the column to `outbox` alone is the plausible
+ * **Two** tables, each asserted on its own. Adding the column to `outbox` alone is the plausible
  * slip and it is invisible until it hurts: the request would survive the undo window and be lost
  * exactly when a scheduled send hands over to the outbox, hours later.
  */
@@ -75,7 +75,7 @@ class ReadReceiptMigrationSqlTest {
     /**
      * Every table a v21 database holds rows in, so "nothing was lost" can be measured, not hoped.
      *
-     * ⚠ `local_drafts` is absent because it does not EXIST at v21 — it is created by
+     * `local_drafts` is absent because it does not EXIST at v21 — it is created by
      * [MIGRATION_22_23], and counting rows in it here would only prove SQLite raises "no such
      * table". The list of a migration test is the list of its own version; the one that matters for
      * the drafts a user is holding is [LocalDraftsMigrationSqlTest]'s, and the next step's test must
@@ -427,7 +427,7 @@ class ReadReceiptMigrationSqlTest {
     }
 
     /**
-     * ⚠ Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
+     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
      * annotation is not retained at runtime, so it cannot be read reflectively.
      */
     @Test fun theRegisteredMigrationsReachTheDeclaredSchemaVersion() {

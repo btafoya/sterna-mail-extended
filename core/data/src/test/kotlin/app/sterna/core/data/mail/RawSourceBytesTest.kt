@@ -39,7 +39,7 @@ class RawSourceBytesTest {
     }
 
     /**
-     * ⛔ Last resort, and only beside the executing tests above: the public entry point cannot be
+     * Last resort, and only beside the executing tests above: the public entry point cannot be
      * built on a JVM bench (`MailRepository` needs Room and a network stack), so this pins that
      * [MailRepository.rawSource] still exists with the promised signature and still hands the
      * fetched source to [rawSourceBytes] — every code line of the file that names either, whole.

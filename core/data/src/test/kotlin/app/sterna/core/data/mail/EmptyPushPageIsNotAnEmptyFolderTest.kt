@@ -9,7 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⛔ The push pass's twin of [EmptyImapWalkIsNotAnEmptyFolderTest]: a page that came back with
+ * The push pass's twin of [EmptyImapWalkIsNotAnEmptyFolderTest]: a page that came back with
  * nothing in it is not a page over an empty folder, and only the second may clear the folder's
  * NOTIFICATION BASELINE.
  *
@@ -28,12 +28,12 @@ import org.junit.Test
  *   did not purge) and `ImapSession.messages` drops every one of them, or their `FETCH` responses
  *   carry no `UID` and are dropped the same way.
  *
- * ⚠ The second shape is the one a refusal keyed on `existsObserved` ALONE does not close, and it is
+ * The second shape is the one a refusal keyed on `existsObserved` ALONE does not close, and it is
  * the case that must fail loudest here: the server stated a count, so `existsObserved` is true, and
  * a page-is-empty-therefore-the-folder-is check would wipe the baseline. What the count says has to
  * be read too.
  *
- * ⭐ And the witness keeps the rule honest: a folder the server SAID holds nothing clears its
+ * And the witness keeps the rule honest: a folder the server SAID holds nothing clears its
  * baseline. Refusing on every empty page would make a baseline immortal — mail refiled into that
  * folder months later would be diffed against ids nothing can remove, and never announced.
  *
@@ -70,7 +70,7 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
     )
 
     /**
-     * ⚠ The folder is a PARAMETER, and the three fields that identify it move together. A fixture
+     * The folder is a PARAMETER, and the three fields that identify it move together. A fixture
      * that only ever built the inbox let this mutation live:
      *
      *     - if (load.messages.isEmpty() && !load.folderStatedEmpty) return null
@@ -110,7 +110,7 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
     }
 
     /**
-     * A3 — ⛔ THE SECOND DOOR, and the case that tells the two designs apart. The server stated its
+     * A3 — THE SECOND DOOR, and the case that tells the two designs apart. The server stated its
      * count, and stated it above zero: `existsObserved` is TRUE here. A refusal that reads only that
      * flag licenses the wipe, and every `\Deleted`-but-not-expunged folder re-notifies its day.
      */
@@ -152,7 +152,7 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
     // -- the same decision, on a WATCHED folder that is not the inbox ----------------------------------
 
     /**
-     * A1 on a Sieve folder. ⛔ The decision knows nothing about WHICH folder it is deciding for, and
+     * A1 on a Sieve folder. The decision knows nothing about WHICH folder it is deciding for, and
      * the watched extras are the ones that hurt most: the user does not look at them at app-open, so
      * `seedsSilently` never covers them (issue #16) and every re-announcement they make is a banner.
      */
@@ -254,7 +254,7 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
     }
 
     @Test fun `a status built without naming the flag states nothing — the default is UNKNOWN`() {
-        // ⭐ The dangerous default, executed. `exists` reads 0 here because that is what the field is
+        // The dangerous default, executed. `exists` reads 0 here because that is what the field is
         // initialised to, and the whole defect is the two zeroes being indistinguishable.
         val neverStated = ImapMailboxStatus(exists = 0, uidValidity = 1L, uidNext = 1L)
 
@@ -269,7 +269,7 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
      * refresher and a live socket), so what is read here is that the field is filled BY the decision
      * above and not by a copy of it written on the spot.
      *
-     * ⛔ The mutation it exists for is `folderStatedEmpty = status.existsObserved` — true for the
+     * The mutation it exists for is `folderStatedEmpty = status.existsObserved` — true for the
      * `\Deleted`-not-expunged folder of A3, and every executable test above still green, because
      * they are all handed the flag by hand.
      */

@@ -25,7 +25,7 @@ class RefreshedInboxIdTest {
     }
 
     /**
-     * ⛔ THE one. Taking the first refresh trusts a position produced in another module: here the
+     * THE one. Taking the first refresh trusts a position produced in another module: here the
      * inbox is simply not in what came back (an IMAP pass where the inbox load was the one refused,
      * or a folder list where it is not first), and the hook must fire for nothing rather than write
      * `Archive`'s baseline and re-file `Archive`'s threads.

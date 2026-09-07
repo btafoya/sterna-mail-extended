@@ -20,7 +20,7 @@ import org.junit.Test
  * function over seams, so the order of the writes, the classification of each save outcome and the
  * fields handed to `saveDraft` are run, not read.
  *
- * ⛔ NOT covered here: that `MailRepository.saveDraft` really files a draft (pinned in `core:data`),
+ * NOT covered here: that `MailRepository.saveDraft` really files a draft (pinned in `core:data`),
  * that the ViewModel is wired to these seams at all (`ScheduledCancelScopeWiringTest` reads the one
  * thing nothing in this module can instantiate), and anything on a device.
  */
@@ -243,7 +243,7 @@ class ScheduledSendCancelTest {
     // --- 8 bis. the styling a cancelled message was written with (#131) -------------------------
 
     @Test fun `a styled message cancelled from the schedule is filed with its styling`() {
-        // ⛔ The row is the only copy: the deposit is what the user gets back. Filed on the text
+        // The row is the only copy: the deposit is what the user gets back. Filed on the text
         // alone — which is what happened until #131 — the bold she applied is gone for good, with
         // nothing on screen having said so.
         val draft = draftFromScheduledSend(row(htmlBody = "<b>see</b> you there"))
@@ -257,7 +257,7 @@ class ScheduledSendCancelTest {
     }
 
     @Test fun `the deposit takes its text and its styling out of the same part`() {
-        // ⛔ The witness the test above cannot be: there the row's two columns say the same words,
+        // The witness the test above cannot be: there the row's two columns say the same words,
         // so `body = row.textBody` passes it. Here they DIFFER — which a row is free to do — and
         // the deposit must file ONE message: the html is what was read, so its text is the text
         // filed, and the styling filed is measured on those very letters. Filed the other way, the
@@ -271,7 +271,7 @@ class ScheduledSendCancelTest {
     }
 
     @Test fun `a cancelled message keeps its link, in the html AND in the text filed`() {
-        // ⛔ Both halves, and the text one is the mutation this exists for. `rich.text` there —
+        // Both halves, and the text one is the mutation this exists for. `rich.text` there —
         // which is what this file said until the links (#131) — files a draft whose text part is
         // "see you there" while the html part beside it, built from the SAME body, carries the
         // anchor. One deposit, two parts, two different messages about one address.

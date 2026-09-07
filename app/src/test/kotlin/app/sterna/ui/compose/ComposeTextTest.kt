@@ -196,7 +196,7 @@ class ComposeTextTest {
 
     @Test fun draftFieldsFlattenHtmlOnlyBodyToText() {
         // A draft saved by another client may be HTML-only; the plain-text editor gets it
-        // flattened with paragraphs preserved, not raw markup on one line. ⭐ Still true after
+        // flattened with paragraphs preserved, not raw markup on one line. Still true after
         // #131: `<p>` is not a tag this app's parser reads, so the html is refused and the
         // flattening is what the editor gets — the styled case is two tests below.
         val draft = Email(
@@ -236,7 +236,7 @@ class ComposeTextTest {
     }
 
     @Test fun draftFieldsTakeTheBodyAndTheSpansOutOfTheSamePart() {
-        // ⛔ The witness the test above cannot be: there both parts say the same words, so
+        // The witness the test above cannot be: there both parts say the same words, so
         // `body = originalPlainText(o)` — the text part — passes it. Here they DIFFER, which two
         // parts of one draft are free to do (another client rewrote one, a save was interrupted).
         // The spans are measured on the HTML; laid over the text part they would cover other
@@ -263,9 +263,9 @@ class ComposeTextTest {
     }
 
     @Test fun draftFieldsCarryTheListsOfTheHtmlPart() {
-        // #131 lists. ⛔ The `<ul>` is in the html part only, and it must be read FIRST: read
+        // #131 lists. The `<ul>` is in the html part only, and it must be read FIRST: read
         // text-first, whatever the text part holds would show as typed text and the next save
-        // would store it INSIDE the body. The dashes here are the worst case on purpose — ⚠ and
+        // would store it INSIDE the body. The dashes here are the worst case on purpose — and
         // since the links (#131) that IS what a draft's text column holds: the save writes
         // `toPlainText(body)`, the one plain-text answer the send uses too, so the markers and the
         // addresses are spelled out in both. The html part is read first, so the reopen is exact;
@@ -294,7 +294,7 @@ class ComposeTextTest {
     /**
      * ROUTE 1 OF 4 — the SERVER draft (JMAP and IMAP alike land on `draftFieldsOf`).
      *
-     * ⛔ Why this one is not decoration. Since the parser accepts an anchor, this draft is judged
+     * Why this one is not decoration. Since the parser accepts an anchor, this draft is judged
      * REPRODUCIBLE (`draftHtmlIsLossy`), so the next save destroys the server original and puts
      * this composer's answer in its place. `bodyLinks` dropped here and the replacement carries no
      * anchor at all: the address is gone from the only copy there was.
@@ -895,7 +895,7 @@ class ComposeTextTest {
     }
 
     @Test fun replyAllUsesTheReplyToAndDropsTheSender() {
-        // ⛔ alice@example.com — the From — must NOT be here: the sender displaced it.
+        // alice@example.com — the From — must NOT be here: the sender displaced it.
         assertEquals(
             "support@example.com, bob@example.com, carol@example.com",
             replyAllRecipients(originalWithReplyTo, setOf("me@example.com")),

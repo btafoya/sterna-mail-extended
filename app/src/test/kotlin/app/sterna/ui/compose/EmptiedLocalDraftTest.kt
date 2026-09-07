@@ -21,7 +21,7 @@ import org.junit.Test
  * it away lifted the mask, and the version from BEFORE the edit came back at the top of Drafts, for
  * good.
  *
- * ⛔ Nothing here recomputes the rule to choose what it replays: every case hands fixed column
+ * Nothing here recomputes the rule to choose what it replays: every case hands fixed column
  * values in and pins the VALUES that come out — the id, the folder and the numbering, which are
  * exactly the three things whose absence makes a destroy do nothing in silence.
  */
@@ -291,7 +291,7 @@ class EmptiedLocalDraftTest {
     // -- the gesture survives the screen going away ------------------------------------------------
 
     @Test fun `the back gesture during the destroy does not leave the row behind`() {
-        // ⛔ The twin's shelter, for the twin's reason (`commitThenConsumeLocalDraft`), and this
+        // The twin's shelter, for the twin's reason (`commitThenConsumeLocalDraft`), and this
         // volet is what makes the hole reachable by ONE tap: the delete runs in viewModelScope, and
         // that scope dies with the NavBackStackEntry the moment the screen is popped — the back
         // gesture, in the second the destroy is being made durable. Cancelled between the destroy
@@ -330,7 +330,7 @@ class EmptiedLocalDraftTest {
     }
 
     @Test fun `a screen closed BEFORE anything is destroyed destroys nothing`() {
-        // ⛔ The boundary, and it is deliberate: the shelter covers the acts, not the wait in front
+        // The boundary, and it is deliberate: the shelter covers the acts, not the wait in front
         // of them. Nothing has been destroyed yet, so the draft is precisely what must survive —
         // the row stays where the user can still see it and the lease is given back by the caller.
         val done = mutableListOf<String>()
@@ -452,7 +452,7 @@ class EmptiedLocalDraftTest {
     // -- whose account the destroy runs under ----------------------------------------------------
 
     /**
-     * ⛔ The "From" picker covers every account and the local row belongs to exactly one. These four
+     * The "From" picker covers every account and the local row belongs to exactly one. These four
      * cases EXECUTE the choice; nothing here recomputes it — each hands two fixed account ids and a
      * store that answers for whichever it is asked about, and pins WHAT came back and WHO was asked.
      */

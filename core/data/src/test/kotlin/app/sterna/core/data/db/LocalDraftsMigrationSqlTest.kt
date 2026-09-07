@@ -21,7 +21,7 @@ import java.sql.SQLException
  * proxy, from the PUBLISHED v15 schema chained up to a real v23 — never from a copy of the
  * statements, so this test cannot drift from the code that ships.
  *
- * ⚠ What is at stake is NOT the new table, which is empty and which nobody would miss on the day of
+ * What is at stake is NOT the new table, which is empty and which nobody would miss on the day of
  * the upgrade. It is the two tables that already hold UNSENT MAIL. `SternaDatabase` ends its builder
  * with `fallbackToDestructiveMigration()`: a step that is wrong, or merely absent from
  * [SternaDatabase.ALL_MIGRATIONS], has Room drop EVERY table — the outbox and the scheduled sends
@@ -78,7 +78,7 @@ class LocalDraftsMigrationSqlTest {
     /**
      * Every table a v23 database holds rows in, so "nothing was lost" can be measured, not hoped.
      *
-     * ⚠ `local_drafts` is deliberately NOT here: at v23 it does not exist, and this list is what a
+     * `local_drafts` is deliberately NOT here: at v23 it does not exist, and this list is what a
      * row count is taken over on both sides of the step. The NEXT migration's test — copied from
      * this one, as this one was copied from [ReadReceiptMigrationSqlTest] — must add it, and seed a
      * row in it, or it stops proving anything about the drafts a user is holding.
@@ -479,7 +479,7 @@ class LocalDraftsMigrationSqlTest {
     }
 
     /**
-     * ⚠ Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
+     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
      * annotation is not retained at runtime, so it cannot be read reflectively.
      */
     @Test fun theRegisteredMigrationsReachTheDeclaredSchemaVersion() {

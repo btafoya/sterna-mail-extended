@@ -18,16 +18,16 @@ import kotlin.math.sin
  * contentDescription is spoken to TalkBack only. So this runs [pgpModeIcon] for all four modes and
  * MEASURES that the four drawings differ, the same way a bench pass does — by looking at the ink.
  *
- * ⛔ Comparing the [ImageVector]s with `equals` would be an EMPTY test. `ImageVector.equals` also
+ * Comparing the [ImageVector]s with `equals` would be an EMPTY test. `ImageVector.equals` also
  * compares `name`, so "Outlined.Lock" != "Filled.LockOpen" would hold even if the two were the
  * same drawing to the pixel — which is exactly the defect the bench reported (two modes wearing
  * padlocks nobody could tell apart). The name is not what the user sees; the ink is.
  *
- * ⚠ What this CANNOT see: which mode wears which face. Swap two faces and the four drawings are
+ * What this CANNOT see: which mode wears which face. Swap two faces and the four drawings are
  * still pairwise distinct. That half is pinned as source text in [PgpModeWiringTest]; the two
  * tests are complements and neither replaces the other.
  *
- * ⚠ The rasteriser is hand-written because there is none to borrow: `java.awt` is absent from an
+ * The rasteriser is hand-written because there is none to borrow: `java.awt` is absent from an
  * Android unit test's classpath (android.jar carries `java.awt.font` and nothing else), and
  * `android.graphics.Path` is a stub that throws. It is ~100 lines of scan-line fill, below.
  */
@@ -187,7 +187,7 @@ class PgpModeIconFacesTest {
     /**
      * Compose path nodes → closed contours of straight segments, in raster coordinates.
      *
-     * ⛔ Nothing is skipped. A node this cannot draw raises, NAMED: a guard that quietly ignored
+     * Nothing is skipped. A node this cannot draw raises, NAMED: a guard that quietly ignored
      * the segments it did not understand would still report "the four faces are distinct" on the
      * day someone picks an icon built out of arcs, having measured two truncated drawings.
      */
@@ -381,7 +381,7 @@ class PgpModeIconFacesTest {
          * came within 82 of the open padlock, because compose's `Icons.Filled.LockOpen` is itself
          * an outline-bodied drawing and the two then differ only by a notch in the shackle. So
          * anything between roughly 200 and 1900 renders the same verdict on both, and 400 is a
-         * threshold, not a fitted constant. ⛔ Lowering it under 82 to make a red tree green would
+         * threshold, not a fitted constant. Lowering it under 82 to make a red tree green would
          * be a rubber stamp: two drawings a user cannot tell apart would pass.
          */
         const val DISTINCT_PIXELS = 400
@@ -390,8 +390,8 @@ class PgpModeIconFacesTest {
          * Below this a mask is not a drawing. The four faces shipped ink 2278 to 3846 pixels, so
          * this sits comfortably under the lightest of them.
          *
-         * ⚠ What it catches is a BLANK or near-blank canvas — a rasteriser that drew nothing at
-         * all, which would make every pair below "distinct" from nothing. ⛔ It is NOT a guard
+         * What it catches is a BLANK or near-blank canvas — a rasteriser that drew nothing at
+         * all, which would make every pair below "distinct" from nothing. It is NOT a guard
          * against a drawing that came out TRUNCATED: no single ink figure can separate "half an
          * icon" from "a lighter icon". Truncation is refused upstream instead, where it can be
          * named — [contours] raises on any node it cannot draw rather than skipping it.

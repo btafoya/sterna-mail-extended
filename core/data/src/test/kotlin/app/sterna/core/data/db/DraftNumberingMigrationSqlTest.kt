@@ -21,21 +21,21 @@ import java.sql.DriverManager
  * proxy, from the PUBLISHED v15 schema chained up to a real v22 — never from a copy of the
  * statements, so this test cannot drift from the code that ships.
  *
- * ⚠ Same two tables, same stake as the step before it: they hold UNSENT MAIL. `SternaDatabase` ends
+ * Same two tables, same stake as the step before it: they hold UNSENT MAIL. `SternaDatabase` ends
  * its builder with `fallbackToDestructiveMigration()`, so a step that is missing, wrong, or merely
  * absent from [SternaDatabase.ALL_MIGRATIONS] has Room drop every table — the queued sends and the
  * scheduled ones with them. So the seed holds a QUEUED outbox row and a scheduled send, and every
  * table's row count is compared before and after.
  *
- * ⚠ **Two** tables, each asserted on its own. `outbox` alone is the plausible slip and it is
+ * **Two** tables, each asserted on its own. `outbox` alone is the plausible slip and it is
  * invisible until it destroys something: a scheduled send would reach the outbox with nothing
  * frozen, hours later, and the delivery would fall back to whatever numbering it could find.
  *
- * ⛔ And the column is NULLABLE WITH NO DEFAULT, read back as `NULL` on every row queued before it.
+ * And the column is NULLABLE WITH NO DEFAULT, read back as `NULL` on every row queued before it.
  * That is deliberate and it is the safe half of the trade: `null` destroys nothing, whereas
  * backfilling the folder's current numbering would license an expunge under a number nobody froze.
  *
- * ⭐ And **v24 → v25** ([MIGRATION_24_25]), at the bottom of the file: `emails` gains `uidValidity`,
+ * And **v24 → v25** ([MIGRATION_24_25]), at the bottom of the file: `emails` gains `uidValidity`,
  * the IMAP numbering each cached row was READ under ([EmailEntity.uidValidity], #99). Same engine,
  * same seed, same stake, and the same shape of column — nullable, no default, no backfill, because
  * `null` destroys nothing while an invented number licenses an expunge. A step missing from
@@ -361,7 +361,7 @@ class DraftNumberingMigrationSqlTest {
         seedV22()
         migrate22to23()
 
-        // ⛔ NULL, deliberately, and NOT backfilled: nobody knows which numbering those rows were
+        // NULL, deliberately, and NOT backfilled: nobody knows which numbering those rows were
         // enqueued under, and `null` destroys nothing (`UidValidity.destroyableUnderNumbering`).
         // 0 would be worse than useless — it is a numbering "the server never announced", and a
         // column defaulting to it would look like an answer while meaning "unknown".
@@ -463,7 +463,7 @@ class DraftNumberingMigrationSqlTest {
     }
 
     /**
-     * ⛔ SOURCE LINT, and the one line every migration in this file depends on: the builder must
+     * SOURCE LINT, and the one line every migration in this file depends on: the builder must
      * actually HAND [SternaDatabase.ALL_MIGRATIONS] to `addMigrations`.
      *
      * Four migration suites now chain that array by hand and state in prose that it is "the array
@@ -491,7 +491,7 @@ class DraftNumberingMigrationSqlTest {
     }
 
     /**
-     * ⚠ Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
+     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
      * annotation is not retained at runtime, so it cannot be read reflectively.
      */
     @Test fun theRegisteredMigrationsReachTheDeclaredSchemaVersion() {
@@ -568,7 +568,7 @@ class DraftNumberingMigrationSqlTest {
         seedV24()
         migrate24to25()
 
-        // ⛔ NULL, deliberately, and NOT backfilled with the folder's current numbering: nobody
+        // NULL, deliberately, and NOT backfilled with the folder's current numbering: nobody
         // knows which numbering those rows were read under, and inventing one would license exactly
         // the expunge this column exists to refuse. `null` destroys nothing
         // (`UidValidity.mayDestroy`). 0 would be worse than useless — it is "the server announced

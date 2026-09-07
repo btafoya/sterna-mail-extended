@@ -188,7 +188,7 @@ class JmapClientTest {
         // The target is 127.0.0.1:1: no DNS, no handshake, connection refused with the network
         // cable out. If the guard ever goes away, OkHttp follows the hop and the call dies on a
         // ConnectException instead of surfacing the 302 — that swap of exception type is what
-        // this test watches. ⛔ Not server.requestCount: the mock never hears about the second
+        // this test watches. Not server.requestCount: the mock never hears about the second
         // hop either way, so counting it would assert 1 in both worlds and prove nothing.
         server.enqueue(
             MockResponse()
@@ -234,7 +234,7 @@ class JmapClientTest {
     }
 
     @Test fun redirectDroppedAuthorization_isTrueWhenOnlyThePortChanged() {
-        // ⛔ The port is part of the triplet: without it two MockWebServers on localhost are
+        // The port is part of the triplet: without it two MockWebServers on localhost are
         // "the same origin" and none of this is reproducible — nor is a real host:8443 hop.
         assertTrue(
             JmapClient.redirectDroppedAuthorization(
@@ -376,7 +376,7 @@ class JmapClientTest {
      * The witness: [MAILBOX_JSON] is a server that never mentions subscription at all, and it must
      * come back with every folder subscribed. A throw here (a non-defaulted field) would not
      * degrade the drawer, it would empty it — `Mailbox/get` fails and the account lists nothing.
-     * ⛔ Do not add the property to that payload; its silence IS the fixture.
+     * Do not add the property to that payload; its silence IS the fixture.
      */
     @Test fun getMailboxes_leavesEveryFolderSubscribedWhenTheServerNeverMentionsSubscription() = runBlocking {
         server.enqueue(MockResponse().setBody(MAILBOX_JSON))
@@ -687,7 +687,7 @@ class JmapClientTest {
 
     /**
      * The same client with a two-second read timeout instead of thirty, so a server that never
-     * answers is an IOException in two seconds. ⛔ The TIMEOUT is all that changes: the code under
+     * answers is an IOException in two seconds. The TIMEOUT is all that changes: the code under
      * test is the same, and what is being proved is what the send does with that exception.
      */
     private fun impatient(): JmapClient = JmapClient(
@@ -725,7 +725,7 @@ class JmapClientTest {
     }
 
     /**
-     * ⭐ The counter-test of the trap. `delivered` is "unknown" for a recipient the server ACCEPTED
+     * The counter-test of the trap. `delivered` is "unknown" for a recipient the server ACCEPTED
      * — measured against Stalwart, alongside `smtpReply: "250 2.1.5 Queued"` — because a submission
      * only knows what the queue has done so far. Anything stricter than `== "no"` fails every send.
      */
@@ -750,11 +750,11 @@ class JmapClientTest {
     }
 
     /**
-     * ⭐ Every doubt is a success. The message has already been handed to the server by the time
+     * Every doubt is a success. The message has already been handed to the server by the time
      * this request goes out; a failure to READ the verdict is not a verdict.
      */
     @Test fun sendEmail_succeedsWhenTheSubmissionCannotBeRead() {
-        // ⛔ The 500 carries a body that PARSES AS A REFUSAL on purpose: the status has to be
+        // The 500 carries a body that PARSES AS A REFUSAL on purpose: the status has to be
         // checked, not just the JSON. A server that answers 500 has told us nothing about the mail.
         assertEquals(
             "HTTP failure",
@@ -767,7 +767,7 @@ class JmapClientTest {
     }
 
     /**
-     * ⛔ THE DOUBT THAT THROWS, which the four cases above never reach: they all fall on a `null`
+     * THE DOUBT THAT THROWS, which the four cases above never reach: they all fall on a `null`
      * INSIDE the read. Here the server reads the verdict request and never answers it, so OkHttp
      * raises an `IOException` out of it — the most ordinary event there is (the link goes, TLS
      * breaks, DNS leaves), and it happens AFTER the server has taken the message.
@@ -776,7 +776,7 @@ class JmapClientTest {
      * back to QUEUED and the message is delivered up to five times over, with five copies in Sent.
      * That is strictly worse than the silence of #183.
      *
-     * ⛔ A DISPATCHER and not a queue, deliberately: OkHttp may retry a failed exchange, and a
+     * A DISPATCHER and not a queue, deliberately: OkHttp may retry a failed exchange, and a
      * queue with nothing left in it would BLOCK the test for ever instead of failing it.
      */
     private fun serverThatNeverAnswersTheVerdictRequest() {
@@ -813,7 +813,7 @@ class JmapClientTest {
     }
 
     /**
-     * ⭐ The PLURAL. "the refused recipient(s)" is the promise, and naming only the first would send
+     * The PLURAL. "the refused recipient(s)" is the promise, and naming only the first would send
      * the user back to a message with two dead addresses in it having fixed one.
      */
     @Test fun sendEmail_namesEveryRefusedRecipient() {
@@ -840,7 +840,7 @@ class JmapClientTest {
     /** The second request, pinned by its ARGUMENTS: the created submission id, and that one only. */
     @Test fun sendEmail_asksTheServerAboutTheSubmissionItJustCreated() {
         send(MockResponse().setBody(SUBMISSION_ACCEPTED_JSON))
-        // ⛔ Asserted BEFORE takeRequest, which blocks for ever on a request that never came: the
+        // Asserted BEFORE takeRequest, which blocks for ever on a request that never came: the
         // verdict is read in a SECOND request, and no request at all means nothing was checked.
         assertEquals("the send must ask the server what it did with the submission", 2, server.requestCount)
         server.takeRequest() // the send itself
@@ -854,7 +854,7 @@ class JmapClientTest {
             listOf("sub1"),
             call[1].jsonObject["ids"]!!.jsonArray.map { it.jsonPrimitive.content },
         )
-        // ⛔ A SECOND request, not a back-reference: RFC 8621 §7.5's onSuccessUpdateEmail inserts an
+        // A SECOND request, not a back-reference: RFC 8621 §7.5's onSuccessUpdateEmail inserts an
         // implicit Email/set under the same call id, and the server answers invalidResultReference.
         assertFalse("no result reference: $get", "#" in call[1].jsonObject.keys.joinToString())
     }
@@ -1280,7 +1280,7 @@ class JmapClientTest {
     }
 
     @Test fun missingEmailIds_throwsRatherThanReturningAPartialUnion() {
-        // ⛔ THE dangerous one: the caller DELETES the rows this returns. A batch that never
+        // THE dangerous one: the caller DELETES the rows this returns. A batch that never
         // answered must never come back as "those messages are gone".
         val dispatcher = EchoGetDispatcher(failAt = 2, missing = setOf("e2"))
         server.dispatcher = dispatcher
@@ -1457,7 +1457,7 @@ class JmapClientTest {
         assertEquals(ids.take(5).toSet(), result.done)
         // The failing batch AND the batch never attempted — not silently dropped.
         assertEquals(ids.drop(5).toSet(), result.failed.keys)
-        // ⛔ Never "notFound": the repository prunes the local row of a notFound id, so marking an
+        // Never "notFound": the repository prunes the local row of a notFound id, so marking an
         // unreachable batch that way would delete live messages from the cache.
         assertTrue(result.failed.values.none { it == "notFound" })
         assertEquals(setOf(Jmap.SET_ERROR_TRANSPORT), result.failed.values.toSet())
@@ -1516,7 +1516,7 @@ class JmapClientTest {
         assertEquals(3, server.requestCount)
         // The other two batches keep their whole credit, and so do batch 2's three good ids.
         assertEquals(ids.toSet() - setOf("e6", "e8"), result.done)
-        // ⛔ The TYPE survives aggregation: `notFound` is what makes the repository prune a ghost
+        // The TYPE survives aggregation: `notFound` is what makes the repository prune a ghost
         // row, and anything else must NOT be read that way.
         assertEquals(mapOf("e6" to "notFound", "e8" to "forbidden"), result.failed)
     }
@@ -1785,7 +1785,7 @@ class JmapClientTest {
     }
 
     @Test fun queryEmailsWindow_splitsAWindowBiggerThanTheServerPageIntoTwoRequests() = runBlocking {
-        // ⭐ The lot's central case: 700 messages, a server admitting 500 per get, the "All"
+        // The lot's central case: 700 messages, a server admitting 500 per get, the "All"
         // window (1000). Two requests, and every message handed over exactly once — the caller
         // reconciles the mailbox against the ids of the WHOLE walk, so a walk that forgot the
         // first request's ids would delete the folder down to the last page.
@@ -1809,13 +1809,13 @@ class JmapClientTest {
         // The FIRST response's cursors: a queryState only describes the query it came from.
         assertEquals("q1", walk.queryState)
         assertEquals("e1", walk.emailState)
-        // ⛔ An ordinary anchored walk must NOT claim it paged by position: that claim costs the
+        // An ordinary anchored walk must NOT claim it paged by position: that claim costs the
         // caller its reconcile, i.e. the only thing that ever caps this folder's cache.
         assertFalse("an anchored walk reported a position resume", walk.resumedByPosition)
     }
 
     @Test fun queryEmailsWindow_handsEachPageOffAsItLandsAndRetainsNoMessages() = runBlocking {
-        // ⭐ The shape this volet is FOR. The walk used to hold every `Email` of the window until
+        // The shape this volet is FOR. The walk used to hold every `Email` of the window until
         // the last request came back, because its caller wrote them all at once; twenty fields
         // and eight collections per message is what made "All" a heap problem. It now hands each
         // page over as it lands and keeps one string per message.
@@ -1887,7 +1887,7 @@ class JmapClientTest {
     }
 
     @Test fun queryEmailsWindow_stopsOnTheFolderWhenTheWindowIsUnbounded() = runBlocking {
-        // ⭐ The same folder under a window bigger than itself. `Int.MAX_VALUE` is the extreme case
+        // The same folder under a window bigger than itself. `Int.MAX_VALUE` is the extreme case
         // of that, kept as the OVERFLOW GUARD on `minOf(target - fetched, pageSize)`; no shipped
         // window carries it any more (the largest is 10 000 — `core:data`, `SyncWindowScaleTest`),
         // and `core:jmap` cannot depend on that module to say so.
@@ -1971,7 +1971,7 @@ class JmapClientTest {
     }
 
     @Test fun queryEmailsWindow_throwsRatherThanFinishingTheWalkItCouldNotFinish() {
-        // ⛔ THE dangerous one, and the reason its name changed with this volet. It used to be
+        // THE dangerous one, and the reason its name changed with this volet. It used to be
         // "never hand back the half it fetched": the caller reconciled the mailbox with the
         // return value, so half a window would have been read as "the folder holds these 500" and
         // deleted the other 200.
@@ -2009,7 +2009,7 @@ class JmapClientTest {
         // an absolute position rather than failing the whole refresh — the same recovery the
         // scroll mediator makes.
         //
-        // ⛔ And recover BEHIND where the anchor was, not at it. `anchorNotFound` means the list
+        // And recover BEHIND where the anchor was, not at it. `anchorNotFound` means the list
         // has lost a row, so every index past the anchor has shifted DOWN by one: asking at the
         // count we had accumulated lands on the message AFTER the one that followed the anchor,
         // and that skipped message is not just missed — the caller reconciles the mailbox with
@@ -2038,16 +2038,16 @@ class JmapClientTest {
     }
 
     /**
-     * ⭐ THE HOLE, EXECUTED — a burst of removals under the walk, and the ids that fall out of it.
+     * THE HOLE, EXECUTED — a burst of removals under the walk, and the ids that fall out of it.
      *
-     * ⛔ This is NOT a regression test for the fix. The fix does not recover these messages and was
+     * This is NOT a regression test for the fix. The fix does not recover these messages and was
      * never meant to: replaying the walk from a moving list is unbounded work with no stopping
      * rule, so the volet refuses to RECONCILE instead. What this test pins is that the gap is real
      * and reachable — the recovery steps back exactly one row, so any second removal above the
      * anchor is a message the walk never lists although the server still holds it. It stays green
      * whichever way the fix goes; only its last assertion moves.
      *
-     * ⭐ That last assertion is the half that reddens on the pre-fix tree: the walk must now SAY it
+     * That last assertion is the half that reddens on the pre-fix tree: the walk must now SAY it
      * paged by position, because that flag is the only thing standing between this gap and a
      * reconcile that deletes the skipped mail from the cache for good.
      */
@@ -2082,7 +2082,7 @@ class JmapClientTest {
             listOf("e501", "e502"),
             skipped,
         )
-        // ⭐ …and the walk says so. Without this, the skipped ids are outside the keep set of a
+        // …and the walk says so. Without this, the skipped ids are outside the keep set of a
         // reconcile that deletes every cached row outside it, and the cursor stored straight
         // afterwards makes the deletion permanent.
         assertTrue(
@@ -2093,9 +2093,9 @@ class JmapClientTest {
     }
 
     /**
-     * ⭐ The flag is a property of the WHOLE walk, and the walk goes on after the recovery.
+     * The flag is a property of the WHOLE walk, and the walk goes on after the recovery.
      *
-     * ⛔ Why this fixture is deeper than every other resume test here: at 700 messages in pages of
+     * Why this fixture is deeper than every other resume test here: at 700 messages in pages of
      * 500 the recovery page comes back short, so `nextWindowPageLimit` ends the walk on that very
      * iteration and the flag is never read again. Nothing in this file would then notice
      * `resumedByPosition` being reset at the top of the loop — it would become a property of the
@@ -2232,7 +2232,7 @@ class JmapClientTest {
 
         /**
          * What a server says about a submission it ACCEPTED, copied from the bench's Stalwart on
-         * 2026-08-30: `delivered` is "unknown" and the SMTP reply is a 250. ⛔ This is the normal
+         * 2026-08-30: `delivered` is "unknown" and the SMTP reply is a 250. This is the normal
          * shape of a message on its way — a check stricter than `delivered == "no"` fails here.
          */
         const val SUBMISSION_ACCEPTED_JSON = """

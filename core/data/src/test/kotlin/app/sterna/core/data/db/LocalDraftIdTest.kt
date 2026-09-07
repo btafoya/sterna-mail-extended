@@ -11,7 +11,7 @@ import org.junit.Test
  * The id a local draft carries ([newLocalDraftId]) shares a namespace with the ids of cached server
  * messages, and must be readable as neither.
  *
- * ⛔ Stated by RUNNING the two readers that would misread it — `ImapMailService.uidOf` and
+ * Stated by RUNNING the two readers that would misread it — `ImapMailService.uidOf` and
  * `mailboxOf`, the shipped ones — rather than by asserting the prefix is some string. A prefix that
  * merely "looks local" but starts with `imap:` would have a UID parsed out of it, and the paths that
  * act on UIDs act on the server's messages.

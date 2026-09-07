@@ -7,7 +7,7 @@ import org.junit.Test
  * What this app EMITS as Sieve, held still — because every script already sitting on a server was
  * written by it, and reading one now compares its Sieve to what this codec would write today.
  *
- * ⭐ **The rule this file exists to enforce: changing the emitted Sieve means bumping the marker to
+ * **The rule this file exists to enforce: changing the emitted Sieve means bumping the marker to
  * `# STERNA-RULES-V2:`.** Otherwise every script written by an earlier version stops matching what
  * we would write, and the whole installed base is told its filter script contains foreign Sieve.
  *
@@ -163,7 +163,7 @@ class SieveEmissionTest {
     // ---- the source lint: a LAST RESORT on top of the golden, for the branches it does not run ----
 
     /**
-     * ⛔ Whole lines, never substrings: a `contains` is blind to every mutation that makes a line
+     * Whole lines, never substrings: a `contains` is blind to every mutation that makes a line
      * LONGER, which is most of them.
      *
      * A raw string cannot end on a `"` without confusing the closing delimiter, so the lines that
@@ -215,7 +215,7 @@ class SieveEmissionTest {
             ),
             SourceText.codeLines(SourceText.functionSource(source, "private fun ruleToSieve(rule: FilterRule): String {")),
         )
-        // ⛔ `escape` is emitted Sieve too, and it was the hole: it is the LAST member of the
+        // `escape` is emitted Sieve too, and it was the hole: it is the LAST member of the
         // object, so the slice that ends at the next KDoc found nothing and it stayed unpinned.
         // Measured: adding `.replace("\n", "\\n")` here changes what every future script looks
         // like — and therefore declares every script already on a server hand-edited — while the

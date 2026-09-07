@@ -155,7 +155,7 @@ class DeltaEvictsOnlyItsOwnFolderTest {
             codeLinesNaming(body, "idsForMailbox("),
         )
 
-        // ⭐ And EXACTLY one call to the reconcile, inside the write-through's `reconcile` lambda.
+        // And EXACTLY one call to the reconcile, inside the write-through's `reconcile` lambda.
         // The hole this closes was found by counter-expertise and no other test sees it: an
         // `emailDao.reconcileMailbox(localAccountId, mailboxId, walked.ids.toHashSet(), …)` added
         // just after the `val walked = fullQueryWriteThrough<…>(…)` block compiles, leaves every
@@ -191,7 +191,7 @@ class DeltaEvictsOnlyItsOwnFolderTest {
     }
 
     @Test fun `the comparison set is the folder's rows and nothing added to them`() {
-        // ⛔ THE LINE NO OTHER ASSERTION READS. The declaration is split in two, and every pinned
+        // THE LINE NO OTHER ASSERTION READS. The declaration is split in two, and every pinned
         // keyword (`idsForMailbox(`, `mailboxScopedEvictions(`, `deleteByIds(`) lives on one of
         // the OTHER lines — so `val inThisMailbox = toRemove.toSet() +` in front of the read makes
         // every candidate look like one of this folder's own rows, deletes exactly what the bug
@@ -208,7 +208,7 @@ class DeltaEvictsOnlyItsOwnFolderTest {
     }
 
     @Test fun `what the folder reports as departed is unchanged, and stays the server's word`() {
-        // ⚠ Deliberately NOT toDelete. The server did say those ids left this mailbox, which is
+        // Deliberately NOT toDelete. The server did say those ids left this mailbox, which is
         // exactly what a notification cancellation claims (#134) and what `confirmDepartures` then
         // puts to the server. Only the local DELETE is bounded by the folder.
         assertEquals(

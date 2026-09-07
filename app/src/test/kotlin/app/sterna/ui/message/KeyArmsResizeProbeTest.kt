@@ -13,7 +13,7 @@ import org.junit.Test
  *
  *  - WHICH EVENT the platform delivers to us at all (the door used to hang off `onKeyUp`, which is
  *    only reached for a key nobody consumed — and Blink consumed it, since the body did fold).
- *    ⚠ NOT COVERED BY ANY TEST IN THIS REPO: nothing in a JVM suite can build a WebView, press a
+ * NOT COVERED BY ANY TEST IN THIS REPO: nothing in a JVM suite can build a WebView, press a
  *    key and watch which override runs. Its falsifier is a bench pass, and only a bench pass.
  *  - WHEN the door arms, which is what this file pins. The probe has to take its `atGesture`
  *    reading BEFORE the document acts on the key, or [BodyReveal.resizeStep] compares the folded
@@ -21,7 +21,7 @@ import org.junit.Test
  *    document acts on is NOT knowable here and is not the same for every key, so BOTH arm; see
  *    [BodyReveal.keyArmsResizeProbe] for the arbitration and what the spare probe costs.
  *
- * ⛔ EVERY NUMBER IS WRITTEN OUT — the platform's own constants, and the three key codes actually
+ * EVERY NUMBER IS WRITTEN OUT — the platform's own constants, and the three key codes actually
  * pressed on the bench. Nothing here re-derives the shipped rule to decide what to expect: drop
  * either instant, add a key to the set, or let a held key through, and this file goes red.
  */

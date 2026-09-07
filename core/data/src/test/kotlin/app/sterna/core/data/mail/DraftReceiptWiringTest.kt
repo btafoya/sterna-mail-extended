@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⚠ THIS TEST READS SOURCE TEXT — the last resort, exactly as [DraftAddressingWiringTest] does:
+ * THIS TEST READS SOURCE TEXT — the last resort, exactly as [DraftAddressingWiringTest] does:
  * `MailRepository` needs Room, a `Context` and a socket, so no JVM test can run the wiring below.
  * The DECISIONS it guards are EXECUTED elsewhere — [DraftSaveTest] runs
  * `draftReceiptRequestIsCarried`, [ReadReceiptHeaderTest] runs the parser,
@@ -100,7 +100,7 @@ class DraftReceiptWiringTest {
     // ---- the two readers: an unknown must never come back as a "no" ---------------------------
 
     /**
-     * ⛔ NOT a closed list of the bail-outs, and deliberately: an assertion that pins how MANY
+     * NOT a closed list of the bail-outs, and deliberately: an assertion that pins how MANY
      * `?: return` lines there are makes ADDING a missing guard fail the test, i.e. it makes the
      * fix more expensive than the defect. What is pinned is the rule every bail-out must obey.
      */

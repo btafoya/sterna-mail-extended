@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ THIS TEST READS SOURCE TEXT — the last resort, for the reason [DestroyChecksTheFolderWiringTest]
+ * THIS TEST READS SOURCE TEXT — the last resort, for the reason [DestroyChecksTheFolderWiringTest]
  * spells out: `MailRepository` needs Room, a `Context` and a socket, so no JVM test instantiates it.
  * The by-name half of the DECISION guarded here is EXECUTED by [TrashFolderByNameTest]; this pins
  * that the BULK delete asks it the same way the single-message one does.
@@ -15,7 +15,7 @@ import org.junit.Test
  * them reported twenty failures and moved nothing, while [MailRepository.delete] on any ONE of
  * them resolved or created a bin and worked. Same gesture, two answers.
  *
- * ⛔ It pins the body as a WHOLE LIST OF LINES, the shape [DeleteWouldDestroyWiringTest] settled
+ * It pins the body as a WHOLE LIST OF LINES, the shape [DeleteWouldDestroyWiringTest] settled
  * on after two rules of the "this line must be present" kind let a mutation through: a line
  * INSERTED between two pinned ones decides otherwise and satisfies every such rule. Here that
  * line is `if (trash == null) return BulkResult(emptySet(), emailIds.toSet())` — the defect in
@@ -23,7 +23,7 @@ import org.junit.Test
  * reddens the list. The named rules below add nothing the list does not already hold; they exist
  * so the console says WHICH invariant went, rather than only that the body changed.
  *
- * ⚠ What it CANNOT hold: that `imap.createFolder` and `client.createMailbox` really create a bin,
+ * What it CANNOT hold: that `imap.createFolder` and `client.createMailbox` really create a bin,
  * that a server accepts either, or that the folder created is the one the next sync will call the
  * Trash. It also cannot hold the OFFLINE promise as behaviour — only its shape: no `runCatching`
  * anywhere in this body, so a resolution that throws takes the batch down with it and writes

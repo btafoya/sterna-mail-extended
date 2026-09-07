@@ -17,7 +17,7 @@ import java.io.File
  * module has neither Robolectric nor instrumentation (same instrument, and the same last-resort
  * reasoning, as [ReadReceiptCoverSubjectCallSiteTest]).
  *
- * ⛔ Whole trimmed lines compared by list equality — never `contains`, which is blind to every
+ * Whole trimmed lines compared by list equality — never `contains`, which is blind to every
  * mutation that LENGTHENS the line. Comment lines are dropped, so prose can neither satisfy a rule
  * nor break one.
  */
@@ -44,7 +44,7 @@ class OriginalSenderCallSiteTest {
     }
 
     /**
-     * ⛔ And the group is still CALLED, from inside the panel. Every pure-function test in this
+     * And the group is still CALLED, from inside the panel. Every pure-function test in this
      * module survives its deletion; nothing else in the repository would notice.
      */
     @Test fun `the participants panel still paints the origin group`() {
@@ -59,7 +59,7 @@ class OriginalSenderCallSiteTest {
     }
 
     /**
-     * ⭐ The LABEL, whole. Nothing verifies that a message was ever relayed: the header is a plain
+     * The LABEL, whole. Nothing verifies that a message was ever relayed: the header is a plain
      * text field any sender can put on any message, and the one refusal in
      * [originalSenderToShow] — "same address as the From" — is precisely the one a forgery does not
      * trip (`From: security@paypa1.example` with `X-Original-From: PayPal <service@paypal.com>`).

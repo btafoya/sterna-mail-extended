@@ -25,7 +25,7 @@ import org.junit.Test
  * effect's key and its `?:` early return are pinned here too — they are what stands between the
  * second pass and a branch that would empty the body and its baseline together.
  *
- * ⛔ WHAT THIS DOES NOT PROVE: that the replay is actually gone. That is only readable on a bench —
+ * WHAT THIS DOES NOT PROVE: that the replay is actually gone. That is only readable on a bench —
  * open a reply, wait for the quote, rotate, and look at the caret and at the toast. This file
  * proves the two consume calls exist, are unique/paired, and sit AFTER the work they retire.
  * It also does not prove anything about the third way out of the effect (quote arrived, prefill

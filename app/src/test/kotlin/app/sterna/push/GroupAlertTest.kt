@@ -12,7 +12,7 @@ import org.junit.Test
  * summary to speak for it. The rule that decides which of the two speaks is [summaryShownFor],
  * fed by [liveChildIdsAfter]; both are tested here rather than left inside the builder.
  *
- * ⭐ The same for the rule that decides whether the summary may be torn DOWN
+ * The same for the rule that decides whether the summary may be torn DOWN
  * ([Notifications.teardownRepairable]). This file is the one place in the module where these
  * decisions are EXECUTED — `updateGroupSummary` itself needs a `NotificationManager` and is only
  * ever read as text, next door — so every decision that can be a pure function is one, and is

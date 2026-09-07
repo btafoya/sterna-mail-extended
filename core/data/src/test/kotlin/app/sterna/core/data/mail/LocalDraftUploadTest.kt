@@ -27,11 +27,11 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * ⭐ **The deferred upload of a draft the phone kept** (#95), executed: the shipped
+ * **The deferred upload of a draft the phone kept** (#95), executed: the shipped
  * [uploadLocalDraftOnce] driven over the shipped `local_drafts` table and real files on disk, with
  * an upload that throws exactly as an offline transport throws.
  *
- * ⛔ Every couple below is written out in full. A test that asks [localDraftRetryDelayMillis] what
+ * Every couple below is written out in full. A test that asks [localDraftRetryDelayMillis] what
  * to expect, or that recomputes "is it due" before deciding what to replay, is a copy of the rule:
  * invert the shipped rule and it stays green.
  *
@@ -72,7 +72,7 @@ class LocalDraftUploadTest {
         assertEquals(15_360_000L, localDraftRetryDelayMillis(10))
         assertEquals("six hours, and never more", 21_600_000L, localDraftRetryDelayMillis(11))
         assertEquals(21_600_000L, localDraftRetryDelayMillis(40))
-        // ⛔ The number that says there is no cap on ATTEMPTS. A phone weeks from the network its
+        // The number that says there is no cap on ATTEMPTS. A phone weeks from the network its
         // account is on still asks four times a day, for ever — it is never given up on.
         assertEquals("the thousandth failure still books a retry", 21_600_000L, localDraftRetryDelayMillis(1_000))
         assertEquals(
@@ -92,7 +92,7 @@ class LocalDraftUploadTest {
         assertEquals(NOW, first.atMillis)
         assertEquals(NOW + 30_000L, first.notBeforeMillis)
 
-        // ⚠ Counted off the ROW, not by the caller: the save and the worker both fail into this,
+        // Counted off the ROW, not by the caller: the save and the worker both fail into this,
         // and a counter either of them kept would reset every time the other one ran.
         val eighth = localDraftAttemptAfterFailure(row().copy(attemptCount = 7), failure, NOW)
         assertEquals(8, eighth.attemptCount)
@@ -106,7 +106,7 @@ class LocalDraftUploadTest {
     }
 
     @Test fun `whose turn it is to be uploaded`() {
-        // ⛔ Written out, state by state and instant by instant. `LocalDraftDaoSqlTest` runs the
+        // Written out, state by state and instant by instant. `LocalDraftDaoSqlTest` runs the
         // SQL of `LocalDraftDao.pending` over the same four states, so the two readings of the
         // same question cannot drift apart.
         assertTrue(localDraftUploadIsDue(LocalDraftState.PENDING, notBeforeMillis = 100, nowMillis = 100))
@@ -166,7 +166,7 @@ class LocalDraftUploadTest {
     }
 
     @Test fun `the hundredth failure leaves the draft exactly where the first one did`() = runTest {
-        // ⛔ THE test of this volet. The outbox parks an item as FAILED past OutboxLogic.MAX_ATTEMPTS
+        // THE test of this volet. The outbox parks an item as FAILED past OutboxLogic.MAX_ATTEMPTS
         // because an undeliverable message has a recipient waiting. A draft has nobody waiting: a
         // phone can be weeks from the network its account is on, and the ninety-ninth failure must
         // book a hundredth attempt exactly as the first booked a second.
@@ -235,7 +235,7 @@ class LocalDraftUploadTest {
     }
 
     @Test fun `a worker being stopped is not a failed attempt`() {
-        // ⛔ A CancellationException must not be written down as an attempt: the count feeds the
+        // A CancellationException must not be written down as an attempt: the count feeds the
         // backoff, and a phone that stops the worker often (doze, a low-memory kill) would push a
         // perfectly reachable draft out to six-hourly retries without a single real failure.
         val stored = write(row())
@@ -266,12 +266,12 @@ class LocalDraftUploadTest {
         )
 
         assertEquals(LocalDraftUploadResult(LocalDraftUploadStep.KEPT_FOR_LATER, NOW + 90_000L), kept)
-        // ⛔ `false`: the row has just been given a NEW backoff, and that instant must win over
+        // `false`: the row has just been given a NEW backoff, and that instant must win over
         // whatever was booked for this draft before it. Keeping the old one here is a draft that
         // wakes on a stale instant for ever.
         assertEquals("the distance from now to the instant the row carries", listOf(90_000L to false), booked)
 
-        // ⛔ And NOTHING for a verdict that names no instant: the row is gone, or a composer is
+        // And NOTHING for a verdict that names no instant: the row is gone, or a composer is
         // holding it and its own save re-arms it — a wake-up booked here fires at once, and again,
         // for as long as the user keeps typing.
         booked.clear()
@@ -289,7 +289,7 @@ class LocalDraftUploadTest {
     }
 
     @Test fun `the delay is measured when the attempt ENDS, and not when it began`() = runTest {
-        // ⛔ The clock is a FUNCTION for this one reason. Passed as a value, it is read before the
+        // The clock is a FUNCTION for this one reason. Passed as a value, it is read before the
         // attempt runs — and the attempt is now allowed to take up to LOCAL_DRAFT_UPLOAD_BUDGET_MS.
         // The delay would then carry the attempt's whole duration on top of the row's backoff: the
         // draft comes back later than the row itself says, and the slower the link the later it is.
@@ -304,17 +304,17 @@ class LocalDraftUploadTest {
             rebook = rebook(),
         )
 
-        // 90 s of backoff, 47 of them already served. ⛔ 90_000 here is the clock read too early.
+        // 90 s of backoff, 47 of them already served. 90_000 here is the clock read too early.
         assertEquals(listOf(43_000L to false), booked)
     }
 
     @Test fun `a worker stopped mid-upload books its own retry before it lets the stop through`() = runTest {
-        // ⛔ THE hole measured at the bench (#95, gesture B9): the system stops the worker while the
+        // THE hole measured at the bench (#95, gesture B9): the system stops the worker while the
         // APPEND is in flight, the coroutine is cancelled, and from that instant EVERY suspending
         // call throws — `recordAttempt` included. So nothing is written on the row and nothing books
         // a wake-up: the draft sits in UPLOADING until the app is killed and started again.
         //
-        // ⛔ **This coroutine is REALLY cancelled**, and that is the whole design of the test. Made
+        // **This coroutine is REALLY cancelled**, and that is the whole design of the test. Made
         // to `throw CancellationException()` from a live job instead, it passes against code that
         // cannot work: insert any suspension point before the booking — a `yield()`, an "improved"
         // version that writes a `lastError` first — and the real path throws there and books
@@ -332,10 +332,10 @@ class LocalDraftUploadTest {
 
         job.cancelAndJoin()
 
-        // ⛔ Half a minute, NOT zero: a worker stopped under system pressure that re-books itself
+        // Half a minute, NOT zero: a worker stopped under system pressure that re-books itself
         // for `now` is stopped again at once, and again — a loop against the very condition that
         // stopped it.
-        // ⛔ And `true` — book only if nothing is booked. WorkManager reschedules a run it stopped
+        // And `true` — book only if nothing is booked. WorkManager reschedules a run it stopped
         // itself, everything here books under ONE unique name, and a plain booking REPLACES: we
         // would cancel the system's own retry and put ours 30 s later in its place, delaying the
         // resumption this branch exists to guarantee.
@@ -346,7 +346,7 @@ class LocalDraftUploadTest {
                 "ordinary, successful run",
             returnedNormally,
         )
-        // ⛔ And the clock is not read on this path at all: reading it here means it is read BEFORE
+        // And the clock is not read on this path at all: reading it here means it is read BEFORE
         // the attempt, which is what inflates the ordinary delay by the attempt's own duration.
         assertEquals("the stop path has no use for a clock", 0, clockReads)
     }
@@ -359,7 +359,7 @@ class LocalDraftUploadTest {
     // ---- 3. what a startup books ------------------------------------------------------------------
 
     @Test fun `a startup books one job per waiting row, each at its own instant`() {
-        // ⛔ Backed-off rows INCLUDED, with a delay. Skipping them — "they are not due" — leaves a
+        // Backed-off rows INCLUDED, with a delay. Skipping them — "they are not due" — leaves a
         // draft that failed ten minutes before the reboot with no work item at all: WorkManager's
         // jobs are what a reboot loses, and this re-arm is the only thing that puts them back.
         val jobs = localDraftUploadJobs(
@@ -389,7 +389,7 @@ class LocalDraftUploadTest {
 
     @Test fun `a deferred upload rebuilds its attachments from the row`() {
         // There is no composer left: the parts can only come from the descriptors the staging wrote.
-        // ⛔ And the COUNT matters as much as the bytes — `uploadDraft` weighs it before it lets
+        // And the COUNT matters as much as the bytes — `uploadDraft` weighs it before it lets
         // the original be destroyed (#63), so an emptyList() here would upload the draft amputated
         // AND call the amputation a faithful replacement.
         val json = OutboxAttachments.encode(
@@ -557,7 +557,7 @@ class LocalDraftUploadTest {
         "recordAttempt",
         mapOf(
             "accountId" to accountId, "id" to id,
-            // ⛔ PENDING, always: there is no state to park a draft in (LocalDraftState).
+            // PENDING, always: there is no state to park a draft in (LocalDraftState).
             "state" to LocalDraftState.PENDING.name,
             "attemptCount" to attempt.attemptCount, "lastError" to attempt.error,
             "lastAttemptMillis" to attempt.atMillis, "notBeforeMillis" to attempt.notBeforeMillis,

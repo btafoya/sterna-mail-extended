@@ -17,7 +17,7 @@ import org.junit.Test
  * The receiving half of Autocrypt, EXECUTED: [autocryptPeerImportOf] decides, [importAutocryptPeer]
  * hands the decision to the provider, and both run here on a JVM.
  *
- * ⛔ Nothing in this file recomputes the rule to choose what it feeds in. Every case is a message's
+ * Nothing in this file recomputes the rule to choose what it feeds in. Every case is a message's
  * header list as one of the two readers really produces it — `MimeParser.rawHeaders` (continuations
  * already joined with a space) or JMAP's `headers` property (the raw value, CRLF+WSP and all) — and
  * what is asserted is the decision that comes out, arguments included.
@@ -27,7 +27,7 @@ class AutocryptPeerImportTest {
     private val received = "2026-09-02T10:15:00Z"
     private val receivedMillis = 1_788_344_100_000L
 
-    // ⛔ A FIXED literal, never `System.currentTimeMillis()`: the clock this file runs on decides
+    // A FIXED literal, never `System.currentTimeMillis()`: the clock this file runs on decides
     // nothing, so a case cannot drift into or out of the tolerance with the day it is replayed.
     // 2026-09-03T01:46:40Z — some fifteen hours after [received], so the ordinary cases below are
     // all in the past and the tolerance has no say in them.
@@ -66,7 +66,7 @@ class AutocryptPeerImportTest {
     }
 
     @Test fun `two Autocrypt headers make the message worth nothing`() {
-        // ⭐ THE guard. A second header slipped in by anyone on the path would otherwise file THEIR
+        // THE guard. A second header slipped in by anyone on the path would otherwise file THEIR
         // key under the correspondent's address, and everything written to that address afterwards
         // is encrypted to them.
         val two = listOf(
@@ -134,7 +134,7 @@ class AutocryptPeerImportTest {
     }
 
     @Test fun `a date that cannot be read is refused`() {
-        // ⛔ Arbitration (rule 1, the irreversible first): the provider files a peer's key AGAINST a
+        // Arbitration (rule 1, the irreversible first): the provider files a peer's key AGAINST a
         // date, and a made-up "now" on an old message can make a stale key win over the current one
         // inside OpenKeychain — where this app cannot undo it. No date, no import; the message opens
         // exactly as before.
@@ -144,7 +144,7 @@ class AutocryptPeerImportTest {
     }
 
     @Test fun `a date beyond the tolerance is refused, and the same header dated sanely is not`() {
-        // ⭐ The PAIR: one header, one key, one address, and the only difference between the two
+        // The PAIR: one header, one key, one address, and the only difference between the two
         // calls is the date. INTERNALDATE cannot be forged, but nothing bounds it, and on JMAP the
         // server's `receivedAt` is not bounded either. A key filed at 2100 wins over every
         // authentic key for the next 74 years INSIDE OpenKeychain, where this app cannot undo it.
@@ -168,9 +168,9 @@ class AutocryptPeerImportTest {
     }
 
     @Test fun `an old date is still taken - only the future is bounded`() {
-        // ⛔ Nothing closes on the past side here, and bounding it too would drop keys off
+        // Nothing closes on the past side here, and bounding it too would drop keys off
         // perfectly ordinary mail — an old date already loses to a newer key inside the provider.
-        // ⚠ Do NOT write that `ImapMailService`'s `dateMillis > 0` guard covers the past side of
+        // Do NOT write that `ImapMailService`'s `dateMillis > 0` guard covers the past side of
         // this decision: it did before `6d54a7cb`, and no longer does. That guard feeds
         // `ImapMessage.toEmail`'s `receivedAt`, which Autocrypt stopped reading; the IMAP date now
         // comes from `MailRepository.autocryptInternalDate` → `fetchInternalDate` →
@@ -247,7 +247,7 @@ class AutocryptPeerImportTest {
     }
 
     @Test fun `the edge of the tolerance is the edge at the provider too`() {
-        // ⛔ The two tests around this one drive `autocryptPeerImportOf` DIRECTLY, and the
+        // The two tests around this one drive `autocryptPeerImportOf` DIRECTLY, and the
         // provider-level one below sits 74 years past the edge — so nothing observed what
         // `importAutocryptPeer` does with `nowMillis` on the way through. Left like that,
         // `autocryptPeerImportOf(headers, fromAddress, receivedAt, nowMillis + 2_000_000_000_000L)`

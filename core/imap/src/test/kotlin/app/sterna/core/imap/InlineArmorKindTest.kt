@@ -13,9 +13,9 @@ import org.junit.Test
  * warmed page paints the cached body on a message the finger has NOT reached, so a `null` here
  * prints the PGP armour, in clear, on a page nobody opened, with no decrypt offered — and the
  * same `null` makes an OPENED inline-PGP message offer no decryption at all
- * (`MailRepository.kt:4165`, `:4171` route on this answer).
+ * (`MailRepository`, `:4171` route on this answer).
  *
- * ⛔ Why this file exists at all: until it did, NOTHING IN THE REPOSITORY EXECUTED THAT
+ * Why this file exists at all: until it did, NOTHING IN THE REPOSITORY EXECUTED THAT
  * DETECTION. `CryptoDetectTest` exercises [MimeParser.detectCrypto], a different function on a
  * different input (a raw RFC 5322 source, not a decoded body); `MessagePagingTest` hands
  * `warmable` a `CryptoKind.PGP_INLINE` LITERAL, so the test gives itself the answer; and the two
@@ -24,7 +24,7 @@ import org.junit.Test
  * Android context, so the decision was moved HERE — beside [CryptoKind], in a module `core/data`
  * already depends on — to be run rather than read.
  *
- * ⛔ Every expectation below is a LITERAL. Recomputing `text.contains(...)` in the test to decide
+ * Every expectation below is a LITERAL. Recomputing `text.contains(...)` in the test to decide
  * what to expect would be a copy of the decision: the shipped condition could then be inverted
  * and this file would still pass.
  */
@@ -70,7 +70,7 @@ class InlineArmorKindTest {
     }
 
     /**
-     * ⛔ A pasted public key is NOT a crypto message: there is nothing to decrypt and nothing to
+     * A pasted public key is NOT a crypto message: there is nothing to decrypt and nothing to
      * verify, so warming it shows the reader exactly what an unwarmed page would. Pinned because
      * "any -----BEGIN PGP" would be the natural over-shoot, and it would refuse to warm every
      * message that quotes a key block.

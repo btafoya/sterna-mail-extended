@@ -11,7 +11,7 @@ import java.util.Base64
  *
  * It exists for the RFC 9788 protected headers of a decrypted PGP/MIME entity (issue #128): the
  * subject inside the ciphertext is sender-controlled content, so it has to pass the same door as
- * the outer envelope subject (`ImapClient.kt:1042`, `decodeWords(envelope[1])`) — and that door
+ * the outer envelope subject (`ImapClient`, `decodeWords(envelope[1])`) — and that door
  * ([decodeWords] and the two filters under it) is `internal` to this module, so the read has to
  * live here rather than be copied into the module that needs it.
  *
@@ -77,7 +77,7 @@ class DecodedHeaderOfTest {
         assertEquals("a@b.test", MimeParser.headerOf(raw, "From"))
     }
 
-    /** ⭐ A folded header, which nothing pinned on this path: the continuation lines belong to it. */
+    /** A folded header, which nothing pinned on this path: the continuation lines belong to it. */
     @Test fun `a folded header reads as one unfolded value`() {
         val raw = "From: a@b.test\r\nSubject: a long one\r\n that was folded\r\n\ttwice\r\n\r\nbody\r\n"
         assertEquals("a long one that was folded twice", MimeParser.headerOf(raw, "Subject"))

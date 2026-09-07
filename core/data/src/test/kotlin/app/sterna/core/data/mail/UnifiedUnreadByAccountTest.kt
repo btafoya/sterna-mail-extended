@@ -11,7 +11,7 @@ import org.junit.Test
  * disagree; [unreadByAccountFrom] is that derivation, lifted out of `MailRepository`'s `combine`
  * block so it can be RUN here instead of read.
  *
- * ⛔ Every expectation below is a literal map. A test that rebuilt the JMAP/IMAP split itself, or
+ * Every expectation below is a literal map. A test that rebuilt the JMAP/IMAP split itself, or
  * re-derived which account contributes what, would agree with a shipped rule that had been
  * inverted — that is the one thing these tests exist to catch.
  */
@@ -100,7 +100,7 @@ class UnifiedUnreadByAccountTest {
     }
 
     /**
-     * ⛔ An account with no inbox is ABSENT, never an entry worth 0. `UnifiedInbox.countedInboxes`
+     * An account with no inbox is ABSENT, never an entry worth 0. `UnifiedInbox.countedInboxes`
      * already drops it (no `inboxId`, no scope), and the map has to be built from the SCOPES for
      * that to survive: built from the account list instead, the account would arrive as `0`, and
      * a widget line reading "0" affirms "no unread mail" about an inbox the app has never seen.
@@ -135,7 +135,7 @@ class UnifiedUnreadByAccountTest {
     }
 
     /**
-     * ⛔ WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
+     * WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
      * LENGTHENS the line. This is the one claim the tests above cannot execute — `MailRepository`
      * wants a `Context`, a database and a session, and nothing in this module can build one — so
      * what the `combine` block HANDS the decision above is pinned as shipped source.

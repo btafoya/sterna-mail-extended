@@ -12,7 +12,7 @@ import org.junit.Test
  * over that folder's messages, and in airplane mode it stayed that way for good — the only other
  * writer of the header is the SUCCESS path of `refreshFolder`.
  *
- * ⚠ What that costs on screen, checked rather than assumed. Once the folder list has arrived,
+ * What that costs on screen, checked rather than assumed. Once the folder list has arrived,
  * `InboxScreen` titles the bar through `mailboxDisplayName(role, ui.mailboxName)`, which answers a
  * localized label for every special-use role: a reopened Trash or Sent was titled right from that
  * moment on, whatever `mailboxName` held. What is left is a folder the user created herself — no
@@ -20,7 +20,7 @@ import org.junit.Test
  * drawn at all today: `MailUi.unreadCount` has one reader, the drawer's "All inboxes" entry, guarded
  * by `ui.unified`, where the combine has already replaced the value.
  *
- * ⛔ Every expectation below is a LITERAL. The rule is not recomputed here: a test that rebuilt
+ * Every expectation below is a LITERAL. The rule is not recomputed here: a test that rebuilt
  * `if (sel.id == inboxMailboxId) …` to choose its own expected value would pass with the shipped
  * condition inverted.
  */

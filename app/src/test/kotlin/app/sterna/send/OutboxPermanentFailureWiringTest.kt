@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, and the twin of `OutboxParkWiringTest` — which stops at the 33rd line of
+ * SOURCE LINT, and the twin of `OutboxParkWiringTest` — which stops at the 33rd line of
  * `doWork`, one line above the `catch` this pins. `OutboxWorker` is a `CoroutineWorker` reaching
  * for `AppContainer`, and this module has neither Robolectric nor instrumented tests, so nothing we
  * own can EXECUTE that `catch`.
@@ -48,7 +48,7 @@ class OutboxPermanentFailureWiringTest {
                 "WorkManager back on a row that is parked:",
             listOf(
                 "} catch (t: Throwable) {",
-                // ⛔ THE COUNT IS A GUARD, not bookkeeping. Written as `item.attemptCount + 1` a
+                // THE COUNT IS A GUARD, not bookkeeping. Written as `item.attemptCount + 1` a
                 // refused row is parked FAILED with 1 attempt, and OutboxLogic.stateAfterEdit then
                 // answers QUEUED for it: reopening the line to fix the address and coming back out
                 // re-arms the send (#70's door); and at the next start the sweep, which claims

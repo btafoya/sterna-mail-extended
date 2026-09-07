@@ -19,7 +19,7 @@ import org.junit.Test
  * delay, i.e. sent AT ONCE, while the banner said it was scheduled. A send has no way back.
  *
  * The shape of the fix is the free "Pick date and time" dialog's, three hundred lines above in the
- * same file: decide again inside the tap, and close only on the path that schedules. ⛔ Deciding is
+ * same file: decide again inside the tap, and close only on the path that schedules. Deciding is
  * not re-computing: the three ABSOLUTE entries keep the instant they were drawn for, which is why
  * that instant must reach the tap (`drawnAt`) instead of being dropped.
  */

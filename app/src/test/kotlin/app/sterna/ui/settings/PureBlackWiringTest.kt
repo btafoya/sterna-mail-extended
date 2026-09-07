@@ -15,10 +15,10 @@ import java.io.File
  * Compose or Android code, and this module has no Robolectric, no `compose-ui-test`, no
  * `androidTest` — adding one is a dependency decision, not a test decision. Four silent edits:
  *
- *  1. ⭐ **the setting collected and never handed to the theme.** `SternaTheme`'s `pureBlack`
+ * 1. **the setting collected and never handed to the theme.** `SternaTheme`'s `pureBlack`
  *     parameter already defaults to `false`, so dropping the argument compiles, keeps every value
  *     test green, and leaves the switch storing a preference nothing reads;
- *  2. ⭐ **the default written out as a literal.** It exists in THREE copies — the repository, the
+ * 2. **the default written out as a literal.** It exists in THREE copies — the repository, the
  *     activity's `initial =` and the view model's `initialValue =`. A `true` in either of the last
  *     two paints the first frames after launch black for people who never asked;
  *  3. the switch moved back INSIDE the `Build.VERSION.SDK_INT >= S` guard it sits after: dynamic

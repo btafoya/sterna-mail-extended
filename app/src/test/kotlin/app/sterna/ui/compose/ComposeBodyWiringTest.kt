@@ -15,7 +15,7 @@ import org.junit.Test
  * whole trimmed lines
  * (#131). A `contains` on a fragment is blind to a mutation that lengthens the line.
  *
- * ⛔ What it cannot see: that the callbacks fire, that the bar shows, that `pending` reaches the
+ * What it cannot see: that the callbacks fire, that the bar shows, that `pending` reaches the
  * next keystroke. That is the bench's.
  */
 class ComposeBodyWiringTest {
@@ -45,7 +45,7 @@ class ComposeBodyWiringTest {
     /**
      * (a bis) ONE remap, and BOTH halves of its answer taken.
      *
-     * ⛔ The mutation this exists for is a deletion: `blocks = remapped.blocks` dropped leaves the
+     * The mutation this exists for is a deletion: `blocks = remapped.blocks` dropped leaves the
      * suite green (`remapAfterEdit` is executed by `RichBodyTest` and still answers the right
      * blocks) and every list in the editor dies on the next keystroke, silently. A SECOND
      * `remapAfterEdit(` call instead of the shared `remapped` is the other shape: the same edit
@@ -112,7 +112,7 @@ class ComposeBodyWiringTest {
     /**
      * (d) The last link of every reopen (#131): the prefill's styling reaching the editor.
      *
-     * ⛔ `ranges = emptyMap()` here — which is what these two lines said until #131 — throws away
+     * `ranges = emptyMap()` here — which is what these two lines said until #131 — throws away
      * everything the four reopen routes just went to the trouble of parsing (`draftFieldsOf`,
      * `localDraftPrefill`, `composeDraftOf`, the undo record), on all of them at once, with every
      * one of their own tests still green: the styling exists right up to the screen and dies on
@@ -233,7 +233,7 @@ class ComposeBodyWiringTest {
      * decides (executed by `RichBodyTest` and by [ComposeDirtyTest]); what nothing else can see is
      * whether the screen still hands it the lists it is holding.
      *
-     * ⛔ `RichBody(body.text, ranges)` on either side compiles — the third parameter defaults —
+     * `RichBody(body.text, ranges)` on either side compiles — the third parameter defaults —
      * and turning a paragraph into a list would then be no edit at all: the back gesture leaves
      * without a word and the list is gone.
      */
@@ -249,7 +249,7 @@ class ComposeBodyWiringTest {
 
     /**
      * (f) The markers are drawn in the TEXT LAYER, by the transformation, and from the live
-     * `blocks`. ⛔ Not one marker character may enter `body.text`: the dirty check, the save, the
+     * `blocks`. Not one marker character may enter `body.text`: the dirty check, the save, the
      * send and the HTML all read that string, and a `• ` inside it would be typed into the draft.
      */
     @Test fun `the list markers are drawn by the field's visual transformation`() {
@@ -311,17 +311,17 @@ class ComposeBodyWiringTest {
      * value carries one span, every keystroke on that body is classed as a text change, the
      * composing region is dropped, and `TextInputServiceAndroid` calls `restartInput()`.
      *
-     * ⛔ This is why the rule is written as "no line of code may NAME these", and not as "the
+     * This is why the rule is written as "no line of code may NAME these", and not as "the
      * value line looks right": `body.copy(annotatedString = …)`, `buildAnnotatedString { … }`
      * assigned into the value, an `AnnotatedString` built two lines above and passed in — all
      * three cost the same thing and none of them is the old line.
      *
-     * ⛔ Handing `composition` back untouched (`onValueChange` does) is NECESSARY BUT NOT
+     * Handing `composition` back untouched (`onValueChange` does) is NECESSARY BUT NOT
      * SUFFICIENT: the value has to carry no span, or Compose throws that composition away itself
      * before the IME ever sees it.
      */
     @Test fun `no span is ever laid on the value the body field is handed`() {
-        // ⛔ CASE-INSENSITIVE, and that is the whole reach of this rule: `annotatedString =`,
+        // CASE-INSENSITIVE, and that is the whole reach of this rule: `annotatedString =`,
         // `toAnnotatedString(`, `AnnotatedString(` and `buildAnnotatedString {` are four spellings
         // of the same mistake, and three of them are NOT the old line, so the whole-line pin above
         // would let them through. No line of code on this screen has any business naming the type

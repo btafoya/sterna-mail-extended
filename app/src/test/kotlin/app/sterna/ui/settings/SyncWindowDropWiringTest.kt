@@ -9,7 +9,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT for the plug, plus the decision EXECUTED beside it. `AccountsViewModel` is an
+ * SOURCE LINT for the plug, plus the decision EXECUTED beside it. `AccountsViewModel` is an
  * `AndroidViewModel` and this module has neither Robolectric nor instrumented tests, so the
  * comparison it branches on is run here as a function and only the branch is read as text — whole
  * lines, never a fragment: a `contains` on a fragment is blind to any mutation that LENGTHENS the

@@ -83,7 +83,7 @@ class CcBccEnvelopeTest {
     }
 
     /**
-     * ⭐ THE SLOT, not merely "an address". `to` is the envelope field immediately below cc, and it
+     * THE SLOT, not merely "an address". `to` is the envelope field immediately below cc, and it
      * is the dangerous neighbour: a draft is normally re-saved with its To unchanged, so a reader
      * that proved index 5 would report "the addressing survived" on the exact save that is
      * dropping the Cc — the original defect, wearing the fix's clothes.

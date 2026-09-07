@@ -39,7 +39,7 @@ class UnelectedTrashIsMarkedTest {
     }
 
     /**
-     * ⛔ A lost claim on any other role stays null, exactly as on the code this fixes: nothing
+     * A lost claim on any other role stays null, exactly as on the code this fixes: nothing
      * anywhere reads a `~sent`, and marking one would only put an unreadable value in the cache
      * row for no filter to use.
      */

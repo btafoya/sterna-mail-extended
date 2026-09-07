@@ -16,7 +16,7 @@ import org.junit.Test
  * pairs it returns. Nothing here re-derives the rule to decide what to feed it: invert the filter in
  * the shipped function and the first three tests go red naming the folder that leaked.
  *
- * ⛔ What this cannot say: the SQL those pairs end up in. `MailRepository.pagedMailbox` needs Room,
+ * What this cannot say: the SQL those pairs end up in. `MailRepository.pagedMailbox` needs Room,
  * and the `Sel.Unread` branch that hands them over is inside an `AndroidViewModel`. The arguments of
  * that hand-over are pinned as text in `PageKeyWiringLintTest`, which is a lint and says so.
  */

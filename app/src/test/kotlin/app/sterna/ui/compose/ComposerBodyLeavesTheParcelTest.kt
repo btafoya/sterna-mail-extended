@@ -19,7 +19,7 @@ import org.junit.Test
  * the WHOLE body into the parcel, and `Parcel.writeString` writes UTF-16: 4 bytes of parcel per
  * character of body. Everything else on that screen is ~12 kB.
  *
- * ⛔ Every rule compares WHOLE trimmed lines, never `contains`: a fragment match is blind to any
+ * Every rule compares WHOLE trimmed lines, never `contains`: a fragment match is blind to any
  * mutation that LENGTHENS the line, which is how three defects got through on this repo.
  */
 class ComposerBodyLeavesTheParcelTest {
@@ -47,7 +47,7 @@ class ComposerBodyLeavesTheParcelTest {
     }
 
     /**
-     * ⛔ THE MUTATION THAT SURVIVED THE FIRST ROUND. Turned into a plain `remember`, this line
+     * THE MUTATION THAT SURVIVED THE FIRST ROUND. Turned into a plain `remember`, this line
      * switches the whole change off: the body is no longer parcelled at all, so nothing is
      * restored after a process death and the draft is lost — while the negative rule below is
      * MORE satisfied than before. A rule that rewards deleting what it protects is not a rule,
@@ -64,7 +64,7 @@ class ComposerBodyLeavesTheParcelTest {
     }
 
     /**
-     * ⛔ ONE FILE PER NAVIGATION ENTRY, and two entries ARE reachable: `MainActivity` is singleTask,
+     * ONE FILE PER NAVIGATION ENTRY, and two entries ARE reachable: `MainActivity` is singleTask,
      * `onNewIntent` feeds `pendingMailto`, and the host navigates to `compose` unguarded, so a
      * mailto: link or a share arriving with the composer open stacks a SECOND composer on the first.
      * Sharing one file, closing the second erased the first's text and the long reply underneath
@@ -111,7 +111,7 @@ class ComposerBodyLeavesTheParcelTest {
     // -- and when the body could NOT be parked, the loss is carried to the destroy routes --------
 
     /**
-     * ⛔ THE HALF NO OTHER RULE IN THIS FILE COVERS. `no line of the screen puts the body or its
+     * THE HALF NO OTHER RULE IN THIS FILE COVERS. `no line of the screen puts the body or its
      * baseline back into the parcel` stays green whatever this line says — it only forbids naming
      * `rememberSaveable` beside `body` — so the wiring that carries a LOST body to the view model
      * is pinned here, whole line, or it can be deleted without a single test noticing.
@@ -136,7 +136,7 @@ class ComposerBodyLeavesTheParcelTest {
                 "the flag on every composer that ever opens and freeze the verdict at `lossy`, " +
                 "which stops every legitimate draft replacement instead.",
         )
-        // ⛔ AND ITS POSITION, because `assertPinned` counts lines and cannot see where they sit.
+        // AND ITS POSITION, because `assertPinned` counts lines and cannot see where they sit.
         // The line above is valid Kotlin anywhere in this composable: moved inside the
         // `DraftReopenView.Editor ->` branch of the `when`, inside the contacts-priming block, or
         // into a private @Composable nobody calls, the count stays 1, every rule in this file
@@ -163,7 +163,7 @@ class ComposerBodyLeavesTheParcelTest {
     }
 
     /**
-     * ⛔ The verdict must read BOTH terms. Either one alone is a destroy: `editingDraftLossyOnOpen`
+     * The verdict must read BOTH terms. Either one alone is a destroy: `editingDraftLossyOnOpen`
      * alone is today's defect (a body lost by the composer itself never reaches the routes), and
      * `composerBodyWasLost` alone throws away everything #63 bought — the reopened HTML draft, the
      * inline images, the calendar part, the attachment that failed to download.
@@ -183,7 +183,7 @@ class ComposerBodyLeavesTheParcelTest {
     }
 
     /**
-     * ⛔ RAISED ONCE, NEVER LOWERED, and pinned as a CLOSED list because that is the only shape a
+     * RAISED ONCE, NEVER LOWERED, and pinned as a CLOSED list because that is the only shape a
      * lint can hold: an assignment added anywhere else — `composerBodyWasLost = false` in a reset,
      * in `abandon()`, at the end of a save — puts the loss back on the floor exactly where the
      * `var editingDraftLossy` used to lose it.
@@ -208,7 +208,7 @@ class ComposerBodyLeavesTheParcelTest {
             ),
             assignments,
         )
-        // ⛔ AND THE WHOLE BODY OF THE RAISER, because the list above only sees lines that ASSIGN.
+        // AND THE WHOLE BODY OF THE RAISER, because the list above only sees lines that ASSIGN.
         // `if (_draftLoading.value) return` added on a line of its own leaves that list untouched
         // and is invisible to every rule here — and it is a live destroy: `_draftLoading` is armed
         // before prepare()'s coroutine and stays up until the fetch answers, so a rotation offline
@@ -228,7 +228,7 @@ class ComposerBodyLeavesTheParcelTest {
     }
 
     /**
-     * ⛔ …and the OTHER half of the verdict is a closed list too. `editingDraftLossyOnOpen` is the
+     * …and the OTHER half of the verdict is a closed list too. `editingDraftLossyOnOpen` is the
      * pessimistic one `prepare()` arms and lowers; the rules that pin those four assignments read
      * the body of `prepare()` alone, so an `editingDraftLossyOnOpen = false` dropped into
      * `abandon()`, into a reset, or at the end of a save is seen by nothing. Whole file, whole
@@ -271,7 +271,7 @@ class ComposerBodyLeavesTheParcelTest {
     }
 
     /**
-     * ⛔ THE FOURTH EXIT, and it was missed. The trash on a SERVER draft — `editingLocalDraftId`
+     * THE FOURTH EXIT, and it was missed. The trash on a SERVER draft — `editingLocalDraftId`
      * null, i.e. the ordinary case — leaves through the host's `popBackStack()`, not through any
      * of the three above, so nothing closed the slot: the entry's teardown then wrote the file
      * back out with `closed` still false, and the body of the draft just DELETED stayed on disk,
@@ -318,7 +318,7 @@ class ComposerBodyLeavesTheParcelTest {
     // -- nothing is said to the user, so nothing is translated ------------------------------------
 
     /**
-     * ⛔ The property is LOCAL to this change, not a freeze of `strings.xml`: a count pinned there
+     * The property is LOCAL to this change, not a freeze of `strings.xml`: a count pinned there
      * would turn red on the first unrelated branch that adds a label, under a test named "the body
      * leaves the parcel", and nobody would know why.
      */

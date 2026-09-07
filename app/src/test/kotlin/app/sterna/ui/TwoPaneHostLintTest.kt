@@ -6,13 +6,13 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `SternaApp.kt` as TEXT, because the inbox host
+ * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `SternaApp.kt` as TEXT, because the inbox host
  * cannot be composed on the JVM (no Robolectric in this module, and `InboxViewModel` needs the
  * repository). The decision it wires — [paneSplit] — IS executed by [PaneLayoutTest]; what no
  * executing test can see is whether the host hands that decision to `InboxScreen`, and which
  * ViewModel it hands with it (#103).
  *
- * ⛔ Whole trimmed lines, never `contains` of a fragment: a fragment rule is blind to anything
+ * Whole trimmed lines, never `contains` of a fragment: a fragment rule is blind to anything
  * appended to a line — `paneSplit(...)` followed by `?.takeIf { false }` still "contains" the call.
  */
 class TwoPaneHostLintTest {
@@ -39,7 +39,7 @@ class TwoPaneHostLintTest {
     /**
      * The lines that make the "inbox" destination a two-pane host: the window WIDTH decides
      * (never the orientation), `panes` carries the decision (null = one pane), and the ViewModel
-     * handed to the screen is the entry's own. ⛔ The ARGUMENTS are pinned, not only the calls:
+     * handed to the screen is the entry's own. The ARGUMENTS are pinned, not only the calls:
      * `panes = null,` or `detail = null,` at the call site keeps every declaration above intact
      * and gives every window one pane. Since V2 the pane READS the ViewModel's anchor and a tap
      * on a wide window WRITES it (`openInPane`) instead of navigating: `if (false)` there sends
@@ -122,7 +122,7 @@ class TwoPaneHostLintTest {
     }
 
     /**
-     * ⭐ The width CONVERSIONS (#103, V4), which no executing test can reach: both live inside a
+     * The width CONVERSIONS (#103, V4), which no executing test can reach: both live inside a
      * `composable(…)` lambda. [PaneConversionTest] runs the two verdicts; what it cannot see is
      * whether the host asks them, with which arguments, and what it does with the answer.
      *
@@ -142,7 +142,7 @@ class TwoPaneHostLintTest {
      *  - `onEmailOpened` dropped: nothing stages the return-flash, so the row no longer flashes on
      *    the way back out of the reader.
      *
-     * ⛔ What it does NOT cover, because it only asks whether a LINE belongs to the file (or, for
+     * What it does NOT cover, because it only asks whether a LINE belongs to the file (or, for
      * the two pinned below, to the conversion arm): the ORDER of these calls, their nesting, and a
      * whole block lifted out of the `withResumed` lambda — all three keep every line present and
      * this test green. The order of `closePane()` and `onEmailOpened` is not a rule anyway (see

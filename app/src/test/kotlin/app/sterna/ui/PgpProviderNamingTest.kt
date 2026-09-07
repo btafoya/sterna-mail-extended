@@ -15,7 +15,7 @@ import java.io.File
  * mail — an instruction to install software she does not need, in nine languages, none of which
  * the compiler has anything to say about.
  *
- * ⛔ `settings_pgp_install` is deliberately NOT in the list below: that button really does open
+ * `settings_pgp_install` is deliberately NOT in the list below: that button really does open
  * OpenKeychain's F-Droid page, so naming it is honest. It offers, it no longer demands.
  *
  * Every expectation here is written out by hand. This file never asks the app what the strings say.

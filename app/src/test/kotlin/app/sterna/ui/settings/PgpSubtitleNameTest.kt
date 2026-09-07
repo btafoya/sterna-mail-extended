@@ -32,7 +32,7 @@ class PgpSubtitleNameTest {
     }
 
     /**
-     * ⛔ THE FALLBACK THE READER ACTUALLY MEETS, and the one mutation that used to pass unseen:
+     * THE FALLBACK THE READER ACTUALLY MEETS, and the one mutation that used to pass unseen:
      * `?: "OpenKeychain"` in place of `?: packageName` reads like a tidy-up and puts one particular
      * app back on the screen of someone signing with another — #151, restored, in every language at
      * once, without touching a single string resource.
@@ -65,7 +65,7 @@ class PgpSubtitleNameTest {
     }
 
     /**
-     * ⚠ A STATE PRODUCTION DOES NOT PRODUCE, and this test says so rather than pretending to guard
+     * A STATE PRODUCTION DOES NOT PRODUCE, and this test says so rather than pretending to guard
      * the screen: `pgpProviderLabel` never returns null, and the branch that calls this is drawn
      * only when `pgpAvailable` is true, which the view model publishes with the provider in use.
      * The nullable type still owes an answer, and it may not be an app name.

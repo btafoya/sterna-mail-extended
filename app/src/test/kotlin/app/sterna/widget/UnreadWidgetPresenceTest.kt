@@ -6,7 +6,7 @@ import org.junit.Test
 /**
  * The gate's answer, RUN — the half of [UnreadWidgetPresence] that needs no Android.
  *
- * ⛔ WHY THIS FILE EXISTS. The seed used to read `UnreadWidgetDraw.placedIds(context).isNotEmpty()`
+ * WHY THIS FILE EXISTS. The seed used to read `UnreadWidgetDraw.placedIds(context).isNotEmpty()`
  * inline, nothing in the suite referenced [UnreadWidgetPresence] at all, and the wiring lint next
  * door pins that the seed is CALLED, never what it answers. Inverting that one call to `isEmpty()`
  * left the whole suite green — and it breaks the app in both directions at once:

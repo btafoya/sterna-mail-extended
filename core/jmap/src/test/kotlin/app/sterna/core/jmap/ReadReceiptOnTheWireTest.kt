@@ -23,7 +23,7 @@ import org.junit.Test
  *
  * RFC 8621 has no `Email` property for this header: §4.1.2 allows an arbitrary `header:<name>:<form>`
  * property to be SET on create, and `asAddresses` is the form that takes `{name, email}` objects.
- * ⛔ The model's `headers` list is not an alternative — it is read-only per the RFC.
+ * The model's `headers` list is not an alternative — it is read-only per the RFC.
  *
  * Three requests carry the header and they are written in three places, so each is exercised on its
  * own here:
@@ -34,7 +34,7 @@ import org.junit.Test
  *     ([app.sterna.core.imap.OutgoingMimeTest] pins the header there); what is pinned here is that
  *     this method puts those bytes on the wire unchanged, so the header cannot be lost in transit.
  *
- * ⛔ `EmailSubmission/set` has nothing to do with it: the header belongs to the message, not to the
+ * `EmailSubmission/set` has nothing to do with it: the header belongs to the message, not to the
  * submission. A test below states that too, because writing it there is the plausible wrong guess.
  */
 class ReadReceiptOnTheWireTest {
@@ -73,7 +73,7 @@ class ReadReceiptOnTheWireTest {
            ]}"""
 
     /**
-     * ⭐ The second request every JMAP send now makes: it reads back what the server did with the
+     * The second request every JMAP send now makes: it reads back what the server did with the
      * submission it just created (#183). Nothing is refused here, so the send goes through — but the
      * response must be QUEUED, or the call sits on the read timeout.
      */

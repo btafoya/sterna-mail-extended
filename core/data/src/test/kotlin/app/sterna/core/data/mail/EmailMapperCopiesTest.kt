@@ -18,7 +18,7 @@ import org.junit.Test
  * included, and the Cc/Bcc row folded shut, so nothing on screen said a recipient had gone — and
  * replying to all silently left out everyone in copy.
  *
- * ⚠ Every case here uses four DIFFERENT, individually recognisable addresses (From, To, Cc, Bcc).
+ * Every case here uses four DIFFERENT, individually recognisable addresses (From, To, Cc, Bcc).
  * A test whose fields look alike cannot tell a mapper that stores the right list from one that
  * stores its neighbour, and would pass just as well on both.
  *

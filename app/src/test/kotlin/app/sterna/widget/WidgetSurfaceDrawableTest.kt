@@ -18,16 +18,16 @@ import java.io.File
  * THREE, one per [WidgetSurface], and the choice between them is made in Kotlin from the app's own
  * theme setting. Each carries the surface of the scheme the app would be wearing in that state.
  *
- * ⛔ The expected colours are NOT written here. They are taken by EXECUTING the real scheme objects
+ * The expected colours are NOT written here. They are taken by EXECUTING the real scheme objects
  * through [applyPureBlack] — the same call `SternaTheme` makes — so `ArcticColorScheme.surface`
  * moving in `Color.kt` asks for the new value on its own. A hex literal copied into this file would
  * only ever prove that two files agree on a colour that matches nothing on screen; that is the trap
  * [WidgetPaletteTest]'s KDoc spells out, and it applies here word for word.
  *
- * ⛔ And never a `contains`: a substring is blind to every mutation that LENGTHENS the line. Whole
+ * And never a `contains`: a substring is blind to every mutation that LENGTHENS the line. Whole
  * lines are compared, so `#FFF7F8FA`, a second `<solid>`, or a longer literal all redden.
  *
- * ⭐ The `<corners>` line is pinned in the same breath and for the reason [WidgetCornerRadiusTest]
+ * The `<corners>` line is pinned in the same breath and for the reason [WidgetCornerRadiusTest]
  * gives at length: the radius has to travel through `@dimen/widget_corner_radius`, because that
  * indirection is what carries the API-31 split. Written in place in any of the three, that cell
  * state alone stops matching the corner the launcher gives every other widget — no crash, no blank,

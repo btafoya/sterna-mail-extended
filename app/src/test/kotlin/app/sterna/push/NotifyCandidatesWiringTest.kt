@@ -71,7 +71,7 @@ class NotifyCandidatesWiringTest {
     }
 
     /**
-     * SOURCE LINT, NEGATIVE SPACE — ⛔ these are ALL the places this file seeds a baseline, and
+     * SOURCE LINT, NEGATIVE SPACE — these are ALL the places this file seeds a baseline, and
      * there is no other.
      *
      * Every rule above asks that a line be PRESENT, and a presence check cannot see a line that was
@@ -102,7 +102,7 @@ class NotifyCandidatesWiringTest {
     }
 
     /**
-     * SOURCE LINT — ⛔ a refresh that says "I cannot tell you what this folder holds"
+     * SOURCE LINT — a refresh that says "I cannot tell you what this folder holds"
      * (`FolderRefresh.baselineIds == null`) must SKIP the folder whole: no seed, no diff, not one
      * write of the baseline.
      *
@@ -110,14 +110,14 @@ class NotifyCandidatesWiringTest {
      * than a special case: a refused page is empty by construction, so there is nothing to
      * announce, and the only thing this loop would do with it is precisely the write being refused.
      *
-     * ⛔ The mutation this exists for is `?: emptyList()`. `seed` REPLACES the baseline, so an
+     * The mutation this exists for is `?: emptyList()`. `seed` REPLACES the baseline, so an
      * unknown taken as empty erases it, and the next pass announces every unread message inside the
      * notifier's age floor — one banner per thread, at 3 a.m., for mail already read. It is
      * unreachable from a JVM test in this module (`NewMailNotifier` needs SharedPreferences,
      * `FetchAndNotify` an Application container), and the decision it honours is executed one
      * module down in core/data's `EmptyPushPageIsNotAnEmptyFolderTest`.
      *
-     * ⚠ It also carries what the pinned `remembered` line above lost when it stopped naming
+     * It also carries what the pinned `remembered` line above lost when it stopped naming
      * `folder.baselineIds`: this is the line that says the remembered ids come from the refresh.
      */
     @Test fun `a folder whose page could not say what it holds is skipped, never remembered as empty`() {

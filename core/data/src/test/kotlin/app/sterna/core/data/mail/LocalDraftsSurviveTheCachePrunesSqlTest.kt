@@ -15,12 +15,12 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * ⭐ **Why `local_drafts` is a table of its own** (#95), stated as four executions instead of as a
+ * **Why `local_drafts` is a table of its own** (#95), stated as four executions instead of as a
  * paragraph: the four cache-pruning paths are RUN against a real SQLite engine holding the same
  * draft twice — once as a row in `emails`, once in `local_drafts` — and the `emails` copy is gone
  * every time.
  *
- * ⛔ **The witness is the whole test.** "The new table survived" proves nothing on its own: a table
+ * **The witness is the whole test.** "The new table survived" proves nothing on its own: a table
  * nobody addresses survives everything. What proves the decision is the contrast — same fixture,
  * same call, the row in `emails` DESTROYED and the row in `local_drafts` untouched. Each case below
  * asserts both halves, and the `emails` half is the one that would rot if these paths changed.
@@ -33,7 +33,7 @@ import java.sql.DriverManager
  * - what the shipped repository path is still made of is checked ([stillCalls]) rather than
  *   remembered, so this test fails loudly instead of replaying a path the app no longer runs.
  *
- * ⚠ `spareIds` is EMPTY in every case, and that is not a simplification: it is the fact the whole
+ * `spareIds` is EMPTY in every case, and that is not a simplification: it is the fact the whole
  * decision rests on. The recently-mutated spare is a 45-second window (`RECENT_MUTATION_MS`), and
  * `markRecentlyMutated` is called on no draft path at all — so a draft waiting for the network is
  * outside it by the time any of this runs, always.
@@ -168,7 +168,7 @@ class LocalDraftsSurviveTheCachePrunesSqlTest {
             .single()
 
     /**
-     * ⛔ A staleness guard, not a proof: it fails loudly when the shipped repository path stops
+     * A staleness guard, not a proof: it fails loudly when the shipped repository path stops
      * being made of the calls replayed below, instead of letting this test go on green over a path
      * the app no longer runs. What it does NOT do is decide anything — the deletions themselves are
      * executed.

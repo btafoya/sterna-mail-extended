@@ -13,7 +13,7 @@ import org.junit.Test
  * has a `Junk` has no role by the time it reaches a screen ([unmarkedRole]) and is a routing target
  * for nothing, so this boolean is the whole of what keeps it reachable.
  *
- * ⛔ Nothing here restates the rule. Each expectation is a literal against a literal input, and the
+ * Nothing here restates the rule. Each expectation is a literal against a literal input, and the
  * shipped function is called.
  */
 class LostRoleClaimTest {
@@ -45,7 +45,7 @@ class LostRoleClaimTest {
     }
 
     /**
-     * ⚠ The mark is a PREFIX, and the two readings of it must agree on every input: a value this
+     * The mark is a PREFIX, and the two readings of it must agree on every input: a value this
      * says is a lost claim is exactly a value [unmarkedRole] erases. Drifting apart would put a
      * `~junk` on screen WITH its role (the ⋮ menu defect of the search fix) or leave a losing folder
      * both role-less and unlisted, which is the defect this closes.

@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT. `OutboxWorker` is a `CoroutineWorker` reaching for `AppContainer` (Room,
+ * SOURCE LINT. `OutboxWorker` is a `CoroutineWorker` reaching for `AppContainer` (Room,
  * WorkManager, a `Context`), and this module has neither Robolectric nor instrumented tests: a
  * `when` written inside `doWork` is unreachable from every test we own. The decision itself is
  * EXECUTED in `core/data` — `OutboxLogic.parkOnPickup` says what to do with the row that was just
@@ -31,7 +31,7 @@ class OutboxParkWiringTest {
     }
 
     /**
-     * ⛔ Pins THREE things in one sequence, because it is their ORDER that is the fix.
+     * Pins THREE things in one sequence, because it is their ORDER that is the fix.
      *
      * 1. The parking runs on the row as it was READ, ahead of every other question.
      * 2. `SENDING` is written on the row BEFORE the message is handed to the server.
@@ -44,7 +44,7 @@ class OutboxParkWiringTest {
      *    never used and an overwrite would erase an earlier failure's reason.
      */
     @Test fun `a delivery the worker finds already begun is parked, before anything else happens to it`() {
-        // ⛔ THE ORDER IS THE FIX. The parking must run on the row as it was READ, before
+        // THE ORDER IS THE FIX. The parking must run on the row as it was READ, before
         // isReadyToSend, before the FAILED guard and before a single byte goes to the server.
         // Pushed down past isReadyToSend it is dead code today (a SENDING row is refused there and
         // the worker returns), and pushed down past the delivery it parks a message that has just
@@ -71,13 +71,13 @@ class OutboxParkWiringTest {
                 "val container = (applicationContext as android.app.Application).container",
                 "val repo = container.mailRepository",
                 "val item = repo.outboxItem(id) ?: return Result.success() // sent, cancelled or deleted",
-                // ⛔ The row is written back with its OWN attemptCount and lastError. Nothing was
+                // The row is written back with its OWN attemptCount and lastError. Nothing was
                 // attempted and nothing failed here: bumping the count would spend a retry the user
                 // never used, and overwriting lastError would erase the reason of an earlier,
                 // genuine failure that is still printed on the row.
                 "OutboxLogic.parkOnPickup(item.state)?.let { parked ->",
                 "repo.updateOutboxState(id, parked, item.attemptCount, item.lastError)",
-                // ⛔ success(), not retry(): there is nothing left to attempt. A retry would bring
+                // success(), not retry(): there is nothing left to attempt. A retry would bring
                 // WorkManager back on a row that is now parked, forever.
                 "return Result.success()",
                 "}",
@@ -89,7 +89,7 @@ class OutboxParkWiringTest {
                 "}",
                 "if (item.state == OutboxState.FAILED) return Result.success() // no auto-retry once parked",
                 "val credentials = container.accountStore.credentials(item.accountId) ?: run {",
-                // ⛔ Both halves, handed to the one place a JVM test can execute the rule. Dropping
+                // Both halves, handed to the one place a JVM test can execute the rule. Dropping
                 // the first one makes an unreadable blob read as "every account left at once", and
                 // this row is the only copy of the message left on the phone.
                 "val departed = accountDepartureIsProven(",
@@ -100,12 +100,12 @@ class OutboxParkWiringTest {
                 "repo.deleteOutbox(id)",
                 "return Result.success()",
                 "}",
-                // ⛔ A BARE retry, alone in its arm: no updateOutboxState, no attemptCount + 1, no
+                // A BARE retry, alone in its arm: no updateOutboxState, no attemptCount + 1, no
                 // lastError. Nothing was attempted, so nothing may be spent or overwritten — and
                 // MAX_ATTEMPTS counts deliveries, which this is not.
                 "return Result.retry()",
                 "}",
-                // ⛔ SENDING, on the row, BEFORE the message leaves. This is the fact parkOnPickup
+                // SENDING, on the row, BEFORE the message leaves. This is the fact parkOnPickup
                 // reads at the next pickup and the only proof this phone ever has that a delivery
                 // was begun: a run killed one line below leaves SENDING written, and that is what
                 // gets parked instead of sent again. Its own attemptCount and lastError are carried
@@ -113,7 +113,7 @@ class OutboxParkWiringTest {
                 "repo.updateOutboxState(id, OutboxState.SENDING, item.attemptCount, item.lastError)",
                 "return try {",
                 "repo.performSend(credentials, item)",
-                // ⛔ and the row leaves the outbox only AFTER the send returned: deleted before, a
+                // and the row leaves the outbox only AFTER the send returned: deleted before, a
                 // failure would have destroyed the only copy of the message.
                 "repo.deleteOutbox(id)",
                 "Result.success()",
@@ -130,7 +130,7 @@ class OutboxParkWiringTest {
     }
 
     /**
-     * ⛔ Its own test, and the one that closes a window the block above cannot see through. That
+     * Its own test, and the one that closes a window the block above cannot see through. That
      * block pins 33 lines; a `repo.deleteOutbox(id)` added ELSEWHERE in the file — in the catch, or
      * a line above `return try {` — falls outside it and used to pass. It is the mutation that
      * survived the same fix on the scheduled arm. So the destruction sites are counted: two, in

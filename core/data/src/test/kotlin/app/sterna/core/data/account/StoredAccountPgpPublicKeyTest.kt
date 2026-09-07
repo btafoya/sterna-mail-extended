@@ -10,13 +10,13 @@ import org.junit.Test
  * migration to write — and this is what says so, by decoding a blob written BEFORE the field
  * existed.
  *
- * ⛔ The legacy JSON is a literal on purpose. Re-serialising a current [StoredAccount] would emit
+ * The legacy JSON is a literal on purpose. Re-serialising a current [StoredAccount] would emit
  * whatever the current class holds, so the "old blob" would silently gain the very field the test
  * claims is absent, and the test would pass with or without the default.
  */
 class StoredAccountPgpPublicKeyTest {
 
-    /** The parser `AccountStore` itself uses (AccountStore.kt:243). Anything else proves nothing
+    /** The parser `AccountStore` itself uses (AccountStore). Anything else proves nothing
      *  about what the app will do with an old blob. */
     private val json = Json { ignoreUnknownKeys = true }
 

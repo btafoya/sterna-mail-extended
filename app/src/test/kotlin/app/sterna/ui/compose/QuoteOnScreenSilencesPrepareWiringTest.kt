@@ -42,7 +42,7 @@ import org.junit.Test
  * REFUSED" — and a reply with no quote would then go out silently. That mutation survived the first
  * version of this file.
  *
- * ⛔ WHAT THIS DOES NOT PROVE: that the two messages are actually gone. That is readable on a bench
+ * WHAT THIS DOES NOT PROVE: that the two messages are actually gone. That is readable on a bench
  * and nowhere else — open a reply, let the quote land, kill the process, reopen. It does not prove
  * the flag is ever true at runtime (nothing here composes anything), it says nothing about the
  * forward branch beyond the negative rule below (a forward never goes through `_replyQuote` and
@@ -182,7 +182,7 @@ class QuoteOnScreenSilencesPrepareWiringTest {
         val all = lines(COMPOSE_SCREEN)
         val landed = all.indexOf("quoteLanded = true")
         val baseline = all.indexOf("initialBody = quote")
-        // ⚠ The BRANCH OPENER, not the toast call inside it. Bounding by
+        // The BRANCH OPENER, not the toast call inside it. Bounding by
         // `viewModel.noticeQuoteNotAdded()` left a hole a mutation walked straight through on
         // 2026-08-25: posted on the FIRST line of the toast branch, the flag still sat above the
         // toast call, both bounds held, and the whole suite stayed green.

@@ -5,19 +5,19 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT — THE LAST RESORT, and stated as one.
+ * SOURCE LINT — THE LAST RESORT, and stated as one.
  *
  * The four functions pinned here are pure Room wiring: `MailRepository` needs Room, a `Context`
- * and a live session, so no JVM test can build one, and this repo has ⛔ **no `androidTest` source
+ * and a live session, so no JVM test can build one, and this repo has **no `androidTest` source
  * set at all** — there is nothing that executes a line of them, anywhere. That is not a gap being
  * filled with an instrumentation harness (KISS, solo cost): it is a gap being NAMED and watched.
  *
- * ⭐ **Read [LocalDraftReopenTest] first.** Every decision these three carry is executed there:
+ * **Read [LocalDraftReopenTest] first.** Every decision these three carry is executed there:
  * which states may be leased ([localDraftMayBeTakenForEdit]), what a refused row is answered, what
  * a release re-arms and with what delay, and the order a consume may run in. What no test can see
  * is whether this class still calls them — and with what.
  *
- * ⛔ **Whole lines, in order, never a `contains`.** A substring check is blind to any mutation that
+ * **Whole lines, in order, never a `contains`.** A substring check is blind to any mutation that
  * LENGTHENS the line, which is how three defects got past this repo. Both mutations these rules
  * exist for compile and left the whole suite green before this file:
  *  - `consumeLocalDraft(accountId, id) = discardLocalDraft(accountId, id)` → `= Unit`: the sent
@@ -101,7 +101,7 @@ class LocalDraftLeaseWiringTest {
     }
 
     @Test fun `no in-memory lease survives anywhere in the repository`() {
-        // ⛔ The field, its mutex and the three pure functions that fed them are GONE, and this is
+        // The field, its mutex and the three pure functions that fed them are GONE, and this is
         // what keeps them from creeping back: a lease is a promise about a process, and the process
         // that made it is the one that died. Anything named after one here means somebody is trying
         // to spare an EDITING row from a sweep again — the shape measured red at the bench, where
@@ -135,9 +135,9 @@ class LocalDraftLeaseWiringTest {
      * The line containing [opener] in `MailRepository.kt` and its BRACED body — down to the line
      * where the braces it opened balance again, comments cut, trimmed, in order.
      *
-     * ⛔ Used for the two functions whose body is now a `withLock { … }` and for the re-arm's own
+     * Used for the two functions whose body is now a `withLock { … }` and for the re-arm's own
      * block: their lambda arguments (`load = { … }`) close on the line that opens them, so the depth
-     * only returns to zero at the real end. ⚠ Not usable on a body whose first `{` is a lambda
+     * only returns to zero at the real end. Not usable on a body whose first `{` is a lambda
      * argument — that is what [declarationAndExpressionBody] is still there for.
      */
     private fun declarationAndBlockBody(opener: String): List<String> {

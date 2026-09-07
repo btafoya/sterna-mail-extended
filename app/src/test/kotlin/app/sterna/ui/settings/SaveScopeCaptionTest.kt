@@ -18,7 +18,7 @@ import java.io.File
  * 1. SOURCE LINT (not a behaviour test): the caption is rendered, above the button, in the same
  *    block as the button. Compose is not renderable in this module — no Robolectric, no
  *    instrumented tests — so reading the source is what is left. It proves nothing about pixels.
- *    ⚠ It compares WHOLE LINES, never `"fragment" in line`: a containment check is blind to every
+ * It compares WHOLE LINES, never `"fragment" in line`: a containment check is blind to every
  *    mutation that makes the line longer, which is most of them (adding a `modifier =`, wrapping
  *    the call in a condition, swapping the style for a louder one).
  *
@@ -44,7 +44,7 @@ import java.io.File
  * meaning — a caption can satisfy every anchor and still be clumsy or subtly wrong. The safety net
  * against the enumeration going stale as `save()` grows is the comment on that signature, not this
  * file. And the caption explains only the grey caused by "nothing to write" (`!dirty`), never the
- * grey caused by an invalid form (`!canSave`, `AccountEditorSave.kt:57-70`); that is known and out
+ * grey caused by an invalid form (`!canSave`, `AccountEditorSave-70`); that is known and out
  * of scope.
  */
 class SaveScopeCaptionTest {
@@ -372,7 +372,7 @@ class SaveScopeCaptionTest {
         /**
          * Ways each language says "takes effect now" — the one thing this caption must not say.
          *
-         * ⚠ STEMS, NOT INFLECTED FORMS. These languages decline and conjugate: a list holding
+         * STEMS, NOT INFLECTED FORMS. These languages decline and conjugate: a list holding
          * `obowiązują` says nothing about `obowiązywać`, and one holding `greifen` says nothing
          * about `gelten`. Every entry here is cut back to the shortest form that still means only
          * what it is meant to mean; a false positive is a false failure, which is the safe way for

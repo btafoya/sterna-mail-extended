@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⚠ THIS TEST READS SOURCE TEXT — the last resort, exactly as [ChunkedIdReadsSourceTest] says:
+ * THIS TEST READS SOURCE TEXT — the last resort, exactly as [ChunkedIdReadsSourceTest] says:
  * `MailRepository` needs Room and a `Context`, so no JVM test can run the wiring below. The
  * DECISION it guards is executed by [DestroyableIdsTest]; this pins only WHERE that decision is
  * plugged in, and it pins the WHOLE LINE of each load-bearing call — `contains` is blind to any

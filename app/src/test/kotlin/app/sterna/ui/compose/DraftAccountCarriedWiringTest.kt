@@ -27,7 +27,7 @@ import java.io.File
  * blind to every mutation that lengthens a line, and `?: credentials.id` appended to the account
  * would sail through one while restoring the defect outright.
  *
- * ⛔ NOT covered here: what the repository and the delivery worker do with the pair (pinned in
+ * NOT covered here: what the repository and the delivery worker do with the pair (pinned in
  * `core:data`), and the on-device gesture — open a draft in A, switch "From" to B, save: two
  * drafts, one in each account's Drafts, and neither destroyed.
  */

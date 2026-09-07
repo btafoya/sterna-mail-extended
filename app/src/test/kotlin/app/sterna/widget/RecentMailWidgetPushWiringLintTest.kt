@@ -17,7 +17,7 @@ import java.io.File
  * database, and there is no Robolectric here. So the two things that test cannot see — that the
  * shipped app plugs the push in at all, and WHAT it plugs in — are pinned as whole lines of source.
  *
- * ⛔ Whole lines, never a `contains`: a substring rule is satisfied by every mutation that LENGTHENS
+ * Whole lines, never a `contains`: a substring rule is satisfied by every mutation that LENGTHENS
  * the line. The price is that reformatting the block reddens this test — loud, and one line to fix.
  */
 class RecentMailWidgetPushWiringLintTest {
@@ -43,7 +43,7 @@ class RecentMailWidgetPushWiringLintTest {
      *  - `RecentMailWidgetDraw.ROW_LIMIT`: a different bound here observes a different query from
      *    the one the cell draws, so a change below the limit would not redraw and a change above it
      *    would redraw for nothing;
-     *  - ⛔ `forget()` BEFORE `refresh()`. Not for the reason the settings writes drop it — there,
+     * - `forget()` BEFORE `refresh()`. Not for the reason the settings writes drop it — there,
      *    the held snapshot was projected under a rule the reader has just tightened. Here the rule
      *    has not moved and the MAIL has: what `forget()` buys is that the row factory can no longer
      *    fall back on a snapshot that is now stale. It falls back whenever its own read times out,
@@ -52,7 +52,7 @@ class RecentMailWidgetPushWiringLintTest {
      *  - `rethrowIfCancelled`: a failed draw is a stale cell and nothing more, but the app scope
      *    being cancelled must not be logged as one more failed draw.
      *
-     * ⛔ And the collected value is DISCARDED on purpose (`collect {`, no parameter): the rows are a
+     * And the collected value is DISCARDED on purpose (`collect {`, no parameter): the rows are a
      * trigger. Drawing them from here would bypass `RecentMailWidgetDraw.read`, which is where the
      * notification-content setting and the app lock are consulted.
      */
@@ -108,7 +108,7 @@ class RecentMailWidgetPushWiringLintTest {
     }
 
     /**
-     * ⛔ THE SEED, whole lines — the gate's third writer, and the one nothing else in this
+     * THE SEED, whole lines — the gate's third writer, and the one nothing else in this
      * repository can reach.
      *
      * `onEnabled` and `onDisabled` are pinned next door by [RecentMailWidgetWiringLintTest], and
@@ -157,7 +157,7 @@ class RecentMailWidgetPushWiringLintTest {
      * the mutation this exists to catch, and an assertion showing the expected lines against `[]`
      * says more than an exception would.
      *
-     * ⛔ Built on [kotlinLines] and not on `DeclarationSource.blockContaining`, which strips XML
+     * Built on [kotlinLines] and not on `DeclarationSource.blockContaining`, which strips XML
      * comments: run over Kotlin it would count braces inside KDoc prose as code.
      */
     private fun blockContaining(file: File, marker: String, opener: String): List<String> {

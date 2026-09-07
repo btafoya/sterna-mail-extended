@@ -15,7 +15,7 @@ import org.junit.Test
  * named `ReadingPane.kt` at all, and the two mutations the messages below describe were invisible
  * to the whole suite.
  *
- * ⛔ What it does NOT prove: it pins TWO LINES OF WIRING, neither the composable nor its rendering.
+ * What it does NOT prove: it pins TWO LINES OF WIRING, neither the composable nor its rendering.
  * Whole trimmed lines are compared, never `contains` — a `contains` is blind to any mutation that
  * LENGTHENS the line, which has caught this repo out three times.
  */

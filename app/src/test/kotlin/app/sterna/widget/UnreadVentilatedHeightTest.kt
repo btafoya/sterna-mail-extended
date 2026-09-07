@@ -8,7 +8,7 @@ import org.junit.Test
  * How tall the ventilated cell asks to be, RUN — the one decision of this fix that can be executed
  * at all. There is no Robolectric here: a `RemoteViews`, a `SizeF` and the launcher's closest-fit
  * are unreachable from this suite, so the rule was pulled out with no Android type in it and this
- * file EXECUTES it. ⛔ Nothing below recomputes the formula: every expectation is a literal number,
+ * file EXECUTES it. Nothing below recomputes the formula: every expectation is a literal number,
  * so a shipped rule that changed its mind disagrees with this file instead of agreeing with it.
  *
  * What is at stake is what the user reads on the home screen. The height offered for the ventilated
@@ -50,7 +50,7 @@ class UnreadVentilatedHeightTest {
     }
 
     /**
-     * ⚠ THE SYSTEM FONT SCALE IS IN THE NUMBER, and it is not a detail: the row's text is in `sp`
+     * THE SYSTEM FONT SCALE IS IN THE NUMBER, and it is not a detail: the row's text is in `sp`
      * and its padding in `dp`, so only part of a row grows. A rule that ignored the scale would be
      * right at 100 % and would clip the last line for every reader who enlarges their text — the
      * same defect, narrowed to the people most likely to notice it.
@@ -94,7 +94,7 @@ class UnreadVentilatedHeightTest {
     }
 
     /**
-     * ⛔ THE FLOOR, and it is the reason the launcher's ordering still means anything.
+     * THE FLOOR, and it is the reason the launcher's ordering still means anything.
      *
      * The map's other entry is the widget's declared minimum, 110x40dp, and the launcher picks the
      * LARGEST entry that fits the cell. An entry shorter than 40dp would be picked for the smallest
@@ -133,7 +133,7 @@ class UnreadVentilatedHeightTest {
     }
 
     /**
-     * ⛔ PAST FOUR ACCOUNTS, WHICH IS WHERE THE BENCH ACTUALLY WENT (E3bis went to five, then six).
+     * PAST FOUR ACCOUNTS, WHICH IS WHERE THE BENCH ACTUALLY WENT (E3bis went to five, then six).
      *
      * Every expectation above stops at four rows, and a rule that stopped growing after four would
      * satisfy all of them — `rows.coerceAtMost(4)` reddens nothing up there. It is not a theoretical

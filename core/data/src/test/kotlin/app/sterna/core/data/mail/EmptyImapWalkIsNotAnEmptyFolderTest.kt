@@ -7,7 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * ⛔ The IMAP twin of [EmptyWindowIsNotAnEmptyFolderTest]: a walk that read NOTHING is not a walk
+ * The IMAP twin of [EmptyWindowIsNotAnEmptyFolderTest]: a walk that read NOTHING is not a walk
  * over an empty folder, and only the second licenses a delete.
  *
  * Two shapes reach [reconcilableIds] with no UID at all and no failure anywhere:
@@ -21,16 +21,16 @@ import org.junit.Test
  * keep set empties the folder: 300 rows to zero on one pull-to-refresh, no error, nothing left to
  * read offline. The refusal is null, never an empty set.
  *
- * ⚠ Both shapes arrive here as the SAME value — an empty UID list and a walk that does not state the
+ * Both shapes arrive here as the SAME value — an empty UID list and a walk that does not state the
  * folder empty — which is why one refusal closes both. That the second shape really does produce that
  * value, and that a stated `* 0 EXISTS` really does produce the other, is on the wire in `core:imap`
  * (`ExistsThatWasNeverStatedTest`); this file is the decision taken on it.
  *
- * ⚠ The three refusals already in [ImapFullQueryWriteThroughTest] are all stated on NON-EMPTY walks,
+ * The three refusals already in [ImapFullQueryWriteThroughTest] are all stated on NON-EMPTY walks,
  * deliberately — they are about `moved`. Nothing there calls this decision on an empty one, which is
  * exactly the hole this file fills.
  *
- * ⭐ And the witness below is what keeps the rule honest: a folder the server SAID holds nothing must
+ * And the witness below is what keeps the rule honest: a folder the server SAID holds nothing must
  * still clear its cache. Refusing on every empty walk would let the IMAP cache grow without bound and
  * leave an emptied folder showing its old contents for ever.
  */
@@ -47,7 +47,7 @@ class EmptyImapWalkIsNotAnEmptyFolderTest {
     // -- the decision itself ---------------------------------------------------------------------------
 
     @Test fun `a walk with no UID whose SELECT never stated a count is a REFUSAL, not an empty folder`() {
-        // ⭐ The case, and the value under test is the one the walk could not vouch for: the field is
+        // The case, and the value under test is the one the walk could not vouch for: the field is
         // named false here because that is what `walkFolder` builds from a SELECT without EXISTS.
         assertNull(
             reconcilableIds(load(ImapFolderWalk(uids = emptyList(), moved = false, folderStatedEmpty = false)), account),
@@ -55,13 +55,13 @@ class EmptyImapWalkIsNotAnEmptyFolderTest {
     }
 
     @Test fun `a walk built without naming the field refuses too — the default is UNKNOWN`() {
-        // ⭐ The dangerous default, executed. "Stated empty" by default would mean every fixture and
+        // The dangerous default, executed. "Stated empty" by default would mean every fixture and
         // every future construction site licenses a delete by saying nothing.
         assertNull(reconcilableIds(load(ImapFolderWalk(uids = emptyList(), moved = false)), account))
     }
 
     @Test fun `a walk over a folder the server SAID holds nothing clears the cache — the witness`() {
-        // ⛔ Without this, "never reconcile an empty walk" passes everything above, and no IMAP
+        // Without this, "never reconcile an empty walk" passes everything above, and no IMAP
         // folder is ever trimmed again.
         assertEquals(
             emptySet<String>(),
@@ -112,7 +112,7 @@ class EmptyImapWalkIsNotAnEmptyFolderTest {
     }
 
     @Test fun `a refresh that read nothing leaves the cached folder exactly as it was`() {
-        // ⭐ End to end, with the shipped keepIds: nothing was read, so nothing may be deleted. This
+        // End to end, with the shipped keepIds: nothing was read, so nothing may be deleted. This
         // is the 300 lines the user still has after pulling to refresh on a server that answered a
         // SELECT without EXISTS.
         val folder = Folder(cached = listOf(id(9), id(8), id(7)))

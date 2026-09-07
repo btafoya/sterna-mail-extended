@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⛔ A folder walk that read NOTHING is not a walk over an empty folder — on the wire, where the
+ * A folder walk that read NOTHING is not a walk over an empty folder — on the wire, where the
  * difference is made.
  *
  * `select()` initialises its count to zero and only moves it when an `* n EXISTS` line parses. A
@@ -23,7 +23,7 @@ import org.junit.Test
  * UID, and is just as empty as the first.
  *
  * What tells the cases apart is a fact the SERVER stated: [ImapMailboxStatus.existsObserved], carried
- * to the caller as [ImapFolderWalk.folderStatedEmpty]. ⭐ The witness at the bottom is not optional:
+ * to the caller as [ImapFolderWalk.folderStatedEmpty]. The witness at the bottom is not optional:
  * a folder that IS empty must still be able to clear a stale cache, or an emptied folder shows its
  * old contents for ever and nothing on IMAP ever cleans up.
  */
@@ -48,7 +48,7 @@ class ExistsThatWasNeverStatedTest {
     // -- forme 1: the SELECT never said how big the folder is -----------------------------------------
 
     @Test fun `a SELECT with no EXISTS line at all leaves the folder's size UNKNOWN, not zero`() {
-        // ⭐ The case. Nothing failed, nothing was fetched, and the count reads exactly like an
+        // The case. Nothing failed, nothing was fetched, and the count reads exactly like an
         // empty folder. The walk must say so: `folderStatedEmpty` false is what stops the caller
         // deleting the whole cached folder.
         selecting("* OK [UIDVALIDITY 1] ok\r\n* OK [UIDNEXT 9] ok\r\n").use { server ->
@@ -79,7 +79,7 @@ class ExistsThatWasNeverStatedTest {
     // -- forme 2: the count was stated, and every FETCH came back unreadable ---------------------------
 
     @Test fun `a thousand messages and no readable FETCH is still not an empty folder`() {
-        // ⛔ The shape a fix that only looks at EXISTS misses. The count is stated and large; the
+        // The shape a fix that only looks at EXISTS misses. The count is stated and large; the
         // responses carry no UID, so `messages()` drops all of them and the walk ends with nothing.
         // Empty UIDs, and NOT an empty folder.
         val server = selecting("* 1000 EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n") { tag, _ ->
@@ -102,10 +102,10 @@ class ExistsThatWasNeverStatedTest {
         }
     }
 
-    // -- ⭐ the witness: a folder that really is empty ------------------------------------------------
+    // -- the witness: a folder that really is empty ------------------------------------------------
 
     @Test fun `a SELECT that really said zero DOES state an empty folder — the witness`() {
-        // ⛔ Without this, "never say the folder is empty" would pass every assertion above, the
+        // Without this, "never say the folder is empty" would pass every assertion above, the
         // cache would never be cleared again, and an emptied folder would show its old contents for
         // ever. `* 0 EXISTS` RECEIVED is a fact, and it licenses the delete.
         selecting("* 0 EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n").use { server ->
@@ -139,7 +139,7 @@ class ExistsThatWasNeverStatedTest {
     // -- the default of both new fields ---------------------------------------------------------------
 
     @Test fun `a status and a walk built without naming the field mean UNKNOWN, never empty`() {
-        // ⭐ The dangerous default, executed rather than read: "observed" by default would let any
+        // The dangerous default, executed rather than read: "observed" by default would let any
         // future fixture, or any future construction site, license a delete by omission.
         assertFalse(ImapMailboxStatus(exists = 0, uidValidity = 1L, uidNext = 1L).existsObserved)
         assertFalse(ImapFolderWalk(uids = emptyList(), moved = false).folderStatedEmpty)

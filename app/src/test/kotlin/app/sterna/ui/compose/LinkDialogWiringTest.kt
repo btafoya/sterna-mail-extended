@@ -8,7 +8,7 @@ import org.junit.Test
  * SOURCE LINT, NOT A BEHAVIOUR TEST — the same instrument and the same disclaimer as
  * [ComposeBodyWiringTest], turned on the link dialog (#131).
  *
- * ⛔ Why it had to exist. The dialog was moved into its own file precisely so it would not disturb
+ * Why it had to exist. The dialog was moved into its own file precisely so it would not disturb
  * the three lints that count the composer's `BasicTextField(` call sites — and nothing was put in
  * its place, so its whole body was uncovered. `AlertDialog` cannot be executed in this module (no
  * Robolectric, no compose-ui-test), the two decisions behind it are executed by [LinkDialogTest],
@@ -19,10 +19,10 @@ import org.junit.Test
  *  - the remove button calling `removeLink` on something other than the live body and selection;
  *  - the two fields losing their opening values, so an edit opens empty and overwrites.
  *
- * ⛔ WHOLE TRIMMED LINES, compared by equality — never `contains`: a `contains` is blind to every
+ * WHOLE TRIMMED LINES, compared by equality — never `contains`: a `contains` is blind to every
  * mutation that LENGTHENS the line.
  *
- * ⛔ What it does NOT cover: that the dialog is drawn, that a tap reaches a button, that the error
+ * What it does NOT cover: that the dialog is drawn, that a tap reaches a button, that the error
  * text appears, or that anything survives a rotation. Those are bench measurements.
  */
 class LinkDialogWiringTest {
@@ -95,7 +95,7 @@ class LinkDialogWiringTest {
     /**
      * (d) The dialog's fields are Material `TextField`s and never `BasicTextField`.
      *
-     * ⛔ Not a matter of taste: [ComposeScreenIncognitoTest] and
+     * Not a matter of taste: [ComposeScreenIncognitoTest] and
      * [ComposeScreenCapitalizationTest] count `BasicTextField(` in `ComposeScreen.kt` and read the
      * file's structure around each one. A `BasicTextField` here — or this dialog moved back into
      * the screen's file — moves those counts and makes two rules answer about a field they were

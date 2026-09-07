@@ -92,7 +92,7 @@ class CollapsedFoldersSurfaceWiringTest {
     }
 
     /**
-     * ⭐ The badge, pinned with its ARGUMENTS and with the branch that reads it.
+     * The badge, pinned with its ARGUMENTS and with the branch that reads it.
      *
      * [drawerUnreadCount] is EXECUTED next door ([DrawerUnreadCountTest]); what only this lint can
      * hold is WHICH list and WHICH folded set the row asks it about, and both are invisible to
@@ -129,7 +129,7 @@ class CollapsedFoldersSurfaceWiringTest {
     }
 
     /**
-     * ⭐ The two writes, pinned with their ARGUMENTS and in source order.
+     * The two writes, pinned with their ARGUMENTS and in source order.
      *
      * The second is the chevron. The FIRST is the one nobody would think to protect: creating a
      * subfolder under a folded parent must reveal it, or the folder the user just made is nowhere
@@ -179,7 +179,7 @@ class CollapsedFoldersSurfaceWiringTest {
     }
 
     /**
-     * ⭐ The account switch. `InboxScreen` switches accounts IN PLACE, so without this re-read the
+     * The account switch. `InboxScreen` switches accounts IN PLACE, so without this re-read the
      * departing account's registry stays on screen — and IMAP mailbox ids are paths, so a folder
      * named "Travail" on the arriving account inherits the fold decided on the other one (#92/#121).
      */
@@ -234,7 +234,7 @@ class CollapsedFoldersSurfaceWiringTest {
     }
 
     /**
-     * ⭐ V5's flag, end to end, in the two places nothing else can see it.
+     * V5's flag, end to end, in the two places nothing else can see it.
      *
      * The decision itself is EXECUTED next door ([DefaultCollapsedFoldersTest],
      * [CollapsedFolderIdsTest]) on real arguments. What no JVM test in this module can run is the
@@ -270,7 +270,7 @@ class CollapsedFoldersSurfaceWiringTest {
     }
 
     /**
-     * ⭐ The two lines that EXPOSE the flows, pinned whole — the weakest link of the chain above.
+     * The two lines that EXPOSE the flows, pinned whole — the weakest link of the chain above.
      *
      * Everything else in this file watches how the private flows are seeded and re-read, and the
      * decision itself is executed next door. None of it reads what the SCREEN is actually handed:

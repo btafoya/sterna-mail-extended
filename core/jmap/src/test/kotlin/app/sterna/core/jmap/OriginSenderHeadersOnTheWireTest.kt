@@ -24,12 +24,12 @@ import org.junit.Test
  * READING the raw header fields of SEVERAL messages in one call — what the body prefetch needs to
  * name a forwarded message's real author on the twenty inbox messages it caches (#160).
  *
- * ⛔ The request is pinned WHOLE, argument by argument, never with a `contains`: a `contains` is
+ * The request is pinned WHOLE, argument by argument, never with a `contains`: a `contains` is
  * blind to every mutation that ADDS to the payload, and what is at stake here is precisely that
  * this call stays tiny. `headers` on a fetch that also carries bodies would be dozens of extra
  * lines per prefetch; a stray extra property would pass a `contains` unnoticed.
  *
- * ⭐ And the batching is pinned as a UNION, not as a request count: a server rejects the WHOLE
+ * And the batching is pinned as a UNION, not as a request count: a server rejects the WHOLE
  * `Email/get` past its `maxObjectsInGet` (RFC 8620 §5.1), so an unsplit call on twenty ids fails
  * outright on a strict server and every one of those messages silently loses its line.
  */
@@ -119,7 +119,7 @@ class OriginSenderHeadersOnTheWireTest {
     // -- 2. the split, pinned as a union ---------------------------------------------------------
 
     /**
-     * ⭐ Five ids on a server that admits to two per get: MORE THAN ONE request, and the union of
+     * Five ids on a server that admits to two per get: MORE THAN ONE request, and the union of
      * everything asked for is exactly the five given — no id dropped, none asked for twice, and no
      * batch carrying more than the server said it would accept.
      */
@@ -137,7 +137,7 @@ class OriginSenderHeadersOnTheWireTest {
         assertTrue("five ids past a limit of two must not travel in one request: $batches", batches.size > 1)
         batches.forEach { assertTrue("a batch exceeded the server's limit: $it", it.size <= 2) }
         assertEquals("every id, exactly once", ids, batches.flatten())
-        // ⛔ And every batch asks for the same two properties: a split that widened the request on
+        // And every batch asks for the same two properties: a split that widened the request on
         // the second call would be invisible to a check made on the first one alone.
         assertEquals(
             "the properties must not drift between batches",

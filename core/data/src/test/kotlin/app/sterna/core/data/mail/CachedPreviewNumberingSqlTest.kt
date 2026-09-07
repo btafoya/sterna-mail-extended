@@ -13,7 +13,7 @@ import java.sql.Types
  * server, and which rows keep the opening line they already have — EXECUTED against SQLite, with
  * the statement taken out of the shipped DAO ([DaoQuerySource.emailDaoQuery]).
  *
- * ⛔ Why it has to be executed and not read. `EmailEntity.id` is `imap:$account:$mailbox:$uid`
+ * Why it has to be executed and not read. `EmailEntity.id` is `imap:$account:$mailbox:$uid`
  * (`ImapMailService.emailId`): it does NOT carry the folder's numbering. A renumbered folder
  * (UIDVALIDITY changed: recreated on the server, migrated, rebuilt) restarts its UIDs low, and
  * `MailboxUidValidityStore.invalidate` deliberately leaves the `emails` rows behind — it deletes
@@ -24,7 +24,7 @@ import java.sql.Types
  * UID 7 — the right sender, the right subject, and the first line of somebody else's mail, for
  * good, because the row then counts as filled and nothing ever asks for its body again (#99).
  *
- * ⛔ And `IS`, never `=`. A server that states no UIDVALIDITY stores NULL ([UidValidity.stated]),
+ * And `IS`, never `=`. A server that states no UIDVALIDITY stores NULL ([UidValidity.stated]),
  * and `NULL = NULL` is NULL in SQL: with `=` every row of such an account is invisible to this
  * read, which is not a corruption but a permanent one — every refresh re-downloads the whole page
  * for ever, and the "paid for once" bound this feature is built on is gone. Reading the statement
@@ -87,7 +87,7 @@ class CachedPreviewNumberingSqlTest {
     }
 
     /**
-     * ⭐ THE DEFECT THIS STATEMENT EXISTS TO STOP. Two rows, the SAME cache id, read under two
+     * THE DEFECT THIS STATEMENT EXISTS TO STOP. Two rows, the SAME cache id, read under two
      * numberings: the folder was recreated on the server and UID 7 now means a different message.
      * The walk asks under the numbering it has just SELECTed, and must be told nothing.
      */
@@ -114,7 +114,7 @@ class CachedPreviewNumberingSqlTest {
     }
 
     /**
-     * ⛔ `IS`, not `=`. A server that states no UIDVALIDITY stores NULL, and `=` would hide every
+     * `IS`, not `=`. A server that states no UIDVALIDITY stores NULL, and `=` would hide every
      * one of its rows from this read: no corruption, but the page re-downloaded on every single
      * refresh, for ever.
      */
@@ -140,7 +140,7 @@ class CachedPreviewNumberingSqlTest {
     }
 
     /**
-     * ⛔ The account bound is still there, and it is the older half of the same rule (#31): with the
+     * The account bound is still there, and it is the older half of the same rule (#31): with the
      * composite (accountId, id) key an id is not unique across accounts, so a same-server sibling's
      * filled row would report THIS account's row as filled and leave it blank for good.
      */

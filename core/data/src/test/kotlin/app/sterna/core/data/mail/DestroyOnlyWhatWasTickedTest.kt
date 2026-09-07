@@ -14,7 +14,7 @@ import org.junit.Test
  * that reads "in the Trash" and `UID EXPUNGE` leaves on a live message no one selected. No error,
  * no dialog, no way back.
  *
- * ⭐ Everything below RUNS the delivered decision. Nothing here restates the rule to decide what to
+ * Everything below RUNS the delivered decision. Nothing here restates the rule to decide what to
  * expect: every expected list is written out as a literal, so inverting the condition in
  * [UidValidity.destroyableUnderTheNumberingItWasTickedUnder] reddens this file instead of moving
  * with it. What the split then does on a real socket is `DestroyUnderTheNumberingTheRowWasReadUnderTest`.
@@ -47,7 +47,7 @@ class DestroyOnlyWhatWasTickedTest {
     }
 
     /**
-     * ⭐ THE INVERSE WITNESS, and it is not optional: without it "refuse everything" satisfies the
+     * THE INVERSE WITNESS, and it is not optional: without it "refuse everything" satisfies the
      * test above and no IMAP permanent delete ever goes through again.
      */
     @Test fun `a row still under the numbering it was ticked under is destroyed`() {
@@ -57,7 +57,7 @@ class DestroyOnlyWhatWasTickedTest {
     }
 
     /**
-     * ⛔ G4, the expensive half. `uidValidity` is null on EVERY JMAP row, and a row evicted from
+     * G4, the expensive half. `uidValidity` is null on EVERY JMAP row, and a row evicted from
      * the cache — or ticked in the 50 ms before the suspending read of its stamp came back — has
      * nothing to offer either. A guard refusing on an absent stamp would refuse 100 % of JMAP
      * destroys, and would stay green in any test that only ever feeds it IMAP rows.

@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⭐ The decision that stops an unreadable account list from being deleted, EXECUTED — not read off
+ * The decision that stops an unreadable account list from being deleted, EXECUTED — not read off
  * the source of [AccountStore], which needs a `Context` and the Keystore and cannot be built here.
  *
  * The bench saw it twice on 2026-08-06: four accounts, then two, then "Add an account", with the
@@ -128,7 +128,7 @@ class AccountBlobGateTest {
     }
 
     /**
-     * ⭐ The whole incident, played end to end on a fake of the store's storage: the read-modify-write
+     * The whole incident, played end to end on a fake of the store's storage: the read-modify-write
      * that used to destroy the list now leaves the bytes untouched, and the accounts come back by
      * themselves. The blob is compared as a WHOLE STRING before and after, so a rewrite that happens
      * to produce something similar is not mistaken for "nothing was written".

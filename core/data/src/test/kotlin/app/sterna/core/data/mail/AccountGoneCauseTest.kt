@@ -12,10 +12,10 @@ import org.junit.Test
  * can be built in a JVM test and `android.util.Log` is not mocked, so nothing here observes a
  * printed line.
  *
- * ⛔ The expected strings are written out in full, never recomputed from the same `if`: a test that
+ * The expected strings are written out in full, never recomputed from the same `if`: a test that
  * rebuilds the rule to decide what to expect passes on an inverted rule too.
  *
- * ⭐ The id under test is a REAL UUID, not a short stand-in. `AccountStore` ids are
+ * The id under test is a REAL UUID, not a short stand-in. `AccountStore` ids are
  * `UUID.randomUUID().toString()`, and the obvious "don't dump a full id in logcat" edit
  * (`accountId.take(5)`) is invisible to a test whose id is five characters long — it would leave
  * the line unable to name the account it is about, which is the whole point of printing it.

@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, and the last resort it is meant to be: nothing in this chain can be built on the
+ * SOURCE LINT, and the last resort it is meant to be: nothing in this chain can be built on the
  * JVM ([NewMailNotifier] and [Notifications] need an Application and a NotificationManager,
  * [FetchAndNotify] needs a repository with a socket behind it). Every DECISION it carries is
  * EXECUTED next door — the pre-pass in [NotificationPreviewGatheringTest], what a position may
@@ -20,7 +20,7 @@ import java.io.File
 class PreviewReachesTheNotificationWiringTest {
 
     /**
-     * ⛔⭐ THE ORDER, AND THE ONLY WAY THIS FEATURE CAN LOSE MAIL.
+     * THE ORDER, AND THE ONLY WAY THIS FEATURE CAN LOSE MAIL.
      *
      * The pre-pass is one call, handed the whole batch, and the posting is what [postGatheredFirst]
      * does after it — there is no fetch inside a `forEach` over the new mail. A round trip in that
@@ -61,7 +61,7 @@ class PreviewReachesTheNotificationWiringTest {
     }
 
     /**
-     * ⛔⭐ WHAT ACTUALLY CLOSES THE PERIL, stated as a check rather than as reasoning: between the
+     * WHAT ACTUALLY CLOSES THE PERIL, stated as a check rather than as reasoning: between the
      * moment the gathering returns and the moment the baseline is advanced there is NO SUSPENSION
      * POINT, so nothing can be cancelled in between and leave a batch announced but not remembered.
      *
@@ -95,7 +95,7 @@ class PreviewReachesTheNotificationWiringTest {
     }
 
     /**
-     * ⛔⭐ EVERY ARGUMENT OF THE PRE-PASS, IN ORDER, WHOLE LINES — because the two that matter most
+     * EVERY ARGUMENT OF THE PRE-PASS, IN ORDER, WHOLE LINES — because the two that matter most
      * are POSITIONAL, and a positional argument is invisible to an assertion that searches for a
      * needle it already expects.
      *
@@ -136,7 +136,7 @@ class PreviewReachesTheNotificationWiringTest {
     }
 
     /**
-     * ⭐⛔ ONE BUDGET FOR THE ACCOUNT'S WHOLE PASS, made OUTSIDE the folder loop.
+     * ONE BUDGET FOR THE ACCOUNT'S WHOLE PASS, made OUTSIDE the folder loop.
      *
      * [NewMailNotifier.notifyDiff] is called once per folder, and its `previewBudget` parameter
      * defaults to one of its own — right for a single-folder caller, and four times over budget
@@ -212,7 +212,7 @@ class PreviewReachesTheNotificationWiringTest {
     }
 
     /**
-     * ⛔ Codeberg #84 stands: the poster's user settings still have NO defaults, and this change
+     * Codeberg #84 stands: the poster's user settings still have NO defaults, and this change
      * added no parameter that a caller could forget. The opening rides on the message instead, so
      * there is nothing new to omit.
      */
@@ -264,7 +264,7 @@ class PreviewReachesTheNotificationWiringTest {
     }
 
     /**
-     * ⛔ The conveyance reaches the notifier. Dropped between the refresh and the diff, the pre-pass
+     * The conveyance reaches the notifier. Dropped between the refresh and the diff, the pre-pass
      * would find no source for any message and IMAP would silently never show an opening line —
      * with every test above still green, because each of them is handed its sources by hand.
      */

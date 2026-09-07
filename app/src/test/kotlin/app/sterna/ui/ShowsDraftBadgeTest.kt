@@ -51,7 +51,7 @@ class ShowsDraftBadgeTest {
     // -- the folder path: IMAP, and JMAP after process death -------------------------------------
 
     @Test fun `a row in the Drafts folder shows the chip without the keyword`() {
-        // ⭐ THE CASE THIS BRANCH IS FOR. On IMAP the keyword is never recorded at all; on JMAP it
+        // THE CASE THIS BRANCH IS FOR. On IMAP the keyword is never recorded at all; on JMAP it
         // is lost with the process and a delta sync does not bring it back. The folder role does,
         // from the cache, on the first frame, with no resynchronisation.
         assertTrue(

@@ -183,7 +183,7 @@ class MailBySenderWiringTest {
                 "decide nothing of its own",
             "state.blockNote?.let" in screen,
         )
-        // ⭐ ORDERED, and on the note's OWN call. This assertion used to be two unordered `in`
+        // ORDERED, and on the note's OWN call. This assertion used to be two unordered `in`
         // checks over the whole file, and the mutation that swapped the two argument lines was
         // green: the note then renders "Filters → Settings is where this account's rules are
         // edited", in all nine languages, a path that exists on no screen. Both labels were still
@@ -382,7 +382,7 @@ class MailBySenderWiringTest {
     }
 
     /**
-     * ⛔ The address the write actually goes to, on both sides of the hand-over. TWO mutations of
+     * The address the write actually goes to, on both sides of the hand-over. TWO mutations of
      * an ARGUMENT sent the Sieve rule to `state.rows.first()` — the biggest sender of the list,
      * i.e. the most active correspondent — while the dialog kept showing the address the user
      * picked and the snackbar still said "Rule added". A permanent server-side write, no Undo, on
@@ -524,7 +524,7 @@ class MailBySenderWiringTest {
     }
 
     @Test fun `nothing stands between the folder read and the state the screen draws`() {
-        // ⛔ THE THIRD TIME on this branch that a rule pinning WHICH LINES MUST EXIST let a line
+        // THE THIRD TIME on this branch that a rule pinning WHICH LINES MUST EXIST let a line
         // inserted BETWEEN them decide otherwise. The mutation that walked green through every
         // rule in this file, dropped just above the state assignment:
         //

@@ -69,7 +69,7 @@ class DraftSaveAllowedTest {
     }
 
     @Test fun theCycleNeverWalksIntoTheUnsignedMode() {
-        // ⛔ Three stops, still. ENCRYPT_UNSIGNED is reached ONLY by choosing it in the long-press
+        // Three stops, still. ENCRYPT_UNSIGNED is reached ONLY by choosing it in the long-press
         // menu: a short tap must not put anyone into sending unsigned mail without asking. The
         // three assertions above are the same rule read forwards.
         assertTrue(

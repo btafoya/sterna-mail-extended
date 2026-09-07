@@ -15,7 +15,7 @@ import org.junit.Test
  * never opened, the recorded number is null, and "Undo" after an ordinary delete was refused. The
  * server had said it all along, in the same response as the UIDs.
  *
- * ⛔ Nothing here REFUSES anything: this module states what the server said and decides nothing
+ * Nothing here REFUSES anything: this module states what the server said and decides nothing
  * from it. The refusing is `core/data`'s, and it is tested there.
  */
 class MoveReportsDestinationNumberingTest {
@@ -90,7 +90,7 @@ class MoveReportsDestinationNumberingTest {
     }
 
     /**
-     * ⭐ THE GUARD THAT MUST NOT MOVE: a server reporting no COPYUID at all. The move happened,
+     * THE GUARD THAT MUST NOT MOVE: a server reporting no COPYUID at all. The move happened,
      * the mapping is empty, and the numbering is nothing — which upstairs means the id gets no
      * Undo entry and the Undo of it is lost IN SILENCE, exactly as before. Turning "no COPYUID"
      * into a stated numbering would be inventing a fact; turning it into a loud refusal would be

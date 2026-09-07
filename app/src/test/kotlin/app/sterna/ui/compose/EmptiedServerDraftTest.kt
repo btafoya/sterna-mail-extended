@@ -16,7 +16,7 @@ import org.junit.Test
  * counts neither an inline image nor a calendar part: a draft written elsewhere, made of one inline
  * image, is drawn EMPTY here — the user saves without typing anything and the original goes, silently.
  *
- * ⛔ Nothing here recomputes the rule to choose what it replays: each case hands a fixed verdict in
+ * Nothing here recomputes the rule to choose what it replays: each case hands a fixed verdict in
  * and pins the answer that comes out.
  */
 class EmptiedServerDraftTest {
@@ -72,7 +72,7 @@ class EmptiedServerDraftTest {
     }
 
     @Test fun `a lossy body keeps the copy whatever the addressing says`() {
-        // ⭐ This is what licenses the call site to SKIP the server read when the body is lossy:
+        // This is what licenses the call site to SKIP the server read when the body is lossy:
         // the answer is the same for both values, so the read cannot change the outcome and the
         // `false` handed over in its place ("not proven", because nothing was asked) is safe.
         assertEquals(
@@ -114,7 +114,7 @@ class EmptiedServerDraftTest {
     // -- whose account the expunge is addressed to -----------------------------------------------
 
     /**
-     * ⛔ The draft is emptied under whatever identity the "From" picker is showing, and that picker
+     * The draft is emptied under whatever identity the "From" picker is showing, and that picker
      * covers EVERY account. These four cases EXECUTE the choice; nothing here recomputes it — each
      * hands two fixed account ids and a store that answers for whichever it is asked about, and pins
      * WHAT came back and WHO was asked, because a look-up that never happens is the whole fix.

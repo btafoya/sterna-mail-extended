@@ -25,7 +25,7 @@ import java.io.File
  *    it. The first turns a bound that fired into the offline banner on a phone that is plainly
  *    online, which IS defect #65; the second leaves the spinner the bound exists to stop.
  *
- * ⛔ Every rule compares a WHOLE unit — the whole call opener, the whole arm — never a fragment. A
+ * Every rule compares a WHOLE unit — the whole call opener, the whole arm — never a fragment. A
  * `contains` on a piece is blind to any mutation that LENGTHENS it: `refreshWithin(` contains
  * `refreshWithin`, and `Status(refreshing = false, error = timedOut, …)` contains
  * `refreshing = false`. The price is that a reformat reddens this test; that direction of error is

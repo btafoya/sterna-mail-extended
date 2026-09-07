@@ -12,7 +12,7 @@ import org.junit.Test
  * offset, zero included. `androidx.viewpager.widget.ViewPager` wanted BOTH that speed AND 25 dp of
  * travel; the floor under test here is that lost 25 dp.
  *
- * ⚠ WHICH travel, because the first cut of this fix got it wrong and the bench pass caught it: the
+ * WHICH travel, because the first cut of this fix got it wrong and the bench pass caught it: the
  * pager's own `currentPageOffsetFraction × pageSize` is what the pager has SCROLLED, i.e. the
  * finger's travel minus the touch slop and minus whatever the body WebView's interop handle held
  * back — 15 to 25 dp short on a 360 dp bench, where a deliberate 40 dp flick then changed nothing,
@@ -23,7 +23,7 @@ import org.junit.Test
  * expected value below is a LITERAL: a test that re-derives the floor is a copy of the rule, not a
  * check on it.
  *
- * ⚠ What this file proves stops at the two pure functions. Whether the machine is FED the right
+ * What this file proves stops at the two pure functions. Whether the machine is FED the right
  * event, the right coordinate and the right booleans, whether the guard is handed the travel and
  * not some other Float, and whether the holder survives a recomposition, are all invisible here and
  * held only by the source lint of [PagerFlingWiringTest].

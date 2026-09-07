@@ -11,7 +11,7 @@ import org.junit.Test
 class NotArmedRowTest {
 
     /**
-     * ⛔ The sentinel is STORED, in every user's database, from the first version that ships it. It
+     * The sentinel is STORED, in every user's database, from the first version that ships it. It
      * is pinned as a literal so that changing the constant is seen for what it is: every row
      * already parked with the old token would stop being translated and print it raw on screen, in
      * nine languages, under a message that is merely waiting.
@@ -21,7 +21,7 @@ class NotArmedRowTest {
     }
 
     /**
-     * ⛔ And it is its own token. Reusing [OutboxLogic.EDIT_INTERRUPTED] would make an unarmed row
+     * And it is its own token. Reusing [OutboxLogic.EDIT_INTERRUPTED] would make an unarmed row
      * say "editing was interrupted, not sent" — a claim about a composer that was never opened.
      */
     @Test fun `the two sentinels are distinct tokens`() {
@@ -29,7 +29,7 @@ class NotArmedRowTest {
     }
 
     /**
-     * ⛔ And the HISTORIC opening, pinned by hand for the same reason and not one derived from it:
+     * And the HISTORIC opening, pinned by hand for the same reason and not one derived from it:
      * 1.5.2 and 1.5.3 wrote `unarmedNote`'s whole English sentence onto the row, those rows are in
      * users' databases now, and nothing rewrites them. This constant is how the screen recognises
      * them. Reworded — even slightly — the decoding stops matching and those rows go back to

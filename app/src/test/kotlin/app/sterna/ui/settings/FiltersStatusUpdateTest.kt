@@ -148,7 +148,7 @@ class FiltersStatusUpdateTest {
     }
 
     /**
-     * ⛔ E2. The same read carries WHICH of the two refusals it is, all the way to the screen.
+     * E2. The same read carries WHICH of the two refusals it is, all the way to the screen.
      * Folded into `foreignActive` alone — as it was — the screen can only draw a sentence about
      * somebody else's script or about the auto-reply, and the one thing Save is about to do here
      * (replace content nobody could read) is the one thing nothing says.

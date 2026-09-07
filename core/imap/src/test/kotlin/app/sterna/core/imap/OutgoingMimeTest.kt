@@ -370,7 +370,7 @@ class OutgoingMimeTest {
 
     @Test
     fun aPgpMimeMessageStillCarriesTheReceiptHeader() {
-        // ⭐ The path a partial fix leaves mute. A signed or encrypted JMAP send does NOT go through
+        // The path a partial fix leaves mute. A signed or encrypted JMAP send does NOT go through
         // Email/set: MailRepository builds these very bytes and imports them. The pre-built entity
         // replaces the BODY, so the receipt has to be written above it — if it were emitted inside
         // the body branch, every signed and every encrypted message would go out asking nothing.
@@ -392,7 +392,7 @@ class OutgoingMimeTest {
     }
 
     /**
-     * ⭐ The seam is not a PGP seam. An entity carrying no PGP anywhere — RFC 8098's
+     * The seam is not a PGP seam. An entity carrying no PGP anywhere — RFC 8098's
      * `multipart/report` receipt — replaces the body just as a signed one does, and reaches the
      * wire character for character.
      *
@@ -456,9 +456,9 @@ class OutgoingMimeTest {
     // those bytes are the signed bytes, so a conforming relay straightening the line makes the
     // recipient read "invalid signature".
     //
-    // The witness reads what `buildBodyEntity` PRODUCES. ⛔ Never `FakeSmtpServer.delivered`: that
+    // The witness reads what `buildBodyEntity` PRODUCES. Never `FakeSmtpServer.delivered`: that
     // server re-reads DATA with `readLine()` and rejoins on "\r\n"
-    // (FakeSmtpServer.kt:164-179), which silently heals the defect — an assertion there is green
+    // (FakeSmtpServer-179), which silently heals the defect — an assertion there is green
     // on the broken code.
 
     /** 193 bytes of plain ASCII: well past the 57-byte input that fills one 76-column line. */
@@ -479,7 +479,7 @@ class OutgoingMimeTest {
     /**
      * What every MIME base64 payload must look like, whatever part it came from.
      *
-     * ⚠ The column is pinned EXACTLY, the way `ReadReceiptMailTest` pins it for the other encoder:
+     * The column is pinned EXACTLY, the way `ReadReceiptMailTest` pins it for the other encoder:
      * `<= 76` would let `getMimeEncoder(60, …)` through, and the two encoders of this repo are
      * meant to be the same encoder written twice.
      */
@@ -529,7 +529,7 @@ class OutgoingMimeTest {
     @Test
     fun aWrappedInlineImageUsesCrlfWithNoBareCr() {
         // The fourth call site, appendRelatedParts: an inline image inside a multipart/related.
-        // ⚠ The `image` fixture above is 3 bytes — `AQID`, never wrapped — so it cannot see this
+        // The `image` fixture above is 3 bytes — `AQID`, never wrapped — so it cannot see this
         // defect at all. Any message with a logo in it carries kilobytes here.
         val pixels = ByteArray(3000) { (it % 251).toByte() }
         val entity = OutgoingMime.buildBodyEntity(

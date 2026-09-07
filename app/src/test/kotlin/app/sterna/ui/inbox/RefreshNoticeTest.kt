@@ -12,7 +12,7 @@ class RefreshNoticeTest {
     }
 
     @Test fun aFailedRefreshOnAConnectedDeviceIsNotAnOutage() {
-        // ⛔ The lie this exists to stop. The server refused the request; the phone is on Wi-Fi
+        // The lie this exists to stop. The server refused the request; the phone is on Wi-Fi
         // and reaching it fine. Saying "You're offline" blames the network for the app's problem
         // and leaves the reader retrying for ever.
         assertEquals(

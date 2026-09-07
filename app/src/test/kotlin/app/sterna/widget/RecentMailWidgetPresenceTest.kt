@@ -7,7 +7,7 @@ import org.junit.Test
 /**
  * The two widgets' presence gates, RUN side by side — the half of them that needs no Android.
  *
- * ⛔ WHY THIS FILE EXISTS. `UnreadWidgetPresence` is a process-global boolean, seeded from the ids
+ * WHY THIS FILE EXISTS. `UnreadWidgetPresence` is a process-global boolean, seeded from the ids
  * of `UnreadWidgetProvider` alone, and `UnreadWidgetPush` gates its whole collection on it. Pointing
  * the latest-messages provider's `onEnabled`/`onDisabled` at it — the shortest way to write this
  * pane, and the one that compiles — breaks the OTHER widget: remove the last latest-messages cell
@@ -35,7 +35,7 @@ class RecentMailWidgetPresenceTest {
     }
 
     /**
-     * ⛔ The one that matters: the last latest-messages cell going must leave the COUNTER's gate
+     * The one that matters: the last latest-messages cell going must leave the COUNTER's gate
      * exactly as it was. A counter cell is still on the home screen.
      */
     @Test fun `removing the last latest-messages cell leaves the counter's gate open`() {

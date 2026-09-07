@@ -17,7 +17,7 @@ import java.io.File
  * written, the row kept a body nobody composed, and the message went out as a shell. No error, no
  * log, nothing on screen.
  *
- * ⛔ The fix is NOT to pass a lying `PgpMode.SIGN`: an outbox row that calls itself signed lies to
+ * The fix is NOT to pass a lying `PgpMode.SIGN`: an outbox row that calls itself signed lies to
  * `OutboxLogic.canEdit` and to the failure message as well. The condition is relaxed instead, and
  * both halves of it are pinned here by EXECUTION — [outboxPayload] and [prebuiltEntityAt] are pure,
  * so what the call site can only be read for, they answer for real.
@@ -29,7 +29,7 @@ class PrebuiltEntityTest {
     // ---- what queueing writes -----------------------------------------------------------------
 
     /**
-     * ⭐ THE DECOUPLING. An entity with NO PGP mode at all is stored, exactly as one with a mode is.
+     * THE DECOUPLING. An entity with NO PGP mode at all is stored, exactly as one with a mode is.
      *
      * Before this, the same call answered "write nothing" and the receipt left as an empty shell.
      */
@@ -45,7 +45,7 @@ class PrebuiltEntityTest {
         )
     }
 
-    /** ⛔ And what the relaxation must not break: the two PGP shapes are unchanged. */
+    /** And what the relaxation must not break: the two PGP shapes are unchanged. */
     @Test fun `the pgp paths keep the behaviour they had`() {
         assertEquals(
             "a signed message keeps its body in the row: it is public, and the Outbox shows it",
@@ -60,7 +60,7 @@ class PrebuiltEntityTest {
     }
 
     /**
-     * ⛔ The mode that encrypts WITHOUT signing blanks the row exactly like the signed one. The
+     * The mode that encrypts WITHOUT signing blanks the row exactly like the signed one. The
      * ciphertext is in the entity file either way; leaving the row's textBody filled would keep the
      * message in the clear at rest, on the phone, for the whole of its life in the outbox — and the
      * Outbox screen would show it.
@@ -77,7 +77,7 @@ class PrebuiltEntityTest {
     }
 
     /**
-     * ⛔ Blanking the row still needs BOTH the mode and the entity. A row marked ENCRYPT whose
+     * Blanking the row still needs BOTH the mode and the entity. A row marked ENCRYPT whose
      * entity never arrived would otherwise be emptied of the only copy of its text — the ciphertext
      * is not there to replace it, so the message would simply be gone.
      */
@@ -105,7 +105,7 @@ class PrebuiltEntityTest {
     }
 
     /**
-     * ⛔ An unreadable file FAILS the delivery. It must never fall back to the row's own body: that
+     * An unreadable file FAILS the delivery. It must never fall back to the row's own body: that
      * body is either blank (ciphertext) or the human-readable half of the payload (a receipt), and
      * sending it would deliver a mail nobody wrote and mark the item done. Failing keeps the row in
      * the Outbox with its error, where a person can see it.
@@ -177,7 +177,7 @@ class PrebuiltEntityTest {
      * a literal `false` for the third argument compiles, keeps `OutboxLogicTest` green, and puts
      * Edit back on a receipt — reopening it as its human half alone and sending that instead.
      *
-     * ⚠ The screen is pinned as well as the repository, and they answer different failures. The
+     * The screen is pinned as well as the repository, and they answer different failures. The
      * repository is the choke point (`takeOutboxForEdit` is where the row flips to EDITING, and it
      * refuses); the screen only draws the button — so a wrong argument THERE leaves a Modifier
      * button that does nothing when tapped, which is the dead action #70 set out to remove.

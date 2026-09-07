@@ -91,7 +91,7 @@ class FolderFilterTest {
     }
 
     /**
-     * ⚠ What this pins is that the rows come out CARRYING their folder and their painted path —
+     * What this pins is that the rows come out CARRYING their folder and their painted path —
      * not that the screen then taps the right one. Addressing a row by rank is a mutation of the
      * two `clickable` blocks, which no JVM test in this module can run: [MoveFilterWiringLintTest]
      * is what stands there, and this test does not stand in for it.

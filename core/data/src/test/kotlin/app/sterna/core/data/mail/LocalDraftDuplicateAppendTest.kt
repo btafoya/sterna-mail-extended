@@ -13,7 +13,7 @@ import org.junit.Test
 import java.io.IOException
 
 /**
- * ⭐ **One text, one copy on the server** (#95), executed: the shipped
+ * **One text, one copy on the server** (#95), executed: the shipped
  * [appendDraftUnlessAlreadyThere] and [localDraftMayAlreadyBeOnServer] driven with a search and an
  * append that record what they were CALLED WITH.
  *
@@ -22,7 +22,7 @@ import java.io.IOException
  * worker appends the same text again, and again at every retry. Nothing on the phone can see the
  * copies, because IMAP `APPEND` hands back no id.
  *
- * ⛔ No test here recomputes the rule to choose what to replay: every row below states its own
+ * No test here recomputes the rule to choose what to replay: every row below states its own
  * `attemptCount` and every expectation is written out. Invert the shipped condition and these turn
  * red rather than following it.
  */
@@ -46,7 +46,7 @@ class LocalDraftDuplicateAppendTest {
     }
 
     @Test fun `a draft with no name at all is not something the server can be asked about`() {
-        // ⛔ The abstention is only ever safe because a NAME is being compared. A row with none has
+        // The abstention is only ever safe because a NAME is being compared. A row with none has
         // nothing that could match, and asking anyway would spend a round trip on a folder read
         // whose every answer means "not there". Unreachable today (the column is NOT NULL and every
         // save mints a name); it stays because the failure it would cause is the losing one — an
@@ -70,7 +70,7 @@ class LocalDraftDuplicateAppendTest {
     }
 
     @Test fun `an id that merely CONTAINS ours is a different draft`() {
-        // ⛔ THE mutation this exists for. A substring test would call all four of these a match,
+        // THE mutation this exists for. A substring test would call all four of these a match,
         // and a false "already there" is not a cosmetic error: the append is skipped, the row is
         // consumed by `uploadLocalDraftOnce`, and the text exists nowhere afterwards. A duplicate
         // in Drafts is visible and deletable; this is not.
@@ -127,7 +127,7 @@ class LocalDraftDuplicateAppendTest {
         val wentOut = runBlocking {
             appendDraftUnlessAlreadyThere(row(attemptCount = 1, messageId = "abc-123@masto.top"), ::alreadyThere, ::append)
         }
-        // ⛔ The ARGUMENT, not merely that a call happened: the id has to be the row's frozen one
+        // The ARGUMENT, not merely that a call happened: the id has to be the row's frozen one
         // and it goes NAKED, as the row stores it. The brackets the header is written with are
         // dealt with where the two ids are compared (`localDraftMessageIdMatches`), not here.
         assertEquals(listOf("abc-123@masto.top"), asked)
@@ -146,7 +146,7 @@ class LocalDraftDuplicateAppendTest {
     }
 
     @Test fun `a search that fails appends rather than abstaining`() {
-        // ⛔ THE rule, and it is about loss, not about tidiness. The caller consumes the row the
+        // THE rule, and it is about loss, not about tidiness. The caller consumes the row the
         // moment the upload returns: reading "I could not look" as "it is there" deletes the text
         // and leaves it nowhere. A duplicate is visible and deletable; an absence is not.
         val wentOut = runBlocking {
@@ -161,7 +161,7 @@ class LocalDraftDuplicateAppendTest {
     }
 
     @Test fun `a lookup the server REFUSES appends, and that failure is an ImapException`() {
-        // ⛔ The type is the whole test. `ImapException` is what a refused `UID SEARCH` throws
+        // The type is the whole test. `ImapException` is what a refused `UID SEARCH` throws
         // (`core/imap/ImapClient.kt`: `class ImapException(…) : Exception(message)`) — it is NOT an
         // `IOException`, so narrowing the catch to that one, which detekt's
         // `TooGenericExceptionCaught` invites and which the suppression above it exists to hold

@@ -31,7 +31,7 @@ class ReadReceiptHeaderTest {
     }
 
     /**
-     * ⭐ The refusal that matters. A header that is there but yields no destination must answer
+     * The refusal that matters. A header that is there but yields no destination must answer
      * the same empty list as an absent one — not a placeholder, not the raw text, and above all
      * not an exception: the caller is specified to read the empty list as "no banner".
      */
@@ -45,7 +45,7 @@ class ReadReceiptHeaderTest {
     }
 
     /**
-     * ⛔ An angle bracket that never closes. The `<…>` form does not match, and the fallback then
+     * An angle bracket that never closes. The `<…>` form does not match, and the fallback then
      * finds a word carrying an `@` — with the bracket still stuck to it. `<ann@example.org` is not
      * an address: nothing may come back holding a delimiter.
      */
@@ -55,7 +55,7 @@ class ReadReceiptHeaderTest {
     }
 
     /**
-     * ⛔ And the one that FABRICATES a destination: an address written inside a quoted display
+     * And the one that FABRICATES a destination: an address written inside a quoted display
      * name, in the `<…>` form. The quoted name has to be removed BEFORE the brackets are looked
      * for, or whoever wrote the display name chooses where the receipt goes.
      */
@@ -120,7 +120,7 @@ class ReadReceiptHeaderTest {
     /**
      * A comma INSIDE a quoted display name is not a separator — the classic split(',') defect.
      *
-     * ⭐ The second case is the one that can tell the two apart, and the first alone could not:
+     * The second case is the one that can tell the two apart, and the first alone could not:
      * split naively, `"Lee, Ann" <…>` still ends up naming the right address, because the piece
      * torn off the front (`"Lee`) happens to hold no `@`. Put an address-shaped word inside the
      * quotes and the naive split hands back a destination the sender never named — which for this

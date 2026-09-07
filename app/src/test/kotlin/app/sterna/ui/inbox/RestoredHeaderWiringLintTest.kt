@@ -36,7 +36,7 @@ import java.io.File
  *    `unreadView = selection.value is Sel.Unread` titles a restored unread view with the Inbox's
  *    raw name. #155 (f9e6da37) corrected `atInbox` in the combine and left this copy untouched.
  *
- * ⛔ Every rule compares WHOLE units — whole arguments, whole statements, in source order — never a
+ * Every rule compares WHOLE units — whole arguments, whole statements, in source order — never a
  * fragment. A `contains` on a piece is blind to any mutation that LENGTHENS it, which has bitten
  * this repo three times. The price is that a reformat reddens this file; that direction of error is
  * loud and one line to fix.
@@ -167,7 +167,7 @@ class RestoredHeaderWiringLintTest {
     /**
      * The lines of `initialValue = MailUi(…)`, trimmed, blanks dropped, in source order.
      *
-     * ⛔ Deliberately NOT the `combine` above it: that slice is `UnreadRowFolderWiringLintTest`'s,
+     * Deliberately NOT the `combine` above it: that slice is `UnreadRowFolderWiringLintTest`'s,
      * and it says in so many words that this block is outside it.
      */
     private fun initialValueLines(): List<String> {

@@ -12,7 +12,7 @@ import org.junit.Test
  *
  * `MailRepository.saveDraft` sends the Cc and Bcc to the server, then optimistically caches the
  * saved draft so the Drafts list shows it at once (#63). That cache write is an `@Upsert`
- * (`EmailDao.kt:237`) which replaces the row WHOLE: a row built without the copies writes
+ * (`EmailDao`) which replaces the row WHOLE: a row built without the copies writes
  * `ccJson = NULL` over whatever the sync had stored. Reopening the draft then loses the copies —
  * and the composer's Cc row is folded shut, so nothing says a recipient went missing.
  *
@@ -77,7 +77,7 @@ class SavedDraftRowCopiesTest {
     }
 
     /**
-     * ⭐ MORE THAN ONE PERSON IN COPY, and all of them stored, in the order they were typed.
+     * MORE THAN ONE PERSON IN COPY, and all of them stored, in the order they were typed.
      * Every other fixture here holds a single address, and a one-element list is a fixed point of
      * `take(1)`, `first()`, `lastOrNull()` — a row builder that keeps one copied party out of
      * three passes the rest of this class. The order is asserted too: it is the order the reply-all
@@ -115,7 +115,7 @@ class SavedDraftRowCopiesTest {
     // --- the two argument hops, pinned against the shipped source ------------------------------------
 
     /**
-     * ⚠ SOURCE LINT. The executed tests above prove the mapping; they cannot prove the caller hands
+     * SOURCE LINT. The executed tests above prove the mapping; they cannot prove the caller hands
      * it the composer's copies. `cacheSavedDraft(… cc = emptyList(), …)` restores the whole defect
      * and leaves every executed test green.
      *
@@ -123,7 +123,7 @@ class SavedDraftRowCopiesTest {
      * after it would ADD one — a fragment match is blind to that.
      */
     @Test fun `the upload hands the trimmed copies to the cache write`() {
-        // ⚠ Moved by #95: the two protocol branches live in `uploadDraft`, which `saveDraft` runs
+        // Moved by #95: the two protocol branches live in `uploadDraft`, which `saveDraft` runs
         // only after the draft is durable on the phone. The copies now come off the row.
         val body = DaoQuerySource.mailFunctionBody("MailRepository", "uploadDraft")
             .lines().map { it.trim() }.filter { it.isNotEmpty() }
@@ -166,7 +166,7 @@ class SavedDraftRowCopiesTest {
     /**
      * The second hop: what `cacheSavedDraft` forwards to the row builder it upserts.
      *
-     * ⛔ Whole lines, like the lint above and for the same reason. Four `in`/`any` membership
+     * Whole lines, like the lint above and for the same reason. Four `in`/`any` membership
      * checks are blind to everything ADDED around them: `savedDraftRow(…).copy(ccJson = null,
      * bccJson = null)` still contains `cc = cc,` and `bcc = bcc,` and `emailDao.upsertAll(`, so it
      * passes all four while the cached draft blanks its own copies — the original defect, reopened

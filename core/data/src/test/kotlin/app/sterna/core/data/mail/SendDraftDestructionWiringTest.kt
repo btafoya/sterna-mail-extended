@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ THIS TEST READS SOURCE TEXT — the last resort, in exactly [DraftAddressingWiringTest]'s form
+ * THIS TEST READS SOURCE TEXT — the last resort, in exactly [DraftAddressingWiringTest]'s form
  * and for its reason: `MailRepository.enqueueSend` needs Room and a socket, so no JVM test can run
  * the wiring below. The DECISION it plugs in is executed by [SendReplacesDraftTest] (and its rule
  * by [DraftSaveTest]); this pins only WHERE it is plugged in, whole lines — `contains` is blind to

@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST. `MailRepository` needs Room, an Android `Context` and a live
+ * SOURCE LINT, NOT A BEHAVIOUR TEST. `MailRepository` needs Room, an Android `Context` and a live
  * JMAP session, so it cannot be built in a JVM test. What the account scope DOES is executed
  * against real SQLite by [LocalSearchFolderFilterSqlTest]; what is read here is the PLUG, because
  * a scope the caller never fills is a scope that does nothing.

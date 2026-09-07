@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT. `WorkManager` needs a `Context` and this module has neither Robolectric nor
+ * SOURCE LINT. `WorkManager` needs a `Context` and this module has neither Robolectric nor
  * instrumented tests, so `Outbox.enqueue` cannot be executed by anything we own — the policy it
  * hands WorkManager is only ever readable as text. The twin of this file for the draft path is
  * `LocalDraftRearmWiringTest`, and the shape is deliberately the same.
@@ -46,7 +46,7 @@ class OutboxRearmWiringTest {
                 "context: Context,",
                 "id: Long,",
                 "initialDelayMillis: Long = 0,",
-                // ⛔ THE DEFAULT IS THE RULE. Only the startup re-arm may keep; every other caller
+                // THE DEFAULT IS THE RULE. Only the startup re-arm may keep; every other caller
                 // carries the newest instant there is and must replace.
                 "keepExisting: Boolean = false,",
                 ") {",
@@ -64,7 +64,7 @@ class OutboxRearmWiringTest {
     }
 
     @Test fun `the startup re-arm books behind what is already there, never over it`() {
-        // ⛔ THE WHOLE BLOCK, not the enqueue line alone: `keepExisting = true` is an ARGUMENT, and
+        // THE WHOLE BLOCK, not the enqueue line alone: `keepExisting = true` is an ARGUMENT, and
         // dropping it is the cheapest mutation of this volet — it compiles, it reads fine, and it
         // restores the defect in full.
         val lines = linesOf(APPLICATION)
@@ -77,13 +77,13 @@ class OutboxRearmWiringTest {
                 "interrupted, at every cold start — and the exponential backoff of an offline send " +
                 "restarts from zero each time the app is opened:",
             listOf(
-                // ⛔ ASSIGNED, not anonymous: `AppContainer.outboxRecovery` is the Job a composer
+                // ASSIGNED, not anonymous: `AppContainer.outboxRecovery` is the Job a composer
                 // rebuilt after a process death joins before taking its row back by the id its
                 // route carries (`resumeOutboxRow`). An anonymous launch here leaves nothing to
                 // join, and the composer's take races the park below — the row it just took
                 // EDITING is parked FAILED under the open composer.
                 "outboxRecovery = appScope.launch {",
-                // ⛔ PARKED, not reverted: a row left EDITING by a process death is parked FAILED
+                // PARKED, not reverted: a row left EDITING by a process death is parked FAILED
                 // with the interrupted-edit reason, and unfinished() below does not return FAILED,
                 // so the re-arm never books it. Requeued instead, it leaves on its own at 0 and the
                 // composer restored afterwards can send the same message twice.
@@ -99,7 +99,7 @@ class OutboxRearmWiringTest {
     }
 
     @Test fun `no other call site keeps what is already booked`() {
-        // ⛔ This is the trap of the volet, and it is why the default stays REPLACE. `keepExisting`
+        // This is the trap of the volet, and it is why the default stays REPLACE. `keepExisting`
         // spreading to the other two call sites is silent and total:
         //  - the worker re-books ITSELF for a HELD row (undo window, scheduled send) while it is
         //    running, i.e. while the unique work is RUNNING. A KEEP there sees that RUNNING work
@@ -109,7 +109,7 @@ class OutboxRearmWiringTest {
         //    Retry carries the newest instant there is; kept out, it does nothing at all and the
         //    button looks broken.
         //
-        // ⭐ TWO lines now, not one: the scheduled-send queue got the same startup re-arm, for the
+        // TWO lines now, not one: the scheduled-send queue got the same startup re-arm, for the
         // same reason and with the same `keepExisting = true` (a REPLACE there cancels a
         // ScheduledSendWorker between its outbox deposit and its row deletion, and the message
         // goes out twice — pinned by `ScheduledSendRearmWiringTest`). What this inventory closes

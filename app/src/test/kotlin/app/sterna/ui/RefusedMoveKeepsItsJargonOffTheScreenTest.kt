@@ -20,13 +20,13 @@ import org.junit.Test
  * archive — and both single-message sites used to put an exception's own text on screen verbatim,
  * in all nine languages.
  *
- * ⭐ And since `07d2abd7` — same branch — a `UID MOVE` the server answers `NO` to is no longer
+ * And since `07d2abd7` — same branch — a `UID MOVE` the server answers `NO` to is no longer
  * swallowed by a destructive copy: it comes up carrying the echoed command, so the reader was
  * replaced by "Could not load message: UID MOVE 1234 \"Junk\" failed: NO [OVERQUOTA] …" over a
  * message that had loaded perfectly well. The reader therefore reports EVERY failure of these
  * gestures transiently now; only the numbering refusal changes words.
  *
- * ⛔ THE LIST IS NOT HERE ANY MORE, AND THAT IS THE ARBITRATION. `main` closed the same leak at the
+ * THE LIST IS NOT HERE ANY MORE, AND THAT IS THE ARBITRATION. `main` closed the same leak at the
  * swipe site from the other end (`afbfcef7`): its arm returns a resource for EVERY failure through
  * `actionFailureMessage`, so no exception text reaches the snackbar at all — a stricter rule than
  * the one this branch wrote, reached separately for the offline swipe, and one that pins the whole
@@ -64,7 +64,7 @@ class RefusedMoveKeepsItsJargonOffTheScreenTest {
     @Test fun `every other failure keeps the text it already showed`() {
         // The witness without which "report everything as status_action_failed" would pass: a
         // dead network is what a bug report is made of, and it is not touched — on either surface.
-        // ⚠ The reader now shows this transiently instead of replacing the message with it. The
+        // The reader now shows this transiently instead of replacing the message with it. The
         // WORDS are what this witness holds; the surface moved on purpose, and only there.
         val offline = IOException("""Unable to resolve host "imap.example.test"""")
         assertEquals("""Unable to resolve host "imap.example.test"""", readerActionFailureText(offline, ::named))
@@ -80,14 +80,14 @@ class RefusedMoveKeepsItsJargonOffTheScreenTest {
     }
 
     @Test fun `a failure carrying no text keeps the fallback it already had`() {
-        // ⛔ Naming the class is what THIS site always did, and it is kept for that reason alone —
+        // Naming the class is what THIS site always did, and it is kept for that reason alone —
         // not to mirror the list, whose own answer is a resource for every failure and never a
         // fallback at all (`actionFailureMessage`). The two are no longer a pair.
         assertEquals("IOException", readerActionFailureText(IOException(), ::named))
     }
 
     @Test fun `a renumbered folder is another refusal and is not caught at the pass`() {
-        // ⛔ ImapUidValidityChanged means "the folder WAS renumbered", carries another message and
+        // ImapUidValidityChanged means "the folder WAS renumbered", carries another message and
         // another consequence. Catching it here too would be a second fix nobody asked for.
         val renumbered = ImapUidValidityChanged("INBOX", expected = 42L, observed = 43L)
         assertEquals("UIDVALIDITY of INBOX changed from 42 to 43", readerActionFailureText(renumbered, ::named))
@@ -99,7 +99,7 @@ class RefusedMoveKeepsItsJargonOffTheScreenTest {
      * SOURCE RULE — the reader's site, where the leak was worse: `MessageState.Error` REPLACES the
      * open message with "Could not load message: <text>", over a message that had loaded fine.
      *
-     * ⛔ THE STRONGEST OF THE FOUR IS THE EMPTY ONE: `act` must not touch `_state` at all. That is
+     * THE STRONGEST OF THE FOUR IS THE EMPTY ONE: `act` must not touch `_state` at all. That is
      * what makes the screen safe for failures nobody has thought of yet — an `[OVERQUOTA]`, an
      * expired password — instead of only for the one type this branch introduced.
      */
@@ -157,7 +157,7 @@ class RefusedMoveKeepsItsJargonOffTheScreenTest {
      * reported nowhere at all, which is worse than the jargon: the gesture would look like it
      * worked.
      *
-     * ⭐ THE PLACE IS HALF THE RULE, and pinning the lines does not pin it. Moved verbatim inside
+     * THE PLACE IS HALF THE RULE, and pinning the lines does not pin it. Moved verbatim inside
      * the reader's `DropdownMenu`, these same six lines pass a rule that only compares text: the
      * menu closes on the tap that fails, the effect is disposed with it, and nothing is ever
      * toasted. So the lines are compared WITH THEIR INDENTATION — four spaces is the composable's

@@ -66,7 +66,7 @@ class RecipientMenuFitTest {
     }
 
     /**
-     * ⭐ Mutation M1, the one that puts #143 straight back: hand `heightIn` the flat 256.dp again.
+     * Mutation M1, the one that puts #143 straight back: hand `heightIn` the flat 256.dp again.
      * The pure function stays green beside it, still computing a cap nobody uses.
      *
      * The whole argument is compared, never searched: `max = menuMaxHeight` is a prefix of
@@ -93,7 +93,7 @@ class RecipientMenuFitTest {
     }
 
     /**
-     * ⭐ Mutation A: the field measures itself, and this is the block where a wrong number is born
+     * Mutation A: the field measures itself, and this is the block where a wrong number is born
      * without any test noticing. Dropping `+ it.size.height` overstates the room by the height of
      * the field; `size.height` → `size.width` reads a number that has nothing to do with the
      * question. Both compile, both keep every other rule green, both bring #143 back.
@@ -119,7 +119,7 @@ class RecipientMenuFitTest {
     }
 
     /**
-     * ⭐ Mutation B, half of it: the keyboard is read, once, before the popup — and halved. This
+     * Mutation B, half of it: the keyboard is read, once, before the popup — and halved. This
      * rule compares the WHOLE binding line, so `… / 2`, `… - 100` or `….coerceAtMost(200)` are all
      * refused; the count and the ordering rules that follow are kept because they answer different
      * questions (a second read somewhere, and a read inside the popup's own window).
@@ -145,7 +145,7 @@ class RecipientMenuFitTest {
     }
 
     /**
-     * ⭐ Mutation A and B together, at the seam neither the pure function nor the lines above can
+     * Mutation A and B together, at the seam neither the pure function nor the lines above can
      * see: WHICH measurement reaches WHICH parameter. `window − field − ime` is symmetric in the
      * last two, so swapping them is invisible to `SuggestionMenuFitTest` — it is caught here, and
      * only here, by tying every named argument to the identifier that holds that measurement.
@@ -176,7 +176,7 @@ class RecipientMenuFitTest {
     }
 
     /**
-     * ⭐ Mutation M4, the one that is invisible in a diff review: drop the keys.
+     * Mutation M4, the one that is invisible in a diff review: drop the keys.
      *
      * `remember { … }` with no key holds its first value for the life of the composition. The
      * keyboard's height is not this composable's state — it changes while nothing here changes —
@@ -184,7 +184,7 @@ class RecipientMenuFitTest {
      * instant the keyboard slides in. Every other rule in this file, and the whole behaviour test,
      * stay green through that.
      *
-     * ⛔ THIS RULE FAILS CLOSED, and that is the point. Its first version filtered the arguments
+     * THIS RULE FAILS CLOSED, and that is the point. Its first version filtered the arguments
      * down to bare identifiers before comparing them to the keys: replacing one argument with an
      * expression (`imeHeightPx = imeBottomPx.coerceAtMost(0)`) left NOTHING to compare, and the
      * rule reported success over an empty list. An argument this rule cannot follow to a key is a
@@ -215,7 +215,7 @@ class RecipientMenuFitTest {
     }
 
     /**
-     * ⭐ Mutation C: the menu scrolls, and under a computed cap that is no longer a comfort.
+     * Mutation C: the menu scrolls, and under a computed cap that is no longer a comfort.
      *
      * Six suggestions are about 341 dp of rows; a cap of 96 dp shows one and a half of them. The
      * scroll is what makes a short menu lose nothing, and it is what the comment beside the cap
@@ -246,7 +246,7 @@ class RecipientMenuFitTest {
     }
 
     /**
-     * ⭐ The line this whole fix rests on, and it is not in `ComposeScreen.kt`.
+     * The line this whole fix rests on, and it is not in `ComposeScreen.kt`.
      *
      * `WindowInsets.ime` only reports a height when the activity is told to react to the keyboard.
      * On API 30+ `enableEdgeToEdge()` plus the framework's inset animation carry it; on API 26-29 —
@@ -254,7 +254,7 @@ class RecipientMenuFitTest {
      * makes the IME inset exist at all. Dropping it is a one-word edit in a file nobody reading
      * `ComposeScreen.kt` would open, and it turns the cap into "the keyboard is never up".
      *
-     * ⚠ What is NOT settled here: whether that same `adjustResize` also SHRINKS the compose root
+     * What is NOT settled here: whether that same `adjustResize` also SHRINKS the compose root
      * on those API levels, in which case the keyboard is subtracted twice and no menu is shown at
      * all on the reporter's phone. The bench (Moto G, API 28) answers that; this rule only makes
      * sure the line does not vanish silently in the meantime.

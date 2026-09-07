@@ -19,7 +19,7 @@ import org.junit.Test
  * [WidgetMonogram] into functions with no Android type: what the home screen shows depends on those
  * two and on nothing else the JVM refuses to load.
  *
- * ⛔ Nothing below re-derives a tint. The expected colours come from [monogramColor] and
+ * Nothing below re-derives a tint. The expected colours come from [monogramColor] and
  * [onAccentColor] — the app's own functions, the ones the message list draws with — because the
  * claim being held is exactly "the widget paints the badge the list would have painted".
  */
@@ -44,7 +44,7 @@ class WidgetMonogramRulesTest {
     }
 
     /**
-     * ⛔ THE WIDGET DOES NOT OWN A TINT RULE. Every one of the palette's eighteen badges must come
+     * THE WIDGET DOES NOT OWN A TINT RULE. Every one of the palette's eighteen badges must come
      * out of the widget the colour [monogramColor] gives it, or the home screen and the list it
      * opens draw the same correspondent in two different colours — the one thing the badge exists
      * to make recognisable.
@@ -73,7 +73,7 @@ class WidgetMonogramRulesTest {
     }
 
     /**
-     * ⛔ BLACK OR WHITE BY LUMINANCE, never a hard-coded white. The badge is drawn on the palest end
+     * BLACK OR WHITE BY LUMINANCE, never a hard-coded white. The badge is drawn on the palest end
      * of a light scheme's ramp; white on that is around 1.4:1, an initial that is technically
      * present and practically invisible, on the one surface nobody can debug.
      */
@@ -110,7 +110,7 @@ class WidgetMonogramRulesTest {
     }
 
     /**
-     * ⭐ THE KEY CARRIES THE RESOLVED COLOUR, and this is the rule the whole cache turns on.
+     * THE KEY CARRIES THE RESOLVED COLOUR, and this is the rule the whole cache turns on.
      *
      * A key built on the slot looks identical in every test that only ever uses one palette: the
      * slot IS stable, that is its job. What it cannot see is a theme change — same slot, new

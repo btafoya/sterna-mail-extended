@@ -140,7 +140,7 @@ class SenderRuleFromReaderTest {
     }
 
     @Test fun `another Sieve script greys the entry instead of hiding it`() {
-        // ⭐ The one place this location beats the list row: the reason can be SAID. On the
+        // The one place this location beats the list row: the reason can be SAID. On the
         // per-sender screen the entry disappears with no word anywhere; here it stays, disabled,
         // wearing the reason.
         val entry = entry(
@@ -349,7 +349,7 @@ class SenderRuleFromReaderTest {
                 "labels rather than an English path typed into nine translations",
             "R.string.sender_volume_block_body," in screen,
         )
-        // ⭐ ORDERED. The three ids used to be checked with three unordered `in`: swapping the two
+        // ORDERED. The three ids used to be checked with three unordered `in`: swapping the two
         // argument lines kept all three true, and the sentence that tells the reader how to undo
         // a permanent server-side rule then pointed at "Filters → Settings" — a path that exists
         // on no screen, in all nine languages. The per-sender screen carried the same hole twice

@@ -17,7 +17,7 @@ class SyncPagingTest {
     }
 
     @Test fun theRetentionFloorIsNotCappedWithIt() {
-        // ⛔ The trap this function exists for. The floor is "keep at least the newest N whatever
+        // The trap this function exists for. The floor is "keep at least the newest N whatever
         // their age" (#110). Capping it to the server's request limit would make the prune delete,
         // right after the refresh, mail the user asked to keep — 500 kept out of the 1000 wanted.
         assertEquals(1000, folderSyncSizing(windowLimit = 1000, serverCapacity = 500).retentionFloor)

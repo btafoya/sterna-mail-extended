@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⚠ SOURCE LINT on the ONE call of `SmtpClient.send` in the repo.
+ * SOURCE LINT on the ONE call of `SmtpClient.send` in the repo.
  *
  * `send()` bounds its connect and its command reads with two parameters that DEFAULT to the shipped
  * values, and `core:imap` pins those defaults on the declaration. That pins nothing about what the

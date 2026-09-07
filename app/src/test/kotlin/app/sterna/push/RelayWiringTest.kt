@@ -39,7 +39,7 @@ import java.io.File
  *     `onUnregistered` both keep that field, so the screen shows a dead address as a live one;
  *  7. `ensureDistributor()` moved back behind the registration window, which leaves a JMAP account
  *     blind to a newly installed distributor for the whole 15-minute cooldown;
- *  8. ⭐ `PushController.transportFor` widened to switch an account onto UnifiedPush on the mere
+ * 8. `PushController.transportFor` widened to switch an account onto UnifiedPush on the mere
  *     EXISTENCE of a relay address. That single line carries the whole promise of this branch —
  *     an IMAP account keeps IDLE until a payload has REALLY arrived — and nothing was reading it:
  *     `transportFor` needs `Application.container`, so no test in this module can execute it
@@ -77,7 +77,7 @@ class RelayWiringTest {
         )
     }
 
-    // -- ⭐ the transport decision: only a REAL delivery moves an IMAP account off IDLE ----------
+    // -- the transport decision: only a REAL delivery moves an IMAP account off IDLE ----------
 
     @Test fun `the UnifiedPush arm of transportFor is the isActive line, whole`() {
         assertEquals(

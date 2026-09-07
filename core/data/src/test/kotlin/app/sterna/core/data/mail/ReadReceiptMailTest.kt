@@ -17,7 +17,7 @@ import java.util.Base64
  * character — which is the point of a receipt: it is read by a stranger's software, and a client
  * that fails to recognise it shows the reader's correspondent a mail with a mysterious attachment.
  *
- * ⚠ What is NOT covered here is the hand-over to `enqueueSend`. `MailRepository.sendReadReceipt`
+ * What is NOT covered here is the hand-over to `enqueueSend`. `MailRepository.sendReadReceipt`
  * copies the fields of the returned [ReadReceiptMail] into named arguments one by one, and no JVM
  * test can execute that line (the repository needs Room, a `Context` and a socket). The last two
  * tests in this file are a SOURCE LINT that pins those arguments as WHOLE LINES; that is the
@@ -30,7 +30,7 @@ class ReadReceiptMailTest {
     /**
      * The whole entity, pinned as one literal.
      *
-     * ⛔ Nothing here is recomputed from the code under test: not the boundary (an argument), not
+     * Nothing here is recomputed from the code under test: not the boundary (an argument), not
      * the base64 (typed out), not the field order. Invert any decision in [readReceiptEntity] and
      * this string stops matching — which is what an assertion on a payload is for.
      *
@@ -91,7 +91,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * ⭐ A `Message-ID` read out of a received message arrives WITH its angle brackets — that is how
+     * A `Message-ID` read out of a received message arrives WITH its angle brackets — that is how
      * RFC 5322 writes the header — and the field must carry exactly one pair, not two.
      *
      * `Original-Message-ID: <<abc@sender.example>>` is not a `msg-id`. A strict parser is entitled
@@ -127,11 +127,11 @@ class ReadReceiptMailTest {
      * `Disposition` claiming the mail was DELETED unread and sent automatically, right after the
      * honest one — a lie told to a correspondent, in the reader's name, from her address.
      *
-     * ⛔ The assertion counts the lines of the notification part rather than searching for the
+     * The assertion counts the lines of the notification part rather than searching for the
      * injected text: a `contains` is blind to any mutation that lengthens the line, and there is
      * more than one string an injection could carry.
      *
-     * ⚠ And the surviving line must still be a `msg-id`. Flattening the CRLF is what stops the
+     * And the surviving line must still be a `msg-id`. Flattening the CRLF is what stops the
      * injection, but it leaves the attacker's own brackets inside the value; those go too, so the
      * field stays syntactically one identifier — an inert one — rather than something a strict
      * parser may throw away along with the whole notification.
@@ -213,7 +213,7 @@ class ReadReceiptMailTest {
     /**
      * A body long enough to be folded is folded with CRLF and nothing else.
      *
-     * ⚠ The trap is a `.replace("\n", "\r\n")` laid over the encoder: it runs on separators
+     * The trap is a `.replace("\n", "\r\n")` laid over the encoder: it runs on separators
      * that are ALREADY CRLF and turns every one of them into `\r\r\n`, a bare CR inside a
      * base64 body. `OutgoingMime` carried exactly that until it was fixed; the two spellings are
      * deliberately identical so there is one way to write this in the repo, not two.
@@ -304,7 +304,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * ⛔ NONE of this is translated, and none of it may become so.
+     * NONE of this is translated, and none of it may become so.
      *
      * A receipt is read by a correspondent whose language this phone cannot know, and parsed by
      * their client. The house precedent is [UNSUBSCRIBE_SUBJECT], which used to be the reader's
@@ -327,7 +327,7 @@ class ReadReceiptMailTest {
                 fixed in strings,
             )
         }
-        // ⚠ READ_RECEIPT_UA is deliberately NOT on that list: "Sterna Mail" is also the app's own
+        // READ_RECEIPT_UA is deliberately NOT on that list: "Sterna Mail" is also the app's own
         // label, `app_name`, and it is legitimately translated THERE. What matters is that the
         // receipt does not read it from there — hence the source check below, and the fact that
         // this module cannot see `R` at all.
@@ -382,7 +382,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * ⭐ THE ADDRESS THAT RECEIVED wins — it is a parameter, not a guess.
+     * THE ADDRESS THAT RECEIVED wins — it is a parameter, not a guess.
      *
      * An account can hold several aliases. Only one of them was written to, and the receipt has to
      * name that one in three places at once: the sentence the correspondent reads, the
@@ -390,7 +390,7 @@ class ReadReceiptMailTest {
      * another tells a stranger "you wrote to this mailbox" about a mailbox they never used.
      */
     @Test fun `the address the message arrived at is what the receipt reports`() {
-        // ⚠ The three addresses are deliberately DIFFERENT. An alias that received without having
+        // The three addresses are deliberately DIFFERENT. An alias that received without having
         // an identity of its own is the only shape that can tell the three apart: with
         // deliveredTo == identityEmail, dropping deliveredTo from the rule changes nothing and the
         // test proves nothing about it.
@@ -451,7 +451,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * ⛔ The identity is CHOSEN by the address that received, not taken as the first one stored.
+     * The identity is CHOSEN by the address that received, not taken as the first one stored.
      *
      * `identities.first()` is the composer's default, nothing more. A receipt for a message sent to
      * the second alias used to leave from the first — telling a correspondent that a mailbox they
@@ -497,7 +497,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * ⭐ What `sendReadReceipt` hands back to the banner is what it queued, read off the row.
+     * What `sendReadReceipt` hands back to the banner is what it queued, read off the row.
      *
      * The banner cannot reach `readReceiptMail` (it is `internal` to this module) and must not
      * rebuild the wording: deriving "the address that received" a second time is exactly how the
@@ -511,7 +511,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * ⛔ The sender is NOT learned into the contact suggestions.
+     * The sender is NOT learned into the contact suggestions.
      *
      * Every other caller of `enqueueSend` learns its recipients, because the user wrote to
      * somebody. Here she wrote to nobody: she opened a message and let its sender know. Learning
@@ -529,7 +529,7 @@ class ReadReceiptMailTest {
     // ---- 4. nothing at all to answer ----------------------------------------------------------
 
     /**
-     * ⛔ An empty address list must produce NOTHING, and must not throw.
+     * An empty address list must produce NOTHING, and must not throw.
      *
      * [ReadReceiptHeader.recipients] answers with an empty list for a header that is absent, blank,
      * `<>`, or a word that is not an address — all of them things a real message carries. And
@@ -568,7 +568,7 @@ class ReadReceiptMailTest {
                 sendReadReceiptBody(),
             "val mail = readReceiptMail(" in lines,
         )
-        // ⛔ …and WHAT it is called with, line by line. Checking only that the call exists leaves
+        // …and WHAT it is called with, line by line. Checking only that the call exists leaves
         // three edits that compile, keep everything green, and ship a broken receipt every time:
         // `originalMessageId = null` (no Original-Message-ID at all); the two `String?` arguments
         // `originalSubject`/`originalMessageId` swapped (the subject becomes "Read receipt:
@@ -608,7 +608,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * SOURCE LINT, its own test — ⚠ deliberately not folded into the one above. A failed assertion
+     * SOURCE LINT, its own test — deliberately not folded into the one above. A failed assertion
      * ends its method, so several unrelated pins stacked in one test hide each other: the first to
      * break is the only one anybody sees, and the rest are never exercised again until it is fixed.
      *

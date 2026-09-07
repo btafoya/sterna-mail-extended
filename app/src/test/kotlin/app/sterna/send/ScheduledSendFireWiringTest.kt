@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, same shape and same reason as [OutboxParkWiringTest]. `ScheduledSendWorker` is a
+ * SOURCE LINT, same shape and same reason as [OutboxParkWiringTest]. `ScheduledSendWorker` is a
  * `CoroutineWorker` reaching for `AppContainer` (Room, WorkManager, a `Context`) and this module has
  * neither Robolectric nor instrumented tests, so the arm written inside `doWork` is unreachable from
  * every test we own. The DECISION is executed in `core/data`:
@@ -68,7 +68,7 @@ class ScheduledSendFireWiringTest {
     }
 
     /**
-     * ⛔ Its own test, and the one that closes the window. The block above pins TWELVE lines around
+     * Its own test, and the one that closes the window. The block above pins TWELVE lines around
      * the arm, so every rewrite INSIDE the arm reddens — but a `repo.deleteScheduledSend(id)` added
      * anywhere ELSE in the file sits outside that window and used to pass. It is not a theoretical
      * edit: dropped a line above `return try {`, the row is destroyed before the message is handed
@@ -96,7 +96,7 @@ class ScheduledSendFireWiringTest {
     }
 
     /**
-     * ⛔ Counting the sites is not enough, and its own test says why. The three lines above are
+     * Counting the sites is not enough, and its own test says why. The three lines above are
      * TEXTUALLY IDENTICAL, so MOVING the second one — the hand-over's delete, from after
      * `enqueueSend` returned to a line above `return try {` — leaves the count at three, in the
      * same order, and every rule in this file green. It loses the message: enqueueSend throws, the

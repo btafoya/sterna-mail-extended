@@ -162,7 +162,7 @@ class MonogramColorTest {
     // --- the two-step path the widget takes ------------------------------------------------------
 
     /**
-     * ⚠ THIS TEST CANNOT FAIL TODAY, AND THAT IS WHAT IT SAYS. `monogramColor(seed, ramps)` is
+     * THIS TEST CANNOT FAIL TODAY, AND THAT IS WHAT IT SAYS. `monogramColor(seed, ramps)` is
      * DEFINED as `monogramColor(monogramSlot(seed, ramps.size), ramps)`, so what is compared below
      * is `f(x)` against `f(x)`. It is kept, with this paragraph instead of the promise it used to
      * carry ("nothing here is allowed to shift a single badge", which it never enforced), because
@@ -171,7 +171,7 @@ class MonogramColorTest {
      * of the address, a different family count — this is what says the widget's slot still lands
      * where the list's address does.
      *
-     * ⛔ It is NOT what holds the derivation still. That is the two rules below: the slots are
+     * It is NOT what holds the derivation still. That is the two rules below: the slots are
      * pinned as literal pairs, and the resolved colours as literal ARGB.
      */
     @Test fun `the two entry points agree, for as long as they are two`() {
@@ -200,7 +200,7 @@ class MonogramColorTest {
     }
 
     /**
-     * ⭐ AND THE OTHER HALF OF THE DERIVATION, IN LITERALS — the half that reads the PALETTE.
+     * AND THE OTHER HALF OF THE DERIVATION, IN LITERALS — the half that reads the PALETTE.
      *
      * The slots above pin `monogramSlot`, i.e. the address side. What turns a slot into a colour is
      * `FIRST_TONE + TONE_GAP * slot.tone` stepped along the family's ramp, and until this rule

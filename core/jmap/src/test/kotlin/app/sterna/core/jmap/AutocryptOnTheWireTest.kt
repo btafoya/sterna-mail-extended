@@ -22,7 +22,7 @@ import org.junit.Test
  * The `Autocrypt:` header on the JMAP wire — the OCTETS that leave, read back from a mock server.
  *
  * RFC 8621 §4.1.2's `header:<name>:<form>` seam again, `asText` this time: the value is one
- * structured string the app assembled, not a list of addresses. ⭐ It goes out **flat**: the server
+ * structured string the app assembled, not a list of addresses. It goes out **flat**: the server
  * writes the field and folds it. (An RSA-4096 key folded twice is the failure this avoids; the
  * folding itself is pinned in `core/imap`'s AutocryptHeaderFoldTest.)
  *
@@ -196,7 +196,7 @@ class AutocryptOnTheWireTest {
     }
 
     @Test fun `a failure that does not name the property is NOT replayed`() {
-        // ⛔ The safety property of this guard: this request CREATES a message and submits it, so a
+        // The safety property of this guard: this request CREATES a message and submits it, so a
         // blind replay of a failure that happened after the create would send the message twice.
         val session = session()
         server.enqueue(MockResponse().setBody(refusesSomethingElseResponse))
@@ -207,7 +207,7 @@ class AutocryptOnTheWireTest {
     }
 
     @Test fun `a refusal that only NAMES an autocrypt address never re-sends the message`() {
-        // ⭐ THE one that cannot be taken back. The delivery refusal is read AFTER the message was
+        // THE one that cannot be taken back. The delivery refusal is read AFTER the message was
         // created and submitted, and its text is the recipient's address plus the server's own SMTP
         // reply — neither of which this app writes. A replay here puts a second copy in front of
         // every recipient that DID accept it, and a second copy in Sent.

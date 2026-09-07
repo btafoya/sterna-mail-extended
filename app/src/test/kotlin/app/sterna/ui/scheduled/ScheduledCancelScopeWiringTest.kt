@@ -13,7 +13,7 @@ import java.io.File
  * compared as WHOLE lines or as parsed arguments — never `contains`, which is blind to any mutation
  * that lengthens the line.
  *
- * ⛔ NOT covered: that `appScope` really outlives the screen (that is `SternaApplication`), and
+ * NOT covered: that `appScope` really outlives the screen (that is `SternaApplication`), and
  * anything about how the snackbar is shown.
  */
 class ScheduledCancelScopeWiringTest {
@@ -59,9 +59,9 @@ class ScheduledCancelScopeWiringTest {
     }
 
     /**
-     * ⭐ Every argument, by name AND by value, in ONE comparison.
+     * Every argument, by name AND by value, in ONE comparison.
      *
-     * ⛔ Pinning the key SET plus a chosen few values is what this rule used to do, and a review
+     * Pinning the key SET plus a chosen few values is what this rule used to do, and a review
      * killed it with one edit: `body = d.subject`. The key `body` is still there, the suite stays
      * green everywhere — `ScheduledSendCancelTest` never instantiates this ViewModel and answers
      * for the test seam, not for `repo.saveDraft` — and in production cancelling files a draft
@@ -95,11 +95,11 @@ class ScheduledCancelScopeWiringTest {
                 // Without the chosen identity the draft goes back under the login address (#31).
                 "fromName" to "d.fromName",
                 "fromEmail" to "d.fromEmail",
-                // ⛔ No composer in this story: the row is read from the database and deposited
+                // No composer in this story: the row is read from the database and deposited
                 // whole, so nothing was lost on the way into a parcel. `true` here would refuse to
                 // write the body of a message whose text is genuinely empty.
                 "composerBodyWasLost" to "false",
-                // ⛔ Only ever read when the line above is true, which this route never is — but
+                // Only ever read when the line above is true, which this route never is — but
                 // `saveDraft` takes it with no default, so it is stated. It is answered from the
                 // text being deposited: there is no composer in this story to ask (#131).
                 "typedBodyIsBlank" to "d.body.isBlank()",
@@ -113,11 +113,11 @@ class ScheduledCancelScopeWiringTest {
      * A `null` from `credentials` is not proof the account is gone, and the proof is the caller's
      * to fetch: `AccountStore.credentials` answers null for a secret that will not decode, and
      * `accounts()` answers an EMPTY list when the blob cannot be read — which is precisely what
-     * `accountsUnreadable()` was built to say (`AccountStore.kt:304`). Without BOTH halves, a
+     * `accountsUnreadable()` was built to say (`AccountStore`). Without BOTH halves, a
      * rotated Keystore key deletes the only copy of a scheduled message and the screen announces
      * that the account is gone.
      *
-     * ⭐ What is pinned here is that this lambda DELEGATES: it hands the two verdicts to
+     * What is pinned here is that this lambda DELEGATES: it hands the two verdicts to
      * `accountDepartureIsProven`, whose four answers `AccountDepartureProofTest` executes. The rule
      * used to be written out as an expression right here, where nothing in this module can run it —
      * and the same expression is owed, word for word, by the worker that fires these messages, so

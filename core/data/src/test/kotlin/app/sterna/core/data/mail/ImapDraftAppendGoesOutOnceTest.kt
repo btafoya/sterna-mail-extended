@@ -15,7 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⭐ **What a REAL [ImapMailService] puts on the wire for a draft** (#95), executed against a
+ * **What a REAL [ImapMailService] puts on the wire for a draft** (#95), executed against a
  * scripted server on loopback — because the two defects here are invisible above the socket.
  *
  * 1. `withSession` replays a failed block once on a fresh connection. For an `APPEND` that means
@@ -70,7 +70,7 @@ class ImapDraftAppendGoesOutOnceTest {
 
     @Test(timeout = 30_000)
     fun `every other caller keeps the one reconnect it has always had`() {
-        // ⛔ The witness. The fix is per-CALL, not a change of the reconnect policy: a stale pooled
+        // The witness. The fix is per-CALL, not a change of the reconnect policy: a stale pooled
         // connection that dies on the first command must still cost a reconnect and not an error.
         ScriptedImapServer { tag, line ->
             when {
@@ -93,16 +93,16 @@ class ImapDraftAppendGoesOutOnceTest {
 
     @Test(timeout = 30_000)
     fun `the draft is found by enumerating the folder, and no HEADER key is ever sent`() {
-        // ⭐ THE test of this volet. The bench measurement behind it: Stalwart answers an EMPTY
+        // THE test of this volet. The bench measurement behind it: Stalwart answers an EMPTY
         // `* SEARCH` to every shape of `HEADER "Message-ID"` — naked, bracketed, substring, on a
         // delivered message — while answering `HEADER "Subject"` and `HEADER "To"` perfectly. An
         // honest-looking "no", read as "not there", one more copy appended. What is executed here
         // is the answer to it: `UID SEARCH ALL` plus an envelope read, and the comparison made in
-        // our own code. ⭐ It is the EXACT command list below, not a scripted answer to a header
+        // our own code. It is the EXACT command list below, not a scripted answer to a header
         // search, that holds the old shape out: a `SEARCH HEADER` would show up in it. (An earlier
         // revision scripted an empty answer to every other search key; the shipped code emits none,
         // so that branch was never reached and said nothing — removed.)
-        // ⛔ The call is POSITIONAL on purpose: swap folder and Message-ID at the declaration and
+        // The call is POSITIONAL on purpose: swap folder and Message-ID at the declaration and
         // it still compiles — the SELECT would then name a message id, throw, and be read as
         // "not there". The command list below is what catches that.
         ScriptedImapServer { tag, line ->
@@ -145,7 +145,7 @@ class ImapDraftAppendGoesOutOnceTest {
 
     @Test(timeout = 30_000)
     fun `a folder holding other drafts than ours answers not there`() {
-        // ⛔ The witness the one above cannot be without: a folder read in full, envelopes and all,
+        // The witness the one above cannot be without: a folder read in full, envelopes and all,
         // whose ids are simply not ours. "Already there" here would skip the append, the caller
         // would consume the row, and the text would exist nowhere.
         ScriptedImapServer { tag, line ->
@@ -196,7 +196,7 @@ class ImapDraftAppendGoesOutOnceTest {
 
     @Test(timeout = 30_000)
     fun `a folder that cannot be read fails, instead of claiming the draft is there`() {
-        // ⛔ The error has to reach the caller: `appendDraftUnlessAlreadyThere` reads a throw as
+        // The error has to reach the caller: `appendDraftUnlessAlreadyThere` reads a throw as
         // "append it", and that is the only safe reading of "I could not look". A `runCatching`
         // anywhere on this path would turn an unreadable folder into "already there".
         ScriptedImapServer { tag, line ->
@@ -218,7 +218,7 @@ class ImapDraftAppendGoesOutOnceTest {
 
     @Test(timeout = 60_000)
     fun `a draft a few from the newest is found in a folder deeper than the lookup cap`() {
-        // ⛔ THE cap, executed rather than described. Every other fixture here scripts a folder of
+        // THE cap, executed rather than described. Every other fixture here scripts a folder of
         // two or three UIDs, i.e. one no cap ≥ 3 can ever truncate: the constant could be set to
         // anything and the suite would stay green. This folder holds DEEPER_BY more drafts than the
         // lookup reads, and ours is the OURS_FROM_NEWEST-th newest of them — inside the window at
@@ -242,7 +242,7 @@ class ImapDraftAppendGoesOutOnceTest {
 
     @Test(timeout = 60_000)
     fun `a draft older than the lookup cap is not found, so the caller appends`() {
-        // ⛔ The other side of the same limit, and the safe one: past the cap the honest answer is
+        // The other side of the same limit, and the safe one: past the cap the honest answer is
         // "I did not look", whose only safe reading is "append it" (a duplicate is visible and
         // deletable; text abstained over is gone). Until now that lived in the KDoc only.
         val total = ImapMailService.DRAFT_LOOKUP_SCAN + DEEPER_BY
@@ -256,7 +256,7 @@ class ImapDraftAppendGoesOutOnceTest {
                     "${server.issued()}",
                 there,
             )
-            // ⭐ The ARGUMENT the answer rests on: what the client actually asked the server for.
+            // The ARGUMENT the answer rests on: what the client actually asked the server for.
             val fetched = server.issued("UID FETCH").single().let(::uidsNamedBy)
             assertEquals(
                 "the fetch names as many UIDs as the lookup is allowed to read, no more and no " +
@@ -332,7 +332,7 @@ class ImapDraftAppendGoesOutOnceTest {
 
         /**
          * How much deeper than [ImapMailService.DRAFT_LOOKUP_SCAN] the deep fixture's folder goes,
-         * and how far back from the newest our copy sits in it. ⛔ Neither is derived from the cap:
+         * and how far back from the newest our copy sits in it. Neither is derived from the cap:
          * a fixture that placed our draft "just inside the window" would follow the constant
          * wherever it went and prove nothing about its value. These are the two absolute claims
          * made here — a folder of cap+7 drafts is read to a depth of at least 7, and no deeper

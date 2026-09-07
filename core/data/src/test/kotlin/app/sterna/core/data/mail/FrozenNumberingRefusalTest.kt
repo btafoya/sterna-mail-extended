@@ -7,7 +7,7 @@ import org.junit.Test
 /**
  * "FROZEN, AND THERE WAS NOTHING" IS REFUSED — the volet of #189 that a `Long?` could not carry.
  *
- * ⛔ The defect, in one sentence: `moveToAccount` took a `Long?` in which `null` meant BOTH "no tick
+ * The defect, in one sentence: `moveToAccount` took a `Long?` in which `null` meant BOTH "no tick
  * froze anything, fall back on the folder's record" (the reader's single move, and the default of
  * every ordinary delete and read) AND "a tick froze the numbering of this row, and the row carried
  * none". The second collapsed onto the first's fallback — `expectedUidValidity ?: recorded` — and
@@ -62,7 +62,7 @@ class FrozenNumberingRefusalTest {
     }
 
     /**
-     * ⛔ AND `0` IS NOT A NUMBERING — nor is anything below it. It is the same rule as
+     * AND `0` IS NOT A NUMBERING — nor is anything below it. It is the same rule as
      * `UidValidity.stated`, which this decision READS rather than restates: `UidValidityStore
      * .record` refuses to write a value at or below 0, so no folder in this app is ever recorded
      * under one.
@@ -89,7 +89,7 @@ class FrozenNumberingRefusalTest {
     // ---- where it is spent ----------------------------------------------------------------------
 
     /**
-     * ⚠ SOURCE LINT, the last resort and only beside the executed test above: `MailRepository`
+     * SOURCE LINT, the last resort and only beside the executed test above: `MailRepository`
      * needs Room, a `Context` and a socket, so no JVM test instantiates it. What only the text can
      * say is that the decision is consumed AT the two `imap.*` calls and that the refusal comes
      * FIRST. Whole consecutive lines, never a `contains`: a substring rule is blind to a mutation
@@ -110,7 +110,7 @@ class FrozenNumberingRefusalTest {
     }
 
     /**
-     * ⭐ THE READ IS WHERE IT HAS TO LAND. `crossAccountMove` runs readSource → writeTarget →
+     * THE READ IS WHERE IT HAS TO LAND. `crossAccountMove` runs readSource → writeTarget →
      * trashSource, so a refusal at the READ is a `Failed` with nothing written on the target
      * account, while a refusal at the bin alone leaves the copy on B under an APPEND that is never
      * replayed: `CopiedNotRemoved`, a permanent duplicate, no Undo. Fixing only the bin would move
@@ -133,7 +133,7 @@ class FrozenNumberingRefusalTest {
     }
 
     /**
-     * ⭐ AND THE BIN REFUSES TOO, because the read alone leaves the case where the octets were
+     * AND THE BIN REFUSES TOO, because the read alone leaves the case where the octets were
      * already in hand. The `?: recordedUidValidity(...)` on the last line STAYS: it is the fallback
      * that makes every ordinary swipe-delete work, and `Select(null)` is what reaches it.
      */
@@ -154,7 +154,7 @@ class FrozenNumberingRefusalTest {
     }
 
     /**
-     * ⛔ AND JMAP NEVER REACHES EITHER. Both refusals sit inside a protocol gate, and that is the
+     * AND JMAP NEVER REACHES EITHER. Both refusals sit inside a protocol gate, and that is the
      * whole reason refusing an absent stamp is affordable HERE and unaffordable in
      * `UidValidity.destroyableUnderTheNumberingItWasTickedUnder` / `numberingStampsOfRows`, which
      * are protocol-agnostic: every JMAP row has a null numbering by construction.

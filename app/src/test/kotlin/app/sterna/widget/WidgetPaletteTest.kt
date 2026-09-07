@@ -16,13 +16,13 @@ import org.junit.Test
  * and are only ever compared to the app by eye. That is how they drifted onto the splash nuancier —
  * in light mode not one of the three existed anywhere in `Color.kt`, and nothing went red.
  *
- * ⛔ The expected values are NOT written here. Each resource is mapped to the Material ROLE it
+ * The expected values are NOT written here. Each resource is mapped to the Material ROLE it
  * stands for (that table is the rule, and it has to live somewhere), and the value is taken by
  * EXECUTING the real scheme objects: `ArcticColorScheme.surface.toArgb()`, etc. Re-tune the palette
  * in `Color.kt` and this test asks for the new value on its own; copy hex literals in here instead
  * and it would only ever prove that two files agree on a colour that matches nothing on screen.
  *
- * ⛔ And never a `contains` on the line: a substring is blind to every mutation that LENGTHENS what
+ * And never a `contains` on the line: a substring is blind to every mutation that LENGTHENS what
  * it matches. What is compared below is the WHOLE extracted value, `#RRGGBB` and nothing else, so
  * `#2F5E59A0`, `#FF2F5E59` or a second declaration of the same name all redden.
  *
@@ -58,7 +58,7 @@ class WidgetPaletteTest {
      * i.e. `onSurface`. The two were one resource until the whole left half of the widget's list
      * came out teal against an app that draws it dark grey.
      *
-     * ⛔ Nothing here is a `contains`: each colour-bearing line is pinned WHOLE, next to the
+     * Nothing here is a `contains`: each colour-bearing line is pinned WHOLE, next to the
      * `android:id` / `android:text` that says which view it belongs to and in document order. So
      * pointing a row back at the accent, dragging the big figure onto the row colour, adding a
      * second `android:textColor`, or moving one between elements all redden — and the printed diff
@@ -153,7 +153,7 @@ class WidgetPaletteTest {
                 "<TextView android:id=\"@+id/widget_unread_count\" android:text=\"…\" android:textColor=\"@color/widget_unread_count\"",
                 "<TextView android:id=\"@+id/widget_unread_label\" android:text=\"@string/app_name\" android:textColor=\"@color/widget_unread_label\"",
             ),
-            // ⭐ The ENLARGED counter. Its container paints nothing at all — the entry is here, and
+            // The ENLARGED counter. Its container paints nothing at all — the entry is here, and
             // empty, precisely so that a colour appearing on it later has to be written down as a
             // role rather than slipped in; PINNED is a closed map, and that is what makes a new
             // layout unable to arrive with a palette of its own.
@@ -185,21 +185,21 @@ class WidgetPaletteTest {
                 "<TextView android:text=\"Ada Lindqvist\" android:textColor=\"@color/widget_row_primary\"",
                 "<TextView android:text=\"07:58\" android:textColor=\"@color/widget_unread_label\"",
             ),
-            // ⭐ The row's 8 dp head mark. It used to be the unread dot; unread is shown by weight
+            // The row's 8 dp head mark. It used to be the unread dot; unread is shown by weight
             // now and the same column carries the ACCOUNT mark, whose flat colour is only the base
             // a runtime setColorFilter paints over. Same resource, same reason to pin it: it is the
             // sole consumer, so nothing else here would notice the swap.
             "drawable/widget_recent_account_dot.xml" to listOf(
                 "<solid android:color=\"@color/widget_unread_count\" />",
             ),
-            // ⭐ The picker's badge, which is a STATIC picture and not the runtime bitmap: a
+            // The picker's badge, which is a STATIC picture and not the runtime bitmap: a
             // preview cannot carry a colour resolved from the palette, so it wears the accent, the
             // same base the account dot beside it wears. Pointed elsewhere it would advertise a
             // badge in a colour no row is ever drawn in, and nothing on any screen would say so.
             "drawable/widget_recent_monogram_badge.xml" to listOf(
                 "<solid android:color=\"@color/widget_unread_count\" />",
             ),
-            // ⭐ The cell's own surface, and the ONLY consumer of widget_unread_background. Point it
+            // The cell's own surface, and the ONLY consumer of widget_unread_background. Point it
             // at the accent instead and every cell plus both picker previews turn solid teal, with
             // colors.xml still declaring four perfectly correct values.
             "drawable/widget_unread_background.xml" to listOf(

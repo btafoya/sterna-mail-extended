@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
+ * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
  *
  * Which folders get their bodies warmed in the background is no longer a bandwidth question. Since
  * this branch, a body that lands in the cache also hands the sender's announced public key to the
@@ -15,7 +15,7 @@ import org.junit.Test
  * by the user — still deposits its author's key under the address of the correspondent it
  * imitates, inside OpenKeychain, with no gesture and nothing the app can undo.
  *
- * ⭐ What actually holds the published promise, and in which order. ENCRYPTION.md and SECURITY.md
+ * What actually holds the published promise, and in which order. ENCRYPTION.md and SECURITY.md
  * say that nothing arrives on its own from Spam, Trash or Archive, and that on an IMAP account a
  * key only comes from a message whose full text Sterna had to fetch. Two lines keep the prefetch
  * away from an IMAP account, and BOTH sit at the call sites, above it:
@@ -25,22 +25,22 @@ import org.junit.Test
  *  - `refreshAllInboxes` takes its IMAP branch and `continue`s, which nothing watched before this
  *    file and which is pinned below, `continue` included.
  *
- * ⚠ So the `if (credentials.protocol == MailProtocol.IMAP) return` opening `prefetchInboxBodies` is
+ * So the `if (credentials.protocol == MailProtocol.IMAP) return` opening `prefetchInboxBodies` is
  * UNREACHABLE as the code stands: no caller can reach it with an IMAP account. It is pinned all the
  * same, as the last net rather than the first, and the pin says so — removing that line alone
  * changes no observable behaviour today, and would only matter the day a third caller appears.
  *
- * ⛔ What was NOT watched before this file: [BoundedFolderReadsSqlTest] (`prefetchInboxBodies`, the
+ * What was NOT watched before this file: [BoundedFolderReadsSqlTest] (`prefetchInboxBodies`, the
  * bounded read) and [OriginalSenderWiringTest] both read the prefetch's BODY; neither reads its
  * CALL SITES, so the guard above them and the folder handed to them could both be mutated with the
  * whole suite staying green. `MailRepository` needs Room, an Android `Context` and a socket, so no
  * JVM test can execute these call sites — reading the source is the last resort, in
  * [ArmingWiringTest]'s exact form.
  *
- * ⛔ Whole normalised lines, compared by equality, never `contains`: a substring is blind to every
+ * Whole normalised lines, compared by equality, never `contains`: a substring is blind to every
  * mutation that LENGTHENS the line, which has caught this repository out three times. A line is
  * dropped as prose only when NOTHING is left of it once its complete block comments are removed —
- * see [codeLines], and read its ⛔ before touching it.
+ * see [codeLines], and read its before touching it.
  */
 class PrefetchStaysInTheInboxWiringTest {
 
@@ -186,7 +186,7 @@ class PrefetchStaysInTheInboxWiringTest {
      * line, runs of whitespace collapsed to one, and the line dropped only when nothing is left of
      * it.
      *
-     * ⛔ This used to drop any line whose first two characters opened a block comment, which is a
+     * This used to drop any line whose first two characters opened a block comment, which is a
      * hole and not a detail: an empty block comment, opened and closed at once, followed by a real
      * `bgScope.launch { runCatching { prefetchInboxBodies(credentials, junk.id) } }` is valid
      * Kotlin, and that prefix test threw the STATEMENT away with the comment — the
@@ -195,7 +195,7 @@ class PrefetchStaysInTheInboxWiringTest {
      * repository to catch it either. A comment may now hide nothing: it can only ever make a rule
      * red, never satisfy one.
      *
-     * ⚠ A line that still opens an UNCLOSED block comment, a KDoc continuation starting with a
+     * A line that still opens an UNCLOSED block comment, a KDoc continuation starting with a
      * star, or a line comment, is prose and goes, as before — the comment blocks around these
      * functions must stay free to be rewritten without reddening anything.
      */
@@ -212,7 +212,7 @@ class PrefetchStaysInTheInboxWiringTest {
      * Every code line of [body] that BINDS the name [name] — a `val`/`var` declaration or a bare
      * assignment, never a comparison (`==` is excluded).
      *
-     * ⛔ Why a count of bindings and not just the text of one: a lint that pins "this line is in the
+     * Why a count of bindings and not just the text of one: a lint that pins "this line is in the
      * body" is answered by a line that is still there and no longer decides anything. A second
      * binding between the resolution and its use is the cheapest way to make every text pin in
      * this file lie, and it is invisible to all of them.

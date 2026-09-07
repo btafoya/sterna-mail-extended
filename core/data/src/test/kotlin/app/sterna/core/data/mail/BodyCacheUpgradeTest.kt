@@ -22,7 +22,7 @@ import java.sql.DriverManager
 class BodyCacheUpgradeTest {
 
     /**
-     * ⛔ THE THRESHOLD ITSELF, written out as a literal — the parade `IncognitoImeOptionsTest`
+     * THE THRESHOLD ITSELF, written out as a literal — the parade `IncognitoImeOptionsTest`
      * already uses. Every other test in this file says `BODY_CACHE_PURGE_VERSION` on both sides
      * of its assertion, so the constant can be moved to any value at all and the whole file stays
      * green: the rules are about the SHAPE of the decision, not about which release needs it.
@@ -38,12 +38,12 @@ class BodyCacheUpgradeTest {
     }
 
     /**
-     * ⛔ THE SECOND THRESHOLD, same parade, same reason. Every rule below is about the SHAPE of the
+     * THE SECOND THRESHOLD, same parade, same reason. Every rule below is about the SHAPE of the
      * decision and would stay green at any value; this is the only test that says WHICH release.
      *
      * 170 = the `versionCode` of the cut that CARRIES #148, `versionCode` being 169 (1.4.9) as
      * this is written. Not "the next number": if #148 slips to 171 with no 170 published, 169 →
-     * 171 crosses 170 anyway and purges. ⛔ The case that kills the fix is an INTERLEAVED release —
+     * 171 crosses 170 anyway and purges. The case that kills the fix is an INTERLEAVED release —
      * a corrective 1.4.10 taking 170 without #148: the 1.4.9 user purges for nothing, records 170,
      * receives #148 in 171, crosses no threshold and never sees the banner. `/release` must check
      * this literal against the `versionCode` of the cut that actually ships #148, and move both.
@@ -53,8 +53,8 @@ class BodyCacheUpgradeTest {
     }
 
     /**
-     * ⛔ Bare literal on both sides, like its two elders. 172 = the `versionCode` of the cut that
-     * CARRIES #160, `versionCode` being 171 (1.5.1) as this is written. ⛔ The case that kills the
+     * Bare literal on both sides, like its two elders. 172 = the `versionCode` of the cut that
+     * CARRIES #160, `versionCode` being 171 (1.5.1) as this is written. The case that kills the
      * fix is an INTERLEAVED release — a corrective taking 172 without #160: the 1.5.1 user purges
      * for nothing, records 172, and no threshold is left to cross when #160 does ship.
      */
@@ -70,7 +70,7 @@ class BodyCacheUpgradeTest {
     }
 
     /**
-     * ⛔ CROSSED, not equalled. Someone who skips the release that introduced the need — 1.4.6
+     * CROSSED, not equalled. Someone who skips the release that introduced the need — 1.4.6
      * straight to 1.4.9 — still arrives with a cache written before it, and must purge once.
      */
     @Test fun `jumping over the threshold purges on arrival`() {
@@ -79,11 +79,11 @@ class BodyCacheUpgradeTest {
     }
 
     /**
-     * ⛔ THE BUG. Every version bump used to purge, for ever: `currentVersion > purgedForVersion`.
+     * THE BUG. Every version bump used to purge, for ever: `currentVersion > purgedForVersion`.
      * A purge is the answer to ONE need, not to the act of updating.
      *
-     * ⚠ This test used to loop 169..171 and claim "after 168, never again". That premise is what
-     * the second threshold changed: 170 has a need of its own. ⚠ And 171 → 172 was an example
+     * This test used to loop 169..171 and claim "after 168, never again". That premise is what
+     * the second threshold changed: 170 has a need of its own. And 171 → 172 was an example
      * here until the THIRD threshold took 172, which is the same lesson a second time — an
      * example is only "crosses nothing" until a release needs that number. What survives — and is
      * the whole point — is that a version bump which crosses NO threshold purges nothing, whatever
@@ -99,7 +99,7 @@ class BodyCacheUpgradeTest {
     }
 
     /**
-     * ⛔ THE DEFECT THIS SECOND THRESHOLD ANSWERS, in bare literals on both sides — no constant,
+     * THE DEFECT THIS SECOND THRESHOLD ANSWERS, in bare literals on both sides — no constant,
      * so moving the constant cannot keep this green.
      *
      * Whoever ran 1.4.9 carries `purgedForVersion = 169`: past the only threshold there was, so
@@ -117,7 +117,7 @@ class BodyCacheUpgradeTest {
     }
 
     /**
-     * ⛔ THE DEFECT THE THIRD THRESHOLD ANSWERS, in bare literals on both sides.
+     * THE DEFECT THE THIRD THRESHOLD ANSWERS, in bare literals on both sides.
      *
      * Whoever runs 1.5.1 carries `purgedForVersion = 171`: past BOTH earlier thresholds, so
      * nothing crossed again, ever. Their cached bodies are `Email` rows serialised by a build that
@@ -133,30 +133,30 @@ class BodyCacheUpgradeTest {
         )
     }
 
-    /** ⛔ CROSSED, not equalled — for the third threshold too: 171 straight to 173 purges once. */
+    /** CROSSED, not equalled — for the third threshold too: 171 straight to 173 purges once. */
     @Test fun `jumping over the third threshold purges on arrival`() {
         assertEquals(173, bodyCachePurgeVersion(purgedForVersion = 171, currentVersion = 173))
         assertEquals(300, bodyCachePurgeVersion(purgedForVersion = 171, currentVersion = 300))
     }
 
-    /** ⛔ Once per threshold. Having purged for 172, nothing purges again at 172, 173, or ever. */
+    /** Once per threshold. Having purged for 172, nothing purges again at 172, 173, or ever. */
     @Test fun `the third threshold purges once and never again`() {
         assertNull(bodyCachePurgeVersion(purgedForVersion = 172, currentVersion = 172))
         assertNull(bodyCachePurgeVersion(purgedForVersion = 172, currentVersion = 173))
         assertNull(bodyCachePurgeVersion(purgedForVersion = 172, currentVersion = 999))
     }
 
-    /** ⛔ CROSSED, not equalled — for the second threshold too: 169 straight to 171 purges once. */
+    /** CROSSED, not equalled — for the second threshold too: 169 straight to 171 purges once. */
     @Test fun `jumping over the second threshold purges on arrival`() {
         assertEquals(171, bodyCachePurgeVersion(purgedForVersion = 169, currentVersion = 171))
         assertEquals(200, bodyCachePurgeVersion(purgedForVersion = 169, currentVersion = 200))
     }
 
     /**
-     * ⛔ Once per threshold. Having purged for 170, nothing purges again for 170 — at 170, at 171,
+     * Once per threshold. Having purged for 170, nothing purges again for 170 — at 170, at 171,
      * or ever.
      *
-     * ⚠ The third assertion used to be `170 → 999`, i.e. "or ever" full stop. The third threshold
+     * The third assertion used to be `170 → 999`, i.e. "or ever" full stop. The third threshold
      * is what changes that premise: 999 is past 172, so it purges once more, for 172 and not for
      * 170. "Never again for THIS threshold" is the invariant; "never again at all" never was one.
      * `the third threshold purges once and never again` states the same thing for 172.
@@ -185,7 +185,7 @@ class BodyCacheUpgradeTest {
         assertNull(bodyCachePurgeVersion(purgedForVersion = 168, currentVersion = 168))
     }
 
-    /** ⛔ The witness. Same version, second start: nothing to do. */
+    /** The witness. Same version, second start: nothing to do. */
     @Test fun `the same version does not purge again`() {
         assertNull(
             bodyCachePurgeVersion(
@@ -208,7 +208,7 @@ class BodyCacheUpgradeTest {
     }
 
     /**
-     * ⛔ What the purge is allowed to delete, executed against real in-memory SQLite and built
+     * What the purge is allowed to delete, executed against real in-memory SQLite and built
      * from the very statement the DAO ships (and the very schema the migrations create).
      *
      * The bodies are a cache: dropping them costs one refetch per message read. The message list
@@ -251,7 +251,7 @@ class BodyCacheUpgradeTest {
      * threshold CROSSED — at 168, at 170 and at 172 — and nothing on any other launch: not between the
      * two, not on a repeat of the same version, not after the last one.
      *
-     * ⚠ The launch list and the expected purges are bare literals. Recomputing the rule here to
+     * The launch list and the expected purges are bare literals. Recomputing the rule here to
      * decide what to expect would make this test a copy of the decision, green whichever way the
      * condition is written.
      */

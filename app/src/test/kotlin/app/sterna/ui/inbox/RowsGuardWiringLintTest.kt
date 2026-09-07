@@ -15,7 +15,7 @@ import java.io.File
  * cannot be driven without the `paging-testing` artifact, which this project does not depend on (a
  * new dependency is not a decision an implementation branch takes). So the spend is held as text.
  *
- * ⛔ Every rule below compares WHOLE trimmed lines against an expected list, never a fragment. A
+ * Every rule below compares WHOLE trimmed lines against an expected list, never a fragment. A
  * `contains` / `in` on a fragment is blind to any mutation that LENGTHENS the line, which has been
  * found three times in this repo.
  */
@@ -40,7 +40,7 @@ class RowsGuardWiringLintTest {
                 "refreshUnlessFresh() returns inside the window — so `ui.refreshing` is false and " +
                 "its branch does not catch; this arm catches and draws nothing, leaving the centre " +
                 "empty and the tern to speak — #63's decision.) The indicator lines found were:",
-            // ⚠ The arm CATCHES wider than it DRAWS, deliberately. It catches on refreshLoading ||
+            // The arm CATCHES wider than it DRAWS, deliberately. It catches on refreshLoading ||
             // staleRows — that is what this rule is about — and falling through would hand the
             // centre to the scenes below mid-fetch. What it DRAWS is narrower: `ringShowing` is
             // rememberGracedIndicator(refreshLoading && !staleRows), on the same functions as the

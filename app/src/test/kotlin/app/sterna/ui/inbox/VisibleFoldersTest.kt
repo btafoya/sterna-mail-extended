@@ -113,7 +113,7 @@ class VisibleFoldersTest {
     // ── T3b: a folder that CLAIMED a role and lost the election ──────────────────────────────────
 
     /**
-     * ⭐ The defect. An IMAP account with both a `Junk` and a `Spam`: only one can be THE junk
+     * The defect. An IMAP account with both a `Junk` and a `Spam`: only one can be THE junk
      * (`ImapClient.assignRoles`), and the loser is stored with a marked role, then reaches the
      * screen with NO role at all (`MailboxMapper.toMailbox`). Unsubscribed, role-less and no
      * routing target, it fell through all four earlier guards at once — out of the drawer, out of
@@ -122,7 +122,7 @@ class VisibleFoldersTest {
      * folder holding the false positives became unreachable from the app, with its mail still
      * sitting on the server.
      *
-     * ⛔ The ordinary unsubscribed folder in the same list still goes. The claim is what buys the
+     * The ordinary unsubscribed folder in the same list still goes. The claim is what buys the
      * reprieve, not the filter having been softened.
      */
     @Test fun `an unsubscribed folder that claimed a role and LOST it stays`() {
@@ -177,7 +177,7 @@ class VisibleFoldersTest {
         assertEquals(listOf("mb1", "mb7", "mb8"), visibleFolders(folders, true).map { it.id })
     }
 
-    /** ⛔ With the box UNTICKED the list is handed back as it stands — the claim changes nothing
+    /** With the box UNTICKED the list is handed back as it stands — the claim changes nothing
      *  about the default path, which is still an identity and not a rebuild. */
     @Test fun `with the setting off a losing folder changes nothing about the untouched list`() {
         val folders = listOf(
@@ -194,7 +194,7 @@ class VisibleFoldersTest {
      * the `role == null` it went in with, which is what `InboxScreen` gates Rename / Delete / New
      * subfolder on.
      *
-     * ⚠ This pins the filter and nothing more. That the losing folder ARRIVES here role-less is
+     * This pins the filter and nothing more. That the losing folder ARRIVES here role-less is
      * the erasure's doing, one module away, and it is pinned where it happens
      * (`UnelectedRoleStopsAtTheDataBoundaryTest`) — not here, where the fixture would just be
      * reading back its own input.

@@ -8,7 +8,7 @@ import org.junit.Test
  * WHICH arguments `MailRepository` hands the Autocrypt import at each of its three call sites, and
  * that the JMAP read still asks the server for nothing new.
  *
- * ⛔ A source lint, and a last resort — `MailRepository` needs a `Context`, Room and the Keystore, so
+ * A source lint, and a last resort — `MailRepository` needs a `Context`, Room and the Keystore, so
  * no JVM test instantiates it. Its companion is [AutocryptPeerImportTest], which EXECUTES the rule
  * and the provider call: that one proves the decision is right, this one proves it is asked the
  * right question. A perfect rule fed the ACCOUNT's address instead of the message's `From` would
@@ -66,7 +66,7 @@ class AutocryptImportWiringTest {
     }
 
     @Test fun `the IMAP side reads rawHeaders, and the same list feeds both readers`() {
-        // ⛔ `MimeParser.headerOf` is a MAP: it keeps the LAST `Autocrypt` of a message carrying
+        // `MimeParser.headerOf` is a MAP: it keeps the LAST `Autocrypt` of a message carrying
         // two, and the rule that ignores such a message could then never see the second one.
         assertEquals(
             listOf(
@@ -78,7 +78,7 @@ class AutocryptImportWiringTest {
     }
 
     @Test fun `the IMAP date comes from the server, and is only asked for when there is a key`() {
-        // ⛔ The whole block, line for line — never `contains("INTERNALDATE")`. Two mutations this
+        // The whole block, line for line — never `contains("INTERNALDATE")`. Two mutations this
         // has to catch, and both make the code LONGER or merely REORDER it:
         //  - the guard deleted (or inverted): a second round trip on EVERY message opened, for a
         //    value nothing reads, on the opening path;
@@ -112,7 +112,7 @@ class AutocryptImportWiringTest {
     }
 
     @Test fun `the service call in the middle fetches INTERNALDATE, and nothing else`() {
-        // ⛔ The one line of the whole chain that neither an executed test nor another lint can
+        // The one line of the whole chain that neither an executed test nor another lint can
         // reach: `ImapMailService.fetchInternalDate` is a pass-through, so no JVM test constructs
         // it and the on-the-wire test drives `ImapSession` directly, one layer below. Left
         // unpinned, `-> session.fetchByUid(uid)?.dateMillis` compiles, keeps every other test
@@ -153,7 +153,7 @@ class AutocryptImportWiringTest {
     }
 
     @Test fun `the JMAP header read still asks for nothing new`() {
-        // ⛔ A server that refuses ONE requested property rejects the WHOLE Email/get, and then no
+        // A server that refuses ONE requested property rejects the WHOLE Email/get, and then no
         // message opens at all on that account. The header read already returns every field, so
         // this feature adds no property anywhere.
         assertEquals(

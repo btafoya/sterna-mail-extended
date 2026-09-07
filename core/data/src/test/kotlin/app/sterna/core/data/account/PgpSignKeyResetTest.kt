@@ -58,7 +58,7 @@ class PgpSignKeyResetTest {
     }
 
     @Test fun `the two PGP switches are left exactly as the user set them`() {
-        // ⭐ Deliberate: with the key gone the screen reads "No key selected" beside its Choose key
+        // Deliberate: with the key gone the screen reads "No key selected" beside its Choose key
         // button, which is the true state. Turning PGP off as well would undo a setting the user
         // made, and nothing would ever turn it back on (K-9 does the same with NO_OPENPGP_KEY).
         val after = withoutPgpSignKeys(

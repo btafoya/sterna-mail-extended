@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⛔ SOURCE LINT, NOT A BEHAVIOUR TEST, and a LAST RESORT — read [UnreadRefreshTargetsTest] first.
+ * SOURCE LINT, NOT A BEHAVIOUR TEST, and a LAST RESORT — read [UnreadRefreshTargetsTest] first.
  * That one EXECUTES the decision this file can only read: which folders a pull-to-refresh in the
  * "unread" view sends to the server. `InboxViewModel` is an `AndroidViewModel`, `MailRepository`
  * needs Room and a socket, so the wiring between the two cannot be run here at all.
@@ -31,7 +31,7 @@ import java.io.File
  *    it; aimed by position (`refreshes.firstOrNull()`) it writes another folder's notification
  *    baseline and re-files that folder's threads.
  *
- * ⛔ Every rule compares a WHOLE unit — the whole argument list, the whole set of mentions — never a
+ * Every rule compares a WHOLE unit — the whole argument list, the whole set of mentions — never a
  * fragment: a `contains` is blind to any mutation that LENGTHENS what it looks at.
  */
 class UnreadRefreshWiringLintTest {
@@ -88,7 +88,7 @@ class UnreadRefreshWiringLintTest {
     }
 
     /**
-     * ⛔ The rule that keeps the reader where they are, written as a rule about NAMING rather than
+     * The rule that keeps the reader where they are, written as a rule about NAMING rather than
      * about assigning. `selection.value = Sel.Folder(...)` is only the most obvious spelling: this
      * function suspends, so `selection.emit(...)` compiles here, and `tryEmit`, `update { }` and a
      * plain `showInbox()` are three more — a rule per syntax is a rule short of the next syntax.

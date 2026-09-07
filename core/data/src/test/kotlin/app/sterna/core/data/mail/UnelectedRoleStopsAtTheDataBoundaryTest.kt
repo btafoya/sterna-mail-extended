@@ -58,7 +58,7 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
     }
 
     /**
-     * ⭐ The gesture this buys back. `InboxScreen` shows New subfolder / Rename / Delete only when
+     * The gesture this buys back. `InboxScreen` shows New subfolder / Rename / Delete only when
      * the mailbox it was handed has `role == null`; those three branches are the only writes of
      * `folderToAddChild` / `folderToRename` / `folderToDelete` in the app. Run the condition on the
      * model the repository actually hands it for a losing shared trash.
@@ -92,7 +92,7 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
     }
 
     /**
-     * ⭐ The ONE field that now differs from the role-less row this used to be equal to, and why it
+     * The ONE field that now differs from the role-less row this used to be equal to, and why it
      * had to: the drawer is the only way back into a folder that lost its claim (it is out of search
      * by an older, deliberate decision), and "subscribed folders only" (#174) hides a folder that is
      * unsubscribed, role-less and no routing target — which is precisely this one.
@@ -108,7 +108,7 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
     }
 
     /**
-     * ⭐ The case that closes the defect: a `Junk` and a `Spam` on one IMAP account, one of them
+     * The case that closes the defect: a `Junk` and a `Spam` on one IMAP account, one of them
      * elected. The loser crosses with NO role — nothing about its icon, its menu or its
      * destinations changes — and with the claim carried as a boolean, which is all the drawer needs
      * to keep listing it.
@@ -119,7 +119,7 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
         assertTrue("the losing Spam must stay reachable from the drawer (#174)", loser.lostRoleClaim)
     }
 
-    /** ⛔ And nothing else carries it: an elected role, and no role at all, are not lost claims. */
+    /** And nothing else carries it: an elected role, and no role at all, are not lost claims. */
     @Test fun anElectedRoleAndNoRoleAtAllCarryNoClaim() {
         assertFalse(row("junk").toMailbox().lostRoleClaim)
         assertFalse(row("trash").toMailbox().lostRoleClaim)
@@ -129,7 +129,7 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
     }
 
     /**
-     * ⛔ The erasure is not a hole in the search fix: what excludes a losing trash reads the STORED
+     * The erasure is not a hole in the search fix: what excludes a losing trash reads the STORED
      * role, never this model. Both filters still answer on the marked row.
      */
     @Test fun theSearchFiltersStillSeeTheMarkOnTheStoredRow() {

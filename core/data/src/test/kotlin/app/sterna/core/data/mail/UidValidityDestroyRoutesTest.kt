@@ -13,13 +13,13 @@ import org.junit.Test
  * and a `Context`, so a grouping left in either is a grouping nothing can run — and a decision
  * nothing runs is a decision a mutation walks through.
  *
- * ⭐ What every assertion below pins is the ARGUMENTS: which ids travel together, in which order,
+ * What every assertion below pins is the ARGUMENTS: which ids travel together, in which order,
  * and under which number. That a call exists proves nothing about what is passed to it.
  */
 class UidValidityDestroyRoutesTest {
 
     /**
-     * ⛔ THE CASE THE OLD GROUPING GOT WRONG. Two rows of ONE folder, read either side of a
+     * THE CASE THE OLD GROUPING GOT WRONG. Two rows of ONE folder, read either side of a
      * renumbering — the list keeps showing both, because nothing prunes stale rows on IMAP — and a
      * single `UID STORE` + `UID EXPUNGE` can oppose only ONE number. Merged, the older ids go out
      * under the newer number and expunge whatever now holds those UIDs; that is #99 itself.

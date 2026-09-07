@@ -26,7 +26,7 @@ import java.io.File
  *    and is the same two strings `MailRepository.sendUnsubscribeMail` enqueues (that equality is
  *    itself executed in `:core:data`'s `UnsubscribeMailPreviewTest`);
  *  - a SOURCE LINT for the call site, because the dialog is a `@Composable` in a file that cannot
- *    be instantiated in a JVM test. ⚠ It proves the call is written and WITH WHICH ARGUMENTS, in
+ * be instantiated in a JVM test. It proves the call is written and WITH WHICH ARGUMENTS, in
  *    which order, on which branch. It does NOT prove anything is drawn, laid out, scrollable or
  *    legible on a device — that is the release-build check on the bench.
  */

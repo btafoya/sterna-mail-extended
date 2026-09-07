@@ -110,7 +110,7 @@ class SendOutboxTest {
         )
 
     @Test fun `a queued message this app styled reopens with its styling`() {
-        // ⛔ Re-editing a queued message enqueues a NEW row from the composer's state: styling
+        // Re-editing a queued message enqueues a NEW row from the composer's state: styling
         // dropped in this hand-over is not merely absent from the screen, it is REMOVED from the
         // message that finally goes out.
         val reopened = composeDraftOf(queued(htmlBody = "<b>see</b> you there"))
@@ -120,7 +120,7 @@ class SendOutboxTest {
     }
 
     @Test fun `a queued message hands over the body and the spans of ONE part`() {
-        // ⛔ The witness the test above cannot be: there the row's two columns say the same words,
+        // The witness the test above cannot be: there the row's two columns say the same words,
         // so `body = draft.body` — the text column — passes it. Here they DIFFER, which a row is
         // free to do (an older build wrote the text, a save was interrupted). The spans are
         // measured on the html; laid over the text column they cover other letters, and re-editing
@@ -136,7 +136,7 @@ class SendOutboxTest {
     }
 
     @Test fun `a queued message that held a list reopens with it`() {
-        // ⛔ Re-editing enqueues a NEW row from the composer's state: a list dropped in this
+        // Re-editing enqueues a NEW row from the composer's state: a list dropped in this
         // hand-over is not merely missing from the screen, it is REMOVED from what finally goes out.
         val reopened = composeDraftOf(
             queued(htmlBody = "<ul><li>see</li><li>you there</li></ul>", body = "- see\n- you there"),
@@ -149,7 +149,7 @@ class SendOutboxTest {
     /**
      * ROUTE 2 OF 4 — the QUEUED outbox row, reopened by Outbox → Edit.
      *
-     * ⛔ Re-editing enqueues a NEW row from the composer's state: a link dropped in this hand-over
+     * Re-editing enqueues a NEW row from the composer's state: a link dropped in this hand-over
      * is not merely missing from the screen, it is REMOVED from the message that finally goes out,
      * with the words still there and nothing saying the address left.
      */
@@ -195,7 +195,7 @@ class SendOutboxTest {
     }
 
     /**
-     * ⭐ A message reopened from a PERSISTED outbox row reopens as lossy: the row has no column
+     * A message reopened from a PERSISTED outbox row reopens as lossy: the row has no column
      * for the verdict, so the verdict did not survive — and an unknown must forbid the destroy,
      * never authorise it. The id itself still travels (re-sending still replaces the draft when
      * a later save can prove itself); it is only the destroy that the unknown refuses.

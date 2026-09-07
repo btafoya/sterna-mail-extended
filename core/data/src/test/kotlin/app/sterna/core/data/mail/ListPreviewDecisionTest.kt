@@ -12,7 +12,7 @@ import org.junit.Test
  * The two decisions of the IMAP list preview, EXECUTED (#187): whether to read opening lines at
  * all, and whether the value read survives into the cache row.
  *
- * ⛔ Neither test recomputes the rule it is checking. The couples below are written out by hand,
+ * Neither test recomputes the rule it is checking. The couples below are written out by hand,
  * one line each, precisely so that inverting the shipped condition turns them red — a test that
  * derives its expectation from the same expression is a copy of the decision and stays green
  * whatever the decision says.
@@ -20,7 +20,7 @@ import org.junit.Test
 class ListPreviewDecisionTest {
 
     /**
-     * ⭐ THE WHOLE PRODUCT OF BOTH ENUMERATIONS, sixteen couples, each stated. Two claims live in
+     * THE WHOLE PRODUCT OF BOTH ENUMERATIONS, sixteen couples, each stated. Two claims live in
      * it and both are load-bearing:
      *
      *  - a list set to show a preview wants one, whatever notifications are set to. That is the
@@ -62,7 +62,7 @@ class ListPreviewDecisionTest {
         )
     }
 
-    /** ⛔ And the ONE couple that reads nothing, stated on its own so the line cannot be lost in
+    /** And the ONE couple that reads nothing, stated on its own so the line cannot be lost in
      *  the list above: an account that shows no preview anywhere spends nothing on the radio. */
     @Test fun `an account that shows no preview anywhere reads no body`() {
         assertFalse(previewWantedInList(PreviewLines.NONE, NotificationContent.SENDER_AND_SUBJECT))
@@ -86,7 +86,7 @@ class ListPreviewDecisionTest {
     )
 
     /**
-     * ⭐ THE END OF THE ROAD, and the line issue #187 was: the value read for a message has to reach
+     * THE END OF THE ROAD, and the line issue #187 was: the value read for a message has to reach
      * `EmailEntity.preview`. This mapper is the IMAP side's own — the JMAP path does not go through
      * it — and it wrote a hard `null` here for all six of its call sites, so the list's "Preview"
      * setting could do nothing at all on an IMAP account whatever it was set to.

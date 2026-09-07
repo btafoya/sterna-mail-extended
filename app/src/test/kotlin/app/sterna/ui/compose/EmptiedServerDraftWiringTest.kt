@@ -12,7 +12,7 @@ import java.io.File
  * decision itself is EXECUTED by [EmptiedServerDraftTest] ([emptiedServerDraftIsKept]); what nothing
  * else can see is whether this route still asks it, and asks it about THIS screen's verdict.
  *
- * ⚠ A test that checks a call EXISTS proves nothing about what is handed to it: arguments are parsed
+ * A test that checks a call EXISTS proves nothing about what is handed to it: arguments are parsed
  * out of the call and compared whole ([callsOf]), and the block is pinned line by line and IN ORDER —
  * a `contains` is blind to every mutation that lengthens a line (`editingDraftLossy && false` reads
  * as harmless) and to a notice moved out of the lambda.
@@ -37,7 +37,7 @@ class EmptiedServerDraftWiringTest {
 
     @Test fun `the kept copy is SAID, and the expunge is what the other branch does`() {
         val lines = codeLines(bodyOf("saveDraft"))
-        // ⚠ Exact equality, never a prefix: the LOCAL route one branch above opens with almost the
+        // Exact equality, never a prefix: the LOCAL route one branch above opens with almost the
         // same words and closes on its own line (`submit(to) { _, _ -> destroyReplacedServerDraft(original) }`),
         // so a prefix match can land on that one and this test then pins the wrong branch.
         val at = lines.indexOfFirst { it == "submit(to) { _, _ ->" }
@@ -60,7 +60,7 @@ class EmptiedServerDraftWiringTest {
                 "next sync. Body was:\n" + lines.joinToString("\n"),
             listOf(
                 "submit(to) { _, _ ->",
-                // ⛔ The account is resolved by a LOCAL FUN and not into a val up front: a
+                // The account is resolved by a LOCAL FUN and not into a val up front: a
                 // lossy draft keeps its copy whatever the account says, and resolving an account
                 // removed from the phone during the edit would turn that true notice into a
                 // "could not save" banner over a gesture that failed at nothing. Called only
@@ -72,7 +72,7 @@ class EmptiedServerDraftWiringTest {
                 "composingAsAccountId = _selectedFrom.value?.accountId ?: accountId,",
                 "lookup = { store.credentials(it) },",
                 ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
-                // ⭐ The second term of the guard, and the whole correction: the addressing
+                // The second term of the guard, and the whole correction: the addressing
                 // of the copy about to be expunged, PROVEN empty or not proven at all. Read under
                 // the account the draft was OPENED from — `credentials` here reads another
                 // server's Drafts. The `!editingDraftLossy &&` only skips a read whose answer
@@ -93,7 +93,7 @@ class EmptiedServerDraftWiringTest {
     }
 
     /**
-     * ⛔ …and WHOSE server hears the expunge. `submit`'s own credentials are the account of the
+     * …and WHOSE server hears the expunge. `submit`'s own credentials are the account of the
      * identity the "From" picker is showing, and that picker covers every account: with "From"
      * switched, this route sent the id and the numbering read off account A's draft to account B.
      * JMAP spares an id B never issued — the draft stays in A's Drafts and comes back on the next
@@ -144,7 +144,7 @@ class EmptiedServerDraftWiringTest {
     /**
      * And the GATE that decides whether the destroying branch is entered at all.
      *
-     * ⛔ **The guard above only runs once "this draft is empty" has been answered**, and that answer
+     * **The guard above only runs once "this draft is empty" has been answered**, and that answer
      * is `hasDraftContent`, a one-line wrapper whose body was pinned NOWHERE: only its call site
      * (`ComposeViewModelWiringTest`) and `draftHasContent` itself (`DraftContentTest`, executed) were.
      * Between the two, the sixth argument — "does this composer hold attachments" — could be turned

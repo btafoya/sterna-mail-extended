@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⭐ Codeberg #99, re-opened by writing pages as they land, and closed again: a folder whose
+ * Codeberg #99, re-opened by writing pages as they land, and closed again: a folder whose
  * UIDVALIDITY changed must have its body cache dropped BEFORE the first row of the new numbering
  * reaches the screen.
  *
@@ -63,7 +63,7 @@ class NumberingSettlesBeforePagesTest {
     }
 
     @Test fun `a body cached under the old numbering is gone before the first page is visible`() {
-        // ⭐ The test of the reserve. With the settle after the walk, the row of the NEW message 7
+        // The test of the reserve. With the settle after the walk, the row of the NEW message 7
         // is on screen for the length of the walk while the body of the OLD message 7 is still in
         // the cache — and opening it renders the wrong message under the right header.
         val screen = Screen()

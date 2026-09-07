@@ -71,7 +71,7 @@ class ImapAuthRejectedTest {
  * `code` before the decision (the original defect back: `[UNAVAILABLE]` accuses the password),
  * and deleting the coded branch (the body falls through the `else`).
  *
- * ⛔ Every pin is a WHOLE LINE, trimmed, compared by strict equality, and required to occur
+ * Every pin is a WHOLE LINE, trimmed, compared by strict equality, and required to occur
  * exactly once — never `contains` on a fragment, which is blind to any mutation that lengthens
  * the line (the repo has been bitten by that three times, twice on irreversible server writes).
  *

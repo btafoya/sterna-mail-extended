@@ -9,7 +9,7 @@ import java.io.File
  * [app.sterna.core.data.account.ImapStopsAtTheWindowIsDocumentedTest]: it reads a shipped file as
  * text and proves nothing about what runs.
  *
- * ⛔ Why it has to exist. Everything autodiscovery DECIDES is covered for real in
+ * Why it has to exist. Everything autodiscovery DECIDES is covered for real in
  * [DiscoveryIsBoundedTest], which runs [discoverJmapAmong] and [probeHost] with fake probes in
  * virtual time. What no test in this module can reach is the four lines that WIRE those decisions
  * up: `MailRepository` takes a dozen DAOs and a `JmapClient` whose constructor is internal to
@@ -26,7 +26,7 @@ import java.io.File
  * passes no budget at all, so there is no argument left to change. The first cannot be; this reads
  * it instead.
  *
- * ⚠ What it does NOT do: it cannot tell that `fetchSession` is handed the right URL or the right
+ * What it does NOT do: it cannot tell that `fetchSession` is handed the right URL or the right
  * credentials, and a green run here is not "autodiscovery works". It only makes the two mutations
  * above impossible to write back without a red test.
  */
@@ -55,7 +55,7 @@ class DiscoveryWiringTest {
     }
 
     /**
-     * ⛔ Whole line, never a fragment: `contains("BearerAuth(")` is blind to everything that
+     * Whole line, never a fragment: `contains("BearerAuth(")` is blind to everything that
      * LENGTHENS the line, and this line's mutation shortens AND lengthens it.
      */
     @Test fun `autodiscovery proves a token as a Bearer, and only falls back on Basic without one`() {
@@ -72,7 +72,7 @@ class DiscoveryWiringTest {
     }
 
     /**
-     * ⛔ Whole line, never a fragment — and the reason it is pinned at all is #188.
+     * Whole line, never a fragment — and the reason it is pinned at all is #188.
      *
      * Since a guessed rank's 401/403 stopped counting as a credential verdict, the WHOLE of that
      * correction rests on one unwritten fact: rank 0 is the domain she typed.

@@ -25,14 +25,14 @@ import java.io.File
  * deleted elsewhere it never leaves (Codeberg #134). The cure is that the verdict comes from
  * `expectedChildIds`, the set the caller computed for AFTER the pass ([Notifications.liveChildIdsAfter]).
  *
- * ⭐ And the verdict may only demolish what the repair can REBUILD ([Notifications.teardownRepairable]).
+ * And the verdict may only demolish what the repair can REBUILD ([Notifications.teardownRepairable]).
  * The repair is `repostSilently`, which copies a `StatusBarNotification` the shade handed over, so
  * an id the caller expects while the shade does not show it yet has nothing to copy: it is counted
  * into the teardown, cascaded away by it, and put back by nobody. Two banners read from another
  * client while a third arrives, one push pass over all three: the new mail rings, its banner goes
  * within seconds, and nothing announces that message again — `seed` has taken it into the folder's
  * baseline. So while `expectedChildIds` holds an id `shownChildIds` does not, the function declines
- * to demolish and returns; the next pass decides on a shade that has caught up. ⛔ Never
+ * to demolish and returns; the next pass decides on a shade that has caught up. Never
  * "re-post the expected ones too": `expectedChildIds` is a `Set<Int>`, there is nothing to post.
  *
  * TWO sets, and the split is load-bearing. What is dropped from the shade's answer is what the
@@ -43,17 +43,17 @@ import java.io.File
  * and staying — the first carries a banner posted a moment ago that the shade does not show yet,
  * the second carries the banners the caller does not know about.
  *
- * ⚠ ITS OWN LIMIT, written here so this file is never read as a proof: this is a SOURCE LINT.
+ * ITS OWN LIMIT, written here so this file is never read as a proof: this is a SOURCE LINT.
  * It proves the TEXT of the wiring and nothing else. It does not prove that Android re-posts the
  * children, that the re-posted banner is silent, or that the shade ends up right — no JVM test in
  * this module can, because nothing here executes [Notifications.updateGroupSummary] (there is
  * neither Robolectric nor an `androidTest` source set, and no fake `NotificationManager`).
- * ⭐ What the decision itself does IS executed, next door in [GroupAlertTest], on the pure
+ * What the decision itself does IS executed, next door in [GroupAlertTest], on the pure
  * [Notifications.liveChildIdsAfter] / [Notifications.summaryShownFor] pair; this file only pins
- * that the pair is what the shade-facing code obeys. ⛔ The proof of the fix is the bench run,
+ * that the pair is what the shade-facing code obeys. The proof of the fix is the bench run,
  * not this suite.
  *
- * ⛔ Whole lines only, never a `contains` on a fragment: a `contains` is blind to every mutation
+ * Whole lines only, never a `contains` on a fragment: a `contains` is blind to every mutation
  * that LENGTHENS the line, and this repo has been caught by that three times.
  */
 class LiveBannerSurvivesItsSummaryWiringTest {
@@ -69,7 +69,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
             codeLinesNaming(body, "repostSilently("),
         )
 
-        // ⭐ THE pin of this file. A list of lines cannot see order, and the mutation that hurts
+        // THE pin of this file. A list of lines cannot see order, and the mutation that hurts
         // most keeps every line and only moves one: re-post first, cancel second. That is the
         // original defect again — the cascade fires last and wipes what was just put back — and
         // every other assertion here stays green through it.
@@ -328,7 +328,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
             ),
             receiver,
         )
-        // ⭐ Order again, for the same reason as the cancel/re-post pair above: every line can
+        // Order again, for the same reason as the cancel/re-post pair above: every line can
         // stay and the read simply move below the cancel, and no list-of-lines assertion sees it.
         val readAt = receiver.indexOfFirst { it == "val active = Notifications.activeChildIds(context, accountId)" }
         val cancelAt = receiver.indexOfFirst { it == "NotificationManagerCompat.from(context).cancel(notifId)" }

@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
+ * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
  *
  * [MessagePagingTest] executes the decision ([MessagePaging.needsLoad]); this pins that the
  * decision is still WIRED to the pager, and above all WHICH VALUE it is handed. A pure function
@@ -30,7 +30,7 @@ import java.io.File
  * module has neither Robolectric nor instrumentation (same last resort, and the same instrument,
  * as [OriginalSenderCallSiteTest] and `PrefetchStaysInTheInboxWiringTest`).
  *
- * ⛔ Whole normalised lines compared by equality, never `contains`: a substring is blind to every
+ * Whole normalised lines compared by equality, never `contains`: a substring is blind to every
  * mutation that LENGTHENS the line. Complete block comments are removed from wherever they sit on
  * a line, and the line is dropped only when NOTHING is left of it — a comment may make a rule red,
  * never satisfy one.
@@ -38,7 +38,7 @@ import java.io.File
 class LoadOnSettleCallSiteTest {
 
     /**
-     * The load effect, whole and exactly once. ⛔ `active` must appear TWICE on it: as the third
+     * The load effect, whole and exactly once. `active` must appear TWICE on it: as the third
      * argument (the value the guard decides on) and as a KEY of the `LaunchedEffect` (without
      * which the effect never replays at the moment the page settles, and the message the user
      * landed on never loads at all).
@@ -85,7 +85,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ The inventory, and it covers EVERY name by which this screen may put a message on a page,
+     * The inventory, and it covers EVERY name by which this screen may put a message on a page,
      * the cache warm-up included. Restricted to `viewModel.load(`, as it was, a method called
      * `warmFromCache(` passed underneath it unseen and the whole rule became decoration: the
      * warm-up is a second door into the same ViewModel, and it is opened on the neighbours.
@@ -111,7 +111,7 @@ class LoadOnSettleCallSiteTest {
     /**
      * The warm-up effect, whole, and ABOVE the load effect with nothing between them.
      *
-     * ⛔ It must NOT take `active` as a key or as an argument: both neighbours are warmed, which
+     * It must NOT take `active` as a key or as an argument: both neighbours are warmed, which
      * is the entire point — a warm-up gated on `active` runs only on the page already on screen
      * and buys nothing. And it must stay above the load effect: below it, the settled page's
      * `load` would already have wiped `_messages` and the warm-up would then paint a body over a
@@ -131,7 +131,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ THE promise this volet is allowed to exist under: the warm-up reads the LOCAL CACHE and
+     * THE promise this volet is allowed to exist under: the warm-up reads the LOCAL CACHE and
      * nothing else. Every name below reaches the network, and on IMAP a fetched source hands the
      * sender's announced key to the OpenPGP provider (`importAutocryptKey`) from a message nobody
      * opened — which is exactly why `798a5fd1` removed the previous warm-up, and what
@@ -154,7 +154,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ RISK Nº 1 OF THE VOLET, and it loses the message silently. `loadedId` is what
+     * RISK Nº 1 OF THE VOLET, and it loses the message silently. `loadedId` is what
      * [MessagePaging.needsLoad] reads to answer "already loaded?". If the warm-up writes it, a
      * neighbour whose body is NOT in the cache is marked as loaded without ever being fetched:
      * settling on it returns early from `load`, and the reader sits in front of an empty page
@@ -173,7 +173,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ The middle link of the warm-up, and the only place the decision becomes a refusal.
+     * The middle link of the warm-up, and the only place the decision becomes a refusal.
      * [MessagePaging.warmable] is green against any arguments, so what counts is what is handed to
      * it AND that its answer is acted on. Passing `null` for the crypto kind paints PGP armour on
      * an unopened page; passing `cachedInlineImages = 1` unconditionally warms a body whose images
@@ -207,7 +207,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ THE LINK BELOW `repo.cryptoKindOf(` — the rule above pins that the warm-up ASKS the
+     * THE LINK BELOW `repo.cryptoKindOf(` — the rule above pins that the warm-up ASKS the
      * repository, and `InlineArmorKindTest` (core/imap) RUNS the answer; between the two sat a
      * hop watched by nothing. `MailRepository` needs Room and an Android context, so it cannot be
      * executed on a JVM bench and this is read out of the shipped source — a last resort, and the
@@ -219,9 +219,9 @@ class LoadOnSettleCallSiteTest {
      * carries PGP armour in clear text, `MessagePaging.warmable`'s refusal nº 1 no longer fires,
      * and a neighbour page NOBODY OPENED paints the armour, in clear, with no decrypt offered —
      * and the same `null` leaves an OPENED inline-PGP message with no decryption on offer
-     * (`MailRepository.kt:4165`, `:4171` route on this answer).
+     * (`MailRepository`, `:4171` route on this answer).
      *
-     * ⚠ Whole lines, and adjacent: `in`/`contains` is blind to every mutation that LENGTHENS a
+     * Whole lines, and adjacent: `in`/`contains` is blind to every mutation that LENGTHENS a
      * line (`inlineArmorKind(email.textContent().orEmpty()).takeIf { false }` reads as a call),
      * and [bindingsOf]'s motif is anchored at `^`, so nothing here may be pinned by an
      * assignment's left-hand side. Order matters too: the two part tests must stay ABOVE the
@@ -254,7 +254,7 @@ class LoadOnSettleCallSiteTest {
      * The same six lines read the other way round — as an INVENTORY of the function, from its
      * declaration to the next member, rather than as a window of fixed length opened on the file.
      *
-     * ⛔ Why both: [adjacentBlock] goes quietly empty when its anchor is renamed or duplicated,
+     * Why both: [adjacentBlock] goes quietly empty when its anchor is renamed or duplicated,
      * and an empty list is the one `but was` that says nothing about what happened. This one
      * carries its own sentinel, and it is the rule that reddens on ANYTHING GROWN inside the
      * function — an early `return null` for a flag, a cache read that shadows `parts` — which a
@@ -275,7 +275,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ WHAT THE WARM-UP ACTUALLY PAINTS — the lines that sit BETWEEN two pinned blocks (the
+     * WHAT THE WARM-UP ACTUALLY PAINTS — the lines that sit BETWEEN two pinned blocks (the
      * `warmable` consultation above, `load`'s two erasures below) and were therefore watched by
      * nothing at all. Every one of them is load-bearing:
      *
@@ -285,7 +285,7 @@ class LoadOnSettleCallSiteTest {
      *   written, so `load`'s prologue skips `MessageState.Loading` and the reader gets no spinner
      *   either.
      * - `inlineImages = cached.inlineImages` → `emptyMap()` paints the JMAP prefetch's body WITH
-     *   ITS HOLES, which reloads under the finger: `MessagePaging.kt:73-80` calls that outcome
+     * ITS HOLES, which reloads under the finger: `MessagePaging-80` calls that outcome
      *   worse than the spinner it replaces, and refusal nº 2 of `warmable` exists to avoid it.
      * - `warmedId` / `warmedAccountId` are the ONLY producers of `warm`; drop either and the
      *   settle repaints the page it was supposed to keep. The account half alone works in a
@@ -293,7 +293,7 @@ class LoadOnSettleCallSiteTest {
      * - The `return@launch` at the head of the block is the re-check after the suspension points
      *   above: without it a warm body is painted OVER a fetch `load` already owns.
      *
-     * ⛔ [bindingsOf] is the wrong instrument here and the trap is named: its motif is
+     * [bindingsOf] is the wrong instrument here and the trap is named: its motif is
      * `^(val\s+|var\s+)?NAME\s*=(?!=)`, so `bindingsOf(lines, "warm")` — the instrument the
      * rule below uses — does not see `warmedId =` at all (the name is longer than what it
      * anchors on), and even `bindingsOf(lines, "warmedId")` is anchored at the START of a line,
@@ -303,12 +303,12 @@ class LoadOnSettleCallSiteTest {
      * anywhere in the ViewModel — `warmedId = null` in a lambda, a reset in the prologue — is a
      * fourth mention and reddens.
      *
-     * ⛔ AND IT IS READ TO THE END OF THE FUNCTION, not over a window of twelve lines: [tailFrom],
+     * AND IT IS READ TO THE END OF THE FUNCTION, not over a window of twelve lines: [tailFrom],
      * not [adjacentBlock]. A fixed-length window hands back exactly what follows the anchor
      * WHATEVER COMES AFTER IT, so `runCatching { repo.setRead(credentials, emailId, true) }`
      * dropped in under `warmedAccountId = accountId` compiled and left this file green — the
      * warmed neighbour, that nobody opened, MARKED READ ON THE SERVER, against what this
-     * function's own KDoc promises (`MessageViewModel.kt:1348-1349`, "It marks nothing read").
+     * function's own KDoc promises (`MessageViewModel-1349`, "It marks nothing read").
      * `setRead(` is not in [FETCHING_NAMES] and never will be — it fetches no body — so the tail
      * is the only thing that sees it. The two closing braces are part of the expectation for that
      * reason: they are what makes "and nothing after" sayable.
@@ -349,13 +349,13 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⭐ THE VOLET ITSELF, and without these two blocks it corrects nothing at all. `load` erased
+     * THE VOLET ITSELF, and without these two blocks it corrects nothing at all. `load` erased
      * the body in two places — the prologue, and the header-only repaint inside the coroutine. A
      * warmed neighbour that is erased at the instant the finger lands takes its WebView out of
      * composition, and the ~1 s spinner comes back unchanged while every other rule here stays
      * green.
      *
-     * ⛔ The condition is pinned WITH its binding: `val warm = warmedId == emailId &&
+     * The condition is pinned WITH its binding: `val warm = warmedId == emailId &&
      * warmedAccountId == accountId`. Dropping the account half re-opens #92 — two accounts of one
      * server carry the same id, and the page would keep the OTHER account's warmed body.
      */
@@ -386,13 +386,13 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ T4 — an inventory proves a call EXISTS, never that it is REACHED. Wrapping the load
+     * T4 — an inventory proves a call EXISTS, never that it is REACHED. Wrapping the load
      * effect in any `if (…) { … }` leaves every text rule above it green while the load stops
      * happening (or, worse, happens under a condition nobody audited). So the effect is pinned
      * with its NEIGHBOUR: the read-marking effect must follow it immediately, with no code line
      * of any kind in between.
      *
-     * ⛔ And with that neighbour's BODY, not merely its opening line. The flag governs TWO things
+     * And with that neighbour's BODY, not merely its opening line. The flag governs TWO things
      * — the page that loads and the page that marks its message read — and pinning only
      * `LaunchedEffect(active) {` let them diverge: `viewModel.onActiveChanged(true)` compiles,
      * nothing else in this repository names `onActiveChanged`, and the whole suite stays green.
@@ -416,14 +416,14 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ T3 — and a pin on a NAME is worth nothing without a pin on what that name is BOUND to.
+     * T3 — and a pin on a NAME is worth nothing without a pin on what that name is BOUND to.
      * `val active = true` inserted anywhere above the effect shadows the parameter: the pinned
      * line stays identical to the character, all three rules above stay green, and every page
      * loads again. Kotlin only warns about the shadowing, and this repository wires neither
      * `allWarningsAsErrors` nor ktlint nor detekt to turn that warning into a failure — the same
      * lesson `PrefetchStaysInTheInboxWiringTest` paid for with its `bindingsOf`.
      *
-     * ⚠ The second binding is legitimate and must stay: `val active = activeMessage` is the fixed
+     * The second binding is legitimate and must stay: `val active = activeMessage` is the fixed
      * chrome's own notion, in another function, and this rule pins it rather than forbidding it.
      */
     @Test fun `the whole screen binds the name active exactly twice, and to these`() {
@@ -440,14 +440,14 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ T1 and T2 — the MIDDLE LINK, which nothing watched: the screen passes `active`, the pure
+     * T1 and T2 — the MIDDLE LINK, which nothing watched: the screen passes `active`, the pure
      * function decides on `settled`, and between them sits `MessageViewModel.load`, free to hand
      * the decision anything at all. `needsLoad(true, …)` there re-enables the neighbour loads with
      * [MessagePagingTest] and every rule above it green; `val failed = false` there leaves the
      * Retry button inert forever (settled, same id, nothing "failed" ⇒ the guard refuses), and
      * the error screen never reloads again.
      *
-     * Four code lines, adjacent, from the declaration: the signature (⛔ no default on `settled`,
+     * Four code lines, adjacent, from the declaration: the signature (no default on `settled`,
      * and none on `accountId` either — a default in the middle lets `load(id, settled = true)`
      * compile and silently drop the account), the error reading, the guard forwarding BOTH, and
      * the `return` that makes it a guard rather than a comment.
@@ -481,7 +481,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ G-décalage, 2026-09-04 — the stale index must not be named ANYWHERE in the screen.
+     * G-décalage, 2026-09-04 — the stale index must not be named ANYWHERE in the screen.
      * `PagerState.settledPage` is refreshed only around a scroll; a list that moves underneath a
      * motionless reader leaves it pointing one row off. It is not a value to be used carefully,
      * it is the defect, so the inventory of its uses is empty.
@@ -501,7 +501,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ And the replacement, `currentPage`, is a live index too: it moves as soon as a drag
+     * And the replacement, `currentPage`, is a live index too: it moves as soon as a drag
      * crosses the halfway point. The whole design rests on it being read ONLY at rest — behind
      * `isScrollInProgress` — so the reads themselves are inventoried.
      */
@@ -521,7 +521,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ The middle link on THIS side: what is handed to the pure function. `settledEntry` is
+     * The middle link on THIS side: what is handed to the pure function. `settledEntry` is
      * green against every argument, so the rule that matters is which entry travels into it.
      */
     @Test fun `the settled entry is held from the page at rest, by identity`() {
@@ -539,7 +539,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ And the key the pages compare themselves against is bound ONCE, to the settled entry.
+     * And the key the pages compare themselves against is bound ONCE, to the settled entry.
      * A second binding — `val settledKey = pagerKey(entry)` inside the pager's page lambda — makes
      * every page active, with the pinned `active = pagerKey(entry) == settledKey,` untouched.
      */
@@ -556,7 +556,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ The identity itself, body included. Before this volet `active` compared two `Int`s and
+     * The identity itself, body included. Before this volet `active` compared two `Int`s and
      * never went through `pagerKey`; now the WHOLE load decision does, and nothing read that
      * body: [MessagePagingTest] exercises `MessagePaging.entryKey` directly, and every rule above
      * pins the CALL. `MessagePaging.entryKey(entry.first, null)` there leaves this file, that
@@ -577,14 +577,14 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ The `scrolling` guard can be undone from OUTSIDE the pure function, and every test of
+     * The `scrolling` guard can be undone from OUTSIDE the pure function, and every test of
      * [MessagePaging.settledEntry] stays green while it is: a second `settledEntry = entryAt(page)`
      * inside the same `collect`, after the decision, simply overwrites the answer — a page merely
      * brushed past becomes settled, loads, marks itself read and imports its sender's key. The
      * adjacency rule above cannot see it (it compares a fixed number of lines from its anchor, and
      * nothing forbids a fifth), so the writes are inventoried instead.
      *
-     * ⚠ The seed — `var settledEntry by remember { … }` — is deliberately NOT in this list: it
+     * The seed — `var settledEntry by remember { … }` — is deliberately NOT in this list: it
      * binds through `by`, not `=`, so [bindingsOf] does not see it. It is pinned by the
      * `currentPage` inventory instead. Do not "fix" that here.
      */
@@ -602,7 +602,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ The SAME flag, spent on the other thing a composed-but-never-opened page can do: fetch
+     * The SAME flag, spent on the other thing a composed-but-never-opened page can do: fetch
      * the sender's remote pictures.
      *
      * `warmFromCache` reads the allowlist ONCE, at warm time. After that the neighbour page stays
@@ -619,7 +619,7 @@ class LoadOnSettleCallSiteTest {
      * that answer, and neutralising it there closes the screen, `shouldInterceptRequest` and
      * `printDocument` in one move.
      *
-     * ⚠ The chrome's own copy (in `MessageActions`, which is only ever handed the SETTLED page's
+     * The chrome's own copy (in `MessageActions`, which is only ever handed the SETTLED page's
      * ViewModel) must stay ungated, and it is pinned here rather than forbidden — moving the latch
      * onto it instead would gate the menu of the page she is reading and leave the neighbour open.
      */
@@ -643,20 +643,20 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ And the latch itself, which the rule above only names. An inventory of one line proves a
+     * And the latch itself, which the rule above only names. An inventory of one line proves a
      * name is READ, never that it ever answers `false`: `val everActive = true` (or a seed of
      * `mutableStateOf(true)`, or the `if (active)` guard dropped) leaves the pinned
      * `senderAllowed` line identical to the character and every rule in this file green, while
      * every warmed neighbour is allowed again. That is the lesson already paid for by the `active`
      * inventory above and by `PrefetchStaysInTheInboxWiringTest`.
      *
-     * ⚠ It must be a ONE-WAY latch, never a bare `!active`. `MessagePaging.settledEntry` returns
+     * It must be a ONE-WAY latch, never a bare `!active`. `MessagePaging.settledEntry` returns
      * `null` at rest, deliberately, and in that window EVERY page has `active == false`, the one
      * under the reader's eyes included. A bare `!active` would flip `blockRemote` on the page she
      * is READING, re-key the document and reload the message under her, losing her scroll
      * position. The latch never goes back.
      *
-     * ⚠ And it lives in the composable, not in the ViewModel: as a `MutableStateFlow` it would
+     * And it lives in the composable, not in the ViewModel: as a `MutableStateFlow` it would
      * have to be reset from `load()`'s prologue (`ReaderStateResetOnLoadTest`), which runs BEFORE
      * `onActiveChanged` — wrong by one frame, and the frame is the one that fetches.
      */
@@ -688,7 +688,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ And the same latch again, counted this time by every line that so much as NAMES it,
+     * And the same latch again, counted this time by every line that so much as NAMES it,
      * wherever the name sits on the line. The rule above reads assignments ANCHORED AT THE START
      * of a line, which is a hole with a shape: `LaunchedEffect(emailId) { everActive = true }`,
      * dropped one line under the guard, arms the latch on the first frame of EVERY composed page,
@@ -703,11 +703,11 @@ class LoadOnSettleCallSiteTest {
      * He is told she opened a message she never opened. PRIVACY.md:288: "Allow a sender only when
      * you accept that they learn you opened the message."
      *
-     * ⚠ Whole word, so a future `everActiveFoo` neither satisfies this rule nor reddens it by
+     * Whole word, so a future `everActiveFoo` neither satisfies this rule nor reddens it by
      * accident, and over [codeLines], so a mention inside a KDoc is not counted — a comment may
      * redden a rule here, never satisfy one.
      *
-     * ⛔ The motif of [bindingsOf] is deliberately NOT widened to cover this: it is shared with
+     * The motif of [bindingsOf] is deliberately NOT widened to cover this: it is shared with
      * the `active` inventory and with [viewModelLines], and widening it would move inventories
      * that other rules in this file pin. The hole is closed for this name, here.
      */
@@ -732,7 +732,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ THE SECOND PRODUCER of the very same answer, latched on the same flag. `showRemoteImages`
+     * THE SECOND PRODUCER of the very same answer, latched on the same flag. `showRemoteImages`
      * takes `manualShow || senderAllowed`: closing the allowlist half alone leaves the other half
      * open, and it is open by ACCIDENT, not by guard.
      *
@@ -745,11 +745,11 @@ class LoadOnSettleCallSiteTest {
      * layout change away from being a fetch for a message NOBODY OPENED, and PRIVACY.md:288
      * publishes the opposite.
      *
-     * ⛔ The latch goes on these `val`s and NEVER on the `showRemoteImages(...)` call below them:
+     * The latch goes on these `val`s and NEVER on the `showRemoteImages(...)` call below them:
      * `ReaderBodyTest` counts that line by a whole-line regex and demands exactly two of it, one
      * per site. Gating the call would move the line and take that rule out with it.
      *
-     * ⚠ The chrome's copy in `MessageActions` stays ungated on purpose, for the reason the
+     * The chrome's copy in `MessageActions` stays ungated on purpose, for the reason the
      * `senderAllowed` rule above states: `ActiveMessage` is published only from `onActivated`,
      * called under `if (active)`, so that site exists for the settled page alone. Latching there
      * would shut the menu of the message she is reading and leave the neighbour open.
@@ -789,7 +789,7 @@ class LoadOnSettleCallSiteTest {
     private fun warmBodyLines(): List<String> {
         val text = viewModel().readText()
         val start = text.indexOf("fun warmFromCache(")
-        // ⛔ Named after a forbidden call on purpose: a vanished warm-up must redden the rule
+        // Named after a forbidden call on purpose: a vanished warm-up must redden the rule
         // that reads this, not satisfy it against an empty list.
         if (start < 0) return listOf("warmFromCache is gone from MessageViewModel.kt: openMessage(")
         val end = NEXT_MEMBER.find(text, start + 1)?.range?.first ?: text.length
@@ -800,7 +800,7 @@ class LoadOnSettleCallSiteTest {
      * Every code line of [lines] that BINDS the name [name] — a `val`/`var` declaration, a bare
      * assignment, or a named argument spelling it — never a comparison (`==` is excluded).
      *
-     * ⛔ Why bindings and not just "the line is still there": a line that is still present and no
+     * Why bindings and not just "the line is still there": a line that is still present and no
      * longer decides anything satisfies every text pin in this file. Shadowing the name it reads
      * is the cheapest way to arrange that, and it is invisible to all of them.
      */
@@ -811,7 +811,7 @@ class LoadOnSettleCallSiteTest {
      * Every code line of [lines] that MENTIONS [name] as a whole word, wherever it sits on the
      * line — declaration, set, argument, parameter, or a read buried inside a lambda.
      *
-     * ⛔ Why this exists next to [bindingsOf] rather than inside it: [bindingsOf]'s motif is
+     * Why this exists next to [bindingsOf] rather than inside it: [bindingsOf]'s motif is
      * ANCHORED at the start of the line, so an assignment tucked into the middle of one
      * (`LaunchedEffect(emailId) { everActive = true }`) is invisible to it. Widening that motif
      * would move the `active` and [viewModelLines] inventories that other rules here pin, so the
@@ -824,7 +824,7 @@ class LoadOnSettleCallSiteTest {
      * [text]'s lines as CODE: every COMPLETE block comment removed from wherever it sits on the
      * line, runs of whitespace collapsed to one, and the line dropped only when nothing is left.
      *
-     * ⛔ Dropping any line that merely STARTS with a comment opener is a hole, not a detail: an
+     * Dropping any line that merely STARTS with a comment opener is a hole, not a detail: an
      * empty block comment opened and closed at once, followed by a real statement, is valid Kotlin
      * and would take the statement away with it — see `PrefetchStaysInTheInboxWiringTest`, where
      * exactly that hid an unopened key import from every inventory in the file.
@@ -848,7 +848,7 @@ class LoadOnSettleCallSiteTest {
      * tail of the extract, never a window of fixed length. Empty when [needle] is not there
      * exactly once, for [adjacentBlock]'s reason.
      *
-     * ⛔ This is the instrument for "…and nothing after it". [adjacentBlock] cannot say that: it
+     * This is the instrument for "…and nothing after it". [adjacentBlock] cannot say that: it
      * returns `count` lines and is blind to everything past them, which is how a `setRead` at the
      * very end of `warmFromCache` stayed invisible. Use it only on an extract already bounded to
      * one function ([warmBodyLines]) — on a whole file it would pin every line to the bottom.
@@ -865,7 +865,7 @@ class LoadOnSettleCallSiteTest {
     private fun cryptoKindLines(): List<String> {
         val text = repository().readText()
         val start = text.indexOf("fun cryptoKindOf(")
-        // ⛔ Sentinel rather than an empty list, for the reason warmBodyLines() states: a vanished
+        // Sentinel rather than an empty list, for the reason warmBodyLines() states: a vanished
         // function must redden the rule that reads it, not satisfy it against nothing.
         if (start < 0) return listOf("cryptoKindOf is gone from MailRepository.kt")
         val end = NEXT_MEMBER.find(text, start + 1)?.range?.first ?: text.length
@@ -877,7 +877,7 @@ class LoadOnSettleCallSiteTest {
     private fun screen(): File = locate("app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt")
 
     /**
-     * ⚠ Another module's source, read by path on purpose. The rule below it lives HERE rather
+     * Another module's source, read by path on purpose. The rule below it lives HERE rather
      * than beside `InlineArmorKindTest` in core/imap because the four helpers it needs
      * ([codeLines], [adjacentBlock], [locate], [NEXT_MEMBER]) are here, and because the sentence
      * it completes — pager warms a neighbour → `warmable` → `cryptoKindOf` → `inlineArmorKind` —
@@ -913,7 +913,7 @@ class LoadOnSettleCallSiteTest {
 
         /**
          * A DENYLIST OF KNOWN NAMES — repository entry points that reach the SERVER for a body,
-         * or for something that arrives with one. ⛔ It is NOT an inventory of everything that
+         * or for something that arrives with one. It is NOT an inventory of everything that
          * fetches: `MailRepository` is 4700 lines and nothing here proves the list complete, so
          * an empty result from the rule below means "none of THESE names", never "the warm-up
          * touches no network". A name added to the repository is not added here by itself, and a
@@ -921,8 +921,8 @@ class LoadOnSettleCallSiteTest {
          * all. The rule is a tripwire on the paths that have actually been walked; the promise it
          * serves is kept by `warmFromCache` staying three cache calls long and flat.
          *
-         * ⛔ `rawSource(`, `rawHeaders(`, `decryptMessage(` and `downloadAttachment(` are not
-         * decoration. `MailRepository.kt:3877-3882` states in those words which paths reach
+         * `rawSource(`, `rawHeaders(`, `decryptMessage(` and `downloadAttachment(` are not
+         * decoration. `MailRepository-3882` states in those words which paths reach
          * `openEmailImap` — "[fetchEmail], [decryptMessage], and the uncached fallback of
          * [rawHeaders] and [rawSource]" — and `openEmailImap` is the function that hands the
          * sender's announced key to the OpenPGP provider (`importAutocryptKey`).
@@ -933,9 +933,9 @@ class LoadOnSettleCallSiteTest {
          * for the same reason one step further out — it is bytes off the wire for a message the
          * reader has not swiped to.
          *
-         * ⛔ And the three SYNCHRONISATION names, added when the sentence above this list was
+         * And the three SYNCHRONISATION names, added when the sentence above this list was
          * found to be false: they reach a fetch without ever spelling one. `refresh(`
-         * (`MailRepository.kt:3535`) fires `bgScope.launch { runCatching {
+         * (`MailRepository`) fires `bgScope.launch { runCatching {
          * prefetchInboxBodies(…) } }` (`:3612`), which on JMAP (`:4592`, IMAP returns at once) asks
          * `originalSendersOf` (`:4620`) and lands on `importAutocryptKey` (`:3975`) — the THIRD
          * site that deposits a sender's announced key in OpenKeychain, one line away from the
@@ -983,7 +983,7 @@ class LoadOnSettleCallSiteTest {
 
         /**
          * …and the two braces that close the coroutine and the function, which is what makes the
-         * rule say "and NOTHING after". ⛔ Not decoration: a statement slipped in under
+         * rule say "and NOTHING after". Not decoration: a statement slipped in under
          * `warmedAccountId = accountId` is the one mutation that survives a fixed-length window,
          * and `runCatching { repo.setRead(credentials, emailId, true) }` there marks a page
          * nobody opened as read on the server.
@@ -1005,7 +1005,7 @@ class LoadOnSettleCallSiteTest {
 
         /**
          * The consultation of the pure warm/no-warm decision, argument by argument — AND the line
-         * that OBEYS it. ⛔ The obedience belongs in the same block, not in a rule of its own:
+         * that OBEYS it. The obedience belongs in the same block, not in a rule of its own:
          * pinning the call alone left `if (!warmable) return@launch` deletable with every rule in
          * this file and every case in `MessagePagingTest` still green.
          */
@@ -1040,7 +1040,7 @@ class LoadOnSettleCallSiteTest {
         val NEXT_MEMBER = Regex("""\n {4}(private )?(suspend )?fun \w""")
 
         /**
-         * `MailRepository.cryptoKindOf`, whole. ⛔ Arguments included: the value handed to
+         * `MailRepository.cryptoKindOf`, whole. Arguments included: the value handed to
          * `inlineArmorKind` is half of what is pinned — `inlineArmorKind("")` is a call, is a
          * mention, and answers `null` for every message on earth.
          */
@@ -1054,7 +1054,7 @@ class LoadOnSettleCallSiteTest {
         )
 
         /**
-         * The page's own allowlist answer, latched. ⛔ Whole line, arguments included: `in`
+         * The page's own allowlist answer, latched. Whole line, arguments included: `in`
          * would be blind to `everActive || …`, which is the mutation that reads as a fix.
          */
         const val SENDER_ALLOWED_LATCHED =
@@ -1078,7 +1078,7 @@ class LoadOnSettleCallSiteTest {
 
         /**
          * Every line that may so much as NAME the latch, in source order: seed, set, argument,
-         * parameter, and the one answer it gates. ⛔ Whole lines: a mention added anywhere else,
+         * parameter, and the one answer it gates. Whole lines: a mention added anywhere else,
          * in any form, is a second way to arm the latch on a page nobody opened.
          */
         val LATCH_MENTIONS = listOf(
@@ -1093,10 +1093,10 @@ class LoadOnSettleCallSiteTest {
         /**
          * The page's SECOND producer of the remote-image answer, at its origin and latched.
          *
-         * ⛔ Both lines, and the raw one FIRST: pinning only the latched line leaves
+         * Both lines, and the raw one FIRST: pinning only the latched line leaves
          * `val manualShowRaw = true` — the flow read replaced by a constant — with every rule in
          * this file and every case in `ReaderBodyTest` green, and the origin of a value is pinned
-         * by nothing else in this repo. ⛔ Whole lines, so `everActive || manualShowRaw`, the
+         * by nothing else in this repo. Whole lines, so `everActive || manualShowRaw`, the
          * mutation that reads as a fix, is seen.
          */
         const val MANUAL_SHOW_RAW =

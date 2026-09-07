@@ -23,7 +23,7 @@ import java.time.Instant
  * agreement rests on those two being one instant, and setting them by hand would assume exactly
  * what can break.
  *
- * ⚠ The bench is deliberately LARGER than [NOTIFY_CANDIDATE_MAX]. An earlier version of this file
+ * The bench is deliberately LARGER than [NOTIFY_CANDIDATE_MAX]. An earlier version of this file
  * worked on eleven rows: it could not observe anything the cap does, which is precisely how a cap
  * that truncated the baseline passed review here. The invariant below is stated on the BASELINE —
  * the capped candidate read is allowed to shed rows, the baseline is not.

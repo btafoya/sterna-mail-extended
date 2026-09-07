@@ -12,7 +12,7 @@ import org.junit.Test
  * [foldTopLevelQuotes] EXECUTED — it is a pure String→String function precisely so this file can
  * run the DECISION instead of reading the source that contains it.
  *
- * Every body below is written out by hand. ⛔ Nothing here recomputes "is this a top-level
+ * Every body below is written out by hand. Nothing here recomputes "is this a top-level
  * blockquote": a test that re-derived the rule to pick what to replay would stay green with the
  * shipped condition inverted.
  *

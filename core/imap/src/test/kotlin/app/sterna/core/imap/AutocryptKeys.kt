@@ -10,8 +10,8 @@ internal object AutocryptKeys {
 
     /**
      * An RSA-4096 key (sign + encrypt subkey), minimized: **1 163 octets, 1552 base64
-     * characters**. ⭐ This is the case the whole volet exists for — `Autocrypt: ` plus this value
-     * is far past RFC 5322 §2.1.1's 998-octet line, and ⛔ **no bench can show it**: the four
+     * characters**. This is the case the whole volet exists for — `Autocrypt: ` plus this value
+     * is far past RFC 5322 §2.1.1's 998-octet line, and **no bench can show it**: the four
      * benches carry ed25519 keys, which fit on one line.
      */
     const val RSA_4096: String =

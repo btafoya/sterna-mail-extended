@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST — and here that is not a shortcut, it is the whole reachable
+ * SOURCE LINT, NOT A BEHAVIOUR TEST — and here that is not a shortcut, it is the whole reachable
  * surface. `FetchAndNotify.run` takes an Android `Context`, resolves the application container out
  * of it and calls a `MailRepository` that needs Room and a live session: no JVM test in this module
  * can enter it. What the type system already proves is proved next door — `AccountGoneException`
@@ -28,7 +28,7 @@ import java.io.File
  * precisely what "make the push log say what happened, not what was hoped" (#130) was for. Caught
  * here, in the single funnel, it is one `Log.i` and no retry.
  *
- * ⛔ And this file is where the un-archive path is proved, not next door: `SignedOutAccountWiringTest`
+ * And this file is where the un-archive path is proved, not next door: `SignedOutAccountWiringTest`
  * reads `MailRepository.kt` ALONE, so it stays green while the guards it pins are thrown into a
  * `runCatching` living in THIS file and go nowhere. Both calls of `unarchiveThreadsOnReply` sat in
  * exactly such a `runCatching { … }.getOrDefault(emptyList())`: the guard would skip the re-file and
@@ -51,7 +51,7 @@ class SignedOutAccountLeavesNoPushErrorTest {
         // Pinned as a block: the arm has to SWALLOW. A `throw gone` or a `Result`-shaped rethrow
         // slipped between the two lines puts the error entry and the two retries straight back.
         //
-        // ⚠ And WHAT the line claims is not decided here. The guard throws when the pass's id is
+        // And WHAT the line claims is not decided here. The guard throws when the pass's id is
         // not in `AccountStore.accounts()`, which answers an UNREADABLE blob with an empty list —
         // so this arm also fires when nobody signed anything out, and it used to assert a sign-out
         // in that case too. The choice is [app.sterna.core.data.mail.accountGoneCause], EXECUTED by
@@ -81,21 +81,21 @@ class SignedOutAccountLeavesNoPushErrorTest {
     }
 
     @Test fun `nothing catches ahead of it — AccountGoneException IS a CancellationException`() {
-        // ⛔ Not cosmetic. The refusal is a cancellation by design, so ANY arm above this one that
+        // Not cosmetic. The refusal is a cancellation by design, so ANY arm above this one that
         // names CancellationException (or Throwable) takes it first and the dedicated arm becomes
         // unreachable — silently, with every test in the repo still green.
-        // ⚠ Matched on the KEYWORD, not on the closing brace in front of it. `} catch (` is a
+        // Matched on the KEYWORD, not on the closing brace in front of it. `} catch (` is a
         // formatting convention, not a rule of the language: an arm written on its own line
         // (`}` then `catch (c: CancellationException) {`) is the same arm, in the same place, and a
         // filter anchored on the brace does not count it — so it could be slipped ABOVE this one,
         // leaving every test here green while the dedicated arm is dead code.
         //
-        // ⛔ This filter is what carries the ordering constraint. There is deliberately no
+        // This filter is what carries the ordering constraint. There is deliberately no
         // `catch (c: CancellationException) { throw c }` under the arm below (nothing catches
         // Throwable in this function, so it would be a no-op line), which means the order is
         // stated HERE or nowhere.
         //
-        // ⚠ Asked PER FUNCTION since the second arm landed. `ARM` is one constant and the two arms
+        // Asked PER FUNCTION since the second arm landed. `ARM` is one constant and the two arms
         // are spelled identically, so a whole-file `catches.first()` would state the order for
         // `run` twice and for `onInboxRefreshed` never — and an arm slipped above the second one
         // would be invisible while its own test still found its block further down.
@@ -145,7 +145,7 @@ class SignedOutAccountLeavesNoPushErrorTest {
     // -- the un-archive: a refusal that has to LEAVE the runCatching wrapping it ---------------------
 
     @Test fun `the background pass lets the un-archive's refusal out of its best-effort wrapper`() {
-        // ⛔ The `runCatching` is not the defect and must stay: a move the server refuses must not
+        // The `runCatching` is not the defect and must stay: a move the server refuses must not
         // cost the notification. What it must not do is eat the sign-out, because the guards in
         // `unarchiveThreadsOnReply` throw a CancellationException and `runCatching` catches those
         // like anything else. Swallowed here, the re-file is skipped and the pass walks on into
@@ -170,14 +170,14 @@ class SignedOutAccountLeavesNoPushErrorTest {
     }
 
     @Test fun `the foreground inbox hook drops the signed-out account on the spot`() {
-        // ⛔ The same wrapper, in the hook the UI calls after it refreshed an inbox itself. Not for
+        // The same wrapper, in the hook the UI calls after it refreshed an inbox itself. Not for
         // the caller's sake: `InboxViewModel` wraps both of its calls to this hook in a
         // `runCatching` (`:943`, `:957`), so a refusal let out of here would be absorbed there and
         // nothing above would notice. The arm is what makes the hook STOP — no seed, no notifyDiff,
         // no baseline under the removed id — and what makes a sign-out leave one line saying so
         // rather than a silence (#130).
         //
-        // ⚠ The claim is [app.sterna.core.data.mail.accountGoneCause]'s, executed by
+        // The claim is [app.sterna.core.data.mail.accountGoneCause]'s, executed by
         // `AccountGoneCauseTest`, and what is pinned here is that this site ASKS it, with a FRESH
         // `accountsUnreadable()` read (a constant `false` compiles and turns an unreadable account
         // blob back into a "sign-out" in a reporter's logcat). `passKind` is this site's own word:
@@ -248,7 +248,7 @@ class SignedOutAccountLeavesNoPushErrorTest {
     }
 
     @Test fun `nothing else is open around the guarded calls that could swallow the refusal`() {
-        // ⭐ THE rule this file was missing, and a counter-expertise proved it by mutation: every
+        // THE rule this file was missing, and a counter-expertise proved it by mutation: every
         // other rule here is about PRESENCE and ORDER, and both survive an enclosure. Wrap the
         // whole `val returned = if (…) { … } else { emptyList() }` expression of `run` in a second
         // `runCatching { … }.getOrDefault(emptyList())` and not one pinned line moves: the three
@@ -259,11 +259,11 @@ class SignedOutAccountLeavesNoPushErrorTest {
         // for the account she has just deleted, and its baseline is written under the dead id.
         //
         // So this asks what `SignedOutAccountWiringTest.openBlocksAt` asks of MailRepository, on
-        // the file that one cannot see. ⛔ Duplicated rather than shared: `:app` and `core:data` do
+        // the file that one cannot see. Duplicated rather than shared: `:app` and `core:data` do
         // not share test source, and a helper reached across modules would be one more thing to
         // keep true in two places anyway.
         //
-        // ⚠ The call's OWN `runCatching { … }` never appears: it opens and closes on that one line,
+        // The call's OWN `runCatching { … }` never appears: it opens and closes on that one line,
         // so it is not a block that is still open there. That is exactly the intent — that wrapper
         // is allowed (a refused move must not cost the notification), it is the one whose refusal
         // `rethrowIfCancelled()` re-throws. Anything ELSE still open is a place for it to die.
@@ -292,7 +292,7 @@ class SignedOutAccountLeavesNoPushErrorTest {
     }
 
     /** The lines that opened the blocks still open just before [index] — the call's enclosure.
-     *  A twin of `SignedOutAccountWiringTest.openBlocksAt`; see the ⛔ note above for why it is
+     * A twin of `SignedOutAccountWiringTest.openBlocksAt`; see the note above for why it is
      *  copied and not shared. */
     private fun openBlocksAt(lines: List<String>, index: Int): List<String> {
         val stack = ArrayDeque<String>()
@@ -334,7 +334,7 @@ class SignedOutAccountLeavesNoPushErrorTest {
     /**
      * The code of ONE function of the file, from its declaration to the next declaration's.
      *
-     * ⛔ Not a convenience: the file carries two arms spelled identically now, and every rule here
+     * Not a convenience: the file carries two arms spelled identically now, and every rule here
      * is "which statement follows which INSIDE one function". A whole-file read would let a line
      * belonging to `run` satisfy a rule written about `onInboxRefreshed`, and the other way round.
      */

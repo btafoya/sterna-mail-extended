@@ -15,15 +15,15 @@ import java.io.File
  * widget on the home screen. The indirection through `res/values` exists so that the API split
  * costs a values file instead of a second copy of the drawable.
  *
- * ⭐ The `values-v31` twin is the half nothing on screen can report. Lose it, or let its value
+ * The `values-v31` twin is the half nothing on screen can report. Lose it, or let its value
  * drift, and the cell keeps a perfectly round corner on Android 12+ — just not the launcher's. No
  * crash, no blank, nothing to see; only a shape that no longer matches its neighbours.
  *
- * ⛔ Never a `contains` on a line: a substring is blind to every mutation that LENGTHENS what it
+ * Never a `contains` on a line: a substring is blind to every mutation that LENGTHENS what it
  * matches. Every comparison below is of WHOLE lines, so a second declaration, a longer literal or a
  * changed reference all redden.
  *
- * ⚠ Comments are stripped by [DeclarationSource.codeLines] before anything is matched — otherwise
+ * Comments are stripped by [DeclarationSource.codeLines] before anything is matched — otherwise
  * this rule would pin the prose written in the drawable to explain it.
  */
 class WidgetCornerRadiusTest {

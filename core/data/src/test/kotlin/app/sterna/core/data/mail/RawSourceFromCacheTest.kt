@@ -10,7 +10,7 @@ import org.junit.Test
  * at all. Not a source lint: the function is pure, so the rule is run against its own inputs and
  * inverting it cannot stay green (#189).
  *
- * ⛔ What it is here to hold. `MailRepository.fetchRawSource` answered from a four-entry LRU keyed
+ * What it is here to hold. `MailRepository.fetchRawSource` answered from a four-entry LRU keyed
  * `accountId:emailId` BEFORE any SELECT. A cross-account move that freezes the numbering of the
  * tick therefore had its refusal short-circuited on the read side whenever the message had just
  * been opened — which is the ordinary case, since the user reads a message and then moves it. The
@@ -29,7 +29,7 @@ class RawSourceFromCacheTest {
     }
 
     /**
-     * ⭐ THE CASE THAT COSTS THE DUPLICATE: a caller carrying a frozen numbering. The cache holds
+     * THE CASE THAT COSTS THE DUPLICATE: a caller carrying a frozen numbering. The cache holds
      * no numbering at all, so it cannot answer for one — and the read must reach the server, where
      * the SELECT opposes the number and refuses.
      */
@@ -62,7 +62,7 @@ class RawSourceFromCacheTest {
     }
 
     /**
-     * ⭐ THE CASE A `Long?` COULD NOT EXPRESS, and the one this volet adds: a row that WAS ticked
+     * THE CASE A `Long?` COULD NOT EXPRESS, and the one this volet adds: a row that WAS ticked
      * and carries no numbering. It is refused downstream (`numberingToOppose`) — but a cache hit
      * would answer BEFORE the refusal was reached, the octets would go to account B under an APPEND
      * that is never replayed, and only the bin would refuse afterwards: a permanent duplicate, with
@@ -80,7 +80,7 @@ class RawSourceFromCacheTest {
     }
 
     /**
-     * ⛔ THE INVERSE WITNESS, without which "never answer from the cache" satisfies the case above
+     * THE INVERSE WITNESS, without which "never answer from the cache" satisfies the case above
      * and is a total regression: every ordinary read — opening a message, viewing its headers,
      * saving it as `.eml`, retrying an OpenPGP interaction — would refetch the whole message from
      * the server, in the reader, on a mobile link.
@@ -97,14 +97,14 @@ class RawSourceFromCacheTest {
     }
 
     /**
-     * ⛔ THE OTHER PROTOCOL, AND IT IS NOT A DETAIL. On JMAP `numberingStampsOfRows` answers an
+     * THE OTHER PROTOCOL, AND IT IS NOT A DETAIL. On JMAP `numberingStampsOfRows` answers an
      * EMPTY map by construction (`EmailEntity.uidValidity` is null on every JMAP row), so the
      * selection's move between accounts hands EVERY row a `Frozen(null)`. Skipping on that would
      * re-download a whole blob per message to reach a refusal that cannot exist there: a JMAP
      * `blobId` belongs to no numbering, so there is nothing for a SELECT to oppose and the cache is
      * as safe as it has always been.
      *
-     * ⚠ This decision runs ABOVE `fetchRawSource`'s protocol test — it is the one reader of a
+     * This decision runs ABOVE `fetchRawSource`'s protocol test — it is the one reader of a
      * FrozenNumbering that no gate protects — which is why the protocol is an argument here and
      * why this witness exists at all.
      */
@@ -122,7 +122,7 @@ class RawSourceFromCacheTest {
             }
     }
 
-    /** ⛔ The inverse witness of the one above, without which "always serve the cache" satisfies it
+    /** The inverse witness of the one above, without which "always serve the cache" satisfies it
      *  and the volet is gone: on IMAP the same `Frozen(null)` must still skip. */
     @Test fun `the same frozen absence skips on IMAP and is served on JMAP`() {
         val onImap = Lookup("cached")

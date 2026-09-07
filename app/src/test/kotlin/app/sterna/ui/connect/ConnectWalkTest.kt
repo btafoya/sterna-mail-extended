@@ -634,7 +634,7 @@ class ConnectWalkTest {
  * DECIDES is executed in [ConnectWalkTest]; what is held here is that the screen's clearing seam
  * asks it, with which marker, and that NOTHING ELSE runs in that seam.
  *
- * ⛔ THE DEFECT, measured at the bench (emu, Android 16, release, airplane mode): address step,
+ * THE DEFECT, measured at the bench (emu, Android 16, release, airplane mode): address step,
  * a valid address typed, tap on Continue, "Could not connect: You're offline…" on screen. Rotate
  * portrait→landscape→portrait and the sentence is absent from all three uiautomator trees (checked
  * down to the last element of the column, "Continue"), while the typed address survives. The
@@ -642,7 +642,7 @@ class ConnectWalkTest {
  * cleared for, and `clearFinishedAttempt()` puts the state back to Idle. An ordinary recomposition
  * (keyboard up, keyboard down) keeps the sentence — the rotation alone threw the answer away.
  *
- * ⛔ THE SEAM IS PINNED WHOLE, statement by statement, and not as a run of lines somewhere in the
+ * THE SEAM IS PINNED WHOLE, statement by statement, and not as a run of lines somewhere in the
  * file. Indentation alone does NOT protect against a wrap, whatever a comment may once have said
  * here: an early `return@LaunchedEffect`, or an `if` without braces on the line above, undoes the
  * guard while every line of it stays exactly where it was — an audit found precisely that mutation
@@ -731,7 +731,7 @@ class ConnectWalkRotationWiringTest {
      * and blank lines aside, nothing more and nothing less. The block ends at the first line that
      * is the opener's indentation followed by `}`.
      *
-     * ⛔ This is the difference between "these lines are there" and "only these lines run". A pin
+     * This is the difference between "these lines are there" and "only these lines run". A pin
      * on a run of consecutive lines is blind to anything inserted BEFORE the run, which is where a
      * `return@LaunchedEffect` goes.
      */

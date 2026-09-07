@@ -32,7 +32,7 @@ import java.io.File
  *     instead of printing two lists to diff. The title is usually an e-mail address, and an ellipsis
  *     on an address ("alexandra.billerey@…") makes it unreadable: a long title must wrap, not be cut.
  *
- * ⚠ THE FALSE RED, and it is by construction: rule 1 pins the source layout too, so writing the very
+ * THE FALSE RED, and it is by construction: rule 1 pins the source layout too, so writing the very
  * same fix on one idiomatic line — `Text(title, modifier = Modifier.padding(end = 16.dp))` — FAILS
  * this test although it renders identically, pixel for pixel. That is the price of the equality, and
  * the only thing holding that formatting: this repo has neither ktlint nor spotless. If you meant to

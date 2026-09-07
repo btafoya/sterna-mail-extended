@@ -18,7 +18,7 @@ import org.junit.Test
  * dirty and ask "discard?" on the way back without a key typed, #70 / G3), and that the reader's
  * menu hands the ONE mode string `composeOpening` knows.
  *
- * ⛔ WHAT THIS DOES NOT PROVE: that the .eml actually lands in the composer, that its bytes are
+ * WHAT THIS DOES NOT PROVE: that the .eml actually lands in the composer, that its bytes are
  * the server's, that the sent message carries it as `message/rfc822`, or that the composer opens
  * clean. Those are only readable on a bench. It also cannot see INSIDE the branch beyond the
  * lines it names: the ORDER of cap and fetch, and the bytes handed to `stageOutgoing`, are not pinned.

@@ -24,7 +24,7 @@ import java.io.File
  *  - the persisting collector folded INTO the push collector, or its `store.currentId()` hoisted out
  *    of it, which pins the account of the moment the ViewModel was built instead of the account the
  *    selection belongs to;
- *  - ⭐ a SECOND reader of the store, hand-rolled next to the first. `RootViewModel` needs the same
+ * - a SECOND reader of the store, hand-rolled next to the first. `RootViewModel` needs the same
  *    answer before the list exists (`RestoredViewWiringLintTest`), and the day it fetches the three
  *    arguments itself, one of the two copies drifts — silently, since both compile and both are
  *    three `String?`/`Boolean` in a row. Hence TWO counts below, because they catch different
@@ -34,7 +34,7 @@ import java.io.File
  *    rule never and only the second count sees it. Both are taken over the whole module, the bench
  *    source sets included.
  *
- * ⛔ Every rule compares a WHOLE unit — the whole argument, the whole call. A `contains` on a
+ * Every rule compares a WHOLE unit — the whole argument, the whole call. A `contains` on a
  * fragment is blind to any mutation that LENGTHENS it. The price is that a reformat reddens this
  * file; that direction of error is loud and one line to fix.
  */

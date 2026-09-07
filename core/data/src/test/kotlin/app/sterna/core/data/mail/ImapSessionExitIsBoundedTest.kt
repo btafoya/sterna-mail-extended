@@ -15,7 +15,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * ⭐ **That the WAY OUT of a session is bounded too** (#95) — the half the ambient budget cannot
+ * **That the WAY OUT of a session is bounded too** (#95) — the half the ambient budget cannot
  * reach.
  *
  * The bench measurement (gesture B9, emulator, release, IMAP, link cut 2.1 s into the `APPEND`):
@@ -26,12 +26,12 @@ import java.util.concurrent.TimeUnit
  * `ImapMailService.runWithRetry` closes the session from its `catch`, i.e. AFTER the bounded block
  * has been left. `close()` sends `LOGOUT` and reads its completion, so that read is unbounded.
  *
- * ⚠ **The peer here is MUTE, not closed.** A peer that closes is already handled — `ImapParser`
+ * **The peer here is MUTE, not closed.** A peer that closes is already handled — `ImapParser`
  * throws on end-of-stream, which is Codeberg #156 and `ImapCutConnectionTest`'s A8. A peer that
  * simply disappears (airplane mode, no FIN) sends nothing at all, and `recvfrom` on a live socket
  * with nothing to read is what this reproduces.
  *
- * ⛔ And the guard, asserted below: the `LOGOUT` still goes out and its answer is still awaited.
+ * And the guard, asserted below: the `LOGOUT` still goes out and its answer is still awaited.
  * Making this test pass by not saying goodbye would leave the session open on the server until its
  * own idle timeout, which is how an account with a small connection limit starts refusing the next
  * upload.
@@ -41,12 +41,12 @@ class ImapSessionExitIsBoundedTest {
     @Test(timeout = 30_000)
     fun `an APPEND to a peer that goes mute comes back, teardown included`() {
         muteAfterLoginServer().use { server ->
-            // ⚠ On a daemon thread, exactly as the sibling test and for its reason: what is under
+            // On a daemon thread, exactly as the sibling test and for its reason: what is under
             // test is whether the call COMES BACK. Before the fix it does not — and a blocking
             // `read()` cannot be interrupted, so a call made on the test's own thread would park the
             // suite and be reported as a JUnit timeout instead of as this assertion.
             val outcome = appendOnItsOwnThread(server)
-            // ⚠ Waited FIRST, into a val. `assertTrue(message, condition)` builds its message before
+            // Waited FIRST, into a val. `assertTrue(message, condition)` builds its message before
             // it evaluates the condition, so an `await` inline in the call would have every
             // `server.issued()` in these messages read the list as it was at t=0, i.e. empty.
             val cameBack = outcome.done.await(LOGOUT_BUDGET_MS + MARGIN_MS, TimeUnit.MILLISECONDS)
@@ -75,7 +75,7 @@ class ImapSessionExitIsBoundedTest {
     }
 
     /**
-     * ⭐ **That the answer to the `LOGOUT` is READ, and that the budget for reading it is real.**
+     * **That the answer to the `LOGOUT` is READ, and that the budget for reading it is real.**
      *
      * The test above only sees the goodbye LEAVE: its server answers `LOGOUT` with nothing, so
      * there is never anything to read, and `close()` rewritten as a bare
@@ -91,7 +91,7 @@ class ImapSessionExitIsBoundedTest {
     @Test(timeout = 30_000)
     fun `the goodbye is not written and forgotten - its answer is waited for`() {
         slowGoodbyeServer().use { server ->
-            // ⚠ Started before the thread, so the connect and the LOGIN are counted IN. They can
+            // Started before the thread, so the connect and the LOGIN are counted IN. They can
             // only make the measurement longer, i.e. they can never turn a call that skipped the
             // read into one that looks like it waited.
             val startedAt = System.nanoTime()
@@ -129,7 +129,7 @@ class ImapSessionExitIsBoundedTest {
     /**
      * `appendDraft` against [server] under a short [ImapReadBudget], on a DAEMON thread.
      *
-     * ⚠ The thread is knowingly abandoned when the call does not come back — which is the defect
+     * The thread is knowingly abandoned when the call does not come back — which is the defect
      * itself. A `withTimeout` around it would cancel the job while the thread stayed on the socket,
      * i.e. it would hide precisely what is being measured. A daemon thread holds nothing up at JVM
      * exit; a non-daemon one would hang the Gradle worker at the end of the suite.
@@ -153,7 +153,7 @@ class ImapSessionExitIsBoundedTest {
      * A server that greets, logs in, takes the `APPEND` literal — and then answers nothing ever
      * again, to the `APPEND` and to the `LOGOUT` alike, **without closing the connection**.
      *
-     * ⛔ The empty answer to `LOGOUT` is the whole fixture. `ScriptedImapServer` only ends a
+     * The empty answer to `LOGOUT` is the whole fixture. `ScriptedImapServer` only ends a
      * connection on a `LOGOUT` it answered (see the comment there); an empty answer therefore leaves
      * the socket open and the client reading a peer that will never speak — the airplane-mode cut,
      * minus the FIN that would have made it easy.
@@ -171,7 +171,7 @@ class ImapSessionExitIsBoundedTest {
      * The same mute `APPEND` as above — but a server that DOES say goodbye back, [LOGOUT_DELAY_MS]
      * late.
      *
-     * ⚠ The sleep is the responder's own, on the server's thread: `ScriptedImapServer` needs no new
+     * The sleep is the responder's own, on the server's thread: `ScriptedImapServer` needs no new
      * parameter for it. And because that answer is not empty, the harness ends the connection on it
      * exactly as a real server would, so this thread is not left parked.
      */
@@ -215,7 +215,7 @@ class ImapSessionExitIsBoundedTest {
 
         /**
          * `LOGOUT_READ_BUDGET_MS` of `ImapClient.kt`, restated — it is file-private there, and this
-         * module cannot see it. ⚠ Restated as a BOUND ON ELAPSED TIME, not as a decision: the test
+         * module cannot see it. Restated as a BOUND ON ELAPSED TIME, not as a decision: the test
          * measures how long a real call takes, so raising the shipped number above this makes the
          * call miss the deadline and this test go red.
          */
@@ -231,7 +231,7 @@ class ImapSessionExitIsBoundedTest {
         /**
          * The floor a call that really waited for its goodbye cannot go under: the ambient budget
          * the mute `APPEND` burns, then the server's delay — minus a few milliseconds, because a
-         * `SO_RCVTIMEO` is not promised to the millisecond. ⚠ A `close()` that skips the read comes
+         * `SO_RCVTIMEO` is not promised to the millisecond. A `close()` that skips the read comes
          * back on [BUDGET_MS] alone, i.e. a third of a second below this, so the slack cannot hide
          * the mutation this bound exists to kill.
          */

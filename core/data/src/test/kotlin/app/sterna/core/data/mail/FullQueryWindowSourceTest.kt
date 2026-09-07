@@ -75,7 +75,7 @@ class FullQueryWindowSourceTest {
         // Same 50, other caller: the unified refresh writes the same inbox as the folder refresh
         // and the last writer wins. Nothing about this is specific to push.
         //
-        // ⚠ Rewritten by the volet that unbounded `ALL`, and for one reason only: a folder of
+        // Rewritten by the volet that unbounded `ALL`, and for one reason only: a folder of
         // `ALL.limit + 200` cannot be built any more — the addition overflows and `(1..size)` is
         // empty, so the test would have gone RED comparing `Int.MAX_VALUE` to 0. (An earlier note
         // here said it would have passed for the wrong reason; that was wrong, and the correction
@@ -149,7 +149,7 @@ class FullQueryWindowSourceTest {
     // -- the whole sizing of the branch, not only its target ---------------------------------------
 
     @Test fun `a background pass asks the SERVER's page size, not its own fifty`() {
-        // ⛔ The second half of the same defect. The target was read off the account and the PAGE
+        // The second half of the same defect. The target was read off the account and the PAGE
         // was not, so a push or unified pass carrying 50 asked for fifty messages per request on a
         // server admitting five hundred. That pass is the first to run after the setting changed
         // (the cursor has just fallen), and on an unbounded window it is the one that walks the
@@ -191,7 +191,7 @@ class FullQueryWindowSourceTest {
     // -- the IMAP half of the same rule --------------------------------------------------------------
 
     @Test fun `the unified inbox must not shrink an IMAP folder to its own fifty`() {
-        // ⛔ The IMAP twin of the first test in this file, and it is reachable in three gestures:
+        // The IMAP twin of the first test in this file, and it is reachable in three gestures:
         // an IMAP account set to "Everything", pull on the folder, tap "All inboxes", come back.
         // `refreshAllInboxes` reaches `imapWriteThrough` — which ends in a reconcile — with its
         // hard-coded 50. The reconcile DELETES every cached row it is not given.

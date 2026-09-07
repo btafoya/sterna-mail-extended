@@ -26,14 +26,14 @@ import java.io.File
  *  - the value changed (`4.dp`, `24.dp`, or `bottom = 12.dp * 0`, which a `contains` on the
  *    fragment would happily accept) — 12 dp is the inset the drawer entries already carry
  *    horizontally and the only in-repo value of a divider paying its own margin
- *    (`SettingsScreen.kt:1963`, `:2092`);
+ * (`SettingsScreen`, `:2092`);
  *  - the margin moved onto the items — `Modifier.padding(horizontal = 12.dp, top = 12.dp)` on
  *    "All inboxes" only, which leaves the single-account install (where "Unread" is the row under
  *    the line) exactly as glued as before;
  *  - a fourth `HorizontalDivider()` in the file given the margin instead of this one: the rule is
  *    anchored on the guard that carries `selectUnified`, not on a line number.
  *
- * ⛔ Every rule compares a WHOLE unit — the whole call, the whole argument. A `contains` on a
+ * Every rule compares a WHOLE unit — the whole call, the whole argument. A `contains` on a
  * fragment is blind to any mutation that LENGTHENS it. The price is that a reformat reddens this
  * file; that direction of error is loud and one line to fix.
  */
@@ -56,7 +56,7 @@ class DrawerDividerMarginLintTest {
     }
 
     /**
-     * ⭐ The counterpart, and the reason the rule above is about the DIVIDER: the margin belongs to
+     * The counterpart, and the reason the rule above is about the DIVIDER: the margin belongs to
      * the line, never to the rows. Put on "All inboxes" it fixes nothing for a single-account
      * install, where "Unread" is the row against the line; put on both it drifts apart from the
      * folder rows below. `UnreadViewWiringLintTest` pins the unread entry's whole argument list and

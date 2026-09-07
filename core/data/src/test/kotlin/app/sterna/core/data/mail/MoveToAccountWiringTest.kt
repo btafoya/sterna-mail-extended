@@ -4,13 +4,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ THIS TEST READS SOURCE TEXT — the last resort, for the reason [DeleteWouldDestroyWiringTest]
+ * THIS TEST READS SOURCE TEXT — the last resort, for the reason [DeleteWouldDestroyWiringTest]
  * spells out: `MailRepository` needs Room, a `Context` and a socket, so no JVM test instantiates
  * it. The DECISION guarded here — copy confirmed on B, then the original trashed on A, and nothing
  * else in between — is EXECUTED by [CrossAccountMoveTest]; this pins where and how it is plugged in
  * (#189).
  *
- * ⛔ The body of `moveToAccount` is pinned as a WHOLE LIST OF LINES. Each of the seven steps is a
+ * The body of `moveToAccount` is pinned as a WHOLE LIST OF LINES. Each of the seven steps is a
  * real gesture on a real server, and the ones that matter are pinned with their ARGUMENTS: the
  * source's check on `source.id` and the target's on `target.id`; the bytes going to B as read; the
  * IMAP append under the translated flags and date; the JMAP import under exactly the target mailbox,
@@ -18,14 +18,14 @@ import org.junit.Test
  * — the bin, never a destroy — on the SOURCE account; and the refresh of B's folder. Any line added,
  * removed, reordered or lengthened reddens the list.
  *
- * ⭐ AND WHAT THE TICK FROZE, carried to the two steps that touch the SOURCE account's mail
+ * AND WHAT THE TICK FROZE, carried to the two steps that touch the SOURCE account's mail
  * (#189). `moveToAccount` takes a [FrozenNumbering] — three states, not two: nothing frozen, a
  * frozen number, a frozen ABSENCE — and hands it to the READ and to the TRASH; every other step is
- * the other account's business and must never see it. ⛔ The third state is the volet: as a `Long?`
+ * the other account's business and must never see it. The third state is the volet: as a `Long?`
  * it was spelled `null`, exactly like "nothing was frozen", so it silently took that case's
  * fallback on the folder's record — the record a background pass realigns the moment it meets a
  * renumbering. It is refused now, at both ends. The
- * ⚠ AND ONLY THAT. [ReadUnderTheNumberingItWasTickedUnderTest] drives `ImapMailService.fetchSource`
+ * AND ONLY THAT. [ReadUnderTheNumberingItWasTickedUnderTest] drives `ImapMailService.fetchSource`
  * onto a scripted socket — the LAST LINK of the read, not the path the move takes to reach it —
  * and [MoveNeedsTheNumberingStatedNowTest] does the same for `move`. Neither runs a line of
  * `MailRepository`, so neither can say the stamp survives the three hops between this body and
@@ -34,7 +34,7 @@ import org.junit.Test
  * because a delivery already lost the value on the last of those hops with every line here
  * byte-identical.
  *
- * ⚠ What it CANNOT hold: that `rawSource`, `delete` and `refresh` still do what their names say.
+ * What it CANNOT hold: that `rawSource`, `delete` and `refresh` still do what their names say.
  * Each has its own pins; this one holds that they are the functions called, with these arguments.
  */
 class MoveToAccountWiringTest {
@@ -56,7 +56,7 @@ class MoveToAccountWiringTest {
         codeLines(text).filter { needle.containsMatchIn(it) }
 
     /** Any mention of a numbering, under any spelling — the needle [ImapMoveUnderNumberingTest]
-     *  invented for this family of mutations, borrowed verbatim. ⛔ Case-INSENSITIVE on purpose:
+     * invented for this family of mutations, borrowed verbatim. Case-INSENSITIVE on purpose:
      *  a needle of `"frozen"` misses `FrozenNumbering.…` and `NothingFrozen`, which is most of the
      *  vocabulary this rule now has to see. */
     private val anyNumbering = Regex("(?i)(numbering|validity|frozen|recorded)")
@@ -149,7 +149,7 @@ class MoveToAccountWiringTest {
      * The signature, whole and in order — what the tick froze is the LAST parameter and it DEFAULTS
      * TO [FrozenNumbering.NothingFrozen].
      *
-     * ⛔ IT IS A TYPE, AND THAT IS THE VOLET (#189). As a `Long?` this parameter carried two
+     * IT IS A TYPE, AND THAT IS THE VOLET (#189). As a `Long?` this parameter carried two
      * incompatible intentions under one spelling: "no tick froze anything, fall back on the
      * folder's record" (the reader's single move, a row cached before the numbering column existed)
      * and "a tick froze this row's numbering, and there was none". Both were `null`, both took the
@@ -159,7 +159,7 @@ class MoveToAccountWiringTest {
      * `MailRepository` now refuses that shape at both ends; [FrozenNumberingRefusalTest] runs the
      * decision and pins the two consumptions.
      *
-     * ⛔ The default still has to be "nothing frozen" and still has to mean the fallback: a default
+     * The default still has to be "nothing frozen" and still has to mean the fallback: a default
      * of anything else, or a parameter promoted to a bare number, turns every ordinary move into a
      * refusal — `mayDestroyUnderStatedNumbering(null, x)` is false, so the Trash half would fail
      * 100 % of the time and every move would end "copied, not removed".
@@ -183,7 +183,7 @@ class MoveToAccountWiringTest {
     }
 
     /**
-     * ⭐ AND IT REACHES EXACTLY TWO STEPS. A closed list, because both mistakes compile and both
+     * AND IT REACHES EXACTLY TWO STEPS. A closed list, because both mistakes compile and both
      * are silent:
      *
      *  - dropped from `readSource` — the octets are read under the FOLDER's record, which the

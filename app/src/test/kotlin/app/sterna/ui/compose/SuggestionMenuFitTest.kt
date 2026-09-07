@@ -86,7 +86,7 @@ class SuggestionMenuFitTest {
     }
 
     /**
-     * ⭐ A row is not 56 dp at every font size. It holds two lines of text on top of the avatar,
+     * A row is not 56 dp at every font size. It holds two lines of text on top of the avatar,
      * and at `font_scale 2.0` it is past 80 dp: measuring against the un-scaled 56 dp showed
      * between 56 and one real row exactly the sliced row this fix refuses to draw.
      *

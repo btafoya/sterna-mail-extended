@@ -17,7 +17,7 @@ import org.junit.Test
  * acts on it: `quickReplyAct(Send, queued = false)` hands the text back and keeps the notification,
  * so the person sends the same mail again and the recipient gets it twice.
  *
- * ⛔ The neighbouring guard must NOT be confused with this one: a STAGING failure still destroys
+ * The neighbouring guard must NOT be confused with this one: a STAGING failure still destroys
  * the row and relays ([stageOrRollback], [EnqueueRollbackTest]) — an orphan with `attachmentsJson
  * "[]"` would be re-armed and sent amputated (#70). Staging failed means the row is bad; arming
  * failed means the row is good.

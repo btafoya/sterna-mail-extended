@@ -25,7 +25,7 @@ import java.io.File
  *  - the `ui.refreshing -> Unit` arm switched to the new field, which would let the empty-folder
  *    scene draw itself during a fetch shorter than the grace (#63 undone).
  *
- * ⛔ Every rule compares a WHOLE unit — a whole declaration body, a whole named argument. Never a
+ * Every rule compares a WHOLE unit — a whole declaration body, a whole named argument. Never a
  * `contains` on a fragment: a fragment is blind to any mutation that LENGTHENS the line
  * (`ui.showRefreshIndicator` contains neither more nor less than `ui.refreshing || debug`, and
  * `refreshing = true` is a prefix of `refreshing = true && x`). The price is that a reformat
@@ -50,7 +50,7 @@ class RefreshIndicatorWiringLintTest {
     }
 
     /**
-     * ⭐ The one line no other rule here could see, and the survivor a counter-expertise found: the
+     * The one line no other rule here could see, and the survivor a counter-expertise found: the
      * DEFINITION of the clock. Every other pin in this file compares a call site spelling `clock()`,
      * which is character-for-character identical whatever the clock actually is.
      */
@@ -266,7 +266,7 @@ class RefreshIndicatorWiringLintTest {
             listOf("val ringShowing = rememberGracedIndicator(refreshLoading && !staleRows)"),
             codeLines(INBOX_SCREEN).map { it.trim() }.filter { it.startsWith("val ringShowing") },
         )
-        // ⛔ The rule above holds the ARGUMENT; this one holds what the callee does with it.
+        // The rule above holds the ARGUMENT; this one holds what the callee does with it.
         // Inverting `if (active)` is ONE character, it puts the centred ring back on every folder
         // switch (#63), and it leaves every other rule in this file green: the call line, the arm,
         // the two clock reads and the single startRefreshRun are all untouched by it. Swapping the

@@ -13,7 +13,7 @@ import org.junit.Test
  * server derived `smtp.mailfrom` from that one while the `From:` header carried the typed address.
  * DMARC sees two domains and the message lands in spam.
  *
- * ⛔ Nothing here recomputes the rule to decide what it expects: every expectation is a literal
+ * Nothing here recomputes the rule to decide what it expects: every expectation is a literal
  * written out by hand. Inverting any condition in [SubmissionIdentity] must turn one of these red.
  */
 class SubmissionIdentityTest {
@@ -34,7 +34,7 @@ class SubmissionIdentityTest {
     }
 
     /**
-     * ⭐ THE defect. The typed address has no server identity: the submission still goes out under
+     * THE defect. The typed address has no server identity: the submission still goes out under
      * the first one, but the envelope now SAYS the typed address, so the server either accepts it
      * or refuses the submission — instead of quietly sending under another domain.
      */
@@ -50,7 +50,7 @@ class SubmissionIdentityTest {
     }
 
     /**
-     * ⛔ A delegated sub-account (issue #31) is the case where From and envelope DIFFER on purpose,
+     * A delegated sub-account (issue #31) is the case where From and envelope DIFFER on purpose,
      * verified against Stalwart. An envelope here would break a send that works today.
      */
     @Test fun `a delegated send never names an envelope`() {
@@ -82,7 +82,7 @@ class SubmissionIdentityTest {
     }
 
     /**
-     * Case and surrounding spaces are not a different address. `StoredAccount.kt:132` dedupes
+     * Case and surrounding spaces are not a different address. `StoredAccount` dedupes
      * identities on `trim().lowercase()`, so an address typed with a trailing space survives as
      * the chosen one; matching it strictly would call it unknown and pose an envelope for an
      * address the server has an identity for.

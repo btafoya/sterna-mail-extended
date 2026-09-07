@@ -125,7 +125,7 @@ class PulledToBlackTest {
      * produces may sit closer to its background than that, or the OLED setting would be handing the
      * user something *worse* than the theme they left.
      *
-     * ⚠ Measured in emitted light, never in per-channel gaps: sRGB is linear below 8/255, so a gap
+     * Measured in emitted light, never in per-channel gaps: sRGB is linear below 8/255, so a gap
      * of 15 channels near black is eight times less light than the same 15 mid-scale. A per-channel
      * threshold flatters the bottom of the ladder — exactly where this transformation lands.
      */

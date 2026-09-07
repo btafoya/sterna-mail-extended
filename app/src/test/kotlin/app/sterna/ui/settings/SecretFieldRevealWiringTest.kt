@@ -21,7 +21,7 @@ import java.io.File
  *     re-arms the mask and so does the first keystroke after that;
  *  3. the mask made conditional, or the icon and its contentDescription desynchronised — an eye
  *     that says "show password" while it is hiding it;
- *  4. ⭐ `isPassword = true` dropped at the ONE call site that types a secret (`SettingsScreen.kt`).
+ * 4. `isPassword = true` dropped at the ONE call site that types a secret (`SettingsScreen.kt`).
  *     The whole of this file's cleverness is about an eye; the flag that decides whether the field
  *     is masked AT ALL lives elsewhere, and flipping it types the API token in permanent clear;
  *  5. a line ADDED to the field that renders `value` a second time (`supportingText = { Text(value)

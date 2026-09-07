@@ -67,7 +67,7 @@ class SieveCodecTest {
     }
 
     /**
-     * ⛔ A script with content and no marker is UNREADABLE, not empty.
+     * A script with content and no marker is UNREADABLE, not empty.
      *
      * Someone's hand-written Sieve, saved under the name this app uses. Reading it as "no rules"
      * is what let the per-sender gesture rewrite the whole script from one new rule.
@@ -76,18 +76,18 @@ class SieveCodecTest {
         assertNull(SieveCodec.parseRulesOrNull("require [\"fileinto\"];\nif true { keep; }"))
     }
 
-    /** ⛔ Marker present, payload not JSON: truncated upload, older/newer format, anything. */
+    /** Marker present, payload not JSON: truncated upload, older/newer format, anything. */
     @Test fun `a marker whose payload is not JSON cannot be read`() {
         assertNull(SieveCodec.parseRulesOrNull("# STERNA-RULES-V1: {oops\nif true { keep; }"))
     }
 
-    /** ⛔ JSON that parses but is not a rule list is no more readable than one that does not. */
+    /** JSON that parses but is not a rule list is no more readable than one that does not. */
     @Test fun `a marker carrying the wrong JSON shape cannot be read`() {
         assertNull(SieveCodec.parseRulesOrNull("# STERNA-RULES-V1: {\"rules\":[]}"))
     }
 
     /**
-     * ⛔ The witness of the pair. A blank script says nothing, filters nothing and loses nothing
+     * The witness of the pair. A blank script says nothing, filters nothing and loses nothing
      * when it is rewritten: zero rules, and NOT an alarm. Without this, "unreadable" would be
      * the answer to every account whose script is a stub, and the block gesture would be refused
      * for ever on all of them.

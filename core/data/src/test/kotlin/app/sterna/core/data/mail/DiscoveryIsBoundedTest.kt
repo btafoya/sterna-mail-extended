@@ -23,13 +23,13 @@ import java.io.IOException
  * ANOTHER, each with the JMAP client's 20 s connect + 30 s read, so an address on a domain with
  * no JMAP at all spun for up to 200 s before saying anything.
  *
- * ⛔ Three things must not be traded away for that speed, and most of these tests exist for them:
+ * Three things must not be traded away for that speed, and most of these tests exist for them:
  *  - the password must not be handed to guessed subdomains that the old loop never reached;
  *  - the host that is kept is decided by RANK, never by latency — it is written into the account
  *    and is only correctable by typing everything in again;
  *  - "wrong password" must not be said while a candidate is still being asked.
  *
- * ⛔ The budget bounds what the USER waits for. A real probe is a blocking OkHttp `execute()` that
+ * The budget bounds what the USER waits for. A real probe is a blocking OkHttp `execute()` that
  * ignores cancellation, so the fake probe here can be made deaf too ([Bench] `deaf`): a fake that
  * only ever uses a cancellable `delay()` cannot see the difference between "we stopped waiting"
  * and "we asked them to stop", and that difference is the whole defect.
@@ -111,7 +111,7 @@ class DiscoveryIsBoundedTest {
             deaf = hosts.toSet(),
         )
 
-        // ⛔ No budget passed, deliberately: this must exercise the DEFAULT, which is the value
+        // No budget passed, deliberately: this must exercise the DEFAULT, which is the value
         // production gets. Handing it JMAP_DISCOVERY_BUDGET_MS here would pin the constant while
         // leaving whatever the app actually runs on unmeasured.
         val result = discoverJmapAmong(hosts) { bench.probe(it) }
@@ -317,7 +317,7 @@ class DiscoveryIsBoundedTest {
     }
 
     /**
-     * ⛔ Every guessed rank at once, so the rule cannot be satisfied by a boundary that merely
+     * Every guessed rank at once, so the rule cannot be satisfied by a boundary that merely
      * happens to exclude rank 3 — the rank the reporter's domain refused on. `rank != 3` and
      * `rank <= 1` both restore #188 on a `mail.<domain>` sitting behind a WAF or an HTTP auth,
      * which answers 401 exactly like `api.yandex.ru` answered 403, and both leave every other

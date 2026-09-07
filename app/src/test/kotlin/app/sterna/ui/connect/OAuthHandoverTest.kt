@@ -23,7 +23,7 @@ import java.io.File
  * found NOTHING, a reader whose server wants OAuth had to know the word, guess that "Set up
  * manually" is where it hides, and find a button whose name means nothing to her.
  *
- * ⛔ Every case below is HARD-CODED. A test that re-derives the rule from the metadata it feeds in
+ * Every case below is HARD-CODED. A test that re-derives the rule from the metadata it feeds in
  * is a copy of the decision, and the shipped condition could be inverted under it without a red.
  */
 class OAuthHandoverDecisionTest {
@@ -402,7 +402,7 @@ class OAuthDiscoveryIsBoundedTest {
     @Test fun `the budget the app ships with is the one the address step waits under`() = runTest {
         val bench = Bench(hosts.associateWith { hangs to null }, deaf = hosts.toSet())
 
-        // ⛔ No budget passed, deliberately: production passes none either, so this is the only
+        // No budget passed, deliberately: production passes none either, so this is the only
         // test that measures what the app actually runs on.
         val chosen = discoverOAuthAmong(hosts) { bench.probe(it) }
 
@@ -517,7 +517,7 @@ class OAuthDiscoveryIsBoundedTest {
  * so neither can be run here. The decisions are EXECUTED above; what is held here is that the
  * screen and the ViewModel run THOSE decisions, with THOSE arguments.
  *
- * ⛔ Every pin is a WHOLE trimmed line compared by equality and required exactly once — never a
+ * Every pin is a WHOLE trimmed line compared by equality and required exactly once — never a
  * `contains` on a fragment, which is blind to any mutation that lengthens the line.
  */
 class OAuthHandoverWiringTest {

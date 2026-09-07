@@ -19,7 +19,7 @@ import org.junit.Test
  * for IMAP accounts only. Without the default, every `Mailbox/get` on every JMAP server would fail
  * and the account would list no folder at all.
  *
- * ⭐ And the behaviour of a JMAP account is exactly `main`'s: JMAP names the role on the mailbox
+ * And the behaviour of a JMAP account is exactly `main`'s: JMAP names the role on the mailbox
  * and holds no election, so nothing there ever loses one and nothing is kept visible by this field.
  */
 class MailboxLostRoleClaimDecodeTest {
@@ -49,7 +49,7 @@ class MailboxLostRoleClaimDecodeTest {
         assertFalse(mailbox.lostRoleClaim)
     }
 
-    /** ⛔ A whole `Mailbox/get` list, decoded the way the client decodes one: not one folder in it
+    /** A whole `Mailbox/get` list, decoded the way the client decodes one: not one folder in it
      *  comes back with a claim, so a JMAP account behaves exactly as it did before this fix. */
     @Test fun noFolderOfARealMailboxGetListComesBackWithAClaim() {
         val list = json.decodeFromString(

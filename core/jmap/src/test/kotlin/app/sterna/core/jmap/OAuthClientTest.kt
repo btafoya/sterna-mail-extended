@@ -134,7 +134,7 @@ class OAuthClientTest {
     // refresh() -> OAuthTokenRefresher -> jmapAuth -> MailRepository.refresh ->
     // InboxViewModel's `t.message` -> the list's error banner.
     //
-    // ⚠ The trigger is a response the parser cannot finish, NOT the `"expires_in": "3600"` a
+    // The trigger is a response the parser cannot finish, NOT the `"expires_in": "3600"` a
     // lenient-looking provider sends: this Json coerces that one to the property default without
     // complaining (verified — the test that assumed it threw stayed green while the tokens were
     // never at risk). A truncated body, a proxy's HTML error page with a JSON content type, a
@@ -158,7 +158,7 @@ class OAuthClientTest {
 
     @Test fun pollDeviceToken_doesNotPutTheTokensInTheErrorOfAMalformedResponse() {
         // Same payload on the device-flow path, whose failure text reaches the connect screen.
-        // ⚠ Read whatever surfaces — a returned Failed or a thrown exception: the guard is that
+        // Read whatever surfaces — a returned Failed or a thrown exception: the guard is that
         // the tokens are in neither, and it must not depend on which shape the failure takes.
         server.enqueue(
             MockResponse().setBody(
@@ -275,7 +275,7 @@ class OAuthClientTest {
     // hands the redirect target the long-lived refresh token outright; the second lets it choose
     // the access token the app will use.
     //
-    // ⚠ Every test below goes through `client`, i.e. the PUBLIC OAuthClient() constructor. The
+    // Every test below goes through `client`, i.e. the PUBLIC OAuthClient() constructor. The
     // internal constructor takes an injected client, so a test that hands in its own would only
     // assert OkHttp's behaviour and would stay green with production wired to the shared,
     // redirect-following client. The wiring IS the fix, so the public constructor is the only
@@ -397,7 +397,7 @@ class OAuthClientTest {
      * The hop itself: the fetch must still be CARRIED to the redirect target, and the document
      * that comes back must be the one that is judged.
      *
-     * ⚠ Here the document names `idp.example`, which is neither the host asked nor under the
+     * Here the document names `idp.example`, which is neither the host asked nor under the
      * address' domain, so its endpoints are BLANKED — that half is the guard, pinned next door.
      * What this test owns is `second.requestCount == 1`: the redirect was followed and the
      * document was read. Making it green by moving the second server's endpoints on-domain would
@@ -500,7 +500,7 @@ class OAuthClientTest {
     }
 
     /**
-     * ⛔ The draw itself, not just its shape. "two draws differ" and "the alphabet is right" are
+     * The draw itself, not just its shape. "two draws differ" and "the alphabet is right" are
      * both satisfied by `java.util.Random(1)` — and a predictable verifier makes PKCE decorative:
      * whoever intercepts the code coming back through the browser can compute the verifier and
      * redeem it. So the SOURCE is read and its type executed against, and the field is declared
@@ -613,7 +613,7 @@ class OAuthClientTest {
     }
 
     /**
-     * ⛔ RFC 6749 §3.1: a parameter must not appear twice. The endpoint can be TYPED IN, so it can
+     * RFC 6749 §3.1: a parameter must not appear twice. The endpoint can be TYPED IN, so it can
      * arrive already carrying `client_id` or `state`; `addEncodedQueryParameter` appends, and the
      * server then arbitrates — often keeping the first occurrence, the one we do not control.
      * Ours win, everything else the endpoint carried survives.
@@ -635,7 +635,7 @@ class OAuthClientTest {
     }
 
     /**
-     * ⛔ https only (#2). This URL goes to a browser: over cleartext the code coming back is
+     * https only (#2). This URL goes to a browser: over cleartext the code coming back is
      * readable and rewritable by anything on the path. Nothing is built — the caller cannot end up
      * holding a half-usable URL it might still open.
      */
@@ -832,7 +832,7 @@ class OAuthClientTest {
     }
 
     /**
-     * ⛔ A URL we cannot read comes back WORD FOR WORD — not null, not "", not truncated, and not
+     * A URL we cannot read comes back WORD FOR WORD — not null, not "", not truncated, and not
      * an exception. This URL is the server's, not ours: a sign-in that opens a page still asking
      * for the address is a sign-in, a button that opens nothing is not.
      */
@@ -866,7 +866,7 @@ class OAuthClientTest {
     }
 
     /**
-     * ⛔ `URLEncoder` writes a space as `+` — and, read back per RFC 3986, an address typed with a
+     * `URLEncoder` writes a space as `+` — and, read back per RFC 3986, an address typed with a
      * space in it arrives as a DIFFERENT address, one carrying a plus. `nina+qa@example.com` alone
      * does not see that: `URLEncoder` percent-encodes a literal `+` exactly like [percentEncode]
      * does, and this test stayed green under a `URLEncoder` mutant until the space and the `~`
@@ -900,7 +900,7 @@ class OAuthClientTest {
     }
 
     /**
-     * ⛔ NOT over cleartext. `toHttpUrlOrNull` takes `http://` as happily as `https://`, and the
+     * NOT over cleartext. `toHttpUrlOrNull` takes `http://` as happily as `https://`, and the
      * hint is an IDENTITY: before this branch a cleartext verification URL carried none, with it
      * the user's full address would travel in the clear, into every proxy log and browser history
      * on the path. That is the same refusal issue #2 settled for the whole app. The URL itself is
@@ -1108,7 +1108,7 @@ class OAuthClientTest {
      * Acceptance coming from THE HOST THAT WAS ASKED, alone: the address' domain here is
      * unrelated, so only the queried host can let these endpoints through.
      *
-     * ⛔ This is what pins that the queried host is read off the URL actually built
+     * This is what pins that the queried host is read off the URL actually built
      * (`Jmap.oauthMetadataUrlFor(host).toHttpUrlOrNull()?.host`) and not off [host] verbatim —
      * `host` may arrive as a bare host OR as a full URL, and passing the raw string to the guard
      * leaves it comparing a URL to a hostname, i.e. refusing the server that just answered.
@@ -1143,7 +1143,7 @@ class OAuthClientTest {
         assertNull(client.discoverMetadata(server.url("/").toString(), "example.com"))
     }
 
-    /** ⛔ The fact is ours, never the server's: a document claiming it is ignored. */
+    /** The fact is ours, never the server's: a document claiming it is ignored. */
     @Test fun discoverMetadata_theOffDomainFactIsNeverReadOffTheWire() = runBlocking {
         server.enqueue(
             MockResponse().setHeader("Content-Type", "application/json").setBody(
@@ -1216,7 +1216,7 @@ class OAuthClientTest {
     }
 
     /**
-     * ⛔ The token endpoint ALONE must raise the fact. Written because a document that also names
+     * The token endpoint ALONE must raise the fact. Written because a document that also names
      * an off-domain authorization or device endpoint would raise it through those instead, and a
      * guard that only looked at the other two would pass every test in this file.
      */
@@ -1258,7 +1258,7 @@ class OAuthClientTest {
     }
 
     private companion object {
-        /** ⛔ `example.com` everywhere: `NoPrivateHostInTreeTest` refuses any private host. */
+        /** `example.com` everywhere: `NoPrivateHostInTreeTest` refuses any private host. */
         const val AUTHORIZE = "https://idp.example.com/authorize"
     }
 }

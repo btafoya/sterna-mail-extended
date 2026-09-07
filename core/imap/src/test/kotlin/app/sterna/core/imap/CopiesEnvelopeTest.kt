@@ -12,7 +12,7 @@ import java.nio.charset.Charset
  * ENVELOPE, and the parser walked over slots 6 and 7. So a reopened draft lost the people in
  * copy and a "reply to all" wrote to the To: alone.
  *
- * ⛔ The two slots are ADJACENT and they are not interchangeable: index 7 is the blind copy. A
+ * The two slots are ADJACENT and they are not interchangeable: index 7 is the blind copy. A
  * reader off by one publishes hidden addresses in the visible field. Every fixture here therefore
  * puts a DIFFERENT address in each of the six address slots — an assertion that cannot tell 6 from
  * 7 proves nothing.
@@ -80,7 +80,7 @@ class CopiesEnvelopeTest {
     }
 
     /**
-     * ⭐ THE SLOT. Index 7 is the blind copy: if it is what the visible `Cc` field is filled from,
+     * THE SLOT. Index 7 is the blind copy: if it is what the visible `Cc` field is filled from,
      * the app shows — and a reply-all writes to — an address the sender chose to hide. This test
      * is what an off-by-one dies on, in the direction that leaks.
      */
@@ -167,7 +167,7 @@ class CopiesEnvelopeTest {
     }
 
     /**
-     * ⭐ Slot 6 NIL, slot 7 filled — the shape a fallback survives. Every other fixture here fills
+     * Slot 6 NIL, slot 7 filled — the shape a fallback survives. Every other fixture here fills
      * the Cc, and the empty-copies one empties BOTH, so `cc = ccAddrs.ifEmpty { bccAddrs }` is the
      * identity on all of them. A message the account blind-copied, deposited in the folder by
      * another client, is exactly this envelope: read the blind slot into the visible one and the

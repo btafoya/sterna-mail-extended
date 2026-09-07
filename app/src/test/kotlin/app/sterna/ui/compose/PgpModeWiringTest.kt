@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `ComposeViewModel.kt` and `ComposeScreen.kt` as
+ * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `ComposeViewModel.kt` and `ComposeScreen.kt` as
  * text and compares whole trimmed lines. It proves nothing about what runs.
  *
  * It exists because neither file can be built here: `ComposeViewModel` is an `AndroidViewModel`
@@ -192,7 +192,7 @@ class PgpModeWiringTest {
         // recipients with no key stop being flagged, and Send is offered on a message that cannot
         // be encrypted to them.
         //
-        // ⚠ This is an ABSENCE over the whole file, so it says nothing about a site that stops
+        // This is an ABSENCE over the whole file, so it says nothing about a site that stops
         // reading the mode at all. It is the cheapest guard that survives a lengthened line.
         assertEquals(
             "ComposeScreen compares against a single encrypting mode again.",
@@ -211,7 +211,7 @@ class PgpModeWiringTest {
         // the bench reported, only worse.
         //
         // The bar reads `pgpMode` (what is in force), the menu row reads `entry` (the row's own
-        // mode), in that order down the file. ⛔ Two calls, no more: a third would be a face drawn
+        // mode), in that order down the file. Two calls, no more: a third would be a face drawn
         // somewhere nothing here describes.
         assertEquals(
             "the composer's two pgpModeIcon call sites changed. If the bar stopped passing " +

@@ -17,7 +17,7 @@ import org.junit.Test
  * nine languages, so this cannot be fixed in the strings — and the server's sentence already ends
  * with one. The detail is therefore trimmed of its FINAL sentence punctuation on the way in.
  *
- * ⛔ And of nothing else. The server's sentence is quoted verbatim rather than rewritten (we would
+ * And of nothing else. The server's sentence is quoted verbatim rather than rewritten (we would
  * have to guess right for every server), so the inner punctuation, the quotes, the case and the
  * length are all left alone: `Unable to resolve host "mail.example.test": No address associated
  * with hostname.` loses one character, the last.

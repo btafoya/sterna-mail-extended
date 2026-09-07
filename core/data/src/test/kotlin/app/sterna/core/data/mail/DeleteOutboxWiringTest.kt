@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ THIS TEST READS SOURCE TEXT — the last resort, as [LocalDraftSaveWiringTest] does and for the
+ * THIS TEST READS SOURCE TEXT — the last resort, as [LocalDraftSaveWiringTest] does and for the
  * same reason: `MailRepository` needs Room, a `Context` and a socket, so no JVM test can build one,
  * and nothing here EXECUTES a single line of it. Only SHAPE is covered — text, whole lines and in
  * order. Whether those lines do what they say on a phone is not in scope of this file, and nothing
@@ -41,11 +41,11 @@ class DeleteOutboxWiringTest {
         codeOf(DaoQuerySource.mailSource("MailRepository")).filter { needle in it }
 
     @Test fun `consuming an outbox item takes its row AND its staged directory`() {
-        // ⛔ The order is part of the guard: the Room row goes FIRST, so a crash between the two
+        // The order is part of the guard: the Room row goes FIRST, so a crash between the two
         // leaves an orphan directory (recoverable, invisible) rather than a row pointing at bytes
         // that are already gone.
         //
-        // ⛔ And the `runCatching` is deliberate: a full disk or a file still held open must not
+        // And the `runCatching` is deliberate: a full disk or a file still held open must not
         // fail the destruction of the row. This pins that the wrapper is THERE, in that shape — it
         // is not an invitation to let the failure through.
         //
@@ -69,13 +69,13 @@ class DeleteOutboxWiringTest {
     }
 
     @Test fun `every line naming the outbox files dir spells the same directory`() {
-        // ⛔ A CENSUS, not a search and not a count: three occurrences counted would still pass with
+        // A CENSUS, not a search and not a count: three occurrences counted would still pass with
         // one of them pointing somewhere else, and a `contains` is blind to anything that lengthens
         // the line. The whole list, whole lines, in file order — the declaration, then the two
         // sites that CREATE the directory (staging under stageOrRollback, persistAttachments), then
         // the one that DESTROYS it (deleteOutbox).
         //
-        // ⛔ Rule 1 above cannot see this: it reads deleteOutbox's body only, so the two creating
+        // Rule 1 above cannot see this: it reads deleteOutbox's body only, so the two creating
         // sites could drift under it with every test green.
         assertEquals(
             "⛔ the Outbox has no outboxDir(id): its durable directory is spelled out by hand at " +

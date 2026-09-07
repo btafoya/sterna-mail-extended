@@ -29,7 +29,7 @@ import java.io.File
  *     `NotWatched` it is dead in the other direction, on an account a relay really does wake;
  *  4. the distributor check moved out of first place in the block, which offers a "Get an address"
  *     button that can do nothing — the on-screen lie this volet exists to remove;
- *  5. a health verdict creeping into the status line, IN ANY OF THE NINE LANGUAGES. ⛔ The app
+ * 5. a health verdict creeping into the status line, IN ANY OF THE NINE LANGUAGES. The app
  *     CANNOT know a relay is alive. It knows when a wake last arrived, and that is a dated fact,
  *     never "active" or "connected" — and never "actif" or "aktiv" either, which is how eight of
  *     the nine translations used to be able to say the forbidden thing under a green suite;
@@ -232,7 +232,7 @@ class RelayAddressRowWiringTest {
     // -- the strings ---------------------------------------------------------------------------
 
     /**
-     * ⭐ What `TranslationParityTest` already covers, and which is deliberately NOT repeated here:
+     * What `TranslationParityTest` already covers, and which is deliberately NOT repeated here:
      * every key of `values/` exists in every translation, no translation carries an orphan, and the
      * format arguments of a key survive translation. What it cannot cover is this: its rules all
      * compare against `values/`, so a set of keys that vanishes from `values/` too — or never lands

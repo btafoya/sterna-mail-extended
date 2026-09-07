@@ -10,7 +10,7 @@ import java.util.Base64
  * [originalSenderHeaderOf], EXECUTED — which header names a forwarded message's real author, and
  * what is done to the value before anything shows it (#160).
  *
- * ⛔ Nothing here recomputes the rule to decide what to assert. Every input is a literal list of
+ * Nothing here recomputes the rule to decide what to assert. Every input is a literal list of
  * header fields and every expectation is written out by hand: a test that derives its expectation
  * from the code under test is a copy of the decision, and inverting the delivered condition would
  * leave it green.
@@ -41,7 +41,7 @@ class OriginalSenderHeaderTest {
     }
 
     /**
-     * The four spellings in the wild, and one casing nobody would write on purpose. ⛔ The rule is
+     * The four spellings in the wild, and one casing nobody would write on purpose. The rule is
      * the SHAPE of the name — `x-` plus `original-from` — and never a list of vendors: a list is
      * a promise to keep chasing whichever alias service ships next.
      */
@@ -70,7 +70,7 @@ class OriginalSenderHeaderTest {
     }
 
     /**
-     * ⛔ BOTH halves are required. `Original-From` with no `X-` is not an extension field, and a
+     * BOTH halves are required. `Original-From` with no `X-` is not an extension field, and a
      * match on `original-from` alone would let any future standard header of that name be shown
      * as an origin this app never agreed to trust.
      */
@@ -81,13 +81,13 @@ class OriginalSenderHeaderTest {
     /**
      * Two fields of the shape in one message: the FIRST occurrence is the one kept.
      *
-     * ⛔ This pins a DETERMINISTIC CHOICE, not a rule about relays. Which of the two names the
+     * This pins a DETERMINISTIC CHOICE, not a rule about relays. Which of the two names the
      * actual author is NOT established: fields are prepended as a message travels, which would
      * make the first one the OUTERMOST relay's, and no message carrying two of them has ever been
      * seen in this project. The first is taken because the same message must always read the same
      * way; the alternative is guessing from a case nobody has observed.
      *
-     * ⛔ Accepted debt: a chain is reported by one of its hops, possibly the wrong one, and nothing
+     * Accepted debt: a chain is reported by one of its hops, possibly the wrong one, and nothing
      * on screen says there was a chain. The label reads "(unverified)" partly for this.
      */
     @Test fun `on a chain of two relays the first occurrence is the one kept`() {

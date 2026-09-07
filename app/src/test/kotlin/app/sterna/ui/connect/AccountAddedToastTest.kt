@@ -103,7 +103,7 @@ class AccountAddedToastTest {
  * Same instrument and same idiom as [app.sterna.ui.PendingDeletionLabelTest]: it reads the XML as
  * text and proves nothing about display.
  *
- * ⚠ It does not judge the translations, nor that any screen shows them; it only refuses the state
+ * It does not judge the translations, nor that any screen shows them; it only refuses the state
  * where a re-add in Polish or Russian resolves to nothing and the reader is told nothing again.
  */
 class AccountRefreshedStringTest {

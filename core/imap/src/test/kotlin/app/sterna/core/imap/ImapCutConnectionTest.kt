@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * client is the shipped one, and what is asserted is the exception the caller gets, how long it
  * took, and what the client had time to write at a server that had already gone.
  *
- * ⚠ Every test here arms [closeAfter]. Before the fix these paths do not fail, they SPIN: without
+ * Every test here arms [closeAfter]. Before the fix these paths do not fail, they SPIN: without
  * a net the test JVM never exits and the whole run hangs instead of reporting.
  */
 class ImapCutConnectionTest {
@@ -148,7 +148,7 @@ class ImapCutConnectionTest {
      * goes false before the socket is torn down, so the read that fails on the way out is not
      * reported to the owner and no reconnection is triggered.
      *
-     * ⚠ This one passes before the fix as well as after: it is here so the fix, and anything after
+     * This one passes before the fix as well as after: it is here so the fix, and anything after
      * it, cannot quietly turn a voluntary stop into a reconnection loop.
      */
     @Test(timeout = 60_000)

@@ -6,17 +6,17 @@ import org.junit.Test
 /**
  * THE DECISIONS NOBODY WAS WATCHING on the read-and-bin path of a move between accounts (#99, #189).
  *
- * ⛔ This file guards nothing new. It closes four mutations that changed real behaviour and left the
+ * This file guards nothing new. It closes four mutations that changed real behaviour and left the
  * whole suite green, found by `/go-no-go` and by two counter-expertises of this branch. Every rule
  * below is stated as the mutation it kills, because a lint whose reason is not written is a lint
  * the next person deletes.
  *
- * ⭐ WHY THE EXISTING LINTS MISSED THEM. The ones next door filter a body by
+ * WHY THE EXISTING LINTS MISSED THEM. The ones next door filter a body by
  * `Regex("(?i)(numbering|validity|frozen|recorded)")` or by `"rawSource(" in it`. Two of these four
  * mutations sit on lines that name NONE of those words while deciding WHICH MESSAGE IS READ, and one
  * is an enclosure rather than a line at all. A closed list only sees what its needle matches.
  *
- * ⚠ Source lint, the last resort as always: `MailRepository` needs Room, a `Context` and a socket,
+ * Source lint, the last resort as always: `MailRepository` needs Room, a `Context` and a socket,
  * so no JVM test in this module instantiates it.
  */
 class NumberedReadsAreNotSwallowedTest {
@@ -27,7 +27,7 @@ class NumberedReadsAreNotSwallowedTest {
             .filter { it.isNotEmpty() }
 
     /**
-     * ⛔ MUTATION: the body of `rawSource` reduced to `openEmail(credentials, emailId, markRead =
+     * MUTATION: the body of `rawSource` reduced to `openEmail(credentials, emailId, markRead =
      * false)`, or `markRead` flipped to `true`. Both compile, both keep every other pinned line of
      * the file byte-identical, and neither names a numbering — so the numbering lints, which filter
      * on that vocabulary, cannot see either.
@@ -67,14 +67,14 @@ class NumberedReadsAreNotSwallowedTest {
     }
 
     /**
-     * ⛔ MUTATION: `fetchRawSource`'s default flipped from `FrozenNumbering.NothingFrozen` to
+     * MUTATION: `fetchRawSource`'s default flipped from `FrozenNumbering.NothingFrozen` to
      * `FrozenNumbering.Frozen(null)`. One token, no call site touched, suite green.
      *
      * What it costs: the two callers that pass nothing are ordinary reads. `rawHeaders` would stop
      * being served by the raw-source cache AND — on IMAP — be REFUSED outright, because a tick that
      * froze nothing is refused at the wire. The headers of a message would simply stop appearing.
      *
-     * ⚠ The default is the one place this can be said. Every OTHER pin on this path reads the
+     * The default is the one place this can be said. Every OTHER pin on this path reads the
      * argument at a CALL site, and these callers have no argument to read.
      */
     @Test fun `the fetch defaults to nothing frozen, in its signature`() {
@@ -98,7 +98,7 @@ class NumberedReadsAreNotSwallowedTest {
     }
 
     /**
-     * ⛔ MUTATION: a `runCatching { … }` — or a `try/catch` — around the IMAP block of
+     * MUTATION: a `runCatching { … }` — or a `try/catch` — around the IMAP block of
      * `MailRepository.delete`. It reads as defensive, it compiles, and every line pinned elsewhere
      * stays byte-identical.
      *
@@ -109,11 +109,11 @@ class NumberedReadsAreNotSwallowedTest {
      * lost that way: `ImapNumberingUnconfirmed` (the server confirmed nothing) and
      * `ImapUidValidityChanged` (the folder WAS renumbered).
      *
-     * ⭐ So the rule is about ENCLOSURE, not about a line, and that is why no line-by-line list
+     * So the rule is about ENCLOSURE, not about a line, and that is why no line-by-line list
      * could ever have caught it: [openBlocksAt] answers which blocks are still open over each
      * command that goes out under a numbering.
      *
-     * ⚠ Deliberately NOT `imap.moveBatch(`: the bulk mover is wrapped in a `runCatching` on
+     * Deliberately NOT `imap.moveBatch(`: the bulk mover is wrapped in a `runCatching` on
      * purpose, because it reports its refusals per id through `BulkResult.failed` instead of
      * throwing them at the caller. Adding it here would red the shipped code.
      */

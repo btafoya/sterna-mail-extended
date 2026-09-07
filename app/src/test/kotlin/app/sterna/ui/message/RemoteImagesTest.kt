@@ -540,7 +540,7 @@ class RemoteImagesTest {
      * chosen from the overflow menu makes the strip VANISH mid-read: the header loses a whole row,
      * which re-keys the document exactly like a resize does.
      *
-     * The key is `(full, plainText)`, and BOTH halves are part of the rule. ⚠ `plainText` is NOT
+     * The key is `(full, plainText)`, and BOTH halves are part of the rule. `plainText` is NOT
      * free: the strip's own height feeds `topSpacerCssPx`, which the body's HTML remember() keys
      * on, so a reading-mode toggle loads the document twice — once for the mode, once for the
      * header that changed under it. It is allowed for that ONE gesture, which already replaces the

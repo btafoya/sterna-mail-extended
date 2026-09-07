@@ -62,7 +62,7 @@ class AtInboxTest {
     }
 
     /**
-     * ⭐ The lambda is not decoration. `AccountStore.inboxMailboxId()` walks `currentAccount()` →
+     * The lambda is not decoration. `AccountStore.inboxMailboxId()` walks `currentAccount()` →
      * `accounts()` → the blob gate, which parses the stored account JSON and writes the
      * `unreadable` flag that guards every account write. The inline form this rule replaced
      * short-circuited on `sel is Sel.Unified`; extracted with a `String?` parameter it would be

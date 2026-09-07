@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⚠ THIS TEST READS SOURCE TEXT. It is a last resort, not a proof of execution: `MailRepository`
+ * THIS TEST READS SOURCE TEXT. It is a last resort, not a proof of execution: `MailRepository`
  * needs Room and a `Context` and cannot be instantiated in a JVM test, so nothing here can run the
  * wiring it checks. The decision it guards — chunking itself — is EXECUTED by [IdChunksTest]; this
  * only pins WHERE that decision is plugged in, and it pins the ARGUMENT of each call, not just the
@@ -97,7 +97,7 @@ class ChunkedIdReadsSourceTest {
             "imapDestroyGroup",
             "search",
             "fetchThreadMembers",
-            // ⭐ The freeze of a held-back destroy (`numberingRowsWereReadUnder`, #99) is NOT in
+            // The freeze of a held-back destroy (`numberingRowsWereReadUnder`, #99) is NOT in
             // this list any more, and that is a tightening, not a hole: its id list IS the
             // selection, and it runs BEFORE the eviction and outside any runCatching, so
             // unbounded it would crash the delete rather than fail it — but the split now lives

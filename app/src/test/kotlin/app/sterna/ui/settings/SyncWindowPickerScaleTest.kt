@@ -17,7 +17,7 @@ import java.io.File
  * a fragment (a `contains` is blind to every mutation that LENGTHENS a line, and
  * `options = syncWindowChoices() + SyncWindow.ALL` is exactly that shape).
  *
- * ⛔ Why "offered" and "existing" are two different questions. The retired windows (50 / 200 / 500 /
+ * Why "offered" and "existing" are two different questions. The retired windows (50 / 200 / 500 /
  * "Everything") stay in the enum for ever — their names are the persisted format and deleting one
  * empties every account list that carried it (`SyncWindowStoredNameTest`). So the picker may not
  * show them, and the label `when` must still be able to name them.
@@ -64,7 +64,7 @@ class SyncWindowPickerScaleTest {
     }
 
     @Test fun `the row shows the window the account CARRIES, never one chosen from the offer`() {
-        // ⛔ The survivor an audit found, and it is the worst shape in this volet:
+        // The survivor an audit found, and it is the worst shape in this volet:
         //     selected = syncWindowChoices().firstOrNull { it == syncWindow } ?: syncWindowChoices().last()
         // Every other pin here stays green — the `options =` line is untouched, the token
         // "SyncWindow." does not appear, and the label `when` is not even consulted. What it does
@@ -73,7 +73,7 @@ class SyncWindowPickerScaleTest {
         // writes nothing, so the lie is permanent and silent. That is the exact opposite of the
         // promise this whole volet is built on.
         //
-        // ⚠ A dialog with NO radio ticked on an unmigrated account is the ACCEPTED cost of that
+        // A dialog with NO radio ticked on an unmigrated account is the ACCEPTED cost of that
         // promise: the summary line tells the truth, and nothing is invented to fill a circle.
         assertTrue(
             "the sync-window row no longer shows `selected = syncWindow,` — whatever it shows " +
@@ -97,7 +97,7 @@ class SyncWindowPickerScaleTest {
             "SyncWindow.COUNT_50 -> context.getString(R.string.settings_sync_50_messages)",
             "SyncWindow.COUNT_200 -> context.getString(R.string.settings_sync_200_messages)",
             "SyncWindow.COUNT_500 -> context.getString(R.string.settings_sync_500_messages)",
-            // ⛔ NOT settings_sync_everything any more — see the test below for why.
+            // NOT settings_sync_everything any more — see the test below for why.
             "SyncWindow.ALL -> context.getString(R.string.settings_sync_10000_messages)",
         ).forEach {
             assertTrue(
@@ -111,7 +111,7 @@ class SyncWindowPickerScaleTest {
     // -- the weld: the number in the label IS the number the window caches -----------------------------
 
     @Test fun `each new label states, in every language, the number its window really caches`() {
-        // ⛔ The mutation this exists for: a member whose `limit` no longer matches the label it is
+        // The mutation this exists for: a member whose `limit` no longer matches the label it is
         // shown under. Nothing else in the repo compares the two — the enum test would pass, the
         // resource lint would pass, and the row would promise 1 000 messages while caching 500.
         // Digits only: the thousands separator is the translator's (1,000 / 1.000 / 1 000 / 1000).
@@ -136,7 +136,7 @@ class SyncWindowPickerScaleTest {
     }
 
     @Test fun `an account left on Everything reads as 10000, in every language`() {
-        // ⛔ WYSIWYG (CLAUDE.md's arbitration grid, rule 3: between lowering the label and raising
+        // WYSIWYG (CLAUDE.md's arbitration grid, rule 3: between lowering the label and raising
         // the code, lower the label). "Everything / Tout / Alles / Всё" now caches 10 000 messages
         // and no more. Left as it was, a user on that window would believe her whole mailbox is
         // offline while 40 000 messages leave the cache without the screen ever having said so.

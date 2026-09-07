@@ -24,7 +24,7 @@ import org.junit.Test
  *     carries none;
  *  2. it is asked for but not deserialised (`DefaultJson` is `ignoreUnknownKeys = true`, so
  *     kotlinx drops the server's answer without a word);
- *  3. ⭐ it is asked for by SOME fetch paths only. `EmailDao.upsertAll` is an `@Upsert`: it
+ * 3. it is asked for by SOME fetch paths only. `EmailDao.upsertAll` is an `@Upsert`: it
  *     replaces the whole row. A path that caches a message without having asked for `replyTo`
  *     therefore ERASES the value another path had just written, and the column goes back to null
  *     with nothing on screen to show for it.
@@ -35,13 +35,13 @@ import org.junit.Test
  * `email_bodies`, whose rows are the whole serialised [Email]. Each is EXERCISED against a mock
  * server: the assertion reads the octets that actually left, not the source that produced them.
  *
- * ⚠ What this guard does NOT do: the list of paths is written by hand here. It catches a property
+ * What this guard does NOT do: the list of paths is written by hand here. It catches a property
  * removed from a path that exists; it cannot catch a NEW fetch path added tomorrow without
  * `replyTo`. `core:jmap` sees neither `MailRepository` nor the DAO, so there is nothing to derive
  * it from. Known limit, not an oversight.
  *
- * ⛔ Deliberately absent: `crawlHeaders` and `searchEmails`. Neither writes an `emails` row
- * (`MailRepository.kt:1968` writes the FTS table `email_fts`, `MailRepository.kt:4500` only
+ * Deliberately absent: `crawlHeaders` and `searchEmails`. Neither writes an `emails` row
+ * (`MailRepository` writes the FTS table `email_fts`, `MailRepository` only
  * returns hits to the search screen), so neither can erase the column, and a header property they
  * do not need is bytes paid on every crawl page for nothing.
  */
@@ -152,7 +152,7 @@ class ReplyToOnTheWireTest {
     }
 
     /**
-     * ⭐ THE guard. Every path whose result is kept asks for the property — otherwise the three
+     * THE guard. Every path whose result is kept asks for the property — otherwise the three
      * that write an `emails` row silently wipe, through their `@Upsert`, what the others wrote.
      */
     @Test fun `every fetch that fills the cache asks the server for replyTo`() {

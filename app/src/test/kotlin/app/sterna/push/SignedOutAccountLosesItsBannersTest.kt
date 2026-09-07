@@ -15,7 +15,7 @@ import java.io.File
  *
  * Two halves, and only the first one runs: [Notifications.accountGroupIds] is the decision and is
  * executed below; the call site is an `AndroidViewModel` with no Robolectric in this module, so it
- * is pinned as source text, whole line by whole line. ⛔ Never `contains`: a `contains` is blind to
+ * is pinned as source text, whole line by whole line. Never `contains`: a `contains` is blind to
  * every mutation that LENGTHENS the line.
  */
 class SignedOutAccountLosesItsBannersTest {
@@ -109,7 +109,7 @@ class SignedOutAccountLosesItsBannersTest {
     }
 
     /**
-     * ⚠ SOURCE LINT — the call site. `AccountsViewModel` is an `AndroidViewModel` and this module
+     * SOURCE LINT — the call site. `AccountsViewModel` is an `AndroidViewModel` and this module
      * has neither Robolectric nor instrumented tests, so what is held here is the WIRING: the whole
      * line, and the LIST it walks. A pin naming only the call would be blind to `store.accounts()`
      * put in place of `removed`, which is the same defect with the sign is flipped — every account
@@ -179,7 +179,7 @@ class SignedOutAccountLosesItsBannersTest {
     }
 
     /**
-     * ⚠ SOURCE LINT over two very short bodies, and here is why it is not a copy of the decision:
+     * SOURCE LINT over two very short bodies, and here is why it is not a copy of the decision:
      * a summary is told apart from a child ONLY by FLAG_GROUP_SUMMARY or by its own id, and
      * NEITHER travels in the `(id, group)` pairs the decision is handed. So no executed test can
      * ever see that distinction being put back — the tests above would stay green while the

@@ -9,7 +9,7 @@ import org.junit.Test
 /**
  * The real test of #178's freshness guard: it EXECUTES the decision, on literal instants.
  *
- * ⛔ Nothing here recomputes the rule to choose what it replays. Every instant is written out
+ * Nothing here recomputes the rule to choose what it replays. Every instant is written out
  * (`T0`, `T0 + 29_000`, …) and every expectation is a constant, so inverting the shipped condition
  * has to redden something. `RefreshFreshnessWiringLintTest` covers the other half — which callers
  * are behind the guard and which must never be — because `InboxViewModel` is an `AndroidViewModel`
@@ -241,7 +241,7 @@ class RefreshFreshnessTest {
         assertEquals("and it is re-encoded as itself", "$ACCOUNT_B\t$ARCHIVE\t$T0", pruned)
     }
 
-    /** ⭐ A removed account can have visited several folders; they all go in one pass. */
+    /** A removed account can have visited several folders; they all go in one pass. */
     @Test fun `several folders of the removed account all go at once`() {
         val stored = "$ACCOUNT_A\t$INBOX\t$T0\n$ACCOUNT_A\t$ARCHIVE\t$T0\n$ACCOUNT_B\t$ARCHIVE\t$T0"
         assertEquals(
@@ -251,7 +251,7 @@ class RefreshFreshnessTest {
     }
 
     /**
-     * ⭐ The `accountId` decides, never the `mailboxId`. Two accounts on the same server number
+     * The `accountId` decides, never the `mailboxId`. Two accounts on the same server number
      * their mailboxes independently (#92 / #121), so the survivor's entry here carries the very
      * same folder id as the removed account's and must stay.
      */
@@ -290,7 +290,7 @@ class RefreshFreshnessTest {
     }
 
     /**
-     * ⛔ It prunes by ACCOUNT, not by time. A surviving account's entry stamped well outside the
+     * It prunes by ACCOUNT, not by time. A surviving account's entry stamped well outside the
      * window is stale, and staleness is [isFresh]'s business, read at the guard: dropping it here —
      * or restamping it — would be a second answer to a question that already has one.
      */

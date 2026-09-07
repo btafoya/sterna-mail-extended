@@ -136,7 +136,7 @@ class CreatedIdentityOnTheWireTest {
             "message was ${e.message}",
             e.message!!.contains("E-mail address not configured for this account."),
         )
-        // ⛔ And NOT the address. The screen names the refused address itself, in the user's
+        // And NOT the address. The screen names the refused address itself, in the user's
         // language (`settings_identity_not_created`), then shows this message beside it: carrying
         // it here too wrote it twice, the second time inside an English fragment shown in eight
         // translations. Keep this a negative assertion — the duplication came back once already.

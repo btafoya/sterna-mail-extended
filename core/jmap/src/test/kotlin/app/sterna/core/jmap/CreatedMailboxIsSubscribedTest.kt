@@ -26,7 +26,7 @@ import org.junit.Test
  * it, the panel that hides unsubscribed folders hides the folder the user has just created, the
  * instant it is created.
  *
- * ⛔ Scope, and it is deliberate: **Sterna does not drive subscriptions.** The property is set on
+ * Scope, and it is deliberate: **Sterna does not drive subscriptions.** The property is set on
  * the one mailbox it creates itself, and nowhere else — not on rename, not on delete, and there
  * is no subscription control on screen.
  *

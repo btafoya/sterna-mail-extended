@@ -21,7 +21,7 @@ import org.junit.Test
  * or rounding produces such an overhang, so the decision is now: a body that cannot follow the finger
  * over one touch slop has nothing to show.
  *
- * ⛔ Every number below is WRITTEN OUT — the bench's own readings, and the boundary either side of
+ * Every number below is WRITTEN OUT — the bench's own readings, and the boundary either side of
  * the slop. Nothing here recomputes the rule to decide what to expect: inverting or unthresholding
  * the shipped condition has to turn this red.
  */

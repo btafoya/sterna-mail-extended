@@ -37,7 +37,7 @@ class ReadReceiptStripTest {
     // -- 1. whether there is a strip at all ---------------------------------------------------------
 
     /**
-     * ⭐ NO OFFER, NO STRIP — and no divider either. This is the state of very nearly every message
+     * NO OFFER, NO STRIP — and no divider either. This is the state of very nearly every message
      * ever opened in this app: the reader never turned the switch on, or nobody asked.
      */
     @Test fun `no question means no strip`() {
@@ -45,7 +45,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * ⭐ THE SWITCH, EXECUTED THROUGH THE STRIP. The two functions are composed here rather than
+     * THE SWITCH, EXECUTED THROUGH THE STRIP. The two functions are composed here rather than
      * described: whatever [offeredReadReceipt] answers for a setting that is off — or has not been
      * read yet, which is NOT the same thing — is what the strip is built from, and both answers are
      * "there is nothing to draw".
@@ -72,7 +72,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * ⛔ SAYING NO SENDS NOTHING, AND THE STRIP GOES. The refusal is executed through the same two
+     * SAYING NO SENDS NOTHING, AND THE STRIP GOES. The refusal is executed through the same two
      * functions the app runs: the reader has answered, so the question is null, so there is no
      * strip — and nothing anywhere in this path can queue anything.
      */
@@ -112,7 +112,7 @@ class ReadReceiptStripTest {
     // -- 2. what it says once the reader has said yes ----------------------------------------------
 
     /**
-     * ⭐ THE TEXT SHOWN IS THE TEXT THAT WAS QUEUED, not one this file could rebuild. The subject
+     * THE TEXT SHOWN IS THE TEXT THAT WAS QUEUED, not one this file could rebuild. The subject
      * below is deliberately not a wording this app composes for a receipt: if anything on the way
      * recomputed it, it could not come out the other end. `assertSame` because it must be the very
      * string the repository handed back.
@@ -142,7 +142,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * ⛔ There is NO "sent" — [ReadReceiptState] has four states and the strip has four shapes, one
+     * There is NO "sent" — [ReadReceiptState] has four states and the strip has four shapes, one
      * for one. A fifth of either is a claim this app cannot keep: a receipt has one road, the
      * durable outbox, and nothing here watches it leave.
      */
@@ -166,10 +166,10 @@ class ReadReceiptStripTest {
         )
     }
 
-    // -- 3. ⭐ the height ---------------------------------------------------------------------------
+    // -- 3. the height ---------------------------------------------------------------------------
 
     /**
-     * ⭐ WHICH STATES ARE THE SAME ROW, IN LITERALS. This is the whole point of the enum: asking,
+     * WHICH STATES ARE THE SAME ROW, IN LITERALS. This is the whole point of the enum: asking,
      * sending and queueing are one shape, and only the failure may grow.
      *
      * Written out by hand rather than derived: this expectation is what goes red when someone
@@ -204,13 +204,13 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * ⭐ Which states act, and which may be refused — in literals, both ways.
+     * Which states act, and which may be refused — in literals, both ways.
      *
      * `acts` is the button's `enabled`. [ReadReceiptStripBody.ASK] acts because that is the
      * question; [ReadReceiptStripBody.FAILED] acts because nothing left the device and a refused
      * enqueue is a retry, not a dead end — the posture `UnsubscribeStripBody` already takes, and
      * `MessageViewModel.sendReadReceipt` puts the question back through the decision when it
-     * fails. ⛔ [ReadReceiptStripBody.QUEUED] must never act: what is in the outbox cannot be
+     * fails. [ReadReceiptStripBody.QUEUED] must never act: what is in the outbox cannot be
      * recalled and a second tap would answer the stranger twice.
      *
      * `declines` is the refusal, offered only while the question stands untouched.
@@ -227,14 +227,14 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * ⭐ WHICH WORDS EACH STATE WEARS, by resource name, both the line and the button.
+     * WHICH WORDS EACH STATE WEARS, by resource name, both the line and the button.
      *
      * Nothing else in this class reads either: `names`, `shape`, `acts` and `declines` are the same
      * on two of these states, so swapping [ReadReceiptStripBody.ASK]'s and
      * [ReadReceiptStripBody.QUEUED]'s resources leaves every other rule green — and the strip then
      * says "In the outbox: …" over a LIVE send button, before anything has left at all.
      *
-     * ⛔ And the button's label is not constant: a greyed "Send" beside a line saying the answer is
+     * And the button's label is not constant: a greyed "Send" beside a line saying the answer is
      * already queued is a button that lies about the state it is in.
      */
     @Test fun `each state wears its own line and its own button label`() {
@@ -274,7 +274,7 @@ class ReadReceiptStripTest {
      * height floor, that every ordinary state stands on the same button, and which gesture each
      * callback is.
      *
-     * ⛔ Whole lines, never `contains` for something expected to be present: a substring check is
+     * Whole lines, never `contains` for something expected to be present: a substring check is
      * blind to any mutation that LENGTHENS the line, and that blindness has cost this repo three
      * defects.
      */
@@ -292,7 +292,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * ⭐ EVERY COMPOSABLE THE STRIP MAY DRAW, IN ORDER — the rule written the other way round, so
+     * EVERY COMPOSABLE THE STRIP MAY DRAW, IN ORDER — the rule written the other way round, so
      * it goes red on a line ADDED as well as on one removed. A second sentence, a badge or an icon
      * beside the line is a second shape and therefore another height.
      */
@@ -329,7 +329,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * ⭐ THE BUTTON, and the two things about it that a swap makes invisible: it fires the SEND,
+     * THE BUTTON, and the two things about it that a swap makes invisible: it fires the SEND,
      * and it is drawn UNCONDITIONALLY — in every state, not only in those that can be pressed.
      *
      * `if (body.acts) { TextButton(…) }` reads like a tidy-up and is the measured defect: the
@@ -367,7 +367,7 @@ class ReadReceiptStripTest {
         )
     }
 
-    /** ⛔ The refusal is its own callback. Wired to the other one, a reader saying no answers a
+    /** The refusal is its own callback. Wired to the other one, a reader saying no answers a
      *  stranger — and no other rule in this file would see it. */
     @Test fun `the cross refuses and the button sends, and they are not the same callback`() {
         val strip = stripLines()
@@ -387,7 +387,7 @@ class ReadReceiptStripTest {
     // -- 5. the wiring, from the ViewModel to the row ----------------------------------------------
 
     /**
-     * ⭐ THE PRESENCE OF THE ROW READS THE OFFER, and its divider goes with it.
+     * THE PRESENCE OF THE ROW READS THE OFFER, and its divider goes with it.
      *
      * Pinned whole, because the two cheap mistakes here are invisible everywhere else: drawing the
      * row unconditionally leaves a divider and an empty band in the header of every message in the
@@ -424,7 +424,7 @@ class ReadReceiptStripTest {
     /**
      * The reader's two flows, collected, and the two callbacks, wired the right way round.
      *
-     * ⛔ `onSendReadReceipt = viewModel::declineReadReceipt` compiles, has the same signature, and
+     * `onSendReadReceipt = viewModel::declineReadReceipt` compiles, has the same signature, and
      * makes the button do nothing at all; the swap the other way answers a stranger on a reader who
      * refused. Nothing else in this suite can see either.
      */
@@ -452,7 +452,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * ⛔ And the screen builds no wording of a receipt of its own: what it shows is what
+     * And the screen builds no wording of a receipt of its own: what it shows is what
      * `sendReadReceipt` put in the outbox row, relayed. The same rule the ViewModel is held to.
      */
     @Test fun `the screen never rebuilds what a receipt says`() {
@@ -553,7 +553,7 @@ class ReadReceiptStripTest {
         /**
          * What the screen must carry, whole, from the ViewModel down to the row.
          *
-         * ⭐ Every hand-over of the two lambdas is BY NAME, at all three levels. They have the same
+         * Every hand-over of the two lambdas is BY NAME, at all three levels. They have the same
          * type, so a positional call plus a swap of two lines in a signature compiles and wires
          * the refusal to the send — the cross would then queue a receipt to a stranger while the
          * button did nothing, and no rule reading either file in isolation could see it. Named,
@@ -570,7 +570,7 @@ class ReadReceiptStripTest {
          * Every hand-over between the three levels, by name — `ConversationBody`'s and
          * `MessageHeader`'s.
          *
-         * ⭐ The two lambdas are the dangerous pair and the reason this rule exists. The offer and
+         * The two lambdas are the dangerous pair and the reason this rule exists. The offer and
          * the state joined them when the header's argument list grew past the point where anyone
          * could count positions by eye: a header taking a dozen arguments, four of them ours, is
          * read by nobody, and one slid into the wrong slot compiles.

@@ -18,14 +18,14 @@ import java.io.File
  * PendingIntent yet"), which was explicitly temporary: this is the pane that adds one, so the rule
  * becomes what the shipped tap must be rather than its absence.
  *
- * ⛔ Whole lines, never a `contains`: a substring rule is satisfied by every mutation that LENGTHENS
+ * Whole lines, never a `contains`: a substring rule is satisfied by every mutation that LENGTHENS
  * the line. The price is that reformatting any of these calls reddens this test — loud, and one
  * line to fix.
  */
 class UnreadWidgetTapWiringLintTest {
 
     /**
-     * ⛔ The `Intent` behind the widget's `PendingIntent` carries an ACTION of its own, and that is
+     * The `Intent` behind the widget's `PendingIntent` carries an ACTION of its own, and that is
      * not a nicety.
      *
      * A `PendingIntent`'s identity is `(requestCode, Intent as compared by filterEquals, flags)`,
@@ -87,7 +87,7 @@ class UnreadWidgetTapWiringLintTest {
     }
 
     /**
-     * ⛔ GUARD 1, and it is the reason the three existing extras are parsed inside this `if`.
+     * GUARD 1, and it is the reason the three existing extras are parsed inside this `if`.
      *
      * The activity is `singleTask`: the intent that opened it stays its intent FOR GOOD. Parsed
      * outside this block, the widget's order is re-read on every recreation — rotation, theme,
@@ -117,11 +117,11 @@ class UnreadWidgetTapWiringLintTest {
     }
 
     /**
-     * ⛔ GUARD 2: the one-shot strip, belt to the guard above's braces. Whatever re-reads the
+     * GUARD 2: the one-shot strip, belt to the guard above's braces. Whatever re-reads the
      * retained intent later, it must no longer carry an order already carried out.
      *
      * And it has its OWN function on purpose, like `stripEmailOpenPayload` and `stripMailtoPayload`
-     * before it: consuming one payload must never cancel another that is genuinely pending. ⛔ Not
+     * before it: consuming one payload must never cancel another that is genuinely pending. Not
      * to be folded into the email-open strip.
      */
     @Test fun `the widget's extra is stripped once consumed, on its own`() {
@@ -172,7 +172,7 @@ class UnreadWidgetTapWiringLintTest {
     }
 
     /**
-     * ⛔ The consumption goes through `InboxViewModel.selectUnified()`, the very call the drawer's
+     * The consumption goes through `InboxViewModel.selectUnified()`, the very call the drawer's
      * own entry makes — never a hand-rolled equivalent. Not for the push flag:
      * `PushController.unifiedInboxVisible` is set by a collector on `selection` in
      * `InboxViewModel`'s init, so any path that moves the selection sets it. For everything else
@@ -181,7 +181,7 @@ class UnreadWidgetTapWiringLintTest {
      * label and total, and `refresh()` every account. A hand-rolled "just move the selection"
      * compiles and leaves the header naming the previous folder over a list nothing re-fetched.
      *
-     * ⛔ AND THE ORDER IS TAKEN BEFORE THE LIST IS THERE, which is the half this pin gained after
+     * AND THE ORDER IS TAKEN BEFORE THE LIST IS THERE, which is the half this pin gained after
      * bench cell C1 (2026-08-17). `listViewModel` is looked up imperatively, so on a COLD start it
      * is null in the composition that receives the tap; the effect that returned there returned for
      * good, and the activity's flag stayed `true`, so every later tap was a `true → true`
@@ -190,12 +190,12 @@ class UnreadWidgetTapWiringLintTest {
      * `onUnifiedOpenConsumed()`: a `Hold` that keeps the order without consuming it never brings
      * the composition it is waiting for.
      *
-     * ⛔ AND `heldUnifiedOpen` IS `remember`, NOT `rememberSaveable` — pinned below as a whole line.
+     * AND `heldUnifiedOpen` IS `remember`, NOT `rememberSaveable` — pinned below as a whole line.
      * Saved across a recreation, a held `true` re-opens All inboxes over what the user is reading on
      * the next rotation, locale or font-size change, which is the defect
      * `savedInstanceState == null` guards against, arrived at from inside.
      *
-     * ⛔ AND THE RULE IS HANDED THE WHOLE STACK, which is the third part of this pin.
+     * AND THE RULE IS HANDED THE WHOLE STACK, which is the third part of this pin.
      * `popBackStack("inbox", inclusive = false)` drops EVERY entry above the list, so a verdict
      * taken on `currentBackStackEntry` alone answers about the top screen and acts on all of them:
      * `inbox → search → message` loses the search results, `inbox → compose → message` loses the
@@ -273,7 +273,7 @@ class UnreadWidgetTapWiringLintTest {
     }
 
     /**
-     * ⛔ The rule of [app.sterna.ui.WidgetTapNavigation] names TWO routes, `inbox` and `message`,
+     * The rule of [app.sterna.ui.WidgetTapNavigation] names TWO routes, `inbox` and `message`,
      * and its own test runs it against strings. Nothing in that pair notices the day the graph
      * renames either one: the rule would quietly stop matching, the pop would quietly stop
      * happening, and every test would stay green. Worse for `inbox` — the rule's floor and the

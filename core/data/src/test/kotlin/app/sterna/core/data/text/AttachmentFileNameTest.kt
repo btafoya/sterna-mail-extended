@@ -22,7 +22,7 @@ class AttachmentFileNameTest {
     }
 
     /**
-     * ⭐ The reason this function exists. 100 letters and `.pdf`: the trunk alone pays the cap and
+     * The reason this function exists. 100 letters and `.pdf`: the trunk alone pays the cap and
      * the extension survives. Handed to `safeFileName` whole, the answer is 80 letters and nothing
      * else.
      */

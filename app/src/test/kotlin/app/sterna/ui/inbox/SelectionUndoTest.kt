@@ -93,7 +93,7 @@ class SelectionUndoTest {
     /**
      * `email.mailboxId?.let { }` lets `""` through, and an Undo to an empty folder id is a move to
      * a folder that does not exist — the same write, just as irreversible. Its twin guard is on the
-     * destruction side (TrashPurge.kt:146).
+     * destruction side (TrashPurge).
      */
     @Test
     fun `an empty or absent source folder yields no entry, and does not sink the others`() {

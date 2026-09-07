@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST — `MailRepository` needs Room, an Android `Context` and a
+ * SOURCE LINT, NOT A BEHAVIOUR TEST — `MailRepository` needs Room, an Android `Context` and a
  * live session, so nothing in this module can build it. What every line pinned here DOES is
  * executed elsewhere ([SyncWindowScaleTest] for the two roles of the number, `SyncPagingTest`
  * for the sizing, `ImapFullQueryWriteThroughTest` for the IMAP walk).
@@ -65,7 +65,7 @@ class SyncWindowReachesBothProtocolsTest {
     // -- the retention floor: the window, and only when there is an age ------------------------------
 
     @Test fun `the JMAP prune reads the floor off the window and never off the request size`() {
-        // ⛔ Codeberg #110. `sizing.pageSize` here would cap what retention keeps at what the
+        // Codeberg #110. `sizing.pageSize` here would cap what retention keeps at what the
         // server hands over in one request — 500 rows of a folder the user asked to keep whole.
         assertLine(
             "refresh",
@@ -82,7 +82,7 @@ class SyncWindowReachesBothProtocolsTest {
     @Test fun `the prune only runs when the window carries an age, which a count window does not`() {
         // Every count window (100 / 1 000 / 10 000, and "Everything") has `maxAgeDays == null`, so
         // `InboxViewModel.refreshFolder` computes a null cutoff and both guards below skip the
-        // prune entirely. ⚠ These guards are the ONLY reason a count window keeps more than its
+        // prune entirely. These guards are the ONLY reason a count window keeps more than its
         // number: the floor would evict past it if the prune ran (it is not the no-op it was when
         // "Everything" was unbounded — `SyncWindowScaleTest` executes the floor and it does cut).
         // This is also what keeps `retentionRows` from being read at all on that path.

@@ -16,10 +16,10 @@ import org.junit.Test
  * scale the title was clipped mid-word ("Dra" / "ft"): there was nothing left for it. Three of the
  * eight went down into the ⋮ overflow that already existed, and the title was told to ellipse.
  *
- * ⛔ WHOLE LINES, compared by equality — never `contains` on a fragment: a `contains` is blind to
+ * WHOLE LINES, compared by equality — never `contains` on a fragment: a `contains` is blind to
  * any mutation that LENGTHENS the line, and three defects went through here that way.
  *
- * ⛔ What it does NOT cover: that the title actually fits, that the overflow opens, that a menu
+ * What it does NOT cover: that the title actually fits, that the overflow opens, that a menu
  * entry is reachable at a large font scale, or anything at all about how the bar looks. Those are
  * bench measurements.
  */
@@ -56,7 +56,7 @@ class ComposeBarWiringTest {
     }
 
     /**
-     * ⭐ THE SAME RULE FROM THE OTHER END, and the reason it is worth a second test: the one above
+     * THE SAME RULE FROM THE OTHER END, and the reason it is worth a second test: the one above
      * reads the `actions` block, which a mutation can leave alone by putting the buttons back
      * ANYWHERE else in the bar's file — under the title slot, in a helper composable. An icon that
      * is drawn has to be imported, and these three imports have no other user left.
@@ -201,7 +201,7 @@ class ComposeBarWiringTest {
      *
      * The FIRST `actions = {` of the file, deliberately the same reading as `DraftReopenWiringTest`
      * — and, like it, on the understanding that a second `actions = {` declared above would make
-     * both lints read something else entirely (it has happened once; see the ⚠ on
+     * both lints read something else entirely (it has happened once; see the on
      * `SchedulePickerDialog`).
      */
     private fun actionsBlock(): List<String> {
@@ -307,7 +307,7 @@ class ComposeBarWiringTest {
         /**
          * The three icons that went down into the overflow, as the SYMBOL and not as a call site.
          *
-         * ⚠ This was `"Icon(Icons.Filled.Save"` and it was a hole: `Icon(imageVector = …, …)` split
+         * This was `"Icon(Icons.Filled.Save"` and it was a hole: `Icon(imageVector = …, …)` split
          * over several lines carries no such fragment, and that is not an exotic spelling — the
          * padlock four lines above is already written exactly that way. Put back like that, the
          * three buttons returned to the bar with every test green. Matching the symbol alone leaves

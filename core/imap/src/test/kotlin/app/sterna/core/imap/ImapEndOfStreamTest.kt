@@ -119,7 +119,7 @@ class ImapEndOfStreamTest {
  * The other half of the same rule, and it does not live in the parser: the CALLER must go on
  * skipping blank lines.
  *
- * ⛔ The tidy-up this fix invites, and the reason this class exists: "now that the end of the
+ * The tidy-up this fix invites, and the reason this class exists: "now that the end of the
  * stream throws, an empty response can only be a dead connection" — so `if (resp.isEmpty())
  * throw`. It is false. Since #156 an empty response is EXACTLY one thing: the blank line of a
  * server that is alive and well. Servers do send them (after a literal, as a keep-alive), and that
@@ -180,7 +180,7 @@ class ImapBlankLineOnTheWireTest {
 }
 
 /**
- * ⚠ SOURCE LINT (A9), the belt to the braces above: the `return tokens` that swallowed a closed
+ * SOURCE LINT (A9), the belt to the braces above: the `return tokens` that swallowed a closed
  * connection must not come back. Whole lines, never `contains`: a substring check is blind to
  * every mutation that LENGTHENS the line.
  */

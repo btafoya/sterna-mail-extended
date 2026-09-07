@@ -19,14 +19,14 @@ import java.io.File
  * dialogs were declared that way in the same file, so all four are covered here: the draft-delete
  * confirmation, the leave dialog, and the two chained pre-send guards.
  *
- * ⛔ And the fix is NOT `rememberSaveable`. That one also survives process death, where the thing
+ * And the fix is NOT `rememberSaveable`. That one also survives process death, where the thing
  * each dialog acts on does NOT: the ViewModel's `_editingDraft` is gone, the typed body is being
  * restored, the attachment list is not resolved yet. A restored flag would be redrawn over a
  * loading or dead-end screen, with the wrong body — and the delete dialog's Delete would land in
  * the branch where `takeEditingDraft()` returns null and nothing at all happens, in silence.
  *
- * ⚠ Each flag's lifetime is the composer's NAVIGATION ENTRY, not the process: it survives a
- * configuration change (the fix) and dies with the entry. ⛔ Do not restate it as "dies with the
+ * Each flag's lifetime is the composer's NAVIGATION ENTRY, not the process: it survives a
+ * configuration change (the fix) and dies with the entry. Do not restate it as "dies with the
  * process" — that reads as a shorter interval than the real one, and the difference is observable.
  *
  * The rule: a flag lives where the thing it acts on lives. What the user TYPED stays
@@ -412,7 +412,7 @@ class DialogFlagsSurviveRotationTest {
                 "scaled up \"Abbrechen\" or \"Annuleren\" beside \"OK\" does not fit on one. " +
                 "A plain `Row` puts OK off the edge instead of under it.",
         )
-        // ⛔ Anchored, not counted: `FlowRow(` is used three times in this screen, so the line
+        // Anchored, not counted: `FlowRow(` is used three times in this screen, so the line
         // that has to be one is the one RIGHT ABOVE the action row's own modifier.
         val actionRowAt = code.indexOf("modifier = Modifier.align(Alignment.End).padding(top = 24.dp),")
         assertEquals(
@@ -423,7 +423,7 @@ class DialogFlagsSurviveRotationTest {
                 "confirm is not on screen and nothing says why.",
             "FlowRow(", code.getOrNull(actionRowAt - 1),
         )
-        // ⛔ Anchored to the weight, not counted: this screen scrolls in three places. What has to
+        // Anchored to the weight, not counted: this screen scrolls in three places. What has to
         // be true is the CHAIN — the picker's box shrinks by the weight, and what no longer fits is
         // reachable by the scroll right under it.
         val weightAt = code.indexOf(".weight(1f, fill = false)")
@@ -439,7 +439,7 @@ class DialogFlagsSurviveRotationTest {
             listOf(".align(Alignment.CenterHorizontally)", ".verticalScroll(rememberScrollState()),"),
             listOf(code.getOrNull(weightAt + 1), code.getOrNull(weightAt + 2)),
         )
-        // ⛔ Anchored, not counted: the pin above counts two inset lines and a count is not a
+        // Anchored, not counted: the pin above counts two inset lines and a count is not a
         // place. This one says the SHELL has its own — the line right above its properties line —
         // so moving it onto any other dialog of this screen keeps the total at two and lands here.
         val shellPropertiesAt = code.indexOf("properties = DialogProperties(decorFitsSystemWindows = false),")
@@ -775,7 +775,7 @@ class DialogFlagsSurviveRotationTest {
      * Asserts exactly [times] code lines of [path], trimmed, are [pinned] — WHOLE line, never a
      * fragment.
      *
-     * ⚠ [times] is not a loosening: the count is an EQUALITY either way. It exists because the two
+     * [times] is not a loosening: the count is an EQUALITY either way. It exists because the two
      * "pick date and time" dialogs now carry the very same keyboard line, and a pin that accepted
      * "at least one" would go green with one of the two dialogs stripped of it.
      */
@@ -910,7 +910,7 @@ class DialogFlagsSurviveRotationTest {
                 what = "the \"pick date and time\" CALENDAR (#161)",
                 flow = "pendingScheduleDay", local = "pendingScheduleDay",
                 ask = "askScheduleDay", clear = "clearScheduleDay",
-                // ⚠ In source order, and the order changed with the two faces: the buttons are
+                // In source order, and the order changed with the two faces: the buttons are
                 // hoisted ABOVE the branch so their bodies exist once, and each face then carries
                 // its own `onDismissRequest` — our shell for the typed face, `DatePickerDialog`
                 // for the grid. A face that lost its line would stop closing on a tap outside
@@ -927,7 +927,7 @@ class DialogFlagsSurviveRotationTest {
                 what = "the \"pick date and time\" CLOCK (#161)",
                 flow = "pendingScheduleTime", local = "pendingScheduleTime",
                 ask = "askScheduleTime", clear = "clearScheduleTime",
-                // ⚠ Cancel BEFORE OK: this list is compared in source order, and the two
+                // Cancel BEFORE OK: this list is compared in source order, and the two
                 // buttons now sit in an action Row of our own, Cancel first, instead of Material's
                 // `dismissButton`/`confirmButton` slots which took them the other way round.
                 closes = listOf(

@@ -8,7 +8,7 @@ import org.junit.Test
  * [MoveNeedsTheNumberingStatedNowTest], and the twin of the wiring half of
  * [ImapDestroyUnderNumberingTest] (Codeberg #99).
  *
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST. It exists because `MailRepository` needs Room and a
+ * SOURCE LINT, NOT A BEHAVIOUR TEST. It exists because `MailRepository` needs Room and a
  * `Context`, so nothing in this module can run it; the DECISION it guards is executed next door,
  * on a real [ImapMailService] driven onto a socket. What no executable test in this module can
  * say is whether the five call sites still HAND the guard anything: dropping the argument
@@ -34,7 +34,7 @@ class ImapMoveUnderNumberingTest {
     /**
      * The same, for a needle that has to catch SYNONYMS.
      *
-     * ⭐ Why it exists, found by a mutation that survived the whole suite: inserting
+     * Why it exists, found by a mutation that survived the whole suite: inserting
      * `val expectedUidValidity = expectedUidValidity ?: recordedNumbering(credentials.id, source)`
      * into `imapMoveGroup` reopens the defect entire — every batch then travels under the number
      * read AT EXECUTION, the one a background pass recorded AFTER the renumbering, which the guard
@@ -55,7 +55,7 @@ class ImapMoveUnderNumberingTest {
      * `expectedUidValidity`, a local called `numbering`. Rules using it pin the WHOLE list of
      * lines that match, so the legitimate ones are named and a new one cannot slip in.
      *
-     * ⭐ `validity|frozen|recorded` and not just `numbering|uidvalidity`: the needle has to catch
+     * `validity|frozen|recorded` and not just `numbering|uidvalidity`: the needle has to catch
      * the value under a name nobody has thought of yet, because the rules built on it are
      * closed lists and a line that does not MATCH is a line no list can miss. A `validityOf(`
      * accessor, a `frozenValidity` field, a `val frozen = …` local re-read at execution — each
@@ -73,12 +73,12 @@ class ImapMoveUnderNumberingTest {
      * call, with no user confirmation and no worker in between. (`delete` used to be read here too;
      * it has a window of its own now, and its own rule below.)
      *
-     * ⛔ The read is the repository's own [MailRepository.recordedUidValidity], never
+     * The read is the repository's own [MailRepository.recordedUidValidity], never
      * `imap.recordedUidValidity(` — a closed-list rule in [ImapDestroyUnderNumberingTest] ("the
      * accessor really asks IMAP for the folder's numbering") pins that string to exactly three
      * lines of the file, and it does not widen.
      *
-     * ⚠ And the folder it names must be the SOURCE, `mb`. Naming the destination instead reads as
+     * And the folder it names must be the SOURCE, `mb`. Naming the destination instead reads as
      * a typo and is the worst of both worlds: the destination's numbering is compared with the
      * source's stated one, so the move is refused whenever they differ and licensed whenever two
      * unrelated folders happen to share a number.
@@ -103,7 +103,7 @@ class ImapMoveUnderNumberingTest {
     }
 
     /**
-     * ⭐ `delete` IS THE BIN, AND IT IS ALSO THE SECOND HALF OF A MOVE BETWEEN ACCOUNTS (#189).
+     * `delete` IS THE BIN, AND IT IS ALSO THE SECOND HALF OF A MOVE BETWEEN ACCOUNTS (#189).
      *
      * Called from a swipe it has no window: the id comes off the cache and the `UID MOVE` goes out
      * in the same call, so the folder's own record is the right thing to oppose. Called from
@@ -123,7 +123,7 @@ class ImapMoveUnderNumberingTest {
      *    message would fail 100 % of the time on IMAP. The fallback is not a convenience, it is
      *    what keeps the ordinary gesture working.
      *
-     * ⭐ AND THE THIRD CASE, which `Long?` could not say (#189): `Frozen(null)` is a row that WAS
+     * AND THE THIRD CASE, which `Long?` could not say (#189): `Frozen(null)` is a row that WAS
      * ticked and carries no numbering. It reaches `numberingToOppose` as a REFUSAL, raised here
      * before the `UID MOVE` — never folded into the fallback above, which is the reader's and the
      * swipe's. [FrozenNumberingRefusalTest] runs that decision and pins this consumption.
@@ -174,7 +174,7 @@ class ImapMoveUnderNumberingTest {
      * reported then. A renumbering between the two — or a server that simply stops stating a
      * numbering — and those UIDs name whatever the destination folder now holds.
      *
-     * ⭐ And it opposes that folder's numbering FROM THE FREEZE, never from a read. The first
+     * And it opposes that folder's numbering FROM THE FREEZE, never from a read. The first
      * delivery read it (`recordedUidValidity(credentials, currentFolder)`) and the read cannot
      * work: a `UID MOVE` does not SELECT its destination, and nothing else in this flow does
      * either, so on a Trash the user has never opened the read answers null and Undo after an
@@ -238,7 +238,7 @@ class ImapMoveUnderNumberingTest {
     }
 
     /**
-     * ⭐ THE UNDO ABSORBS A REFUSED MOVE-BACK, AND THE APP LAYER DEPENDS ON IT WITHOUT SAYING SO.
+     * THE UNDO ABSORBS A REFUSED MOVE-BACK, AND THE APP LAYER DEPENDS ON IT WITHOUT SAYING SO.
      *
      * `restoreAll` wraps each move-back in `runCatching { … }.getOrNull() ?: return@forEach`, so a
      * refusal — the server stating no numbering for the folder the mail sits in
@@ -247,7 +247,7 @@ class ImapMoveUnderNumberingTest {
      * `InboxViewModel.undo()` shows the translated `status_restore_failed` and not the refusal's
      * own English sentence.
      *
-     * ⛔ Removing the wrapper reads like a cleanup — the return value already says what failed, so
+     * Removing the wrapper reads like a cleanup — the return value already says what failed, so
      * why swallow — and it is the one edit that turns a partly-refused Undo into a whole-screen
      * lie: `undo()`'s `onFailure` fills the red `SyncErrorBanner` over the list, so ONE route
      * giving up would report the entire Undo as failed, over the routes that came home. The
@@ -280,7 +280,7 @@ class ImapMoveUnderNumberingTest {
     }
 
     /**
-     * ⭐ WHAT IS FROZEN, at the four sites that write an Undo landing: the numbering the move's own
+     * WHAT IS FROZEN, at the four sites that write an Undo landing: the numbering the move's own
      * `COPYUID` stated for the DESTINATION — `landed.destinationUidValidity`, and nothing else.
      *
      * A closed list over the whole file, because the mistake this catches is a NEW call site: the
@@ -290,7 +290,7 @@ class ImapMoveUnderNumberingTest {
      * of the destination's recorded number (null on any folder never SELECTed, which is the
      * defect this branch exists to fix).
      *
-     * ⛔ Anchored on the WRITE, `lastImapMove[`, not on the type `ImapLoc(`: a fifth site written
+     * Anchored on the WRITE, `lastImapMove[`, not on the type `ImapLoc(`: a fifth site written
      * as `lastImapMove[id] = loc.copy(uidValidity = somethingElse)` names no constructor and would
      * have walked straight through a list keyed on the type without changing a single pinned line.
      * The map is what the Undo reads, so every mention of the map is what the list must cover —
@@ -355,12 +355,12 @@ class ImapMoveUnderNumberingTest {
     }
 
     /**
-     * ⭐ And the refusal must feed `failed` WITHOUT a catch of its own. `ImapNumberingUnconfirmed`
+     * And the refusal must feed `failed` WITHOUT a catch of its own. `ImapNumberingUnconfirmed`
      * is not an `ImapException`, but `runCatching` catches `Throwable`, so the refused group lands
      * in `failed` exactly as a dead socket does — and `failed` is what makes the caller re-query,
      * so the messages come back instead of vanishing from a list they never left on the server.
      *
-     * ⛔ This is also why no `catch (unconfirmed: ImapNumberingUnconfirmed)` may be added here: a
+     * This is also why no `catch (unconfirmed: ImapNumberingUnconfirmed)` may be added here: a
      * closed-list rule in [ImapDestroyUnderNumberingTest] holds the file to exactly one, on the
      * draft path, and a second one written here would swallow the refusal on the destroy path too.
      */
@@ -387,7 +387,7 @@ class ImapMoveUnderNumberingTest {
      * opposes two different numbers, which is the only correct answer: a UIDVALIDITY is a property
      * of ONE folder.
      *
-     * ⛔ `expectedUidValidity[dest]` or a single `Long?` for the whole selection would read as a
+     * `expectedUidValidity[dest]` or a single `Long?` for the whole selection would read as a
      * simplification and be wrong in the same way for every multi-folder selection.
      */
     @Test fun `each bulk gesture hands the batch its own source folder's numbering`() {
@@ -417,7 +417,7 @@ class ImapMoveUnderNumberingTest {
     }
 
     /**
-     * ⭐ THE BLIND SPOT that got the first delivery rejected: the rules above each look at a mover
+     * THE BLIND SPOT that got the first delivery rejected: the rules above each look at a mover
      * they already know about, so a mover called from somewhere ELSE was simply never looked at.
      * `reportSpamAll` and `notSpamAll` are `moveAllToMailbox` under another name and passed it
      * nothing — the default `emptyMap()` gives `null` per folder, `mayDestroyUnderStatedNumbering`

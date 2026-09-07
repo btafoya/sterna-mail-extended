@@ -10,7 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⭐ A full re-query must not delete the mail that arrives WHILE it runs (Codeberg #165).
+ * A full re-query must not delete the mail that arrives WHILE it runs (Codeberg #165).
  *
  * The defect, executed: the walk pages by anchor and never comes back up, so a message pushed into
  * the folder after the first request is named by NO page. The reconcile at the end deletes every
@@ -18,7 +18,7 @@ import org.junit.Test
  * immediately afterwards, the deltas resume, and it never comes back. It is the TOP of the list
  * that goes, structurally: the newest mail is exactly what lands during a walk.
  *
- * ⛔ And the race does NOT stop when the walk does, which is what the first shape of this fix got
+ * And the race does NOT stop when the walk does, which is what the first shape of this fix got
  * wrong. `EmailDao.reconcileMailboxRows` re-reads the folder itself, inside its `@Transaction`,
  * after everything the caller can see: a write committing in that last millisecond is in the
  * reconcile's own read, in no page, and in no keep set. So the fix is a BOUND on what may be
@@ -30,11 +30,11 @@ import org.junit.Test
  * [reconcileEvictions] for the complement. Nothing here restates what to keep or what to evict —
  * the tests write into a fake folder at chosen moments and then look at what the folder holds.
  *
- * ⚠ Every fixture has THREE pages, so a middle page exists, and the concurrent write lands BETWEEN
+ * Every fixture has THREE pages, so a middle page exists, and the concurrent write lands BETWEEN
  * two pages: a one-page fixture cannot tell "before the walk" from "during the walk", which is the
  * only interval this volet is about.
  *
- * ⛔ What no test here can reach is `MailRepository` and Room. That the two walks really hand over
+ * What no test here can reach is `MailRepository` and Room. That the two walks really hand over
  * an inventory of THEIR folder, and that `EmailDao` really applies it as a bound, is source-pinned
  * by [FullQueryStreamingWiringTest] (JMAP + the DAO bodies) and [ImapWindowWiringTest] (IMAP), and
  * run against real SQLite by [ReconcileMailboxSqlTest].
@@ -45,7 +45,7 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
      * One folder as this path leaves it: a cache of ids, a record of the arguments the reconcile
      * was handed, and a count of how many times its inventory was read.
      *
-     * ⚠ [reconcile] models the shipped DAO in the one respect this volet turns on: it reads the
+     * [reconcile] models the shipped DAO in the one respect this volet turns on: it reads the
      * cache AT RECONCILE TIME, not when the caller computed the bound. [duringReconcile] is the
      * third party whose transaction commits in between — the millisecond a keep set cannot cover.
      */
@@ -144,10 +144,10 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
         )
     }
 
-    // -- ⭐ the volet ------------------------------------------------------------------------------
+    // -- the volet ------------------------------------------------------------------------------
 
     @Test fun `mail that lands DURING the walk survives the reconcile at the end`() {
-        // ⭐ THE test of this volet. The push socket files "arrived-1" into this folder while the
+        // THE test of this volet. The push socket files "arrived-1" into this folder while the
         // walk sits between its second and third page. No page names it — the walk pages by anchor
         // and never goes back up — so an unbounded reconcile deletes it, and the cursor stored
         // right afterwards means it never comes back. It is the newest message in the folder.
@@ -168,7 +168,7 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
     }
 
     @Test fun `a row that commits between the bound and the reconcile's own read survives too`() {
-        // ⭐ The half a keep set cannot cover, and the reason this fix is a bound. `reconcileMailbox`
+        // The half a keep set cannot cover, and the reason this fix is a bound. `reconcileMailbox`
         // is @Transaction and `reconcileMailboxRows` re-reads the folder itself (`idsForMailbox`),
         // so the set it evicts is computed from a read the caller never sees. A message whose write
         // commits in that gap is in that read, in no page, in no keep set and in no spare set: with
@@ -191,7 +191,7 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
     // -- the reconcile is not disarmed --------------------------------------------------------------
 
     @Test fun `a row that was there BEFORE the walk and no page names is still deleted`() {
-        // ⛔ The witness. A bound that kept everything would be a reconcile that deletes nothing,
+        // The witness. A bound that kept everything would be a reconcile that deletes nothing,
         // ever again: the cache would grow without limit and a message destroyed on the server
         // would stay in the list for good. Bounding is not disarming.
         val folder = Folder(cached = listOf("stale", "mid2"))
@@ -210,7 +210,7 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
     }
 
     @Test fun `an unbounded reconcile is exactly the old behaviour — the witness for the bound`() {
-        // ⛔ null means NO BOUND, and this is what that costs: the same fixture as the ⭐ test above,
+        // null means NO BOUND, and this is what that costs: the same fixture as the test above,
         // with the bound withheld, loses the message that arrived during the walk. It is stated
         // here so nobody has to take on trust that the bound is what saves it — and so that
         // `imapWriteThrough` passing null on an unnamed folder is a known cost and not a fix.
@@ -227,7 +227,7 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
     }
 
     @Test fun `an EMPTY bound evicts nothing at all — which is why null is not emptySet()`() {
-        // ⛔ The trap of this shape, and the reason `imapWriteThrough` answers null rather than
+        // The trap of this shape, and the reason `imapWriteThrough` answers null rather than
         // `emptySet()` for a folder it cannot name. An empty bound is not "nothing to protect", it
         // is "nothing may be deleted": the reconcile stops removing anything, silently.
         val folder = Folder(cached = listOf("stale"))
@@ -244,7 +244,7 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
     @Test fun `the reconcile is handed the folder as it stood BEFORE the walk, as its bound`() {
         // Not "the folder is intact" — the ARGUMENT. A folder can end up intact for reasons that
         // have nothing to do with this volet (an empty keep set is refused elsewhere, a spare set
-        // may be protecting the row), and this pins the value that actually travelled. ⛔ The
+        // may be protecting the row), and this pins the value that actually travelled. The
         // walk's own pages must NOT be in it: an inventory taken after the walk contains them, and
         // contains everything that raced the walk too, so it bounds nothing.
         val folder = Folder(cached = listOf("stale", "mid2"))
@@ -291,7 +291,7 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
 
     @Test fun `a walk cut off in the middle deletes nothing, including what arrived during it`() {
         // The red line of this path, with the bound in place: the failure climbs out, no reconcile
-        // runs, and the message that landed mid-walk is still there. ⛔ A `try`/`finally` around
+        // runs, and the message that landed mid-walk is still there. A `try`/`finally` around
         // the inventory read would break exactly this.
         val folder = Folder(cached = listOf("stale"))
         val boom = java.io.IOException("connection reset")

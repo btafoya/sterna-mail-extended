@@ -21,7 +21,7 @@ import org.junit.Test
  * (#95), EXECUTED — which folder shows them, which server row one of them hides, what such a row
  * looks like, and what a gesture may do to it.
  *
- * ⛔ Every expectation here is a VALUE, never the rule recomputed: no test below asks
+ * Every expectation here is a VALUE, never the rule recomputed: no test below asks
  * `showsLocalDrafts` what it should expect, and none rebuilds a projection to compare against the
  * projection. Inverting a condition in `LocalDraftRows.kt` has to redden something here.
  *
@@ -118,7 +118,7 @@ class LocalDraftRowsTest {
 
     @Test
     fun `a STAGING row is shown like any other`() = runTest {
-        // ⛔ Deliberate: its text is on the phone. Hiding it re-opens the very silence this closes.
+        // Deliberate: its text is on the phone. Hiding it re-opens the very silence this closes.
         val local = localDraftRowsFlow(
             currentAccountId = flowOf("acc-1"),
             selectedMailboxId = flowOf("mb-drafts"),
@@ -282,7 +282,7 @@ class LocalDraftRowsTest {
 
     @Test
     fun `a local draft row is not swipeable at all - the refusal cannot wait for the animation`() {
-        // ⛔ The guard has to answer BEFORE the gesture runs: commitSwipe plays the whole take-off
+        // The guard has to answer BEFORE the gesture runs: commitSwipe plays the whole take-off
         // (the row leaves by the edge, tilts, fades to nothing) and only THEN calls onSwipe, and
         // the left swipe is DELETE by default. A refusal further down arrives after the row has
         // been destroyed on screen, with no snackbar and no Undo, over a draft still in the table.

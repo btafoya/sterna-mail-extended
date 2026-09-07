@@ -227,7 +227,7 @@ class SmtpAuthChoiceTest {
 }
 
 /**
- * ⚠ SOURCE LINT. No JVM test can reach the STARTTLS branch (it needs a certificate), so the rule
+ * SOURCE LINT. No JVM test can reach the STARTTLS branch (it needs a certificate), so the rule
  * "the capabilities come from the EHLO issued AFTER STARTTLS" is not provable by behaviour. RFC 3207
  * says the pre-encryption announcement must be discarded, and it is precisely the servers that
  * advertise NO AUTH before STARTTLS that would be mis-read.
@@ -250,13 +250,13 @@ class SmtpCapabilityOrderLintTest {
 
     @Test
     fun `the capability accumulator is local to send`() {
-        // ⛔ A field on SmtpClient would mix two accounts' capabilities: the config is per account,
+        // A field on SmtpClient would mix two accounts' capabilities: the config is per account,
         // the client object need not be.
         onlyIndexOf("val lastResponse = mutableListOf<String>()")
     }
 
     /**
-     * ⛔ The `clear()` stays counted over the WHOLE of `send()`, and that is the point of the test.
+     * The `clear()` stays counted over the WHOLE of `send()`, and that is the point of the test.
      * A second `lastResponse.clear()` dropped anywhere else in `send()` — say between the EHLO that
      * follows STARTTLS and the line that reads its capabilities — empties the offered mechanisms,
      * `chooseAuthMechanism` then falls back to LOGIN, and every server that offers only PLAIN
@@ -264,7 +264,7 @@ class SmtpCapabilityOrderLintTest {
      * speaks TLS), so this count is the only thing standing in its way. Narrowing it to `read()`
      * would let that mutation through.
      *
-     * ⚠ What DID have to move is the read: `readBodyAck` opens on the same line as `read` (the
+     * What DID have to move is the read: `readBodyAck` opens on the same line as `read` (the
      * acknowledgement of the message body tolerates a cut after a `250-`, because the server has
      * then already taken the message). So there are two of them now, pinned as two, and the one
      * the `clear()` must precede is the FIRST.

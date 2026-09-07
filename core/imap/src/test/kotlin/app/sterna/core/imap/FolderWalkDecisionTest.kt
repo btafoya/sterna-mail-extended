@@ -102,10 +102,10 @@ class FolderWalkDecisionTest {
         assertEquals(1, walk.last().first)
     }
 
-    // -- ⭐ what a renumbering really costs ----------------------------------------------------------
+    // -- what a renumbering really costs ----------------------------------------------------------
 
     @Test fun `a renumbering makes the walk RE-READ, never skip — except at the floor`() {
-        // ⭐ The arithmetic behind the guard, stated as a fact about the ranges rather than as
+        // The arithmetic behind the guard, stated as a fact about the ranges rather than as
         // prose. `k` messages are expunged while the walk is between its first and second page:
         // every message above them slides DOWN by k positions.
         val exists = 1000
@@ -135,7 +135,7 @@ class FolderWalkDecisionTest {
     }
 
     @Test fun `the All window cannot lose its floor, whatever the folder does`() {
-        // ⚠ The corollary that matters for the next volet: with `limit >= exists` the floor is 1,
+        // The corollary that matters for the next volet: with `limit >= exists` the floor is 1,
         // and nothing can slide below 1. The window this pagination exists for is the one where a
         // renumbering costs nothing at all.
         assertEquals(1, folderWindowLowest(exists = 1000, limit = 1000))
@@ -146,12 +146,12 @@ class FolderWalkDecisionTest {
         assertTrue(folderWindowLowest(exists = 1000, limit = 500) > 1)
     }
 
-    // -- ⭐ did the folder move? --------------------------------------------------------------------
+    // -- did the folder move? --------------------------------------------------------------------
 
     private fun line(vararg tokens: Any?): List<Any?> = tokens.toList()
 
     @Test fun `an EXPUNGE means the folder moved`() {
-        // ⭐ The one that costs mail if it is missed: everything above sequence 3 has just been
+        // The one that costs mail if it is missed: everything above sequence 3 has just been
         // renumbered, so the next page covers a slice one message off from the one meant.
         assertTrue(folderMoved(listOf(line("*", "3", "EXPUNGE")), startedWith = 1000))
     }

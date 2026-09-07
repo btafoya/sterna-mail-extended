@@ -30,7 +30,7 @@ class UnreadRefreshTargetsTest {
     }
 
     /**
-     * ⛔ The one that costs data if it is wrong. Only the current account's credentials are in hand:
+     * The one that costs data if it is wrong. Only the current account's credentials are in hand:
      * a folder id belonging to account "b" sent to account "a"'s server addresses either nothing or
      * somebody else's homonymous folder on a shared server, and what comes back is written into the
      * cache under "a" (#121/#31). Here "b" holds an `Archive` id identical to "a"'s, so a rule that

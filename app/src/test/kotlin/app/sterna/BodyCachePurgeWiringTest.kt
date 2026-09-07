@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, and a narrow one: nothing in this chain runs in a JVM test — `AppContainer.init`
+ * SOURCE LINT, and a narrow one: nothing in this chain runs in a JVM test — `AppContainer.init`
  * needs an Application, a database and a socket, and `BodyCachePurge` holds a `SharedPreferences`.
  * The DECISION is executed next door in `BodyCacheUpgradeTest` (`bodyCachePurgeVersion`, a pure
  * function, thresholds written as bare literals); what is pinned here is the CALL SITE that carries

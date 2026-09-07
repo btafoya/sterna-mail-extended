@@ -32,7 +32,7 @@ class PgpPublicKeyCacheTest {
     }
 
     @Test fun `a long key carries no line break, whatever its length`() {
-        // ⛔ The mutation this catches is `getMimeEncoder()`, which folds at 76 columns with CRLF.
+        // The mutation this catches is `getMimeEncoder()`, which folds at 76 columns with CRLF.
         // It looks identical for a short key and breaks every real one — a real minimized key runs
         // to a few hundred bytes — and a folded value cannot go into a message header.
         val encoded = pgpPublicKeyCacheValue(ByteArray(600) { it.toByte() })

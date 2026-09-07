@@ -13,7 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⭐ THE UNDO, and the numbering it opposes (Codeberg #99).
+ * THE UNDO, and the numbering it opposes (Codeberg #99).
  *
  * "Undo" on the banner moves the mail BACK, so it SELECTs the folder the forward move PUT it in —
  * the Trash, the archive, the folder the user picked — and it is THAT folder's numbering the move
@@ -145,7 +145,7 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
     // ---- the mute witness: no COPYUID, no route, and NO new noise ------------------------------
 
     /**
-     * ⛔ THE GUARD THAT MUST NOT MOVE. A server that reports no `COPYUID` loses the Undo, silently,
+     * THE GUARD THAT MUST NOT MOVE. A server that reports no `COPYUID` loses the Undo, silently,
      * and that is documented behaviour (`ImapSession.move`): the move happened, only per-message
      * Undo positioning is lost. Carrying a numbering must not turn that into a refusal with a
      * message: the id simply gets no landing, so it gets no route, so no command goes out and
@@ -184,7 +184,7 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
     // ---- the routing decision itself, executed -------------------------------------------------
 
     /**
-     * ⭐ THE NUMBERING IS PART OF THE ROUTE KEY. Two waves moved into the same Trash either side of
+     * THE NUMBERING IS PART OF THE ROUTE KEY. Two waves moved into the same Trash either side of
      * a renumbering carry UIDs of two different numberings, and one `UID MOVE` can oppose only one
      * of them. Merged, the older wave would go out under the newer number — the #99 accident
      * itself, moving whatever now holds those UIDs. Split, only the lot that cannot be confirmed

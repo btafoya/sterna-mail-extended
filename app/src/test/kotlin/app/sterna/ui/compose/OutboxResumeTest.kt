@@ -22,7 +22,7 @@ import org.junit.Test
  * refuses an EDITING or SENDING row and marks the row EDITING otherwise (`OutboxLogic.canEdit` →
  * `takeOutboxForEdit`). The row starts EDITING, as a process death leaves it.
  *
- * ⛔ Taken BEFORE the sweep, the row the composer just took EDITING is parked FAILED under its feet:
+ * Taken BEFORE the sweep, the row the composer just took EDITING is parked FAILED under its feet:
  * the composer believes it holds the row, Send believes it consumes it, and the Outbox shows a red
  * line under an open composer. Taken AFTER, the row is FAILED when the take reads it, which
  * `canEdit` accepts, and it comes back EDITING with nobody left to park it. The function under test

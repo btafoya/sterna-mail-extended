@@ -38,20 +38,20 @@ class UidValidityDecisionTest {
 
     // ---- what the server STATED --------------------------------------------------------------
     //
-    // ⛔ One rule, two kinds of caller, and that is why it has a name. `ImapMailboxStatus
+    // One rule, two kinds of caller, and that is why it has a name. `ImapMailboxStatus
     // .uidValidity` is a `Long` where 0 means "the server said nothing"; every row is WRITTEN with
     // this normalisation (`ImapMessage.toEntity`) and every cache read that must not answer with
     // rows of another numbering is BOUNDED by it (`EmailDao.cachedPreviews`, #99 inside #187). A
     // row written under one spelling of the rule and looked up under another never matches, in
     // silence — so there is one spelling, executed here over the four inputs it can get.
 
-    /** ⛔ Nothing stated is not a numbering: `null` in, `null` out, and the column stays NULL. */
+    /** Nothing stated is not a numbering: `null` in, `null` out, and the column stays NULL. */
     @Test fun `a server that stated nothing states no numbering`() {
         assertNull(UidValidity.stated(null))
     }
 
     /**
-     * ⛔ AND NEITHER IS ZERO — the case the whole function exists for. `ImapMailboxStatus` carries
+     * AND NEITHER IS ZERO — the case the whole function exists for. `ImapMailboxStatus` carries
      * 0 for "no UIDVALIDITY in the SELECT response", and 0 read as a numbering would be a numbering
      * no server ever announced: rows stored under 0 and rows stored under NULL would then be two
      * populations of the same folder, and a read bounded by one would silently miss the other.
@@ -60,7 +60,7 @@ class UidValidityDecisionTest {
         assertNull(UidValidity.stated(0L))
     }
 
-    /** ⛔ A negative cannot be a UIDVALIDITY either (RFC 3501 makes it a 32-bit unsigned), and the
+    /** A negative cannot be a UIDVALIDITY either (RFC 3501 makes it a 32-bit unsigned), and the
      *  answer is the same refusal rather than a value nothing can match. */
     @Test fun `a negative numbering is refused like a missing one`() {
         assertNull(UidValidity.stated(-1L))

@@ -22,7 +22,7 @@ import org.junit.Test
 class AddedInboxBaselineTest {
 
     /**
-     * ⛔ The test that kills `read.emails.map { it.id }`.
+     * The test that kills `read.emails.map { it.id }`.
      *
      * `emails` is hydrated and therefore capped (`NOTIFY_CANDIDATE_MAX`); `baselineIds` is bounded
      * by the age floor alone, so it is the LONGER of the two — which is why the read here holds two
@@ -42,7 +42,7 @@ class AddedInboxBaselineTest {
             listOf("a", "b", "c", "d", "e"),
             baselineForAddedInbox(read, hasBaseline = false),
         )
-        // ⛔ IDENTITY, not just equality, and it is the assertion that survives a small fixture.
+        // IDENTITY, not just equality, and it is the assertion that survives a small fixture.
         // Equality on five ids stays green under `read.baselineIds.take(NOTIFY_CANDIDATE_MAX)` —
         // a cap of 500 is invisible below 500 — and that mutation is precisely the "baseline
         // quietly bounded" defect this function exists to refuse. Handing back the read's own list
@@ -74,7 +74,7 @@ class AddedInboxBaselineTest {
     }
 
     /**
-     * ⛔ An empty read writes NOTHING, and this is the assertion that keeps the fix from being
+     * An empty read writes NOTHING, and this is the assertion that keeps the fix from being
      * worse than the defect.
      *
      * Empty reads like "a new account whose inbox is empty", and sometimes it is. On IMAP it is

@@ -19,7 +19,7 @@ import java.io.File
  *  - [presetFilledWith]: what the verdict may write. Per side, atomically, and NEVER over a
  *    hand-typed host — nor a discovered port/security slid under one.
  *
- * ⚠ Every discovered value in the fixture differs from [PresetForm]'s defaults ("993"/TLS,
+ * Every discovered value in the fixture differs from [PresetForm]'s defaults ("993"/TLS,
  * "465"/TLS) on purpose: a mutation that forgets to write one field must be distinguishable from
  * a form that already held it.
  */
@@ -303,7 +303,7 @@ class ImapDiscoveryTest {
  * the screen and the ViewModel actually run THOSE decisions and the REAL cascade, by reading the
  * source.
  *
- * ⛔ Every pin is a WHOLE LINE, trimmed, compared by strict equality, and required to occur
+ * Every pin is a WHOLE LINE, trimmed, compared by strict equality, and required to occur
  * exactly once — never `contains` on a fragment, which is blind to any mutation that lengthens
  * the line (three prior bites in this repo, two on irreversible server writes).
  *
@@ -760,7 +760,7 @@ class ImapDiscoveryWiringTest {
 
     @Test
     fun `the endpoints the handover dials are the ones the domain published`() {
-        // ⛔ The guard line alone holds NOTHING about the arguments: shouldTryDiscoveredImap
+        // The guard line alone holds NOTHING about the arguments: shouldTryDiscoveredImap
         // returns a Boolean and never sees an endpoint. Swap incoming/outgoing here and the app
         // fetches mail on the SMTP port; write ConnectionSecurity.NONE and the account is created,
         // and then polled, IN THE CLEAR — credentials included — with every executed test green.
@@ -785,7 +785,7 @@ class ImapDiscoveryWiringTest {
             "preset.smtpHost, preset.smtpPort.toInt(), preset.smtpSecurity,",
             "The manual route's outgoing trio.",
         )
-        // ⛔ THE PINS ABOVE ARE BLIND TO A SWAP: exchange the two whole lines and each is still
+        // THE PINS ABOVE ARE BLIND TO A SWAP: exchange the two whole lines and each is still
         // present exactly once, while the app fetches mail on the SMTP endpoint and posts it to
         // the IMAP one. Only their ORDER says which argument is which — connectImap takes the
         // incoming trio first, positionally.

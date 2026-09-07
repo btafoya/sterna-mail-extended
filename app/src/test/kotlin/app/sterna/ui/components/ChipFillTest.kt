@@ -113,7 +113,7 @@ class ChipFillTest {
     }
 
     /**
-     * ⭐ The symptom itself, measured: in both real schemes and in all three row states, the chip
+     * The symptom itself, measured: in both real schemes and in all three row states, the chip
      * must stand clear of the row it is painted on. The failing case scored 1/255 (light, unread);
      * the tightest case that is *not* the defect is 23/255 (light, read: surface 0xFFF7F8FA under
      * surfaceVariant 0xFFE0E4E9), so 16 sits well below anything legitimate and well above the
@@ -141,7 +141,7 @@ class ChipFillTest {
     }
 
     /**
-     * ⭐ The switch off: the chips go back to what they were before the branch, `surfaceVariant`
+     * The switch off: the chips go back to what they were before the branch, `surfaceVariant`
      * on every row. The row underneath is plain `surface` again ([RowBackgroundTest] pins that),
      * so lifting an "unread" chip to surfaceContainerLowest here would put the pale chip on the
      * pale row the fix was never needed for.

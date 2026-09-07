@@ -10,7 +10,7 @@ import org.junit.Test
  * RUN, with its arguments pinned. Written inside `MailRepository` it would be a rule no JVM test
  * can reach (Room + a `Context` + a socket), i.e. a `?:` anyone can delete with every suite green.
  *
- * ⚠ Every case below EXECUTES [trashFolderByName] on a folder list. None of them reads
+ * Every case below EXECUTES [trashFolderByName] on a folder list. None of them reads
  * [TRASH_FOLDER_NAMES] back: a test that replays the shipped table proves only that the table
  * equals itself, and stays green while a name is ADDED to it.
  */
@@ -61,7 +61,7 @@ class TrashFolderByNameTest {
     }
 
     @Test fun `the spellings servers really create, not the ones English guesses`() {
-        // ⛔ The damage this is about: a German account whose bin is "Gelöschte Objekte" is seen as
+        // The damage this is about: a German account whose bin is "Gelöschte Objekte" is seen as
         // having no bin at all, so the delete CREATES a second folder called "Trash" and the user's
         // discarded mail ends up split between two bins. Same for every locale below. These are the
         // names Dovecot/Roundcube/Thunderbird/the webmails create, which is also what

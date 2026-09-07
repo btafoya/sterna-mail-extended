@@ -18,14 +18,14 @@ import org.junit.Test
  * "destroy", for what the user asked to be an archive; what the snackbar says instead of it is not
  * a detail, it is the whole of what the user is told.
  *
- * ⭐ WHY THIS FILE SITS BESIDE [ActionFailureMessageTest], WHICH EXERCISES THE SAME FUNCTION. That
+ * WHY THIS FILE SITS BESIDE [ActionFailureMessageTest], WHICH EXERCISES THE SAME FUNCTION. That
  * one holds a decision about the TRANSPORT: which of two sentences a dead link gets, and how the
  * "you are offline" claim is earned by asking the device. This one holds a claim about a type it
  * has never heard of — a refusal is not a transport failure, so it takes the generic sentence
  * WHATEVER the device answers. The offline sentence there would be a lie told to somebody plainly
  * online, which is defect #65 again, on the most ordinary gesture in the app.
  *
- * ⛔ NOT REDUNDANT WITH THE TYPE MERELY BEING ABSENT FROM `isNetworkFailure` TODAY. "The server
+ * NOT REDUNDANT WITH THE TYPE MERELY BEING ABSENT FROM `isNetworkFailure` TODAY. "The server
  * stopped answering properly" reads as network-shaped, and adding this type to that list is one
  * plausible line; the assertions below are what makes that line loud instead of silent.
  *
@@ -59,7 +59,7 @@ class MoveRefusalIsNotOfflineTest {
      * underneath would be read as an outage without this type being named anywhere. It cannot,
      * because `ImapNumberingUnconfirmed` has no constructor that takes one.
      *
-     * ⛔ ASSERTED ON THE CLASS, NOT ON AN INSTANCE THIS TEST BUILT. `assertNull(REFUSAL.cause)` reads
+     * ASSERTED ON THE CLASS, NOT ON AN INSTANCE THIS TEST BUILT. `assertNull(REFUSAL.cause)` reads
      * like the same rule and is worth nothing: `cause: Throwable? = null` added to the declaration
      * and passed at the two `throw` sites leaves the two-argument call below answering null for
      * ever, green, while every refusal in production carries the session's dead socket. The

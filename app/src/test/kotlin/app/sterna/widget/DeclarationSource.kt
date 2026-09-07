@@ -8,7 +8,7 @@ import java.io.File
  * themselves.
  *
  * It exists because there are now two widgets, and a third would make three copies of the same
- * brace counter. ⛔ It is not a rule and must never grow one: a helper that decides what is
+ * brace counter. It is not a rule and must never grow one: a helper that decides what is
  * acceptable is a lint no test names.
  */
 internal object DeclarationSource {

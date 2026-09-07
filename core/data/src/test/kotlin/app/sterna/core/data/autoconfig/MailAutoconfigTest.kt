@@ -104,7 +104,7 @@ class MailAutoconfigTest {
     // ── The two published locations, and nothing else ────────────────────────────────────────
 
     /**
-     * ⛔ The privacy policy promises the app contacts only the user's own server: no Mozilla ISPDB,
+     * The privacy policy promises the app contacts only the user's own server: no Mozilla ISPDB,
      * no third party. The whole list of hosts discovery may talk to is these two URLs on the
      * user's domain — pinned in full, in order, so a third entry is a red test before it is a
      * broken promise.
@@ -120,7 +120,7 @@ class MailAutoconfigTest {
     }
 
     /**
-     * ⛔ The DEFAULT wiring itself, traversed: the cascade is called the way production calls it —
+     * The DEFAULT wiring itself, traversed: the cascade is called the way production calls it —
      * address only, no injected URL list — and every URL the default client is asked to fetch is
      * captured by an interceptor that answers a canned 404 BEFORE any connection could open (no
      * `chain.proceed()`, so no packet leaves this machine; the TLS probe is injected dead).
@@ -197,7 +197,7 @@ class MailAutoconfigTest {
     }
 
     /**
-     * ⛔ The order of the tiers is a decision: what the domain PUBLISHED wins over what we would
+     * The order of the tiers is a decision: what the domain PUBLISHED wins over what we would
      * have guessed — and the guess is not even tried, so no TLS connection leaves for a domain
      * that answered. The probe here would say yes to everything; a cascade that ran the tiers in
      * the wrong order (or in parallel, first-answered-wins) hands back `imap.masto.top` instead.
@@ -260,7 +260,7 @@ class MailAutoconfigTest {
     }
 
     /**
-     * ⛔ The pure decision one hop is judged by, executed with pinned arguments: https on the
+     * The pure decision one hop is judged by, executed with pinned arguments: https on the
      * user's own domain or under it — nothing else. The refusals are the promise: no third party,
      * no descent to cleartext, and no host that merely CONTAINS the domain without being under it.
      */
@@ -290,7 +290,7 @@ class MailAutoconfigTest {
     }
 
     /**
-     * ⛔ The live escape this guards: `autoconfig.<domain>` answers 302 towards a third party
+     * The live escape this guards: `autoconfig.<domain>` answers 302 towards a third party
      * (the ISPDB pattern). The tier must die on the spot AND the refused host must receive no
      * connection at all — a second server plays the third party and counts what reached it, even
      * though it stood ready with a perfect config.
@@ -330,7 +330,7 @@ class MailAutoconfigTest {
     // ── What a published answer must be REFUSED for ──────────────────────────────────────────
 
     /**
-     * ⛔ An HTTP 200 is not a verdict — the real case this pins: a catch-all reverse proxy
+     * An HTTP 200 is not a verdict — the real case this pins: a catch-all reverse proxy
      * (masto.top) answers 200 with an HTML page on BOTH autoconfig paths. The first body here is
      * everyday HTML (not even well-formed XML), the second is well-formed XHTML: both must be
      * refused, both tiers must still be TRIED, and with no guess alive the answer is NotFound.
@@ -400,7 +400,7 @@ class MailAutoconfigTest {
     }
 
     /**
-     * ⛔ `plain` — or any socketType we do not positively recognise — rejects the WHOLE tier.
+     * `plain` — or any socketType we do not positively recognise — rejects the WHOLE tier.
      * There is no fallback: a "safe default" of NONE would put the user's password on a public
      * network in cleartext, on the word of an unauthenticated XML fetch.
      */
@@ -513,7 +513,7 @@ class MailAutoconfigTest {
     }
 
     /**
-     * ⛔ No handshake, no guess. A guess is only a NAME; what makes it safe to show — and to send
+     * No handshake, no guess. A guess is only a NAME; what makes it safe to show — and to send
      * a password to — is a TLS handshake with a certificate valid for that name. When nothing
      * answers, the screen gets NotFound and the user types the servers in, which loses nothing.
      */
@@ -562,7 +562,7 @@ class MailAutoconfigTest {
     }
 
     /**
-     * ⛔ Leaving the sign-in screen cancels discovery, and that cancellation must RETRAVERSE — a
+     * Leaving the sign-in screen cancels discovery, and that cancellation must RETRAVERSE — a
      * catch-all that turns it into NotFound keeps the machinery running on a screen that is
      * already gone (the lesson `probeOfFailure` already paid for). If the cascade swallowed the
      * cancellation, [result] would hold NotFound here instead of nothing.

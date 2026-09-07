@@ -19,7 +19,7 @@ import org.junit.Test
  * next door. The widget's rows and the drawer's "All inboxes (N)" must be unable to disagree about
  * which accounts are in, so the derivation exists once and both call it.
  *
- * ⛔ The tests never re-derive the rule themselves — every expectation is a literal list of pairs. A
+ * The tests never re-derive the rule themselves — every expectation is a literal list of pairs. A
  * test that recomputed `accounts.mapNotNull { … }` to build its expectation would agree with a
  * shipped rule that had been inverted.
  *
@@ -61,7 +61,7 @@ class UnifiedInboxRecentRowsTest {
      * ASKED — the arguments are the point. Each scope list gets a flow of its own, so the rows
      * collected also say WHICH subscription produced them.
      *
-     * ⛔ HOT, and it never completes: a `flowOf(…)` here would be finished the instant it was read,
+     * HOT, and it never completes: a `flowOf(…)` here would be finished the instant it was read,
      * and a finished inner flow makes `flatMapLatest`, `flatMapMerge` and `flatMapConcat`
      * indistinguishable. The real collaborator is a Room flow that never ends, so [push] can feed a
      * subscription the shipped code was supposed to have dropped and see whether it still arrives.
@@ -140,7 +140,7 @@ class UnifiedInboxRecentRowsTest {
     }
 
     /**
-     * ⛔ THE ARBITRAGE THIS FILE EXISTS TO PIN, and the one place this rule DIVERGES from
+     * THE ARBITRAGE THIS FILE EXISTS TO PIN, and the one place this rule DIVERGES from
      * [UnifiedInbox.unreadByAccount]: the key is the scopes, not [UnifiedInbox.countedInboxes].
      *
      * The count keys on the stored counter because its IMAP half reads that record flat inside a
@@ -211,7 +211,7 @@ class UnifiedInboxRecentRowsTest {
     }
 
     /**
-     * ⛔ The claim `flatMapLatest` makes, executed rather than believed: a removed account's
+     * The claim `flatMapLatest` makes, executed rather than believed: a removed account's
      * subscription is DROPPED, not merely superseded. The real reader is a Room flow that never
      * completes and re-runs on every write to `emails`, so with `flatMapMerge` the old subscription
      * would still be alive — and the home screen would flip between the accounts as they are and
@@ -246,7 +246,7 @@ class UnifiedInboxRecentRowsTest {
     }
 
     /**
-     * ⛔ NO ACCOUNT LEFT IS ONE EMISSION, IT SAYS `configured = false`, AND IT READS NOTHING.
+     * NO ACCOUNT LEFT IS ONE EMISSION, IT SAYS `configured = false`, AND IT READS NOTHING.
      *
      * One emission, because removing the last account has to reach the home screen: an
      * `emptyFlow()` here is silence, and the cell would go on listing a deleted account's mail
@@ -254,11 +254,11 @@ class UnifiedInboxRecentRowsTest {
      * `0` — a statement that matches nothing while still subscribing Room to every write to
      * `emails`, on behalf of someone who has no account at all.
      *
-     * ⭐ And `configured` rides along, decided by `recentUnifiedInboxFrom` — the same function the
+     * And `configured` rides along, decided by `recentUnifiedInboxFrom` — the same function the
      * snapshot read runs, so the two cannot answer differently. It is what the cell draws as the
      * app's own name rather than "No messages".
      *
-     * ⚠ WHAT THIS TEST CANNOT SEE: the value BEFORE this one is a non-empty read, so it never
+     * WHAT THIS TEST CANNOT SEE: the value BEFORE this one is a non-empty read, so it never
      * crosses the de-duplication the app's collector applies on the way to the draw. An inbox that
      * was ALREADY empty when the last account went is the case that does, and it is pinned in the
      * `app` module by `RecentMailWidgetPushTest` — on rows alone those two values are equal and the
@@ -309,7 +309,7 @@ class UnifiedInboxRecentRowsTest {
      *                                         #126: the observed query and the drawn query drift,
      *                                         and the cell redraws on the wrong writes.
      *
-     * ⛔ Whole lines, never a `contains`: a substring rule is satisfied by every mutation that
+     * Whole lines, never a `contains`: a substring rule is satisfied by every mutation that
      * LENGTHENS the line.
      */
     @Test fun `MailRepository observes the SAME widget query, over the live account flow`() {
@@ -351,7 +351,7 @@ class UnifiedInboxRecentRowsTest {
      * `pagingSource` declares the same two for the same reason, and that is the agreement being
      * held still here.
      *
-     * ⛔ Whole lines, never a `contains`.
+     * Whole lines, never a `contains`.
      */
     @Test fun `the widget's observed read is woken by BOTH the mail and the snoozes`() {
         val lines = SourceText.codeLines(

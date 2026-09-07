@@ -133,7 +133,7 @@ class SubscribedFoldersSurfaceWiringTest {
     }
 
     /**
-     * ⭐ WHICH account each surface asks. Nothing else in this file reaches these two flows, and a
+     * WHICH account each surface asks. Nothing else in this file reaches these two flows, and a
      * source lint is all there is: `InboxViewModel` cannot be instantiated on this bench.
      *
      * Two mutations survive everything else without these blocks, and both are silent:
@@ -229,7 +229,7 @@ class SubscribedFoldersSurfaceWiringTest {
     }
 
     /**
-     * ⭐ The Inbox fallback, and WHAT it is judged against — the 2026-08-25 arbitration, which
+     * The Inbox fallback, and WHAT it is judged against — the 2026-08-25 arbitration, which
      * reverses what #174 first shipped ("hidden is not deleted") under rule 3, WYSIWYG: the bench
      * left the screen titled `Vieux`, showing `Vieux`, while the setting said only subscribed
      * folders are shown and neither the drawer nor "move to" would still offer it. A trap, too:
@@ -335,7 +335,7 @@ class SubscribedFoldersSurfaceWiringTest {
     }
 
     private companion object {
-        /** ⚠ Whole line, arguments included — the shape `PageKeyWiringLintTest` and
+        /** Whole line, arguments included — the shape `PageKeyWiringLintTest` and
          *  `UnreadViewWiringLintTest` pin from their own angle. */
         private const val NEW_BASE_COPY =
             "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, " +

@@ -214,7 +214,7 @@ class RowsGuardTest {
 
     @Test
     fun `the previous folder's rows coming back re-arm a guard an empty snapshot had disarmed`() {
-        // ⭐ The bench sequence, replayed: blank for 0.6-2.3 s, THEN the new folder's header over
+        // The bench sequence, replayed: blank for 0.6-2.3 s, THEN the new folder's header over
         // the OLD folder's rows, THEN the right rows. The blank is the guard doing its job; the
         // second frame is the defect, and it is reached through the guard's own disarming.
         val rowsOfA = row("accA", "mb-inbox")
@@ -354,7 +354,7 @@ class RowsGuardTest {
 
     @Test
     fun `a local draft on top does not vouch for the inbox rows behind it`() {
-        // ⭐ THE DRAFTS WITNESS. pagedListRows is combine(pagedEmails, localDraftRows) and
+        // THE DRAFTS WITNESS. pagedListRows is combine(pagedEmails, localDraftRows) and
         // withLocalDrafts PREFIXES rows built with the SELECTED folder's id. On Inbox → Drafts the
         // Room query behind localDraftRows lands before pagedEmails' DataStore read, so the
         // combine emits the new local rows over the OLD PagingData.

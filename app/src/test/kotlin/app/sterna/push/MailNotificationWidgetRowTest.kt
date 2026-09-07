@@ -114,7 +114,7 @@ class MailNotificationWidgetRowTest {
     // -- does the row NAME anybody ------------------------------------------------------------------
 
     /**
-     * ⭐ THE THIRD FIELD, AND WHY IT IS NOT A CONVENIENCE. A monogram badge is the first letter of a
+     * THE THIRD FIELD, AND WHY IT IS NOT A CONVENIENCE. A monogram badge is the first letter of a
      * sender's NAME: drawing one beside a row is naming that sender, one letter at a time. Only this
      * function knows the EFFECTIVE position — the one the app lock has already folded onto NONE —
      * so only this function can say whether the widget has the right to a badge at all.
@@ -141,7 +141,7 @@ class MailNotificationWidgetRowTest {
     }
 
     /**
-     * ⛔ AND THE LOCK TAKES IT AWAY FROM THE MOST TALKATIVE POSITION. SECURITY.md promises a locked
+     * AND THE LOCK TAKES IT AWAY FROM THE MOST TALKATIVE POSITION. SECURITY.md promises a locked
      * home screen "names neither sender nor subject"; an initial is a letter of the sender's name,
      * so a badge drawn under the lock breaks that promise in the smallest possible type.
      */
@@ -202,7 +202,7 @@ class MailNotificationWidgetRowTest {
     // -- the signature itself, because prose was guarding it --------------------------------------
 
     /**
-     * ⛔ THE ABSENCE OF A `preview` PARAMETER IS THE GUARD, and until this test it was written down
+     * THE ABSENCE OF A `preview` PARAMETER IS THE GUARD, and until this test it was written down
      * and nothing else. No test can pass an argument that does not exist, so every assertion above
      * stays green the moment someone adds one: `resolve` sits one line away and already knows how
      * to append a shaped body to the subject, and the reviewer who pointed this out wrote the

@@ -17,7 +17,7 @@ import org.junit.Test
  * expectation is a literal written by hand — nothing here recomputes the rule, so inverting a
  * branch in `OAuthRedirect.kt` has to show up as a mismatch.
  *
- * ⚠ WHAT IT DOES NOT SAY. It does not prove the manifest registers the scheme (that is a text
+ * WHAT IT DOES NOT SAY. It does not prove the manifest registers the scheme (that is a text
  * rule, [OAuthRedirectManifestTest]), nor that `MainActivity` hands the redirect over, nor that
  * `state` comes from a cryptographic source — only that two draws differ and stay URL-safe.
  */
@@ -46,7 +46,7 @@ class OAuthRedirectTest {
     }
 
     /**
-     * ⛔ The mutation this kills: `"app.sterna://oauth"` written as a constant. The test build is
+     * The mutation this kills: `"app.sterna://oauth"` written as a constant. The test build is
      * `app.sterna.test` and sits NEXT TO production; with one literal scheme both packages claim
      * the return and Android picks — so a sign-in "verified" on the bench may have completed in
      * the maintainer's production app, on her real mail.
@@ -127,7 +127,7 @@ class OAuthRedirectTest {
         assertEquals(RedirectVerdict.NothingUsable, redirectVerdict(request(), "STATE-1", "", ""))
     }
 
-    /** ⛔ No exchange without PKCE, made unconstructible rather than merely avoided. */
+    /** No exchange without PKCE, made unconstructible rather than merely avoided. */
     @Test fun `an authorization request cannot exist without a code verifier`() {
         assertThrows(IllegalArgumentException::class.java) { request(verifier = "") }
         assertThrows(IllegalArgumentException::class.java) { request(state = "") }
@@ -136,7 +136,7 @@ class OAuthRedirectTest {
     // ---- What is POSTed, and where each of the four values comes from ----
 
     /**
-     * ⛔ The verifier is the one this request drew. A freshly drawn one is non-blank, survives
+     * The verifier is the one this request drew. A freshly drawn one is non-blank, survives
      * `PendingAuthorization`'s guard and reads perfectly at a call site — and the server holds the
      * challenge of the OTHER one, so PKCE stops proving anything. Compared as a whole value, so
      * neither an empty verifier nor a re-drawn one can pass.

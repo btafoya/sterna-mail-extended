@@ -37,10 +37,10 @@ class SubscribedFoldersWiringTest {
                 "walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, " +
                     "onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, " +
                     "cachedPreviewsFor = listPreviewCache(credentials.id)) },",
-                // ⛔ Bare, and the only bare one in this list: these rows are never cached, so a
+                // Bare, and the only bare one in this list: these rows are never cached, so a
                 // subscription fetched for them is an LSUB paid on every archive and every delete.
                 "val folders = imap.listMailboxes(credentials)",
-                // ⭐ The value STATED by the caller, not re-read from the store here: the toggle
+                // The value STATED by the caller, not re-read from the store here: the toggle
                 // path hands it down (`refreshFolderList`), so no ordering between the store write
                 // and this listing can turn the feature off.
                 "val load = imap.loadFolder(credentials, requestedMailboxId = null, limit = 1, " +
@@ -88,7 +88,7 @@ class SubscribedFoldersWiringTest {
             listOf(
                 "suspend fun refreshFolderList(accountId: String, onlySubscribed: Boolean) {",
                 "val credentials = accountStore.credentials(accountId) ?: return",
-                // ⛔ `onlySubscribed`, the caller's — NOT accountStore.showOnlySubscribedFolders(...).
+                // `onlySubscribed`, the caller's — NOT accountStore.showOnlySubscribedFolders(...).
                 "refreshMailboxes(credentials, onlySubscribed)",
                 "}",
                 "private suspend fun refreshMailboxes(credentials: AccountCredentials) =",
@@ -100,7 +100,7 @@ class SubscribedFoldersWiringTest {
     }
 
     /**
-     * ⭐ **What is WRITTEN to the folder cache — every write, whole line** (#174).
+     * **What is WRITTEN to the folder cache — every write, whole line** (#174).
      *
      * The pin this branch was missing, and the mutation it exists for:
      *
@@ -114,14 +114,14 @@ class SubscribedFoldersWiringTest {
      * test next door never builds a `MailRepository` at all, and the "filter at the screen" guard
      * lives in `:app` and scans `app/src/main` only — `:core:data` is not swept by it.
      *
-     * ⛔ And the damage is DATA, not display: ticking the box would DELETE the unsubscribed
+     * And the damage is DATA, not display: ticking the box would DELETE the unsubscribed
      * folders' rows from the cache. A folder delete would no longer find its hidden children
      * (`InboxViewModel.subfolderIdsOf`) — mail nobody can reach any more — the reader's parent path
      * would lose a segment (#109), and unticking the box would leave a drawer with holes in it.
      * The cache keeps everything the server listed; hiding is the SCREEN's job, and only the
      * screen's.
      *
-     * ⚠ Whole lines, by equality, screening EVERY write — never `contains`, which is blind to any
+     * Whole lines, by equality, screening EVERY write — never `contains`, which is blind to any
      * mutation that lengthens a line, and never a subset, which is blind to a new write appearing.
      */
     @Test fun `every folder-cache write keeps what the server listed, unfiltered`() {
@@ -135,7 +135,7 @@ class SubscribedFoldersWiringTest {
                 "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.map { it.toEntity(credentials.id) })",
                 "mailboxDao.replaceAll(credentials.id, mailboxes.map { it.toEntity(credentials.id) })",
                 "mailboxDao.replaceAll(credentials.id, load.mailboxes)",
-                // ⭐ THE one the switch drives: `refreshFolderList` → `refreshMailboxes(credentials, onlySubscribed)`.
+                // THE one the switch drives: `refreshFolderList` → `refreshMailboxes(credentials, onlySubscribed)`.
                 "mailboxDao.replaceAll(credentials.id, load.mailboxes)",
                 "mailboxDao.replaceAll(credentials.id, client.getMailboxes(ctx.session, ctx.accountId, ctx.auth).map { it.toEntity(credentials.id) })",
                 "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.map { it.toEntity(credentials.id) })",

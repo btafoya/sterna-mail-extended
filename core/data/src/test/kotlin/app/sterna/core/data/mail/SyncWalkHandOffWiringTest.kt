@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT for the ONE line of each paginated walk that carries a page to its writer, and the
+ * SOURCE LINT for the ONE line of each paginated walk that carries a page to its writer, and the
  * only thing standing between a refused write and a walk that keeps going anyway.
  *
  * The mutation this exists to kill, found by a counter-expertise and NOT caught by anything else in
@@ -22,7 +22,7 @@ import java.io.File
  * that no longer exists, holding a single IMAP connection for minutes, and then RECONCILES and
  * stores a cursor under the removed id. That is half of the reported symptom back.
  *
- * ⛔ Nothing executable can see it: the tests that exercise these walks feed them their own page
+ * Nothing executable can see it: the tests that exercise these walks feed them their own page
  * hand-off, and `SignedOutAccountStopsWritingTest` runs its own `Walk` class. The two lines below
  * are shipped code that no JVM test traverses, in two modules whose sources nothing else reads.
  *

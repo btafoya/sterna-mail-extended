@@ -23,13 +23,13 @@ import java.io.File
  * choice of sentence now belongs to `oauthFailureSpec` / `oauthDiscoveryFailure`, and this file
  * makes the old shape impossible to write back without a red test.
  *
- * ⚠ WHAT IT DOES NOT SAY. It does not prove that `oauthFailureMessage` is handed the right
+ * WHAT IT DOES NOT SAY. It does not prove that `oauthFailureMessage` is handed the right
  * failure, nor that `getString` renders anything, nor that any of it is reached at runtime — the
  * rules below are text. It does not read `OutlookSignIn`, which still picks a sentence of its own,
  * nor `settings/AccountsViewModel`. A green run here means "the old form is not in the file", not
  * "the screen is right".
  *
- * ⚠ HOW IT COMPARES. Required shapes are matched as WHOLE trimmed lines, with anchored regexes: a
+ * HOW IT COMPARES. Required shapes are matched as WHOLE trimmed lines, with anchored regexes: a
  * `contains` on a fragment is blind to any mutation that LENGTHENS the line (appending
  * `?: R.string.connect_oauth_denied` to a compliant call, say), and that blindness has cost this
  * repo real defects. Forbidden tokens are the one place a substring search is sound — nothing a
@@ -63,7 +63,7 @@ class OAuthWiringTest {
      * A refusal carries the server's `error` (and, for Microsoft, an AADSTS code); the branch must
      * hand that whole failure to the shared mapper rather than render a sentence of its own.
      *
-     * ⚠ The arm MOVED, and this rule moved with it. `pollForToken` no longer matches on
+     * The arm MOVED, and this rule moved with it. `pollForToken` no longer matches on
      * `DeviceTokenResult` at all — the loop lives in `pollDeviceGrant`, which answers a
      * [DevicePollVerdict] — so what is read here is the `is DevicePollVerdict.Refused ->` arm, and
      * the failure it must route is `verdict.failure`. The other end of the wait, `RanOut`, has a
@@ -95,7 +95,7 @@ class OAuthWiringTest {
      * all: the two resources could be swapped and the suite stayed green, putting "The sign-in
      * request expired. Try again." back in front of someone who never reached a server.
      *
-     * ⚠ The argument is pinned, not just the call: `oauthRanOutMessage(true)` also *calls* the
+     * The argument is pinned, not just the call: `oauthRanOutMessage(true)` also *calls* the
      * function and is exactly how the distinction is thrown away again.
      */
     @Test fun `the deadline's sentence is not this screen's to choose`() {

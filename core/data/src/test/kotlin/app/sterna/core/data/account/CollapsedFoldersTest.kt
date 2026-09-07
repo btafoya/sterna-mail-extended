@@ -43,7 +43,7 @@ class CollapsedFoldersTest {
     }
 
     /**
-     * ⭐ THE test of this branch. The registry is the EXPLICIT choice per folder, so unfolding must
+     * THE test of this branch. The registry is the EXPLICIT choice per folder, so unfolding must
      * WRITE `false`; dropping the key would say "nobody decided", and the drawer's default would
      * then be free to fold that folder again on the next launch — the memory would hold in one
      * direction only. Stored as a `Set` of the folded ones, that is the only thing it CAN do.
@@ -118,13 +118,13 @@ class CollapsedFoldersTest {
     // ── the IMAP rename: the id IS the path, so the keys have to follow ─────────────────────────
 
     /**
-     * ⭐ THE defect of this half. On IMAP a folder's id is its PATH, so renaming it CHANGES the id
+     * THE defect of this half. On IMAP a folder's id is its PATH, so renaming it CHANGES the id
      * (`MailRepository.renameFolder`): the watch flags have been re-keyed for that reason since
      * #16, and this registry had not. The `false` the user wrote — "I opened this folder by hand"
      * — stayed behind under the old path, the renamed row had no key at all, and the DEFAULT folded
      * it: the folder closed itself the moment it was renamed.
      *
-     * ⛔ Re-keying is not re-deciding: the boolean is carried across untouched, both ways.
+     * Re-keying is not re-deciding: the boolean is carried across untouched, both ways.
      */
     @Test fun `an IMAP rename re-keys the folder AND its descendants, keeping their values`() {
         val after = withRenamedCollapsedFolder(
@@ -146,7 +146,7 @@ class CollapsedFoldersTest {
     }
 
     /**
-     * ⛔ The prefix is `oldId + delimiter`, never `oldId`. `Travailleur` starts with `Travail` and
+     * The prefix is `oldId + delimiter`, never `oldId`. `Travailleur` starts with `Travail` and
      * is NOT under it — re-keying it would move a fold onto a folder nobody renamed, and on the
      * next launch two different folders would answer to keys that describe neither.
      */

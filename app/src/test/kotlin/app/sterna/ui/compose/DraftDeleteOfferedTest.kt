@@ -11,7 +11,7 @@ import org.junit.Test
  * delete it from the list. The button is deliberately narrow, and every term of [draftDeleteOffered]
  * is a case where it would otherwise lie about what it does.
  *
- * ⭐ The fourth term is the draft the PHONE is keeping (#95). It has no cached server row and never
+ * The fourth term is the draft the PHONE is keeping (#95). It has no cached server row and never
  * will, so `draftInHand` is false for it for ever: without this term the composer showed no way at
  * all out of such a draft — the swipe is refused, the selection refuses it, and the only exit was
  * to empty the text by hand and save, which nothing on screen said.
@@ -74,7 +74,7 @@ class DraftDeleteOfferedTest {
     @Test fun `a message taken back out of the send queue is never offered this button`() {
         // It carries a draft id of its own, and its row waits in the outbox marked EDITING: that
         // row has to be handed back or consumed, and deleting it is the outbox screen's gesture,
-        // not this one (#70). The screen is titled "Edit" for exactly that reason. ⛔ Including
+        // not this one (#70). The screen is titled "Edit" for exactly that reason. Including
         // when a local-draft lease is held: a restored send reopened from the phone's own store
         // still belongs to the outbox gesture.
         assertFalse(

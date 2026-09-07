@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⚠ SOURCE LINT on the TWO ends of the Sent-folder copy, same instrument and same disclaimer as
+ * SOURCE LINT on the TWO ends of the Sent-folder copy, same instrument and same disclaimer as
  * [SmtpSubmissionCallSiteTest]: it reads `MailRepository.performDelivery` and `ImapMailService.send`
  * as text. Neither is runnable here — `performDelivery` needs a whole `MailRepository` (a dozen
  * DAOs, a JMAP client, an `ImapMailService`), and `send` needs a real account, a real socket and a

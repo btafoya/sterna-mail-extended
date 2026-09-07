@@ -21,7 +21,7 @@ import java.io.File
  *  - a guard on any post-action reconcile (a move, a delete, a mark-read) would leave the list
  *    showing the state the server no longer holds.
  *
- * ⛔ Every rule compares a WHOLE unit — a whole declaration body — or COUNTS with a regex. Never a
+ * Every rule compares a WHOLE unit — a whole declaration body — or COUNTS with a regex. Never a
  * `contains` on a fragment: a fragment is blind to any mutation that LENGTHENS what it matches.
  * The regex `\brefresh\(\)` is what tells the two doors apart, since "refreshUnlessFresh()" holds
  * no "refresh()" substring at all.
@@ -163,7 +163,7 @@ class RefreshFreshnessWiringLintTest {
     // -- the reading pane's two bodies, pinned here for want of anywhere that can RUN them --------
 
     /**
-     * ⚠ Neither of the two rules below is about the freshness guard. They live in this file because
+     * Neither of the two rules below is about the freshness guard. They live in this file because
      * it is the one that compares whole DECLARATION BODIES of `InboxViewModel`, and that class is an
      * `AndroidViewModel` over Room: nothing in this module can build one, so no executing test can
      * reach either method.

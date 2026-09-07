@@ -17,13 +17,13 @@ import org.junit.Test
  * The hand-picked "send later" instant (#161), decided by [pickedScheduleMillis] and
  * [scheduleDaySelectable] — the two locks in front of scheduling into the PAST.
  *
- * ⛔ Why they matter more than they look: `ScheduledSends.enqueue` computes its delay as
+ * Why they matter more than they look: `ScheduledSends.enqueue` computes its delay as
  * `(sendAtMillis - now).coerceAtLeast(0)`, so an instant already gone is not refused anywhere — it
  * fires the message AT ONCE, and a send has no way back. Nothing between the menu and that
  * coercion checks the future. Both functions are handed the clock instead of reading it, so "an
  * hour already gone today" is playable without moving the bench's clock.
  *
- * ⚠ Every case pins the resulting MILLIS, and a zone whose offset is not zero, because the trap
+ * Every case pins the resulting MILLIS, and a zone whose offset is not zero, because the trap
  * here is arithmetic: Material's date picker speaks UTC midnight, the send happens in the device's
  * zone, and composing the instant in the wrong one moves it by hours or by a whole day without a
  * word on screen.
@@ -93,7 +93,7 @@ class PickedScheduleTest {
     }
 
     @Test fun `WEST of UTC the picker's own day is the day the message goes out`() {
-        // ⛔ The case the other zones cannot catch, and the one the contre-expertise found missing.
+        // The case the other zones cannot catch, and the one the contre-expertise found missing.
         // The picker hands back UTC midnight; read in a zone BEHIND UTC that instant still belongs
         // to the PREVIOUS civil day (20 August, 00:00 UTC is 19 August, 17:00 in Los Angeles), so
         // reading the day in `zone` instead of UTC silently moves the send back a whole day. Paris
@@ -190,7 +190,7 @@ class PickedScheduleTest {
 
         val lastMinute = at(paris, 2026, 8, 18, 23, 59)
         assertEquals(LocalTime.of(23, 59), scheduleClockOpensAt(dayUtc(2026, 8, 18), lastMinute, paris))
-        // ⚠ And here it is already too late: at 23:59:00 sharp, 23:59 IS now, and the rule is
+        // And here it is already too late: at 23:59:00 sharp, 23:59 IS now, and the rule is
         // strictly after — so OK opens grey. One second earlier it would have been lit. That
         // last minute is the honest dead end, not a hole to patch.
         assertNull(pickedScheduleMillis(dayUtc(2026, 8, 18), 23, 59, paris, lastMinute))
@@ -224,7 +224,7 @@ class PickedScheduleTest {
     }
 
     @Test fun `WEST of UTC the chosen day is read in UTC, as the picker speaks it`() {
-        // ⛔ The case a zone AHEAD of UTC cannot catch. 18 August midnight UTC is 17 August,
+        // The case a zone AHEAD of UTC cannot catch. 18 August midnight UTC is 17 August,
         // 17:00 in Los Angeles: read in `zone` the picked day would be the 17th, "an hour ahead"
         // would land on the 18th, i.e. AFTER it, and the dial would open on 23:59 for a user who
         // asked for today at 10 in the morning. Almost fourteen hours late, silently.
@@ -257,7 +257,7 @@ class PickedScheduleTest {
     }
 
     @Test fun `in the very last minute of the day nothing is offerable, and that is honest`() {
-        // ⚠ Deliberately NOT patched up. At 23:59:30 the chosen day has no future minute left
+        // Deliberately NOT patched up. At 23:59:30 the chosen day has no future minute left
         // at all: the clock opens on 23:59 and its OK is grey. Opening on "now + 1 minute" instead
         // would have hidden it for sixty seconds and reopened the silent refusal a minute later.
         val now = at(paris, 2026, 8, 18, 23, 59) + 30_000L
@@ -267,7 +267,7 @@ class PickedScheduleTest {
     }
 
     @Test fun `on the night the clocks GO BACK, an hour ahead is not offerable and 23-59 is`() {
-        // ⛔ The case a rule of our own got wrong, and no ordinary date can see. Paris, 25 October
+        // The case a rule of our own got wrong, and no ordinary date can see. Paris, 25 October
         // 2026: 03:00 CEST becomes 02:00 CET, so 02:40 happens TWICE. At 02:40 CEST an hour ahead
         // is 02:40 CET — the same wall time, the same civil date, so "did the date roll over?"
         // answers no and hands 02:40 back. Rebuilding 02:40 on that day picks the FIRST pass, at

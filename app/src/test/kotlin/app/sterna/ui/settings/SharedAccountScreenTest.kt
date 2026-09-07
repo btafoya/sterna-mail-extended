@@ -99,7 +99,7 @@ class SharedAccountScreenTest {
      * The pure resolvers above it are left out on purpose: they legitimately look an id up in the
      * list, and they are EXECUTED by the tests at the top of this class.
      *
-     * ⛔ Every token here is reachable FROM UI CODE. A token that exists nowhere in the app (the
+     * Every token here is reachable FROM UI CODE. A token that exists nowhere in the app (the
      * first version of this list forbade `setPassword`, and a store-only method) reads as a
      * guarantee and protects nothing.
      */

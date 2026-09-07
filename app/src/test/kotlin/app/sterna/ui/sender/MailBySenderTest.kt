@@ -554,7 +554,7 @@ class MailBySenderTest {
     // -- what the two refusals SAY ------------------------------------------------------------
 
     /**
-     * ⭐ The two rules above pin WHICH string each refusal shows. Neither of them has ever looked
+     * The two rules above pin WHICH string each refusal shows. Neither of them has ever looked
      * at what that string SAYS, and that is where the defect lived: both sentences claimed
      * "Another filter script is active on this account" while the boolean behind them,
      * `FilterRulesState.Loaded.foreignActiveScript`, is `otherActiveScript || unreadable` — three
@@ -570,10 +570,10 @@ class MailBySenderTest {
      * At this point the code cannot tell the three apart, and it is not going to learn to: the
      * fold IS the guard that stops both writes. So the words come down to what is true in all
      * three — Sterna is not managing this account's filter script right now, therefore no rule can
-     * be added from here — and name no cause at all. ⛔ In particular the holiday responder is not
+     * be added from here — and name no cause at all. In particular the holiday responder is not
      * named here: nothing at this layer knows it is the one.
      *
-     * ⛔ WHY THIS IS A POSITIVE ASSERTION ON THE WHOLE SENTENCE, and not `!contains("Another")`.
+     * WHY THIS IS A POSITIVE ASSERTION ON THE WHOLE SENTENCE, and not `!contains("Another")`.
      * A negative rule on the offending word is green for "A different filter script is active on
      * this account" — the same false claim, the same reader sent to the same wrong place, lint
      * satisfied. The only rule that cannot be walked around by rewording the lie is one that

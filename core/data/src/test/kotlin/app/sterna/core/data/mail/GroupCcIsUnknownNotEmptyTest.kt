@@ -12,7 +12,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * ⭐ **A Cc that is nothing but a group must read as UNKNOWN, never as empty** — executed on a real
+ * **A Cc that is nothing but a group must read as UNKNOWN, never as empty** — executed on a real
  * [ImapMailService] over a socket, from the ENVELOPE bytes to the set the destroy decision reads.
  *
  * The data loss this holds shut, in the order it happened:
@@ -27,20 +27,20 @@ import org.junit.Test
  *    carries everything the original had. The server copy is EXPUNGED, taking the only remaining
  *    trace of the header with it. Silently.
  *
- * ⛔ So the assertion below is `assertNull`, never `isNullOrEmpty()`: `null` (unknown, keep the
+ * So the assertion below is `assertNull`, never `isNullOrEmpty()`: `null` (unknown, keep the
  * original) and `emptySet()` (empty, destroying is safe) are the two answers the defect confused,
  * and a test that accepts either proves nothing. [ccAndBccOfADraftWithNeitherCcNorBcc] is the
  * other side of that same coin and is not optional — without it, "always answer null" passes
  * every other test here and stops every draft in the app from ever being replaced in place.
  *
- * ⚠ What runs above the socket is only this read. The save that consumes it
+ * What runs above the socket is only this read. The save that consumes it
  * ([DraftSave.draftAddressingIsCarried]) needs Room and cannot be built in a JVM; its decision is
  * executed as a pure function in `DraftSaveTest`, including on the very entry the group produces.
  */
 class GroupCcIsUnknownNotEmptyTest {
 
     /**
-     * ⭐ THE case: `Cc: undisclosed-recipients:;`, i.e. a group start and its end, and no bcc.
+     * THE case: `Cc: undisclosed-recipients:;`, i.e. a group start and its end, and no bcc.
      * Unknown — the original must be kept.
      */
     @Test(timeout = 30_000)
@@ -69,7 +69,7 @@ class GroupCcIsUnknownNotEmptyTest {
     }
 
     /**
-     * A group start with NO end. ⚠ HYPOTHETICAL, and kept on purpose: no server here has been
+     * A group start with NO end. HYPOTHETICAL, and kept on purpose: no server here has been
      * seen to send it. The bench (`emu`/Stalwart, 2026-08-26) showed the opposite — a bare atom
      * `Cc: undisclosed-recipients` comes back as `cc = NIL`, i.e. not at all, which is why the
      * APPEND now writes `undisclosed-recipients:;` (`localDraftOutgoing`). This pins the reading
@@ -87,7 +87,7 @@ class GroupCcIsUnknownNotEmptyTest {
     }
 
     /**
-     * ⛔ THE witness that gives the two above their meaning: a real address in the Cc comes back
+     * THE witness that gives the two above their meaning: a real address in the Cc comes back
      * as that address, not as `null`. Without it, "answer unknown whenever a Cc is present" passes
      * everything above, and no IMAP draft with a Cc is ever replaced in place again — it would be
      * duplicated on the server at every save.
@@ -104,7 +104,7 @@ class GroupCcIsUnknownNotEmptyTest {
     }
 
     /**
-     * ⛔ THE OTHER witness, and the one the defect's whole shape rests on: a draft with neither Cc
+     * THE OTHER witness, and the one the defect's whole shape rests on: a draft with neither Cc
      * nor Bcc answers an EMPTY SET — empty and KNOWN. This is the answer that keeps authorising
      * the replace-in-place of the overwhelmingly common draft, and it is what the first test has
      * to be different from.
@@ -186,7 +186,7 @@ class GroupCcIsUnknownNotEmptyTest {
         const val GROUP_WITH_END = "((NIL NIL \"undisclosed-recipients\" NIL)(NIL NIL NIL NIL))"
 
         /** A group start alone, with no end marker — a shape no server here has been seen to
-         *  send (⚠ hypothetical), not the result of our own round trip: what this app appends is
+         * send (hypothetical), not the result of our own round trip: what this app appends is
          *  `undisclosed-recipients:;`, which comes back start AND end. */
         const val GROUP_START_ONLY = "((NIL NIL \"undisclosed-recipients\" NIL))"
 

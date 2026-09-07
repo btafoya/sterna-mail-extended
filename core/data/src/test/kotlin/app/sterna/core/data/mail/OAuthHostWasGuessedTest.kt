@@ -8,13 +8,13 @@ import org.junit.Test
  * [oauthHostWasGuessed]: may this OAuth sign-in's host be improved into the one the password path
  * would have stored, or was it dictated by the reader?
  *
- * ⛔ What it fences off. Resolving the server on every OAuth add fixes #55 for the addresses whose
+ * What it fences off. Resolving the server on every OAuth add fixes #55 for the addresses whose
  * host the app guessed alone, and breaks it for the manual form: there, the OAuth button and the
  * password button read the SAME field, and the password button stores what was typed verbatim
  * (`ConnectViewModel.finishJmapConnect` → `accountStore.add(server, …)`). One reader typing
  * `jmap.example.org` on both buttons would get two accounts — #55 again, out of the fix for #55.
  *
- * ⛔ Both sides are LITERAL. The candidate list is written out rather than asked from
+ * Both sides are LITERAL. The candidate list is written out rather than asked from
  * `Jmap.autodiscoverHosts`, and no expected value is re-derived from the shipped condition: a test
  * that recomputes the rule stays green when the rule is inverted.
  */
@@ -41,7 +41,7 @@ class OAuthHostWasGuessedTest {
     }
 
     /**
-     * ⛔ The OAuth routes carry the candidate as a URL where autodiscovery yields a bare host.
+     * The OAuth routes carry the candidate as a URL where autodiscovery yields a bare host.
      * Compared as raw text, every OAuth add would look reader-dictated and #55 would stay whole.
      */
     @Test fun `the same host as a URL is still a guessed host`() {
@@ -65,7 +65,7 @@ class OAuthHostWasGuessedTest {
     }
 
     /**
-     * ⛔ And a typed host is protected even when its domain matches: autodiscovery never guesses a
+     * And a typed host is protected even when its domain matches: autodiscovery never guesses a
      * path, so `mail.masto.top/jmap/session` is a session URL somebody wrote down.
      */
     @Test fun `a host carrying a path was not guessed`() {

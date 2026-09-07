@@ -24,7 +24,7 @@ import org.junit.Test
  *     ARGUMENT is pinned, parsed out of the call and compared whole — never a `contains`, which is
  *     blind to any mutation that lengthens the line.
  *
- * ⭐ The site that a partial fix leaves mute is the second `outgoing(` in `performDelivery`: the
+ * The site that a partial fix leaves mute is the second `outgoing(` in `performDelivery`: the
  * PGP/MIME route builds raw bytes and imports them, so it inherits the MIME write and NOT
  * `Email/set`. Wire up `client.sendEmail` alone and every signed or encrypted message goes out
  * asking for nothing, in silence.
@@ -94,7 +94,7 @@ class ReadReceiptWiringTest {
     }
 
     @Test fun `the one builder of every raw write puts its parameter on the message, whole`() {
-        // ⭐ The consumer, not the callers. `outgoing(` is asked for the receipt at four sites and
+        // The consumer, not the callers. `outgoing(` is asked for the receipt at four sites and
         // every one of them is pinned above — but all four hand it to THIS body, and this body is
         // what decides what lands on the OutgoingMessage. `requestReceipt = requestReceipt &&
         // cc.isEmpty()` here was green across the whole suite while muting four of the six writes
@@ -124,7 +124,7 @@ class ReadReceiptWiringTest {
     }
 
     @Test fun `the PGP route inherits the MIME write and is wired at the same source`() {
-        // ⭐ The mute path. The raw bytes are built by the SAME `outgoing(` above and imported
+        // The mute path. The raw bytes are built by the SAME `outgoing(` above and imported
         // verbatim, so this states that the PGP branch's own build is one of the calls the first
         // test covers — and that it is the LAST of them, i.e. inside the `pgpEntity != null` branch.
         val body = bodyOf("performDelivery")
@@ -142,7 +142,7 @@ class ReadReceiptWiringTest {
     }
 
     @Test fun `the saved draft row is what carries the receipt to both protocols`() {
-        // ⚠ Moved by #95. The draft is written to `local_drafts` before either protocol is tried,
+        // Moved by #95. The draft is written to `local_drafts` before either protocol is tried,
         // and BOTH uploads then read the row — so this one argument is now the single hop, and
         // `requestReceipt = false` here mutes the header on IMAP and on JMAP at once.
         // What the IMAP APPEND makes of it is EXECUTED in LocalDraftSaveTest.

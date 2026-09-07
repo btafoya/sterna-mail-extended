@@ -13,7 +13,7 @@ import org.junit.Test
  * Every case is a hand-written pair (input → answer): nothing here recomputes the rule it checks,
  * so inverting any of the three shipped expressions has to turn a line red.
  *
- * ⛔ These three are the whole of the volet's fidelity. `draftHtmlToSave` answering the wrong
+ * These three are the whole of the volet's fidelity. `draftHtmlToSave` answering the wrong
  * thing gives every plain draft a second MIME part (or loses the styling of a rich one);
  * `richBodyFrom` answering the wrong thing reopens a styled draft plain, on all five routes at
  * once; `draftHtmlIsLossy` answering the wrong thing decides whether a server original may be
@@ -25,7 +25,7 @@ class DraftRichBodyTest {
 
     // --- what a save stores ---------------------------------------------------------------------
 
-    /** ⭐ The witness: a plain body stores NO html part, so the save is byte for byte what it was. */
+    /** The witness: a plain body stores NO html part, so the save is byte for byte what it was. */
     @Test fun `a body with no styling stores no html at all`() {
         assertNull(draftHtmlToSave(RichBody.plain("hello world")))
     }
@@ -34,7 +34,7 @@ class DraftRichBodyTest {
         assertNull(draftHtmlToSave(RichBody.plain("")))
     }
 
-    /** ⚠ Multiple lines and an ampersand: still plain, so still nothing — the text column holds it. */
+    /** Multiple lines and an ampersand: still plain, so still nothing — the text column holds it. */
     @Test fun `a plain body with newlines and entities still stores no html`() {
         assertNull(draftHtmlToSave(RichBody.plain("one & two\nthree")))
     }
@@ -68,9 +68,9 @@ class DraftRichBodyTest {
     }
 
     /**
-     * ⭐ A draft written elsewhere (this one is a Thunderbird shape: a `<div>` and a `style=`
+     * A draft written elsewhere (this one is a Thunderbird shape: a `<div>` and a `style=`
      * attribute). It does not parse, and the STORED TEXT is what the editor gets — exactly what
-     * happened before #131. ⛔ Never the markup as text: that is the symptom this fallback exists
+     * happened before #131. Never the markup as text: that is the symptom this fallback exists
      * to keep away.
      */
     @Test fun `a foreign html falls back to the stored text`() {
@@ -87,7 +87,7 @@ class DraftRichBodyTest {
     }
 
     /**
-     * ⛔ The fallback is a LAMBDA, and it is not called when the html parses. It matters: on the
+     * The fallback is a LAMBDA, and it is not called when the html parses. It matters: on the
      * server route it runs `originalPlainText`, which walks the message's parts.
      */
     @Test fun `the text fallback is not even read when the html parses`() {
@@ -98,12 +98,12 @@ class DraftRichBodyTest {
 
     // --- what an html body costs ----------------------------------------------------------------
 
-    /** ⭐ No html part: nothing is lost, and the reopen may replace the original. */
+    /** No html part: nothing is lost, and the reopen may replace the original. */
     @Test fun `no html body is not lossy`() {
         assertFalse(draftHtmlIsLossy(null))
     }
 
-    /** ⭐ The change of #131: our own html reopens whole, so it costs nothing either. */
+    /** The change of #131: our own html reopens whole, so it costs nothing either. */
     @Test fun `our own html is not lossy`() {
         assertFalse(
             "a draft this app styled comes back with its spans — calling it lossy keeps a " +
@@ -121,7 +121,7 @@ class DraftRichBodyTest {
     }
 
     @Test fun `an html part that says nothing is lossy, and it is the one that loses data`() {
-        // ⛔ THE defect this rule exists for, and it is a destroy. `fromHtml("")` answers an EMPTY
+        // THE defect this rule exists for, and it is a destroy. `fromHtml("")` answers an EMPTY
         // body — not null — and so do a space, a tab and a lone `<br>`. Read as "it parses, so the
         // draft is faithful", such a part opens the composer BLANK (the text part is never read)
         // and the next save DESTROYS the original, whose text exists nowhere else. Before #131 any
@@ -137,7 +137,7 @@ class DraftRichBodyTest {
 
     @Test fun `an html part that says nothing sends the reopen back to the text part`() {
         // The other half of the same decision, and the half the user sees: the `text/plain` part
-        // of that same draft is what the composer must open on. ⛔ `RichBody.plain("")` here is a
+        // of that same draft is what the composer must open on. `RichBody.plain("")` here is a
         // blank composer over a draft that has text.
         for (html in listOf("", " ", "\t", "<br>")) {
             val reopened = richBodyFrom(html) { "see you at six" }

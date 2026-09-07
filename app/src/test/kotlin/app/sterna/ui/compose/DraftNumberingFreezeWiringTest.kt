@@ -24,7 +24,7 @@ import java.io.File
  * and handed to the repository. Re-reading it at save time is the defect, not a
  * refinement of it: the whole value of freezing is that it happened BEFORE the renumbering.
  *
- * ⭐ THE INVARIANT THIS PINS CHANGED, and the order below with it. It used to read "the id is laid
+ * THE INVARIANT THIS PINS CHANGED, and the order below with it. It used to read "the id is laid
  * LAST" (#63: the id is what arms the destroy, so nothing armed it until the attachment carry had
  * answered). A draft reopened over a link that then died came back through `applied` — a
  * `rememberSaveable` — with the editor and the whole bar alive, while `prepare()` re-ran, the fetch
@@ -35,7 +35,7 @@ import java.io.File
  * actually READ lowers that verdict. An id on its own destroys nothing any more, so freezing the
  * numbering after it is as safe as it ever was — it is the PAIR (id + clean verdict) that destroys.
  *
- * ⭐ AND THE INVARIANT THIS FILE NOW EXISTS FOR, restored after the move above broke it:
+ * AND THE INVARIANT THIS FILE NOW EXISTS FOR, restored after the move above broke it:
  * **A SERVER DRAFT ID NEVER TRAVELS WITHOUT THE ACCOUNT IT WAS READ UNDER.** They are armed
  * together, at the entry of the reopen branch, before the coroutine — one gesture, two adjacent
  * lines, nothing between them.
@@ -189,7 +189,7 @@ class DraftNumberingFreezeWiringTest {
             listOf(REMEMBER_ID, FREEZE_ACCOUNT),
             prepare.subList(id, (id + 2).coerceAtMost(prepare.size)),
         )
-        // ⛔ The FIRST `viewModelScope.launch {` of prepare() belongs to another branch — the one
+        // The FIRST `viewModelScope.launch {` of prepare() belongs to another branch — the one
         // that prefills a reply. The coroutine meant here is the one that opens AFTER the account
         // freeze, so it is looked for from there; searching from the top pins nothing at all.
         val launch = (account until prepare.size).firstOrNull { prepare[it] == "viewModelScope.launch {" } ?: -1
@@ -208,7 +208,7 @@ class DraftNumberingFreezeWiringTest {
      * The account is frozen exactly twice — the restore, and the reopen — and never looked up
      * again on the way out.
      *
-     * ⛔ The defect it closes: the empty-save expunged under `credentials()`, i.e. the account of
+     * The defect it closes: the empty-save expunged under `credentials()`, i.e. the account of
      * the identity the "From" picker was showing, over an id and a numbering frozen at the open.
      * Any THIRD write here is that re-read wearing the frozen field's name — `editingDraftAccountId
      * = _selectedFrom.value?.accountId` slipped in beside the picker, and every rule in this suite

@@ -136,7 +136,7 @@ class PermanentDrawerWiringLintTest {
     }
 
     /**
-     * ⭐ The drawer's whole STATE, pinned at both call sites — the two envelopes must be handed the
+     * The drawer's whole STATE, pinned at both call sites — the two envelopes must be handed the
      * same thing, argument for argument.
      *
      * Sixteen arguments travel into [DrawerContent], and until now exactly one of them

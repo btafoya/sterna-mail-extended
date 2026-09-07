@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, and a narrow one: nothing in this chain runs in a JVM test — the receiver needs
+ * SOURCE LINT, and a narrow one: nothing in this chain runs in a JVM test — the receiver needs
  * an Application and a NotificationManager, the repository a database and a socket. The DECISION
  * is executed next door in [QuickReplyOutcomeTest]; what is pinned here is the WIRING that carries
  * it, whole line by whole line. Never `contains`: a `contains` is blind to every mutation that
@@ -81,7 +81,7 @@ class QuickReplyWiringTest {
      * live INSIDE that block; outside it, the banner falls on a Delete and a Mark as read that did
      * nothing whatever, which is a receipt for work nobody performed.
      *
-     * ⚠ This one is read as STRUCTURE, not as text: the fix moves no character of the dismissal
+     * This one is read as STRUCTURE, not as text: the fix moves no character of the dismissal
      * line, it moves the line into another block. [codeLinesNaming] trims every line and is blind to
      * both indentation and nesting, so a pin written with it alone stays green either way.
      */

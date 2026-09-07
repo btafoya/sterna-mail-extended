@@ -21,7 +21,7 @@ import java.sql.DriverManager
  * variable per server folder (999 max below Android 12). The statement never compiled, the whole
  * `@Transaction` rolled back — so the upsert went too — and the drawer stayed empty forever.
  *
- * ⚠ The refusal itself is NOT reproducible here: these tests run on sqlite-jdbc, whose variable
+ * The refusal itself is NOT reproducible here: these tests run on sqlite-jdbc, whose variable
  * limit is not the device's. What is testable is the DECISION — which ids go, in batches of what
  * size — which is why it lives in [mailboxEvictions] instead of inside the DAO body. The three
  * levels below are deliberate: the decision executed, the call site executed, and a source lint
@@ -32,7 +32,7 @@ class MailboxEvictionsTest {
     // -- level 1: the decision, executed ---------------------------------------------------
 
     @Test fun nothingIsPurgedWhenTheServerStillCarriesEveryCachedFolder() {
-        // ⛔ THE TRAP OF THE OBVIOUS FIX: chunking the `NOT IN (:keepIds)` into several statements
+        // THE TRAP OF THE OBVIOUS FIX: chunking the `NOT IN (:keepIds)` into several statements
         // deletes everything outside each chunk in turn — the whole drawer, one batch at a time.
         // 1 040 folders, all still on the server, cut into six chunks: nothing may be deleted.
         val cached = (1..1040).map { "Folder$it" }

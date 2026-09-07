@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST. Everything it pins is EXECUTED elsewhere — the order of the
+ * SOURCE LINT, NOT A BEHAVIOUR TEST. Everything it pins is EXECUTED elsewhere — the order of the
  * four steps and IMAP's refusal by [ImapFullQueryWriteThroughTest], the walk itself by
  * `core:imap`'s `FolderWalkOnTheWireTest` and `FolderWalkDecisionTest`. What no JVM test can reach
  * is `MailRepository` (Room, an Android `Context`, a live IMAP connection) and `ImapMailService`
@@ -36,7 +36,7 @@ class ImapWindowWiringTest {
         // a `try` around the walk, a `return` above the reconcile, a fifth argument gone missing —
         // and no presence check sees any of them.
         //
-        // ⛔ The FIRST line is the one the unified inbox turns on. This function ends in a
+        // The FIRST line is the one the unified inbox turns on. This function ends in a
         // reconcile, which DELETES every cached row it is not given, and `refreshAllInboxes`
         // reaches it with a hard-coded 50 that has nothing to do with the user's setting. On an
         // account set to "Everything" that is three gestures from losing the folder: pull on the
@@ -46,7 +46,7 @@ class ImapWindowWiringTest {
         //
         // Each argument carries one property:
         //  - folderIds: the folder as it stood BEFORE the walk, which bounds what the reconcile
-        //    may DELETE (#165). ⛔ NULL on an unnamed folder, never `emptySet()`: null means "no
+        // may DELETE (#165). NULL on an unnamed folder, never `emptySet()`: null means "no
         //    bound", an empty set would mean "evict nothing" and would switch the reconcile off.
         //    `credentials.id` here, never another account's, and `mailboxId` — NOT
         //    `load.targetMailboxId`, which does not exist yet when this lambda is read;
@@ -119,7 +119,7 @@ class ImapWindowWiringTest {
             "MailRepository", "refreshAllInboxes",
             "val load = imapWriteThrough(credentials, mailboxId = null, limit = limit)",
         )
-        // ⛔ `replaceMailbox` writes a whole snapshot and deletes everything else in one call. Its
+        // `replaceMailbox` writes a whole snapshot and deletes everything else in one call. Its
         // return to either path would mean the window is held on one heap again — and, page by
         // page, would delete all but the last page.
         listOf("refreshImap", "refreshAllInboxes", "imapWriteThrough").forEach { function ->
@@ -141,24 +141,24 @@ class ImapWindowWiringTest {
     // -- the plug: the account's window reaching the network -------------------------------------------
 
     @Test fun `the window the caller asked for is what the folder walk is given`() {
-        // ⛔ The line the cartography found untested: `SyncWindow.ALL.limit` travels
+        // The line the cartography found untested: `SyncWindow.ALL.limit` travels
         // InboxViewModel → refresh → refreshImap → imapWriteThrough → loadFolder → walkFolder, and
         // nothing on that path may substitute a number of its own. The page size is the module's
         // constant, NOT the window: confusing the two would either put the whole window back in one
         // request or shrink every window to 200. What the walk then does with an unbounded window
         // is executed on a real socket in `core:imap`
         // (`FolderWalkOnTheWireTest.an unbounded window walks the folder to its first message`).
-        // ⛔ `status`, not `status.exists`: the walk answers with `folderStatedEmpty`, and the two
+        // `status`, not `status.exists`: the walk answers with `folderStatedEmpty`, and the two
         // halves of that answer (the count, and whether the server ever stated it) must reach it as
         // one value. Handing over the count alone let this line pair it with a provenance of its
         // own — and a walk that reports "empty" for a folder whose size was never stated has its
         // cache DELETED by the reconcile at the end.
         assertLine("ImapMailService", "loadFolder", "session.walkFolder(status, limit, IMAP_FOLDER_PAGE) { page ->")
-        // ⛔ And `status.uidValidity` travels with the page: the rows are stamped with the numbering
+        // And `status.uidValidity` travels with the page: the rows are stamped with the numbering
         // of THE SELECT THAT ENUMERATED THEM (#99). Dropped here, a cached row says nothing about
         // what its UID means, and a later permanent delete has only the folder's current record to
         // oppose — which a background pass has already realigned to the renumbering.
-        // ⛔ And the fourth argument is the opening line READ FOR THAT ROW, looked up under the
+        // And the fourth argument is the opening line READ FOR THAT ROW, looked up under the
         // row's own cache id (#187). A literal here — or a lookup under another message's id —
         // shows one correspondent's words under another correspondent's name.
         assertLine("ImapMailService", "loadFolder", "val preview = previews[emailId(credentials.id, target.path, it.uid)]")
@@ -170,7 +170,7 @@ class ImapWindowWiringTest {
     }
 
     @Test fun `the folder's size is what the SELECT said, never a verdict written here`() {
-        // ⛔ THE MUTATION THIS EXISTS FOR, which the whole suite survived until it was written:
+        // THE MUTATION THIS EXISTS FOR, which the whole suite survived until it was written:
         //
         //     - val status = session.select(target.path)
         //     + val status = session.select(target.path).copy(existsObserved = true)
@@ -204,7 +204,7 @@ class ImapWindowWiringTest {
     }
 
     @Test fun `the numbering is settled before the walk, through the function that says so`() {
-        // ⛔ Codeberg #99, re-opened by writing pages as they land: a row of the new numbering must
+        // Codeberg #99, re-opened by writing pages as they land: a row of the new numbering must
         // not be visible while a body cached under the old one is still readable. The ORDER is
         // executed by [NumberingSettlesBeforePagesTest]; what is read here is that `loadFolder`
         // still goes through it, with the reconcile as `settle` and the walk as `walk` — swapping
@@ -270,7 +270,7 @@ class ImapWindowWiringTest {
         // below it going missing, or either refusal turning into an empty set — which would delete
         // the folder instead of sparing it.
         //
-        // ⛔ The second line is the one added for a walk that read NOTHING: a SELECT that never
+        // The second line is the one added for a walk that read NOTHING: a SELECT that never
         // stated a count, or a page whose every FETCH was unreadable, both end with no UID and
         // nothing thrown. Deleting on that is a 300-row folder gone to zero on one pull-to-refresh.
         // `folderStatedEmpty` is the only thing that tells it from a folder the server SAID is

@@ -28,13 +28,13 @@ import java.io.File
  *     BenchOutPathTest; this only pins that the receiver calls it, because a perfect predicate
  *     nobody calls protects nothing and no test compiles this receiver.
  *
- * ⛔ JUDGMENT IS WHOLE-LINE EQUALITY, NEVER `contains`. A suspicious line is FOUND by regex and
+ * JUDGMENT IS WHOLE-LINE EQUALITY, NEVER `contains`. A suspicious line is FOUND by regex and
  * then judged by comparing the whole trimmed line against [ALLOWED_LINES]. `in`/`contains` is blind
  * to any mutation that LENGTHENS the line (a trailing comment, one more named argument) — that hole
  * was found three times on 2026-08-04, twice on irreversible server writes. [ALLOWED_LINES] is
  * empty today: every hit is a failure, and adding an entry means pasting the exact line.
  *
- * ⚠ Comment lines are NOT skipped. A commented-out call still trips this lint, on purpose: skipping
+ * Comment lines are NOT skipped. A commented-out call still trips this lint, on purpose: skipping
  * comments would let a mutation hide behind `//`. The cost is that the bench sources must describe
  * the forbidden calls in words rather than quoting them verbatim.
  *
@@ -215,13 +215,13 @@ class BenchProvisionSourceTest {
                 Regex("""setServerIdentities\s*\("""),
             "rewrites a stored secret" to Regex("""updatePassword\s*\(|updateOAuthTokens\s*\(|writePassword\s*\("""),
             "moves the current account under the user" to Regex("""setCurrent\s*\("""),
-            // ⛔ INVERTED RULE, and the reason ALLOWED_LINES exists: EVERY read of an intent extra
+            // INVERTED RULE, and the reason ALLOWED_LINES exists: EVERY read of an intent extra
             // is forbidden, and the two legitimate ones are pinned below, whole. Listing secret
             // WORDS instead ("password|token|…") only ever caught the names someone had thought
             // of — `getStringExtra("pass")` walked straight through.
             "reads a broadcast extra" to Regex("""\bget\w*Extra\s*\("""),
             "names an extra after a secret" to Regex("""(?i)EXTRA_\w*(PASSWORD|PASSWD|PWD|SECRET|TOKEN|PASS|CRED|KEY)"""),
-            // ⛔ SECOND INVERTED RULE, and it is inverted for the same reason as the extras above:
+            // SECOND INVERTED RULE, and it is inverted for the same reason as the extras above:
             // EVERY line that opens or alters a file is forbidden, and the legitimate ones are
             // pinned whole in ALLOWED_LINES. Pinning the GUARDED write is not enough on its own —
             // that only proves the guarded line still exists, never that it is the only write. A

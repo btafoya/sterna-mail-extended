@@ -58,7 +58,7 @@ class RichBodyLinkTest {
         assertEquals("https://example.org", normalizeLinkUrl("example.org"))
         assertEquals("https://example.org/a/b?c=d#e", normalizeLinkUrl("example.org/a/b?c=d#e"))
         assertEquals("https://www.example.org", normalizeLinkUrl("www.example.org"))
-        // ⚠ Stated debt: a bare host:port reads as a scheme, and the scheme is not one of ours.
+        // Stated debt: a bare host:port reads as a scheme, and the scheme is not one of ours.
         assertNull("the host:port debt is deliberate, not an accident", normalizeLinkUrl("example.org:8080"))
     }
 
@@ -157,7 +157,7 @@ class RichBodyLinkTest {
     }
 
     @Test fun `a selection INSIDE a link takes the link over just those characters`() {
-        // ⛔ The order of the branches, and the only witness of it: with the cursor branch first,
+        // The order of the branches, and the only witness of it: with the cursor branch first,
         // this selection would merely re-address the whole link instead of narrowing it.
         assertEquals(
             linked("hello world", link(7, 9, "https://y")),
@@ -308,7 +308,7 @@ class RichBodyLinkTest {
     }
 
     @Test fun `a line break in the URL leaves as an entity, never raw in the attribute`() {
-        // ⛔ THE OUTPUT, not the round trip: OUR parser reads a raw newline inside `href="…"`
+        // THE OUTPUT, not the round trip: OUR parser reads a raw newline inside `href="…"`
         // without blinking, so the round trip cannot see this at all — it is the RECIPIENT's client
         // that is handed an attribute broken across two lines, and what it makes of it is its own
         // business. The escaping is therefore pinned on the text that leaves.
@@ -357,11 +357,11 @@ class RichBodyLinkTest {
             """<a class="c" href="x">t</a>""",
             """<a href="x" target="_blank">t</a>""",
             """<a  href="x">t</a>""",
-            // ⛔ ABSOLUTE urls, on purpose. With a RELATIVE href the URL guard refuses first
+            // ABSOLUTE urls, on purpose. With a RELATIVE href the URL guard refuses first
             // and the guard each of these lines names is never reached: three of them sat here
             // proving nothing, and the mutation below went unmeasured.
             """<a href="https://x"><a href="https://y">t</a></a>""",
-            // ⛔ The measured one: without `open.any { it.url != null }` this PARSES, the second
+            // The measured one: without `open.any { it.url != null }` this PARSES, the second
             // link is dropped by normalisation, `draftHtmlIsLossy` answers false, and the server
             // original is destroyed for a copy that has lost an address.
             """<a href="https://x">a<a href="https://y">b</a>c</a>""",
@@ -379,7 +379,7 @@ class RichBodyLinkTest {
     }
 
     @Test fun `a relative href is refused — the parser never invents a scheme`() {
-        // ⛔ THE DESTROY LICENCE. `draftHtmlIsLossy` is what lets a re-save EXPUNGE the server
+        // THE DESTROY LICENCE. `draftHtmlIsLossy` is what lets a re-save EXPUNGE the server
         // original. Before the links existed every `<a>` was refused, so a foreign draft carrying
         // a relative anchor was "unreadable" and its original was KEPT. Read with a scheme put in
         // front of it, that draft is judged reproducible and the original is destroyed in favour
@@ -425,7 +425,7 @@ class RichBodyLinkTest {
             RichBody("abcdefghij", mapOf(BOLD to listOf(sp(1, 9))), links = listOf(link(3, 6, "https://x"))),
             linked("abcd", link(0, 2, "https://x"), link(2, 4, "https://x")),
             linked("x", link(0, 1, "https://e.org/?a=1&b=2<3>4\"q\"'s' z")),
-            // ⛔ The two line breaks: unescaped in the attribute they break the tag open, and the
+            // The two line breaks: unescaped in the attribute they break the tag open, and the
             // body comes back as markup — or not at all. Kept INSIDE the URL, since the guard
             // trims its ends.
             linked("saut", link(0, 4, "https://e.org/a\nb\rc")),
@@ -469,7 +469,7 @@ class RichBodyLinkTest {
 
     // --- where the links and the lists cross (#131) ------------------------------------------
     //
-    // ⭐ Neither suite could see any of this: the lists landed in `main` and the links on a branch
+    // Neither suite could see any of this: the lists landed in `main` and the links on a branch
     // beside it, each growing the model by the same end. Everything below is what only the two
     // together can produce, and every expected value is written out by hand.
 
@@ -544,7 +544,7 @@ class RichBodyLinkTest {
 
     @Test fun `inserting a linked label inside a list carries the blocks the remap answered`() {
         val two = listed("un\ndeux", listOf(blk(BULLET, 0, 1)))
-        // ⚠ A pasted label with a break in it makes a THIRD item, and only [remapAfterEdit] knows
+        // A pasted label with a break in it makes a THIRD item, and only [remapAfterEdit] knows
         // that: the body's OWN blocks still say two, and handing those back drops an item.
         assertEquals(
             RichBody(
@@ -564,7 +564,7 @@ class RichBodyLinkTest {
             listOf(link(0, 2, "https://x"), link(3, 7, "https://x")),
             across.links,
         )
-        // ⛔ …and asked about the whole selection the model must still say "this IS a link".
+        // …and asked about the whole selection the model must still say "this IS a link".
         // Answering null reopens the dialog in CREATE mode with an empty address and takes
         // "remove link" away, while `removeLink` (which overlaps) would have done it.
         assertEquals(link(0, 2, "https://x"), linkAt(across, sp(0, 7)))

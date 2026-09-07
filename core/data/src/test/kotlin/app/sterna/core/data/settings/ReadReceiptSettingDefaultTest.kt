@@ -10,7 +10,7 @@ import org.junit.Test
 /**
  * The read-receipt switch's stored value, RUN — the first of the two locks on #148.
  *
- * ⛔ It is off until somebody turns it on, and that is not a taste. A read receipt tells a stranger
+ * It is off until somebody turns it on, and that is not a taste. A read receipt tells a stranger
  * that a person opened their mail, at a time, on a device; `SECURITY.md` promises no such signal
  * leaves on open. Flipping the elvis in `SettingsRepository` would put the question in front of
  * every reader who has never heard of the setting, and nothing else in the suite would notice.

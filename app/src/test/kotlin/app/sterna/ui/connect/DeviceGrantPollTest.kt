@@ -23,7 +23,7 @@ import org.junit.Test
  * against a real one is not a test, and the CADENCE — what stops a retry loop being a burst — can
  * only be read off a clock the test owns.
  *
- * ⛔ Every scenario below is a LITERAL list of results and a LITERAL expected verdict. A test that
+ * Every scenario below is a LITERAL list of results and a LITERAL expected verdict. A test that
  * re-derives which results should keep the loop going is a copy of the shipped condition, and the
  * condition could be inverted underneath it without a red — the failure mode this repo has caught
  * three times.
@@ -141,7 +141,7 @@ class DeviceGrantPollTest {
      * And the third way a server talks: `slow_down` is an ANSWER, so a wait made of nothing else
      * ran out against a server that was there all along.
      *
-     * ⛔ Rate limiting is the nominal case of RFC 8628 § 3.5, not an exotic one. A server that
+     * Rate limiting is the nominal case of RFC 8628 § 3.5, not an exotic one. A server that
      * answers `slow_down` for half an hour and never gets approved would otherwise reach the
      * deadline with everReachedAServer still false, and the screen would tell its user "Couldn't
      * reach the server… check your connection" about the server that had just spent thirty minutes
@@ -196,7 +196,7 @@ class DeviceGrantPollTest {
      * the whole half hour of the device code — and #55 made that worse, because a burst used to die
      * on its first `network_error` and now no longer does.
      *
-     * ⛔ The floor is asserted on the CLOCK, not on the variable: the interval is a private local,
+     * The floor is asserted on the CLOCK, not on the variable: the interval is a private local,
      * and what a server sees is the spacing of the requests.
      */
     @Test fun `an interval of zero is still paced at one second`() = runTest {

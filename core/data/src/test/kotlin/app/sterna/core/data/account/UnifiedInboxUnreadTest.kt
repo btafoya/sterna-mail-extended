@@ -20,7 +20,7 @@ import org.junit.Test
  * argument, when it asks again, and how [UnifiedInbox.total] folds the answer back into the single
  * number the drawer shows.
  *
- * ⛔ The tests never re-derive the rule themselves — every expectation is a literal list of pairs
+ * The tests never re-derive the rule themselves — every expectation is a literal list of pairs
  * or a literal map. A test that recomputed `accounts.mapNotNull { … }` to build its expectation
  * would agree with a shipped rule that had been inverted.
  *
@@ -49,7 +49,7 @@ class UnifiedInboxUnreadTest {
      * fixed number under its own account id, so the collected map also says WHICH inboxes were
      * counted.
      *
-     * ⛔ HOT, and it never completes — a `flowOf(…)` here would be a fake that is FINISHED the
+     * HOT, and it never completes — a `flowOf(…)` here would be a fake that is FINISHED the
      * instant it is read, and a finished inner flow makes `flatMapLatest`, `flatMapMerge` and
      * `flatMapConcat` indistinguishable. The real collaborator hands back a `combine` of Room
      * flows that never ends, so the fake is a [MutableStateFlow] kept per scope list: [push] can
@@ -159,7 +159,7 @@ class UnifiedInboxUnreadTest {
     }
 
     /**
-     * ⛔ The claim `flatMapLatest` makes, executed rather than believed: a removed account's
+     * The claim `flatMapLatest` makes, executed rather than believed: a removed account's
      * subscription is DROPPED, not merely superseded. The real counter is a `combine` of Room
      * flows that never completes and keeps emitting on every invalidation, so with `flatMapMerge`
      * the old subscription would still be alive here — and "All inboxes (N)" would flip between
@@ -263,7 +263,7 @@ class UnifiedInboxUnreadTest {
     }
 
     /**
-     * ⭐ The single number is DERIVED from the breakdown, and this is what "derived" has to mean:
+     * The single number is DERIVED from the breakdown, and this is what "derived" has to mean:
      * every account's share, ADDED. One subscription feeds both the drawer's "All inboxes (N)" and
      * the widget's per-account lines, so the two cannot drift apart.
      *
@@ -285,7 +285,7 @@ class UnifiedInboxUnreadTest {
     }
 
     /**
-     * ⛔ Whole line, not a `contains`: a fragment check passes on anything appended to it. This is
+     * Whole line, not a `contains`: a fragment check passes on anything appended to it. This is
      * the "one copy" claim — the store must feed [UnifiedInbox.scopes] its stored list and nothing
      * else. A second `mapNotNull { … inboxId … }` here is a rule that can drift from the widget's.
      */
@@ -316,7 +316,7 @@ class UnifiedInboxUnreadTest {
      * then be frozen at the number they were built with — mail read, accounts added, IMAP counters
      * moved, and neither ever moves again.
      *
-     * ⛔ Whole lines, never a `contains`: a substring rule is satisfied by every mutation that
+     * Whole lines, never a `contains`: a substring rule is satisfied by every mutation that
      * LENGTHENS the line, and `flowOf(accountStore.accountsFlow.value)` contains
      * `accountStore.accountsFlow`. The price is that reformatting the call reddens this test —
      * loud, and one line to fix.
@@ -346,7 +346,7 @@ class UnifiedInboxUnreadTest {
     }
 
     /**
-     * ⛔ And the single number is DERIVED from that one subscription, not observed a second time.
+     * And the single number is DERIVED from that one subscription, not observed a second time.
      * Two derivations would be two `combine`s of the same two global Room aggregates, woken by the
      * same invalidations, for the same information — the drawer paying twice so the widget can
      * break it down.

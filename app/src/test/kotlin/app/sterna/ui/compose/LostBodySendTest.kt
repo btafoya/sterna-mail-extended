@@ -6,7 +6,7 @@ import org.junit.Test
 /**
  * [composerMaySendBody], EXECUTED — the decision itself, not the text that contains it.
  *
- * ⛔ Every expectation below is written down as a literal. Nothing here recomputes the rule to
+ * Every expectation below is written down as a literal. Nothing here recomputes the rule to
  * choose what it replays: a test that re-derives `!(lost && blank)` to pick its own answer is a copy
  * of the code, and the shipped condition could then be inverted with every line of it still green.
  *
@@ -16,7 +16,7 @@ import org.junit.Test
 class LostBodySendTest {
 
     /**
-     * ⭐ THE DEFECT, in one line: the composer lost its text, nothing was retyped, and the tap that
+     * THE DEFECT, in one line: the composer lost its text, nothing was retyped, and the tap that
      * follows consumes the only copy of a draft the server has never seen.
      */
     @Test fun `a composer that lost its body and holds nothing may not send`() {
@@ -30,7 +30,7 @@ class LostBodySendTest {
     }
 
     /**
-     * ⛔ …and whitespace is not text. `"\n\n"` is what a composer redrawn empty over a signature
+     * …and whitespace is not text. `"\n\n"` is what a composer redrawn empty over a signature
      * separator holds, and counted as a body it lets the very tap this refuses straight through.
      */
     @Test fun `blank is not a body`() {
@@ -45,7 +45,7 @@ class LostBodySendTest {
     }
 
     /**
-     * ⛔ THE OTHER HALF, and the one a rule written on the flag alone would lose: the flag is raised
+     * THE OTHER HALF, and the one a rule written on the flag alone would lose: the flag is raised
      * once and NEVER lowered, so weighed on its own it locks the composer out for good — the user
      * retypes her message, taps Send, and is refused on a screen holding the text she just wrote.
      */
@@ -60,7 +60,7 @@ class LostBodySendTest {
     }
 
     /**
-     * ⛔ And an empty body that was never lost is a message, not an accident: a mail with a subject
+     * And an empty body that was never lost is a message, not an accident: a mail with a subject
      * and no text, or one carrying only attachments. Refusing it would be a second defect wearing
      * the same wording.
      */
@@ -104,7 +104,7 @@ class LostBodySendTest {
     // -- what the refusal SAYS, executed too -----------------------------------------------------
 
     /**
-     * ⭐ THE SECOND DEFECT, and it was in the shipped sentence, not in the condition: refused on the
+     * THE SECOND DEFECT, and it was in the shipped sentence, not in the condition: refused on the
      * route this guard exists to protect, the app said "Type it again." — and following that
      * instruction is the ONE action that destroys the text. Three characters make the body
      * non-blank, the guard opens, `commitThenConsumeLocalDraft` deletes the row that still holds
@@ -122,7 +122,7 @@ class LostBodySendTest {
     }
 
     /**
-     * ⛔ And the term is ALL THREE stores, which is why this case exists on its own: a SERVER draft
+     * And the term is ALL THREE stores, which is why this case exists on its own: a SERVER draft
      * reopened online whose body this composer lost is untouched on the server — the send that
      * would have replaced it is the one being refused — so it reopens whole as well, and so does
      * the QUEUED OUTBOX ROW behind Outbox → Edit, parked `EDITING` with the text it was queued
@@ -140,7 +140,7 @@ class LostBodySendTest {
     }
 
     /**
-     * ⚠ …and "type it again" stays RIGHT where it is true: a composer that never held a draft has
+     * …and "type it again" stays RIGHT where it is true: a composer that never held a draft has
      * nothing to reopen, and nothing to destroy either. Telling that user to close the screen and
      * open a draft would send her looking for something that does not exist.
      */
@@ -205,7 +205,7 @@ class LostBodySendTest {
     // -- and what a SAVE would destroy, executed too ----------------------------------------------
 
     /**
-     * ⭐ THE DEFECT THIS TIME, and it was reached by the CAUTIOUS gesture: a queued message
+     * THE DEFECT THIS TIME, and it was reached by the CAUTIOUS gesture: a queued message
      * reopened by Outbox → Edit, redrawn empty over a resume slot that lost the body, and saved as
      * a draft rather than sent. `saveDraft` asked nothing, wrote the empty draft, and
      * `consumeEditingOutbox()` then deleted the queued row and its durable attachment directory —
@@ -220,7 +220,7 @@ class LostBodySendTest {
         )
     }
 
-    /** ⛔ …and whitespace is not text here either, for the same reason it is not on the send. */
+    /** …and whitespace is not text here either, for the same reason it is not on the send. */
     @Test fun `a blank body over a queued row destroys it too`() {
         assertEquals(true, lostBodySaveDestroysQueuedRow(bodyWasLost = true, body = " ", holdsQueuedRow = true))
         assertEquals(
@@ -232,7 +232,7 @@ class LostBodySendTest {
     }
 
     /**
-     * ⛔ FIRST TERM ALONE WOULD BE A TRAP: the lost-body flag is raised once and never lowered, so
+     * FIRST TERM ALONE WOULD BE A TRAP: the lost-body flag is raised once and never lowered, so
      * a rule that ignored the body would refuse to save the message the user has just retyped —
      * over a queued row, i.e. exactly where losing it costs the most.
      */
@@ -247,11 +247,11 @@ class LostBodySendTest {
     }
 
     /**
-     * ⛔ …and the body is read WHOLE, never a first line of it. A message retyped starting with a
+     * …and the body is read WHOLE, never a first line of it. A message retyped starting with a
      * newline — Enter, then the text — is a body, and any reading that stops at the first line
      * calls it blank. The flag is never lowered, so on this route that user could never save her
      * reprise again: the trap the second term exists to prevent, reintroduced one line lower.
-     * ⛔ This is a SURVIVING mutation made to fail (`body.substringBefore('\n')` left every other
+     * This is a SURVIVING mutation made to fail (`body.substringBefore('\n')` left every other
      * case in this file green): it is a real reading of a real body, not a test written to close a
      * mutant.
      */
@@ -266,7 +266,7 @@ class LostBodySendTest {
     }
 
     /**
-     * ⛔ SECOND TERM ALONE would refuse a deliberate emptying: a queued message whose text the user
+     * SECOND TERM ALONE would refuse a deliberate emptying: a queued message whose text the user
      * removed on purpose is still saveable as a draft, and nothing about it was lost.
      */
     @Test fun `an empty body nobody lost saves, queued row or not`() {
@@ -280,7 +280,7 @@ class LostBodySendTest {
     }
 
     /**
-     * ⛔ THIRD TERM, and the reason it is not written wider: with no queued row behind the screen
+     * THIRD TERM, and the reason it is not written wider: with no queued row behind the screen
      * this save destroys NOTHING. The phone's own draft row is held by `localDraftBodyToWrite`,
      * which will not write an empty body over the stored one; the server draft by
      * `unlessBodyIsLossy`, since `editingDraftLossy` is true the moment the body is lost. Refusing
@@ -334,7 +334,7 @@ class LostBodySendTest {
     // -- and what CLOSING does to the queued row, executed too ------------------------------------
 
     /**
-     * ⭐ THE DEFECT THIS TIME, and it was reached by following the app's own advice. The send route
+     * THE DEFECT THIS TIME, and it was reached by following the app's own advice. The send route
      * refuses a lost body over a queued row with "Close this screen and reopen the message" — and
      * closing ran `abandon()` → `releaseOutboxEdit`, which put the row back to QUEUED and re-armed
      * it at 0: the message left in under a second (2/2 on the bench), the very message the sentence
@@ -350,7 +350,7 @@ class LostBodySendTest {
         )
     }
 
-    /** ⛔ …and whitespace is not text here either — the same reading as the send and the save. */
+    /** …and whitespace is not text here either — the same reading as the send and the save. */
     @Test fun `a blank body over a lost one parks the queued row too`() {
         assertEquals(true, closingParksQueuedRow(bodyWasLost = true, body = " "))
         assertEquals(
@@ -362,7 +362,7 @@ class LostBodySendTest {
     }
 
     /**
-     * ⛔ The flag alone would be a trap: it is never lowered, so a rule on it alone would park the
+     * The flag alone would be a trap: it is never lowered, so a rule on it alone would park the
      * row on EVERY close after a loss — including "Discard changes" over a message she has retyped,
      * which today gives the row back whole (#70) and must go on doing so.
      */
@@ -376,7 +376,7 @@ class LostBodySendTest {
         assertEquals(false, closingParksQueuedRow(bodyWasLost = true, body = "\nBonjour"))
     }
 
-    /** ⛔ And an empty body nobody lost is a deliberate emptying; closing over it is the #70 close. */
+    /** And an empty body nobody lost is a deliberate emptying; closing over it is the #70 close. */
     @Test fun `an empty body nobody lost goes back to the queue on close`() {
         assertEquals(
             "no loss behind this empty body: the close is the ordinary one and the row goes back " +

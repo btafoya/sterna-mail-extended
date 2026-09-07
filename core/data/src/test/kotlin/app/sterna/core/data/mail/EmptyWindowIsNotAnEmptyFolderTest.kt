@@ -8,7 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * ⛔ A walk can end WITHOUT throwing and still know nothing about the folder — and the reconcile
+ * A walk can end WITHOUT throwing and still know nothing about the folder — and the reconcile
  * that follows deletes every cached row it is not given.
  *
  * The concrete case: an `Email/get` answering `200 OK` with no `list` key. `decodeList` returns an
@@ -17,7 +17,7 @@ import org.junit.Test
  * list. Nothing anywhere failed. Reconciling against that empty set empties the folder — everything
  * except the recently-mutated spare.
  *
- * ⚠ This is not a regression of the streaming volet: `replaceMailbox(…, emptyList(), …)` did
+ * This is not a regression of the streaming volet: `replaceMailbox(…, emptyList(), …)` did
  * exactly the same before it. What the volet added is a claim that this cannot happen, which is
  * what makes it worth closing rather than filing.
  *
@@ -38,7 +38,7 @@ class EmptyWindowIsNotAnEmptyFolderTest {
     // -- the rule itself ---------------------------------------------------------------------------
 
     @Test fun `a query that listed ids and a get that returned none is a REFUSAL, not an empty folder`() {
-        // ⭐ The case. 500 ids listed, nothing decoded. Answering an empty set here deletes the
+        // The case. 500 ids listed, nothing decoded. Answering an empty set here deletes the
         // folder on a refresh in which the app learned precisely nothing.
         assertNull(reconcilableWindowIds(walk(ids = emptyList(), queryCount = 500)))
     }
@@ -89,7 +89,7 @@ class EmptyWindowIsNotAnEmptyFolderTest {
     }
 
     @Test fun `a muted GET leaves the folder exactly as it was`() {
-        // ⭐ End to end, with the shipped keepIds: nothing was written, nothing may be deleted.
+        // End to end, with the shipped keepIds: nothing was written, nothing may be deleted.
         val folder = Folder(cached = listOf("kept1", "kept2", "kept3"))
 
         writeThrough(folder, walk(ids = emptyList(), queryCount = 500))

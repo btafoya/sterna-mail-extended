@@ -26,7 +26,7 @@ import org.junit.Test
  * the scopes handed to its counter — a returned value would say nothing about the subscription that
  * produced it.
  *
- * ⛔ The fake is HOT and never completes, on purpose. A `flowOf(…)` is finished the instant it is
+ * The fake is HOT and never completes, on purpose. A `flowOf(…)` is finished the instant it is
  * read, and a finished inner flow makes `flatMapLatest`, `flatMapMerge` and `flatMapConcat`
  * indistinguishable — the real counter never ends, so a subscription the shipped code failed to
  * drop stays alive and keeps arriving. [Counter.push] is that arrival, aimed at a flow handed out
@@ -129,7 +129,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * ⛔ The claim [kotlinx.coroutines.flow.flatMapLatest] makes, executed rather than believed: the
+     * The claim [kotlinx.coroutines.flow.flatMapLatest] makes, executed rather than believed: the
      * subscription is DROPPED when the last cell goes, not merely superseded. With `flatMapMerge`
      * the app would keep counting mail for a widget that no longer exists, on every write to the
      * database, for as long as the process lives — and nothing on screen would ever say so.
@@ -202,16 +202,16 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * ⛔ THE SAME BREAKDOWN TWICE IS ONE DRAW. Nothing upstream says so: the real counter is a
+     * THE SAME BREAKDOWN TWICE IS ONE DRAW. Nothing upstream says so: the real counter is a
      * `combine` of two Room flows, and a single write makes both legs re-emit, so one message
-     * marked read arrives here as the same map two or more times over. ⚠ A `Map` compares by
+     * marked read arrives here as the same map two or more times over. A `Map` compares by
      * value, which is what keeps this rule true now that the payload is no longer an integer.
      *
      * A draw is not free — `getAppWidgetIds` over binder, the account blob decoded from JSON, a
      * `PendingIntent.getActivity(FLAG_UPDATE_CURRENT)`, and an `updateAppWidget` the launcher
      * re-inflates on — and every one of those repeats redrew digits that were already on the cell.
      *
-     * ⚠ The counter fake above cannot show this: it hands back a [MutableStateFlow], which drops a
+     * The counter fake above cannot show this: it hands back a [MutableStateFlow], which drops a
      * value equal to the one it holds all by itself. The repetition being defended against comes
      * from the two legs of a `combine`, so it is written here as a flow that really does repeat.
      */
@@ -238,7 +238,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * ⛔ THE NUMBERS DO NOT MOVE AND THE CELL MUST STILL BE REDRAWN — the defect this pane closes.
+     * THE NUMBERS DO NOT MOVE AND THE CELL MUST STILL BE REDRAWN — the defect this pane closes.
      *
      * [UnreadWidgetContent.of] calls the cell "All inboxes" only above [AllInboxesView.existsFor],
      * i.e. from two accounts up, and below it the label is the single account's own inbox name;
@@ -252,7 +252,7 @@ class UnreadWidgetPushTest {
      * `updatePeriodMillis="0"` nothing else was coming: on a quiet mailbox the cell went on saying
      * "All inboxes" — and opening it — for days after the second account was removed.
      *
-     * ⚠ The expected emissions are written out in full and NOT recomputed from `existsFor` here —
+     * The expected emissions are written out in full and NOT recomputed from `existsFor` here —
      * a test that re-derived the bound would stay green with the shipped bound inverted.
      */
     @Test fun `crossing the two-account bound redraws, on a count that did not move`() = runTest {
@@ -285,7 +285,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * ⛔ THE OTHER BOUND, and the one a boolean arm would lose: NO ACCOUNT AT ALL versus ONE.
+     * THE OTHER BOUND, and the one a boolean arm would lose: NO ACCOUNT AT ALL versus ONE.
      *
      * [UnreadWidgetContent.of] has THREE arms, not two — "All inboxes", the single account's inbox
      * name, and the app's own name with a zero when there is no account. `existsFor` is `false` on
@@ -293,7 +293,7 @@ class UnreadWidgetPushTest {
      * cell showing the app's name after a first account arrived, and a mailbox name nobody owns
      * after the last one left.
      *
-     * ⚠ The map is EMPTY from end to end here, which is not a contrivance: an account with no
+     * The map is EMPTY from end to end here, which is not a contrivance: an account with no
      * `inboxId` contributes no entry, so "no account" and "one imported account" produce the same
      * empty breakdown — the emission has nothing else to be told apart by.
      */
@@ -326,7 +326,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * ⛔ THE THIRD PAIR, AND THE ONE THE TWO TESTS ABOVE CANNOT SEE: no account at all versus two.
+     * THE THIRD PAIR, AND THE ONE THE TWO TESTS ABOVE CANNOT SEE: no account at all versus two.
      *
      * The bound has three states, so it has three distinctions to keep, and the two crossings
      * played above both pass THROUGH the single-account state. Nothing else in this file runs
@@ -334,17 +334,17 @@ class UnreadWidgetPushTest {
      * suite would stay green — with the cell left on the app's own name and a zero, opening the app
      * bare, where it must say "All inboxes" and open that list.
      *
-     * ⛔ And that one step is real, not a contrivance of the test: `AccountStore.importAccounts`
+     * And that one step is real, not a contrivance of the test: `AccountStore.importAccounts`
      * ends in a single `saveAccounts(existing + added)`, so restoring a two-account backup onto an
      * install that had none republishes the list ONCE, already at two. Every imported record is
      * written with `inboxId = null`, so `UnifiedInbox.countedInboxes` drops both and the breakdown
      * is the empty map on either side: this emission has nothing but the bound to be told apart by,
      * and swallowed it leaves that cell wrong for days (`updatePeriodMillis="0"`).
      *
-     * ⚠ The way back is pinned for the same reason, whichever gesture takes the list from two
+     * The way back is pinned for the same reason, whichever gesture takes the list from two
      * straight to none: it is the same pair, and a bound that conflated them would lose it too.
      *
-     * ⚠ The expected emissions are written out in full and NOT recomputed from `existsFor` here —
+     * The expected emissions are written out in full and NOT recomputed from `existsFor` here —
      * a test that re-derived the bound would stay green with the shipped bound inverted.
      */
     @Test fun `no account becoming two in one step redraws, and back`() = runTest {
@@ -377,7 +377,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * ⛔ THE PRICE OF THE ARM ABOVE, and the reason it carries a BOUND and not the account list.
+     * THE PRICE OF THE ARM ABOVE, and the reason it carries a BOUND and not the account list.
      *
      * `saveAccounts` is the choke point of some twenty-seven writes — a refreshed OAuth token, a
      * colour, identities discovered on a sync — and every one of them republishes `accountsFlow`.
@@ -424,7 +424,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * ⛔ ONE ACCOUNT IS NOT AN ABSENCE OF ACCOUNTS, and this test exists because the arm added for
+     * ONE ACCOUNT IS NOT AN ABSENCE OF ACCOUNTS, and this test exists because the arm added for
      * the label reads a BOUND: on a single-account install — the large majority — that bound never
      * changes for the whole life of the process.
      *
@@ -460,7 +460,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * ⛔ THE GATE GOVERNS BOTH ARMS, and this is the half a combine placed outside
+     * THE GATE GOVERNS BOTH ARMS, and this is the half a combine placed outside
      * [kotlinx.coroutines.flow.flatMapLatest] would lose. Such a combine RETAINS the last value of
      * each arm, and the gated arm never completes — it only falls silent — so an account added or
      * removed after the last cell was taken off the home screen would pair a stale breakdown with

@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ THIS TEST READS SOURCE TEXT — the last resort, for the reason [DestroyChecksTheFolderWiringTest]
+ * THIS TEST READS SOURCE TEXT — the last resort, for the reason [DestroyChecksTheFolderWiringTest]
  * spells out: `MailRepository` needs Room, a `Context` and a socket, so no JVM test instantiates
  * it. The DECISION guarded here is EXECUTED by [DeleteDestroysMessageTest]; this pins where it is
  * plugged in.
@@ -15,13 +15,13 @@ import org.junit.Test
  * `MessageDestroyWorker`, permanent, behind a 5 s Undo. Since `delete()` resolves-or-creates the
  * Trash, that answer erased mail the user asked to bin.
  *
- * ⛔ It pins the body as a WHOLE LIST OF LINES, not as three rules that each hunt for the line they
+ * It pins the body as a WHOLE LIST OF LINES, not as three rules that each hunt for the line they
  * care about. A rule that only says "this line must be present" says nothing about what else may
  * decide: `if (trash == null) return !email.mailboxId.isNullOrBlank()`, slipped in between the
  * lookup and the return, restores the defect in full and satisfies every "must contain" rule ever
  * written for this function. Any line added, removed, reordered or lengthened reddens the list.
  *
- * ⚠ What it CANNOT hold: that [MailRepository.delete] still resolves the bin the way pinned here.
+ * What it CANNOT hold: that [MailRepository.delete] still resolves the bin the way pinned here.
  * That end is [DeleteResolvesOrCreatesTrashWiringTest]'s, line by line; if `delete()` learns a
  * fourth way to find a Trash, that file reddens and this one must be brought along by hand.
  */
@@ -88,7 +88,7 @@ class DeleteWouldDestroyWiringTest {
     }
 
     @Test fun `accountHasTrash keeps asking the role itself, never through the message rule`() {
-        // ⛔ The two are NOT the same question, and their answers may now differ: a JMAP bin known
+        // The two are NOT the same question, and their answers may now differ: a JMAP bin known
         // by name only is a Trash for the message rule and not for this one. That asymmetry is
         // arbitrated — the account probe's conservatism can only leave a row untreated and
         // announced, never destroy one — so it stays exactly as it is.

@@ -36,7 +36,7 @@ class UnsubscribeOfferTest {
         )
     }
 
-    /** ⛔ Done is done. This is the second POST that used to be one menu tap away. */
+    /** Done is done. This is the second POST that used to be one menu tap away. */
     @Test fun `a completed unsubscribe is not offered again`() {
         assertNull(offeredUnsubscribeAction(oneClick, UnsubscribeState.Sent))
         assertNull(offeredUnsubscribeAction(mail, UnsubscribeState.Queued))

@@ -15,7 +15,7 @@ import java.time.Instant
  * steps that record every call and can be made to fail one at a time. Its wiring into
  * `MailRepository.moveToAccount` is [MoveToAccountWiringTest]'s.
  *
- * ⛔ Every assertion is on the WHOLE list of calls, never on `contains`: "trash was called" says
+ * Every assertion is on the WHOLE list of calls, never on `contains`: "trash was called" says
  * nothing about a trash that happened before the copy, and "trash was not called" nothing about a
  * mark that was skipped. The list IS the sequence.
  *

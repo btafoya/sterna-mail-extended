@@ -12,7 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⭐ The red line on the IMAP side, EXECUTED: pages written as they land, ONE reconcile at the end,
+ * The red line on the IMAP side, EXECUTED: pages written as they land, ONE reconcile at the end,
  * and NO reconcile at all when the walk cannot vouch for what it read.
  *
  * The decisions under test are both shipped ones — [fullQueryWriteThrough], which orders the four
@@ -21,7 +21,7 @@ import org.junit.Test
  * page" is a mutation these fixtures can SEE: every folder below caches a row only a MIDDLE page
  * names.
  *
- * ⛔ What no JVM test can reach — `MailRepository` needs Room, an Android `Context` and a live IMAP
+ * What no JVM test can reach — `MailRepository` needs Room, an Android `Context` and a live IMAP
  * connection — is that `imapWriteThrough` still routes through these two with these arguments. That
  * is the wiring lint next door ([ImapWindowWiringTest]).
  */
@@ -134,7 +134,7 @@ class ImapFullQueryWriteThroughTest {
         )
     }
 
-    // -- ⭐ the walk that was cut off ----------------------------------------------------------------
+    // -- the walk that was cut off ----------------------------------------------------------------
 
     @Test fun `a walk cut off in the middle deletes NOTHING, and keeps the pages it did write`() {
         // The network drops after two of three pages. Everything the cache held must still be
@@ -159,7 +159,7 @@ class ImapFullQueryWriteThroughTest {
     }
 
     @Test fun `a cancellation deletes nothing either, and propagates`() {
-        // A back gesture during a pull-to-refresh. ⛔ Catching this to "clean up" would mean
+        // A back gesture during a pull-to-refresh. Catching this to "clean up" would mean
         // deleting mail on the one path where the app knows least about the folder.
         val folder = Folder(cached = listOf(id(999)))
         val cancelled = CancellationException("the screen went away")
@@ -172,10 +172,10 @@ class ImapFullQueryWriteThroughTest {
         assertTrue("the page already received was dropped", folder.cache.containsAll(listOf(id(9), id(8))))
     }
 
-    // -- ⭐ the walk the folder moved under -----------------------------------------------------------
+    // -- the walk the folder moved under -----------------------------------------------------------
 
     @Test fun `a walk whose folder moved finishes, writes every page, and reconciles NOTHING`() {
-        // ⭐ THE test of this volet, and the one thing IMAP has that JMAP does not. An EXPUNGE
+        // THE test of this volet, and the one thing IMAP has that JMAP does not. An EXPUNGE
         // between two pages renumbers everything above it, so a page may have skipped a message —
         // and a skipped message is not in the walk's UIDs. Reconciling here would delete it from
         // the cache while the server still holds it. "stale" stands for that message.
@@ -262,7 +262,7 @@ class ImapFullQueryWriteThroughTest {
     }
 
     @Test fun `the recently-mutated spare is read at the reconcile, not before the walk`() {
-        // ⛔ The 45 s protection window against a walk that takes minutes. uid 42 is a row the user
+        // The 45 s protection window against a walk that takes minutes. uid 42 is a row the user
         // restored WHILE the walk ran: it is in the cache, in no page, and in the spare set only
         // from page 2 onwards. A spare set read at the entry is empty, and the reconcile deletes
         // the restored row — undoing, one function later, the Undo.
@@ -299,7 +299,7 @@ class ImapFullQueryWriteThroughTest {
     // -- the decision itself ---------------------------------------------------------------------------
 
     @Test fun `reconcilableIds refuses a moved folder and never answers an empty set instead`() {
-        // ⛔ Null is a refusal; an empty set is "keep nothing", i.e. delete the folder. The two
+        // Null is a refusal; an empty set is "keep nothing", i.e. delete the folder. The two
         // must never be confused, so the refusal is stated on a NON-EMPTY walk.
         val load = ImapFolderLoad(emptyList(), inbox, "Inbox", 0, "tester", ImapFolderWalk(listOf(9L, 8L), moved = true))
 

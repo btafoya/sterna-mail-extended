@@ -219,7 +219,7 @@ class IdentitiesToCreateTest {
     /**
      * THE case this guard exists for. On an account with no manual identity stored, the account
      * screen FABRICATES one row carrying `account.username` — the login address — so the Identities
-     * section does not open empty (`SettingsScreen.kt:1428-1448`). Nobody typed it. It reaches this
+     * section does not open empty (`SettingsScreen-1448`). Nobody typed it. It reaches this
      * function looking exactly like a row the user added, so a Save that only renamed the display
      * name would post a durable `Identity/set` for an address nobody asked to publish.
      *

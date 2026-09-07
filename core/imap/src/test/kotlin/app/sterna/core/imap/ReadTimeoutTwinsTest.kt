@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⚠ SOURCE LINT. The two `withReadTimeout` wrappers — one plain, one suspending — cannot call each
+ * SOURCE LINT. The two `withReadTimeout` wrappers — one plain, one suspending — cannot call each
  * other (a plain function cannot take a suspending lambda; making the plain one suspend would drag
  * `connect` with it), so they are written twice and must not drift.
  *
@@ -36,7 +36,7 @@ class ReadTimeoutTwinsTest {
     }
 
     @Test fun `neither of them arms the socket itself`() {
-        // ⛔ The rule behind the rule. As long as the assignment lives in `armReadTimeout`, the
+        // The rule behind the rule. As long as the assignment lives in `armReadTimeout`, the
         // budget tests that go through the plain wrapper are also testing the suspending one. A
         // wrapper that set `soTimeout` on its own would be back to being a copy nobody executes.
         listOf("withReadTimeout", "withReadTimeoutSuspending").forEach { wrapper ->

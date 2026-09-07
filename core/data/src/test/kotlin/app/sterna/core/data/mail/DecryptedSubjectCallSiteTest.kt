@@ -22,7 +22,7 @@ import java.io.File
  * The assertion is on the WHOLE trimmed line, by equality. Never `contains`: a `contains` is blind
  * to every mutation that LENGTHENS the line, which has been found three times on this repo.
  *
- * ⭐ And it screens EVERY code line of the branch that mentions a subject, not just the assignment
+ * And it screens EVERY code line of the branch that mentions a subject, not just the assignment
  * that opens with `subject =`. Narrowed to the assignment, a LATER write in the same branch —
  * `DecryptedEntry(MessageBody(display.copy(subject = email.subject), inline, crypto), entity)` —
  * puts the cover subject back and leaves this file green. Comment lines are dropped so the

@@ -15,7 +15,7 @@ import java.io.File
  * Robolectric, no `compose-ui-test`, no `androidTest` — adding one is a dependency decision, not a
  * test decision. Five silent edits this file exists to catch:
  *
- *  1. ⭐ **the guard at the row itself inverted, dropped, or leaving the `Spacer` outside it.**
+ * 1. **the guard at the row itself inverted, dropped, or leaving the `Spacer` outside it.**
  *     Nothing in this repo executes `EmailListItem`, so `if (!LocalListMonogram.current)` hides the
  *     initials for everyone who asked to keep them, and a `Spacer` left outside the braces adds its
  *     12 dp to the row's own `padding(start = 16.dp)` and leaves a dead band at the start of every
@@ -38,7 +38,7 @@ import java.io.File
  */
 class ListMonogramWiringTest {
 
-    // -- 1. ⭐ the row itself ---------------------------------------------------------------------
+    // -- 1. the row itself ---------------------------------------------------------------------
 
     /**
      * The only observer of the guard and of the `Spacer`'s position. `EmailListItem` is a
@@ -224,7 +224,7 @@ class ListMonogramWiringTest {
      * dead — the switch flips, then springs back on the next emission — with the suite green.
      */
     /**
-     * ⭐ The single line that connects the stored key to the rest of the app, and the one every
+     * The single line that connects the stored key to the rest of the app, and the one every
      * other rule in this file walks past: it starts with `val listMonogram:`, carries no
      * `LIST_MONOGRAM_DEFAULT =`, no `it[KEY_LIST_MONOGRAM]` and none of the backup prefixes. Nothing
      * in this repo builds a `SettingsRepository`, so nothing executes it either.

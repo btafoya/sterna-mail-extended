@@ -44,7 +44,7 @@ import org.junit.Test
  * about, and a test built on one would pass against the broken code. `dataStore.data.map { … }`, the
  * flow the bug actually travels down, is a cold flow with no such conflation.
  *
- * ⛔ Nothing here says a word about the screen keeping its scroll position: `PageFetcher`,
+ * Nothing here says a word about the screen keeping its scroll position: `PageFetcher`,
  * `LazyListState` and Room are all out of reach in a JVM test. This proves the pager is not ASKED to
  * rebuild; that the list then stays put is bench work.
  */

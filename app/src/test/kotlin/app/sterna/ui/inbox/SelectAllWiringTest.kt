@@ -82,7 +82,7 @@ class SelectAllWiringTest {
         // handed `false` satisfies the argument rule above only if that constant is written there,
         // and this rule is what makes writing it impossible.
         //
-        // ⚠ It used to demand the raw funnel (`val filtered = unreadOnly.value`), and that stopped
+        // It used to demand the raw funnel (`val filtered = unreadOnly.value`), and that stopped
         // being the list's filter when a third scope arrived: `Sel.Unread` forces the filter on
         // whatever the funnel says, so the raw read reopened #126 by construction. The one source
         // both the pager and this read now ask is `listUnreadOnly`, executed in ListUnreadOnlyTest

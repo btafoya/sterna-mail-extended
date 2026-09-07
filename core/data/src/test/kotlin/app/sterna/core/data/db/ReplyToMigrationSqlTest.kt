@@ -20,7 +20,7 @@ import java.sql.DriverManager
  * proxy, starting from the PUBLISHED v15 schema and chained up to a real v19 — never from a copy
  * of the statements, so this test cannot drift from the code that ships.
  *
- * ⚠ The stake is not the column. `SternaDatabase` ends its builder with
+ * The stake is not the column. `SternaDatabase` ends its builder with
  * `fallbackToDestructiveMigration()`: a schema bump whose migration is missing or wrong makes Room
  * DROP the whole database — the outbox included, i.e. mail written and never sent, and the
  * snoozed rows. So the seed deliberately holds a queued outbox row and a snooze, and every table's
@@ -391,7 +391,7 @@ class ReplyToMigrationSqlTest {
     }
 
     /**
-     * ⚠ Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
+     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
      * annotation is not retained at runtime, so it cannot be read reflectively (measured:
      * `getAnnotation(Database::class.java)` returns null in this very test source set).
      */

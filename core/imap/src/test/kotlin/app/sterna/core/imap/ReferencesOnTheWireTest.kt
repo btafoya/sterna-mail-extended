@@ -14,10 +14,10 @@ import org.junit.Test
  * item, `BODY.PEEK[HEADER.FIELDS (REFERENCES)]`, and the answer comes back as a header block —
  * `References: <a>\r\n <b>\r\n\r\n`, folded wherever the sender's MTA felt like it.
  *
- * ⛔ `BODY.PEEK`, never `BODY`: a bare section fetch sets `\Seen` (RFC 3501 §6.4.5), and this is
+ * `BODY.PEEK`, never `BODY`: a bare section fetch sets `\Seen` (RFC 3501 §6.4.5), and this is
  * the LIST path — the slip would mark every message of every page read.
  *
- * ⛔ Whole lines compared with assertEquals, as [PreviewPageOnTheWireTest] does: a containment
+ * Whole lines compared with assertEquals, as [PreviewPageOnTheWireTest] does: a containment
  * check is blind to any mutation that makes the line LONGER.
  */
 class ReferencesOnTheWireTest {

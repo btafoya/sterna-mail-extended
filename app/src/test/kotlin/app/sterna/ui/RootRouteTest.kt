@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⭐ The startup routing, EXECUTED. `RootViewModel` needs an `Application`, the account store and
+ * The startup routing, EXECUTED. `RootViewModel` needs an `Application`, the account store and
  * the Keystore, so the decision was extracted into [RootRoute] to be run here rather than read off
  * the source; [RootRefreshWiringTest] holds the other end — that `refresh()` calls it, with these
  * arguments, instead of restating the rule.

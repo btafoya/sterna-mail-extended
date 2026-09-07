@@ -15,14 +15,14 @@ import java.io.File
  * `RemoteViews` and `MainActivity` cannot be built in this suite at all (there is no Robolectric
  * here), so how that request is handed to the launcher is pinned as text.
  *
- * ⛔ WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
+ * WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
  * LENGTHENS the line, which is how the first version of another lint in this repo was walked past
  * twice. The price is that reformatting a pinned line reddens this file — loud, and one line to fix.
  */
 class RecentMailRowTapWiringLintTest {
 
     /**
-     * ⛔ THE TEMPLATE'S ACTION IS LOAD-BEARING, and it is the same trap the counter's `tapIntent`
+     * THE TEMPLATE'S ACTION IS LOAD-BEARING, and it is the same trap the counter's `tapIntent`
      * carries in its own KDoc.
      *
      * A `PendingIntent`'s identity is `(requestCode, Intent as compared by filterEquals, flags)`,
@@ -35,12 +35,12 @@ class RecentMailRowTapWiringLintTest {
      * REWRITTEN by `FLAG_UPDATE_CURRENT`: the user taps the banner announcing a message and the app
      * opens a different one.
      *
-     * ⚠ AND IT IS MUTABLE. A collection widget cannot hand out one `PendingIntent` per row; the
+     * AND IT IS MUTABLE. A collection widget cannot hand out one `PendingIntent` per row; the
      * platform's single route is a template the launcher FILLS IN per row, and filling in a
      * `PendingIntent` requires it to be mutable. It is the app's second one, alongside the
      * quick-reply action in `Notifications`, which `RemoteInput` demands. Two bounds are pinned by
      * this very body: the intent names an explicit component (`MainActivity::class.java`), and it
-     * carries an action of its own. ⛔ NOT a third bound, though the fill-in test next door reads
+     * carries an action of its own. NOT a third bound, though the fill-in test next door reads
      * like one: `Intent.fillIn` copies whatever the base intent left unset, so a holder of the
      * template can add data, categories and a package whatever we put in ours. What makes that
      * cost nothing is that `MainActivity` is exported with a LAUNCHER filter and can already be
@@ -94,7 +94,7 @@ class RecentMailRowTapWiringLintTest {
     }
 
     /**
-     * ⛔ EXTRAS AND NOTHING ELSE, which is what makes the mutable template above acceptable.
+     * EXTRAS AND NOTHING ELSE, which is what makes the mutable template above acceptable.
      *
      * A fill-in `Intent` is merged into the template by the launcher. An action, a data URI or a
      * component set here would be a third party writing into what this app is about to start; the
@@ -102,7 +102,7 @@ class RecentMailRowTapWiringLintTest {
      * three a tapped new-mail notification already carries — so opening arrives on the route that
      * has been carrying notification taps for releases, with every guard it already holds.
      *
-     * ⛔ The two nullable ones are put ONLY when present. `MainActivity.parseEmailOpen` reads them
+     * The two nullable ones are put ONLY when present. `MainActivity.parseEmailOpen` reads them
      * as `?.ifBlank { null }` and `SternaApp` acts on the folder half only when both are there; a
      * blank travelling as a blank would ask for the folder "" of the account "".
      */
@@ -135,7 +135,7 @@ class RecentMailRowTapWiringLintTest {
             functionBody(SERVICE, "override fun getViewAt(position: Int): RemoteViews")
                 .filter { it.startsWith("views.setOnClickFillInIntent(") },
         )
-        // ⛔ AND THE WHOLE FUNCTION, not merely that one line. The filter above proves a line is
+        // AND THE WHOLE FUNCTION, not merely that one line. The filter above proves a line is
         // PRESENT and says nothing about the others — which was harmless while this factory held
         // rows that carried no identifier at all, and stopped being harmless the moment a row
         // became a pair of what it draws and what it opens. Both halves are now in scope here,
@@ -217,7 +217,7 @@ class RecentMailRowTapWiringLintTest {
             ),
             functionBody(SERVICE, "override fun getViewAt(position: Int): RemoteViews"),
         )
-        // ⛔ AND THE ONE LINE getViewAt DELEGATES. Extracting the badge keeps the function above
+        // AND THE ONE LINE getViewAt DELEGATES. Extracting the badge keeps the function above
         // short, and it would also move the lock's promise out of everything this file pins: the
         // whole of "a locked row wears no face" is `row.monogram ?: return null`, three lines down
         // where nothing looks. Both guards are pinned here, in order.
@@ -250,7 +250,7 @@ class RecentMailRowTapWiringLintTest {
     }
 
     /**
-     * ⛔ THE TWO WIDGETS MUST NOT SHARE A REQUEST CODE, and this rule reads the two NUMBERS rather
+     * THE TWO WIDGETS MUST NOT SHARE A REQUEST CODE, and this rule reads the two NUMBERS rather
      * than any prose about them.
      *
      * They already differ by action, which is the real defence; this is the belt. Aligned — the

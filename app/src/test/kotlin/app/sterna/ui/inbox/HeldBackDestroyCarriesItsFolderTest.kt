@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, and a narrow one: neither `InboxViewModel` nor `MessageDestroyWorker` can be
+ * SOURCE LINT, and a narrow one: neither `InboxViewModel` nor `MessageDestroyWorker` can be
  * instantiated in a JVM test (Application, WorkManager, Room), so nothing here runs. It pins the
  * ARGUMENTS of the hand-over the folder check of Codeberg #122 rides on, whole line by whole line
  * — `contains` would be blind to any mutation that lengthens the line.
@@ -23,11 +23,11 @@ import java.io.File
  * hold-back is expunged by UIDs that now name other messages. Nothing executable can see that
  * mutation — only these whole-line comparisons can.
  *
- * ⭐ Since this branch the frozen value comes from THE ROWS, not from the folder: `emails` carries
+ * Since this branch the frozen value comes from THE ROWS, not from the folder: `emails` carries
  * the numbering the SELECT that enumerated it stated, and the folder's record is realigned by any
  * background pass that meets a renumbering while those rows stay on screen. So the absence pinned
  * below — no `recordedUidValidity` anywhere on this path — is as load-bearing as the presences.
- * ⛔ What the split then DOES with those numbers is not pinned here but EXECUTED, in
+ * What the split then DOES with those numbers is not pinned here but EXECUTED, in
  * `UidValidityDestroyRoutesTest`: a decision only read as text is a decision a mutation walks
  * through.
  */
@@ -48,7 +48,7 @@ class HeldBackDestroyCarriesItsFolderTest {
     /**
      * The order of two WHOLE code lines of [lines], with BOTH required to exist.
      *
-     * ⛔ Why this is not an `indexOf` on the raw text, which is what every one of these rules used
+     * Why this is not an `indexOf` on the raw text, which is what every one of these rules used
      * to be: `String.indexOf` answers -1 for a needle that has VANISHED, and `-1 < n` is true for
      * ever. The assertion then stops asserting without ever going red — the rule dies silently at
      * the exact moment the line it guards is renamed or removed, which is the moment it is needed.
@@ -169,7 +169,7 @@ class HeldBackDestroyCarriesItsFolderTest {
      * numbering has to be kept beside the targets, and a flush that looked it up again would
      * hand the destroy the numbering of the very renumbering it must refuse.
      *
-     * ⭐ And WHERE it is read from is now half the point. The numbering must come off THE ROWS —
+     * And WHERE it is read from is now half the point. The numbering must come off THE ROWS —
      * the stamp each cached row was written with by the SELECT that enumerated it — and never off
      * the FOLDER: `mailbox_uidvalidity` is realigned by any background pass that meets a
      * renumbering (`ImapMailService.loadWatchedFolders` → `UidValidityStore.invalidate`) while the
@@ -222,7 +222,7 @@ class HeldBackDestroyCarriesItsFolderTest {
     }
 
     /**
-     * ⛔ THE REGRESSION THIS BRANCH CLOSES, stated as an absence.
+     * THE REGRESSION THIS BRANCH CLOSES, stated as an absence.
      *
      * `repo.recordedUidValidity(...)` answers what `mailbox_uidvalidity` holds for a FOLDER right
      * now. Reading it anywhere on the destroy path puts the defect back whole: a background pass
@@ -248,7 +248,7 @@ class HeldBackDestroyCarriesItsFolderTest {
     }
 
     /**
-     * ⛔ THE UPSTREAM HALF OF #99: a destruction may only touch a line that is STILL THE LINE THAT
+     * THE UPSTREAM HALF OF #99: a destruction may only touch a line that is STILL THE LINE THAT
      * WAS TICKED.
      *
      * A selection holds KEYS, and an IMAP key (`imap:<account>:<folder>:<uid>`) carries the bare
@@ -262,7 +262,7 @@ class HeldBackDestroyCarriesItsFolderTest {
      * what the line represents NOW, under a number the server confirms. Only the selection spans
      * the two moments, so only here can the earlier fact be opposed.
      *
-     * ⚠ Source lint, and only because `InboxViewModel` needs an `Application` and Room. The
+     * Source lint, and only because `InboxViewModel` needs an `Application` and Room. The
      * decision itself is EXECUTED — `DestroyOnlyWhatWasTickedTest` runs the rule, and
      * `DestroyUnderTheNumberingTheRowWasReadUnderTest` runs it against a scripted socket and reads
      * the verdict off the commands that left the client. What can only be read as text is the
@@ -304,7 +304,7 @@ class HeldBackDestroyCarriesItsFolderTest {
             listOf("val now = recordedNumbering(destroyTargets)"),
             codeLinesNaming(body, "recordedNumbering("),
         )
-        // ⛔ AND THE ROWS IT READS ARE THE DESTROY LEG. This line is one identifier away from
+        // AND THE ROWS IT READS ARE THE DESTROY LEG. This line is one identifier away from
         // `plan.move`, and that single word turns the whole guard off in silence: `now` then holds
         // no entry for any row about to be destroyed, `readUnderNow` answers null for every one of
         // them, `drifted` is empty by construction and the data loss is back whole — with the call
@@ -335,7 +335,7 @@ class HeldBackDestroyCarriesItsFolderTest {
      * and `selectAll` all write `_selectedKeys`, and a sixth will be added. A collector on the flow
      * IS "every write", and it forgets an unticked key on its own.
      *
-     * ⛔ Which makes the give-back the dangerous half, and the reason "never re-read" is pinned as
+     * Which makes the give-back the dangerous half, and the reason "never re-read" is pinned as
      * hard as "read at the tick": the keys the split refuses go back into `_selectedKeys`, i.e.
      * straight back through this collector. Let it treat them as new and it stamps them with the
      * numbering of the renumbering, and the second tap on Delete destroys what the first refused.
@@ -353,13 +353,13 @@ class HeldBackDestroyCarriesItsFolderTest {
             ),
             codeLinesNaming(body, "ticked"),
         )
-        // ⛔ THE FIRST LINE OF THE LAUNCH, and that is what replaces the old "capture outside the
+        // THE FIRST LINE OF THE LAUNCH, and that is what replaces the old "capture outside the
         // launch" rule. The stamps are no longer TAKEN at the gesture, they are AWAITED: the read
         // that produces them starts at the TICK, in the collector on _selectedKeys, and a
         // "Select all" publishes it a dozen queries later. A wait suspends, so it goes inside the
         // launch; it goes FIRST because everything below it either suspends or clears the
         // selection, and the collector empties the field the moment the selection is cleared.
-        // ⛔ Still never a re-read: awaiting a publication is not reading the row again, and a
+        // Still never a re-read: awaiting a publication is not reading the row again, and a
         // re-read here would be the realigned number the guard exists to refuse.
         val gestureLines = body.lines().map { it.trim() }
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
@@ -411,20 +411,20 @@ class HeldBackDestroyCarriesItsFolderTest {
             listOf("val numbering = repo.numberingRowsWereReadUnder(credentials, group.map { it.emailId })"),
             codeLinesNaming(bodyOf(INBOX_VIEW_MODEL, "rememberTickedNumbering"), "repo."),
         )
-        // ⛔ LOADING THE STAMPS TAKES FOUR LINES, NOT ONE, and each of the four can be mutated
+        // LOADING THE STAMPS TAKES FOUR LINES, NOT ONE, and each of the four can be mutated
         // while the other three keep their exact appearance: `repo.numberingRowsWereReadUnder(…)`
         // READS, `read[key] = …` WRITES what was read, `val still = …` decides WHICH STAMPS
         // SURVIVE the (suspending) read, and `tickedUnder = (known + read)…` PUBLISHES them. The
         // assertion above pins the read; the three below pin the other three, and the existing
         // `known` assertion pins the last.
         //
-        // ⚠ What a broken load costs is IMAP mail, and IMAP mail only.
+        // What a broken load costs is IMAP mail, and IMAP mail only.
         // `MailRepository.numberingRowsWereReadUnder` returns `emptyMap()` for anything that is
         // not `MailProtocol.IMAP`, so a JMAP stamp is null already, and an absent stamp PASSES by
         // construction (`UidValidity.destroyableUnderTheNumberingItWasTickedUnder`, which refuses
         // only when two real numbers disagree). On IMAP the loss is whole: both #99 guards — the
         // bulk delete's and the cross-account move's — lose the ability to refuse anything at all.
-        // ⭐ That repository behaviour is no longer taken on trust from source text: the decision
+        // That repository behaviour is no longer taken on trust from source text: the decision
         // lives in `numberingStampsOfRows` and `core:data`'s `NumberingStampsTest` EXECUTES it —
         // empty on JMAP with the database never read, the row's own number on IMAP, and a
         // null-stamped row kept as a key. What no JVM test can run stays here: this load.
@@ -440,7 +440,7 @@ class HeldBackDestroyCarriesItsFolderTest {
             listOf("group.forEach { key -> read[key] = numbering[key.emailId] }"),
             codeLinesNaming(remembered, "read[key]"),
         )
-        // ⛔ ONLY THE KEYS WITHOUT A STAMP ARE READ. `(fresh + keys)` compiles without a warning
+        // ONLY THE KEYS WITHOUT A STAMP ARE READ. `(fresh + keys)` compiles without a warning
         // and inverts the rule this very test is named after: every already-stamped key is read
         // again, `read` then carries TODAY's numbering, and `(known + read)` lets `read` win. The
         // rows the split refused are handed straight back into `_selectedKeys` — the give-backs at
@@ -455,7 +455,7 @@ class HeldBackDestroyCarriesItsFolderTest {
             listOf("fresh.groupBy { credentialsFor(it) }.forEach { (credentials, group) ->"),
             codeLinesNaming(remembered, "groupBy"),
         )
-        // ⛔ AND WHAT SURVIVES THE READ IS THE SELECTION AS IT IS NOW. The read above suspends, so
+        // AND WHAT SURVIVES THE READ IS THE SELECTION AS IT IS NOW. The read above suspends, so
         // the stamps are filtered on the keys still ticked when it comes back. Written as a
         // constant — `emptySet()` — the field is emptied on every pass instead: no stamp survives,
         // both guards pass everything on IMAP, and no call site anywhere looks different.
@@ -465,7 +465,7 @@ class HeldBackDestroyCarriesItsFolderTest {
             listOf("val still = _selectedKeys.value"),
             codeLinesNaming(remembered, "val still ="),
         )
-        // ⛔ And it must read ONLY the keys it does not already hold. Re-reading a known key
+        // And it must read ONLY the keys it does not already hold. Re-reading a known key
         // answers what its row carries NOW — which is the value the whole field exists not to be —
         // so a collector that refreshed everything on every selection change would agree with the
         // renumbering it is opposed to, and would do it on the give-back below, where the keys the

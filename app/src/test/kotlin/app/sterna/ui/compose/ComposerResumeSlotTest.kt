@@ -176,7 +176,7 @@ class ComposerResumeSlotTest {
     // -- the closed flag, and what it protects ---------------------------------------------------
 
     /**
-     * ⛔ The rule that keeps a sent — possibly ENCRYPTED — message's cleartext off the disk. The
+     * The rule that keeps a sent — possibly ENCRYPTED — message's cleartext off the disk. The
      * navigation entry is saved as it leaves the composition, i.e. AFTER the composer closed, so
      * without this the very last thing the screen does is write the body back out.
      */
@@ -206,7 +206,7 @@ class ComposerResumeSlotTest {
     // -- one record at a time --------------------------------------------------------------------
 
     /**
-     * ⛔ THE ROTATION DEFECT, and the reason this file exists a second time. Read in androidx's
+     * THE ROTATION DEFECT, and the reason this file exists a second time. Read in androidx's
      * bytecode, not guessed: `SaveableStateHolderImpl.saveAll()` parcels a COPY of the saved
      * states, and `SaveableStateProvider`'s `onDispose` then calls `saveTo` a SECOND time on the
      * live map when the composition is torn down. So the saver runs TWICE per activity recreation
@@ -253,7 +253,7 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * ⛔ REPLACES "two writes give two tokens and the older one no longer reads", which pinned the
+     * REPLACES "two writes give two tokens and the older one no longer reads", which pinned the
      * DEFECT: it read the saver's two runs per recreation as two records, and that is exactly what
      * cost the body on every rotation. Two COMPOSERS are two records; two saves of one composer are
      * one. A record another composer wrote is still refused, and still left where it was — that is
@@ -273,7 +273,7 @@ class ComposerResumeSlotTest {
 
     /**
      * A slot holds ONE record: a newer one takes the place of the older, and the older name stops
-     * opening it. ⭐ This is what the replaced test held that was true — the false half was reading
+     * opening it. This is what the replaced test held that was true — the false half was reading
      * the saver's two runs per recreation as two records, which is what cost the body on rotation.
      */
     @Test
@@ -288,7 +288,7 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * ⛔ A RENAME THAT IS REFUSED IS A FAILED SAVE. The write succeeds into the temporary and only
+     * A RENAME THAT IS REFUSED IS A FAILED SAVE. The write succeeds into the temporary and only
      * the rename is turned down (here the target is a directory; in the field: SELinux, a lock, a
      * quota reached in between). Reported as success, it hands the parcel a token for a file that
      * does not exist, the inline fallback is skipped, and the composer comes back EMPTY — at 126
@@ -334,7 +334,7 @@ class ComposerResumeSlotTest {
     // -- the parcel fallback, for the day the file cannot be written -----------------------------
 
     /**
-     * ⛔ A `write` that fails must NOT come back as "nothing was saved". It used to: the saver then
+     * A `write` that fails must NOT come back as "nothing was saved". It used to: the saver then
      * parcelled `null`, the composer was rebuilt EMPTY over an `applied` that survived in the
      * parcel, `draftReopenView` drew that blank editor as if it were the draft, and `isDirty` being
      * false the back gesture left without a word. A short body costs a few kB of parcel — which is
@@ -371,7 +371,7 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * ⛔ REWRITTEN, and the rule it carries is now half of what it used to be. What stays true:
+     * REWRITTEN, and the rule it carries is now half of what it used to be. What stays true:
      * above the bound the text is NOT forced into the parcel — the parcel is what killed the
      * activity in the first place. What was false: "the fallback may never make anything worse".
      * The crash took the WHOLE parcel, `applied` with it, so the composer came back unprimed and
@@ -415,7 +415,7 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * ⛔ THE PARCEL NAMED A RECORD, AND THE RECORD WAS NOT THERE. Measured on the bench on
+     * THE PARCEL NAMED A RECORD, AND THE RECORD WAS NOT THERE. Measured on the bench on
      * 2026-08-26: a 20 112 character server draft, HOME pressed, the slot written (40 284 bytes),
      * the file then removed — the removal was provoked on the bench, and this test stands for the
      * whole family `read` collapses into one `null`: a file no longer there, a truncated or foreign
@@ -423,12 +423,12 @@ class ComposerResumeSlotTest {
      * `To` and `Subject` intact from their own saveables, and the Save icon lit; that save left one
      * 317 byte bodiless row on the server where 21 260 bytes had been. Irreversible, in silence.
      *
-     * ⭐ A `t:` parcel is a PROMISE that a body was parked. Failing to read it back is a LOSS, not
+     * A `t:` parcel is a PROMISE that a body was parked. Failing to read it back is a LOSS, not
      * an absence: `read` collapses five different causes into one `null`, and none of them means
      * "there was nothing to restore". The composer must come back knowing it, exactly as it does
      * for the `l:` mark, so that `editingDraftLossy` keeps the server copy instead of replacing it.
      *
-     * ⚠ The BOUND on this — a `t:` with no token at all must still restore to nothing — is the
+     * The BOUND on this — a `t:` with no token at all must still restore to nothing — is the
      * `"t:"` entry of the junk list in `an unrecognised parcel value restores nothing`. A parcel
      * from an older build may not be allowed to arm the loss on a composer that never parked
      * anything.
@@ -471,7 +471,7 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * ⭐ THE FLAG IS STICKY, and this is the only test that says so. Without it, raising the flag
+     * THE FLAG IS STICKY, and this is the only test that says so. Without it, raising the flag
      * solely on the save that fails passes everything else: the very next save — a rotation a
      * second later, with the disk free again — parks the body perfectly and carries NO flag, the
      * verdict falls back to clean, and the Save after that destroys the server copy of a draft
@@ -520,7 +520,7 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * ⛔ AN EMPTY BODY THAT WAS PARKED IS NOT A LOST ONE, and this is the counter-witness the
+     * AN EMPTY BODY THAT WAS PARKED IS NOT A LOST ONE, and this is the counter-witness the
      * decision hangs on: what says "lost" is the RECORD that could not be read, never the emptiness
      * of what came back. Read the emptiness instead — the mutation looks like a hardening — and the
      * most ordinary screen in the app is armed: a new message where the recipient and the subject
@@ -571,9 +571,9 @@ class ComposerResumeSlotTest {
     /**
      * Exactly at the bound — body, baseline AND the 27-character styling line of an unstyled
      * composer (`b;i;u;s;U;O;a|b;i;u;s;U;O;a`) — accepted, so the bound is a bound and not a guess.
-     * ⚠ Adapted three times: the baseline was 384 characters before #131 (no styling line at all),
+     * Adapted three times: the baseline was 384 characters before #131 (no styling line at all),
      * then 369 when the line held the four inline families, 361 once it carried the two block
-     * groups, and 357 now that the links have a section of their own. ⛔ The number moves with the
+     * groups, and 357 now that the links have a section of their own. The number moves with the
      * FORMAT, never with the bound: `INLINE_LIMIT` is the size of parcel this screen may still
      * send, and it has not changed.
      */
@@ -617,7 +617,7 @@ class ComposerResumeSlotTest {
     /**
      * Anything the saver does not recognise is nothing, and never an exception out of a restore.
      *
-     * ⛔ The bound is the EMPTY form, on both carriers: `t:` and `v:` on their own NAME nothing, so
+     * The bound is the EMPTY form, on both carriers: `t:` and `v:` on their own NAME nothing, so
      * they must still restore to nothing — a parcel that never promised a body may not arm the
      * loss on a composer that never parked one.
      */
@@ -629,7 +629,7 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * ⛔ …AND THE OTHER SIDE OF THAT BOUND: a `v:` that CARRIES something and cannot be read is a
+     * …AND THE OTHER SIDE OF THAT BOUND: a `v:` that CARRIES something and cannot be read is a
      * LOSS, not an absence — the same sentence the file already writes for `t:`. Restored as
      * nothing, `rememberSaveable` falls back to its factory and the composer comes back empty AND
      * clean: `initialBody` is empty too, so `ComposeDirty` answers "unchanged", the Save icon is
@@ -656,7 +656,7 @@ class ComposerResumeSlotTest {
     // -- a composer parked INLINE crosses an update too -------------------------------------------
 
     /**
-     * ⛔ THE REGRESSION THIS TEST EXISTS FOR. The parcel is NOT always this build's own: the disk
+     * THE REGRESSION THIS TEST EXISTS FOR. The parcel is NOT always this build's own: the disk
      * write fails (full disk, an unwritable `filesDir`), the body travels inline instead, the app
      * is updated, and the process comes back on a saved state the PREVIOUS build wrote. Read with
      * the current shape nailed on, that line is refused — and a refused `v:` is worse than a
@@ -790,7 +790,7 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * ⭐ A file written by the build before either the lists or the links: `/2`, four groups per
+     * A file written by the build before either the lists or the links: `/2`, four groups per
      * side. It still opens, with no list and no link — the composer that was parked before this
      * lot came back or the first rotation after the update loses a body.
      */
@@ -814,7 +814,7 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * ⛔ And what is WRITTEN is `/4`, always. A `/3` header over a seven-section line is a record
+     * And what is WRITTEN is `/4`, always. A `/3` header over a seven-section line is a record
      * NO build can read — not the lists build, which expects six groups, not the links build,
      * which expects five, not this one, which reads the shape and finds a line `/3` never held.
      * Every one of them refuses it, and a refused record is a composer that comes back empty.
@@ -926,7 +926,7 @@ class ComposerResumeSlotTest {
     // -- the links travel with the text (#131) ---------------------------------------------------
 
     /**
-     * ⭐ THE RECORD THIS VOLET EXISTS FOR: one body carrying BOTH a list and a link, on both
+     * THE RECORD THIS VOLET EXISTS FOR: one body carrying BOTH a list and a link, on both
      * sides, through the file. Two builds shipped a `#131` that could carry one or the other; a
      * record holding the two together is what neither of them could read back.
      */
@@ -963,7 +963,7 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * ⛔ The URL is the ONE value in this record that can hold the format's own punctuation — `:`
+     * The URL is the ONE value in this record that can hold the format's own punctuation — `:`
      * would end the parcel's header, `\n` would end the styling line, `|` separates the two sides,
      * `,` and `-` cut the spans apart. It is percent-encoded for exactly that reason, and this is
      * the test that says so: a URL carrying every one of them at once, through the FILE and
@@ -972,7 +972,7 @@ class ComposerResumeSlotTest {
     @Test
     fun `a link whose URL holds every separator round trips, on disk and inline`() {
         val url = "https://e.example/a:b,c;d|e-f g?x=1&y=2#é"
-        // ⛔ THE UNRESERVED SET, ON BOTH SIDES. The encoder writes `A-Za-z0-9._~` raw and the
+        // THE UNRESERVED SET, ON BOTH SIDES. The encoder writes `A-Za-z0-9._~` raw and the
         // decoder accepts exactly those raw; nothing else in this suite carries a `~`, a `_`, a
         // digit or an upper-case letter OUTSIDE a `%XX` escape, so nothing else can see the two
         // sets drift apart. Drop `~` from either one and `https://example.org/~iris` refuses the
@@ -1047,7 +1047,7 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * ⛔ THE THIRD BORDER. The guard is written as living at every border a URL crosses, and this
+     * THE THIRD BORDER. The guard is written as living at every border a URL crosses, and this
      * file is one of them: a parked record hands a `Link` straight to the composer, and the next
      * send writes it into the message as `<a href="…">`. A record carrying `javascript:` — or a
      * RELATIVE address, which this border may not invent a scheme for either — refuses the whole
@@ -1082,7 +1082,7 @@ class ComposerResumeSlotTest {
     // -- one `/3` header, two builds that wrote different lines under it --------------------------
 
     /**
-     * ⭐ A file left by the LISTS build, written by hand: `/3`, SIX groups a side. ⛔ It must read,
+     * A file left by the LISTS build, written by hand: `/3`, SIX groups a side. It must read,
      * blocks and all. Refusing it is not a lost list: `read` answers null, the parcel still says
      * `t:<token>`, and the composer comes back EMPTY over a draft it believes was parked.
      */
@@ -1105,7 +1105,7 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * ⭐ And a file left by the LINKS build, under the SAME `/3`: FIVE sections a side. It must
+     * And a file left by the LINKS build, under the SAME `/3`: FIVE sections a side. It must
      * read too, links and all — which is why the version number alone may not decide the shape.
      */
     @Test
@@ -1153,7 +1153,7 @@ class ComposerResumeSlotTest {
             StylingShape.FAMILIES,
             ComposerResumeSlot.stylingShapeOf("sterna-composer-resume/2", "b0-5;i;u;s|b;i;u;s"),
         )
-        // ⛔ And every form no build ever wrote. A shape answered here is a draft handed back as
+        // And every form no build ever wrote. A shape answered here is a draft handed back as
         // something other than what was written.
         for ((magic, line) in listOf(
             "sterna-composer-resume/3" to "b;i;u;s;U|b;i;u;s;U",           // five, opened by U
@@ -1191,7 +1191,7 @@ class ComposerResumeSlotTest {
     // -- one slot per navigation entry ------------------------------------------------------------
 
     /**
-     * ⛔ TWO composers ARE reachable: `MainActivity` is singleTask, `onNewIntent` feeds
+     * TWO composers ARE reachable: `MainActivity` is singleTask, `onNewIntent` feeds
      * `pendingMailto`, and the host navigates to `compose` unguarded — a mailto: link or a share
      * received with the composer open stacks a SECOND one on the first. On one shared file, closing
      * the second erased the first's text, and the long reply underneath came back blank. Each entry

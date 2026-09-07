@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST. The decision itself — which account is already installed —
+ * SOURCE LINT, NOT A BEHAVIOUR TEST. The decision itself — which account is already installed —
  * is EXECUTED next door by `AccountIdentityTest` (`accountKeyOf`, `resolveExistingLogin`). This
  * only reads the plug that carries it into the two OAuth add paths, because `MailRepository` needs
  * Room, an Android `Context` and a live session and cannot be built in a JVM test.
@@ -15,7 +15,7 @@ import org.junit.Test
  * re-add — the defect the whole branch is about, seen on the bench — says "Account added" over an
  * account nobody added. Nothing else in the suite would go red: no JVM test builds this class.
  *
- * ⛔ Whole trimmed lines, as a CONTIGUOUS block, never `contains`. A fragment check is blind to
+ * Whole trimmed lines, as a CONTIGUOUS block, never `contains`. A fragment check is blind to
  * everything that lengthens the line, and `… == null || true` is exactly that.
  */
 class OAuthAddIdentityWiringTest {
@@ -49,7 +49,7 @@ class OAuthAddIdentityWiringTest {
      * before `accountStore.addOAuth`, because afterwards the answer is always "it exists" — the
      * store has just refreshed the login in place.
      *
-     * ⛔ On BOTH keys this route has written for this address, IN THE SAME ORDER the store resolves
+     * On BOTH keys this route has written for this address, IN THE SAME ORDER the store resolves
      * them: the host this version resolves, then the host the OAuth document came from, which is
      * what 1.5.0 and 1.5.1 stored. Asked on the first alone while the store looks under both, the
      * screen says "account added" over an account the store just refreshed — the sentence 1.5.1
@@ -98,7 +98,7 @@ class OAuthAddIdentityWiringTest {
     }
 
     /**
-     * ⛔ And the answer must leave the function. `return created` is the whole reason these two
+     * And the answer must leave the function. `return created` is the whole reason these two
      * stopped returning `Unit`; dropped for a literal, the screens above are told the same thing
      * every time and the guard is decorative.
      */
@@ -115,7 +115,7 @@ class OAuthAddIdentityWiringTest {
     }
 
     /**
-     * ⛔ The host the account is STORED under is not the host the tokens came from. The password
+     * The host the account is STORED under is not the host the tokens came from. The password
      * path resolves the server by probing `Jmap.autodiscoverHosts` by rank and keeps the apex;
      * the OAuth candidate list drops the apex, so the document is fetched from `mail.<domain>`.
      * Persist that and one mailbox added both ways is two accounts on the phone (#55) — two
@@ -146,7 +146,7 @@ class OAuthAddIdentityWiringTest {
     }
 
     /**
-     * ⛔ The other half of the fence. The manual form's OAuth button and its password button read
+     * The other half of the fence. The manual form's OAuth button and its password button read
      * the SAME field, and the password one stores what was typed verbatim
      * (`ConnectViewModel.finishJmapConnect` → `accountStore.add(server, …)`). A host the reader
      * dictated must therefore reach the store untouched, or `jmap.example.org` typed on both
@@ -173,9 +173,9 @@ class OAuthAddIdentityWiringTest {
     }
 
     /**
-     * ⛔ A resolution that answers nothing writes the account under the old host: #55 reproduced
+     * A resolution that answers nothing writes the account under the old host: #55 reproduced
      * exactly, and on a server we do not own success and silent failure look identical. One line
-     * of log is what tells them apart. ⛔ The host, never the address.
+     * of log is what tells them apart. The host, never the address.
      */
     @Test fun `a silent resolution leaves a line to read`() {
         assertBlock(
@@ -192,7 +192,7 @@ class OAuthAddIdentityWiringTest {
     }
 
     /**
-     * ⛔ And the resolved host must be what the store is GIVEN. Resolving it and then writing
+     * And the resolved host must be what the store is GIVEN. Resolving it and then writing
      * `server = host` anyway is the defect in full, with a decoy line above it that reads right.
      */
     @Test fun `the JMAP OAuth add stores the resolved server, not the document host`() {
@@ -210,7 +210,7 @@ class OAuthAddIdentityWiringTest {
     }
 
     /**
-     * ⛔ And the store must be told the OTHER host this route has filed this address under. An
+     * And the store must be told the OTHER host this route has filed this address under. An
      * account OAuth-added by 1.5.0 or 1.5.1 sits under `mail.<domain>`; this version resolves
      * `<domain>` and would find nothing there. Dropping `documentHost = host` is exactly the
      * mutation that reopens the duplicate — on the phone of everyone who already has an OAuth
@@ -235,13 +235,13 @@ class OAuthAddIdentityWiringTest {
     }
 
     /**
-     * ⛔ Sub-account reconciliation runs on a CREATION only — the same rule the two neighbouring
+     * Sub-account reconciliation runs on a CREATION only — the same rule the two neighbouring
      * routes already carry (`ConnectViewModel.finishTokenConnect` / `finishJmapConnect`, both
      * written `if (created) …`), and this path had it nowhere.
      *
      * A re-add now lands on the login that was already there — with whatever shared sub-accounts
      * it carries. `diffLinkedAccounts` derives its evictions from the RAW discovered list
-     * (`AccountStore.kt:155`), so a session that lists the login's own account but not the shares
+     * (`AccountStore`), so a session that lists the login's own account but not the shares
      * prunes every sub-account and purges its five tables: a real shared mailbox deleted with its
      * cache, which is the destruction #129 exists to prevent. Ungated, that becomes reachable from
      * the Add account screen — and the earlier volets of this branch are precisely what make an
@@ -251,7 +251,7 @@ class OAuthAddIdentityWiringTest {
      * the accounts screen is complete without a round trip, and the `connect()` hook reconciles
      * anyway (see the KDoc of `reconcileLinkedAccountsAfterAdd`).
      *
-     * ⛔ Whole trimmed line, never `contains`: `reconcileLinkedAccountsAfterAdd(` matches the gated
+     * Whole trimmed line, never `contains`: `reconcileLinkedAccountsAfterAdd(` matches the gated
      * and the ungated call alike, which is the whole difference this rule is about.
      */
     @Test fun `sub-account reconciliation only runs when the OAuth add created the account`() {

@@ -32,7 +32,7 @@ import org.junit.Test
  *    hands to the crossing. Same damage as 2, from a file neither half of the fix touches, and
  *    nothing executes that producer.
  *
- * ⚠ Whole trimmed lines, by equality, screening EVERY code line of EVERY module's main sources that
+ * Whole trimmed lines, by equality, screening EVERY code line of EVERY module's main sources that
  * names the field — never `contains` on a single line, which is blind to any mutation that
  * LENGTHENS it, and never a subset, which is blind to a new reader appearing.
  */
@@ -65,7 +65,7 @@ class LostRoleClaimBordersTest {
     }
 
     /**
-     * ⭐ The guard itself, whole lines. The sweep above sees the ONE line that names the field; this
+     * The guard itself, whole lines. The sweep above sees the ONE line that names the field; this
      * sees what it sits in — five survivor families, OR-ed, on the mailbox as it arrives.
      *
      * Two mutations only this stands between: `&&` for one of the `||`, which makes a lost claim a
@@ -85,8 +85,8 @@ class LostRoleClaimBordersTest {
         )
     }
 
-    /** ⛔ The reading of the mark has ONE caller, which is what its purity is there to buy:
-     *  a second call site is a second answer to give the day they disagree. ⚠ The declaration is
+    /** The reading of the mark has ONE caller, which is what its purity is there to buy:
+     * a second call site is a second answer to give the day they disagree. The declaration is
      *  screened out by WHOLE-LINE equality, never by `contains`, which would also swallow a
      *  one-line `internal fun` that happens to call it. */
     @Test fun `the reading of the mark is called exactly once in the whole app`() {
@@ -105,7 +105,7 @@ class LostRoleClaimBordersTest {
     }
 
     /**
-     * ⭐ THE SEAM, and the one mutation everything else here misses. The two halves of this fix are
+     * THE SEAM, and the one mutation everything else here misses. The two halves of this fix are
      * pinned apart — the reading of the mark in `:core:data`, the survivor rule in `:app` — and
      * NOTHING executes what joins them: `MailRepository.observeMailboxes` is the only producer of
      * the [app.sterna.core.jmap.model.Mailbox] list every screen sees, and no JVM test runs it (it
@@ -177,7 +177,7 @@ class LostRoleClaimBordersTest {
             File(root, "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt")
         }
 
-        /** ⛔ EVERY module, not just `:app`: the field is declared in `:core:jmap`, filled in
+        /** EVERY module, not just `:app`: the field is declared in `:core:jmap`, filled in
          *  `:core:data` and read in `:app`, so a sweep of one module proves nothing about it. */
         val MAIN_SOURCES: List<File> by lazy {
             listOf(
@@ -186,7 +186,7 @@ class LostRoleClaimBordersTest {
                 "core/imap/src/main/kotlin",
                 "core/data/src/main/kotlin",
                 "libs/openpgp-api/src/main",
-                // ⛔ The test-app and bench source sets too: they are compiled into a real APK,
+                // The test-app and bench source sets too: they are compiled into a real APK,
                 // and "one reader" has to mean one reader there as well.
                 "app/src/testApp",
                 "app/src/benchShared",

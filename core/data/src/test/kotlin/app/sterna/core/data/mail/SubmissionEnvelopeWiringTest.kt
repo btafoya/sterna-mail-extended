@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ THIS TEST READS SOURCE TEXT — the last resort, exactly as [DraftAddressingWiringTest] does:
+ * THIS TEST READS SOURCE TEXT — the last resort, exactly as [DraftAddressingWiringTest] does:
  * `MailRepository.performDelivery` wants Room, a `Context`, a session and a socket, so no JVM test
  * can run the wiring below. The DECISION it guards is EXECUTED elsewhere — [SubmissionIdentityTest]
  * runs `SubmissionIdentity.choose`, and [app.sterna.core.jmap.EnvelopeOnTheWireTest] reads the
@@ -23,7 +23,7 @@ import org.junit.Test
  *   (or the ordinary one) leaves again under the wrong envelope, which is the defect itself;
  * - the decision rewritten inline instead of asked of `SubmissionIdentity.choose`: the rule then
  *   lives where nothing can execute it, and inverting it turns nothing red;
- * - ⛔ `choice.envelopeMailFrom?.let {` narrowed by so much as a `?.takeIf { … }`: THIS is the line
+ * - `choice.envelopeMailFrom?.let {` narrowed by so much as a `?.takeIf { … }`: THIS is the line
  *   that decides whether an envelope exists at all, and it is the one line of the fix no executable
  *   test can reach — `SubmissionIdentityTest` runs a `choose` this mutation does not touch, and
  *   `EnvelopeOnTheWireTest` is handed an envelope rather than watching one be built. A

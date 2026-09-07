@@ -8,7 +8,7 @@ import org.junit.Test
  * [ReadUnderTheNumberingItWasTickedUnderTest], and the twin of [ImapMoveUnderNumberingTest] for the
  * gesture that READS rather than moves (#99, #189).
  *
- * ⛔ THE HOLE THIS FILLS, and it let a whole delivery through. `MailRepository.moveToAccount` froze
+ * THE HOLE THIS FILLS, and it let a whole delivery through. `MailRepository.moveToAccount` froze
  * the numbering of the tick and handed it to `rawSource`, `rawSource` handed it to
  * `fetchRawSource` — and `fetchRawSource` used it for ONE thing, skipping the cache, then called
  * `imap.fetchSource(credentials, mailboxId, uid)` with three arguments. The fourth parameter fell
@@ -25,7 +25,7 @@ import org.junit.Test
  * came close filtered the file for `rawSource(` / `rawSourceBytes(`, which neither
  * `imap.fetchSource(` nor `rawSourceCache.get(` answers to.
  *
- * ⚠ SOURCE LINT, and the last resort as always: `MailRepository` needs Room, a `Context` and a
+ * SOURCE LINT, and the last resort as always: `MailRepository` needs Room, a `Context` and a
  * socket, so no JVM test in this module instantiates it. What it guards is EXECUTED next door —
  * [ReadUnderTheNumberingItWasTickedUnderTest] drives `ImapMailService.fetchSource` onto a scripted
  * socket and proves the argument is what the SELECT opposes, [RawSourceFromCacheTest] runs the
@@ -58,7 +58,7 @@ class RawSourceReadUnderNumberingTest {
      * Any mention of a numbering, under any spelling — the needle [ImapMoveUnderNumberingTest]
      * invented for exactly this family of mutations, borrowed verbatim.
      *
-     * ⭐ Why a synonym needle and not the string `expectedUidValidity`: the mutation that matters
+     * Why a synonym needle and not the string `expectedUidValidity`: the mutation that matters
      * most here changes NO pinned line at all. Insert
      *
      *     val expectedUidValidity: Long? = null
@@ -89,17 +89,17 @@ class RawSourceReadUnderNumberingTest {
     }
 
     /**
-     * ⭐ THE THREE USES, AND THEY ARE ALL THE POINT. `fetchRawSource` must spend what it was
+     * THE THREE USES, AND THEY ARE ALL THE POINT. `fetchRawSource` must spend what it was
      * frozen three times: once to SKIP THE CACHE (a four-entry LRU keyed `accountId:emailId`, which
      * holds no numbering and would answer before any SELECT), once on the DECISION (`Frozen(null)`
      * — a tick that froze nothing at all — is refused here, before one byte is appended on the
      * target account), and once ON THE WIRE (the argument the SELECT opposes).
      *
-     * ⚠ "Before one byte is appended on the target account", not "before one octet is read": the
+     * "Before one byte is appended on the target account", not "before one octet is read": the
      * cache detour above reads a whole message when nothing is frozen, and the refusal is about
      * what gets WRITTEN on B, which is nothing.
      *
-     * ⛔ Either one alone is worse than neither:
+     * Either one alone is worse than neither:
      *  - the cache skipped and the FETCH unopposed — what shipped — turns the case the user
      *    actually hits ("I open the message, then I move it") from a correct copy into a WRONG one:
      *    the warm cache used to hand back the right message's octets, and now the server hands back
@@ -132,7 +132,7 @@ class RawSourceReadUnderNumberingTest {
      * The cache is READ through the decision and nowhere else — a closed list over the whole file,
      * anchored on the field rather than on one call shape.
      *
-     * ⛔ Anchored on `rawSourceCache`, not on `rawSourceFromCache(`: a rule pinned to the decision's
+     * Anchored on `rawSourceCache`, not on `rawSourceFromCache(`: a rule pinned to the decision's
      * NAME is satisfied while a second, direct `rawSourceCache.get(…)` is added beside it, and the
      * first hit wins. The write and the eviction stay as they are and are named here so that they
      * cannot be mistaken for a leak: octets fetched under a numbering that was just confirmed are
@@ -154,7 +154,7 @@ class RawSourceReadUnderNumberingTest {
             ),
             codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "rawSourceCache"),
         )
-        // ⛔ AND THE ANCHOR IS THE TYPE, NOT THE NAME — the hole the rule above still had. Every
+        // AND THE ANCHOR IS THE TYPE, NOT THE NAME — the hole the rule above still had. Every
         // line of it names the FIELD, so a SECOND `android.util.LruCache` under any other name,
         // read before the refusal, satisfies the whole list and hands back the octets of whatever
         // holds that uid now. Those octets then go to account B under an APPEND that is never
@@ -176,7 +176,7 @@ class RawSourceReadUnderNumberingTest {
      * And the three whole-message FETCHes of the file, pinned together: ONE carries a frozen
      * numbering, the two others carry none and must not grow one.
      *
-     * ⛔ Not a licence to add the stamp everywhere. The other two read on paths that froze nothing
+     * Not a licence to add the stamp everywhere. The other two read on paths that froze nothing
      * — the id comes off the cache and the fetch goes out in the same call — and handing them a
      * value they do not have would be handing them `null`, which changes nothing, or a re-read,
      * which is the defect. What this list is for is the reverse: a FOURTH whole-message read added

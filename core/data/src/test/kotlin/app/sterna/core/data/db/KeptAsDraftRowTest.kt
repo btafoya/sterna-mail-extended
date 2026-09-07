@@ -11,7 +11,7 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * ⭐ The row a "save as a draft" left behind, run against a REAL SQLite engine through the
+ * The row a "save as a draft" left behind, run against a REAL SQLite engine through the
  * statements the app ships (#95 × #70).
  *
  * The state itself is decided by a pure function ([draftSaveParksTheQueuedRowAs], executed in
@@ -21,7 +21,7 @@ import java.sql.DriverManager
  * read out of the shipped [OutboxDao] by [DaoQuerySource] and EXECUTED here, so "the worker never
  * takes this row" is a fact about the statement the phone runs and not about a copy of it.
  *
- * ⛔ The failure this guards is silent and irreversible: the message the user asked to keep as a
+ * The failure this guards is silent and irreversible: the message the user asked to keep as a
  * draft goes out on the next launch, with no undo window, in the version they had BEFORE the edit.
  */
 class KeptAsDraftRowTest {
@@ -55,7 +55,7 @@ class KeptAsDraftRowTest {
      * calls the worker back onto a row, so both directions matter — a state wrongly added here is a
      * worker run nobody asked for, one wrongly removed is a row nobody will ever look at again.
      *
-     * ⚠ The set is UNCHANGED by the interrupted-send fix; what changed is what `SENDING` is doing
+     * The set is UNCHANGED by the interrupted-send fix; what changed is what `SENDING` is doing
      * in it, and the old wording of this message ("still on its way") is now false. It is re-armed
      * so the worker can come and PARK it, not so the worker can deliver it.
      *
@@ -86,7 +86,7 @@ class KeptAsDraftRowTest {
      * that is exactly why parking at SAVE time (rather than leaving the row EDITING and hoping)
      * is what closes the hole — a parked row is no longer EDITING, so neither statement can see it.
      *
-     * ⭐ The EDITING row itself now comes out of the sweep as FAILED — parked with the
+     * The EDITING row itself now comes out of the sweep as FAILED — parked with the
      * interrupted-edit reason (`EditInterruptedRowTest`), no longer requeued — and that is what
      * the third state below says. What this test holds is the two $parked rows, whatever their count.
      */

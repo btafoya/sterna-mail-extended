@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT — the last resort, and for the same reason as `LocalDraftUploadWiringTest`:
+ * SOURCE LINT — the last resort, and for the same reason as `LocalDraftUploadWiringTest`:
  * `StorageRepository` takes a `Context` and eight Room DAOs, so no JVM test can build one. The
  * DECISION this pins is executed by [ClearAttachmentTreesTest]; here only WHERE it is plugged in.
  *
@@ -58,7 +58,7 @@ class AttachmentCacheWiringTest {
         // The whole body, in order: the file sweep is the step that was missing, and it is the last
         // one — the rows go first so a throw from the file system cannot keep them.
         //
-        // ⛔ `clearAttachments()` is passed NOTHING and must stay that way. The directory is flat
+        // `clearAttachments()` is passed NOTHING and must stay that way. The directory is flat
         // and shared, not namespaced per account (`enforceAttachmentCap` filters `isFile`,
         // `usage()` sums `length()`): an `accountId` argument here would mean someone has carved
         // sub-directories, which all three of those readers would stop seeing in silence.
@@ -81,7 +81,7 @@ class AttachmentCacheWiringTest {
     }
 
     @Test fun `the shared sweep is handed the two cache trees and nothing else`() {
-        // ⛔ The ARGUMENTS, not the name of the call. Two ways to break this that both compile:
+        // The ARGUMENTS, not the name of the call. Two ways to break this that both compile:
         //  - `outgoingDir` dropped: staged copies of already-queued sends (#70) survive every
         //    "clear cache" the app offers;
         //  - `localDraftFilesDir` passed in place of `attachmentsDir`: that is DATA LOSS, the
@@ -100,14 +100,14 @@ class AttachmentCacheWiringTest {
     }
 
     /**
-     * ⛔ THE TWO TREES THEMSELVES, whole line. The lint above pins the two IDENTIFIERS handed to the
+     * THE TWO TREES THEMSELVES, whole line. The lint above pins the two IDENTIFIERS handed to the
      * sweep; nothing pinned what they RESOLVE TO, and `"outgoing"` → `"outgoing-cache"` is one word
      * inside one string literal that no test in the repo reads. Every sweep would then run on a
      * directory nobody writes to and report success, while compose's staged bytes — in the clear
      * even in PGP mode — are swept by none of the three gestures, bounded by no cap and counted in
      * no total. That is #70 coming back through the same door this branch just closed.
      *
-     * ⛔ And they must stay under `cacheDir`: `filesDir` holds the outbox and the local drafts, so a
+     * And they must stay under `cacheDir`: `filesDir` holds the outbox and the local drafts, so a
      * tree resolved there would put a cache purge on top of bytes the server has not got.
      */
     @Test fun `the two swept trees resolve under cacheDir, by their own names`() {
@@ -124,7 +124,7 @@ class AttachmentCacheWiringTest {
     }
 
     /**
-     * ⛔ THE SWEEP ITSELF, whole line — the one function [ClearAttachmentTreesTest] executes, pinned
+     * THE SWEEP ITSELF, whole line — the one function [ClearAttachmentTreesTest] executes, pinned
      * because its fixtures cannot see every way of narrowing it. `forEach { it.delete() }` →
      * `forEach { if (it.length() < 1_000_000) it.delete() }` (or a `take(50)`) deletes the small
      * files a test writes and leaves the 3 MB decrypted PDF of the symptom on the phone: green suite,
@@ -146,7 +146,7 @@ class AttachmentCacheWiringTest {
     }
 
     /**
-     * ⛔ THE GLOBAL BUTTON, whole body — the garde this branch must not defeat while fixing its
+     * THE GLOBAL BUTTON, whole body — the garde this branch must not defeat while fixing its
      * neighbour. `PRIVACY.md:41-49` promises, by name, that "Clear cache" (Settings → Storage)
      * removes downloaded attachments; that promise rested on one unpinned line, so this branch
      * would have left the small button guarded and the documented one bare.

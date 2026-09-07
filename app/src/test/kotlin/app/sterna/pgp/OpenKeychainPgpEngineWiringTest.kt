@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ WHAT THIS FILE IS WORTH. It proves the SHAPE of `OpenKeychainPgpEngine.kt` and of the one
+ * WHAT THIS FILE IS WORTH. It proves the SHAPE of `OpenKeychainPgpEngine.kt` and of the one
  * Android-touching line of `PgpProviders.kt`, not their behaviour: it reads the shipped sources and
  * compares whole trimmed lines. It exists because nothing here can build either of them (they need a
  * `Context`, a live binder and a real package manager, and there is no Robolectric in this repo).
@@ -13,7 +13,7 @@ import org.junit.Test
  * perfect around a discovery that only ever looks for OpenKeychain.
  *
  * Some of it is assertions of ABSENCE, on purpose: they survive any mutation that LENGTHENS a line,
- * which a `contains`-style check does not (bitten twice on 2026-08-04). ⛔ But absence alone is not
+ * which a `contains`-style check does not (bitten twice on 2026-08-04). But absence alone is not
  * enough, and a counter-expertise proved it here: a line that names NONE of the forbidden words
  * (`if (PgpProviders.installed(appContext).none { it == PgpProviders.OPENKEYCHAIN }) return null`)
  * rebuilds the whole defect. Hence the CONTIGUOUS block assertions below: whole lines, consecutive,
@@ -46,7 +46,7 @@ class OpenKeychainPgpEngineWiringTest {
     }
 
     @Test fun `the head of service() picks a package and binds it, with nothing in between`() {
-        // ⛔ A CONTIGUOUS block, and it starts at the signature: the defect's second discovery path
+        // A CONTIGUOUS block, and it starts at the signature: the defect's second discovery path
         // came back as a single new statement carrying none of the words the absence tests look for
         // — `if (PgpProviders.installed(appContext).none { it == PgpProviders.OPENKEYCHAIN })
         // return null`. Anywhere between the cached-connection shortcut and the bind, that line
@@ -131,7 +131,7 @@ class OpenKeychainPgpEngineWiringTest {
     }
 
     @Test fun `both Autocrypt calls hand their arguments to the pure requests`() {
-        // ⛔ What each of these two lines is holding up is now EXECUTED next door
+        // What each of these two lines is holding up is now EXECUTED next door
         // ([PgpApiRequestTest]): the minimize pair and the absent armor for the key read, the peer
         // id / date / isMutual = false for the peer update. What no executing test can see is
         // whether these two methods still CALL them, with the arguments they were given — a

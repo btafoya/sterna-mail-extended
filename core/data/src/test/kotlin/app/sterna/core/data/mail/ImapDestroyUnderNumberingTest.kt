@@ -186,7 +186,7 @@ class ImapDestroyUnderNumberingTest {
      * `MailRepository` needs Room and a `Context`, so the lines are pinned WHOLE, arguments
      * included — an assertion that the call merely exists says nothing about what it is handed.
      *
-     * ⭐ Opposing a number READ HERE was only half of it, and the cheap half. Between the moment
+     * Opposing a number READ HERE was only half of it, and the cheap half. Between the moment
      * the composer reads the draft's id off the screen and the moment the discard goes out, a
      * background pass (`loadFolder`, `loadWatchedFolders`) may have seen the folder renumbered and
      * written the NEW number to the store. Reading at execution then opposes that new number to
@@ -224,14 +224,14 @@ class ImapDestroyUnderNumberingTest {
      * discard is refused for ever, or worse it happens to match and licenses the expunge the
      * guard exists to stop.
      *
-     * ⚠ The needle stays the bare `mailboxOf(`, and it is deliberately WIDER than the two lines it
+     * The needle stays the bare `mailboxOf(`, and it is deliberately WIDER than the two lines it
      * pins: any other way of resolving a folder in these bodies — `mailboxDao.mailboxOf(`, a bare
      * `mailboxOf(`, a helper named for one — lands in the list and fails the comparison, which is
      * the whole point of comparing whole lists rather than searching inside them. It was briefly
      * narrowed to `emailDao.mailboxOf(` on the argument that the JMAP branch's `draftMailboxOf(`
      * matched inside it; that argument is false — [codeLinesNaming] is case-sensitive and
      * `draftMailboxOf(` carries a capital M — so the narrowing bought nothing and cost the rule its
-     * reach. ⛔ Do not narrow it again without running the needle over the body first.
+     * reach. Do not narrow it again without running the needle over the body first.
      */
     @Test fun `the numbering is frozen for the very folder the destroy will select`() {
         val resolution = listOf(
@@ -339,7 +339,7 @@ class ImapDestroyUnderNumberingTest {
     }
 
     /**
-     * ⭐ And every one of them must be written as a BLOCK, because a single-expression body is
+     * And every one of them must be written as a BLOCK, because a single-expression body is
      * INVISIBLE to the rule above: [DaoQuerySource.mailFunctionBody] delimits a body by matching
      * braces, an expression body has none, and the lookup then fails instead of reading. A
      * `discardDraft` written as
@@ -367,7 +367,7 @@ class ImapDestroyUnderNumberingTest {
      * than as an absence, so the DECLARATION has to be named and a rule that has stopped finding
      * anything at all cannot pass by accident.
      *
-     * ⭐ There is no execution-time call left. The send used to be the one exception: `performSend`
+     * There is no execution-time call left. The send used to be the one exception: `performSend`
      * read the numbering at delivery, which is a headless worker firing when the network comes back
      * or at a scheduled send's hour — hours or days after the composer read that draft. The outbox
      * row now CARRIES the number the composer froze (`OutboxEntity.draftUidValidity`), so this
@@ -440,7 +440,7 @@ class ImapDestroyUnderNumberingTest {
     }
 
     /**
-     * ⛔ WYSIWYG on the refusal. `onMailbox` invalidates the folder before raising
+     * WYSIWYG on the refusal. `onMailbox` invalidates the folder before raising
      * `ImapUidValidityChanged`, which drops the cached BODIES of the whole Drafts folder and
      * records the new numbering — but the draft's LIST ROW survives, carrying an id from a
      * numbering that no longer exists. The "save" path repairs that by accident (`saveDraft` ends

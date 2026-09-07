@@ -14,11 +14,11 @@ import org.junit.Test
  * inherited the unified inbox's hero drawing and the words "your inbox is empty" over a view that
  * spans every folder of the account.
  *
- * ⛔ The action button is the one that is NOT symmetric: it clears the funnel, and in the unread
+ * The action button is the one that is NOT symmetric: it clears the funnel, and in the unread
  * view there is no funnel to clear — [listUnreadOnly] forces the filter on for that scope. A button
  * that changes nothing is worse than no button.
  *
- * ⛔ And the BODY follows the button. `empty_unread_body` ends on "Turn off the unread filter to see
+ * And the BODY follows the button. `empty_unread_body` ends on "Turn off the unread filter to see
  * all mail", which in the unread view names a funnel that is not on the toolbar and a button that is
  * not under the text: the drawing would describe one view and the words another. That scope gets
  * `empty_unread_view_body`, which promises nothing it cannot keep — "your folders", never "all mail",

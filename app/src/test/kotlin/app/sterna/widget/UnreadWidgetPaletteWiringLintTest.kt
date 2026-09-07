@@ -17,14 +17,14 @@ import java.io.File
  * the app's own theme setting and its OLED option. Replacing any line below with a constant puts
  * that back, and no other test in this module would notice.
  *
- * ⛔ WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
+ * WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
  * LENGTHENS the line. The price is that reformatting a pinned call reddens this test — loud, and
  * one line to fix.
  */
 class UnreadWidgetPaletteWiringLintTest {
 
     /**
-     * ⛔ `setBackgroundResource`, NEVER `setBackgroundColor`.
+     * `setBackgroundResource`, NEVER `setBackgroundColor`.
      *
      * `RemoteViews.setInt(id, "setBackgroundColor", …)` calls `View.setBackgroundColor(int)`, which
      * REPLACES the shape drawable with a flat fill: the cell comes out SQUARE, a rectangle of solid
@@ -132,7 +132,7 @@ class UnreadWidgetPaletteWiringLintTest {
     }
 
     /**
-     * ⭐ THE READ IS BOUNDED, AND IT MAY ANSWER "NOTHING" — the two things this reader buys, and
+     * THE READ IS BOUNDED, AND IT MAY ANSWER "NOTHING" — the two things this reader buys, and
      * both of them are one line away from being lost to a refactor.
      *
      * 1. BOUNDED, with [kotlinx.coroutines.withTimeoutOrNull] and NEVER `withTimeout`. Three
@@ -148,7 +148,7 @@ class UnreadWidgetPaletteWiringLintTest {
      *    the resources would draw the same pixels, so posting nothing costs no colour and keeps
      *    the cell following the system's dusk switch by itself.
      *
-     * ⛔ `withTimeout` must appear NOWHERE in this file. It is eight characters from the right
+     * `withTimeout` must appear NOWHERE in this file. It is eight characters from the right
      * call and its failure mode is a dead process or a mail pass cancelled — neither visible here.
      */
     @Test fun `the palette read is bounded, cancels nothing, and is allowed to answer nothing`() {
@@ -224,7 +224,7 @@ class UnreadWidgetPaletteWiringLintTest {
      *
      * Both of them can be perfectly correct while nothing calls them: `render` would go on drawing
      * a cell whose colours come from the layout's compile-time resources, which is precisely the
-     * state this pane found the widget in. ⛔ And the read belongs HERE, not inside `render`:
+     * state this pane found the widget in. And the read belongs HERE, not inside `render`:
      * `render` is not suspending and never read anything, so a settings read pushed down into it
      * would have to block a binder thread the launcher is waiting on.
      */
@@ -259,7 +259,7 @@ class UnreadWidgetPaletteWiringLintTest {
     }
 
     /**
-     * ⭐ THE ENLARGED LAYOUT IS PAINTED FROM THE SAME PALETTE, and this pane is the only thing
+     * THE ENLARGED LAYOUT IS PAINTED FROM THE SAME PALETTE, and this pane is the only thing
      * that says so.
      *
      * `@layout/widget_unread_accounts` and its rows name `@color/widget_row_primary` and
@@ -269,7 +269,7 @@ class UnreadWidgetPaletteWiringLintTest {
      * and the enlarged one going dark with the phone. Painting one and not the other is worse than
      * painting neither.
      *
-     * ⛔ The rows are painted inside the same `if (palette != null)` decision as the container. A
+     * The rows are painted inside the same `if (palette != null)` decision as the container. A
      * row painted while the container is left to the resources is this theme's text on the other
      * theme's surface, and it is only ever visible on a home screen.
      */
@@ -345,7 +345,7 @@ class UnreadWidgetPaletteWiringLintTest {
         /**
          * The second of the two null paths: the app does not diverge from the system.
          *
-         * ⚠ It decides the PALETTE FIELD and no longer short-circuits the function. As a
+         * It decides the PALETTE FIELD and no longer short-circuits the function. As a
          * `return@withTimeoutOrNull null` it also cancelled the badge tones, which have no
          * compiled resource to fall back on — and this is the DEFAULT row of the three settings.
          */

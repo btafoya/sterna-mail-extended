@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST. The decisions themselves are EXECUTED by
+ * SOURCE LINT, NOT A BEHAVIOUR TEST. The decisions themselves are EXECUTED by
  * `ReachableMailAccountsTest` and `LinkedAccountsDiffTest`; this only reads the plug that carries
  * them, because `MailRepository` needs Room, an Android `Context` and a live session, and `client`
  * is a concrete `JmapClient` rather than an interface, so the probe site cannot be built or faked
@@ -177,7 +177,7 @@ class ForbiddenSubAccountWiringTest {
      * next line, for a screen the user has just left, its own `catch (cancelled: ...)` never
      * reached. The decision is EXECUTED in `CancellationTest`; the plug is read here.
      *
-     * ⚠ The list is file-wide by construction, so every OTHER guarded `runCatching` of
+     * The list is file-wide by construction, so every OTHER guarded `runCatching` of
      * `MailRepository.kt` shows up in it too — today, `armOrNote`'s two (a failed arming must not
      * un-queue a durable send, and a cancelled one must record nothing). Adding a guarded
      * `runCatching` anywhere in the file means adding its line here; adding an UNGUARDED one on

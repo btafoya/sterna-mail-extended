@@ -41,7 +41,7 @@ import java.io.File
 class AccountToastFitTest {
 
     /**
-     * ⭐ 56 characters, and where the number comes from — a bench reading, three steps, all of them
+     * 56 characters, and where the number comes from — a bench reading, three steps, all of them
      * arguable and none of them a specification:
      *
      *  1. 72 characters rendered WHOLE at 411 dp (`values-it`, above). 80 did not.
@@ -49,11 +49,11 @@ class AccountToastFitTest {
      *  3. 63 is a LATIN reading. Cyrillic and German set wider per character at equal length, so
      *     the plafond keeps a margin under it: **56**.
      *
-     * ⛔ It is not a width. It is a count of characters standing in for one, and the sentence that
+     * It is not a width. It is a count of characters standing in for one, and the sentence that
      * exactly hits 56 in Russian may still be cut. What this number is good for is refusing the
      * sentences already known to be too long.
      *
-     * ⛔ NOT COVERED — THE FONT SCALE, and it is the axis that produced the defect in the file this
+     * NOT COVERED — THE FONT SCALE, and it is the axis that produced the defect in the file this
      * one is modelled on. Every figure above was read at the DEFAULT font scale, while
      * [app.sterna.ui.SenderRuleDialogFitTest] derives its own threshold from a measurement at
      * `font_scale 2.0`. Two lines hold far fewer characters there — an extrapolation from the 411 dp
@@ -121,7 +121,7 @@ class AccountToastFitTest {
     }
 
     /**
-     * ⭐ THE DEFECT: a two-line box, and a sentence longer than two lines.
+     * THE DEFECT: a two-line box, and a sentence longer than two lines.
      *
      * What the reader loses is not decoration. The toast is the ONLY thing that says the address
      * she typed was already installed and that its connection was refreshed rather than a second
@@ -153,7 +153,7 @@ class AccountToastFitTest {
     }
 
     /**
-     * ⭐ THE OTHER HALF, and the one the plafond above cannot see: a sentence can FIT and still be
+     * THE OTHER HALF, and the one the plafond above cannot see: a sentence can FIT and still be
      * the wrong sentence.
      *
      * The mutation that survived the first version of this file, with the whole suite green:
@@ -270,7 +270,7 @@ class AccountToastFitTest {
      * sentence no route is allowed to name, and each route holds the sentence it says on a real
      * create — today `null`, `connect_account_added`, `connect_outlook_added`.
      *
-     * ⛔ A SEVENTH ROUTE INHERITS THESE RULES ONLY IF IT CALLS [accountAddedToast]. One that shows
+     * A SEVENTH ROUTE INHERITS THESE RULES ONLY IF IT CALLS [accountAddedToast]. One that shows
      * a string of its own is invisible here, and silently so: the three rules above fail closed
      * when this lint goes TOTALLY blind (no decision body, no call site, no id at all), never when
      * it goes PARTIALLY blind — the sets stay comfortably non-empty on the six routes that do call
@@ -318,7 +318,7 @@ class AccountToastFitTest {
      * The `createdRes` argument of one call, as a list: empty for `null` (a route that stays silent
      * on a create), one id for `R.string.<id>`.
      *
-     * ⛔ Anything else FAILS. A resource reached through a variable, a `when`, or an argument built
+     * Anything else FAILS. A resource reached through a variable, a `when`, or an argument built
      * on the spot renders characters this file cannot count, and the honest answer is to refuse it
      * rather than pass over it — the shape of the mutation that survived `SenderRuleDialogFitTest`'s
      * first version, where the label stopped being one whole resource and every length rule stayed

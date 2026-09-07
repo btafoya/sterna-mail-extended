@@ -11,7 +11,7 @@ import org.junit.Test
  * `the draft the phone lost asks for nothing, and blames no network`, and written for the same
  * reason: nothing else in the build reads these words.
  *
- * ⛔ THE MUTATION THAT SURVIVED THE FIRST VERSION OF THIS BRANCH, and the reason this file exists:
+ * THE MUTATION THAT SURVIVED THE FIRST VERSION OF THIS BRANCH, and the reason this file exists:
  * replacing the English `compose_body_lost_cannot_send` with `Draft saved. Your text is safe in
  * Drafts.` left the WHOLE suite green. [LostBodySendTest] executes the decision and never reads a
  * string; [LocalDraftReopenWiringTest] pins the resource IDENTIFIER, never its text;
@@ -25,23 +25,23 @@ import org.junit.Test
  * `commitThenConsumeLocalDraft`, which deletes the `local_drafts` row that is the only copy of the
  * text. These two sentences are the whole of what the user is given at that moment.
  *
- * ⛔ SCOPE — THESE TWO KEYS, and it must stay that way. This is not a template for the string file:
+ * SCOPE — THESE TWO KEYS, and it must stay that way. This is not a template for the string file:
  * a rule of this shape applied to a whole resource file is a list of words to keep in step by hand,
  * green while the sentences change underneath it.
  *
- * ⛔ NOT COVERED — whether each translation SAYS what the English says. A fragment screen refuses a
+ * NOT COVERED — whether each translation SAYS what the English says. A fragment screen refuses a
  * class of lies; it cannot certify a sentence. Reading the eight translations is review's job, and
  * that is why the ENGLISH is the one pinned whole.
  */
 class LostBodyNoticeTextTest {
 
     /**
-     * ⭐ 56 characters, the plafond [DraftKeptToastFitTest] derives and
+     * 56 characters, the plafond [DraftKeptToastFitTest] derives and
      * [app.sterna.ui.connect.AccountToastFitTest] owns: a `Toast` on Android 12+ is two lines
      * beside the app icon, hard. Both sentences below are shown that way (`_notices` →
      * `Toast.makeText(context, res, …)`), so both are held to it.
      *
-     * ⛔ It is not a width. It is a count of characters standing in for one, blind to script, font
+     * It is not a width. It is a count of characters standing in for one, blind to script, font
      * and font scale. It refuses the sentences already known to be too long; it certifies nothing.
      * If the bench ever contradicts the number, it moves in `AccountToastFitTest` and this file
      * follows.
@@ -77,7 +77,7 @@ class LostBodyNoticeTextTest {
     }
 
     /**
-     * ⭐ THE MUTATION, refused: neither sentence may claim the message is SAFE, SAVED, KEPT or
+     * THE MUTATION, refused: neither sentence may claim the message is SAFE, SAVED, KEPT or
      * RECOVERED.
      *
      * At the moment they are shown, nothing has been saved and nothing has been recovered: the body
@@ -142,7 +142,7 @@ class LostBodyNoticeTextTest {
      * `compose_body_lost_cannot_send` stays for the composer that holds no draft at all: nothing to
      * reopen, so retyping is the only true instruction left.
      *
-     * ⛔ The eight translations are deliberately NOT pinned: freezing their text would block a
+     * The eight translations are deliberately NOT pinned: freezing their text would block a
      * translation fix while proving nothing. Their keys are held by the parity rule, their length
      * and their claims by the two rules above.
      */

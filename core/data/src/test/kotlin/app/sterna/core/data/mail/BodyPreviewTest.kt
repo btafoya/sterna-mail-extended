@@ -39,7 +39,7 @@ class BodyPreviewTest {
         assertEquals("Café à Noël 日本語", preview(wire("Café à Noël 日本語", Charsets.UTF_8), encoding = "8bit"))
     }
 
-    /** ⛔ The charset is not a formality. Read as UTF-8, this body is a run of replacement
+    /** The charset is not a formality. Read as UTF-8, this body is a run of replacement
      *  characters; read as latin-1, it is what was written. */
     @Test fun `a latin-1 body is read as latin-1, not as UTF-8`() {
         val raw = wire("Réunion à Noël", Charsets.ISO_8859_1)
@@ -71,7 +71,7 @@ class BodyPreviewTest {
     }
 
     /**
-     * ⭐ THE OTHER CUT THAT ALWAYS HAPPENS, and the commonest encoding of accented mail. The QP
+     * THE OTHER CUT THAT ALWAYS HAPPENS, and the commonest encoding of accented mail. The QP
      * decoder needs `=` plus two characters to read an escape, so a fragment cut inside `=C3` emits
      * the `=` and the `C` verbatim: the preview ends in `=C`, and nothing downstream removes it.
      */
@@ -95,7 +95,7 @@ class BodyPreviewTest {
     }
 
     /**
-     * ⭐ THE CUT THAT ALWAYS HAPPENS. base64 carries three octets per four characters, so a
+     * THE CUT THAT ALWAYS HAPPENS. base64 carries three octets per four characters, so a
      * fragment cut at 8192 octets almost never ends on a quantum. The JVM decoder rejects the whole
      * string, `MimeParser.decodeBytes` falls back on the raw characters — and the "preview" is the
      * base64 itself.
@@ -136,7 +136,7 @@ class BodyPreviewTest {
     }
 
     /**
-     * ⛔ The first 8 KB of a newsletter is very often its stylesheet. `htmlToText` removes a
+     * The first 8 KB of a newsletter is very often its stylesheet. `htmlToText` removes a
      * `<style>` block by matching a PAIR of tags, so one whose closing tag is past the cut is not
      * removed at all and its CSS is read as text.
      */
@@ -146,7 +146,7 @@ class BodyPreviewTest {
         assertNull(preview(cut, mime = "text/html"))
     }
 
-    /** ⛔ `<script>` and `<head>`, not only `<style>`: a cut swallows whichever came first, and
+    /** `<script>` and `<head>`, not only `<style>`: a cut swallows whichever came first, and
      *  `htmlToText` removes none of them without their closing tag. Without this case, narrowing
      *  the rule to `(style)` alone leaves the suite green and the JavaScript on the screen. */
     @Test fun `an HTML fragment cut inside a script or a head shows neither`() {
@@ -194,7 +194,7 @@ class BodyPreviewTest {
     // ---- the shaping belongs to the notification, not here ---------------------------------------
 
     /**
-     * ⭐ THE LAYERING, pinned. `MailNotificationText.shapePreview` flattens the blanks and caps at
+     * THE LAYERING, pinned. `MailNotificationText.shapePreview` flattens the blanks and caps at
      * 256 characters, for both protocols at once. Doing any of it here would cap the JMAP preview
      * at one length and the IMAP one at another, and would hide from that function the fact that it
      * has to hold.

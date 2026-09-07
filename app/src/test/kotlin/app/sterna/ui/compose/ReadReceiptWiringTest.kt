@@ -31,7 +31,7 @@ import java.io.File
  *     suite stayed green through it. Same instrument as [ComposeDeleteWiringTest] and
  *     [DiscardDialogWiringTest], which already read this very file for their own rules.
  *
- * ⛔ What this does NOT cover: that the box is drawn, that tapping the entry flips the state it
+ * What this does NOT cover: that the box is drawn, that tapping the entry flips the state it
  * reads back, or that `rememberSaveable` really restores it after a process death. `ComposeScreen`
  * is Compose UI with no test harness in this module; that one is a bench check (kill the process
  * with the composer open, reopen, the box is still ticked).

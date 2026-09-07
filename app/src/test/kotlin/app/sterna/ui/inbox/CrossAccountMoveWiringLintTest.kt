@@ -35,7 +35,7 @@ import org.junit.Test
 class CrossAccountMoveWiringLintTest {
 
     /**
-     * ⭐ THE FIFTH ARGUMENT IS THE VOLET. Each site is pinned WITH the numbering it hands down, and
+     * THE FIFTH ARGUMENT IS THE VOLET. Each site is pinned WITH the numbering it hands down, and
      * the two are deliberately different:
      *
      *  - the SELECTION's move carries `FrozenNumbering.Frozen(ticked[key])` — the stamp that row
@@ -49,7 +49,7 @@ class CrossAccountMoveWiringLintTest {
      *     than left to the default ON PURPOSE: the two call sites then differ by a token that a
      *     copy-paste between them changes, and this list sees it.
      *
-     * ⛔ THE TWO ARE NOT INTERCHANGEABLE, and that is the volet (#189). `Frozen(null)` is refused
+     * THE TWO ARE NOT INTERCHANGEABLE, and that is the volet (#189). `Frozen(null)` is refused
      * at both ends by `MailRepository`; `NothingFrozen` falls back on the folder's record, as every
      * ordinary gesture does. Under the `Long?` this parameter used to be, both were `null` and the
      * ticked row silently borrowed the reader's fallback.
@@ -100,7 +100,7 @@ class CrossAccountMoveWiringLintTest {
     }
 
     /**
-     * ⛔ THE NUMBERING GUARD OF #99, CARRIED TO THE MOVE BETWEEN ACCOUNTS.
+     * THE NUMBERING GUARD OF #99, CARRIED TO THE MOVE BETWEEN ACCOUNTS.
      *
      * An IMAP key is `imap:<account>:<folder>:<uid>` and carries nothing that says which numbering
      * that UID belongs to. A server that renumbers the shifting way makes the next background pass
@@ -110,7 +110,7 @@ class CrossAccountMoveWiringLintTest {
      * no Undo on this path (A3), so the user loses the gesture entirely: mail she never pointed at
      * is now in another account, and a message she may have wanted is in a bin she has to find.
      *
-     * ⚠ Source lint, and only because `InboxViewModel` needs an `Application` and Room. The
+     * Source lint, and only because `InboxViewModel` needs an `Application` and Room. The
      * decision itself is EXECUTED elsewhere — `UidValidity.destroyableUnderTheNumberingItWasTickedUnder`
      * is run by `DestroyOnlyWhatWasTickedTest`. What can only be read as text is the WIRING: where
      * the stamp is captured, which rows the "now" side is built from, and what is done with the
@@ -127,7 +127,7 @@ class CrossAccountMoveWiringLintTest {
             listOf("val ticked = awaitTickedNumbering(keys)"),
             codeLinesNaming(one, "val ticked ="),
         )
-        // ⛔ AND IT IS THE FIRST LINE OF THE LAUNCH, which is what replaces the old rule ("capture
+        // AND IT IS THE FIRST LINE OF THE LAUNCH, which is what replaces the old rule ("capture
         // OUTSIDE the launch"). The wait suspends, so it has to be inside; and it has to be first,
         // because moveSelectedToAccount calls clearSelection() at its head — that wakes the
         // collector on _selectedKeys, which empties the field, so a wait posted after it would
@@ -139,14 +139,14 @@ class CrossAccountMoveWiringLintTest {
             "val ticked = awaitTickedNumbering(keys)",
             gestureLines[gestureLines.indexOfFirst { it == "viewModelScope.launch {" } + 1],
         )
-        // ⭐ And the KEYS are still captured outside it: they are what says WHICH selection the
+        // And the KEYS are still captured outside it: they are what says WHICH selection the
         // stamps are awaited for, and reading them a suspension later would await the wrong set.
         assertLineOrder(
             "the keys must still be captured before the launch — they say WHICH selection the " +
                 "stamps are awaited for. Body was:\n$one",
             gestureLines, "val keys = _selectedKeys.value", "viewModelScope.launch {",
         )
-        // ⛔ AND THE CAPTURE MUST BE HANDED ON. The capture above and the guard below are two
+        // AND THE CAPTURE MUST BE HANDED ON. The capture above and the guard below are two
         // halves that only meet on THIS line, and nothing else in the repository reads it: pass
         // `emptyMap()` here — or drop the argument to a default — and the guard opposes an empty
         // map to every row, refuses nothing ever, and the whole volet is decoration. The user
@@ -191,7 +191,7 @@ class CrossAccountMoveWiringLintTest {
             listOf("val now = recordedNumbering(crossAccountTargets)"),
             codeLinesNaming(many, "recordedNumbering("),
         )
-        // ⛔ AND THE ROWS IT READS ARE THE ROWS ABOUT TO MOVE. This line is one identifier away
+        // AND THE ROWS IT READS ARE THE ROWS ABOUT TO MOVE. This line is one identifier away
         // from reading some other list: `now` would then hold no entry for any row being moved,
         // `readUnderNow` would answer null for every one of them, `drifted` would be empty by
         // construction — a guard that can never refuse is a guard that is not there, and the call
@@ -218,7 +218,7 @@ class CrossAccountMoveWiringLintTest {
             ),
             codeLinesNaming(many, "refused"),
         )
-        // ⛔ AND THE WHOLE BODY OF THAT REFUSAL, `continue` INCLUDED. The two lines above say a
+        // AND THE WHOLE BODY OF THAT REFUSAL, `continue` INCLUDED. The two lines above say a
         // Failed is recorded; they say nothing about what happens next. Drop the `continue` and
         // the refused row is recorded as failed AND THEN MOVED ANYWAY — copied to B, original to
         // A's Trash — while the banner counts it as a failure and the give-back puts it back
@@ -241,12 +241,12 @@ class CrossAccountMoveWiringLintTest {
      * What did NOT move goes BACK under the user's eyes, still ticked, with the stamps of the tick
      * — and the stamps first.
      *
-     * ⛔ INDEXED ON THE OUTCOME, NEVER ON A CLASS OF REFUSAL. Keyed on the rows the numbering split
+     * INDEXED ON THE OUTCOME, NEVER ON A CLASS OF REFUSAL. Keyed on the rows the numbering split
      * had refused, this give-back was empty by construction for the OTHER refusal of this path —
      * the one `MailRepository` raises at the read and hands back as an ordinary
      * `CrossAccountMove.Failed`: those lines did not travel, did not come back ticked, and nothing
      * on screen said which ones, or that anything had happened. Read off the verdict, a refusal is
-     * given back whatever raised it. ⚠ That is not a promise that every refusal comes back: the
+     * given back whatever raised it. That is not a promise that every refusal comes back: the
      * cache condition of [crossAccountGiveBack] excludes some by construction, and a refusal that
      * returns before any verdict is written is not seen at all — which is why the target account
      * is read before the selection is cleared, two rules below.
@@ -264,7 +264,7 @@ class CrossAccountMoveWiringLintTest {
     @Test fun `what the cross-account move did not move goes back into the selection, stamps first`() {
         val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
         val manyLines = codeLinesOf(many)
-        // ⛔ WHICH KEY GOT WHICH VERDICT, COLLECTED AT THE THREE EXITS OF THE LOOP. A bare list of
+        // WHICH KEY GOT WHICH VERDICT, COLLECTED AT THE THREE EXITS OF THE LOOP. A bare list of
         // outcomes answers HOW MANY failed and never WHICH: `CrossAccountMove.Failed` carries a log
         // string and nothing else — no key, no type, no throwable — and `results[i] ↔ movable[i]`
         // is a positional invariant nothing writes down and nothing pins. Keyed, the give-back
@@ -283,7 +283,7 @@ class CrossAccountMoveWiringLintTest {
             ),
             codeLinesNaming(many, "outcomes"),
         )
-        // ⛔ AND THE ARGUMENTS ARE THESE TWO. Fed some other map the rule answers about a batch
+        // AND THE ARGUMENTS ARE THESE TWO. Fed some other map the rule answers about a batch
         // nobody ran; fed a `cached` set that is not the rows on screen it ticks lines the list
         // does not show — and the call would still read as a call to the right function.
         assertEquals(
@@ -292,7 +292,7 @@ class CrossAccountMoveWiringLintTest {
             listOf("val givenBack = crossAccountGiveBack(outcomes, emails.keys)"),
             codeLinesNaming(many, "crossAccountGiveBack("),
         )
-        // ⛔ AND THE STAMP ENTRY IS EXPLICIT, A NULL STAMP INCLUDED. `associateWith` writes one
+        // AND THE STAMP ENTRY IS EXPLICIT, A NULL STAMP INCLUDED. `associateWith` writes one
         // entry per key whatever `ticked[it]` holds. Filtered on a non-null stamp instead, a row
         // ticked inside the read's own window comes back with NO entry at all, the collector on
         // `_selectedKeys` treats it as new, reads the REALIGNED numbering, and the second tap on
@@ -342,7 +342,7 @@ class CrossAccountMoveWiringLintTest {
      * `split.drifted` is named ONCE in this body, and that once is the line that turns the
      * numbering split into a refusal.
      *
-     * ⛔ Why an equality on the whole list and not the word "refused". The give-back is keyed on
+     * Why an equality on the whole list and not the word "refused". The give-back is keyed on
      * the VERDICT of each row, never on a class of refusal — that is the whole of #189. A second
      * reader of `split.drifted` added here is the first step back: it reintroduces a list of
      * "the rows refused by the numbering" for something to be keyed on, and unless it happens to
@@ -365,7 +365,7 @@ class CrossAccountMoveWiringLintTest {
      * The loop runs over `movable` ENTIRE — the partition on the selection's account is the only
      * filter this gesture has.
      *
-     * ⛔ WHY THE HEAD OF THE LOOP IS PINNED AND NOT ONLY THE WRITES INSIDE IT. The give-back rule
+     * WHY THE HEAD OF THE LOOP IS PINNED AND NOT ONLY THE WRITES INSIDE IT. The give-back rule
      * above pins that the three writes to `outcomes` EXIST in the text; none of them pins that the
      * loop REACHES them. Narrow the head — `for (key in movable.filter { it in emails })` — and
      * `outcomes[key] = Failed("no cached row…")` is still there, word for word, as dead code.
@@ -395,7 +395,7 @@ class CrossAccountMoveWiringLintTest {
     /**
      * The target account is read, and refused, BEFORE the selection is touched.
      *
-     * ⛔ `store.credentials(targetAccountId)` answers null for an account signed out between the
+     * `store.credentials(targetAccountId)` answers null for an account signed out between the
      * tap that opened the picker and the tap that chose the folder — a refusal that exists today,
      * and one that returns from this body with nothing sent and no verdict written. Below
      * `clearSelection()`, that return leaves the tick and `tickedUnder` already wiped and no
@@ -538,7 +538,7 @@ class CrossAccountMoveWiringLintTest {
     /**
      * The account row of the LIST is fed a selection-scoped list, the reader's is not (#189).
      * A selection spanning accounts resolves no account, so `moveOwnerAccountId` falls back to the
-     * ACTIVE account (`InboxViewModel.kt:990-992`) and the row would offer every account, while
+     * ACTIVE account (`InboxViewModel-992`) and the row would offer every account, while
      * `moveSelectedTo` only ever moves the retained account's messages and counts the rest as
      * skipped (spec.md § 1). [selectionPickerAccounts] is what closes that gap, and it only closes
      * it if the screen actually calls it. The reader has no such fallback — its owner IS the open
@@ -662,7 +662,7 @@ class CrossAccountMoveWiringLintTest {
     }
 
     /**
-     * ⛔ THE SHARED BRANCH IS THE ONLY PLACE `ALL_FAILED` EVER REACHES THE SCREEN. Which sentence
+     * THE SHARED BRANCH IS THE ONLY PLACE `ALL_FAILED` EVER REACHES THE SCREEN. Which sentence
      * goes with which outcome is [crossAccountSelectionFailedRes]'s, executed by
      * [CrossAccountPickerTest] for BOTH failure values — but whether the total one is ever served
      * at all is decided here, in the `when` of `moveSelectedToAccount`, and nothing else in the
@@ -750,7 +750,7 @@ class CrossAccountMoveWiringLintTest {
     /**
      * The order of two WHOLE code lines of [lines], with BOTH required to exist.
      *
-     * ⛔ Why this is not an `indexOf` on the raw text, which is what every one of these rules used
+     * Why this is not an `indexOf` on the raw text, which is what every one of these rules used
      * to be: `String.indexOf` answers -1 for a needle that has VANISHED, and `-1 < n` is true for
      * ever. The assertion then stops asserting without ever going red — the rule dies silently at
      * the exact moment the line it guards is renamed or removed, which is the moment it is needed.

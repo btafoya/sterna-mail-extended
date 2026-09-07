@@ -11,7 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⭐ The red line of the full-query sync, EXECUTED: pages are written as they land, and the DELETE
+ * The red line of the full-query sync, EXECUTED: pages are written as they land, and the DELETE
  * happens once, at the end, only on a walk that finished.
  *
  * The decision under test is the shipped one, [fullQueryWriteThrough]. The reconcile it is handed
@@ -19,7 +19,7 @@ import org.junit.Test
  * against the last page instead of the whole walk" is a mutation these fixtures can SEE: every
  * folder below caches at least one row that only a MIDDLE page names.
  *
- * ⛔ What no test here can check, and what the wiring lint next door
+ * What no test here can check, and what the wiring lint next door
  * ([FullQueryStreamingWiringTest]) is for: that `MailRepository.syncMailbox` still routes through
  * this function, with these arguments.
  */
@@ -92,10 +92,10 @@ class FullQueryWriteThroughTest {
     private val threePages = listOf(listOf("n1", "n2"), listOf("mid1", "mid2"), listOf("z1"))
     private val allThree = listOf("n1", "n2", "mid1", "mid2", "z1")
 
-    // -- ⭐ the red line ---------------------------------------------------------------------------
+    // -- the red line ---------------------------------------------------------------------------
 
     @Test fun `a walk cut off in the middle deletes NOTHING, and keeps the pages it did write`() {
-        // ⭐ THE test of this volet. The network drops after two of three pages. Everything the
+        // THE test of this volet. The network drops after two of three pages. Everything the
         // cache held before must still be there — including "stale", which no page names and
         // which a reconcile would have deleted — and the two pages received must be there too.
         val folder = Folder(cached = listOf("stale", "older"))
@@ -132,7 +132,7 @@ class FullQueryWriteThroughTest {
     }
 
     @Test fun `a cancellation deletes nothing either, and propagates`() {
-        // A back gesture during a pull-to-refresh. ⛔ Catching this to "clean up" would mean
+        // A back gesture during a pull-to-refresh. Catching this to "clean up" would mean
         // deleting mail on the one path where the app knows least about the folder.
         val folder = Folder(cached = listOf("stale"))
         val cancelled = CancellationException("the screen went away")
@@ -216,7 +216,7 @@ class FullQueryWriteThroughTest {
     }
 
     @Test fun `the recently-mutated spare is read at the reconcile, not before the walk`() {
-        // ⛔ The 45 s protection window against a walk that takes minutes. "undone" is a row the
+        // The 45 s protection window against a walk that takes minutes. "undone" is a row the
         // user restored WHILE the walk was running: it is in the cache, in no page, and in the
         // spare set only from page 2 onwards. A spare set read at the entry is empty, and the
         // reconcile deletes the restored row — undoing, one function later, the Undo.

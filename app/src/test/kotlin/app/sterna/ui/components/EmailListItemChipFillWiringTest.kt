@@ -95,7 +95,7 @@ class EmailListItemChipFillWiringTest {
     )
 
     /**
-     * ⭐ Mutations 2 and 3: the arguments the composable actually hands the decision.
+     * Mutations 2 and 3: the arguments the composable actually hands the decision.
      *
      * The block is compared line by line and in order. The closing `)` is part of the expected
      * block on purpose: an argument appended after `unread` pushes it out of place and is caught.
@@ -129,7 +129,7 @@ class EmailListItemChipFillWiringTest {
     }
 
     /**
-     * ⭐ Site 1 of 3, and mutation 4 with it: the account chip falls back to the row-aware fill,
+     * Site 1 of 3, and mutation 4 with it: the account chip falls back to the row-aware fill,
      * and ONLY in the fallback. With an account colour set the chip is that colour at 16% — the
      * only thing that chip exists for — and this fix must not have touched that branch.
      */
@@ -137,7 +137,7 @@ class EmailListItemChipFillWiringTest {
         assertBlock(expectedAccountChip, "the account chip's background")
     }
 
-    /** ⭐ Site 2 of 3: the thread pill is handed the fill instead of reading the theme itself. */
+    /** Site 2 of 3: the thread pill is handed the fill instead of reading the theme itself. */
     @Test fun `the thread pill is given the row's fill`() {
         assertBlock(expectedThreadPillCall, "the ThreadPill call")
         assertEquals(
@@ -149,7 +149,7 @@ class EmailListItemChipFillWiringTest {
         )
     }
 
-    /** ⭐ Site 3 of 3: the draft chip, the one a lint of the other two would leave erased. */
+    /** Site 3 of 3: the draft chip, the one a lint of the other two would leave erased. */
     @Test fun `the draft label is given the row's fill`() {
         assertEquals(
             "EmailListItem.kt must call the draft chip as '$expectedDraftLabelCall' — the whole " +
@@ -182,7 +182,7 @@ class EmailListItemChipFillWiringTest {
     }
 
     /**
-     * ⭐ Mutation 5, plus mutation 1 for both pills at once: every background modifier in the file,
+     * Mutation 5, plus mutation 1 for both pills at once: every background modifier in the file,
      * WHOLE and in source order.
      *
      * Collected by prefix and compared whole, because `.background(fill.copy(alpha = 0.5f))`

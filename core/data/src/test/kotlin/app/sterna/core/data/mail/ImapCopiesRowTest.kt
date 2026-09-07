@@ -10,7 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * ⭐ The end of the IMAP road: the envelope's copies have to land in the CACHE ROW.
+ * The end of the IMAP road: the envelope's copies have to land in the CACHE ROW.
  *
  * The IMAP side builds its own [app.sterna.core.data.db.EmailEntity] — it never has a JMAP `Email`,
  * so it cannot go through [EmailMapper.toEntity]. The two copies of that mapping have to agree
@@ -18,7 +18,7 @@ import org.junit.Test
  * keep the people in copy on a reopened draft while an IMAP account drops them, and whoever tests
  * on one account sees nothing.
  *
- * ⚠ Four DIFFERENT addresses (From, To, Cc, Bcc) in every case: a fixture whose fields look alike
+ * Four DIFFERENT addresses (From, To, Cc, Bcc) in every case: a fixture whose fields look alike
  * passes just as happily on a mapper that stores the neighbouring list.
  */
 class ImapCopiesRowTest {
@@ -71,7 +71,7 @@ class ImapCopiesRowTest {
     }
 
     /**
-     * ⛔ Four columns, four lists. Storing the blind copies in the visible column is not a display
+     * Four columns, four lists. Storing the blind copies in the visible column is not a display
      * bug: it is the app telling the user, and a reply-all, about people the sender hid.
      */
     @Test
@@ -141,7 +141,7 @@ class ImapCopiesRowTest {
     }
 
     /**
-     * ⭐ THE ONE-SIDED SHAPE THAT LEAKS: nobody in Cc, somebody in Bcc — a message this account
+     * THE ONE-SIDED SHAPE THAT LEAKS: nobody in Cc, somebody in Bcc — a message this account
      * blind-copied, dropped in the folder by another client, whose `Bcc:` header the ENVELOPE
      * therefore does state. The three shapes above ((full, full), (empty, empty), (full, empty))
      * are all fixed points of `cc.ifEmpty { bcc }`, so without this case a mapper that falls back

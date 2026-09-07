@@ -23,7 +23,7 @@ import java.io.File
  *     keeps writing the position, the import stops ever reading it back;
  *  2. the same line for the export.
  *
- * ⚠ The filter is on `notificationContentOrNull(`, NOT on `startsWith("backup.")` as the older
+ * The filter is on `notificationContentOrNull(`, NOT on `startsWith("backup.")` as the older
  * lints of this family use: the field moved into the middle of the line when the lookup was pulled
  * out into a pure function, and a `startsWith("backup.notificationContent")` here would match
  * nothing at all and pass — a rule that pins nothing must fail, so both rules below compare against

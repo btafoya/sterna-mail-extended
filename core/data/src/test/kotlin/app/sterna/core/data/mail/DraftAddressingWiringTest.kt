@@ -4,14 +4,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ THIS TEST READS SOURCE TEXT — the last resort, exactly as [DestroyChecksTheFolderWiringTest]
+ * THIS TEST READS SOURCE TEXT — the last resort, exactly as [DestroyChecksTheFolderWiringTest]
  * does: `MailRepository` and `ImapMailService` need Room, a `Context` and a socket, so no JVM test
  * can run the wiring below. The DECISION it guards is executed by [DraftSaveTest]; this pins only
  * WHERE that decision is plugged in, and it pins the WHOLE LINE of each load-bearing call —
  * `contains` is blind to any mutation that lengthens a line, which is how three of this project's
  * rules were defeated before.
  *
- * ⚠ The path moved with #95: the two protocol branches now live in `MailRepository.uploadDraft`,
+ * The path moved with #95: the two protocol branches now live in `MailRepository.uploadDraft`,
  * which `saveDraft` reaches only once the draft is durable on the phone. The guards below follow it.
  *
  * What it exists for (#63): re-saving an IMAP draft destroys the server copy. The copy is the only
@@ -161,7 +161,7 @@ class DraftAddressingWiringTest {
                 "a JMAP draft reopens through Email/get, which returns the server's to/cc/bcc, so " +
                 "the fields the user has just emptied ARE the original's addressing. Body was:",
             listOf(
-                // ⛔ The braces are IN the expected list, and the body is compared WHOLE. Dropped
+                // The braces are IN the expected list, and the body is compared WHOLE. Dropped
                 // — `.drop(1).dropLast(1)`, which reads as tidier — the opening brace's own line
                 // is thrown away before the comparison, and `{ if (emailId.isNotEmpty()) return
                 // true` restores the defect entire with every line below it still matching. The

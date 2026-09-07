@@ -16,7 +16,7 @@ import org.junit.Test
  * produces. They live outside the composable on purpose: `AlertDialog` cannot be run here, so a
  * rule kept inside it could only ever be read as text.
  *
- * ⛔ Neither of them re-implements anything: `linkApplied` is [app.sterna.core.data.text
+ * Neither of them re-implements anything: `linkApplied` is [app.sterna.core.data.text
  * .normalizeLinkUrl] followed by `setLink`, and this file pins the ARGUMENTS those two receive by
  * comparing whole bodies.
  */
@@ -90,7 +90,7 @@ class LinkDialogTest {
     }
 
     @Test fun `OK with no label at all writes the address as its own words`() {
-        // ⛔ Without this, the fourth arm of `setLink` is reachable from the dialog: a bare cursor,
+        // Without this, the fourth arm of `setLink` is reachable from the dialog: a bare cursor,
         // no link under it, the label box empty — the body comes back UNCHANGED, `onApply` runs,
         // the dialog closes and nothing has happened, with nothing said. Gmail writes the address
         // (rule 4), and `toPlainText` already spells that shape once rather than
@@ -114,7 +114,7 @@ class LinkDialogTest {
     }
 
     @Test fun `a selection ignores the label box, empty or not`() {
-        // ⛔ The guard on the rule above: the address must NOT be inserted when characters are
+        // The guard on the rule above: the address must NOT be inserted when characters are
         // already selected — those are the words the user chose, and `setLink` is right to ignore
         // the box. An `ifEmpty` applied one arm too far would append the URL to the message.
         assertEquals(
@@ -138,7 +138,7 @@ class LinkDialogTest {
     }
 
     @Test fun `a label inserted into an item stays inside that item`() {
-        // ⛔ The lists half of this volet, and it is not decoration: `setLink` inserts through
+        // The lists half of this volet, and it is not decoration: `setLink` inserts through
         // `remapAfterEdit`, so the line the caret sits on keeps its block. Inserted any other way,
         // the label would land on a line the list no longer covers and the item would break in two
         // — one of them no longer an item at all.
@@ -156,7 +156,7 @@ class LinkDialogTest {
 
     @Test fun `a selection covering two whole items is offered as the one link it carries`() {
         // Two items, one address: stored as TWO links, because `</li><li>` carries no character.
-        // ⛔ Read as "no link", the dialog would offer to CREATE one with an empty address and
+        // Read as "no link", the dialog would offer to CREATE one with an empty address and
         // would not offer to remove anything, while `removeLink` would have done it.
         val two = RichBody(
             "milk\neggs",

@@ -5,14 +5,14 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, and it has to be: [Notifications] is an Android object — every function here
+ * SOURCE LINT, and it has to be: [Notifications] is an Android object — every function here
  * takes a `Context` and ends in `NotificationManager.notify`, so none of them can be called from
  * a JVM test in this module. What is pinned is the WIRING, whole line by whole line; `contains`
  * is blind to any mutation that lengthens a line.
  *
  * The defect: on an install whose push was never armed in DIRECT mode (battery saver,
  * UnifiedPush only, a linked sub-account — `Transport.isDirect` is EVENT_SOURCE/IMAP_IDLE only,
- * `BootRestart.kt:10`), `PushService` never starts, so `PushService.onCreate`'s
+ * `BootRestart`), `PushService` never starts, so `PushService.onCreate`'s
  * `ensureChannels` never runs. The `new_mail` channel then does not exist and Android drops
  * every banner in silence, with nothing in the app's own log:
  *
@@ -25,7 +25,7 @@ import java.io.File
  *     already gone. The list is DISCOVERED from the source (any function whose body names
  *     `NotificationCompat.Builder(` and `CHANNEL_MAIL`), so a fourth posting site added to THIS
  *     file, building its notification in its own body, is held to the same rule without this test
- *     being touched. ⚠ Its reach stops there: a poster written in another file, or one whose
+ * being touched. Its reach stops there: a poster written in another file, or one whose
  *     builder comes from a helper, names neither literal and is not seen.
  *  2. the discovery still finds the three sites this lint exists for — without it, a rename or a
  *     refactor that empties the scan would leave rule 1 comparing two empty lists, green and
@@ -35,7 +35,7 @@ import java.io.File
  *     `CHANNEL_MAIL` → `CHANNEL_SERVICE` re-opens the whole defect and `IMPORTANCE_HIGH` →
  *     `IMPORTANCE_MIN` makes every banner silent — both with the two rules above still green.
  *
- * ⛔ `createNotificationChannel` is idempotent and does not overwrite a channel the user has
+ * `createNotificationChannel` is idempotent and does not overwrite a channel the user has
  * retuned, so calling it on every post costs nothing and loses no setting. Never delete and
  * recreate.
  */
@@ -55,7 +55,7 @@ class NoBannerWithoutItsChannelWiringTest {
     }
 
     /**
-     * ⛔ The banner path must ensure the MAIL channel ALONE. `ensureChannels` also creates
+     * The banner path must ensure the MAIL channel ALONE. `ensureChannels` also creates
      * `push_service` — "Keeps a live connection to your mail server for instant mail" — and on
      * precisely the installs this repairs no such connection is ever opened, so posting a banner
      * would put a settings entry on screen that says something untrue. That channel belongs to

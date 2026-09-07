@@ -19,14 +19,14 @@ import java.io.File
  * mirrored into this screen, and the post-import sign-in — pass `null`, deliberately: sending the
  * address there was never asked for and is not this branch's to decide.
  *
- * ⚠ WHAT IT DOES NOT SAY. It does not prove the hint reaches a browser, that anything runs at the
+ * WHAT IT DOES NOT SAY. It does not prove the hint reaches a browser, that anything runs at the
  * tap, that `state.loginHint` holds anything at runtime, or that the approval page pre-fills
  * anything at all — the last one is a bench observation and nothing else. It does not read
  * `SettingsScreen.InlineDeviceApproval`, the other Microsoft device panel, which is out of scope
  * and passes no hint because it calls none of this. A green run here means "the five call sites
  * still read the way they were written", not "the pre-fill works".
  *
- * ⚠ HOW IT COMPARES. Each rule pins a WHOLE CALL, whitespace-normalised, compared for EQUALITY: a
+ * HOW IT COMPARES. Each rule pins a WHOLE CALL, whitespace-normalised, compared for EQUALITY: a
  * `contains` on a fragment is blind to any mutation that LENGTHENS the line (a fifth argument, a
  * `?: null`, a wrapper around the hint), and that blindness has cost this repo real defects. The
  * arguments are pinned, not merely the name of the function called — passing `null` to
@@ -117,7 +117,7 @@ class LoginHintWiringTest {
      *    records nothing because the action returned false. The "Open the sign-in page" button
      *    then does nothing, every tap — worse than the defect being fixed.
      *
-     * ⚠ It still proves NOTHING about a browser opening: it is the same text-reading instrument as
+     * It still proves NOTHING about a browser opening: it is the same text-reading instrument as
      * the rest of this file. What it holds is that the call is written the way it was reviewed.
      */
     @Test fun `the approval button computes its target through the hint`() {

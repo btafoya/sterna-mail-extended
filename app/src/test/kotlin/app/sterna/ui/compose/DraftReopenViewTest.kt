@@ -24,7 +24,7 @@ class DraftReopenViewTest {
     // -- what a draft that could not be read says -----------------------------------------------
 
     /**
-     * ⭐ THE TWO SENTENCES, PINNED ON THEIR RESOURCE. They ask for opposite things: offline, the
+     * THE TWO SENTENCES, PINNED ON THEIR RESOURCE. They ask for opposite things: offline, the
      * text is waiting behind a connection and the reader has only to come back with one; over a
      * live link it is a real fault. Telling the first with the second's wording sends someone
      * hunting a server problem that does not exist, so "it returns some Int" is not good enough —
@@ -59,7 +59,7 @@ class DraftReopenViewTest {
     }
 
     /**
-     * ⭐ LOADING WINS. This is the case an "obvious" simplification gets wrong — test the failure
+     * LOADING WINS. This is the case an "obvious" simplification gets wrong — test the failure
      * first, it is the more specific state. It is not a matter of taste: a notice left from an
      * earlier attempt would then be shown as the verdict of the fetch now in flight, and the reader
      * would be told the draft is unreachable while it is on its way.
@@ -88,7 +88,7 @@ class DraftReopenViewTest {
     }
 
     /**
-     * ⭐ THE NOTICE IS TRANSPORTED, NOT RE-CHOSEN. Asserted with an id that is not either of the
+     * THE NOTICE IS TRANSPORTED, NOT RE-CHOSEN. Asserted with an id that is not either of the
      * app's two, so nothing but "hand back what you were given" can satisfy it: a version that
      * re-derived a sentence of its own from the flags would answer one of the real ids here and
      * fail. That property is what lets the screen draw `stringResource(reopen.notice)` with no rule
@@ -104,7 +104,7 @@ class DraftReopenViewTest {
     // -- once the draft HAS been shown, nothing may take it off the screen ----------------------
 
     /**
-     * ⭐ A SCREEN THAT ALREADY SHOWED THE DRAFT MAY NOT HIDE IT AGAIN, EVEN WHILE A FETCH IS OUT.
+     * A SCREEN THAT ALREADY SHOWED THE DRAFT MAY NOT HIDE IT AGAIN, EVEN WHILE A FETCH IS OUT.
      *
      * This is not a theoretical ordering: `body`, `initialBody` and `applied` are `rememberSaveable`
      * and come back after the process is killed; the ViewModel does not, so `prepare` re-fetches.
@@ -123,7 +123,7 @@ class DraftReopenViewTest {
     }
 
     /**
-     * ⭐ AND EVEN WHEN THAT FETCH FAILED. The dead end's whole claim is "there is nothing here to
+     * AND EVEN WHEN THAT FETCH FAILED. The dead end's whole claim is "there is nothing here to
      * show"; over restored text that claim is false, and acting on it is what made the X offer to
      * save (ComposeDirty compares against the restored baseline and sees the edits) and drop a
      * SECOND draft on the server — the exact symptom this screen exists to end.

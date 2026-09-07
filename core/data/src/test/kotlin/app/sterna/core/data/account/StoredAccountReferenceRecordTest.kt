@@ -13,7 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ⭐ THE TRIGGER, not the consequence. Volets A–C stop an unreadable account list from being
+ * THE TRIGGER, not the consequence. Volets A–C stop an unreadable account list from being
  * overwritten; this file stops it from becoming unreadable in the first place.
  *
  * The whole account list is ONE JSON blob, kotlinx serialises enums BY NAME, and `ignoreUnknownKeys`
@@ -24,7 +24,7 @@ import org.junit.Test
  * It happened twice on the bench on 2026-08-06. The same is true of a field that loses its default:
  * every record already on disk was written without it.
  *
- * ⛔ And the rename COMPILES. An IDE "rename symbol" updates every call site, the build is green,
+ * And the rename COMPILES. An IDE "rename symbol" updates every call site, the build is green,
  * review sees a tidy diff, and the damage is only visible on a phone that already has accounts.
  * Nothing but this file stands between that refactor and the account screens of every install.
  *
@@ -38,7 +38,7 @@ import org.junit.Test
  *    makes that record stop decoding, whatever it is called;
  *  - [enumFields] is itself checked against the SERIALIZER'S DESCRIPTOR, so a FIFTH enum added to
  *    the record cannot arrive uncovered. Without that, the list of keys below was hand-written and
- *    a new enum-valued field would land on every user's disk with no ⛔ on it and nothing pinning
+ * a new enum-valued field would land on every user's disk with no on it and nothing pinning
  *    its names — the original trigger, rebuilt underneath the net that was meant to stop it.
  *
  * The parser is the store's own (`Json { ignoreUnknownKeys = true }`, pinned against the shipped
@@ -47,7 +47,7 @@ import org.junit.Test
  * either of them would silently substitute a value instead of failing, which would change the
  * stored format under everyone and make every conclusion here false.
  *
- * ⚠ WHAT THIS NET DOES NOT CATCH — read this before trusting it.
+ * WHAT THIS NET DOES NOT CATCH — read this before trusting it.
  *
  *  1. **New name → older build.** It catches a name LEAVING this tree: rename or delete, and a
  *     record already on disk stops decoding here. The other direction is invisible — a member added
@@ -138,7 +138,7 @@ class StoredAccountReferenceRecordTest {
     // ── The net ────────────────────────────────────────────────────────────────────────────────
 
     /**
-     * ⭐ The rename catcher. Sets, not lists: the DECLARATION ORDER of an enum is not persisted
+     * The rename catcher. Sets, not lists: the DECLARATION ORDER of an enum is not persisted
      * (kotlinx writes the name, never the ordinal), so reordering must not fail here — only a name
      * appearing or disappearing must.
      */
@@ -171,7 +171,7 @@ class StoredAccountReferenceRecordTest {
     }
 
     /**
-     * ⭐ Exhaustive over the ENUMS, not only over their members — the hole the check above cannot
+     * Exhaustive over the ENUMS, not only over their members — the hole the check above cannot
      * see. [enumFields] is a hand-written list of keys, so a FIFTH enum-valued field added to
      * `StoredAccount` tomorrow would be covered by nothing here: its members would go onto users'
      * disks unpinned, and the first "rename symbol" on one of them would empty every account list
@@ -214,7 +214,7 @@ class StoredAccountReferenceRecordTest {
             .sorted()
 
     /**
-     * ⭐ THE DRAMA ITSELF, executed for every persisted enum and not only for `SyncWindow`
+     * THE DRAMA ITSELF, executed for every persisted enum and not only for `SyncWindow`
      * ([SyncWindowStoredNameTest] plays it for that one). What makes a renamed member a disaster
      * rather than a nuisance is that the accounts are ONE blob: the record that carries the unknown
      * name takes its neighbours down with it, and the store answers the whole thing with an empty
@@ -272,7 +272,7 @@ class StoredAccountReferenceRecordTest {
     }
 
     /**
-     * ⚠ THE ANTI-VACUITY CHECK, and the reason the rest of this file means anything. If a key were
+     * THE ANTI-VACUITY CHECK, and the reason the rest of this file means anything. If a key were
      * renamed in [StoredAccount], `ignoreUnknownKeys = true` would make every record above decode
      * happily while the stored value was thrown away — and every assertion here would pass over a
      * field nobody reads any more. A key that IS read rejects a name that is not a member.
@@ -297,7 +297,7 @@ class StoredAccountReferenceRecordTest {
     }
 
     /**
-     * ⭐ The no-default catcher, and it needs no list of fields: a record with only the three
+     * The no-default catcher, and it needs no list of fields: a record with only the three
      * mandatory keys is what most of the stored records effectively are, and every optional field
      * must fill itself in.
      */
@@ -384,7 +384,7 @@ class StoredAccountReferenceRecordTest {
     }
 
     /**
-     * ⚠ A SOURCE READ, deliberately, and the only one here: `AccountStore` needs a `Context` and the
+     * A SOURCE READ, deliberately, and the only one here: `AccountStore` needs a `Context` and the
      * Keystore and cannot be built in this module, so the parser above is a copy of its declaration.
      * A copy is worth nothing unless the original is pinned — and the two options that would break
      * every conclusion in this file (`coerceInputValues`, an enum default) are single words added to
@@ -408,7 +408,7 @@ class StoredAccountReferenceRecordTest {
     }
 
     /**
-     * ⚠ THE SECOND DECODER OF THE SAME RECORDS. `SettingsBackupCodec` reads `List<StoredAccount>`
+     * THE SECOND DECODER OF THE SAME RECORDS. `SettingsBackupCodec` reads `List<StoredAccount>`
      * out of an exported backup file with a `Json` of its own, and what it returns goes straight
      * into the store (`SettingsViewModel` → `AccountStore.importAccounts` → `saveAccounts`). A
      * `coerceInputValues = true` added THERE never touches `AccountStore` and passes every other

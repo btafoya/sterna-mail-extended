@@ -42,7 +42,7 @@ class RecentMailWidgetContentTest {
     private val alphaColor = 0xFF17414C.toInt()
     private val gammaColor = 0xFFB3541E.toInt()
 
-    // The badges the fixtures below wear, as LITERALS. ⛔ Not `monogramSlot("marie@example.test")`:
+    // The badges the fixtures below wear, as LITERALS. Not `monogramSlot("marie@example.test")`:
     // calling the shipped rule to build the expectation is a copy of it, and the two would agree
     // however the rule was rewritten. These three pairs were computed once, off this suite, and are
     // now facts this file holds the widget to.
@@ -107,7 +107,7 @@ class RecentMailWidgetContentTest {
     // ---- the four positions of the notification-content setting ----
 
     /**
-     * ⛔ BODY_PREVIEW draws NO body here. The rule deliberately gives it the same two lines as
+     * BODY_PREVIEW draws NO body here. The rule deliberately gives it the same two lines as
      * SENDER_AND_SUBJECT: a home screen has no expanded state, the preview column exists on one
      * protocol and not the other, and no position of this setting ever asked for a message's body
      * to sit on a home screen.
@@ -161,7 +161,7 @@ class RecentMailWidgetContentTest {
     // ---- the app lock ----
 
     /**
-     * ⛔ The lock folds every position onto NONE. SECURITY.md promises it keeps someone who picks
+     * The lock folds every position onto NONE. SECURITY.md promises it keeps someone who picks
      * up the unlocked phone from reading the mail, and a home screen is read by exactly that person.
      */
     @Test fun `the app lock silences even the most talkative position`() {
@@ -176,7 +176,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * ⛔ NOTHING of the message survives the lock — and the sender and the subject are not the only
+     * NOTHING of the message survives the lock — and the sender and the subject are not the only
      * things that name someone. The account id and the mailbox id are carried by the database row
      * (they order the list, and a later pane opens it with them); drawing either would put "work"
      * or "alice@…" on the home screen of a locked phone.
@@ -200,7 +200,7 @@ class RecentMailWidgetContentTest {
     /**
      * The same, one level up: a whole snapshot, locked, DRAWING nobody's name.
      *
-     * ⚠ It is the drawn half that is searched, and that is not a softening. A line has two halves
+     * It is the drawn half that is searched, and that is not a softening. A line has two halves
      * since the tap pane — what it draws and what it opens — and the second is nothing but
      * identifiers, by construction: they travel in an `Intent`'s extras to an app that is entered
      * through its own lock screen, and no pixel of them reaches the home screen. What must stay
@@ -230,13 +230,13 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * ⛔ THE FRONTIER THE TAP PANE HAD TO CROSS WITHOUT BREAKING: a line now CARRIES the three
+     * THE FRONTIER THE TAP PANE HAD TO CROSS WITHOUT BREAKING: a line now CARRIES the three
      * identifiers it opens with, and not one of them may end up in a field that is drawn — at any
      * position of the setting, and above all under the lock, where a row names nothing at all.
      *
      * Every position is walked, not just the loud one: the drawn shape is the same object in all
      * four, so an identifier written into it would surface wherever the reader happens to be.
-     * ⭐ And the tap is asserted to hold them, in the same breath: a projection that answered this
+     * And the tap is asserted to hold them, in the same breath: a projection that answered this
      * by carrying nothing would pass the first half and leave a widget whose rows open nothing.
      */
     @Test fun `at every position of the setting, and under the lock, no DRAWN field carries an identifier`() {
@@ -359,7 +359,7 @@ class RecentMailWidgetContentTest {
     // ---- the badge a line wears ----
 
     /**
-     * ⭐ WHICH LINES MAY WEAR A BADGE, and it is not this file's opinion: it is the third field of
+     * WHICH LINES MAY WEAR A BADGE, and it is not this file's opinion: it is the third field of
      * `MailNotificationText.widgetRow`, the only place that knows the position the app lock has
      * already folded. A badge's letter is a letter of the sender's NAME, so the three positions
      * that name a sender may draw one and NONE may not.
@@ -383,7 +383,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * ⛔ AND THE LOCK TAKES IT AWAY, FROM EVERY POSITION. SECURITY.md promises a locked home screen
+     * AND THE LOCK TAKES IT AWAY, FROM EVERY POSITION. SECURITY.md promises a locked home screen
      * "names neither sender nor subject"; a badge drawn there would be the sender's own initial
      * sitting in front of whoever picked the phone up — the promise broken in one character.
      */
@@ -400,13 +400,13 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * ⭐ AND THE INITIALS SWITCH TAKES IT AWAY TOO — the setting #144 added to the message list
+     * AND THE INITIALS SWITCH TAKES IT AWAY TOO — the setting #144 added to the message list
      * (`settings.listMonogram`), which was the whole answer to "on SimpleLogin-style mail nobody
      * has an avatar and the column is a stack of identical circles". A reader who removed the
      * initials from her list must not find them again on her home screen, with no switch anywhere
      * that turns them off: that is the state on screen disagreeing with the state the app holds.
      *
-     * ⛔ AND IT REMOVES THE BADGE AND NOTHING ELSE. The whole row is asserted, not its badge, so a
+     * AND IT REMOVES THE BADGE AND NOTHING ELSE. The whole row is asserted, not its badge, so a
      * fix that folded this setting into the sender-naming answer — one variable instead of two —
      * is caught here: the reader would have asked for no initials and been given a home screen
      * that names nobody, which is the app lock's job and not a matter of taste.
@@ -459,7 +459,7 @@ class RecentMailWidgetContentTest {
 
     /**
      * With neither name nor address the badge falls back to the caller's stand-in, on BOTH halves:
-     * the letter and the colour. ⛔ Not a question mark and not a fixed colour — the row's first
+     * the letter and the colour. Not a question mark and not a fixed colour — the row's first
      * line already reads «nobody named», and the badge must agree with it.
      */
     @Test fun `with neither name nor address the badge comes from the caller's stand-in`() {
@@ -470,7 +470,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * ⭐ A NON-LATIN SENDER KEEPS THEIR OWN ALPHABET. `initialOf` upper-cases whatever the first
+     * A NON-LATIN SENDER KEEPS THEIR OWN ALPHABET. `initialOf` upper-cases whatever the first
      * letter-or-digit is, so Cyrillic д becomes Д and not a transliteration and not "?".
      */
     @Test fun `a cyrillic sender wears a cyrillic capital`() {
@@ -483,7 +483,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * ⭐ THE POINT OF COLOURING A BADGE AT ALL. Two correspondents whose names start with the same
+     * THE POINT OF COLOURING A BADGE AT ALL. Two correspondents whose names start with the same
      * letter are told apart by the COLOUR, because the letter cannot do it. Same initial, different
      * slot — and the slot is what the drawing pane will paint with.
      */
@@ -506,7 +506,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * ⭐⛔ THE SEED IS THE ADDRESS, NOT THE DISPLAYED NAME, and this is the assertion that pins it.
+     * THE SEED IS THE ADDRESS, NOT THE DISPLAYED NAME, and this is the assertion that pins it.
      *
      * The list inside the app seeds a badge with the address (`EmailListItem`: `seed = … ?.email ?:
      * senderName`), so a widget seeded with the display name would paint the SAME person one colour
@@ -535,7 +535,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * ⛔ AND THE SEED DOES NOT TRAVEL. [RecentWidgetRow] is the shape the launcher draws; the
+     * AND THE SEED DOES NOT TRAVEL. [RecentWidgetRow] is the shape the launcher draws; the
      * address is what the badge was DERIVED from and it has no business being carried there. The
      * slot is two small indices out of eighteen and names nobody; the address names exactly one
      * person, and a later `setTextViewText` on a field that holds it is all it would take.
@@ -571,7 +571,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * ⛔ THE ARM THIS FILE EXISTS FOR. `configured = false` is "no answer", not "no message" and
+     * THE ARM THIS FILE EXISTS FOR. `configured = false` is "no answer", not "no message" and
      * not "no account": no account at all, an account blob that failed to decode, or an account
      * whose inbox is not known yet — the state every restored backup starts in and every offline
      * account stays in. Folding it onto the empty-inbox arm tells someone who has just restored
@@ -676,7 +676,7 @@ class RecentMailWidgetContentTest {
     // ---- which account a line came from ----
 
     /**
-     * ⭐ THE PANE'S OWN DECISION, EXECUTED. The list interleaves several accounts by date and, until
+     * THE PANE'S OWN DECISION, EXECUTED. The list interleaves several accounts by date and, until
      * this dot, nothing on a row said which one it came from. The map is what makes that visible,
      * and the whole of it is asserted: an answer that merely CONTAINED the right key would also be
      * satisfied by a map that colours every account the same.
@@ -694,7 +694,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * ⛔ ONE ACCOUNT, NO DOT AT ALL — the bound is [AllInboxesView], the same one the counter's
+     * ONE ACCOUNT, NO DOT AT ALL — the bound is [AllInboxesView], the same one the counter's
      * label and tap consult. With a single mailbox there is nothing to tell apart, and a colour on
      * every row of the list would be 16 dp of a home-screen line spent saying nothing.
      */
@@ -709,7 +709,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * ⛔ AND "AUTO" IS NOT A COLOUR. `StoredAccount.color` is null on the first position of the
+     * AND "AUTO" IS NOT A COLOUR. `StoredAccount.color` is null on the first position of the
      * picker, which is where every account starts; inventing something for it would put on the home
      * screen a colour the account editor never showed.
      */
@@ -726,7 +726,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * ⛔ AND EACH LINE TAKES ITS OWN ACCOUNT'S COLOUR. This is the mutation the map alone cannot
+     * AND EACH LINE TAKES ITS OWN ACCOUNT'S COLOUR. This is the mutation the map alone cannot
      * catch: a projection that looked the colour up once, or took the first entry, paints the whole
      * list one colour — which is exactly what a reader with two mailboxes would report as "the dot
      * does nothing", and it reads as working code.

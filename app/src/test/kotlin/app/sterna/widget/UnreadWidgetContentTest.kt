@@ -29,7 +29,7 @@ class UnreadWidgetContentTest {
     )
 
     /**
-     * ⛔ The number is drawn ONCE. The drawer's "(N)" form is right in the drawer, where the row
+     * The number is drawn ONCE. The drawer's "(N)" form is right in the drawer, where the row
      * carries no other number; on the widget the big figure above the label already IS the count,
      * so the counted string would draw 3 and, right under it, "All inboxes  (3)" — the same number
      * twice, in a cell whose whole content is that number.
@@ -54,7 +54,7 @@ class UnreadWidgetContentTest {
     }
 
     /**
-     * ⛔ The arm the whole file exists for. Asserted on the VALUE returned, not on the absence of a
+     * The arm the whole file exists for. Asserted on the VALUE returned, not on the absence of a
      * word: "not All inboxes" would be satisfied by anything at all, including an empty label.
      */
     @Test fun `a single account is named by its own inbox, never by All inboxes`() {
@@ -75,7 +75,7 @@ class UnreadWidgetContentTest {
      * only falls back when there is no ACCOUNT — a blank name goes through it untouched. Verbatim,
      * that draws a figure with nothing under it: a number on the home screen naming nothing at all.
      *
-     * ⛔ The count is NOT reset with the label. A missing name is a cosmetic gap; a total silently
+     * The count is NOT reset with the label. A missing name is a cosmetic gap; a total silently
      * replaced by 0 is a lie about the mailbox.
      */
     @Test fun `a single account whose inbox name is blank falls back to the app's name`() {

@@ -8,12 +8,12 @@ import org.junit.Test
  * WHAT `fetchInternalDate` PUTS ON THE WIRE, and what it makes of the answer — driven against a
  * scripted server, not asserted from the source.
  *
- * ⛔ Whole command lines, compared with assertEquals, never `contains("INTERNALDATE")`: a
+ * Whole command lines, compared with assertEquals, never `contains("INTERNALDATE")`: a
  * containment check is blind to every mutation that makes the line LONGER — a second item added
  * to the fetch, a `BODY[]` dragging the whole message along beside the date. The list is the WHOLE
  * conversation, so a round trip nobody asked for shows up as an extra line.
  *
- * ⭐ The value read is the SERVER's stamp and not the sender's `Date:`. One case below hands back
+ * The value read is the SERVER's stamp and not the sender's `Date:`. One case below hands back
  * both, disagreeing by seventy-four years, which is the attack this command exists to close.
  */
 class InternalDateOnTheWireTest {

@@ -29,7 +29,7 @@ class BodySpacerTest {
     }
 
     @Test fun `the reservation is a share of the view, not of one bench device`() {
-        // ⛔ The SAME header height against three different viewports, each pinned as a literal.
+        // The SAME header height against three different viewports, each pinned as a literal.
         // The bench measured one device; a formula that hard-codes its 2037 px viewport answers
         // that device correctly and every other one wrong — the emulator, a narrow bench, landscape,
         // split screen. On a 2400 px view such a formula reserves 449 screen px where the opaque
@@ -45,7 +45,7 @@ class BodySpacerTest {
         // What `Nvh` is worth, without a page scale anywhere in the arithmetic: N hundredths of the
         // view. THAT is what this function decides, and it is all it decides.
         //
-        // ⛔ The other half — that the browser paints those hundredths at the same screen size
+        // The other half — that the browser paints those hundredths at the same screen size
         // whatever scale the page laid out at — is a property of Blink, NOT of this code, and no
         // JVM test can reach it. Writing the browser's model into the arithmetic here and checking
         // the code agrees with it would prove nothing at all: the scale would cancel before the

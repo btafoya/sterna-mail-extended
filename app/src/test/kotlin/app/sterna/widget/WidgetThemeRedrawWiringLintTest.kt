@@ -16,14 +16,14 @@ import org.junit.Test
  * rule of their own the three calls each of them makes are trivially deletable, with nothing on
  * screen to say they went: the cell would just be, one day, a theme behind.
  *
- * ⛔ WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
+ * WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
  * LENGTHENS the line. The price is that reformatting a pinned line reddens this test — loud, and
  * one line to fix.
  */
 class WidgetThemeRedrawWiringLintTest {
 
     /**
-     * ⛔ CHANGING THE THEME MUST REACH THE HOME SCREEN, for BOTH cells.
+     * CHANGING THE THEME MUST REACH THE HOME SCREEN, for BOTH cells.
      *
      * The two widgets are redrawn when the system asks (placement, boot, app update), at the tail
      * of a delivery pass, and from the pushed collections — and by nothing else, because

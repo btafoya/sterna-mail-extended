@@ -281,7 +281,7 @@ class ComposeSignatureTest {
     }
 
     @Test fun aLinkInsideTheBlockIsAnEditToo_noSubstitution() {
-        // ⛔ A link is the one kind of styling the substitution would DESTROY rather than merely
+        // A link is the one kind of styling the substitution would DESTROY rather than merely
         // ignore: the stored HTML replaces those characters wholesale, so the address would not be
         // in the message at all while the words stayed on screen. "Hi Bob,\n\n-- \n" is 13
         // characters, so "Alex" sits at [13, 17).
@@ -320,7 +320,7 @@ class ComposeSignatureTest {
      * for the html alternative and `toPlainText` for the text one. Both are run here on ONE body
      * that carries a numbered list and a link inside it.
      *
-     * ⛔ The two must agree. The html carrying the anchor while the text alternative says only
+     * The two must agree. The html carrying the anchor while the text alternative says only
      * "the site" is a message whose address exists for half its readers.
      */
     @Test fun aBodyWithAListAndALinkCrossesBothAlternativesWhole() {

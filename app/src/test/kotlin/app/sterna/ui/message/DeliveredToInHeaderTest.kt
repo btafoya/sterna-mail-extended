@@ -8,11 +8,11 @@ import org.junit.Test
  * [deliveredToInHeader], EXECUTED — whether the open message's header gets a third line naming
  * which of the reader's OWN addresses the message came in on, and what that line says (#180).
  *
- * ⛔ Nothing here recomputes the rule. Every address list is a literal and every expectation is
+ * Nothing here recomputes the rule. Every address list is a literal and every expectation is
  * written out by hand: an expectation derived from the code under test is a copy of the decision,
  * and inverting the shipped condition would leave it green.
  *
- * ⭐ The decision is a plain function and not a branch inside the header's composable, and this
+ * The decision is a plain function and not a branch inside the header's composable, and this
  * test is why that matters: R8 has already inlined a small `@Composable` of this module until it
  * painted nothing at all (`Monogram`, kept by an explicit rule), so a guard living in the painting
  * is only ever proven by a bench run on a release build. Here it is proven by the build itself.
@@ -34,7 +34,7 @@ class DeliveredToInHeaderTest {
     }
 
     /**
-     * ⭐ THE trap this guard exists for. `accountAddresses(identities, username)` is
+     * THE trap this guard exists for. `accountAddresses(identities, username)` is
      * `identities.map { it.email } + listOfNotNull(username)`, and its own comment says the
      * duplicates are deliberate — every other caller asks "is X in this list", never "how many".
      * A one-identity account whose e-mail IS its login therefore hands over TWO entries for ONE
@@ -73,7 +73,7 @@ class DeliveredToInHeaderTest {
     }
 
     /**
-     * ⭐ The spelling the message used is the spelling shown. Case folding is how two entries are
+     * The spelling the message used is the spelling shown. Case folding is how two entries are
      * COUNTED; it is never how one is displayed — the reader is being told which of her own
      * addresses a correspondent wrote to, and that is her address as it was written.
      */
@@ -93,7 +93,7 @@ class DeliveredToInHeaderTest {
     }
 
     /**
-     * ⭐ THE reason this parameter is the IDENTITY list and not `accountAddresses`. Shared hosting
+     * THE reason this parameter is the IDENTITY list and not `accountAddresses`. Shared hosting
      * authenticates as `sc12345@mail.hebergeur.tld` and receives at `moi@mondomaine.tld` — the
      * `.k9s` import builds exactly that pair, from two independent XML fields. Handed
      * `accountAddresses`, this function would see two distinct addresses that both pass the `@`
@@ -107,7 +107,7 @@ class DeliveredToInHeaderTest {
     }
 
     /**
-     * ⛔ An outgoing message has no arrival. Sent and Drafts are shown by their RECIPIENTS, and
+     * An outgoing message has no arrival. Sent and Drafts are shown by their RECIPIENTS, and
      * `receivingAddress` scans To+Cc without knowing the folder — so mail you addressed or copied
      * to one of your own addresses would be captioned "Received at" though nobody received it.
      */
@@ -121,7 +121,7 @@ class DeliveredToInHeaderTest {
     }
 
     /**
-     * ⛔ The label asserts the address is YOURS. Today's only caller cannot produce anything else,
+     * The label asserts the address is YOURS. Today's only caller cannot produce anything else,
      * but a raw `Delivered-To` header — the obvious next source — can, and it must not be shown
      * under this label.
      */

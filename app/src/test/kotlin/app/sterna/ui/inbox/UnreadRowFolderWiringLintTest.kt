@@ -30,7 +30,7 @@ import java.io.File
  *    guard in [unreadRowFolder] then rejects every row, silently, for ever, and the feature is
  *    simply absent. Both are one word, in a file no executing test reaches.
  *
- * ⛔ Every rule compares WHOLE LINES, never `contains`: a fragment is blind to any mutation that
+ * Every rule compares WHOLE LINES, never `contains`: a fragment is blind to any mutation that
  * LENGTHENS it — `folderTrusted = !fromSearch` is contained in `folderTrusted = !fromSearch && false`.
  * The price is that a reformat reddens this file; that direction of error is loud and one line to fix.
  */
@@ -88,7 +88,7 @@ class UnreadRowFolderWiringLintTest {
     }
 
     /**
-     * ⚠ The value the whole volet stands on. [unreadRowFolder] compares the row's account to
+     * The value the whole volet stands on. [unreadRowFolder] compares the row's account to
      * `ui.accountId` before it looks anything up in `ui.mailboxes`, because that list is one
      * account's and is not qualified by account (#31/#121). Left unfilled, the field is null, the
      * guard rejects every row, and the feature is absent with nothing red anywhere.
@@ -125,7 +125,7 @@ class UnreadRowFolderWiringLintTest {
      * Anchored on both ends and loud if either moves: a rule that quietly reads an empty slice
      * guards nothing.
      *
-     * ⛔ The `initialValue` below `}.stateIn(` is OUTSIDE this slice, and it does not take the
+     * The `initialValue` below `}.stateIn(` is OUTSIDE this slice, and it does not take the
      * fields' defaults: it builds a second `MailUi(...)` by hand, naming `selectedMailboxId`,
      * `unified`, `atInbox` and the rest, from `selection.value` and `meta.value`. It is a SECOND
      * SITE of every rule the combine states, and it is what the reader sees until the first
@@ -135,7 +135,7 @@ class UnreadRowFolderWiringLintTest {
     private fun stateBlock(): List<String> {
         val lines = codeLines(INBOX_VIEW_MODEL)
         val start = lines.indexOfFirst { it.contains("val state: StateFlow<MailUi>") }
-        // ⚠ Searched AFTER the start, not from the top: InboxViewModel.kt closes several other
+        // Searched AFTER the start, not from the top: InboxViewModel.kt closes several other
         // flows with '}.stateIn(' long before this one, and the first of them made this rule read
         // a backwards slice — i.e. nothing at all.
         val end = lines.drop(start + 1).indexOfFirst { it.contains("}.stateIn(") } + start + 1

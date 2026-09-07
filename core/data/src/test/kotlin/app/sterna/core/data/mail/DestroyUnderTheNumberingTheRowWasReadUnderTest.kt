@@ -33,7 +33,7 @@ import org.junit.Test
  * response and cannot drift apart. The same thing `TrashPurge.snapshotUidValidity` already does
  * for an "Empty trash".
  *
- * ⭐ Everything below RUNS: a real [ImapMailService] on a scripted socket, and the witness is the
+ * Everything below RUNS: a real [ImapMailService] on a scripted socket, and the witness is the
  * command list that actually left the client. What the whole chain cannot run in a JVM is the
  * ViewModel and the worker in the middle (Application, WorkManager, Room) — those are pinned as
  * source in `HeldBackDestroyCarriesItsFolderTest`, and the routing they hand over is EXECUTED in
@@ -103,7 +103,7 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
     }
 
     /**
-     * ⭐ THE INVERSE WITNESS, and it is not optional: without it "stamp nothing / refuse always"
+     * THE INVERSE WITNESS, and it is not optional: without it "stamp nothing / refuse always"
      * satisfies the test above, and that is a total regression — no IMAP permanent delete would
      * ever go through again, the message would leave the list, come back at the next refresh, and
      * never die.
@@ -168,7 +168,7 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
                 val now = rewritten.associate { it.id to it.uidValidity }
                 assertEquals(mapOf(ID7 to 77L, ID8 to 77L, ID9 to 77L), now)
 
-                // ⛔ WHY THE DOWNSTREAM GUARD LETS THIS THROUGH — the state before this fix. The
+                // WHY THE DOWNSTREAM GUARD LETS THIS THROUGH — the state before this fix. The
                 // route built on the rewritten rows opposes 77, and 77 is exactly what the server
                 // now states, so the expunge is licit and would go out on three live messages.
                 val licit = routeFor(rewritten)
@@ -211,7 +211,7 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
     }
 
     /**
-     * ⭐ THE INVERSE WITNESS of the split, and it is not negotiable: without it "refuse everything
+     * THE INVERSE WITNESS of the split, and it is not negotiable: without it "refuse everything
      * that was ticked" satisfies the test above and kills every IMAP permanent delete in the app —
      * the message leaves the list, comes back at the next refresh, and never dies.
      */

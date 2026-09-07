@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT. `WorkManager` needs a `Context` and this module has neither Robolectric nor
+ * SOURCE LINT. `WorkManager` needs a `Context` and this module has neither Robolectric nor
  * instrumented tests, so `ScheduledSends.enqueue` cannot be executed by anything we own — the
  * policy it hands WorkManager, and the argument the startup re-arm passes it, are only ever
  * readable as text. The decision this volet actually makes (which rows get a job, and with what
@@ -49,10 +49,10 @@ class ScheduledSendRearmWiringTest {
                 "fun enqueue(",
                 "context: Context,",
                 "id: Long,",
-                // ⛔ NO default: `enqueue(ctx, id)` must not compile. Made optional, dropping
+                // NO default: `enqueue(ctx, id)` must not compile. Made optional, dropping
                 // the argument at the composer's call site sends every scheduled message AT ONCE.
                 "initialDelayMillis: Long,",
-                // ⛔ THE DEFAULT IS THE RULE. Only the startup re-arm may keep; every other caller
+                // THE DEFAULT IS THE RULE. Only the startup re-arm may keep; every other caller
                 // carries the newest instant the user just picked and must replace.
                 "keepExisting: Boolean = false,",
                 ") {",
@@ -69,7 +69,7 @@ class ScheduledSendRearmWiringTest {
     }
 
     @Test fun `the startup re-arms every scheduled row, behind what is already there`() {
-        // ⛔ THE WHOLE BLOCK, not the enqueue line alone: `keepExisting = true` is an ARGUMENT, and
+        // THE WHOLE BLOCK, not the enqueue line alone: `keepExisting = true` is an ARGUMENT, and
         // dropping it is the cheapest mutation of this volet — it compiles, it reads fine, and it
         // turns the safety net into the double-send described above. The `runCatching` is pinned
         // with it: an unreadable row would otherwise take the whole startup coroutine down.
@@ -97,7 +97,7 @@ class ScheduledSendRearmWiringTest {
                 before = 2, size = 6,
             ),
         )
-        // ⛔ AND THE BLOCK IS STILL INSIDE `init {`. The assertion above proves the six lines exist
+        // AND THE BLOCK IS STILL INSIDE `init {`. The assertion above proves the six lines exist
         // in the file, never that anything runs them: lifted verbatim into a `private fun` that
         // nobody calls, every line above matches, the suite stays green and the defect is back in
         // full. A function declaration between `init {` and the block is what that mutation leaves
@@ -117,7 +117,7 @@ class ScheduledSendRearmWiringTest {
     }
 
     @Test fun `the composer books its scheduled send with the hour the user picked`() {
-        // ⛔ The call site, whole line and arguments included. This volet moved the delay out of
+        // The call site, whole line and arguments included. This volet moved the delay out of
         // `ScheduledSends.enqueue` and into the seam `core:data` executes, which is what lets a JVM
         // test decide the overdue case — but it also put an arithmetic expression at a call site no
         // lint read. Handing `sendAtMillis` straight through (the parameter is a DELAY now, so that

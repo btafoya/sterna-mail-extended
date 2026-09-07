@@ -160,7 +160,7 @@ class FallbackPollSaysWhatItSkippedTest {
     }
 
     /**
-     * ⛔ The word this volet may not print. Both lines are reached through
+     * The word this volet may not print. Both lines are reached through
      * [PushService.isConnected], which is true for a [java.io.Closeable] we hold and believe in —
      * `armSummary`'s KDoc calls that "held" and refuses to call it "open" for this exact reason, and
      * a socket that died silently still answers true. A line asserting an open connection would

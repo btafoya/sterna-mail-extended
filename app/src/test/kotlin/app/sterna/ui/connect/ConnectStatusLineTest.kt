@@ -12,7 +12,7 @@ import java.io.File
  * (state, step) pair that matters, with the expected values written out in full and never
  * recomputed from the rule under test.
  *
- * ⛔ THE MEASURED DEFECT behind this file: address step, keyboard up, airplane mode, tap on
+ * THE MEASURED DEFECT behind this file: address step, keyboard up, airplane mode, tap on
  * Continue. The walk answered correctly — a `ConnectState.Error` carrying `connect_offline`, still
  * on step 1 — and the sentence was drawn under the keyboard, absent from the uiautomator tree
  * until the screen was scrolled. The two decisions here are what the screen now draws AND scrolls
@@ -27,7 +27,7 @@ class ConnectStatusTest {
     private val handover = CredentialsAsk.SignInAway(OAuthGrant.DEVICE_CODE)
 
     @Test fun `a failure speaks at every step, and carries its own message`() {
-        // ⛔ handoverStarted = FALSE, and it is the whole point of the pair of arguments here:
+        // handoverStarted = FALSE, and it is the whole point of the pair of arguments here:
         // credentialsPane answers SIGN_IN_OFFER for an Error once a hand-over is recorded, and
         // WAITING before one is. Fed `true`, this test would sit on the branch the one-wheel rule
         // cannot reach and would stay green under the very mutation the message below names.
@@ -53,7 +53,7 @@ class ConnectStatusTest {
     }
 
     @Test fun `a running attempt is a wheel at every step, except where the step draws its own`() {
-        // ⛔ EVERY step, still — the expected answers are written out one by one below, so this is
+        // EVERY step, still — the expected answers are written out one by one below, so this is
         // the assertion that a step added later cannot slip through unanswered. The list this test
         // walks used to BE `ConnectStep.entries`; spelling it out is what let the credentials step
         // be given a different answer, and this line is what keeps the two in step.
@@ -232,14 +232,14 @@ class ConnectStatusTest {
  * [statusMustBeRead] DECIDE is executed in [ConnectStatusTest]; what is held here is that the foot
  * of the walk's column draws THAT value, and scrolls it into view when it is a sentence.
  *
- * ⛔ THE DEFECT THIS FILE EXISTS FOR, measured at the bench (emu, Android 16, 1080×2400, release):
+ * THE DEFECT THIS FILE EXISTS FOR, measured at the bench (emu, Android 16, 1080×2400, release):
  * address step, keyboard up, airplane mode, tap on Continue. The walk did everything right — it
  * stayed on step 1 and wrote a `ConnectState.Error` carrying `connect_offline` — and the sentence
  * was rendered at y≈1589, under a keyboard whose top edge is y≈1500. It was absent from the
  * uiautomator tree until the screen was scrolled. From the reader's side: she taps Continue and
  * nothing happens.
  *
- * ⛔ Every pin is a WHOLE trimmed line compared by equality, or a run of consecutive whole lines —
+ * Every pin is a WHOLE trimmed line compared by equality, or a run of consecutive whole lines —
  * never a `contains` on a fragment, which is blind to any mutation that lengthens the line.
  */
 class ConnectStatusWiringTest {
@@ -301,7 +301,7 @@ class ConnectStatusWiringTest {
     }
 
     @Test fun `the block is a direct child of the walk's column, not something's else branch`() {
-        // ⛔ THE HOLE THE COUNTER-AUDIT CAME THROUGH, and no trimmed pin in this repo can see it:
+        // THE HOLE THE COUNTER-AUDIT CAME THROUGH, and no trimmed pin in this repo can see it:
         // wrap the whole foot of the column in `if (walkStep != ConnectStep.ADDRESS) { … }` and
         // every run of lines above still follows in the same order, every assertOnce still counts
         // one, the anti-leak test still finds no `walkStep == ConnectStep.MANUAL` — and offline at
@@ -423,7 +423,7 @@ class ConnectStatusWiringTest {
      * The one line of [SCREEN] whose trimmed text is [pinned] must carry exactly [spaces] leading
      * spaces — i.e. sit at that nesting level, and no deeper.
      *
-     * ⛔ Read on the RAW line, deliberately: every other lint in this repo trims first, and a
+     * Read on the RAW line, deliberately: every other lint in this repo trims first, and a
      * trimmed line is blind to the one mutation that changes nothing about the lines themselves —
      * a conditional wrapped around them.
      */

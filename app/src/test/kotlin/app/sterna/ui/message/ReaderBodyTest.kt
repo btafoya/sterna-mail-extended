@@ -188,7 +188,7 @@ class ReaderBodyTest {
 
     @Test
     fun `a preview that is present and blank is not a preview`() {
-        // ⭐ The third site, and the one that gets forgotten: the server computes the preview from
+        // The third site, and the one that gets forgotten: the server computes the preview from
         // the body, so a message with no body at all can carry preview = "" — not null. Testing
         // null there put `<p></p>` on the screen, which is the very white screen being fixed.
         val email = Email(id = "1", preview = "")
@@ -357,7 +357,7 @@ class ReaderBodyTest {
 
     @Test
     fun `a textBody the server typed text_html IS worth switching, though htmlContent is null`() {
-        // ⭐ The case that kills the naive predicate "the message has a text/html part". Over JMAP
+        // The case that kills the naive predicate "the message has a text/html part". Over JMAP
         // (RFC 8621 §4.1.4) a server with no text/plain part fills textBody with the text/html one:
         // htmlBody is empty, htmlContent() is null, and yet the two modes differ sharply — HTML
         // mode escapes the markup into a <pre>, text mode refuses the type and flattens it.

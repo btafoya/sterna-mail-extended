@@ -6,19 +6,19 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⛔ `SyncWindow`'s KDoc once promised that the window "only bounds what stays cached offline"
+ * `SyncWindow`'s KDoc once promised that the window "only bounds what stays cached offline"
  * because "the scroll mediator pages older mail in on demand". The bench says otherwise: same
  * device, same gesture, counted in the database per account and per folder, the JMAP Archive went
  * from 1 000 rows to 1 150 by scrolling alone while the IMAP Archive stayed flat at 1 000.
  *
- * ⚠ WHY it does not hold on IMAP is not established, and this file does not pretend it is. The
+ * WHY it does not hold on IMAP is not established, and this file does not pretend it is. The
  * mediator's IMAP branch exists and does fetch older pages (`MailRepository.folderMediator` →
  * `ImapMailService.fetchOlderPage` → `upsertAll`), and it is attached without testing the protocol
  * (`MailRepository.pagedFolder`), so "the app never asks" would be false. The behaviour was NOT
  * fixed either (the repair runs through the reconcile that deletes) — the label was brought down
  * to what is measured, so the only thing left to defend is the label.
  *
- * ⚠ The gate here is NOT a vocabulary heuristic. A keyword rule cannot tell a sentence from its
+ * The gate here is NOT a vocabulary heuristic. A keyword rule cannot tell a sentence from its
  * negation: "on IMAP it is a hard ceiling on what is KEPT and never on what reading can reach"
  * names IMAP, names a ceiling, promises exactly the thing that was measured false, and would pass
  * any such rule (it did — that mutation survived the first version of this file). So the shipped
@@ -74,7 +74,7 @@ class ImapStopsAtTheWindowIsDocumentedTest {
             "The scroll mediator pages much older mail in on demand.",
             // Qualified for both protocols, which is the lie with a JMAP badge on it.
             "On IMAP as on JMAP the scroll mediator pages older mail in on demand.",
-            // The repo's own name for the object, hyphens and all (MailRepository.kt:1541).
+            // The repo's own name for the object, hyphens and all (MailRepository).
             "On IMAP the scroll-to-load-more mediator pages past it on demand.",
             // The public wording of README/FEATURES, unqualified.
             "Large IMAP folders page in as you scroll, fetching older mail from the server.",
@@ -134,7 +134,7 @@ class ImapStopsAtTheWindowIsDocumentedTest {
     /**
      * The KDoc block on `enum class SyncWindow`, read out of THIS module's source tree.
      *
-     * ⚠ Anchored on the compiled classes of this very test, never by walking parent directories
+     * Anchored on the compiled classes of this very test, never by walking parent directories
      * looking for the path: a worktree is a subdirectory of the main checkout, which holds a file
      * of the same name, so a walk that goes one level too far would validate the KDoc of ANOTHER
      * tree and report it as this branch's. That is the `-w` trap of the build container, and the
@@ -165,7 +165,7 @@ class ImapStopsAtTheWindowIsDocumentedTest {
         const val SCROLL_ARRIVAL = "mail claimed to arrive by scrolling, on IMAP or on no protocol"
 
         /**
-         * ⛔ THE CONTRACT. These sentences must be in `SyncWindow`'s KDoc, word for word. Three
+         * THE CONTRACT. These sentences must be in `SyncWindow`'s KDoc, word for word. Three
          * things they hold, and each is there because leaving it out has already cost something:
          * what was MEASURED, that the cause is NOT established, and that the unified inbox has no
          * mediator on either protocol. Change one only together with the KDoc, and only against

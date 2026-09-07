@@ -36,7 +36,7 @@ import java.io.File
  *    from Android's own backup (`AndroidManifest.xml` + `res/xml/backup_rules.xml`), so the app's
  *    export is the only way a preference survives a reinstall.
  *
- * ⛔ Every rule compares WHOLE lines (trimmed), never `contains` for something it expects to find.
+ * Every rule compares WHOLE lines (trimmed), never `contains` for something it expects to find.
  * A substring check is blind to any mutation that LENGTHENS the line — `deliveredTo = null,` after
  * the pinned argument, `= _readReceiptOffer.value` in place of `= null` — and that blindness has
  * cost this repo three defects. `contains` appears below only where the rule screens for something
@@ -47,7 +47,7 @@ class ReadReceiptTriggerWiringTest {
     // -- 1. the setting: stored, shown, switched, and carried in a backup ---------------------------
 
     /**
-     * ⭐ The unloaded state is a THIRD value, not `false`, and the flow is started EAGERLY.
+     * The unloaded state is a THIRD value, not `false`, and the flow is started EAGERLY.
      *
      * `WhileSubscribed` here would be a defect of its own and a quiet one: nothing composes this
      * flow (the decision reads `.value` from a ViewModel function), so a flow nobody subscribes to
@@ -88,7 +88,7 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * ⭐ THE SWITCH IS WIRED TO ITS OWN SETTING.
+     * THE SWITCH IS WIRED TO ITS OWN SETTING.
      *
      * `onCheckedChange = viewModel::setConfirmLinks` has the same signature, compiles, and makes
      * the read-receipt switch write the link-confirmation preference: it can then never be turned
@@ -130,7 +130,7 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * ⭐ AND IT TRAVELS. `AndroidManifest.xml` + `res/xml/backup_rules.xml` exclude `datastore/`
+     * AND IT TRAVELS. `AndroidManifest.xml` + `res/xml/backup_rules.xml` exclude `datastore/`
      * from Android's own backup, so this export is the ONLY path a preference has across a
      * reinstall. Absent from it, a reader who turned the switch on, exported, reinstalled and
      * imported finds it off again, with nothing said.
@@ -159,7 +159,7 @@ class ReadReceiptTriggerWiringTest {
     // -- 2. the single trigger --------------------------------------------------------------------
 
     /**
-     * ⭐ WHAT "SETTLED" MEANS, pinned in the one line that defines it — and it is an IDENTITY,
+     * WHAT "SETTLED" MEANS, pinned in the one line that defines it — and it is an IDENTITY,
      * never a page number.
      *
      * Either rank comparison compiles and leaves every other rule in this file green.
@@ -276,11 +276,11 @@ class ReadReceiptTriggerWiringTest {
             ),
             "the setting watcher",
         )
-        // ⭐ WIDENED BY ONE NAMED PLACE when the strip was written: a send that FAILED puts the
+        // WIDENED BY ONE NAMED PLACE when the strip was written: a send that FAILED puts the
         // question back, because nothing left the device and the reader's yes bought her nothing —
         // the posture the unsubscribe strip already takes ("a retry, not a dead end"). It goes
         // through the DECISION, like the other three, rather than restoring the captured request:
-        // a second way to raise a question is exactly what this file exists to prevent. ⛔ A
+        // a second way to raise a question is exactly what this file exists to prevent. A
         // REFUSAL is not a failure and does not come back; `declineReadReceipt` is pinned whole
         // below and is untouched by this.
         // Pinned from `_readReceiptState.value = outcome`, which is unique: the retry must sit
@@ -314,7 +314,7 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * ⭐ THE COUNTER-WITNESS. Every file in the app that marks mail read, and the fact that not one
+     * THE COUNTER-WITNESS. Every file in the app that marks mail read, and the fact that not one
      * of them — bar the reader itself — can name any part of the trigger.
      *
      * Enumerated from the sources rather than listed by hand: whatever calls `setRead` today, and
@@ -348,10 +348,10 @@ class ReadReceiptTriggerWiringTest {
     /**
      * And the trigger's names exist in exactly three files, so nothing can reach them sideways.
      *
-     * ⭐ WIDENED BY ONE NAMED FILE, on purpose, when the strip was written: `MessageScreen.kt` wires
+     * WIDENED BY ONE NAMED FILE, on purpose, when the strip was written: `MessageScreen.kt` wires
      * the refusal to `viewModel::declineReadReceipt`. It was two files while nothing could be
      * offered; adding the third had to be an explicit edit here, which is exactly what this rule is
-     * for. ⛔ It is not weakened while being widened: a FOURTH file naming any of these still fails,
+     * for. It is not weakened while being widened: a FOURTH file naming any of these still fails,
      * and that is the property to keep — every extra name is another way into a decision whose
      * whole point is that it can only be taken in one place.
      */
@@ -369,7 +369,7 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * ⭐ AND THE SEND ITSELF. The question can be guarded perfectly and the door still stand open
+     * AND THE SEND ITSELF. The question can be guarded perfectly and the door still stand open
      * one layer down: `NotificationActionReceiver` holds `container.mailRepository`, so its
      * "Mark read" action can call `sendReadReceipt(...)` directly — the decision never runs,
      * `_readReceiptOffer` is never touched, and every rule above stays green.
@@ -377,7 +377,7 @@ class ReadReceiptTriggerWiringTest {
      * Three files may name it: the repository that declares it, the reader that calls it, and —
      * added on purpose when the strip was written — the screen that wires its one button.
      *
-     * ⛔ Widened by ONE NAMED FILE, not loosened: a fourth still fails. `MessageScreen.kt` may
+     * Widened by ONE NAMED FILE, not loosened: a fourth still fails. `MessageScreen.kt` may
      * only hand the gesture to the ViewModel (`viewModel::sendReadReceipt`), which is where the
      * decision is re-run before anything leaves; the screen holds no repository of its own.
      */
@@ -399,7 +399,7 @@ class ReadReceiptTriggerWiringTest {
     // -- 3. the hand-over to the repository --------------------------------------------------------
 
     /**
-     * ⭐ The tap re-runs the DECISION rather than trusting that a banner is on screen, and the send
+     * The tap re-runs the DECISION rather than trusting that a banner is on screen, and the send
      * is handed the request that was CAPTURED, `deliveredTo` included.
      *
      * Each half is a defect of its own. Trusting the banner lets a receipt leave on a switch the
@@ -443,7 +443,7 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * ⛔ Saying no sends nothing, and it is REMEMBERED for this page — otherwise the decision, which
+     * Saying no sends nothing, and it is REMEMBERED for this page — otherwise the decision, which
      * is replayed on every change of the setting, would put the refused question straight back.
      *
      * The refusal is three lines and they are pinned whole, because the shortest possible mistake
@@ -541,7 +541,7 @@ class ReadReceiptTriggerWiringTest {
     /**
      * Locates [expected]'s first line in [file] and compares the block that follows it, whole.
      *
-     * ⭐ The anchor must be UNIQUE in the file. Anchoring on the first of several occurrences is how
+     * The anchor must be UNIQUE in the file. Anchoring on the first of several occurrences is how
      * a lint ends up checking a copy of the thing it was written for while the real one drifts —
      * a second `fun declineReadReceipt() {` or `private fun maybeOfferReadReceipt() {` would leave
      * every rule here green over a block nobody calls.

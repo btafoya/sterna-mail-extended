@@ -12,7 +12,7 @@ import java.sql.DriverManager
  * [LocalDraftEntity] and [LOCAL_DRAFTS_CREATE_SQL], each read from itself and compared — the one
  * check that fails when the two drift apart.
  *
- * ⛔ The hole this closes. Renaming a field of the entity without touching the CREATE compiles, and
+ * The hole this closes. Renaming a field of the entity without touching the CREATE compiles, and
  * left every other test green: they all read `PRAGMA table_info` of a table built by the CONSTANT,
  * so they check the constant against a copy of itself. Nothing in this repo runs Room's own
  * `TableInfo`/`validateMigration` — there is no `androidTest`, no Robolectric, and `exportSchema` is
@@ -22,7 +22,7 @@ import java.sql.DriverManager
  * perfectly green, which is why no bench pass can catch it. The user's only way out is clearing the
  * app's data, which takes the outbox with it.
  *
- * ⛔ So this states no column list of its own. It EXECUTES both sides: it creates the real table and
+ * So this states no column list of its own. It EXECUTES both sides: it creates the real table and
  * reads back what SQLite made of it, it reads the entity's real constructor, and it discovers each
  * parameter's nullability by CALLING that constructor with a null and seeing whether Kotlin's own
  * `checkNotNullParameter` refuses it. A third hand-written copy of the schema would just be a third
@@ -31,7 +31,7 @@ import java.sql.DriverManager
  * What it compares, in both directions: name for name (a column with no field and a field with no
  * column both fail), affinity for affinity, nullable for nullable.
  *
- * ⚠ What it does NOT pin: the primary key and its column order (`androidx.room.Entity` has BINARY
+ * What it does NOT pin: the primary key and its column order (`androidx.room.Entity` has BINARY
  * retention, so the annotation is gone at runtime — `LocalDraftsMigrationSqlTest` pins that on the
  * SQL side), the column ORDER, and Kotlin default values (which are not column defaults; the table
  * deliberately declares none).
@@ -122,7 +122,7 @@ class LocalDraftEntityMatchesItsTableTest {
             val notNull = if (type.isPrimitive) true else refusesNull(constructor, good, i, name).also { if (it) refused++ }
             out[name] = Shape(affinityOf(type), notNull)
         }
-        // ⛔ If nothing ever refused a null, the probe is inoperative (parameter assertions compiled
+        // If nothing ever refused a null, the probe is inoperative (parameter assertions compiled
         // out) and every reference column would be reported nullable — a green that means nothing.
         assertTrue(
             "Not one reference parameter of LocalDraftEntity refused a null, so Kotlin's parameter " +

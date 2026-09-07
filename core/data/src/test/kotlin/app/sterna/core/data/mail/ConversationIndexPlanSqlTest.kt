@@ -27,11 +27,11 @@ import java.sql.DriverManager
  * [conversationSql]'s three `GROUP BY` sub-queries, plus the join that picks a thread's
  * representative row, had no index matching (scope, order) and re-read the folder's rows.
  *
- * ⛔ No millisecond threshold anywhere. A timing assertion passes on a fast machine and fails on a
+ * No millisecond threshold anywhere. A timing assertion passes on a fast machine and fails on a
  * loaded one; `EXPLAIN QUERY PLAN` states what the engine decided, and that is the thing the index
  * is supposed to change.
  *
- * ⭐ The index is NOT written by this test: it is created by the step Room really has registered
+ * The index is NOT written by this test: it is created by the step Room really has registered
  * ([SternaDatabase.ALL_MIGRATIONS]), so the name and the column order come from the shipped
  * migration, not from a copy of it here. A test that re-declared the index would pass on its own
  * decision instead of the app's.
@@ -123,7 +123,7 @@ class ConversationIndexPlanSqlTest {
      * sub-query `c` widens its scope to a DISJUNCTION — `((accountId = ? AND mailboxId = ?)) OR
      * (accountId = ? AND mailboxId = ?)` — instead of a single pair.
      *
-     * ⚠ That is a different shape for the planner: an OR can send it to a MULTI-INDEX OR, or off
+     * That is a different shape for the planner: an OR can send it to a MULTI-INDEX OR, or off
      * the index entirely. [sql] above, with the default `sentMailboxCount = 0`, is the simple form,
      * and proving the plan only on it would prove it on a query the app does not run for this
      * gesture.
@@ -164,7 +164,7 @@ class ConversationIndexPlanSqlTest {
     // --- the proof ---------------------------------------------------------------------------------
 
     /**
-     * ⭐ The two grouped sub-queries. `g` (the representative + unread state) and `c` (the chip
+     * The two grouped sub-queries. `g` (the representative + unread state) and `c` (the chip
      * count) both read the folder through `(accountId = ? AND mailboxId = ?)` — the PAIR
      * [folderScopeSql] binds. With no index on that pair they fall back to `index_emails_mailboxId`,
      * which selects every account's rows carrying that server-assigned id and filters afterwards.
@@ -187,7 +187,7 @@ class ConversationIndexPlanSqlTest {
     }
 
     /**
-     * ⭐ The representative join — `e.accountId = g.gacc AND e.sortKey = g.maxKey` under the outer
+     * The representative join — `e.accountId = g.gacc AND e.sortKey = g.maxKey` under the outer
      * folder scope. This is the access the trailing `sortKey` column exists for, and the one that
      * turned the switch quadratic: without it SQLite walks the account's whole primary key
      * (`sqlite_autoindex_emails_1 (accountId=?)`) once per collapsed thread.
@@ -213,7 +213,7 @@ class ConversationIndexPlanSqlTest {
     }
 
     /**
-     * ⭐ The same proof on the form the gesture actually emits. A folder view whose account has a
+     * The same proof on the form the gesture actually emits. A folder view whose account has a
      * resolved Sent folder passes `sentMailboxCount = 1`, and the chip-count sub-query `c` then
      * scopes on a DISJUNCTION of two (account, folder) pairs rather than on one.
      *
@@ -222,7 +222,7 @@ class ConversationIndexPlanSqlTest {
      * row through all THREE columns, and nothing in the plan falls back to reading `emails` without
      * an index — no `SCAN emails` on the folder path.
      *
-     * ⛔ Not asserted here: that `c` uses the composite index. Under an OR, SQLite is free to serve
+     * Not asserted here: that `c` uses the composite index. Under an OR, SQLite is free to serve
      * it by a multi-index union or by the mailbox index, and pinning one of those would pin the
      * planner's current taste rather than this branch's decision.
      */

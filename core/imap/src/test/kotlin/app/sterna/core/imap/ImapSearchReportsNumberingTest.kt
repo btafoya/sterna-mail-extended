@@ -15,7 +15,7 @@ import java.time.ZoneOffset
  * moving or deleting that hit was REFUSED on a perfectly healthy server. The guard was firing at
  * a server that had done nothing wrong, and the missing fact was one already on the wire.
  *
- * ⛔ Reporting only. This file's own rule is untouched: a server announcing no numbering is still
+ * Reporting only. This file's own rule is untouched: a server announcing no numbering is still
  * not turned into a refusal here (`UidValidityTest`), because ten read paths select through it.
  * The walk keeps searching folders that state nothing; it simply says so.
  */

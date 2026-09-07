@@ -18,7 +18,7 @@ import java.io.File
  *  2. the switch seeded from something other than the stored value, so it shows "on" over an
  *     account that is off — and this switch's "on" is the one that HIDES folders;
  *  3. the view model no longer writing through the store, so the switch moves and nothing is kept;
- *  4. ⛔ the row drifting INTO the `if (isImap)` block, where the neighbouring "Upload sent
+ * 4. the row drifting INTO the `if (isImap)` block, where the neighbouring "Upload sent
  *     messages" switch legitimately lives. This setting is about what the FOLDER LISTS show, and
  *     both protocols carry the subscription (IMAP `LSUB`, JMAP `Mailbox.isSubscribed`): inside that
  *     branch it would silently disappear for every JMAP account, which is the app's default
@@ -78,7 +78,7 @@ class ShowOnlySubscribedFoldersWiringTest {
     }
 
     /**
-     * ⭐ The store write, then the folder sync that ON owes — and the SCOPE that sync runs on (#174).
+     * The store write, then the folder sync that ON owes — and the SCOPE that sync runs on (#174).
      *
      * The decision is executed next door ([app.sterna.core.data.account.subscriptionSyncOnToggle],
      * run against a real IMAP server by `SubscriptionToggleAsksTheServerTest`); what only a source
@@ -87,7 +87,7 @@ class ShowOnlySubscribedFoldersWiringTest {
      * back whole: the box moves, no `LSUB` goes out, nothing is hidden until a pull-to-refresh
      * happens to re-list the folders.
      *
-     * ⛔ **`appScope`, never `viewModelScope` — and this line is the fix, not a preference.** This
+     * **`appScope`, never `viewModelScope` — and this line is the fix, not a preference.** This
      * screen is a `NavHost` destination, so its `ViewModelStoreOwner` is the `NavBackStackEntry`:
      * `popBackStack()` clears the store and CANCELS `viewModelScope`. The gesture in the report is
      * exactly tick-then-back, and the sync is a whole IMAP round trip (connect, `LIST`, `LSUB`,
@@ -96,7 +96,7 @@ class ShowOnlySubscribedFoldersWiringTest {
      * branch exists to remove. Same reasoning, and the same house pattern, as
      * `ComposeViewModel.releaseLocalDraftEdit` and `ScheduledSendsViewModel.cancel`.
      *
-     * ⛔ `runCatching` stays (offline must not take the settings screen down, and the setting is
+     * `runCatching` stays (offline must not take the settings screen down, and the setting is
      * already written one line up) but it may no longer swallow the failure without a word:
      * `onFailure` logs it. A silent catch on a scope that can be cancelled is how this defect hid
      * in the first place.

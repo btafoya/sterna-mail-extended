@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ SOURCE LINT, same instrument and disclaimer as [UploadSentCopyStoreWiringTest]: it reads
+ * SOURCE LINT, same instrument and disclaimer as [UploadSentCopyStoreWiringTest]: it reads
  * `AccountStore.kt` as text and proves nothing about a running store. Nothing in this module can
  * build one (it wants a `Context` and the Keystore, and there is no Robolectric here).
  *

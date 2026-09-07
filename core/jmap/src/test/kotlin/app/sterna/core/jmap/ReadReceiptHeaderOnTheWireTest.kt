@@ -18,7 +18,7 @@ import org.junit.Test
  * READING `Disposition-Notification-To:` off a JMAP server — the request bytes, which fetches
  * carry the property and which must not, and the two fallbacks kept apart.
  *
- * ⛔ Not to be confused with [ReadReceiptOnTheWireTest], which pins the `asAddresses` property a
+ * Not to be confused with [ReadReceiptOnTheWireTest], which pins the `asAddresses` property a
  * SEND writes. This one is the `asText` property an OPEN reads; they are two different properties
  * and only this file may see the second.
  *
@@ -193,7 +193,7 @@ class ReadReceiptHeaderOnTheWireTest {
     private fun serverRefusing(vararg refuses: String, with: MockResponse = invalidArguments()) {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
-                // ⚠ peek, not readUtf8: reading the buffer here EMPTIES it, and every assertion
+                // peek, not readUtf8: reading the buffer here EMPTIES it, and every assertion
                 // below would then be made against an empty string — vacuously true, which is
                 // how this test first passed while proving nothing.
                 val body = request.body.peek().readUtf8()
@@ -208,7 +208,7 @@ class ReadReceiptHeaderOnTheWireTest {
     /**
      * Every request received since the last drain, in order.
      *
-     * ⚠ Drained with a timeout and NOT `repeat(server.requestCount)`: `requestCount` is the total
+     * Drained with a timeout and NOT `repeat(server.requestCount)`: `requestCount` is the total
      * ever received, so a second read of it would ask for requests already taken and block the
      * test forever on an empty queue.
      */
@@ -218,7 +218,7 @@ class ReadReceiptHeaderOnTheWireTest {
             .toList()
 
     /**
-     * ⭐ HALF ONE of the invariant. A server that will not hear of the receipt property keeps its
+     * HALF ONE of the invariant. A server that will not hear of the receipt property keeps its
      * unsubscribe banner. One guard covering both groups would drop all three properties here and
      * the banner would be gone for that account for the life of the process.
      */
@@ -243,7 +243,7 @@ class ReadReceiptHeaderOnTheWireTest {
     }
 
     /**
-     * ⭐ HALF TWO, and the one a nested guard gets wrong by default: a server that refuses the
+     * HALF TWO, and the one a nested guard gets wrong by default: a server that refuses the
      * unsubscribe headers keeps the receipt reading. The inner guard is the unsubscribe one, so
      * this case must still cost the two requests it cost before this property existed.
      */
@@ -281,7 +281,7 @@ class ReadReceiptHeaderOnTheWireTest {
     }
 
     /**
-     * ⭐ A server may refuse a property it does not know in words RFC 8620 never wrote down: an
+     * A server may refuse a property it does not know in words RFC 8620 never wrote down: an
      * invented method-level error, or a plain 500 from a validator that fell over on it. Those
      * are NOT `isPropertyRejection`, and without a replay the message would simply stop opening
      * on that account — a mailbox that worked before this property was ever asked for.
@@ -310,7 +310,7 @@ class ReadReceiptHeaderOnTheWireTest {
     }
 
     /**
-     * ⛔ And the price of that width, paid where it must be: when the replay fails too, the reader
+     * And the price of that width, paid where it must be: when the replay fails too, the reader
      * is shown the ORIGINAL failure, word for word. A 401 must not come back as whatever the
      * second attempt happened to answer, and nothing is written down about the property — it was
      * never the problem.
@@ -338,7 +338,7 @@ class ReadReceiptHeaderOnTheWireTest {
     // --- 4. the prefetch has the same two guards, and they are just as independent -------------
 
     /**
-     * ⭐ [JmapClient.getEmailsWithBody] carries the same nesting inside its batching, and it is
+     * [JmapClient.getEmailsWithBody] carries the same nesting inside its batching, and it is
      * the path that fills the body CACHE — a message opened from the cache would otherwise be
      * poorer than the same message opened live. Proving the two guards apart on `getEmail` alone
      * says nothing about it: it is a different call site, written out separately.
@@ -365,7 +365,7 @@ class ReadReceiptHeaderOnTheWireTest {
     }
 
     /**
-     * ⭐ The verdict is written down only when dropping the property is what MADE the call work.
+     * The verdict is written down only when dropping the property is what MADE the call work.
      *
      * Here the server refuses `replyTo` — a mandatory RFC 8621 property neither guard can drop —
      * so every attempt fails and the message does not open at all. That larger problem must not
@@ -382,7 +382,7 @@ class ReadReceiptHeaderOnTheWireTest {
     }
 
     /**
-     * ⭐ What the draft save reads. A server that refuses the property answers null for EVERY
+     * What the draft save reads. A server that refuses the property answers null for EVERY
      * message, including a draft that does carry the header — so `null` from such a server means
      * "unknown", not "asks for nothing". Without this the guard of `saveDraft` would destroy the
      * server copy holding a receipt request it could not see.

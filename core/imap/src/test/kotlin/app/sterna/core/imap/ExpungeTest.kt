@@ -606,7 +606,7 @@ class ExpungeTest {
      * whose mail stays exactly where it is, because it may have carried the move out before going
      * quiet.
      *
-     * ⚠ This fixture ADVERTISES MOVE, so it is refused by the capability half of the decision as
+     * This fixture ADVERTISES MOVE, so it is refused by the capability half of the decision as
      * well and proves little on its own; the socket is alive here, so the probe would have been
      * answered. The version that bites is the one below it, where the list carries no MOVE.
      */
@@ -692,7 +692,7 @@ class ExpungeTest {
      * absence with `UID COPY` + `\Deleted` + a purge of the source is the destructive side of the
      * error. So the original refusal is rethrown, and the client stops there.
      *
-     * ⚠ Only the FIRST capability question after the move is refused: the count below is what
+     * Only the FIRST capability question after the move is refused: the count below is what
      * bites. Reading the unanswerable probe as "no MOVE here" would send the operation on to the
      * UIDPLUS question, which this server would answer, and the copy would follow.
      */

@@ -16,7 +16,7 @@ import org.junit.Test
  * "off" is the position where the app ignores a sender's request entirely, so there is not even a
  * banner to notice the loss by.
  *
- * ⚠ The direction that matters is the opposite of the reply bar's: the default here is FALSE, so
+ * The direction that matters is the opposite of the reply bar's: the default here is FALSE, so
  * "on" is the answer a backup has to carry.
  */
 class SettingsBackupReadReceiptTest {

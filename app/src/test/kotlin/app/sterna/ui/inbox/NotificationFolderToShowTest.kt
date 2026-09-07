@@ -15,7 +15,7 @@ import org.junit.Test
  * The rule it defends is one rule for two routes: one cannot end up parked in a folder no list
  * offers, whether the setting hid it under one's feet or a notification walked one into it.
  *
- * ⛔ Nothing here recomputes "subscribed, or a role, or a visible descendant". Every expectation is
+ * Nothing here recomputes "subscribed, or a role, or a visible descendant". Every expectation is
  * a literal id or a literal null.
  */
 class NotificationFolderToShowTest {

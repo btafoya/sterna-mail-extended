@@ -26,7 +26,7 @@ class ClearAttachmentTreesTest {
     @Test fun `both trees are emptied, and the bytes are really gone`() {
         val attachments = temp.newFolder("attachments")
         val outgoing = temp.newFolder("outgoing")
-        // ⭐ The decrypted PDF is written at the size a real one has, several megabytes. A sweep
+        // The decrypted PDF is written at the size a real one has, several megabytes. A sweep
         // narrowed by a size test — `if (it.length() < 1_000_000)` — passes every assertion below on
         // twenty-byte fixtures while leaving exactly the file of the symptom on the phone. These
         // data have to be able to tell the two apart.

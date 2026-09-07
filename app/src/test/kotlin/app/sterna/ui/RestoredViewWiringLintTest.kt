@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * ⚠ SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `SternaApp.kt` as TEXT and compares whole trimmed
+ * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `SternaApp.kt` as TEXT and compares whole trimmed
  * lines, because nothing here can be built on the JVM: `RootViewModel` is an `AndroidViewModel`
  * over the account store and the Keystore, `MainNavHost` is a composable, and there is no
  * Robolectric in this module. The decisions themselves ARE executed elsewhere —
@@ -22,7 +22,7 @@ import java.io.File
  *    (`PushController.unifiedInboxVisible`) is still at its initial `false` when
  *    `shouldResetBaseline` reads it. A restored unified view then arms as if one folder were on
  *    screen, and every account but the current one re-announces its backlog.
- *    ⚠ "Before" is the claim, NOT "in the same call stack": `apply()` is synchronous on one branch
+ * "Before" is the claim, NOT "in the same call stack": `apply()` is synchronous on one branch
  *    only (`PushController:342`/`:364`, the worker path, taken when no account needs a direct
  *    connection). The other branch is `PushService.start` = `startForegroundService`, and the flag
  *    is then read later, on the service's own coroutine (`PushService.watch`). Seeding first is
@@ -32,14 +32,14 @@ import java.io.File
  *    the reader out of it into one account's folder — the very bounce
  *    `NotificationAccountSwitch`'s unified arm exists to prevent.
  *
- * ⛔ Whole trimmed lines, compared as CONTIGUOUS blocks, never `contains`: a fragment rule is blind
+ * Whole trimmed lines, compared as CONTIGUOUS blocks, never `contains`: a fragment rule is blind
  * to anything appended to a line, and a per-line rule is blind to a statement moved one line down —
  * which is exactly the mutation the first rule below exists to catch.
  */
 class RestoredViewWiringLintTest {
 
     /**
-     * ⛔ THE ORDER IS THE GUARD, which is why this is a block and not two line checks — and the
+     * THE ORDER IS THE GUARD, which is why this is a block and not two line checks — and the
      * order is ALL it is. The seed must precede the arm because the flag has to be right by the
      * time the arm reads it, and the arm may read it on another thread, later: `apply()` either
      * runs the decision inline (the worker branch) or hands the job to
@@ -67,7 +67,7 @@ class RestoredViewWiringLintTest {
     }
 
     /**
-     * ⛔ `switchAccount()` KEEPS ITS OWN `= false`, and it is REDUNDANT — that is the whole point
+     * `switchAccount()` KEEPS ITS OWN `= false`, and it is REDUNDANT — that is the whole point
      * of pinning it.
      *
      * Since the seed exists, this line no longer decides anything: `refresh()` is called on the
@@ -100,7 +100,7 @@ class RestoredViewWiringLintTest {
     }
 
     /**
-     * ⛔ `?:`, NEVER `== true`.
+     * `?:`, NEVER `== true`.
      *
      * The live list keeps the last word wherever there is one; the memory speaks only when there is
      * nobody to answer, i.e. the first composition of a cold start. Written `== true`, the null
@@ -128,7 +128,7 @@ class RestoredViewWiringLintTest {
     /**
      * The answer both rules above spend, and the one line that reads the memory for them.
      *
-     * ⛔ It goes through `restoredSelection(store)`, the shared adapter — not a second read of
+     * It goes through `restoredSelection(store)`, the shared adapter — not a second read of
      * `store.storedView()` written out here. `SelectionMemoryWiringLintTest` pins that the whole app
      * holds exactly ONE call to `restoreSelection`, which is what keeps this answer and the list's
      * own seeding from ever disagreeing about what "the restored view" is.

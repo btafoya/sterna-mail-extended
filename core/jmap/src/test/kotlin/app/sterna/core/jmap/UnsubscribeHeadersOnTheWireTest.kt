@@ -194,12 +194,12 @@ class UnsubscribeHeadersOnTheWireTest {
     }
 
     /**
-     * ⛔ And the boundary of THAT, for THIS guard: a 400 is the only status it replays without the
+     * And the boundary of THAT, for THIS guard: a 400 is the only status it replays without the
      * unsubscribe headers. 401/403 are credentials, 5xx is the server being ill; dropping these
      * two headers could not help, and pretending it might would hide a real refusal behind a
      * second attempt that fails for the same reason.
      *
-     * ⚠ The request COUNT is two per status, not one, and that is not this guard: the read-receipt
+     * The request COUNT is two per status, not one, and that is not this guard: the read-receipt
      * guard wraps this one and replays anything but a rate limit, because that property is
      * unmeasured and a server refusing it in unexpected words would otherwise wall the account
      * (see `ReadReceiptHeaderOnTheWireTest`). What is asserted here is what belongs here — the
@@ -227,7 +227,7 @@ class UnsubscribeHeadersOnTheWireTest {
     }
 
     /**
-     * ⛔ Opening a message and prefetching bodies are NOT the same request, and a rate limit is
+     * Opening a message and prefetching bodies are NOT the same request, and a rate limit is
      * where the difference is felt. `getEmail` is the reader sitting in front of a spinner: it
      * fails at once, with its own sentence, which is displayed as it is. The two were briefly
      * folded into one function — which quietly gave the reader four backoffs of waiting and

@@ -71,7 +71,7 @@ class UnreadWidgetAccountRowsTest {
     }
 
     /**
-     * ⛔ App lock on → the total, at every size, whatever the breakdown says.
+     * App lock on → the total, at every size, whatever the breakdown says.
      *
      * `StoredAccount.label()` falls back to `username`, which IS the mail address, so ventilating
      * under a lock writes the owner's own address on a home screen that is never asked for a PIN.
@@ -110,7 +110,7 @@ class UnreadWidgetAccountRowsTest {
     }
 
     /**
-     * ⛔ Two accounts, ONE known inbox — and the answer is the total, not a single line.
+     * Two accounts, ONE known inbox — and the answer is the total, not a single line.
      *
      * An account absent from the breakdown has no known inbox to count. Ventilating anyway would
      * draw one line, which is the total under an account's name, and would silently drop the other
@@ -130,7 +130,7 @@ class UnreadWidgetAccountRowsTest {
     }
 
     /**
-     * ⛔ And the absent account gets NO line, not a line at zero — asserted where there ARE two
+     * And the absent account gets NO line, not a line at zero — asserted where there ARE two
      * other lines, so the guard above cannot be what makes this pass.
      *
      * A "0" is a claim: it says that account has nothing unread. The app does not know that; it

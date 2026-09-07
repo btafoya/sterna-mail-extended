@@ -27,7 +27,7 @@ class NotificationPreviewGatheringTest {
     // ---- the pre-pass: whether it runs, how much it reads -------------------------------
 
     /**
-     * ⛔ Nothing at all happens unless the reader asked for the body position. Not a fetch, not
+     * Nothing at all happens unless the reader asked for the body position. Not a fetch, not
      * even the numbering read: someone who chose "no details", or who is nursing a battery, must
      * not pay a round trip per message for a line they will never be shown.
      */
@@ -51,7 +51,7 @@ class NotificationPreviewGatheringTest {
     }
 
     /**
-     * ⭐ Six messages per pass, and no more. Past the sixth the reader is looking at the group
+     * Six messages per pass, and no more. Past the sixth the reader is looking at the group
      * summary — which lists six — and not at the messages, so a seventh round trip is spent on a
      * line nobody opens. A burst of fifty arrivals is fifty round trips on one radio wake-up.
      */
@@ -93,7 +93,7 @@ class NotificationPreviewGatheringTest {
     // ---- the pre-pass: the clock ---------------------------------------------------------
 
     /**
-     * ⭐ FOUR SECONDS FOR THE WHOLE PRE-PASS, not for each message: each read is given what is
+     * FOUR SECONDS FOR THE WHOLE PRE-PASS, not for each message: each read is given what is
      * LEFT, and when nothing is left the pass posts with what it has. Mail that has already
      * arrived is waiting behind this.
      */
@@ -108,7 +108,7 @@ class NotificationPreviewGatheringTest {
     }
 
     /**
-     * ⛔ And never a budget of zero: `budgetMs = 0` is `ImapBudget.NO_BUDGET`, i.e. `soTimeout = 0`,
+     * And never a budget of zero: `budgetMs = 0` is `ImapBudget.NO_BUDGET`, i.e. `soTimeout = 0`,
      * i.e. block until the OS gives up — on a server that accepts the connection and then says
      * nothing, that is minutes, holding the account's mutex, in a background service. The exhausted
      * budget must stop the pass, not be passed on.
@@ -128,7 +128,7 @@ class NotificationPreviewGatheringTest {
     }
 
     /**
-     * ⭐ The four seconds start at the FIRST READ, not when the budget is made. A delivery pass
+     * The four seconds start at the FIRST READ, not when the budget is made. A delivery pass
      * refreshes the account's folders first — seconds of network — and a budget armed before that
      * would already be spent by the time the first opening line is asked for.
      */
@@ -142,7 +142,7 @@ class NotificationPreviewGatheringTest {
     // ---- the pre-pass: one account, several folders ---------------------------------------
 
     /**
-     * ⭐⛔ THE SIX ARE THE ACCOUNT'S, NOT EACH FOLDER'S. A delivery pass diffs the inbox AND every
+     * THE SIX ARE THE ACCOUNT'S, NOT EACH FOLDER'S. A delivery pass diffs the inbox AND every
      * watched folder, calling the pre-pass once per folder: a count of its own per folder would
      * give an account watching three extras 4 × 6 = 24 reads on ONE radio wake-up, under that
      * account's single mutex. The second folder here inherits what the first one left.
@@ -183,7 +183,7 @@ class NotificationPreviewGatheringTest {
     // ---- the pre-pass: failure --------------------------------------------------------
 
     /**
-     * ⛔ A failed read costs its own preview and nothing else — not the pass, not the other
+     * A failed read costs its own preview and nothing else — not the pass, not the other
      * previews, and above all not the exception that would skip the caller's baseline.
      */
     @Test fun `a read that blows up costs its own preview and no other`() = runBlocking {
@@ -206,7 +206,7 @@ class NotificationPreviewGatheringTest {
     }
 
     /**
-     * ⛔ THE WHOLE pre-pass stops at the first renumbering, not just the message that hit it.
+     * THE WHOLE pre-pass stops at the first renumbering, not just the message that hit it.
      * The refused SELECT is invisible from here — `fetchPreview` swallows it — but the
      * invalidation RECORDS the new numbering as it goes, so the NEXT message would sail through
      * the check carrying a UID from the old numbering and put the opening of somebody else's mail
@@ -229,7 +229,7 @@ class NotificationPreviewGatheringTest {
     }
 
     /**
-     * ⛔ And a numbering that cannot be read FROM THE VERY FIRST READ stops it before a single
+     * And a numbering that cannot be read FROM THE VERY FIRST READ stops it before a single
      * fetch — the case the "after the first read" test above cannot see, because a first read that
      * succeeds gives the comparison something to differ from. With nothing to compare against,
      * every later read compares equal and the loop runs to the end: the guard reads as armed and
@@ -244,7 +244,7 @@ class NotificationPreviewGatheringTest {
     }
 
     /**
-     * ⛔⭐ And the folder whose numbering the SERVER never states (no UIDVALIDITY at the SELECT):
+     * And the folder whose numbering the SERVER never states (no UIDVALIDITY at the SELECT):
      * `recorded` is null, so this comparison has nothing to hold — and `onMailbox` cannot refuse
      * anything either, since it has no expected value to check against. BOTH guards are down at
      * once, which makes this the one path by which the opening of another message could reach a
@@ -261,7 +261,7 @@ class NotificationPreviewGatheringTest {
     // ---- the order: gather first, post second ------------------------------------------
 
     /**
-     * ⛔⭐ THE ONE THAT CAN LOSE MAIL. Every opening is gathered BEFORE the first notification is
+     * THE ONE THAT CAN LOSE MAIL. Every opening is gathered BEFORE the first notification is
      * posted, in ONE pre-pass — never a round trip between two posts.
      *
      * The caller advances the folder's baseline after its posting loop. A fetch inside that loop
@@ -285,7 +285,7 @@ class NotificationPreviewGatheringTest {
     }
 
     /**
-     * ⛔ And a gathering that blows up whole still posts every notification and comes back
+     * And a gathering that blows up whole still posts every notification and comes back
      * normally, so the caller reaches the baseline it advances afterwards.
      */
     @Test fun `a gathering that fails outright still posts every notification`() = runBlocking {

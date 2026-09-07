@@ -15,7 +15,7 @@ import org.junit.Test
  * These tests EXECUTE [rowTapAction] and [childTapAction]. They never rebuild the rule to decide
  * what to assert: every input is a literal and the expected [RowTap] is written out.
  *
- * ⛔ Says nothing about what the screen does with the answer. That `EDIT_DRAFT` reaches
+ * Says nothing about what the screen does with the answer. That `EDIT_DRAFT` reaches
  * `onEditDraft` and `OPEN` reaches the reader is `InboxScreen` composition, out of reach in a JVM
  * test; the wiring is read as text in [RowFolderRoleWiringLintTest] and [LocalDraftListWiringLintTest].
  */

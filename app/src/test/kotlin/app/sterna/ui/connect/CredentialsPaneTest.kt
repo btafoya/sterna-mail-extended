@@ -20,7 +20,7 @@ import java.io.File
  *      after the panels' `return@Column`, so while a panel owns the screen no handler is composed
  *      at all and the system pops the screen, with the sign-in still in flight behind it.
  *
- * ⛔ Every case is HARD-CODED. A test that re-derives the rule from what it feeds in is a copy of
+ * Every case is HARD-CODED. A test that re-derives the rule from what it feeds in is a copy of
  * the decision, and the shipped condition could be inverted under it without a red.
  */
 class CredentialsPaneTest {
@@ -281,11 +281,11 @@ class CredentialsPaneTest {
  * so nothing here can be composed. The decisions are EXECUTED above; what is held here is WHERE the
  * screen runs them.
  *
- * ⛔ And this one is about ORDER, which is the hole defect B came through: a pinned line is blind to
+ * And this one is about ORDER, which is the hole defect B came through: a pinned line is blind to
  * two lines being swapped, and "the handler exists" was true all along — it was composed after the
  * panels had already returned out of the column, so while a panel was on screen it did not exist.
  *
- * ⛔ Order is not enough either: it says nothing about a BODY belonging to its LABEL. The three
+ * Order is not enough either: it says nothing about a BODY belonging to its LABEL. The three
  * branches of the credentials `when` are held to their bodies by the two lints at the end of this
  * class — the wheel by a pin that carries label and body on one line, the invitation by containment
  * between its label and the next.
@@ -345,7 +345,7 @@ class HandoverBackWiringTest {
         assertPinned("fun startHandover() {")
         assertPinned("handoverFor = username.trim()")
         assertPinned("val handedOver = handoverStarted(handoverFor, username)")
-        // ⛔ rememberSaveable, not remember: a plain remember is lost on rotation, the trigger
+        // rememberSaveable, not remember: a plain remember is lost on rotation, the trigger
         // fires again on the recomposed screen, and the browser she cancelled reopens itself the
         // moment she turns the phone. Nothing executed can see that difference.
         assertPinned("var handoverFor by rememberSaveable { mutableStateOf(NO_HANDOVER) }")
@@ -427,7 +427,7 @@ class HandoverBackWiringTest {
                 "other block further down the column.",
             exit < label && label < manualStep,
         )
-        // ⛔ ORDER IS NOT ENOUGH, and this is where the mutation went through: PASSWORD is the
+        // ORDER IS NOT ENOUGH, and this is where the mutation went through: PASSWORD is the
         // LAST branch label of the guard, so the whole block dropped INSIDE it still sits after
         // every label and before the manual step — and there it is never drawn, because the guard
         // answers PASSWORD and the decision answers null. What tells the two apart is depth, read

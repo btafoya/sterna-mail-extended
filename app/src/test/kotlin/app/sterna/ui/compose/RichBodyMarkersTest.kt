@@ -59,7 +59,7 @@ class RichBodyMarkersTest {
     }
 
     /**
-     * ⛔ The reason the text is rebuilt from `subSequence` and not from its plain characters: the
+     * The reason the text is rebuilt from `subSequence` and not from its plain characters: the
      * inline styling of #131 is laid over this very AnnotatedString, and a transformation that
      * dropped it would show a body with its bold gone while the model still carries it.
      */
@@ -116,7 +116,7 @@ class RichBodyMarkersTest {
     }
 
     /**
-     * ⛔ THE property. Compose asks both directions on every caret move, drag and IME commit; a
+     * THE property. Compose asks both directions on every caret move, drag and IME commit; a
      * pair that does not round trip is a caret that walks away from the finger.
      */
     @Test fun `the round trip is the identity for every offset, and both directions are monotonic`() {
@@ -158,7 +158,7 @@ class RichBodyMarkersTest {
     // -- the body's ONE transformation: the styling AND the markers, together ----------------------
 
     /**
-     * ⛔ Why these run `bodyTransformation` and not just `markedText`: the body field has exactly
+     * Why these run `bodyTransformation` and not just `markedText`: the body field has exactly
      * ONE `visualTransformation`, and since the value it is handed must stay FLAT (a span in
      * there drops the IME's composing region on every keystroke — see `ComposeBodyWiringTest`),
      * that one transformation has to carry the styling too. These execute it.
@@ -211,7 +211,7 @@ class RichBodyMarkersTest {
     }
 
     /**
-     * ⭐ The case that catches a free path widened by mistake to `ranges.isEmpty()` alone: no
+     * The case that catches a free path widened by mistake to `ranges.isEmpty()` alone: no
      * family anywhere, one link. A body whose only styling is a link is exactly what the model
      * refuses to call plain (`RichBody.isPlain` counts the links), and skipping it here would
      * draw a hyperlink as ordinary text while the model still carries the address.
@@ -243,7 +243,7 @@ class RichBodyMarkersTest {
     }
 
     /**
-     * ⛔ The free path is `ranges` AND `links`, NOT [RichBody.isPlain] — which also counts the
+     * The free path is `ranges` AND `links`, NOT [RichBody.isPlain] — which also counts the
      * blocks. A body in bullets with no bold, no italic and no link anywhere has nothing to lay
      * on it, and `isPlain` there would send a 324 kB reply through `toAnnotatedString`, whose
      * first act is `append(rich.text)`: a full copy of the body on every keystroke, in the field
@@ -286,7 +286,7 @@ class RichBodyMarkersTest {
      */
     @Test fun `a model whose text has drifted from the field's draws no style, and does not throw`() {
         val text = AnnotatedString("abcdef")
-        // ⛔ THE SAME LENGTH, deliberately: a guard comparing `rich.text.length` instead of
+        // THE SAME LENGTH, deliberately: a guard comparing `rich.text.length` instead of
         // `rich.text` would pass a body of the right size and the wrong characters, and the bold
         // would land on whatever happens to sit at 0..2 of the text on screen.
         val stale = RichBody("zzzzzz", mapOf(Inline.BOLD to listOf(Span(0, 2))))
@@ -336,7 +336,7 @@ class RichBodyMarkersTest {
     }
 
     /**
-     * ⛔ The lit button must be the one that TURNS THE LIST OFF. `listKindAt` and `toggleBlock`
+     * The lit button must be the one that TURNS THE LIST OFF. `listKindAt` and `toggleBlock`
      * each decide "does this run already carry that kind"; the two are run here against each
      * other, so a rule that drifts in one of them cannot stay hidden behind a lint on a name.
      */
@@ -346,7 +346,7 @@ class RichBodyMarkersTest {
         val cases = listOf(
             plain to Span(0, 0), plain to Span(9, 9), plain to Span(0, 18),
             bullets to Span(9, 9), bullets to Span(9, 18), bullets to Span(0, 18), bullets to Span(0, 0),
-            // ⭐ The boundary case, and the only one that makes the `- 1` of both rules load
+            // The boundary case, and the only one that makes the `- 1` of both rules load
             // bearing: the selection stops exactly where the line AFTER the list begins.
             bullets to Span(9, 14), bullets to Span(0, 9), bullets to Span(13, 18),
         )

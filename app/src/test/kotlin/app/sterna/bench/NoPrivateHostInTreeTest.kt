@@ -17,12 +17,12 @@ import java.nio.file.Files
  *
  * HOW IT IS BUILT, and each point cost something:
  *
- *  - ⛔ NO `git ls-files`. In the toolchain container a worktree's `.git` points at an absolute
+ * - NO `git ls-files`. In the toolchain container a worktree's `.git` points at an absolute
  *    host path that does not exist there; git answers "not a git repository" and zero files, so a
  *    lint built on it would be green and empty in the very tree being written.
  *  - So the tree is WALKED, from the repo root, with exclusions named one by one below. Never a
  *    list of files to scan: a brand-new file must be seen without anyone editing this test.
- *  - ⛔ The forbidden label is NOT written as one literal anywhere in this file. The walk reads
+ * - The forbidden label is NOT written as one literal anywhere in this file. The walk reads
  *    this file too, and a lint that spells its own target reports itself on every run.
  *  - The decision is a PURE FUNCTION, [namesThePrivateHost], EXECUTED against pinned lines by
  *    [theDecisionIsExecutedOnPinnedLines]. A test that re-derived the rule to choose what to feed
@@ -172,7 +172,7 @@ class NoPrivateHostInTreeTest {
     private companion object {
 
         /**
-         * The forbidden label, assembled from fragments. ⛔ Never write it as one literal in this
+         * The forbidden label, assembled from fragments. Never write it as one literal in this
          * file: the walk reads this file too.
          */
         val PRIVATE_LABEL: String = "pi" + "nt" + "y"

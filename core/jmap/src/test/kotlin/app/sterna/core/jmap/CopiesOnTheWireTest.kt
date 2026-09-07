@@ -25,10 +25,10 @@ import org.junit.Test
  * against a mock server ON ITS OWN, so amputating any single one turns a test red — an aggregate
  * check alone would let a reader think one failing path is the only one to look at.
  *
- * ⚠ Same known limit as [ReplyToOnTheWireTest]: the list of paths is written by hand. It catches a
+ * Same known limit as [ReplyToOnTheWireTest]: the list of paths is written by hand. It catches a
  * property dropped from an existing path, not a NEW fetch path added tomorrow without them.
  *
- * ⛔ Deliberately absent: `crawlHeaders` and `searchEmails`, which write no `emails` row and so
+ * Deliberately absent: `crawlHeaders` and `searchEmails`, which write no `emails` row and so
  * cannot erase a column, and `getEmailHeaders`, which asks for raw headers.
  */
 class CopiesOnTheWireTest {
@@ -148,7 +148,7 @@ class CopiesOnTheWireTest {
 
     @Test fun `the body fetch asks for cc and bcc`() = assertAsksForCopies(cachingPaths()[3])
 
-    /** ⭐ The guard as one statement, so a review reads the whole set of cached paths at once. */
+    /** The guard as one statement, so a review reads the whole set of cached paths at once. */
     @Test fun `every fetch that fills the cache asks the server for cc and bcc`() {
         val missing = cachingPaths().mapNotNull { path ->
             val asked = propertiesAskedBy(path)

@@ -358,7 +358,7 @@ class BoundedFolderReadsSqlTest {
         // a deep folder and an OutOfMemoryError once the sync window is unpinned, and both are
         // reachable by editing one digit of a private constant no call-site rule can see.
         // PREFETCH_COUNT = 5000 passes every other test in this file.
-        // ⛔ Deliberately NOT UNREAD_RESOLVE_MAX: how many unread a "mark all read" resolves is a
+        // Deliberately NOT UNREAD_RESOLVE_MAX: how many unread a "mark all read" resolves is a
         // product decision, not a memory net, and pinning it here would freeze the wrong thing.
         val prefetch = Regex("""private const val PREFETCH_COUNT = (\d[\d_]*)""")
             .find(DaoQuerySource.mailSource("MailRepository"))

@@ -16,7 +16,7 @@ import java.io.File
  * composer comes back to the front, that it is taken with the RIGHT staging root and the REAL
  * filesystem, and that the removal it causes is announced and marked as an edit — are read.
  *
- * ⛔ Every rule compares a WHOLE trimmed line, or the whole list of lines that match. Never
+ * Every rule compares a WHOLE trimmed line, or the whole list of lines that match. Never
  * `in` / `contains` on a fragment: a substring check is blind to any mutation that LENGTHENS the
  * line, and that has let three defects through in this repo.
  *
@@ -32,7 +32,7 @@ class StagedAttachmentSweepWiringTest {
     // -- the screen: when the sweep happens ------------------------------------------------------
 
     /**
-     * ⭐ ON_START, AND THE OBSERVER IS TAKEN BACK OFF. The bytes disappear while the composer is in
+     * ON_START, AND THE OBSERVER IS TAKEN BACK OFF. The bytes disappear while the composer is in
      * the background — the user leaves for Settings → Apps → Sterna → Storage → Clear cache, or
      * Android evicts `cacheDir` under storage pressure — so the only moment the screen can notice
      * is the moment it comes back. `LaunchedEffect(Unit)` runs once, at first composition, and
@@ -82,7 +82,7 @@ class StagedAttachmentSweepWiringTest {
     // -- the ViewModel: what the sweep is given, and what it does with the answer ------------------
 
     /**
-     * ⭐ THE ARGUMENTS, NOT THE NAME. [sweepStagedAttachments] only knows what is staged because it
+     * THE ARGUMENTS, NOT THE NAME. [sweepStagedAttachments] only knows what is staged because it
      * is TOLD where staging lives; handed the wrong root it either sweeps nothing (a root nothing
      * is under) or everything (`app.cacheDir` itself, which every staged path is under — and, for a
      * `partId` that happens to be an absolute path from somewhere else, more than everything). And
@@ -106,7 +106,7 @@ class StagedAttachmentSweepWiringTest {
     }
 
     /**
-     * ⛔⛔ THE LINE THAT IS NOT AN OPTIMISATION — take it out and the app destroys mail.
+     * THE LINE THAT IS NOT AN OPTIMISATION — take it out and the app destroys mail.
      *
      * A composer reopened from a server draft or from a queued outbox item is holding the ONLY copy
      * of bytes that a later save or send will destroy, and both destructions are guarded by a
@@ -140,14 +140,14 @@ class StagedAttachmentSweepWiringTest {
     }
 
     /**
-     * ⭐ THE EDIT FLAG, NAMED ON ITS OWN because the price of dropping it is invisible on screen.
-     * `_attachmentsTouched` has ONE reader — `ComposeScreen.kt:199` → `:530` →
-     * `ComposeDirty.kt:42-52`, the "discard changes?" guard. The sweep changed the attachment list
+     * THE EDIT FLAG, NAMED ON ITS OWN because the price of dropping it is invisible on screen.
+     * `_attachmentsTouched` has ONE reader — `ComposeScreen` → `:530` →
+     * `ComposeDirty-52`, the "discard changes?" guard. The sweep changed the attachment list
      * without the user touching it, so leaving the screen after one must ask, exactly as it asks
      * after a tap on a chip's ✕.
      *
-     * ⛔ It governs NOTHING at save time: the save reads `_attachments.value` directly
-     * (`ComposeViewModel.kt:1948`).
+     * It governs NOTHING at save time: the save reads `_attachments.value` directly
+     * (`ComposeViewModel`).
      */
     @Test
     fun `a removal by sweep counts as an edit`() {
@@ -159,7 +159,7 @@ class StagedAttachmentSweepWiringTest {
     }
 
     /**
-     * ⛔ AND IT DOES NOT BLAME THE NETWORK. `attach` routes its failure through `isOfflineFailure`
+     * AND IT DOES NOT BLAME THE NETWORK. `attach` routes its failure through `isOfflineFailure`
      * to `status_attach_offline` — "You're offline. Attaching a file needs a connection…" — which
      * would be a lie here twice over: nothing was on the network, and coming back online brings
      * nothing back.

@@ -27,7 +27,7 @@ class PrintDocumentTest {
     private val plain = ReaderBody("<pre class=\"plain\">BODY-SENTINEL</pre>", richHtml = false, derived = false)
 
     /**
-     * ⛔ Paper goes out WHOLE. The reader folds the trailing quoted history behind a `<details>`
+     * Paper goes out WHOLE. The reader folds the trailing quoted history behind a `<details>`
      * ([foldTopLevelQuotes]); a PDF cannot be unfolded, so a folded quote on paper is history
      * lost for good. Today that holds because the fold is only ever called from
      * [buildHtmlDocument] — but "it is not called from here" is not something a reader of this

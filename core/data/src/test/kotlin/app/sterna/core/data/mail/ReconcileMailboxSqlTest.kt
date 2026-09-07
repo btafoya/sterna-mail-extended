@@ -12,7 +12,7 @@ import java.sql.DriverManager
  * `EmailDao.reconcileMailbox` RUN, against in-memory SQLite, with the arguments the shipped body
  * passes — not with arguments this test chose.
  *
- * ⛔ Why it has to exist. Since the streaming volet, this function is a DELETE that is callable on
+ * Why it has to exist. Since the streaming volet, this function is a DELETE that is callable on
  * its own, from both protocols, with nothing before it to make the deletion safe. What it deletes
  * is decided by ONE call — `reconcileEvictions(cachedIds = …, keepIds = …, spareIds = …)` — and
  * substituting one of those arguments for another compiles (they are all id collections) while
@@ -20,7 +20,7 @@ import java.sql.DriverManager
  * A statement-list check does not see it: the statements are the same. A `@Transaction` check does
  * not see it. A test with its own reconcile does not see it, because it never calls this one.
  *
- * ⛔ So the argument EXPRESSIONS are read out of the shipped body ([shippedEvictionArguments]) and
+ * So the argument EXPRESSIONS are read out of the shipped body ([shippedEvictionArguments]) and
  * evaluated, rather than restated here. `keepIds = keepIds` and `keepIds = spareIds.toHashSet()`
  * are then two different runs producing two different sets of rows in a real table. What this test
  * must never do is decide for itself which set to keep — that is the copy this repository has been
@@ -156,7 +156,7 @@ class ReconcileMailboxSqlTest {
      * `idsForMailbox`'s shipped SQL, run for real, then the shipped bound applied to it — together
      * they are what the body hands to `reconcileEvictions` as `cachedIds`.
      *
-     * ⛔ The bound is not optional and dropping it is not a simplification: this read happens inside
+     * The bound is not optional and dropping it is not a simplification: this read happens inside
      * the transaction, AFTER the caller has stopped looking, so an unbounded `cachedIds` deletes
      * whatever committed in between (#165). A change of shape fails loudly here rather than being
      * approximated.
@@ -237,7 +237,7 @@ class ReconcileMailboxSqlTest {
     // ---- the cases -------------------------------------------------------------------------------
 
     @Test fun `it keeps what the walk named and deletes the rest`() {
-        // ⭐ The load-bearing case: `keepIds` is the walk's answer and it must reach the decision as
+        // The load-bearing case: `keepIds` is the walk's answer and it must reach the decision as
         // the KEEP set. Substituting the spare set for it compiles, keeps the statements identical,
         // and empties the folder — which is exactly what these rows say.
         listOf("w1", "w2", "w3", "stale1", "stale2").forEach { cache(it) }
@@ -265,7 +265,7 @@ class ReconcileMailboxSqlTest {
     }
 
     @Test fun `the eviction leaves the search index alone`() {
-        // ⛔ `deleteByIds` here is an IRREVERSIBLE loss on IMAP: these messages are still in their
+        // `deleteByIds` here is an IRREVERSIBLE loss on IMAP: these messages are still in their
         // folder on the server, and nothing re-indexes a row the cache no longer holds.
         listOf("w1", "evicted").forEach { cache(it) }
 
@@ -305,7 +305,7 @@ class ReconcileMailboxSqlTest {
     // ---- the bound: what may be deleted at all (#165) ---------------------------------------------
 
     @Test fun `a bound spares a row that landed after the caller read the folder`() {
-        // ⭐ #165 against real SQLite. "arrived" is in the table when this body reads it — pushed in
+        // #165 against real SQLite. "arrived" is in the table when this body reads it — pushed in
         // while the walk ran, or in the millisecond between the caller's own read and this
         // transaction — and it is named by no page of the walk. Only the bound stands between it
         // and the DELETE, because by the time this body runs there is nobody left to ask.
@@ -327,7 +327,7 @@ class ReconcileMailboxSqlTest {
     }
 
     @Test fun `an EMPTY bound deletes nothing at all — which is why null is not emptySet()`() {
-        // ⛔ The trap of this argument: an empty bound is not "no bound", it is "evict nothing", and
+        // The trap of this argument: an empty bound is not "no bound", it is "evict nothing", and
         // it switches the reconcile off silently — the cache grows without limit and a message
         // destroyed on the server never leaves the list. A caller that cannot name its folder
         // passes null (`MailRepository.imapWriteThrough`).
@@ -339,7 +339,7 @@ class ReconcileMailboxSqlTest {
     }
 
     @Test fun `no single statement is handed more ids than SQLite will bind`() {
-        // ⛔ Codeberg #29. Below Android 12 SQLite binds at most 999 variables; past that the
+        // Codeberg #29. Below Android 12 SQLite binds at most 999 variables; past that the
         // statement throws, and it threw BEFORE the sync cursor was stored, so the folder
         // re-queried whole for ever. The bound is the batch size and nothing else — sqlite-jdbc
         // here binds far more than an Android 11 device would, so the engine cannot be the witness

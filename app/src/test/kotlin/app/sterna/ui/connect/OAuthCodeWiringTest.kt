@@ -14,11 +14,11 @@ import java.io.File
  * [OAuthErrorMessagesTest] (`collectOAuthHosts`) — and what is left is that they act on them,
  * which is text.
  *
- * ⚠ These rules exist because mutation campaigns proved them necessary: with the pure decisions
+ * These rules exist because mutation campaigns proved them necessary: with the pure decisions
  * covered, dropping the intent strip, sending a DEVICE-flow server to the browser, and passing
  * `email`/`accountName` positionally all left the suite green.
  *
- * ⚠ HOW IT COMPARES. Required shapes are whole trimmed lines compared for EQUALITY: a `contains`
+ * HOW IT COMPARES. Required shapes are whole trimmed lines compared for EQUALITY: a `contains`
  * on a fragment is blind to any mutation that lengthens the line — `tokenExchangeFor(verdict.copy(
  * request = …), redirectUri)` being exactly that — and that blindness has cost this repo real
  * defects. Forbidden tokens are the one place a substring search is sound.
@@ -27,7 +27,7 @@ class OAuthCodeWiringTest {
 
     /**
      * The exchange posts what [tokenExchangeFor] decided, whole, and nothing it re-derived here.
-     * ⛔ The call itself is pinned as a whole line: rebuilding the verdict inside the parentheses
+     * The call itself is pinned as a whole line: rebuilding the verdict inside the parentheses
      * keeps the name and changes the provenance, which is the mutation that matters.
      */
     @Test fun `the exchange posts what tokenExchangeFor decided`() {
@@ -57,7 +57,7 @@ class OAuthCodeWiringTest {
      * locks the user out of OAuth for the life of the process — and reopens the browser panel of
      * the dead request on the next visit to Add account.
      *
-     * ⛔ This is not the one-shot rule, which lives on the RETURN ([AuthorizationRequestSlot]) and
+     * This is not the one-shot rule, which lives on the RETURN ([AuthorizationRequestSlot]) and
      * is covered by execution.
      */
     @Test fun `a new sign-in replaces the request in flight`() {
@@ -102,7 +102,7 @@ class OAuthCodeWiringTest {
     }
 
     /**
-     * ⛔ The device flow stays the default, and the search is the shared one. A server offering
+     * The device flow stays the default, and the search is the shared one. A server offering
      * both grants must not be sent through a browser: that is the production path today.
      */
     @Test fun `the screen hands over only on the authorization code grant`() {
@@ -151,7 +151,7 @@ class OAuthCodeWiringTest {
      * about half the sign-ins: the reader is told she has a new account when the list will show
      * her exactly the ones she had.
      *
-     * ⛔ WHICH sentence is [accountAddedToast]'s, executed in [AccountAddedToastTest]. Neither
+     * WHICH sentence is [accountAddedToast]'s, executed in [AccountAddedToastTest]. Neither
      * driver may name `connect_account_refreshed` itself: written here, the choice sits in a class
      * this module cannot instantiate — a repository, a scope, a Context — where the two resources
      * can be swapped without a red test. Whole trimmed lines, in order, so a mutation that
@@ -228,7 +228,7 @@ class OAuthCodeWiringTest {
 
         const val HANDS_OVER = "if (chooseOAuthGrant(found) == OAuthGrant.AUTHORIZATION_CODE) {"
         /**
-         * ⚠ The search is now the FALLBACK arm: the address step already asked, under its budget,
+         * The search is now the FALLBACK arm: the address step already asked, under its budget,
          * and `reusableOAuth` hands its answer over rather than probing a second time (pinned in
          * [OAuthHandoverWiringTest]). What must not change is that when there IS no answer to
          * reuse — the manual button, a process death — the same shared search runs, with the same

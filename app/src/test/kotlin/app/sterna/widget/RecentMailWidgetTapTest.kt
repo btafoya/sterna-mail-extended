@@ -42,7 +42,7 @@ class RecentMailWidgetTapTest {
     // ---- the three identifiers ----
 
     /**
-     * ⛔ ALL THREE. The message id alone opens a message; the account is what makes that id mean
+     * ALL THREE. The message id alone opens a message; the account is what makes that id mean
      * anything at all (a JMAP id is unique inside its account, #31), and the folder is what puts
      * the list underneath where the message lives, so Back lands in a list that holds it (#91).
      * Dropping either of the last two compiles and reads fine on a one-account phone.
@@ -57,7 +57,7 @@ class RecentMailWidgetTapTest {
     }
 
     /**
-     * ⚠ BLANK IS ABSENT, on both of the two that may be. `MainActivity.parseEmailOpen` already
+     * BLANK IS ABSENT, on both of the two that may be. `MainActivity.parseEmailOpen` already
      * reads these two as `getStringExtra(…)?.ifBlank { null }`, and `SternaApp` hands the folder
      * half on only when BOTH are non-null — so a blank travelling as a blank would be a request to
      * show the folder `""` of the account `""`, which no account store answers and no test on that
@@ -97,7 +97,7 @@ class RecentMailWidgetTapTest {
     // ---- the tap belongs to the row it was drawn beside ----
 
     /**
-     * ⛔ EACH LINE'S OWN. The projection is where a tap and a drawn line are married, and an index
+     * EACH LINE'S OWN. The projection is where a tap and a drawn line are married, and an index
      * off by one there is the defect nobody can see: the home screen names one message and opens
      * another, and only the person who taps finds out.
      */
@@ -145,7 +145,7 @@ class RecentMailWidgetTapTest {
     }
 
     /**
-     * ⛔ AND THE LOCK DOES NOT TOUCH IT. What a tap opens is not what a cell says: the app is
+     * AND THE LOCK DOES NOT TOUCH IT. What a tap opens is not what a cell says: the app is
      * entered through its own lock screen, so a row that names nobody still opens the message it
      * stands for. Silencing the tap under the lock would be a widget whose rows do nothing at all,
      * for the readers who most need it to look ordinary.

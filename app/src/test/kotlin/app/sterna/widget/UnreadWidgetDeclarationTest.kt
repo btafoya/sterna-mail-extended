@@ -11,14 +11,14 @@ import java.io.File
  * and there is no Robolectric here. What is held below is what a build would not complain about
  * and what nobody would notice on screen.
  *
- * Two rules, both of them whole-line comparisons. ⛔ Never a `contains`: a substring check is blind
+ * Two rules, both of them whole-line comparisons. Never a `contains`: a substring check is blind
  * to every mutation that LENGTHENS the line, which is how the first version of another lint in this
  * repo was walked straight past.
  */
 class UnreadWidgetDeclarationTest {
 
     /**
-     * ⛔ The widget polls nothing. Any `updatePeriodMillis` other than 0 asks the system to wake
+     * The widget polls nothing. Any `updatePeriodMillis` other than 0 asks the system to wake
      * this app on a timer — 30 minutes at the very least, for a number that usually has not moved —
      * and nothing on screen would say so: the widget looks identical either way, and the only
      * symptom is battery. Both variants of the declaration are checked; the v31 one is a copy, and
@@ -72,7 +72,7 @@ class UnreadWidgetDeclarationTest {
     }
 
     /**
-     * ⛔ AND THE TEST LABEL IS INSIDE `if (testApp)` — WHICH THE RULE ABOVE CANNOT SEE.
+     * AND THE TEST LABEL IS INSIDE `if (testApp)` — WHICH THE RULE ABOVE CANNOT SEE.
      *
      * That rule collects the `widgetLabel` lines and compares the list. Move
      * `manifestPlaceholders["widgetLabel"] = "Unread count (test)"` one line DOWN, out of the
@@ -110,7 +110,7 @@ class UnreadWidgetDeclarationTest {
      * usually wears. Pointed at the runtime layout instead, the picker would show "… / Sterna Mail"
      * — true, and useless as an advertisement.
      *
-     * ⛔ THE RUNTIME LAYOUT'S TEXT IS THE OTHER HALF, and this rule used to say the opposite: it
+     * THE RUNTIME LAYOUT'S TEXT IS THE OTHER HALF, and this rule used to say the opposite: it
      * required `@layout/widget_unread` to carry no `android:text` at all. That was right about the
      * danger and wrong about the moment. The layout is the `initialLayout`: it is what the system
      * inflates the instant a cell is dropped on the home screen, before the provider has drawn
@@ -159,7 +159,7 @@ class UnreadWidgetDeclarationTest {
     }
 
     /**
-     * ⛔ THE OTHER HALF OF THE RULE ABOVE, and on its own it looks like its opposite.
+     * THE OTHER HALF OF THE RULE ABOVE, and on its own it looks like its opposite.
      *
      * `@layout/widget_unread` MUST carry text because it is the `initialLayout`: the system
      * inflates it the instant a cell is dropped, before any draw comes back. The enlarged layout
@@ -169,7 +169,7 @@ class UnreadWidgetDeclarationTest {
      * anything: a name, or a figure, for an account the app lock says must not be named at all, and
      * a row that stays on the cell even when the rule returned no lines.
      *
-     * ⛔ Pinned as "no `android:text` line anywhere in the file", not as a list of expected lines: a
+     * Pinned as "no `android:text` line anywhere in the file", not as a list of expected lines: a
      * text added to a THIRD view in either layout has to redden this too.
      */
     @Test fun `neither layout of the enlarged cell carries any text of its own`() {
@@ -189,7 +189,7 @@ class UnreadWidgetDeclarationTest {
     }
 
     /**
-     * ⛔ THE WHOLE BODY OF `draw`, LINE BY LINE — and it is the only thing standing between this
+     * THE WHOLE BODY OF `draw`, LINE BY LINE — and it is the only thing standing between this
      * widget and any of the mutations below. Nothing in this module renders: there is no
      * Robolectric, `android.util.SizeF` is a stub that throws, and `draw` wants an `Application`,
      * its container and the widget manager. Every decision it takes is therefore reachable only as
@@ -218,7 +218,7 @@ class UnreadWidgetDeclarationTest {
      *    larger. `UnreadWidgetPaletteWiringLintTest` holds what each render then does with it;
      *    this line is where it would stop arriving at all.
      *
-     * ⛔ Whole lines, never a `contains`: every mutation above is the same length or longer than
+     * Whole lines, never a `contains`: every mutation above is the same length or longer than
      * the line it replaces. The price is that reformatting this function reddens the test — loud,
      * and one line to fix.
      */
@@ -307,7 +307,7 @@ class UnreadWidgetDeclarationTest {
                 "line box and moves with the device. A view ADDED to either layout is caught " +
                 "here only if it carries one of these attributes.",
             mapOf(
-                // ⛔ The two `wrap_content` heights are as load-bearing as the paddings: they are
+                // The two `wrap_content` heights are as load-bearing as the paddings: they are
                 // what makes a row exactly its text's line box plus its own padding, which is the
                 // whole of ROW_TEXT_DP + ROW_PADDING_DP. A fixed `48dp` here, or a `match_parent`,
                 // and the model is a fiction while every rule above stays green.

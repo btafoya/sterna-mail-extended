@@ -10,7 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * ⭐ The end of the IMAP road: the envelope's `Reply-To` has to land in the CACHE ROW.
+ * The end of the IMAP road: the envelope's `Reply-To` has to land in the CACHE ROW.
  *
  * The IMAP side does not go through [EmailMapper.toEntity] — that one starts from a JMAP `Email`,
  * which it never has — so it builds its own [app.sterna.core.data.db.EmailEntity]. A column the

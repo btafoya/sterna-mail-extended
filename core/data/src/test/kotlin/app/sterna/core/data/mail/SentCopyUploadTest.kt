@@ -12,7 +12,7 @@ import org.junit.Test
  * choice of what to hand it is [sentMailboxToUpload], a pure function, and this is the only place
  * where the setting's effect is actually run rather than described.
  *
- * ⛔ The three cases are spelled out one by one, with the expected value written down. A test that
+ * The three cases are spelled out one by one, with the expected value written down. A test that
  * recomputed the rule to decide what to assert would stay green with the shipped condition
  * inverted, which is the failure mode this file exists not to be.
  */

@@ -33,13 +33,13 @@ import java.sql.DriverManager
  *    an account created between the two reads is missing from the list, present in the inventory,
  *    and its brand-new cache is swept.
  *
- * ⛔ SO NOTHING HERE IS RETYPED FROM THE REPOSITORY. The statements replayed below, the order they
+ * SO NOTHING HERE IS RETYPED FROM THE REPOSITORY. The statements replayed below, the order they
  * run in, which tables they touch and **which way round the decision is called** are all READ OUT
  * of `purgeOrphanedAccounts` (see [SweepShape]). A test that replays its own idea of the sweep
  * proves things about itself; this one goes red when the shipped function changes shape, which is
  * the only reason it is worth running.
  *
- * ⚠ TWO THINGS THIS READS AND EARLIER VERSIONS DID NOT, both because a mutation slipped through:
+ * TWO THINGS THIS READS AND EARLIER VERSIONS DID NOT, both because a mutation slipped through:
  *
  *  - **The region judged as "the deletes" starts at the DECISION, not at the loop.** It used to
  *    start at `orphans.forEach`, so `if (orphans.isNotEmpty()) emailDao.deleteAll()` on the line
@@ -269,7 +269,7 @@ class OrphanedAccountSweepSqlTest {
         }
     }
 
-    // ---- ⛔ the guard --------------------------------------------------------------------------
+    // ---- the guard --------------------------------------------------------------------------
 
     @Test fun `an empty list of known accounts sweeps nothing`() {
         insertEmail("acct"); insertMailbox("acct"); insertIndexRow("acct"); insertBody("acct")
@@ -285,7 +285,7 @@ class OrphanedAccountSweepSqlTest {
         }
     }
 
-    // ---- ⛔ the deletes, as the repository names them ---------------------------------------------
+    // ---- the deletes, as the repository names them ---------------------------------------------
 
     /**
      * The replay above runs whatever `purgeOrphanedAccounts` calls after its decision, so an
@@ -314,10 +314,10 @@ class OrphanedAccountSweepSqlTest {
         )
     }
 
-    // ---- ⛔ the decision, as the repository calls it ----------------------------------------------
+    // ---- the decision, as the repository calls it ----------------------------------------------
 
     /**
-     * ⛔ THE CALL ITSELF, ARGUMENTS INCLUDED. Pinning only the function name left two mutations
+     * THE CALL ITSELF, ARGUMENTS INCLUDED. Pinning only the function name left two mutations
      * green, and both are cache-wide:
      *
      *  - `orphans(cached, known)` — same types, compiles in silence. Every cached account is now
@@ -343,7 +343,7 @@ class OrphanedAccountSweepSqlTest {
         )
     }
 
-    // ---- ⛔ the order of the two reads ------------------------------------------------------------
+    // ---- the order of the two reads ------------------------------------------------------------
 
     /**
      * The account created while the sweep runs. The trigger used to hand the sweep an already-read
@@ -458,7 +458,7 @@ class OrphanedAccountSweepSqlTest {
      * here — which reads too far or stops early rather than lying, and every failure above prints
      * the body it read.
      *
-     * ⚠ THE SHAPE THIS EXPECTS, and it is a real constraint on the shipped function: the account
+     * THE SHAPE THIS EXPECTS, and it is a real constraint on the shipped function: the account
      * list and the inventory each go into a local `val` before the decision is taken, and the
      * decision's result into a third. Reading a source file as text is the only instrument
      * available here, and it needs names to follow; inlining any of the three (`orphans(
@@ -512,7 +512,7 @@ class OrphanedAccountSweepSqlTest {
 
         /**
          * Where the sweep makes up its mind. Everything before it is the inventory; everything
-         * after it deletes — ⛔ INCLUDING THE GAP between the decision and the loop, which used to
+         * after it deletes — INCLUDING THE GAP between the decision and the loop, which used to
          * belong to no region at all and where an `emailDao.deleteAll()` sat unread by every rule.
          */
         val decisionAt: Int by lazy {

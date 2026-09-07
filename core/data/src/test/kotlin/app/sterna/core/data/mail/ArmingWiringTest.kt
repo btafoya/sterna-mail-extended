@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ THIS TEST READS SOURCE TEXT — the last resort, in exactly [SendDraftDestructionWiringTest]'s
+ * THIS TEST READS SOURCE TEXT — the last resort, in exactly [SendDraftDestructionWiringTest]'s
  * form and for its reason: `MailRepository.enqueueSend` needs Room, a file system and a socket
  * (fifteen constructor dependencies), so no JVM test can run the wiring below. The DECISION is
  * executed by [ArmingIsNotQueueingTest]; this file pins ONLY where it is plugged in, whole lines —
@@ -94,7 +94,7 @@ class ArmingWiringTest {
     }
 
     /**
-     * ⭐ The one rule here that is an INVENTORY, and the reason it had to be: every other assertion
+     * The one rule here that is an INVENTORY, and the reason it had to be: every other assertion
      * in this file filters the body by a needle, so it is blind to a line that names none of them.
      * Adding `deleteOutbox(id)` inside the note lambda is exactly that line — it leaves all four
      * searches green while destroying the row the caller has just been told is queued. A quick

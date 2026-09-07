@@ -129,7 +129,7 @@ class AccountIdentityTest {
 
     // ---- the path (the rule normalizeEndpoint keeps, and nothing pinned) -----------------------
     //
-    // ⛔ Literal on both sides throughout: nothing below calls normalizeEndpoint to build what it
+    // Literal on both sides throughout: nothing below calls normalizeEndpoint to build what it
     // then expects. Swallowing the path would merge two genuinely different JMAP servers hosted
     // under one name at two paths — the recognised account overwrites the other's connection AND
     // its encrypted secret, which has no second copy. Nothing brings that back.

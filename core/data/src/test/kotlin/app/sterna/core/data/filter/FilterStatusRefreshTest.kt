@@ -252,7 +252,7 @@ class FilterStatusRefreshTest {
     }
 
     /**
-     * ⛔ THE E1 WITNESS. The line used to be chosen on the mere EXISTENCE of a `vacation` script,
+     * THE E1 WITNESS. The line used to be chosen on the mere EXISTENCE of a `vacation` script,
      * and existence is not activity: an account whose active script is a third one (`roundcube`,
      * `managesieve`) with an idle `vacation` beside it was told its auto-reply was running and
      * would be stopped — while what Save was really about to switch off was the other script.
@@ -274,7 +274,7 @@ class FilterStatusRefreshTest {
     }
 
     /**
-     * ⛔ THE E2 CASE. The refusal to write can come from our own `sterna` script being
+     * THE E2 CASE. The refusal to write can come from our own `sterna` script being
      * unparseable, and that cause reached the screen folded into `foreignActive` — so the screen
      * showed a sentence about somebody else's script, or about the auto-reply, and never once
      * about the content Save is going to replace. It goes FIRST.
@@ -315,7 +315,7 @@ class FilterStatusRefreshTest {
     // ---- vacationFilterLine: the responder screen does not send for the remedy mid-holiday ----
 
     /**
-     * ⛔ THE E3 CASE. While the user is away, RULES_NOT_RUNNING is true BECAUSE the responder is
+     * THE E3 CASE. While the user is away, RULES_NOT_RUNNING is true BECAUSE the responder is
      * running — and the screen was printing "you can put your rules back in Settings → Filters" on
      * the very screen whose switch reads ON. Following that path presses Save on the filters
      * screen, which activates Sterna's script, which switches the auto-reply off. The sentence
@@ -376,7 +376,7 @@ class FilterStatusRefreshTest {
     // ---- showsNoRulesNote: an empty list is not always "no rules yet" ------------------------
 
     /**
-     * ⛔ THE CONTRADICTION. Over an unreadable `sterna` script the rule list is empty *because
+     * THE CONTRADICTION. Over an unreadable `sterna` script the rule list is empty *because
      * nothing could be read out of it*, and the screen printed, one line under the other: "Sterna
      * Mail cannot read this account's filter script; saving will replace it." then "No rules yet.
      * Add one to filter incoming mail on the server." The second sentence is the false one, and it
@@ -424,7 +424,7 @@ class FilterStatusRefreshTest {
      * question is asked of, that the answer travels into BOTH the states this function can return,
      * and that a failed read is `null` while an IMAP account or a server without Sieve is not.
      *
-     * ⛔ What a `contains` — or a `Regex` counted over the body — does NOT prove: both are
+     * What a `contains` — or a `Regex` counted over the body — does NOT prove: both are
      * satisfied by every mutation that makes the line LONGER. `&& false` appended to any of the
      * three questions below leaves the asserted text exactly where it was, and that is how three
      * mutations crossed the first version of this lint with the suite green. Each of those lines

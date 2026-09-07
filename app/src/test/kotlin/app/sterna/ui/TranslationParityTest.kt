@@ -86,7 +86,7 @@ class TranslationParityTest {
      *    content setting or the app lock says it may name nobody. Left in English it is the
      *    privacy setting itself that speaks the wrong language, on a locked phone.
      *
-     * ⚠ There was a fifth, `widget_latest_unread`: the contentDescription of an unread DOT the row
+     * There was a fifth, `widget_latest_unread`: the contentDescription of an unread DOT the row
      * no longer has. Unread is now shown by weight, like the message list inside the app, and a
      * weight has no description to translate — the sender's name is read out as itself.
      */
@@ -145,7 +145,7 @@ class TranslationParityTest {
     }
 
     /**
-     * ⛔ WHAT THAT SWITCH PROMISES, PINNED WHOLE: it makes the app **ask**, never send.
+     * WHAT THAT SWITCH PROMISES, PINNED WHOLE: it makes the app **ask**, never send.
      *
      * There is no third position and there must never be one. A label saying "Send read receipts"
      * describes a setting this app does not have — turning it on raises a question on a message,
@@ -186,7 +186,7 @@ class TranslationParityTest {
     }
 
     /**
-     * ⛔ WHAT THE STRIP MAY SAY, PINNED WHOLE — and the three things it must never say.
+     * WHAT THE STRIP MAY SAY, PINNED WHOLE — and the three things it must never say.
      *
      * 1. **Never "read".** An MDN reports that a message was DISPLAYED on a device. Nobody knows
      *    whether it was read, least of all this app, and "%1$s will know you read this" is a claim
@@ -299,7 +299,7 @@ class TranslationParityTest {
      *
      * Whole-value equality, because `contains` is blind to anything a reword appends.
      *
-     * ⛔ The eight translations are NOT pinned here, and that is a decision, not an oversight:
+     * The eight translations are NOT pinned here, and that is a decision, not an oversight:
      * nobody on this side reads them, so freezing their text would block a translation fix while
      * proving nothing about meaning. Their keys are held by the parity rule at the top of this file.
      */
@@ -356,7 +356,7 @@ class TranslationParityTest {
      *
      * Whole-value equality, because `contains` is blind to anything a reword appends.
      *
-     * ⛔ The eight translations are NOT pinned here, for the reason given over
+     * The eight translations are NOT pinned here, for the reason given over
      * [the draft the phone lost asks for nothing, and blames no network]: nobody on this side
      * reads them, so freezing their text would block a translation fix while proving nothing about
      * meaning. Their keys are held by the parity rule at the top of this file.
@@ -413,7 +413,7 @@ class TranslationParityTest {
             emptyMap<String, Set<String>>(),
             missing,
         )
-        // ⛔ A key is not a sentence. `keysOf` matches the tag, so `<string name="…"></string>` and
+        // A key is not a sentence. `keysOf` matches the tag, so `<string name="…"></string>` and
         // the English text pasted into `values-de` both satisfy the rule above — the first leaves the
         // button with a blank line where its only warning should be, the second warns eight readers
         // out of nine in a language they did not choose. Neither can be seen from a key list.
@@ -429,7 +429,7 @@ class TranslationParityTest {
     }
 
     /**
-     * ⛔ WHAT THE BUTTON ERASES, PINNED WHOLE — and the one claim that would make the sentence
+     * WHAT THE BUTTON ERASES, PINNED WHOLE — and the one claim that would make the sentence
      * worse than no sentence at all.
      *
      * The attachment cache is ONE flat directory shared by every account (`StorageRepository`'s
@@ -451,7 +451,7 @@ class TranslationParityTest {
      *
      * Whole-value equality, because `contains` is blind to anything a reword appends.
      *
-     * ⛔ The eight translations are NOT pinned here, and that is a decision: nobody on this side
+     * The eight translations are NOT pinned here, and that is a decision: nobody on this side
      * reads them, so freezing their text would block a translation fix while proving nothing. Their
      * keys are held by the rule above. Stated as debt: that the eight say "all your accounts" and
      * not "this account".
@@ -489,7 +489,7 @@ class TranslationParityTest {
     }
 
     /**
-     * ⛔ AND THAT THE SCREEN ACTUALLY SHOWS IT. Everything above reads XML; nothing in it touches a
+     * AND THAT THE SCREEN ACTUALLY SHOWS IT. Everything above reads XML; nothing in it touches a
      * call site, so the sentence can exist, translated nine times, and be read by nobody — which
      * leaves the button erasing the other account's downloaded files in silence, the state this
      * branch exists to end.
@@ -499,19 +499,19 @@ class TranslationParityTest {
      * compared, arguments included — a `contains` on a fragment is blind to every mutation that
      * lengthens a line.
      *
-     * ⛔ THE ORDER, and it is not a taste: the line comes BEFORE the button, as the global one does.
+     * THE ORDER, and it is not a taste: the line comes BEFORE the button, as the global one does.
      * In linear navigation — TalkBack, a keyboard — a warning placed after the control is reached
      * after it, and this button purges on first activation with no confirmation dialog.
      *
-     * ⛔ AND ADJACENCY, because "somewhere later in the file" is not a position: with only a
+     * AND ADJACENCY, because "somewhere later in the file" is not a position: with only a
      * relative index compared, the whole `Text(…)` block moves into the vacation-responder form
      * 400 lines down and every assertion here still passes, leaving the purge button bare again.
      *
-     * ⛔ AND THE WHOLE BLOCK, arguments included: pinning the `stringResource` line alone leaves
+     * AND THE WHOLE BLOCK, arguments included: pinning the `stringResource` line alone leaves
      * `color = Color.Transparent` (or `Modifier.height(0.dp)`) green — a warning that is present,
      * translated nine times, and invisible.
      *
-     * ⛔ Still deliberately NOT pinned: the padding values and that the block sits in the storage
+     * Still deliberately NOT pinned: the padding values and that the block sits in the storage
      * section rather than elsewhere in the same screen. Slicing a composable body by counting braces
      * is too brittle to be a guard; where it LOOKS right is the bench relevé's business.
      */
@@ -547,7 +547,7 @@ class TranslationParityTest {
                 "says where the help line sits",
             button >= 0,
         )
-        // ⛔ BEFORE the button, and NEXT to it. The gap is this block's remaining lines plus the
+        // BEFORE the button, and NEXT to it. The gap is this block's remaining lines plus the
         // button's own; anything wider means the two are no longer one thing on the screen.
         assertTrue(
             "the help line must come just BEFORE the button it warns about (linear navigation " +
@@ -805,7 +805,7 @@ class TranslationParityTest {
         /**
          * The three labels of the read-receipt switch, in English, whole.
          *
-         * ⚠ The heading is hyphenated on purpose. `ReadReceiptMailTest` screens
+         * The heading is hyphenated on purpose. `ReadReceiptMailTest` screens
          * `values/strings.xml` for the MDN's OWN fixed English — "Read receipt", the subject that
          * leaves the device — so that nobody "tidies" it into a translatable resource where the
          * nine languages would claim it. A section titled "Read receipts" collides with that guard
@@ -815,7 +815,7 @@ class TranslationParityTest {
         /**
          * The six labels of the read-receipt strip, in English, whole.
          *
-         * ⚠ None of these is what LEAVES the device: the mail itself is fixed English built by
+         * None of these is what LEAVES the device: the mail itself is fixed English built by
          * `readReceiptPreview`, and `ReadReceiptMailTest` screens this very file to keep it out of
          * the resources — a correspondent's client does not speak the reader's language. Only the
          * interface is translated, which is what these six are.
@@ -823,7 +823,7 @@ class TranslationParityTest {
         val READ_RECEIPT_STRIP_ENGLISH = mapOf(
             "message_read_receipt_ask" to "%1\$s asked to be told this message was displayed",
             "message_read_receipt_send" to "Send",
-            // The same button, wearing what became of the gesture. ⛔ "Queued", never "Sent": the
+            // The same button, wearing what became of the gesture. "Queued", never "Sent": the
             // outbox is the furthest this app can honestly claim to have got.
             "message_read_receipt_send_sending" to "Sending…",
             "message_read_receipt_send_queued" to "Queued",
@@ -881,7 +881,7 @@ class TranslationParityTest {
          * The two strings a WAITING Outbox row prints, in English, whole: the frame and the
          * fragment substituted into it.
          *
-         * ⚠ The fragment is a FRAGMENT (lower case, no full stop), of the same shape as
+         * The fragment is a FRAGMENT (lower case, no full stop), of the same shape as
          * `outbox_error_edit_interrupted`: it is never printed on its own any more.
          */
         val WAITING_REASON_ENGLISH = mapOf(
@@ -903,7 +903,7 @@ class TranslationParityTest {
         /**
          * The help line of the per-account "Clear this account's cache" button, in English, whole.
          *
-         * ⚠ It is NOT the global button's line (`settings_clear_cache_help`), which says "from this
+         * It is NOT the global button's line (`settings_clear_cache_help`), which says "from this
          * device" and is true of the global button. This one has to say the harder thing: the
          * messages are this account's, the attachments are everybody's.
          */
@@ -927,7 +927,7 @@ class TranslationParityTest {
          * but nothing on this screen calls them; a sentence that mentions them describes a
          * mechanism the reader cannot observe.
          *
-         * ⚠ None of these is a substring of the shipped text: "removes its downloaded messages"
+         * None of these is a substring of the shipped text: "removes its downloaded messages"
          * contains "its downloaded" and stops there, on purpose.
          */
         val FORBIDDEN_OF_AN_ACCOUNT_CACHE = listOf(
@@ -935,7 +935,7 @@ class TranslationParityTest {
             "this account's attachments", "this account's downloaded attachments",
             "its attachments", "its downloaded attachments", "only this account",
             "30 days", "automatically", "in the background",
-            // ⛔ The third family, and the first draft of this line said it: that EVERYTHING comes
+            // The third family, and the first draft of this line said it: that EVERYTHING comes
             // back. The sweep also empties `cacheDir/outgoing`, where compose stages the bytes of an
             // attachment picked on the phone for an IMAP or a PGP send — no server holds those, so
             // nothing re-downloads them. The mail comes back; "everything" does not.

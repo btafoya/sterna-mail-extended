@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠ WHAT THIS FILE IS WORTH. It proves the SHAPE of the two `AccountsViewModel` methods behind the
+ * WHAT THIS FILE IS WORTH. It proves the SHAPE of the two `AccountsViewModel` methods behind the
  * OpenPGP-app row, by reading the shipped source and comparing whole trimmed lines. It is not a
  * behaviour test: an `AndroidViewModel` needs an `Application`, a real `AccountStore` (Context +
  * Keystore) and a DataStore, and there is no Robolectric here.
@@ -23,14 +23,14 @@ import org.junit.Test
  *     storage: a tap landing before the screen resolved anything reads "nothing in use" and wipes
  *     every account's signing key for a choice that changed nothing.
  *
- * ⛔ Whole lines, as CONTIGUOUS blocks: a `contains` check is blind to anything appended to a line,
+ * Whole lines, as CONTIGUOUS blocks: a `contains` check is blind to anything appended to a line,
  * and a per-line check is blind to a statement slipped between two — which is all it takes to
  * publish the provider list before the resolution that must accompany it.
  */
 class PgpProviderChoiceWiringTest {
 
     @Test fun `discovery runs off the main thread and publishes both values together`() {
-        // ⛔ The two assignments are consecutive and come after every suspension in the method.
+        // The two assignments are consecutive and come after every suspension in the method.
         // Move `_pgpProviders.value = installed` above the resolution and the row is drawn, with
         // two providers to choose from, while nothing is in use yet.
         // The last line pins the provider in use when nothing is stored yet, and it is written
@@ -63,7 +63,7 @@ class PgpProviderChoiceWiringTest {
     }
 
     @Test fun `picking a provider persists it first, then erases keys only on a real switch`() {
-        // ⛔ The order is an arbitration (WYSIWYG): between the two writes, what is displayed must
+        // The order is an arbitration (WYSIWYG): between the two writes, what is displayed must
         // already be what is used. And what is in use is re-read from storage inside the coroutine
         // — never `_pgpProviderInUse.value`, which is screen state and can still be null.
         assertEquals(

@@ -16,7 +16,7 @@ private const val DELEGATED = -777
 /**
  * The list must stay where the reader put it while the mediator writes the pages it just fetched.
  *
- * ⚠ WHAT THIS CAN AND CANNOT PROVE. It cannot prove "no more jumps": neither `InboxScreen` nor
+ * WHAT THIS CAN AND CANNOT PROVE. It cannot prove "no more jumps": neither `InboxScreen` nor
  * Paging's fetcher runs on the JVM here. What it executes is the DECISION the fix owns — the row
  * a refresh reloads around — driven through the shipped [pagingConfig], plus a replay of the two
  * library rules the decision has to fit into, quoted from the sources of the exact versions this
@@ -310,7 +310,7 @@ class RefreshLandsWhereTheReaderIsTest {
     // -- the plug, as source ----------------------------------------------------------------------
 
     /**
-     * ⚠ SOURCE LINT. `MailRepository` needs Room, an Android `Context` and a live JMAP session, so
+     * SOURCE LINT. `MailRepository` needs Room, an Android `Context` and a live JMAP session, so
      * the four Pagers cannot be built here. WHOLE LINES, never a fragment: a `contains` check is
      * blind to anything that lengthens the line, and "unwrap this one factory" is exactly the
      * mutation this has to catch.

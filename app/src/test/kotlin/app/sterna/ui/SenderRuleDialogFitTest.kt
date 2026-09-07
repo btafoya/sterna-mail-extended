@@ -14,7 +14,7 @@ import java.io.File
  * (`MailBySenderScreen`). At the largest system font size, on a device, both of them came out
  * broken in the same two ways (banc-1.4.8 § 11.6.1, Pixel 7, `font_scale 2.0`, `ru`):
  *
- * ⭐ A THIRD dialog is covered here, and the file keeps its name: the filters screen's overwrite
+ * A THIRD dialog is covered here, and the file keeps its name: the filters screen's overwrite
  * confirmation (`FiltersScreen`, `R.string.settings_filters_overwrite_title`). It is the same
  * animal — an `AlertDialog` in front of a permanent server-side write with no Undo — and it was
  * written by copying the two above, so it arrived with the same defects available. Both mutations
@@ -98,7 +98,7 @@ class SenderRuleDialogFitTest {
     }
 
     /**
-     * ⛔ Which slot WRITES. The one rule in this file that is not about layout, and the worst
+     * Which slot WRITES. The one rule in this file that is not about layout, and the worst
      * defect the two dialogs can carry.
      *
      * Found by a mutation that survived with the whole suite green: swap the two lambdas on the
@@ -143,7 +143,7 @@ class SenderRuleDialogFitTest {
     }
 
     /**
-     * ⭐ The rule that makes the length rule mean anything: an action label is ONE WHOLE STRING
+     * The rule that makes the length rule mean anything: an action label is ONE WHOLE STRING
      * RESOURCE, and nothing else.
      *
      * Found by a mutation that survived the first version of this file, with the whole suite green:
@@ -171,7 +171,7 @@ class SenderRuleDialogFitTest {
     }
 
     /**
-     * ⭐ Defect (A), at its cause: a button holds a verb, never a sentence.
+     * Defect (A), at its cause: a button holds a verb, never a sentence.
      *
      * The confirm label WAS `sender_volume_block` — "Send future mail to Trash, marked read", 59
      * characters in Dutch. That string is right where it is still used (the two ⋮ entries, where a
@@ -228,7 +228,7 @@ class SenderRuleDialogFitTest {
     }
 
     /**
-     * ⭐ Defect (B): Material's `text` slot is a height-bounded box with no scrolling of its own,
+     * Defect (B): Material's `text` slot is a height-bounded box with no scrolling of its own,
      * and a bare `Text` in it is CLIPPED — not ellipsised, not scrollable, just cut.
      *
      * Asserted on the extracted `text` lambda and on the WHOLE line, not with a `"verticalScroll"

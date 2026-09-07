@@ -33,7 +33,7 @@ class FilterRulesReadTest {
     }
 
     /**
-     * ⛔ THE BUG. A `sterna` script with content nobody can decode used to come back as
+     * THE BUG. A `sterna` script with content nobody can decode used to come back as
      * `Loaded(rules = [], foreignActiveScript = false)` — an ordinary account with no filters.
      * The per-sender gesture was then offered, and confirming it recompiled the entire script
      * from that one rule, deleting whatever the unreadable script held.
@@ -87,7 +87,7 @@ class FilterRulesReadTest {
     }
 
     /**
-     * ⛔ The witness. A blank script is not unreadable — it holds nothing, so rewriting it loses
+     * The witness. A blank script is not unreadable — it holds nothing, so rewriting it loses
      * nothing. Without this, every account whose `sterna` script is an empty stub would be
      * refused the gesture for ever.
      */
@@ -131,7 +131,7 @@ class FilterRulesReadTest {
     private fun script(vararg lines: String) = lines.joinToString("\n", postfix = "\n")
 
     /**
-     * ⛔ THE BUG THIS BRANCH FIXES. A perfectly valid marker line, and around it Sieve this app
+     * THE BUG THIS BRANCH FIXES. A perfectly valid marker line, and around it Sieve this app
      * never wrote — a rule added from Roundcube. The marker parsed, so the script was called fully
      * understood: the per-sender gesture was offered, and saving recompiled the whole script from
      * the JSON alone, dropping the hand-written rule without a word.
@@ -156,7 +156,7 @@ class FilterRulesReadTest {
     }
 
     /**
-     * ⛔ **THE LIKELIEST SHAPE OF THE BUG, and the one every other test here misses.** Sterna
+     * **THE LIKELIEST SHAPE OF THE BUG, and the one every other test here misses.** Sterna
      * creates the `sterna` script the first time the filters screen is opened, the user adds no
      * rule, and the marker decodes to an EMPTY list. Another client — Roundcube edits whichever
      * script is active — then adds its own rule to that same file.
@@ -262,7 +262,7 @@ class FilterRulesReadTest {
 
     // ---- the witnesses: what must NOT be called foreign ----
 
-    /** ⭐ What this app writes, read straight back. Anything else here would be a false alarm. */
+    /** What this app writes, read straight back. Anything else here would be a false alarm. */
     @Test fun `a script this app just generated is never foreign`() {
         val rules = listOf(
             rule,
@@ -278,7 +278,7 @@ class FilterRulesReadTest {
     }
 
     /**
-     * ⭐ THE WITNESS THAT FIXES THE COMPARED VALUE. A script written by an OLDER version of this
+     * THE WITNESS THAT FIXES THE COMPARED VALUE. A script written by an OLDER version of this
      * app: the Sieve below is byte-for-byte what we emit, but the marker's JSON carries a key we
      * do not know (a field added later, or dropped later).
      *
@@ -303,7 +303,7 @@ class FilterRulesReadTest {
         }
     }
 
-    /** ⭐ A server that hands the blob back in CRLF is not a server that rewrote the script. */
+    /** A server that hands the blob back in CRLF is not a server that rewrote the script. */
     @Test fun `the same script in CRLF is not foreign`() {
         val crlf = SieveCodec.generate(listOf(rule)).replace("\n", "\r\n")
         val state = loadedFilterRules(crlf, otherActiveScript = false)
@@ -324,7 +324,7 @@ class FilterRulesReadTest {
     }
 
     /**
-     * ⭐ The non-regression witness. A blank script holds nothing to lose, so it is zero rules and
+     * The non-regression witness. A blank script holds nothing to lose, so it is zero rules and
      * NO alarm — the guard is written into the comparison itself, not left to the luck of what
      * `generate(emptyList())` happens to normalise to.
      */
@@ -354,7 +354,7 @@ class FilterRulesReadTest {
                 listOf(rule),
             ),
         )
-        // ⚠ Measured on 2026-08-12, and left standing: deleting the `script.isBlank()` guard from
+        // Measured on 2026-08-12, and left standing: deleting the `script.isBlank()` guard from
         // holdsForeignSieve leaves the whole suite green. It is EQUIVALENT BY CONSTRUCTION, not a
         // hole — a blank script and the script we write for zero rules normalise to the same empty
         // body, and `parseRulesOrNull` answers emptyList() for a blank script, so the only call
@@ -379,7 +379,7 @@ class FilterRulesReadTest {
      * the blob it downloaded is what gets handed over, and that the answer is no longer assembled
      * on the spot from `parseRules`. A rename fails this loudly rather than quietly passing.
      *
-     * ⛔ What a `contains` does NOT prove: a substring is satisfied by every mutation that makes
+     * What a `contains` does NOT prove: a substring is satisfied by every mutation that makes
      * the line LONGER. `val managed = scripts.firstOrNull { … }?.takeIf { it.isActive }` contains
      * the text asserted below and walked straight past the first version of this lint. The line
      * that carries the selection is therefore compared WHOLE, the way

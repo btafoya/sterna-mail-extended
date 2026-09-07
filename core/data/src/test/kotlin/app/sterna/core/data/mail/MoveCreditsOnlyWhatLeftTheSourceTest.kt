@@ -16,7 +16,7 @@ import org.junit.Test
  * to find it again). Offline search for that message was gone for good, from a message the server
  * never touched.
  *
- * ⭐ The decision is [imapMoveOutcome], a pure function, and the cases below RUN it. That is the
+ * The decision is [imapMoveOutcome], a pure function, and the cases below RUN it. That is the
  * point: `MailRepository` needs Room, a `Context` and an `Application`, so a split left inline in
  * `imapMoveGroup` is a split no test in this module can execute — and a rule stated only in prose
  * beside the code is a rule a mutation walks straight through (the same reason written at
@@ -34,7 +34,7 @@ class MoveCreditsOnlyWhatLeftTheSourceTest {
     private val batch = linkedMapOf(11L to "acc|INBOX|11", 12L to "acc|INBOX|12", 13L to "acc|INBOX|13")
 
     /**
-     * ⛔ The case the defect is made of. An empty `confirmedGone` is "the server proved nothing",
+     * The case the defect is made of. An empty `confirmedGone` is "the server proved nothing",
      * NEVER "nothing moved" — and the two are answered the same way here because the irreversible
      * direction decides: a row kept for a message that DID move is put right by the next sync, an
      * index row taken from a message that did NOT move is put right by nothing.
@@ -66,7 +66,7 @@ class MoveCreditsOnlyWhatLeftTheSourceTest {
      * The mixed batch — one stale uid among live ones, which is how the defect actually reaches a
      * user: a selection drawn before another client moved one of its messages.
      *
-     * ⚠ And the ARRIVAL ORDER is kept on both sides: these lists are what the caller credits, what
+     * And the ARRIVAL ORDER is kept on both sides: these lists are what the caller credits, what
      * it fails, and what its own caller re-queries and shows.
      */
     @Test fun `a partly proved move splits exactly, keeping arrival order`() {
@@ -114,14 +114,14 @@ class MoveCreditsOnlyWhatLeftTheSourceTest {
         codeLinesOf(body).filter { needle in it }
 
     /**
-     * ⛔ THE LINE THE WHOLE FIX IS: the un-indexing takes the PROVED ids and nothing else.
+     * THE LINE THE WHOLE FIX IS: the un-indexing takes the PROVED ids and nothing else.
      *
      * The shipped defect was `deleteFromCacheAndIndex(credentials.id, uidToId.values)` — the whole
      * batch, on an `OK` that may have moved none of it. No test in this module can watch the call
      * (the repository is not constructible here), so the ARGUMENT is pinned as a whole line: the
      * mutation that matters is not "the call disappeared", it is "the call kept the old argument".
      *
-     * ⛔ And `evictAlreadyThere` is NOT the answer for the other half: that is "this page is no
+     * And `evictAlreadyThere` is NOT the answer for the other half: that is "this page is no
      * longer cached" for a message that stayed put by the user's own doing. An unproven id's rows
      * must not be touched AT ALL — nothing is known about it, so nothing may be done to it.
      */
@@ -165,7 +165,7 @@ class MoveCreditsOnlyWhatLeftTheSourceTest {
     }
 
     /**
-     * ⛔ And the ORDER: the verdict is computed BEFORE anything is dropped. Kotlin enforces it as
+     * And the ORDER: the verdict is computed BEFORE anything is dropped. Kotlin enforces it as
      * long as the un-indexing reads `outcome`, which is the whole reason the split is a `val` read
      * by both halves rather than two expressions; this states it so a rearrangement that computes
      * the verdict after the delete cannot pass silently.
@@ -188,7 +188,7 @@ class MoveCreditsOnlyWhatLeftTheSourceTest {
      * a different thing: an id whose uid cannot be parsed never went out, an id the move reported
      * nothing about is unknown, and a move that did not go out fails whole.
      *
-     * ⛔ A fourth would be a fourth reason to fail, and `BulkResult` carries no cause: the caller
+     * A fourth would be a fourth reason to fail, and `BulkResult` carries no cause: the caller
      * re-queries the lot either way.
      */
     @Test fun `everything the batch move does not credit, it fails`() {

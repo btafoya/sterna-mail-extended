@@ -9,7 +9,7 @@ import org.junit.Test
  * ([defaultCollapsedFolderIds]). The rule lives in a function precisely so this file can run it:
  * in the drawer it would sit inside a Composable, which nothing in this module can run.
  *
- * ⛔ Every expectation is a set written out in full. Deriving it from the list under test would
+ * Every expectation is a set written out in full. Deriving it from the list under test would
  * re-implement the rule here, and the shipped condition could then be inverted with this file
  * still green.
  *
@@ -43,7 +43,7 @@ class DefaultCollapsedFoldersTest {
     }
 
     /**
-     * ⛔ The mutation this test exists for: `folderRank(role) == 6` in place of `role == null`.
+     * The mutation this test exists for: `folderRank(role) == 6` in place of `role == null`.
      * `folderRank` answers 6 for every role outside the six the app translates, so a JMAP `all`
      * folder — a real role on a real standard folder — would start folded under that condition.
      * Every other case in this file stays green with it.
@@ -71,15 +71,15 @@ class DefaultCollapsedFoldersTest {
     }
 
     /**
-     * ⭐ The child that carries the role, which no other case here has: the rule reads the role of
+     * The child that carries the role, which no other case here has: the rule reads the role of
      * the folder being FOLDED, never of its children.
      *
-     * ⛔ The mutation it exists for: counting as a parent only the folders whose child has no role
+     * The mutation it exists for: counting as a parent only the folders whose child has no role
      * (`mailboxes.filter { it.role == null }.mapNotNullTo(…) { folderParentId(it, byId) }`). Every
      * other case in this file stays green under it, and `Perso` — whose only child is its
      * `Archive` — would stop folding on the first run.
      *
-     * ⭐ It is also the witness of assumed consequence n°1, written in [defaultCollapsedFolderIds]'
+     * It is also the witness of assumed consequence n°1, written in [defaultCollapsedFolderIds]'
      * KDoc: a role-carrying folder hanging under a folder of the user's IS off screen on the first
      * launch, hidden by its folded parent. That is the shipped decision, not an oversight — no
      * "never fold a parent that hides a role" exception — and the parent's unread badge
@@ -102,7 +102,7 @@ class DefaultCollapsedFoldersTest {
     }
 
     /**
-     * ⭐ Stalwart's `Archive`, MEASURED on the bench on 2026-08-25 and written into
+     * Stalwart's `Archive`, MEASURED on the bench on 2026-08-25 and written into
      * `SubscribedFolders.kt`: `role: null` on a folder that is the Archive button's destination.
      * `role == null` alone therefore folds the archive of every JMAP Stalwart account that has one
      * subfolder, on the first launch, and its badge is most often 0 — nothing on screen says the
@@ -148,7 +148,7 @@ class DefaultCollapsedFoldersTest {
     }
 
     /**
-     * ⭐ The IMAP shape the whole guard is built around: ids that ARE paths, everything hanging
+     * The IMAP shape the whole guard is built around: ids that ARE paths, everything hanging
      * under the Inbox. Folding the Inbox would leave the drawer showing one single line.
      */
     @Test fun `an IMAP tree under the Inbox leaves the Inbox open, both delimiters`() {
@@ -222,7 +222,7 @@ class DefaultCollapsedFoldersTest {
     }
 
     /**
-     * ⭐ V5, and the ONLY thing it changes here: an account whose drawer rows carry no unread count
+     * V5, and the ONLY thing it changes here: an account whose drawer rows carry no unread count
      * folds nothing at all by default.
      *
      * MEASURED on the bench on 2026-09-01: not one row of an IMAP drawer shows a badge.
@@ -237,7 +237,7 @@ class DefaultCollapsedFoldersTest {
      * parent is on NO row of the drawer. So the default is suspended — and the default only; the
      * user's own folds are the other function's business ([collapsedFolderIds]).
      *
-     * ⛔ The same list is pinned BOTH ways in one case on purpose. Only the `false` half fails if
+     * The same list is pinned BOTH ways in one case on purpose. Only the `false` half fails if
      * the flag is ignored; only the `true` half fails if the flag is read backwards, or if the
      * guard is written as an unconditional `emptySet()` that kills the feature outright.
      */

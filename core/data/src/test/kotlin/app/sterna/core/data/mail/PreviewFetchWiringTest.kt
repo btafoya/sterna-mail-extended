@@ -33,7 +33,7 @@ class PreviewFetchWiringTest {
      * braces where a function body was asked for).
      *
      * A plain brace count, and it is allowed to be plain because the two blocks pinned with it
-     * carry no brace inside a string literal or a `${…}` template. ⛔ If one ever does, this stops
+     * carry no brace inside a string literal or a `${…}` template. If one ever does, this stops
      * being correct — it will cut the block short and the assertion will fail loudly, which is the
      * right way round.
      */
@@ -66,7 +66,7 @@ class PreviewFetchWiringTest {
             .filter { needle in it }
 
     /**
-     * ⭐⛔ THE WHOLE BODY, LINE FOR LINE, IN ORDER — the only assertion here that can see a line
+     * THE WHOLE BODY, LINE FOR LINE, IN ORDER — the only assertion here that can see a line
      * that was ADDED.
      *
      * Every other test in this file filters the body by a needle it names, so it judges the lines
@@ -108,7 +108,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * ⛔ The read is BOUNDED, and the bound is a parameter with no default.
+     * The read is BOUNDED, and the bound is a parameter with no default.
      *
      * Without it `onMailbox` takes `budgetMs = 0`, which is `ImapBudget.NO_BUDGET`, which is
      * `soTimeout = 0` — block until the OS gives up. And it cannot be repaired from the outside:
@@ -135,7 +135,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * ⛔ Through `onMailbox`, which is the chokepoint that SELECTs the folder and refuses a UID
+     * Through `onMailbox`, which is the chokepoint that SELECTs the folder and refuses a UID
      * whose numbering has changed (Codeberg #99). `withSession` would fetch just as well and skip
      * the check — and a UID from a renumbered folder names ANOTHER message, whose opening line
      * would then be posted as this notification's.
@@ -157,7 +157,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * ⛔ The bounded, peeked read, with the section the SERVER named — and no other fetch. Reaching
+     * The bounded, peeked read, with the section the SERVER named — and no other fetch. Reaching
      * for `fetchSource` here would pull the whole message (megabytes, in a foreground service) to
      * show two lines of it, and `fetchSection` would pull the whole part.
      */
@@ -180,7 +180,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * ⛔ No text part means no round trip AT ALL. A message that is one PDF has no opening line;
+     * No text part means no round trip AT ALL. A message that is one PDF has no opening line;
      * connecting to learn that costs a LOGIN and a SELECT per notification, for an answer already
      * in hand.
      */
@@ -213,13 +213,13 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * ⛔ THE ONE THING THAT MUST NOT HAPPEN, and it has not changed: A HALF-TRUE LIST. Writing the
+     * THE ONE THING THAT MUST NOT HAPPEN, and it has not changed: A HALF-TRUE LIST. Writing the
      * preview fetched for a NOTIFICATION into the cache would light up the message list for exactly
      * the messages that happened to be announced and leave every other row blank, which is worse
      * than a list that never promises an opening line — `BodyPreview`'s doc still refuses it word
      * for word, and `fetchPreview` above still returns its text and writes no row.
      *
-     * ⭐ What changed is the way OUT of that refusal, which the refusal itself never priced (#187):
+     * What changed is the way OUT of that refusal, which the refusal itself never priced (#187):
      * fill the column for THE WHOLE PAGE the folder walk is already holding, so a blank row means
      * the message has no readable text — not that nobody happened to notify it. So this test keeps
      * its object and states the new claim:
@@ -231,7 +231,7 @@ class PreviewFetchWiringTest {
      *  - and the notification load ([loadWatchedFolders]) still READS none: its own budget reads
      *    six messages of a page of fifty, which is the half-true list exactly.
      *
-     * ⛔ "Reads none" is the whole of what that last line says, and it used to be read as "writes
+     * "Reads none" is the whole of what that last line says, and it used to be read as "writes
      * none", which was false: `@Upsert` replaces the whole row, so the `null` on that line WIPED
      * the opening lines the folder walk had cached for those very rows — the newest fifty of the
      * inbox and of each watched folder, on every push pass. The row is repaired one layer up, at
@@ -281,7 +281,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * ⭐⛔ THE WHOLE BODY OF THE LIST-PREVIEW READ, LINE FOR LINE, IN ORDER — the same last resort
+     * THE WHOLE BODY OF THE LIST-PREVIEW READ, LINE FOR LINE, IN ORDER — the same last resort
      * as `the preview path is exactly these lines, and no others` above, and for the same reason:
      * every other assertion here filters by a needle it already expects, so none of them can see a
      * line that was ADDED. That is measured, not feared — inserting a `setFlag` into the
@@ -325,7 +325,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * ⭐⛔ THE WALK'S PAGE BLOCK, LINE FOR LINE, IN ORDER — the third and last of the additive
+     * THE WALK'S PAGE BLOCK, LINE FOR LINE, IN ORDER — the third and last of the additive
      * guards, and the one that was missing.
      *
      * `pagePreviews` is pinned whole just above, and that is worth exactly nothing against a line
@@ -370,7 +370,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * ⭐⛔ THE PAGER'S READ, LINE FOR LINE, IN ORDER — the same guard, at the other read site.
+     * THE PAGER'S READ, LINE FOR LINE, IN ORDER — the same guard, at the other read site.
      *
      * It cannot be reached through [bodyOf]: `fetchOlderPage` has an EXPRESSION body
      * (`= onMailbox(...) { … }`) and `DaoQuerySource` deliberately refuses those, so up to now this
@@ -400,7 +400,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * ⛔ NOTHING ESCAPES THIS READ. It runs inside the folder walk, and the walk is what fills the
+     * NOTHING ESCAPES THIS READ. It runs inside the folder walk, and the walk is what fills the
      * cache and advances what the notifier compares against: an exception coming out of here fails
      * the whole load, the next pass RE-ANNOUNCES the folder, and a re-announce moves mail on the
      * server (`unarchiveThreadsOnReply`). A missing opening line is worth none of that.
@@ -408,13 +408,13 @@ class PreviewFetchWiringTest {
      * A cancellation is not a failure — it means the caller is gone — and must still go through,
      * exactly as on the notification path.
      *
-     * ⛔ And what "costs the previews" means since #187: a failed BODY READ costs the openings NOT
+     * And what "costs the previews" means since #187: a failed BODY READ costs the openings NOT
      * YET READ, and no more. The failure branch answers the CACHE, never `emptyMap()` — a socket
      * dropped halfway through a walk would otherwise write `preview = null` over a page of rows
      * whose openings were already paid for, i.e. turn a lost connection into an erasure. `cached`
      * is declared above the `try` for that.
      *
-     * ⚠ What is NOT promised, and used to be: it does not hold for a failed CACHE read. `cached` is
+     * What is NOT promised, and used to be: it does not hold for a failed CACHE read. `cached` is
      * assigned INSIDE the `try`, so a database that throws on `cachedPreviewsFor` leaves it empty
      * and the page goes out bare. That is bounded rather than repaired, and deliberately: the same
      * database serves the `upsert` this walk feeds, so a broken one fails the write too and there
@@ -440,7 +440,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * ⛔ It reads on the session the WALK already has selected, and takes none of its own. A
+     * It reads on the session the WALK already has selected, and takes none of its own. A
      * `withSession(` here would open a second block on the account's one connection — behind the
      * walk's own mutex, so a deadlock at worst — and, the reason that matters to a reader, it would
      * fetch UIDs under a SELECT that is not the one that enumerated them. A renumbered folder then

@@ -37,11 +37,11 @@ import java.io.File
  *  - the threshold comes from a **bench measurement, not from Android**. There is no specification
  *    behind a two-line `Toast` holding N characters, and no way to derive one here.
  *
- * ⛔ NOT COVERED — THE FONT SCALE. Every figure above and every figure behind [maxToastChars] was
+ * NOT COVERED — THE FONT SCALE. Every figure above and every figure behind [maxToastChars] was
  * read at the DEFAULT font scale. Two lines hold far fewer characters at `font_scale 2.0`, nobody
  * has rendered this toast there, and this file says nothing whatsoever about it.
  *
- * ⛔ NOT COVERED — THE OTHER TOASTS OF THE COMPOSER, deliberately. Six other `_notices` sentences
+ * NOT COVERED — THE OTHER TOASTS OF THE COMPOSER, deliberately. Six other `_notices` sentences
  * already exceed [maxToastChars] in at least one language (`compose_emptied_draft_server_copy_kept`
  * 94 chars in pt, `compose_pgp_no_draft` 84 in de, `compose_forward_attachment_dropped` 78 in de,
  * `compose_quote_not_added` 77 in de). That is PRE-EXISTING neighbourhood, out of this branch's
@@ -55,7 +55,7 @@ import java.io.File
 class DraftKeptToastFitTest {
 
     /**
-     * ⭐ 56 characters — the SAME number as
+     * 56 characters — the SAME number as
      * [app.sterna.ui.connect.AccountToastFitTest.maxToastChars], and deliberately not a second
      * derivation of it. Its three steps live in that file's KDoc and are quoted here only so this
      * one can be read alone:
@@ -65,7 +65,7 @@ class DraftKeptToastFitTest {
      *  3. 63 is a LATIN reading; German and Cyrillic set wider per character, so the plafond keeps
      *     a margin under it: **56**.
      *
-     * ⛔ It is not a width. It is a count of characters standing in for one, and a sentence that
+     * It is not a width. It is a count of characters standing in for one, and a sentence that
      * exactly hits 56 in Russian may still be cut. What the number is good for is refusing the
      * sentences already known to be too long — which the shipped 97/124-character sentence was.
      *
@@ -128,7 +128,7 @@ class DraftKeptToastFitTest {
     }
 
     /**
-     * ⭐ THE DEFECT: a two-line box, and a sentence longer than two lines.
+     * THE DEFECT: a two-line box, and a sentence longer than two lines.
      *
      * What the reader loses is not decoration. Cut at "… weil diese Kop…" she is told a draft was
      * saved and an original kept, and nothing about why — and the shipped English cut ("… because
@@ -159,10 +159,10 @@ class DraftKeptToastFitTest {
     }
 
     /**
-     * ⭐ THE OTHER HALF, and the one the plafond above cannot see: a sentence can FIT and still be
+     * THE OTHER HALF, and the one the plafond above cannot see: a sentence can FIT and still be
      * the wrong sentence. "Saved." is five characters and says nothing.
      *
-     * ⛔ **WHAT IS ACTUALLY PINNED, and it is less than the paragraph below wants.** The rule
+     * **WHAT IS ACTUALLY PINNED, and it is less than the paragraph below wants.** The rule
      * counts NON-EMPTY FRAGMENTS AROUND A FULL STOP and refuses fewer than two. That is a
      * **proxy** for "two propositions", and a coarse one: it sees SHAPE, never MEANING. The
      * mutation that walks straight through it, in French:
@@ -177,7 +177,7 @@ class DraftKeptToastFitTest {
      * mutations that survived its first version, so the gap is on the page rather than waiting to
      * be rediscovered.
      *
-     * ⛔ And a keyword list per language is NOT the answer: a list of words typed into a test is a
+     * And a keyword list per language is NOT the answer: a list of words typed into a test is a
      * copy of the resource it is checking, green while the sentence changes underneath it. Whether
      * each half SAYS the right thing is held by review and by the bench, not by this file.
      *
@@ -264,7 +264,7 @@ class DraftKeptToastFitTest {
      * sentence with an apostrophe would be refused for a width it does not occupy, and, worse, a
      * 56-character budget spent on backslashes would look full).
      *
-     * ⛔ Backslash escapes only. No `&…;` entity appears in these strings today; one appearing
+     * Backslash escapes only. No `&…;` entity appears in these strings today; one appearing
      * would be counted LONGER than it renders, which fails in the safe direction.
      */
     private fun unescaped(text: String): String {

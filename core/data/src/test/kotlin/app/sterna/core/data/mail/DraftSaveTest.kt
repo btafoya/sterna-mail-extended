@@ -82,7 +82,7 @@ class DraftSaveTest {
     }
 
     /**
-     * ⭐ The new refusal, everything else being perfect: no attachments, nothing flattened. A save
+     * The new refusal, everything else being perfect: no attachments, nothing flattened. A save
      * that cannot show the addressing survived is not faithful, whatever else it got right.
      */
     @Test fun anAddressingThatIsNotCarriedKeepsTheOriginalOnItsOwn() {
@@ -97,7 +97,7 @@ class DraftSaveTest {
     }
 
     /**
-     * ⭐ A replacement that never left, every other leg green — and the original still stands.
+     * A replacement that never left, every other leg green — and the original still stands.
      *
      * The damage this refuses: a deferred upload (#95) retries, its `Message-ID` lookup finds the
      * draft already on the server and skips the APPEND on purpose, so the bytes this attempt was
@@ -120,14 +120,14 @@ class DraftSaveTest {
     }
 
     /**
-     * ⭐ THE cheap half of the same damage, and the one no other leg can catch: a draft with NO
+     * THE cheap half of the same damage, and the one no other leg can catch: a draft with NO
      * attachment at all — only a Cci, say — whose APPEND was skipped on a retry. Every countable
      * leg is perfect (`0 == 0`), the body is clean, the addressing "matches" because the composer
      * is compared with itself, and the original is expunged in the name of a copy this attempt
      * never wrote. That copy may be the one an older build of this app appended with no `Bcc:`
      * header at all, and then the blind addresses exist on no copy anywhere.
      *
-     * ⛔ Its twin above uses `attachmentsIn = 1` and would let `(replacementWentOut ||
+     * Its twin above uses `attachmentsIn = 1` and would let `(replacementWentOut ||
      * attachmentsIn == 0)` through — a mutation that restores exactly this loss. This case is what
      * refuses it, so the two are kept side by side and neither may be dropped for the other.
      */
@@ -161,7 +161,7 @@ class DraftSaveTest {
     // ---- draftAddressingIsCarried: the unknown, and the inclusion ----
 
     /**
-     * ⭐ THE distinction of this fix, half one. `null` = the addressing could NOT be established
+     * THE distinction of this fix, half one. `null` = the addressing could NOT be established
      * (offline, a fetch that failed). The server copy is then the only thing holding it, and it
      * must survive — even though the replacement looks perfectly fine on its own.
      */
@@ -176,7 +176,7 @@ class DraftSaveTest {
     }
 
     /**
-     * ⭐ THE distinction of this fix, half two, and deliberately a SEPARATE test from the one
+     * THE distinction of this fix, half two, and deliberately a SEPARATE test from the one
      * above: a draft that really has no copied parties has nothing to lose, so it may be replaced.
      * Confusing these two is what makes the whole fix vanish while staying green.
      */
@@ -211,7 +211,7 @@ class DraftSaveTest {
     }
 
     /**
-     * ⭐ The inclusion runs ONE way: original ⊆ replacement. A replacement that ADDED an address
+     * The inclusion runs ONE way: original ⊆ replacement. A replacement that ADDED an address
      * (the user typed one before saving) carries the original's — nothing was lost.
      *
      * Inverted, this test is what fails: `replacement ⊆ original` would call this unfaithful and
@@ -245,7 +245,7 @@ class DraftSaveTest {
     // ---- draftReplacementAddressing: what the replacement may offer as proof (2026-08-25) ----
 
     /**
-     * ⭐ THE test of this volet, and it EXECUTES the decision rather than reading the call site.
+     * THE test of this volet, and it EXECUTES the decision rather than reading the call site.
      * The original the server holds is `message.cc + message.bcc` (`ImapMailService.ccAndBccOf`),
      * so a draft with a Cci offers a bcc address as the thing to prove. Since the Drafts APPEND
      * writes a real `Bcc:` header, the replacement holds it too — and dropping the bcc from this
@@ -264,7 +264,7 @@ class DraftSaveTest {
     }
 
     /**
-     * ⭐ The safe direction, unchanged: a replacement whose Bcc came back EMPTY (the reopen gave
+     * The safe direction, unchanged: a replacement whose Bcc came back EMPTY (the reopen gave
      * nothing back — a cache row with no bcc column, a read that failed) does NOT carry an
      * original that had a blind copy. The proof fails and the server copy survives.
      */
@@ -327,7 +327,7 @@ class DraftSaveTest {
     }
 
     /**
-     * ⭐ Offline: the read throws. That is an unknown, not an empty addressing, so the original
+     * Offline: the read throws. That is an unknown, not an empty addressing, so the original
      * stays. This is the bench case "airplane mode, reopen a draft, save it".
      */
     @Test fun aReadThatFailsLeavesTheOriginalAlone() = runTest {
@@ -387,13 +387,13 @@ class DraftSaveTest {
     }
 
     /**
-     * ⭐ The EMPTYING gestures (#69 × #95) ask THIS question, with an empty replacement — the
+     * The EMPTYING gestures (#69 × #95) ask THIS question, with an empty replacement — the
      * composer has just been emptied, so it offers nothing at all — and read the answer as "was the
      * original provably copied to nobody?". `MailRepository.emptiedDraftAddressingIsProvenEmpty` is
      * the one line of wiring between the two, pinned by [DraftAddressingWiringTest] because nothing
      * here can instantiate the repository; the decision is this, and it is executed.
      *
-     * ⛔ Three of the four answers must be the SAME false. The emptying destroys the server copy
+     * Three of the four answers must be the SAME false. The emptying destroys the server copy
      * outright and leaves not even the duplicate an ordinary save leaves, so "there was a Cc" and
      * "I could not find out" have to weigh alike: an unknown is not a void.
      */
@@ -434,7 +434,7 @@ class DraftSaveTest {
     }
 
     /**
-     * ⭐ The entry the server hands back with no address at all — measured on the bench, a server
+     * The entry the server hands back with no address at all — measured on the bench, a server
      * dropping an address it judged invalid. Dropping it here is what authorises the destroy: it
      * was the ONLY Cc, so the set would be empty, empty is "nothing to lose", and the copy that
      * still held that recipient is destroyed. Unreadable is unknown.
@@ -466,7 +466,7 @@ class DraftSaveTest {
     }
 
     /**
-     * ⭐ `Cc: undisclosed-recipients:;`, the entry the envelope parser now produces for it, and the
+     * `Cc: undisclosed-recipients:;`, the entry the envelope parser now produces for it, and the
      * decision that follows — EXECUTED, not described.
      *
      * A group that names nobody is a name and no address. Before it was carried, the whole field
@@ -475,7 +475,7 @@ class DraftSaveTest {
      * everything, so the server copy holding the only trace of that header was expunged. Now the
      * read is unknown and the answer is FALSE — the copy stays.
      *
-     * ⛔ The last two lines are the inverse witness on the very same call: read as an empty
+     * The last two lines are the inverse witness on the very same call: read as an empty
      * addressing instead, this identical save destroys the original. That is the difference the
      * defect erased, so it is asserted rather than assumed.
      */
@@ -499,10 +499,10 @@ class DraftSaveTest {
     // ---- draftReceiptRequestIsCarried: the same rule, for the read receipt (D2) ---------------
 
     /**
-     * ⭐ THE distinction, half one, and the reason this field could not be in the guard before the
+     * THE distinction, half one, and the reason this field could not be in the guard before the
      * header could be read: `null` = could not be established. Not "asks for nothing".
      *
-     * ⛔ Stated for `replacement = false` ONLY, which is where it means something: the new copy
+     * Stated for `replacement = false` ONLY, which is where it means something: the new copy
      * carries no request, so an original that might have held one must not be destroyed.
      */
     @Test fun aReceiptRequestThatCouldNotBeReadIsNotTheAbsenceOfOne() {
@@ -510,7 +510,7 @@ class DraftSaveTest {
     }
 
     /**
-     * ⭐ …and the limit of that conservatism: when the REPLACEMENT asks for a receipt, nothing the
+     * …and the limit of that conservatism: when the REPLACEMENT asks for a receipt, nothing the
      * original held can be lost, whatever it held. Answering false there would leave a duplicate
      * in Drafts on every save of a draft that asks for one — the very thing this guard is supposed
      * to stop doing to ordinary drafts.

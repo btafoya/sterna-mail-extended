@@ -24,7 +24,7 @@ import java.time.Instant
  * the pass before. They are then "not in known", they are inside the age floor, and they announce
  * as new mail — mail that has been sitting in the cache all along.
  *
- * ⚠ And this is not only a wrong notification: the same `newSince` drives
+ * And this is not only a wrong notification: the same `newSince` drives
  * `unarchiveThreadsOnReply` (`FetchAndNotify.kt`), an `Email/set` MOVE on the server. A false
  * positive drags mail back out of the Archive the owner had filed. Irreversible-first.
  *

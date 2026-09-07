@@ -19,15 +19,15 @@ import java.util.concurrent.atomic.AtomicInteger
  * [responder] handed the tag and the command line (tag stripped) that returns the whole raw
  * response, tagged line included. Every line received is recorded in [commands], in order.
  *
- * ⭐ **It serves connections one after another, not one and then nothing.** `withSession`'s reply to
+ * **It serves connections one after another, not one and then nothing.** `withSession`'s reply to
  * a failed block is to close the connection and open a fresh one, so a server that stops listening
  * after the first hides exactly the behaviour a test of that retry has to see: the second attempt
  * would fail on "connection refused" instead of reaching the server, and a replayed command would
  * read as no command at all.
  *
- * ⭐ **It also answers a literal**, i.e. a command line ending in `{n}`: `+ go ahead`, then n
+ * **It also answers a literal**, i.e. a command line ending in `{n}`: `+ go ahead`, then n
  * characters of payload, then the tagged line the [responder] gives for the command. Without it an
- * `APPEND`'s MIME would come back through [commands] as a dozen invented commands. ⚠ The count is
+ * `APPEND`'s MIME would come back through [commands] as a dozen invented commands. The count is
  * IMAP's byte count read as characters — true for the ASCII messages these tests append, and not a
  * general-purpose IMAP server.
  */
@@ -46,7 +46,7 @@ internal class ScriptedImapServer(
     /**
      * How many connections have been ACCEPTED, over the life of this server.
      *
-     * ⭐ [issued] cannot answer "did this call dial at all?": it filters the `LOGIN` line out (its
+     * [issued] cannot answer "did this call dial at all?": it filters the `LOGIN` line out (its
      * arguments are credentials), so a caller that connects, logs in and then asks nothing looks
      * exactly like one that never opened a socket. A refusal that is supposed to cost NOTHING is
      * read here, and only here. Incremented before the greeting is written, so any client that got
@@ -89,15 +89,15 @@ internal class ScriptedImapServer(
             val answer = responder(tag, line)
             writer.write(answer)
             writer.flush()
-            // ⭐ A LOGOUT the responder ANSWERED ends the connection, as a real server's does. One it
+            // A LOGOUT the responder ANSWERED ends the connection, as a real server's does. One it
             // left UNANSWERED must not: returning would close the socket under `.use`, the client
             // would read end-of-stream and `ImapParser` would throw at once — so a `close()` with no
             // bound on its read would still come back, and a test of that bound would be green
             // without it. A peer that goes mute without sending FIN is the case being reproduced.
-            // ⚠ The cost is that this thread then stays parked on `readLine` until the client closes
+            // The cost is that this thread then stays parked on `readLine` until the client closes
             // its own socket (or for the life of the JVM if it never does). It is a daemon thread,
             // and the only responder that leaves a LOGOUT unanswered is the one testing exactly that.
-            // ⛔ And the cost lands on the NEXT connection, because [serve] is sequential — one
+            // And the cost lands on the NEXT connection, because [serve] is sequential — one
             // connection at a time. A responder written with `else -> ""` (the banal way to say "I
             // ignore this command") therefore parks this thread for good, and the following attempt
             // dies on "connection refused": a test of a retry then silently tests something else.

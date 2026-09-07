@@ -73,7 +73,7 @@ class CollapsedFolderIdsTest {
     }
 
     /**
-     * ⭐ The trap this branch has already paid for once, seen from the default. `false` is not
+     * The trap this branch has already paid for once, seen from the default. `false` is not
      * "not stored": it is the user having opened that folder by hand, and it has to win over a
      * default that would fold it — at every launch, for ever.
      */
@@ -108,13 +108,13 @@ class CollapsedFolderIdsTest {
     // ── V5: an account whose rows carry no unread count (IMAP) ──────────────────────────────────
 
     /**
-     * ⭐ The heart of V5, and the thing it must NOT break. Suspending the default on an account
+     * The heart of V5, and the thing it must NOT break. Suspending the default on an account
      * with no badges is one line; collapsing this resolution into "the set of folded folders"
      * while doing it is the trap this branch has already paid for once, and on IMAP it would be
      * worse, not better — the ids are paths, the fold is remembered per path, and the memory was
      * promised publicly on 2026-08-31 for every account.
      *
-     * ⛔ The registry keeps winning in BOTH directions with no badge in sight: a `true` still
+     * The registry keeps winning in BOTH directions with no badge in sight: a `true` still
      * folds, a `false` still opens. Only the third bullet — the untouched folder — changes.
      */
     @Test fun `with no badge on any row, a folder the user FOLDED stays folded`() {
@@ -130,7 +130,7 @@ class CollapsedFolderIdsTest {
     }
 
     /**
-     * ⛔ The mutation this case exists for: `if (!rowsBadgeUnread) return choices.keys`. It reads
+     * The mutation this case exists for: `if (!rowsBadgeUnread) return choices.keys`. It reads
      * like "obey the registry and nothing else" and it folds every folder the user OPENED by hand.
      * Every other case in this file stays green under it.
      */
@@ -144,7 +144,7 @@ class CollapsedFolderIdsTest {
     }
 
     /**
-     * ⭐ The one behaviour V5 changes, pinned against its own control: the SAME list and the SAME
+     * The one behaviour V5 changes, pinned against its own control: the SAME list and the SAME
      * empty registry, answered both ways. `Travail` has a child, so with a badge available it
      * starts folded; with none, nobody has decided anything about it and nothing may fold it.
      */

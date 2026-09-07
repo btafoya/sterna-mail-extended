@@ -36,14 +36,14 @@ import java.io.File
  * `InboxViewModel` is an `AndroidViewModel`: not instantiable here, so reading the source is what is
  * left.
  *
- * ⛔ Every rule compares a WHOLE unit — a whole declaration, a whole `name = argument` pair — never a
+ * Every rule compares a WHOLE unit — a whole declaration, a whole `name = argument` pair — never a
  * fragment. A `contains` on a piece is blind to any mutation that LENGTHENS it, which has bitten this
  * repo three times, and here it is not theoretical: `currentAccountId = selectionAccountId` CONTAINS
  * `currentAccountId =`, so a rule on the parameter name alone would wave the first mutation through.
  * The price is that a legitimate reformat reddens this test. That direction of error is loud and one
  * line to fix; the other direction is a fix that silently comes undone.
  *
- * ⛔ Deliberately does NOT reuse the `codeLines()` helper the other source lints here carry: that one
+ * Deliberately does NOT reuse the `codeLines()` helper the other source lints here carry: that one
  * drops any line whose first non-blank character is `*`, which also drops a continuation line written
  * operator-first — exactly the shape a guard chained on the next line takes. The reader below carries
  * the block-comment state across lines instead. The eleven existing copies of that helper are out of
@@ -121,7 +121,7 @@ class PageKeyWiringLintTest {
     }
 
     /**
-     * ⛔ SOURCE LINT, and the guard on the destructive half of Codeberg #126.
+     * SOURCE LINT, and the guard on the destructive half of Codeberg #126.
      *
      * What the list SHOWS and what "Select all" TAKES have to be the same set, and the only way to
      * be sure of that is for both to ask one function. [ListUnreadOnlyTest] runs that function; this
@@ -157,13 +157,13 @@ class PageKeyWiringLintTest {
     }
 
     /**
-     * ⛔ SOURCE LINT. The rule above pins that the unread view's scope is HANDED to the paging key;
+     * SOURCE LINT. The rule above pins that the unread view's scope is HANDED to the paging key;
      * this one pins that anything ever puts a value in what the scope is derived from. Drop the one
      * line in the `mailboxes` `onEach` that records the folder list and every other rule here stays
      * green while the view pages an empty scope list for ever — `pagedMailbox` answers
      * `PagingData.empty()`, so the screen is simply blank and nothing fails.
      *
-     * ⚠ The scope stopped being a written value in #174: it is derived from this record AND from
+     * The scope stopped being a written value in #174: it is derived from this record AND from
      * the account's "subscribed folders only" setting, because ticking that box has to re-scope the
      * view while the [mailboxes] flow — which carries side effects (#89, #91) — is still collected
      * exactly once. So what is pinned here is the RECORD's writers, and the derivation below them.
@@ -174,7 +174,7 @@ class PageKeyWiringLintTest {
      * WITHOUT its account is the same mistake one hop later — the derivation would have to re-read
      * the current account, and pair it with the previous account's folder ids.
      *
-     * ⛔ It must also stay TWO. A third writer is a third resolution, and the clearing one exists
+     * It must also stay TWO. A third writer is a third resolution, and the clearing one exists
      * only because `onAccountChanged` holds the previous account's folder list.
      */
     @Test
@@ -203,7 +203,7 @@ class PageKeyWiringLintTest {
     }
 
     /**
-     * ⛔ SOURCE LINT, and a LAST RESORT — read this before trusting it.
+     * SOURCE LINT, and a LAST RESORT — read this before trusting it.
      *
      * What it pins is the DECISION of the `Sel.Unread` branch of `pagedEmails`: which scope list the
      * pager is built from, and that its unread filter is the literal `true` rather than the toolbar's

@@ -114,7 +114,7 @@ class DeparturesComeFromTheServerTest {
     }
 
     @Test fun `a confirmation that fails takes no banner down, and does not throw`() = runBlocking {
-        // ⚠ The one place in this lot where a caught failure is the RIGHT gesture. The destroy path
+        // The one place in this lot where a caught failure is the RIGHT gesture. The destroy path
         // next door lets its location read propagate, because it destroys mail. Here the action is
         // cosmetic and the pass carries new mail to announce: an offline pass leaves the banners
         // where they are and gets on with announcing.

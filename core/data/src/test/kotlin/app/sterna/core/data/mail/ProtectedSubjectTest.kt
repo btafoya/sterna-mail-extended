@@ -83,7 +83,7 @@ class ProtectedSubjectTest {
     }
 
     /**
-     * The same anti-spoofing filter the outer envelope subject gets (`ImapClient.kt:1042`). A
+     * The same anti-spoofing filter the outer envelope subject gets (`ImapClient`). A
      * protected subject is sender-controlled content: letting it through unfiltered would open on
      * screen exactly what the outer path closes.
      */
@@ -102,7 +102,7 @@ class ProtectedSubjectTest {
     }
 
     /**
-     * OBSERVED behaviour, not a wish: `MimeParser.parseHeaders` (MimeParser.kt:355-374) builds a
+     * OBSERVED behaviour, not a wish: `MimeParser.parseHeaders` (MimeParser-374) builds a
      * `Map`, so a duplicated field silently keeps the LAST occurrence. Pinned here because a
      * crafted entity can carry two `Subject:` lines and this is what would reach the screen.
      */

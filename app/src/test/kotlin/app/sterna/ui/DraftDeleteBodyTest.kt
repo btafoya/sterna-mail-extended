@@ -14,7 +14,7 @@ import java.io.File
  * 169-character English body — 205 in German, French and Dutch — lost its last sentence, which is
  * precisely the one saying that what was typed since the composer opened is not kept.
  *
- * ⚠ The slot SCROLLS now, and [ComposeDeleteWiringTest] pins that, so the silent cut is gone. The
+ * The slot SCROLLS now, and [ComposeDeleteWiringTest] pins that, so the silent cut is gone. The
  * cap below is not: it bounds the LENGTH, which scrolling does not. A body that overflows still
  * asks the reader for a scroll gesture that nothing on screen announces, and a sentence pushed
  * under the fold is a sentence she has no reason to look for. So do not read a green run here as
@@ -37,7 +37,7 @@ import java.io.File
 class DraftDeleteBodyTest {
 
     /**
-     * ⭐ The rule of #127. 140 is a GROWTH CEILING, not a measurement of the slot and not a
+     * The rule of #127. 140 is a GROWTH CEILING, not a measurement of the slot and not a
      * derivation: it is set below the only length ever SEEN to fail — 147, German, on a Moto G
      * (Android 9, 720×1280, `font_scale 2.0`) on 2026-08-07.
      *
@@ -52,12 +52,12 @@ class DraftDeleteBodyTest {
      *    that single German figure.
      *  - Russian held at 130 while filling the screen.
      *
-     * ⛔ This cap does NOT guarantee the body fits. What removes the silent cut is the
+     * This cap does NOT guarantee the body fits. What removes the silent cut is the
      * `verticalScroll` on the slot, which [ComposeDeleteWiringTest] pins. The cap only bounds what
      * goes under the fold — a scroll gesture nothing on screen announces. The bench stays the only
      * judge, and neither the German at 136 nor the Dutch at 135 has ever been seen on a screen.
      *
-     * ⚠ Accepted debt, deliberately left open: raising this constant (140 → 160) keeps every test
+     * Accepted debt, deliberately left open: raising this constant (140 → 160) keeps every test
      * in this file green — nothing pins its VALUE. A test asserting `CAP == 140` would copy the
      * code instead of guarding it, so the number is re-read by hand, like any bound of this kind.
      * Lower it when the bench sees a shorter body run off the bottom, and rewrite the translation
@@ -186,7 +186,7 @@ class DraftDeleteBodyTest {
          * through: drop `no` from "has no Trash folder" and every other row still matches, in
          * order, under the cap — while the sentence now announces destruction to precisely the
          * accounts that have a Trash. The words weigh nothing on their own; the polarity is the
-         * fact. (`MailRepository.deleteWouldDestroy`, `MailRepository.kt:3197-3200`: destroy is
+         * fact. (`MailRepository.deleteWouldDestroy`, `MailRepository-3200`: destroy is
          * the branch taken when NO mailbox is recognised as the trash role.)
          *
          * German and Dutch stopped repeating the Trash's name in that clause to fit the cap, so
@@ -224,7 +224,7 @@ class DraftDeleteBodyTest {
          * says "pour de bon", "para siempre", "per sempre", "voorgoed", "de vez", not
          * "définitivement". Both are banned now.
          *
-         * ⚠ Known gap, accepted: the possessive is one inflected form per language, so a declined
+         * Known gap, accepted: the possessive is one inflected form per language, so a declined
          * "в вашу Корзину" or "deinem Papierkorb" slips through. Chasing every case would cost
          * more than the rule is worth — this row catches the careless reach, not the determined one.
          */

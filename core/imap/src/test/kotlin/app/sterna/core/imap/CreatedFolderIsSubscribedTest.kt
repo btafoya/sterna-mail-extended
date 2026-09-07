@@ -13,7 +13,7 @@ import org.junit.Test
  * folder the user has just created vanishes from the drawer the instant it appears. Measured
  * against a real server on 2026-08-25.
  *
- * ⛔ The scope of this, and it is deliberate: **Sterna does not drive subscriptions.** No
+ * The scope of this, and it is deliberate: **Sterna does not drive subscriptions.** No
  * `UNSUBSCRIBE` anywhere, no `SUBSCRIBE` on any other path, no subscription control on screen.
  * The only mailbox it ever subscribes to is the one it created itself, at the moment it creates
  * it.

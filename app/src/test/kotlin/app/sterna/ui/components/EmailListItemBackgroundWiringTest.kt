@@ -77,7 +77,7 @@ class EmailListItemBackgroundWiringTest {
     private val expectedUnreadDefault = "unread: Boolean = !email.isSeen,"
 
     /**
-     * ⭐ Mutations 1, 2 and 3 at once: the arguments the composable actually hands the decision.
+     * Mutations 1, 2 and 3 at once: the arguments the composable actually hands the decision.
      *
      * The block is compared line by line and in order, so a swap of two argument NAMES — the
      * mutation that makes selection unreadable — comes out as two named mismatches and not as a
@@ -130,7 +130,7 @@ class EmailListItemBackgroundWiringTest {
     }
 
     /**
-     * ⭐ Mutation 4: the colour reaches the screen, and by one line only.
+     * Mutation 4: the colour reaches the screen, and by one line only.
      *
      * Scoped to the modifier chain of the row that consumed the decision — `EmailListItem.kt` paints
      * three other backgrounds (the two pills, the account chip) and a rule counting them all would
@@ -157,7 +157,7 @@ class EmailListItemBackgroundWiringTest {
     }
 
     /**
-     * ⭐ Mutation 5: what "unread" means to a caller that does not say — `SearchScreen.kt` is the
+     * Mutation 5: what "unread" means to a caller that does not say — `SearchScreen.kt` is the
      * only one, and with the default at `false` its results lose the background AND the bold
      * weight, while the inbox, which passes the flag explicitly, keeps looking right. Nothing else
      * would have gone red.
@@ -174,7 +174,7 @@ class EmailListItemBackgroundWiringTest {
     }
 
     /**
-     * ⭐ Mutation 6: the row asks the CompositionLocal for the setting once, at the top, and by
+     * Mutation 6: the row asks the CompositionLocal for the setting once, at the top, and by
      * this line only.
      *
      * `remember { LocalUnreadTint.current }` compiles, reads right, and freezes each row on the
@@ -195,7 +195,7 @@ class EmailListItemBackgroundWiringTest {
     }
 
     /**
-     * ⭐ Mutation 7: `val unread = unread && unreadTint` at the top of the composable.
+     * Mutation 7: `val unread = unread && unreadTint` at the top of the composable.
      *
      * It is the shortest way to write this feature and it is wrong: `unread` is read three more
      * times for the FontWeight of the sender, the date and the subject, so shadowing it takes the
@@ -216,7 +216,7 @@ class EmailListItemBackgroundWiringTest {
     }
 
     /**
-     * ⭐ Mutation 8, and the reason the rule above is not enough: leave `unread` alone and narrow
+     * Mutation 8, and the reason the rule above is not enough: leave `unread` alone and narrow
      * the condition where the weight is decided instead —
      * `fontWeight = if (unread && unreadTint) …` on all three lines, or a fresh
      * `val bold = unread && unreadTint` used by them. Nothing re-binds `unread`, both pure
