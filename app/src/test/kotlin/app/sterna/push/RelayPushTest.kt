@@ -15,6 +15,8 @@ class RelayPushTest {
 
     private val now = 1_700_000_000_000L
     private val minute = 60_000L
+
+    private val measured = 5 * minute + 33_000L
     private val url = "https://up.example.org/UP?token=abc"
     private val other = "https://up.example.org/UP?token=zzz"
 
@@ -25,6 +27,7 @@ class RelayPushTest {
         since: Long = now,
         relayRequested: Boolean = false,
         lastDelivery: Long = 0L,
+        createAttempts: Int = 0,
     ) = UpAccountState(
         deviceClientId = "dev-1",
         endpoint = endpoint,
@@ -33,6 +36,7 @@ class RelayPushTest {
         statusSinceMillis = since,
         relayRequested = relayRequested,
         lastDeliveryMillis = lastDelivery,
+        createAttempts = createAttempts,
     )
 
     // ── shouldRegister: the relay gate ──────────────────────────────────────────────────
@@ -95,6 +99,38 @@ class RelayPushTest {
         assertTrue(
             "3 minutes in, it is stale",
             RelayPush.shouldRegister(MailProtocol.JMAP, false, UpStatus.REGISTERING, now - 3 * minute, now),
+        )
+    }
+
+    @Test fun `a verification in flight is given the server's window, not the distributor's`() {
+        assertFalse(
+            "3 minutes into a VERIFYING the server has simply not answered yet; re-registering " +
+                "here is what recreated the subscription under its own pending verification",
+            RelayPush.shouldRegister(MailProtocol.JMAP, false, UpStatus.VERIFYING, now - 3 * minute, now),
+        )
+        assertFalse(
+            "the bench measured 5 min 33 from PushSubscription to PushVerification on a server " +
+                "that did verify: that latency must not count as stale",
+            RelayPush.shouldRegister(MailProtocol.JMAP, false, UpStatus.VERIFYING, now - measured, now),
+        )
+        assertTrue(
+            "past 10 minutes the verification is genuinely lost and registering again is right; " +
+                "the fix must not turn a loop into a state nothing ever leaves",
+            RelayPush.shouldRegister(MailProtocol.JMAP, false, UpStatus.VERIFYING, now - 11 * minute, now),
+        )
+    }
+
+    @Test fun `each of the two waits gets its own window`() {
+        assertEquals(
+            "REGISTERING waits on the distributor, on this device: 2 minutes, unchanged",
+            2 * minute,
+            RelayPush.pendingGraceMs(UpStatus.REGISTERING),
+        )
+        assertEquals(
+            "VERIFYING waits on the mail server, over the network and through a push relay: the " +
+                "bench measured 5 min 33 for one that arrived, so the window is 10 minutes",
+            10 * minute,
+            RelayPush.pendingGraceMs(UpStatus.VERIFYING),
         )
     }
 
@@ -212,7 +248,10 @@ class RelayPushTest {
 
     @Test fun `a JMAP endpoint whose verification window lapsed is recreated`() {
         assertEquals(
-            EndpointOutcome.Subscribe,
+            "3 minutes was 'lapsed' while both waits shared one 2-minute window, and it is not: " +
+                "the bench measured 5 min 33 for a verification that did arrive, so Subscribe " +
+                "here destroys the subscription it is waiting on and starts the loop again",
+            EndpointOutcome.Ignore,
             RelayPush.endpointOutcome(
                 MailProtocol.JMAP,
                 state(UpStatus.VERIFYING, endpoint = url, subscriptionId = "S1", since = now - 3 * minute),
@@ -229,6 +268,60 @@ class RelayPushTest {
                 url,
                 now,
             ),
+        )
+        assertEquals(
+            "past the server window it really is lost, and the subscription is recreated",
+            EndpointOutcome.Subscribe,
+            RelayPush.endpointOutcome(
+                MailProtocol.JMAP,
+                state(UpStatus.VERIFYING, endpoint = url, subscriptionId = "S1", since = now - 11 * minute),
+                url,
+                now,
+            ),
+        )
+    }
+
+    @Test fun `the latency the bench measured leaves the pending subscription alone`() {
+        assertEquals(
+            "this is the whole defect of #195: at 5 min 33 the account was sent back through " +
+                "destroy + create, so the verification the server was about to send landed on an " +
+                "id that no longer existed",
+            EndpointOutcome.Ignore,
+            RelayPush.endpointOutcome(
+                MailProtocol.JMAP,
+                state(UpStatus.VERIFYING, endpoint = url, subscriptionId = "S1", since = now - measured),
+                url,
+                now,
+            ),
+        )
+    }
+
+    @Test fun `a relay account crosses both decisions exactly as before`() {
+        listOf(UpStatus.PUBLISHED, UpStatus.ACTIVE).forEach { status ->
+            assertFalse(
+                "a $status relay never registers again, however old its stamp — the windows " +
+                    "this branch moved are the JMAP subscription's, and a relay has none",
+                RelayPush.shouldRegister(MailProtocol.IMAP, true, status, now - 30 * minute, now),
+            )
+            assertEquals(
+                "and the same address redelivered onto a $status relay is still ignored",
+                EndpointOutcome.Ignore,
+                RelayPush.endpointOutcome(
+                    MailProtocol.IMAP,
+                    state(status, endpoint = url, relayRequested = true, since = now - 30 * minute),
+                    url,
+                    now,
+                ),
+            )
+        }
+        assertTrue(
+            "a rotation onto a relay still publishes the new address",
+            RelayPush.endpointOutcome(
+                MailProtocol.IMAP,
+                state(UpStatus.ACTIVE, endpoint = url, relayRequested = true, since = now - 30 * minute),
+                other,
+                now,
+            ) is EndpointOutcome.Relay,
         )
     }
 
@@ -435,6 +528,152 @@ class RelayPushTest {
         assertTrue(
             "and it may again once the 15 minutes are up",
             RelayPush.shouldRegister(MailProtocol.IMAP, true, UpStatus.FAILED, now - 16 * minute, now),
+        )
+    }
+
+    @Test fun `picking a distributor clears the failure its own disappearance stamped`() {
+        val lost = state(UpStatus.FAILED, endpoint = url, since = now - minute, relayRequested = true)
+        assertFalse(
+            "the automatic path is still held back — the cooldown is what keeps a lost " +
+                "distributor from being retried at every worker cycle",
+            RelayPush.shouldRegister(MailProtocol.IMAP, true, lost.status, lost.statusSinceMillis, now),
+        )
+        val chosen = RelayPush.onDistributorChosen(lost, now)
+        assertNotNull("a FAILED account is the one case this exists for", chosen)
+        assertEquals(UpStatus.NONE, chosen!!.status)
+        assertEquals(
+            "the stamp moves to the choice: it is when the status last changed, and leaving it on " +
+                "the loss dates a NONE from an event that is over",
+            now,
+            chosen.statusSinceMillis,
+        )
+        assertTrue(
+            "and the register that follows the choice goes out at once, on a relay account",
+            RelayPush.shouldRegister(MailProtocol.IMAP, true, chosen.status, chosen.statusSinceMillis, now),
+        )
+        assertTrue(
+            "and on a JMAP account, which is the one the reporter watched sit out 15 minutes",
+            RelayPush.shouldRegister(MailProtocol.JMAP, false, chosen.status, chosen.statusSinceMillis, now),
+        )
+    }
+
+    @Test fun `a distributor choice rearms FAILED and no other status`() {
+        UpStatus.entries.filter { it != UpStatus.FAILED }.forEach { status ->
+            assertNull(
+                "rearming $status would restamp a status that never moved: ACTIVE and PUBLISHED " +
+                    "would lose the transport they hold, REGISTERING/VERIFYING would have their " +
+                    "stale-pending watchdog reset by a gesture that changed nothing for them",
+                RelayPush.onDistributorChosen(state(status, since = now - minute, relayRequested = true), now),
+            )
+        }
+    }
+
+    @Test fun `picking a distributor claims no relay address`() {
+        assertFalse(
+            "a JMAP account never asked for a relay address; onRelayRequested would record that " +
+                "it had, and the settings screen would offer to withdraw an address nobody has",
+            RelayPush.onDistributorChosen(state(UpStatus.FAILED, since = now), now)!!.relayRequested,
+        )
+        assertTrue(
+            "and an account that did ask keeps its claim",
+            RelayPush.onDistributorChosen(
+                state(UpStatus.FAILED, since = now, relayRequested = true), now,
+            )!!.relayRequested,
+        )
+    }
+
+    @Test fun `picking a distributor moves the status, its stamp and the spent budget`() {
+        val prev = UpAccountState(
+            deviceClientId = "dev-1",
+            endpoint = url,
+            subscriptionId = "sub-9",
+            status = UpStatus.FAILED,
+            expiresAtMillis = now + 7 * minute,
+            statusSinceMillis = now - minute,
+            relayRequested = true,
+            lastDeliveryMillis = now - 2 * minute,
+            createAttempts = 3,
+        )
+        val chosen = RelayPush.onDistributorChosen(prev, now)!!
+        assertEquals("the endpoint is cleared by a rotation, not by a choice", url, chosen.endpoint)
+        assertEquals("the subscription is the server's, and it outlives a distributor", "sub-9", chosen.subscriptionId)
+        assertEquals("dev-1", chosen.deviceClientId)
+        assertEquals(now + 7 * minute, chosen.expiresAtMillis)
+        assertEquals(
+            "the last wake really happened; forgetting it would show 'never woken' on screen",
+            now - 2 * minute,
+            chosen.lastDeliveryMillis,
+        )
+        assertEquals(
+            "the spent create budget goes back to zero on this gesture, and nothing else in the " +
+                "app can put it back. A distributor hands the same instance the SAME endpoint " +
+                "(ntfy and NextPush both), so a user who re-picks the distributor that was lost " +
+                "gets the address whose budget is already spent: markFailed keeps the count and " +
+                "keeps the endpoint, so the 15-minute cooldown lets shouldRegister through, the " +
+                "give-up fires again, and the account is FAILED for ever with no gesture left. " +
+                "This is the same reason FAILED is cleared here, applied to the other half.",
+            0,
+            chosen.createAttempts,
+        )
+        assertFalse(
+            "and the rule that reads the count agrees: the next endpoint delivery may create again",
+            RelayPush.createBudgetSpent(chosen, url),
+        )
+    }
+
+    @Test fun `three creations for one address are allowed, and the fourth is not`() {
+        (0..2).forEach { done ->
+            assertFalse(
+                "after $done creation(s) the account may still create another: the cap is what " +
+                    "stops the hammering, and setting it below 3 gives up on a server that only " +
+                    "verifies now and then",
+                RelayPush.createBudgetSpent(
+                    state(UpStatus.VERIFYING, endpoint = url, subscriptionId = "S1", createAttempts = done),
+                    url,
+                ),
+            )
+        }
+        assertTrue(
+            "three subscriptions created for one address and not one verification: the account is " +
+                "given up on, which shows as FAILED where an eternal VERIFYING showed nothing",
+            RelayPush.createBudgetSpent(
+                state(UpStatus.VERIFYING, endpoint = url, subscriptionId = "S1", createAttempts = 3),
+                url,
+            ),
+        )
+    }
+
+    @Test fun `a budget spent on one address says nothing about the next one`() {
+        val spent = state(UpStatus.VERIFYING, endpoint = url, subscriptionId = "S1", createAttempts = 3)
+        assertTrue(RelayPush.createBudgetSpent(spent, url))
+        assertFalse(
+            "the count is per endpoint: the user picking another distributor gets another address, " +
+                "and carrying the old address's spent budget over means push never comes back",
+            RelayPush.createBudgetSpent(spent, other),
+        )
+    }
+
+    @Test fun `a creation counts against the address it was made for`() {
+        assertEquals(
+            "a first subscription on an account that has no address yet",
+            1,
+            RelayPush.createAttemptsFor(state(UpStatus.REGISTERING), url),
+        )
+        assertEquals(
+            "the same address again: this is the third go",
+            3,
+            RelayPush.createAttemptsFor(
+                state(UpStatus.VERIFYING, endpoint = url, subscriptionId = "S1", createAttempts = 2),
+                url,
+            ),
+        )
+        assertEquals(
+            "a rotated address starts its own count, whatever the old one had spent",
+            1,
+            RelayPush.createAttemptsFor(
+                state(UpStatus.VERIFYING, endpoint = url, subscriptionId = "S1", createAttempts = 3),
+                other,
+            ),
         )
     }
 

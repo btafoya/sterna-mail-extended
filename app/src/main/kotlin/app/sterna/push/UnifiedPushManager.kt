@@ -67,7 +67,22 @@ class UnifiedPushManager(
     fun distributorChosen(packageName: String) {
         UnifiedPush.saveDistributor(context, packageName)
         _needsDistributorChoice.value = false
+        rearmFailedAccounts()
         onTransportStateChanged?.invoke()
+    }
+
+    /** Clear the FAILED a lost distributor stamped, ahead of `onTransportStateChanged` whose
+     *  apply() reads it back. From the in-person pick only: the connector drops its own saved
+     *  distributor on the last unregister, so `ensureDistributor` re-enrols and would loop here. */
+    private fun rearmFailedAccounts() {
+        val credentials = accountStore.allCredentials()
+        synchronized(this) {
+            credentials.forEach { account ->
+                store.load(account.id)
+                    ?.let { RelayPush.onDistributorChosen(it, System.currentTimeMillis()) }
+                    ?.let { store.save(account.id, it) }
+            }
+        }
     }
 
     /** Dialog dismissed without a choice: stay on direct connections (re-asked next apply). */
@@ -106,7 +121,7 @@ class UnifiedPushManager(
     fun isPending(accountId: String): Boolean {
         val state = store.load(accountId) ?: return false
         return (state.status == UpStatus.REGISTERING || state.status == UpStatus.VERIFYING) &&
-            System.currentTimeMillis() - state.statusSinceMillis < RelayPush.PENDING_GRACE_MS
+            System.currentTimeMillis() - state.statusSinceMillis < RelayPush.pendingGraceMs(state.status)
     }
 
     /** Saved distributor's package name while this account rides UnifiedPush (status line). */
@@ -116,8 +131,7 @@ class UnifiedPushManager(
     fun distributors(): List<String> = UnifiedPush.getDistributors(context)
 
     /** Drive the account towards ACTIVE: register when NONE/FAILED, re-register when a pending
-     *  state went stale (a lazy watchdog, no timers). The decision is [RelayPush.shouldRegister];
-     *  everything left here is side effects. */
+     *  state went stale (a lazy watchdog, no timers). The decision is [RelayPush.shouldRegister]. */
     @Synchronized
     fun ensureRegistered(credentials: AccountCredentials) {
         // Only the login holds a PushSubscription; its sub-accounts (#31) are fanned to on delivery.
@@ -151,9 +165,7 @@ class UnifiedPushManager(
         }
     }
 
-    /**
-     * The user asked for a relay address on this account. [RelayPush.onRelayRequested] puts the
-     */
+    /** The user asked for a relay address: [RelayPush.onRelayRequested] clears the status first. */
     fun requestRelayAddress(credentials: AccountCredentials) {
         synchronized(this) {
             val state = store.getOrCreate(credentials.id)
@@ -162,9 +174,7 @@ class UnifiedPushManager(
         ensureRegistered(credentials)
     }
 
-    /**
-     * The user withdrew the relay address: forget the endpoint, then unregister the instance.
-     */
+    /** The user withdrew the relay address: forget the endpoint, then unregister the instance. */
     fun dropRelayAddress(credentials: AccountCredentials) {
         synchronized(this) {
             val state = store.load(credentials.id) ?: return
@@ -228,6 +238,13 @@ class UnifiedPushManager(
                 }
                 EndpointOutcome.Subscribe -> Unit
             }
+            // Before the destroy on purpose: a verification that is merely slow still has a live
+            // subscription to land on, and onMessage's Verification arm takes it to ACTIVE alone.
+            if (RelayPush.createBudgetSpent(prev, endpoint.url)) {
+                Log.w(TAG, "PushSubscription never verified after ${prev.createAttempts} creations for $accountId")
+                markFailed(accountId)
+                return@launch
+            }
             if (prev.subscriptionId != null) {
                 // Rotation or a lapsed verification: the old subscription is dead — drop it.
                 runCatching { repo.destroyPushSubscription(credentials, prev.subscriptionId) }
@@ -259,6 +276,7 @@ class UnifiedPushManager(
                         subscriptionId = created.id,
                         status = UpStatus.VERIFYING,
                         statusSinceMillis = System.currentTimeMillis(),
+                        createAttempts = RelayPush.createAttemptsFor(prev, endpoint.url),
                         expiresAtMillis = parseUtc(created.expires)
                             ?: (System.currentTimeMillis() + EXPIRES_MS),
                     ),
@@ -294,7 +312,11 @@ class UnifiedPushManager(
                     }.onSuccess {
                         store.save(
                             accountId,
-                            store.getOrCreate(accountId).copy(status = UpStatus.ACTIVE, statusSinceMillis = System.currentTimeMillis()),
+                            store.getOrCreate(accountId).copy(
+                                status = UpStatus.ACTIVE,
+                                statusSinceMillis = System.currentTimeMillis(),
+                                createAttempts = 0,
+                            ),
                         )
                         Log.i(TAG, "UnifiedPush ACTIVE for $accountId")
                         onTransportStateChanged?.invoke()
@@ -384,8 +406,7 @@ class UnifiedPushManager(
         onTransportStateChanged?.invoke()
     }
 
-    /** Renew the subscription when it expires within two worker cycles. A failed renewal falls back
-     *  to a full re-registration. */
+    /** Renew before expiry; a failed renewal falls back to a full re-registration. */
     suspend fun renewIfNeeded(credentials: AccountCredentials) {
         val state = store.load(credentials.id) ?: return
         if (state.status != UpStatus.ACTIVE || state.subscriptionId == null) return

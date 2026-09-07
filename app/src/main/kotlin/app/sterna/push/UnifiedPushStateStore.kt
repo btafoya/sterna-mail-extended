@@ -14,9 +14,8 @@ enum class UpStatus {
     /** PushSubscription created; waiting for the server's PushVerification. */
     VERIFYING,
 
-    /**
-     * A relay address is published for this account (IMAP): the endpoint exists and is shown to
-     */
+    /** A relay address exists and is shown for this account (IMAP), and nothing has ever arrived
+     *  through it. Deliberately not [ACTIVE], which the transport decisions read as "mail came". */
     PUBLISHED,
 
     /** Verified — StateChange events flow through the endpoint. */
@@ -41,6 +40,8 @@ data class UpAccountState(
     val relayRequested: Boolean = false,
     /** When a payload last arrived through the relay endpoint (0 = never). */
     val lastDeliveryMillis: Long = 0,
+    /** Subscriptions created for [endpoint] and never verified; [RelayPush.MAX_CREATE_ATTEMPTS] caps it. */
+    val createAttempts: Int = 0,
 )
 
 /**
@@ -61,6 +62,7 @@ class UnifiedPushStateStore(context: Context) {
             statusSinceMillis = prefs.getLong("$accountId.since", 0),
             relayRequested = prefs.getBoolean("$accountId.relay", false),
             lastDeliveryMillis = prefs.getLong("$accountId.delivered", 0),
+            createAttempts = prefs.getInt("$accountId.creates", 0),
         )
     }
 
@@ -78,10 +80,10 @@ class UnifiedPushStateStore(context: Context) {
             .putLong("$accountId.since", state.statusSinceMillis)
             .putBoolean("$accountId.relay", state.relayRequested)
             .putLong("$accountId.delivered", state.lastDeliveryMillis)
+            .putInt("$accountId.creates", state.createAttempts)
             .apply()
     }
 
-    /** Drop an account's record (sign-out / teardown). */
     fun clear(accountId: String) {
         val edit = prefs.edit()
         prefs.all.keys.filter { it.startsWith("$accountId.") }.forEach { edit.remove(it) }
