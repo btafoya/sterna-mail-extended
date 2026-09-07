@@ -2834,9 +2834,8 @@ class MailRepository(
         return target
     }
 
-    /** Whether deleting [email] would permanently destroy it: does it already sit in the Trash? An
-     *  account with no Trash is NOT a destroy — [delete] resolves-or-creates the bin, so a `true` here
-     *  would send the ordinary swipe into `MessageDestroyWorker` (#23). Never creates the bin. */
+    /** Whether deleting [email] would permanently destroy it: does it already sit in the Trash? An account
+     *  with no Trash is NOT a destroy — [delete] resolves-or-creates the bin, so `true` erases it (#23). */
     suspend fun deleteWouldDestroy(credentials: AccountCredentials, email: Email): Boolean {
         val trash = if (credentials.protocol == MailProtocol.IMAP) imapRoleFolder(credentials, "trash")
         else trashMailboxId(connect(credentials))
@@ -2848,10 +2847,18 @@ class MailRepository(
     suspend fun accountHasTrash(credentials: AccountCredentials): Boolean =
         roleMailboxId(credentials, "trash") != null
 
-    /** Whether the folder CACHE names a Trash for [accountId], for a caller that cannot afford a
-     *  socket. It answers about the cache, so it says "no Trash" for an account never synced. */
+    /** Whether the folder CACHE names a Trash for [accountId]: "no Trash" for an account never synced. */
     suspend fun hasCachedTrash(accountId: String): Boolean =
         mailboxDao.idForRole(accountId, "trash") != null
+
+    /** The bin off the folder CACHE, so no finger waits on a socket. By name on JMAP alone: the IMAP
+     *  cache leaves that name on the LOSER of the role claim, a folder a delete moves out of. */
+    suspend fun cachedTrashMailboxId(credentials: AccountCredentials): String? {
+        val cached = mailboxDao.idForRole(credentials.id, "trash")
+        if (cached != null) return cached
+        if (credentials.protocol == MailProtocol.IMAP) return null
+        return mailboxDao.idForAnyName(credentials.id, TRASH_FOLDER_NAMES)
+    }
 
     /** The IMAP numbering last observed for [mailboxId], to FREEZE at a user's confirmation and oppose
      *  much later. Null on JMAP and on a folder never observed: nothing to oppose destroys nothing (#99).

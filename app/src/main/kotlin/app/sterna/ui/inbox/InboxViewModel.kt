@@ -34,6 +34,7 @@ import app.sterna.core.data.mail.InboxRow
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.MailSearchResult
 import app.sterna.core.data.mail.UidValidity
+import app.sterna.core.data.mail.deleteDestroysMessage
 import app.sterna.core.data.mail.emailKey
 import app.sterna.core.data.settings.SortOrder
 import app.sterna.core.data.settings.SwipeAction
@@ -1462,10 +1463,10 @@ class InboxViewModel(
     fun delete(email: Email) {
         val credentials = credentialsFor(email) ?: return
         viewModelScope.launch {
-            // A delete that only moves to Trash is reversible immediately; one that would DESTROY is
-            // held behind the Undo window (#23). The probe can hit the network; on failure fall back
-            // to the move path, whose own failure can never destroy anything.
-            if (runCatching { repo.deleteWouldDestroy(credentials, email) }.getOrDefault(false)) {
+            // A move to Trash is reversible at once; a destroy is held behind the Undo window (#23).
+            // The read is local, and its failure reads as no bin, which moves: doubt never destroys.
+            val trash = runCatching { repo.cachedTrashMailboxId(credentials) }.getOrNull()
+            if (deleteDestroysMessage(trash, email.mailboxId)) {
                 heldBackDestroy(listOf(email), getApplication<Application>().getString(R.string.status_message_deleted_forever))
             } else {
                 swipeRemove(email, getApplication<Application>().getString(R.string.status_message_deleted)) { c, id -> repo.delete(c, id) }
@@ -1702,15 +1703,22 @@ class InboxViewModel(
     }
 
     /**
-     * Delete a whole conversation. Members whose delete would permanently destroy them go through
-     * the held-back destroy — a cancelable Undo window, never an inline destroy — while the rest
-     * take move-to-Trash. A stale cached folder can at worst hold a move back behind Undo.
+     * Delete a whole conversation: members whose delete would destroy them go through the held-back
+     * destroy — a cancelable Undo window, never an inline destroy — and the rest take move-to-Trash.
+     * A stale folder cache routes a move into that destroy, which erases when the window elapses.
      */
     fun deleteThread(rep: Email) {
         viewModelScope.launch {
             val members = threadMessages(rep)
+            // Once per account, not once per member: the bin is a property of the account.
+            val trashByAccount = mutableMapOf<String, String?>()
             val (destroy, move) = members.partition { m ->
-                credentialsFor(m)?.let { c -> runCatching { repo.deleteWouldDestroy(c, m) }.getOrDefault(false) } ?: false
+                credentialsFor(m)?.let { c ->
+                    val trash = trashByAccount.getOrPut(c.id) {
+                        runCatching { repo.cachedTrashMailboxId(c) }.getOrNull()
+                    }
+                    deleteDestroysMessage(trash, m.mailboxId)
+                } ?: false
             }
             dropThreadExpansion(threadKeyOf(rep))
             if (destroy.isNotEmpty()) {
