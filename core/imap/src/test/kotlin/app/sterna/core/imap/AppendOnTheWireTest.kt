@@ -7,11 +7,14 @@ import org.junit.Test
 import java.time.Instant
 
 /**
- * WHAT AN APPEND PUTS ON THE WIRE, byte for byte — the primitive a cross-account move stands on
+ * What an APPEND puts on the wire, byte for byte, the primitive a cross-account move stands on
+ * (#189): the message read from account A has to arrive in account B's folder as the same octets,
+ * with the date it was received under, and the copy has to be named by the server before A's
+ * original is touched.
  */
 class AppendOnTheWireTest {
 
-    /** A message whose bytes are NOT valid UTF-8 as a whole: `П` (D0 9F) then `é` as one ISO
+    /** A message whose bytes are not valid UTF-8 as a whole: `П` (D0 9F) then `é` as one ISO
      *  octet (E9), then a bare 0xFF. Any re-encoding on the way out changes the count. */
     private val eightBit = byteArrayOf(
         0xD0.toByte(), 0x9F.toByte(), 0x20, 0xE9.toByte(), 0x20, 0xFF.toByte(), 0x0D, 0x0A,

@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * THIS TEST READS SOURCE TEXT. It is a last resort, not a proof of execution: `MailRepository`
+ * This test reads source text. It is a last resort, not a proof of execution: `MailRepository`
  */
 class ChunkedIdReadsSourceTest {
 
@@ -33,7 +33,7 @@ class ChunkedIdReadsSourceTest {
         return out
     }
 
-    /** The last argument of a call — the id list, in both `emailsByIds` overloads. */
+    /** The last argument of a call, the id list, in both `emailsByIds` overloads. */
     private fun lastArg(args: String): String {
         var depth = 0
         var last = 0
@@ -57,7 +57,7 @@ class ChunkedIdReadsSourceTest {
         )
 
         // Two shapes are safe, and nothing else is:
-        //  - `listOf(<one id>)`     — a single message, one binding;
+        //  - `listOf(<one id>)`, a single message, one binding;
         val unbounded = calls.map { lastArg(it) }
             .filterNot { it == "chunk" || it == "slice" || it.startsWith("listOf(") }
 
@@ -82,8 +82,10 @@ class ChunkedIdReadsSourceTest {
             "imapDestroyGroup",
             "search",
             "fetchThreadMembers",
-            // The freeze of a held-back destroy (`numberingRowsWereReadUnder`, #99) is NOT in
-            // this list any more, and that is a tightening, not a hole: its id list IS the
+            // The freeze of a held-back destroy (`numberingRowsWereReadUnder`, #99) is not in
+            // this list any more, and that is a tightening, not a hole: its id list is the
+            // selection, and the split now lives in `numberingStampsOfRows`, which
+            // `NumberingStampsTest` executes on 1201 ids.
             "setReadAll",
         )
         val missing = routed.filterNot {
@@ -98,7 +100,7 @@ class ChunkedIdReadsSourceTest {
     }
 
     @Test fun thePathsThatChunkWithTheirOwnLoopStillDo() {
-        // These three read, write and count CHUNK BY CHUNK for reasons of their own (per-chunk
+        // These three read, write and count chunk by chunk for reasons of their own (per-chunk
         // count nudges, per-chunk Email/set), so they carry the loop themselves instead of
         // delegating. They must still carry one: their `chunk` argument is only safe because of it.
         val missing = listOf("pruneServerGone", "setReadAll", "evictAll").filterNot {

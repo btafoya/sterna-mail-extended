@@ -11,7 +11,7 @@ import org.junit.Test
 import java.io.IOException
 
 /**
- * [numberingStampsOfRows] EXECUTED — the decision that manufactures the stamp THE TWO #99 GUARDS
+ * [numberingStampsOfRows] executed, the decision that manufactures the stamp the two #99 guards
  */
 class NumberingStampsTest {
 
@@ -38,7 +38,7 @@ class NumberingStampsTest {
         ) { rows.read(it) }
 
         assertEquals(emptyMap<String, Long?>(), stamps)
-        // The return alone would still pass if the guard moved AFTER the read: on JMAP there is
+        // The return alone would still pass if the guard moved after the read: on JMAP there is
         // nothing to number, so the read must not happen at all.
         assertEquals("a JMAP selection read the emails table for stamps it cannot have", 0, rows.calls.size)
     }
@@ -59,7 +59,7 @@ class NumberingStampsTest {
     }
 
     @Test fun `a row cached without a numbering keeps its key, with a null value`() = runBlocking {
-        // Rows written before schema v25 have no uidValidity. PRESENT-and-null, never dropped:
+        // Rows written before schema v25 have no uidValidity. Present-and-null, never dropped:
         // the guard reads it as "nothing to oppose", and the two shapes must stay distinguishable.
         val rows = Rows(mapOf("imap:acc:INBOX:7" to 42L, "imap:acc:INBOX:8" to null))
 
@@ -116,7 +116,7 @@ class NumberingStampsTest {
     }
 
     /**
-     * A READ THAT THROWS MUST TAKE THE WHOLE GESTURE DOWN WITH IT, and the reason is the exact
+     * A read that throws must take the whole gesture down with it, and the reason is the exact
      */
     @Test fun `a read that fails is not swallowed into an empty map`() {
         val boom = object {

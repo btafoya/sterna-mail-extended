@@ -16,7 +16,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /*
  * Saving a draft on the phone first (#95): one path, online or off. There is deliberately no
- * "network, else local" branch — two paths would not make the text durable before the attempt.
+ * "network, else local" branch, two paths would not make the text durable before the attempt.
  */
 
 internal data class LocalDraftTarget(val id: String, val existing: LocalDraftEntity?)
@@ -40,13 +40,14 @@ internal suspend fun localDraftTarget(
 
 /**
  * The server draft a save replaces, or null. A local id handed on as `replacesEmailId` reaches
- * `destroyDraft` under a name no server issued — on IMAP a number, which always names something.
+ * `destroyDraft` under a name no server issued, on IMAP a number, which always names something.
  */
 internal fun serverDraftReplacedBy(replacesEmailId: String?): String? =
     replacesEmailId?.takeUnless { it.startsWith(LOCAL_DRAFT_ID_PREFIX) }
 
 /**
  * A fresh `Message-ID` every save, whatever [existing] carries: it names the version of the text, and
+ * a reused id would let an older upload pass for the newer text.
  */
 internal fun localDraftMessageId(
     @Suppress("UNUSED_PARAMETER") existing: LocalDraftEntity?,
@@ -70,6 +71,7 @@ internal suspend fun localDraftUidValidity(
 
 /**
  * A body the composer says it lost never writes over one already stored: a composer back from an
+ * unsaved process death has nothing to offer but its emptiness.
  */
 internal fun localDraftBodyToWrite(
     body: String,
@@ -104,7 +106,7 @@ internal fun localDraftHtmlToWrite(
     body: String,
     existingBody: String?,
     composerBodyWasLost: Boolean,
-    /** As in [localDraftBodyToWrite], and it must be the SAME answer: one condition, two columns. */
+    /** As in [localDraftBodyToWrite], and it must be the same answer: one condition, two columns. */
     typedBodyIsBlank: Boolean = body.isBlank(),
 ): String? =
     if (localDraftKeepsTheStoredBody(typedBodyIsBlank, existingBody, composerBodyWasLost)) {
@@ -160,7 +162,7 @@ internal fun localDraftRow(
     attachmentsJson = "[]",
     // Written at the row's creation and never again (#95): a re-save from the phone's own store
     // arrives with both null and would rub them out, unmasking the original for good. The two move
-    // together or not at all — that pairing is #99.
+    // together or not at all, that pairing is #99.
     replacesEmailId = if (existing == null) replacesEmailId else existing.replacesEmailId,
     replacesUidValidity = if (existing == null) replacesUidValidity else existing.replacesUidValidity,
     bodyIsLossy = bodyIsLossy,
@@ -260,7 +262,7 @@ internal fun stageLocalDraftAttachments(dir: File, attachments: List<EmailBodyPa
 }
 
 /**
- * The text at once, and nothing of [existing] taken away. A first save goes down in
+ * The text at once, and nothing of [existing] taken away.
  */
 internal fun localDraftStagingRow(row: LocalDraftEntity, existing: LocalDraftEntity?): LocalDraftEntity =
     if (existing == null) {
@@ -286,7 +288,7 @@ internal suspend fun saveDraftLocalFirst(
 ): DraftSaveOutcome {
     upsert(localDraftStagingRow(row, existing))
     // NonCancellable: run from an already-cancelled coroutine, `discardLocalDraft` swallows the Room
-    // delete while the file delete goes through — a STAGING row saying "[]" whose bytes are gone.
+    // delete while the file delete goes through, a STAGING row saying "[]" whose bytes are gone.
     val staged = stageOrRollback(
         rollback = { withContext(NonCancellable) { if (existing == null) discard(row) } },
     ) { stage(row) }
@@ -296,7 +298,7 @@ internal suspend fun saveDraftLocalFirst(
     )
     // NonCancellable, and this is the write the whole volet rests on: [stage] does not suspend, so a
     // cancellation is first seen here. Cut here, a first save leaves a STAGING row saying "[]" with
-    // orphaned bytes; a re-save leaves the new text under the old row's EDITING lease.
+    // orphaned bytes; a re-save leaves the new text under the old row's editing lease.
     withContext(NonCancellable) { upsert(durable) }
     val outcome = try {
         upload(durable)

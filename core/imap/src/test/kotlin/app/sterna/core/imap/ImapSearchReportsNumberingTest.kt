@@ -20,7 +20,7 @@ class ImapSearchReportsNumberingTest {
     @Test
     fun `each folder's hits carry the numbering its own SELECT stated`() {
         // Two folders, two numberings: a single value carried for the whole walk would pass the
-        // first assertion and hand the second folder the first one's number — which is worse than
+        // first assertion and hand the second folder the first one's number, which is worse than
         // carrying nothing, since it would license an action under a foreign folder's numbering.
         FakeImapServer { tag, line ->
             when {
@@ -46,8 +46,8 @@ class ImapSearchReportsNumberingTest {
 
     @Test
     fun `a folder whose server states no numbering is still searched, and reports none`() {
-        // The other half, and the one that must NOT become a refusal here: a non-conforming server
-        // still answers the search, still hands over its hits, and reports 0 — "nothing stated".
+        // The other half, and the one that must not become a refusal here: a non-conforming server
+        // still answers the search, still hands over its hits, and reports 0, "nothing stated".
         // `UidValidityStore.record` refuses to write a value at or below 0, so 0 travels safely.
         FakeImapServer { tag, line ->
             when {
@@ -69,7 +69,7 @@ class ImapSearchReportsNumberingTest {
 
     @Test
     fun `a folder that could not be selected reports no numbering at all`() {
-        // It never got in, so it has nothing to say about the folder's numbering — and 0 is what
+        // It never got in, so it has nothing to say about the folder's numbering, and 0 is what
         // stops the layer above from recording anything for it.
         FakeImapServer { tag, line ->
             when {

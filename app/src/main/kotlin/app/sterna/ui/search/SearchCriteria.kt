@@ -32,7 +32,7 @@ data class SearchFilter(
 )
 
 /**
- * The active criteria of [query] BESIDES the free text, in the order the panel lists them.
+ * The active criteria of [query] besides the free text, in the order the panel lists them.
  */
 fun searchSummary(query: SearchQuery): List<SearchFilter> = buildList {
     query.from.trim().takeIf { it.isNotEmpty() }?.let { add(SearchFilter(SearchCriterion.FROM, text = it)) }

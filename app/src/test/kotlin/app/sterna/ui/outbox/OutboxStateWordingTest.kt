@@ -12,11 +12,11 @@ import org.junit.Test
 import java.io.File
 
 /**
- * What the Outbox screen SAYS about each row, and what the Inbox banner is about.
+ * What the Outbox screen says about each row, and what the Inbox banner is about.
  */
 class OutboxStateWordingTest {
 
-    /** The state the shipped rule parks a save kept on the phone in — asked, never assumed. */
+    /** The state the shipped rule parks a save kept on the phone in, asked, never assumed. */
     private val parked = draftSaveParksTheQueuedRowAs(DraftSaveOutcome.KEPT_ON_DEVICE)
         ?: error("a save kept on the device parks nothing at all — see LocalDraftSaveTest")
 
@@ -41,7 +41,7 @@ class OutboxStateWordingTest {
     }
 
     /**
-     * The frame the waiting row's complement is printed in, EXECUTED — the source lint one
+     * The frame the waiting row's complement is printed in, executed, the source lint one
      */
     @Test fun `the waiting row's complement is framed as history, not as a failure`() {
         assertEquals(
@@ -55,7 +55,9 @@ class OutboxStateWordingTest {
     }
 
     /**
-     * THE sentence of this fix. A row saved as a draft on the phone must say so, on its own, and
+     * The sentence of this fix. A row saved as a draft on the phone must say so, on its own, and
+     * must not be dressed as a failure: "Failed: saved as a draft on this device, not sent" is what
+     * the previous attempt printed in nine languages, over a save that did exactly what was asked.
      */
     @Test fun `the row a kept-on-device save leaves behind says it was saved, not that it failed`() {
         assertEquals(
@@ -83,7 +85,7 @@ class OutboxStateWordingTest {
     }
 
     /**
-     * THE sentence of the interrupted-send fix. A delivery whose run was killed may ALREADY have
+     * The sentence of the interrupted-send fix. A delivery whose run was killed may already have
      */
     @Test fun `the row a killed delivery leaves behind says it may already be gone, never that it failed`() {
         assertEquals(
@@ -112,7 +114,7 @@ class OutboxStateWordingTest {
     }
 
     /**
-     * THE SENTENCE OF THE DESTRUCTIVE ACTION, state by state, written out by hand. The delete
+     * The sentence of the destructive action, state by state, written out by hand. The delete
      */
     @Test fun `the row a killed delivery leaves behind is not told it was never sent, when it is deleted`() {
         assertEquals(
@@ -134,7 +136,7 @@ class OutboxStateWordingTest {
         )
     }
 
-    /** The two per-state flags, in full — same reason as the sentences above. */
+    /** The two per-state flags, in full, same reason as the sentences above. */
     @Test fun `only a genuine send failure is dressed as one`() {
         assertEquals(
             "the only line that substitutes the row's lastError is the one whose string has a " +
@@ -155,7 +157,7 @@ class OutboxStateWordingTest {
     }
 
     /**
-     * THE PREDICATE OF THIS FIX, state by state and BOTH ways, written out by hand — never
+     * The predicate of this fix, state by state and both ways, written out by hand, never
      */
     @Test fun `only a waiting row that carries a reason says why it is still there`() {
         assertEquals(
@@ -204,10 +206,10 @@ class OutboxStateWordingTest {
         )
     }
 
-    // -- executed: the reason a FAILED row prints -------------------------------------------------
+    // -- executed: the reason a failed row prints -------------------------------------------------
 
     /**
-     * THE SENTENCE OF THE INTERRUPTED-EDIT FIX. A queued row closed over a lost body is parked
+     * The sentence of the interrupted-edit fix. A queued row closed over a lost body is parked
      */
     @Test fun `the reason a failed row prints is translated from its sentinel, never stored`() {
         assertEquals(
@@ -258,7 +260,7 @@ class OutboxStateWordingTest {
     // -- source lint: that the screen and the banner still ask ------------------------------------
 
     /**
-     * SOURCE LINT. `OutboxScreen` is a composable; nothing here can render it. What is pinned is
+     * Source lint. `OutboxScreen` is a composable; nothing here can render it.
      */
     @Test fun `the Outbox screen only ever asks those functions about a row's state`() {
         val lines = codeLines(OUTBOX_SCREEN)
@@ -303,7 +305,7 @@ class OutboxStateWordingTest {
     }
 
     /**
-     * SOURCE LINT, same disclaimer. The COLOUR of the waiting row's complement, pinned as WHOLE
+     * Source lint, same disclaimer. The colour of the waiting row's complement, pinned as whole
      */
     @Test fun `the waiting row's complement is not painted as a failure`() {
         val lines = codeLines(OUTBOX_SCREEN).map { it.trim() }
@@ -331,8 +333,8 @@ class OutboxStateWordingTest {
             ),
             lines.drop(at).take(11),
         )
-        // And WHERE it sits, which no assertion above constrains: the block must come BEFORE
-        // the row's button Row. Slid inside it, the complement is laid out as a fourth item on
+        // And where it sits, which no assertion above constrains: the block must come before
+        // the row's button Row.
         val buttons = lines.indexOf(
             "Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {",
         )
@@ -346,7 +348,7 @@ class OutboxStateWordingTest {
     }
 
     /**
-     * SOURCE LINT, same disclaimer as above: the dialog is a composable and nothing here renders
+     * Source lint, same disclaimer as above: the dialog is a composable and nothing here renders
      */
     @Test fun `the delete confirmation asks which body the row awaiting confirmation is owed`() {
         val lines = codeLines(OUTBOX_SCREEN).map { it.trim() }
@@ -371,7 +373,7 @@ class OutboxStateWordingTest {
     }
 
     /**
-     * SOURCE LINT, same disclaimer: `InboxViewModel` is an `AndroidViewModel` and cannot be built
+     * Source lint, same disclaimer: `InboxViewModel` is an `AndroidViewModel` and cannot be built
      */
     @Test fun `the Inbox failure banner is raised through the one rule`() {
         val lines = codeLines(INBOX_VIEW_MODEL).map { it.trim() }

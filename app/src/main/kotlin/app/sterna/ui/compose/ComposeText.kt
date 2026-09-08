@@ -37,7 +37,7 @@ internal val ATTACHMENT_HINTS = listOf(
     "attach",
     // fr (stems cover plurals/inflections via substring match)
     "pièce jointe", "pièces jointes", "ci-joint",
-    // de
+    // German
     "anhang", "angehängt", "anbei", "beigefügt",
     // es
     "adjunt", // adjunto/adjunta/adjuntar
@@ -65,7 +65,7 @@ internal data class ForwardedBlocks(val text: String, val html: String)
 private const val FORWARD_HEADER = "---------- Forwarded message ----------"
 
 /** The four field labels of the forwarded-message header, translated. The dashed line and the field
- *  order are a de-facto standard other clients recognise and are deliberately NOT translated (D7). */
+ *  order are a de-facto standard other clients recognise and are deliberately not translated (D7). */
 internal data class ForwardLabels(
     val from: String = "From",
     val subject: String = "Subject",
@@ -147,9 +147,9 @@ internal fun bodySource(o: Email): Pair<String, Boolean> {
 }
 
 /**
- * The original as it should be QUOTED in a reply: an HTML original keeps its depth ([htmlToQuotedText]),
+ * The original as it should be quoted in a reply: an HTML original keeps its depth ([htmlToQuotedText]),
  * a plain-text one carries its own markers, and either way it is cut at the sender's signature
- * delimiter (D4) — strictly, so "----------" never truncates. Only the QUOTE is treated this way:
+ * delimiter (D4), strictly, so "----------" never truncates. Only the quote is treated this way:
  * reopening a draft and forwarding keep the whole body.
  */
 internal fun quotedOriginalText(o: Email): String {
@@ -158,9 +158,9 @@ internal fun quotedOriginalText(o: Email): String {
 }
 
 /**
- * HTML→plain text for QUOTING, keeping the depth the original carried, or the history flattens to one
+ * HTML to plain text for quoting, keeping the depth the original carried, or the history flattens to one
  * level and a three-message exchange is indistinguishable from a fresh reply (B1). One regex pass over
- * the open/close tags, deliberately NOT an HTML parser: mail HTML is hostile, and unbalanced tags only
+ * the open/close tags, deliberately not an HTML parser: mail HTML is hostile, and unbalanced tags only
  * cost a level of indentation.
  */
 internal fun htmlToQuotedText(html: String): String {
@@ -186,7 +186,7 @@ internal fun htmlToQuotedText(html: String): String {
 }
 
 /**
- * The blockquote open/close tags, and the ONE place quoting depth is read from. `internal` since the
+ * The blockquote open/close tags, and the one place quoting depth is read from. `internal` since the
  * reader's quote fold needs exactly this notion of "level": a second copy would let the composer's ">"
  * markers and the fold button disagree about the first level of a reply chain.
  */
@@ -210,10 +210,10 @@ internal fun cutAtSignatureDelimiter(text: String): String {
 internal enum class ComposeFocus { RECIPIENTS, SUBJECT, BODY }
 
 /**
- * Which field opens focused. The single rule, in one place — the composable only obeys it.
+ * Which field opens focused. The single rule, in one place, the composable only obeys it.
  *
  * A reopened draft and a reply already have their recipients, so they open on the body (#63);
- * everything else opened from inside the app opens on the recipients. A composer opened from OUTSIDE
+ * everything else opened from inside the app opens on the recipients. A composer opened from outside
  * with fields filled in is the exception (#83): the focus goes to the first field the link left empty.
  */
 internal fun initialComposeFocus(
@@ -231,17 +231,17 @@ internal fun initialComposeFocus(
 /**
  * Whether a composer opened with [restore] is really holding a queued outbox row (#96). [restore] is
  * the navigation argument and survives the app being killed; [restored] is the in-memory draft and
- * does NOT, so after a process death it is null while the argument still says `true` — which is what
+ * does not, so after a process death it is null while the argument still says `true`, which is what
  * titled an empty composer "Edit". A draft with no `editingOutboxId` is an undone send.
  */
 internal fun holdsQueuedOutboxRow(restore: Boolean, restored: SendOutbox.ComposeDraft?): Boolean =
     restore && restored?.editingOutboxId != null
 
 /**
- * Which queued row a composer opened with `restore=true` has to TAKE BACK itself — `null` for none.
+ * Which queued row a composer opened with `restore=true` has to take back itself, `null` for none.
  *
  * The two facts never both hold: [restored] present means `OutboxViewModel.edit` has already taken the
- * row EDITING, so the hand-over WINS; [outboxId] is the route's copy, the one thing that survives a
+ * row editing, so the hand-over wins; [outboxId] is the route's copy, the one thing that survives a
  * process death, and is read only when the hand-over is missing. Pure, and executed by
  * `ComposeTitleTest`: inverted, a live reopen takes its row a second time with nothing to say so.
  */
@@ -249,12 +249,12 @@ internal fun outboxRowToResume(restored: SendOutbox.ComposeDraft?, outboxId: Lon
     if (restored == null) outboxId else null
 
 /**
- * Whether a draft saved on the SERVER survives leaving this composer — what the dialog may not
+ * Whether a draft saved on the server survives leaving this composer, what the dialog may not
  * announce as destroyed (#35). [draftId] is the navigation argument, preferred to whether the draft
- * could be READ: an offline reopen whose fetch failed still has its draft in Drafts.
+ * could be read: an offline reopen whose fetch failed still has its draft in Drafts.
  *
  * [restoredDraftId] is the hole it closes: a send started from a draft keeps that draft until
- * DELIVERY, so an undone send reopens with no draftId and a rule reading the route alone said
+ * delivery, so an undone send reopens with no draftId and a rule reading the route alone said
  * "Discard message?" over a draft that exists. Passed only when [restore] is set.
  */
 internal fun savedDraftBehindScreen(draftId: String?, restoredDraftId: String?): Boolean =
@@ -264,13 +264,13 @@ internal fun savedDraftBehindScreen(draftId: String?, restoredDraftId: String?):
 internal enum class ComposeTitle { NEW, REPLY, FORWARD, DRAFT, OUTBOX_EDIT }
 
 /**
- * What the composer is titled — the whole rule, out of the composable so it can be tested (#96).
+ * What the composer is titled, the whole rule, out of the composable so it can be tested (#96).
  *
- * The order matters: a reopened draft says "Draft"; a forward carries the SAME [replyTo] as a reply,
+ * The order matters: a reopened draft says "Draft"; a forward carries the same [replyTo] as a reply,
  * so it must be caught before it; then a reply; then a queued message out of the Outbox, "Edit".
  *
- * [restore] and [editingOutbox] are BOTH needed (#96, defect 2): the argument survives the app being
- * killed while the in-memory draft does not, so `restore=true` alone titled an EMPTY composer "Edit".
+ * [restore] and [editingOutbox] are both needed (#96, defect 2): the argument survives the app being
+ * killed while the in-memory draft does not, so `restore=true` alone titled an empty composer "Edit".
  * An undone send deliberately says "New mail": undoing dropped its queued row.
  */
 internal fun composeTitle(
@@ -290,7 +290,7 @@ internal fun composeTitle(
 
 /**
  * Which wording the "you are leaving without saving" dialog uses. [fromOutbox] is what the title and
- * the discard button key on — those two read the same whether or not a draft is on offer.
+ * the discard button key on, those two read the same whether or not a draft is on offer.
  */
 internal enum class DiscardWording(val keepsMessage: Boolean, val fromOutbox: Boolean) {
     PLAIN(keepsMessage = false, fromOutbox = false),
@@ -312,11 +312,11 @@ internal enum class DiscardWording(val keepsMessage: Boolean, val fromOutbox: Bo
 
 /**
  * What the leave dialog must say, which is not always "this message will be lost" (#70).
- * A message reopened from the Outbox never left it — it only sat in `EDITING` — so leaving hands it
- * straight back and only the EDITS are dropped; the wording may not promise DELIVERY, though, a send
- * whose auto-retry is spent parking back at FAILED. [mayKeepDraft] is [draftSaveAllowed], and where
- * the message GOES outranks why it cannot become a draft, so [editingOutbox] is tested first — but the
- * outbox case still splits on it, "Save draft" CONSUMING the queued row.
+ * A message reopened from the Outbox never left it, it only sat in `editing`, so leaving hands it
+ * straight back and only the edits are dropped; the wording may not promise delivery, though, a send
+ * whose auto-retry is spent parking back at failed. [mayKeepDraft] is [draftSaveAllowed], and where
+ * the message GOES outranks why it cannot become a draft, so [editingOutbox] is tested first, but the
+ * outbox case still splits on it, "Save draft" consuming the queued row.
  * [editingDraft] is the second thing that survives this screen (#35, #127), and
  * [DiscardWording.keepsMessage] carries the remaining fact, so the title and the button key on it.
  */
@@ -335,9 +335,9 @@ internal fun discardWording(
 
 /**
  * A button the leave dialog offers, in the order they are laid out. A list rather than a shape in the
- * composable, because both things it decides are guarantees somebody has gone looking for: [CANCEL] is
+ * composable, because both things it decides are guarantees somebody has gone looking for: [cancel] is
  * #35/#127 (the reporter's screenshot showed no way back to the message), and [SAVE_DRAFT] is 1.4.3's
- * plaintext guarantee, which used to be an `if` around a branch nothing could run.
+ * plaintext guarantee, a branch that must be reachable.
  */
 internal enum class DiscardChoice { CANCEL, DISCARD, SAVE_DRAFT }
 
@@ -345,12 +345,12 @@ internal enum class DiscardChoice { CANCEL, DISCARD, SAVE_DRAFT }
 internal data class DiscardAnswer(val choice: DiscardChoice, val enabled: Boolean)
 
 /**
- * Cancel first, the confirming answer last — the order `SaveChangesDialog` already uses.
+ * Cancel first, the confirming answer last, the order `SaveChangesDialog` already uses.
  *
  * The two conditions are the toolbar's two, and not the same question (#35): [mayKeepDraft] is what the
- * toolbar HIDES its Save icon on, so the button is absent and the body owes the reason; [hasContent] is
- * what it GREYS it on, and empty the save is not a save — `saveDraft` DELETES the draft the composer
- * was opened on. Greyed rather than dropped, or the OUTBOX body is false and the toolbar disagrees.
+ * toolbar hides its Save icon on, so the button is absent and the body owes the reason; [hasContent] is
+ * what it greys it on, and empty the save is not a save, `saveDraft` DELETES the draft the composer
+ * was opened on. Greyed rather than dropped, or the outbox body is false and the toolbar disagrees.
  */
 internal fun discardChoices(mayKeepDraft: Boolean, hasContent: Boolean): List<DiscardAnswer> =
     listOfNotNull(
@@ -366,8 +366,8 @@ internal fun discardChoices(mayKeepDraft: Boolean, hasContent: Boolean): List<Di
  * offline reopen with nothing behind it offers no button that would silently do nothing; and
  * [localDraftHeld], the lease on a draft no server has seen (#95).
  *
- * Not `draftOpenRoute(draftId) == LOCAL`: on a row the upload worker consumed, the route still
- * answers LOCAL while the ViewModel holds nothing. The LEASE is the truth.
+ * Not `draftOpenRoute(draftId) == local`: on a row the upload worker consumed, the route still
+ * answers local while the ViewModel holds nothing. The LEASE is the truth.
  */
 internal fun draftDeleteOffered(
     restore: Boolean,
@@ -381,7 +381,7 @@ internal fun draftDeleteOffered(
  * the whole prefilled body, signature included; [linkBodyLength] how much a `mailto:` link supplied.
  *
  * The caret goes where the writing continues: after a reopened draft's last character, after the text
- * a link supplied (#83, which is also just above the signature), and at the top for everything else —
+ * a link supplied (#83, which is also just above the signature), and at the top for everything else:
  * a reply sits above the quote, and a link with no body opens on the signature block alone.
  */
 internal fun initialBodyCaret(
@@ -400,7 +400,7 @@ internal fun initialBodyCaret(
  * Where a tap on a header row puts the caret, or null to leave it where it is. [tapX] and [textStartX]
  * are in the row's own coordinates.
  *
- * A tap BEFORE the text means "put the cursor at the very beginning", which otherwise takes
+ * A tap before the text means "put the cursor at the very beginning", which otherwise takes
  * pixel-perfect aim just left of the first glyph (#26). A tap on the text never reaches this decision;
  * a tap past the end, an empty field and a field not laid out force nothing.
  */
@@ -450,16 +450,16 @@ internal fun recipientsWithChipEdited(value: String, index: Int): String {
 /**
  * Compose's initial fields when reopening a saved draft (#63): every addressing field as typed-out
  * addresses, the subject verbatim, and the body flattened for the editor. [cached] is the row this app
- * kept for the same draft — see [draftRecipientField] for what it is allowed to do, which is very
+ * kept for the same draft, see [draftRecipientField] for what it is allowed to do, which is very
  * little.
  */
 internal fun draftFieldsOf(o: Email, cached: Email?): DraftFields {
     val to = draftRecipientField(o.to, cached?.to)
     val cc = draftRecipientField(o.cc, cached?.cc)
     val bcc = draftRecipientField(o.bcc, cached?.bcc)
-    // The genuine `text/html` part FIRST, and NOT through [bodySource] (#131): that one takes
-    // `textBody[0]` whenever it is non-blank, and a draft this app saved has BOTH parts, the text one
-    // holding the same letters with the styling stripped — so a styled draft would come back plain,
+    // The genuine `text/html` part first, and not through [bodySource] (#131): that one takes
+    // `textBody[0]` whenever it is non-blank, and a draft this app saved has both parts, the text one
+    // holding the same letters with the styling stripped, so a styled draft would come back plain,
     // every time, in silence.
     val rich = richBodyFrom(o.htmlContent()) { originalPlainText(o) }
     return DraftFields(
@@ -482,8 +482,8 @@ internal fun draftFieldsOf(o: Email, cached: Email?): DraftFields {
  * `Bob <bob@example.com>` as "Bob" would address the message to `Bob`; the name fallback is for the
  * recipient a server hands back with an empty address.
  *
- * [cachedAddresses] is used in ONE case, the server having given nothing. Deliberately not "take the
- * cache whenever it holds more" — another client may have deliberately REMOVED a recipient.
+ * [cachedAddresses] is used in one case, the server having given nothing. Deliberately not "take the
+ * cache whenever it holds more", another client may have deliberately removed a recipient.
  */
 private fun draftRecipientField(
     addresses: List<EmailAddress>,
@@ -502,14 +502,14 @@ private fun recipientFieldOf(addresses: List<EmailAddress>): String =
 
 /**
  * Split an addressing field into its trimmed, non-empty tokens. A field of blanks or stray separators
- * yields nothing — the one place the app decides what counts as "an address was typed here", so the
+ * yields nothing, the one place the app decides what counts as "an address was typed here", so the
  * send path, the draft save and the #69 content rule cannot disagree.
  */
 internal fun parseAddrs(s: String): List<String> =
     s.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }
 
 /**
- * The recipients the encryption state is derived from (#35): the addressing tokens that already ARE
+ * The recipients the encryption state is derived from (#35): the addressing tokens that already are
  * addresses, deduplicated. A token still being typed has no key by construction, so counting it would
  * have the lock announce "not encrypted" about an unfinished address. Judged by [isValidEmail], the
  * rule the send gate and the per-chip warning also use.
@@ -520,7 +520,7 @@ internal fun encryptionRecipients(to: String, cc: String, bcc: String): List<Str
 /**
  * Whether the encryption state has to be recomputed: [previous] is the set it was last computed for.
  *
- * The whole anti-flicker rule (#35), and deliberately NOT a timer, which would tie a security
+ * The whole anti-flicker rule (#35), and deliberately not a timer, which would tie a security
  * indicator to typing speed: the condition is that the set of real addresses changed. A completed
  * address with no key still flips the state at once. Order is irrelevant.
  */
@@ -531,7 +531,7 @@ internal fun recipientKeysStale(previous: List<String>?, current: List<String>):
  * The single #69 rule for "this draft is worth saving": a real recipient, a non-blank subject, a
  * non-blank body, or an attachment.
  *
- * A typed address IS content — that is the #69 bug: a compose holding only a recipient was judged
+ * A typed address IS content, that is the #69 bug: a compose holding only a recipient was judged
  * empty, so "Save draft" closed the screen and persisted nothing. Shared by the save gate and the
  * toolbar, so the greyed-out icon and the actual decision cannot drift apart.
  */
@@ -550,17 +550,17 @@ internal fun draftHasContent(
  * The single rule for "may this message be kept as a draft at all?" (#35): everything but an encrypted
  * one, since a draft is stored on the server as it stands in the composer.
  *
- * Asked through [PgpMode.encrypts], never `== PgpMode.ENCRYPT`: both encrypting modes leak the same
- * plaintext. [PgpMode.SIGN] is NOT caught — a signed message is stored in the clear by design. It
+ * Asked through [PgpMode.encrypts], never `== PgpMode.Encrypt`: both encrypting modes leak the same
+ * plaintext. [PgpMode.Sign] is not caught, a signed message is stored in the clear by design. It
  * depends on the current mode and nothing else, so a hand-closed lock and the account default answer
  * identically.
  */
 internal fun draftSaveAllowed(pgpMode: PgpMode): Boolean = !pgpMode.encrypts
 
 /**
- * The single rule for "may this message be SCHEDULED?" — stricter than [draftSaveAllowed] on two
+ * The single rule for "may this message be scheduled?", stricter than [draftSaveAllowed] on two
  * counts, each of which would send silently short of what the composer showed (A2/A3): a headless
- * worker can neither sign nor encrypt, so ANY [PgpMode] but OFF is refused, and the scheduled table
+ * worker can neither sign nor encrypt, so any [PgpMode] but off is refused, and the scheduled table
  * carries no attachments, so a staged one refuses scheduling rather than firing the message stripped.
  */
 internal fun scheduleSendAllowed(pgpMode: PgpMode, hasAttachment: Boolean): Boolean =
@@ -570,10 +570,10 @@ internal fun scheduleSendAllowed(pgpMode: PgpMode, hasAttachment: Boolean): Bool
 internal enum class SchedulePreset { IN_1_HOUR, THIS_EVENING, TOMORROW_MORNING, TOMORROW_EVENING }
 
 /**
- * The presets still offerable at [nowMillis], read in [zone], in menu order — those STRICTLY in the
+ * The presets still offerable at [nowMillis], read in [zone], in menu order, those strictly in the
  * future. Pure, so the 6 PM boundary can be played without moving the bench's clock.
  *
- * A lapsed candidate is DROPPED, never folded to the next day: folding corrected the instant and
+ * A lapsed candidate is dropped, never folded to the next day: folding corrected the instant and
  * left the label, so past 6 PM "This evening, 6 PM" scheduled TOMORROW and duplicated the entry below.
  */
 internal fun schedulePresetsAt(nowMillis: Long, zone: ZoneId): List<Pair<SchedulePreset, Long>> {
@@ -589,13 +589,13 @@ internal fun schedulePresetsAt(nowMillis: Long, zone: ZoneId): List<Pair<Schedul
 }
 
 /**
- * What a tap on [preset] at [nowMillis] is worth, given [drawnMillis] — the instant that entry was
- * DRAWN for — or null when the tap must be REFUSED.
+ * What a tap on [preset] at [nowMillis] is worth, given [drawnMillis], the instant that entry was
+ * drawn for, or null when the tap must be refused.
  * The same danger as [pickedScheduleMillis], one tap earlier: the menu can stand open for minutes,
- * and a lapsed instant becomes a delay coerced to zero, the message going out AT ONCE.
+ * and a lapsed instant becomes a delay coerced to zero, the message going out at once.
  *
- * ONE preset is asked again and THREE are not: [SchedulePreset.IN_1_HOUR] is RELATIVE, while the
- * three others are ABSOLUTE of the day they were DRAWN — re-reading them moves them a whole day at
+ * One preset is asked again and three are not: [SchedulePreset.IN_1_HOUR] is relative, while the
+ * three others are absolute of the day they were drawn, re-reading them moves them a whole day at
  * midnight, and their refusal is read on [drawnMillis].
  */
 internal fun presetMillisAtTap(
@@ -607,19 +607,19 @@ internal fun presetMillisAtTap(
     SchedulePreset.IN_1_HOUR ->
         schedulePresetsAt(nowMillis, zone).firstOrNull { it.first == preset }?.second
     // Named one by one rather than an `else`: a fifth preset must not be swallowed into "carry what
-    // was drawn" in silence — the compiler has to ask which of the two kinds it is.
+    // was drawn" in silence, the compiler has to ask which of the two kinds it is.
     SchedulePreset.THIS_EVENING, SchedulePreset.TOMORROW_MORNING, SchedulePreset.TOMORROW_EVENING ->
         drawnMillis.takeIf { it > nowMillis }
 }
 
 /**
- * The instant a hand-picked day + time is worth in [zone], or null when it is not STRICTLY after
+ * The instant a hand-picked day + time is worth in [zone], or null when it is not strictly after
  * [nowMillis] (#161).
  * A lapsed instant must never reach the schedule: `enqueue` coerces a negative delay to zero, and
- * nothing else looks at whether the instant is ahead. The screen calls this TWICE, the minute being
+ * nothing else looks at whether the instant is ahead. The screen calls this twice, the minute being
  * able to turn between `enabled` and the tap.
  *
- * [dayUtcMidnightMillis] is UTC midnight, never local, so the CIVIL day is read off it in UTC and
+ * [dayUtcMidnightMillis] is UTC midnight, never local, so the civil day is read off it in UTC and
  * rebuilt in [zone]; comparing that millis to a local instant is wrong by a day on either side.
  */
 internal fun pickedScheduleMillis(
@@ -639,9 +639,9 @@ internal fun pickedScheduleMillis(
  * ahead, or the last minute the chosen day still has.
  * Material's default of midnight is what this avoids, and the naive fix reopened the wound at the
  * other end of the day: pasting the hour and minute of `now + 1 h` onto the chosen day throws the roll
- * over to tomorrow away, so at 23:20 the clock opened on 00:20 TODAY and OK was grey from the first
- * frame — with no wording anywhere, the greyed button IS the message.
- * Hence the one invariant, asked of [pickedScheduleMillis] ITSELF, a rule of our own having looked
+ * over to tomorrow away, so at 23:20 the clock opened on 00:20 today and OK was grey from the first
+ * frame, with no wording anywhere, the greyed button IS the message.
+ * Hence the one invariant, asked of [pickedScheduleMillis] itself, a rule of our own having looked
  * equivalent and not been. 23:59, not "now + 1 minute", for the fallback.
  */
 internal fun scheduleClockOpensAt(dayUtcMidnightMillis: Long, nowMillis: Long, zone: ZoneId): LocalTime {
@@ -652,26 +652,26 @@ internal fun scheduleClockOpensAt(dayUtcMidnightMillis: Long, nowMillis: Long, z
 }
 
 /**
- * Whether BOTH "pick date and time" pickers must show Material's KEYBOARD entry instead of their dial
+ * Whether both "pick date and time" pickers must show Material's keyboard entry instead of their dial
  * and their grid (#161). One rule for the two dialogs, because one shape of window breaks both.
  * The comparison is not ours and must not be replaced by a dp constant: it is character for
- * character `getDefaultTimePickerLayoutType`'s. A scroll does not save it — the clock's is VERTICAL
+ * character `getDefaultTimePickerLayoutType`'s. A scroll does not save it, the clock's is VERTICAL
  * while the cut is sideways.
  * Measured on `emu` at 914×411 dp: the dial's right half off screen, and the month grid CLIPPED at
  * August the 29th. A `verticalScroll` around the grid would measure a `LazyVerticalGrid` in infinite
- * height, which THROWS, hence the shell's own guard.
+ * height, which throws, hence the shell's own guard.
  */
 internal fun schedulePickerAsInput(screenHeightDp: Int, screenWidthDp: Int): Boolean =
     screenHeightDp < screenWidthDp
 
 /**
  * Whether a day the calendar offers may be chosen at all: today and after, read in [zone] (#161). The
- * FIRST of the two locks in front of a send into the past; [pickedScheduleMillis] alone covers "today,
+ * first of the two locks in front of a send into the past; [pickedScheduleMillis] alone covers "today,
  * at an hour already gone".
  *
  * Lower bound only: no horizon exists anywhere in the scheduled-send code, and inventing one here
- * would be a limit to carry forever. Same UTC-midnight trap, and it bites hardest here — both sides
- * are reduced to a CIVIL day, or the rule would refuse TODAY in Los Angeles after 5 PM.
+ * would be a limit to carry forever. Same UTC-midnight trap, and it bites hardest here, both sides
+ * are reduced to a civil day, or the rule would refuse today in Los Angeles after 5 PM.
  */
 internal fun scheduleDaySelectable(dayUtcMidnightMillis: Long, nowMillis: Long, zone: ZoneId): Boolean {
     val day = Instant.ofEpochMilli(dayUtcMidnightMillis).atZone(ZoneOffset.UTC).toLocalDate()
@@ -679,10 +679,10 @@ internal fun scheduleDaySelectable(dayUtcMidnightMillis: Long, nowMillis: Long, 
 }
 
 /**
- * The FIRST year the "pick date and time" calendar offers in its year list, read in [zone] (#161).
+ * The first year the "pick date and time" calendar offers in its year list, read in [zone] (#161).
  *
- * A DISPLAY bound, not a lock — that stays [scheduleDaySelectable]'s job. What it closes is the year
- * list opening on 1900, since `DatePickerDefaults.YearRange` decides which years are DRAWN.
+ * A display bound, not a lock, that stays [scheduleDaySelectable]'s job. What it closes is the year
+ * list opening on 1900, since `DatePickerDefaults.YearRange` decides which years are drawn.
  * Lower bound only. Read in [zone] and nowhere else: on 31 December at 23:00 west of UTC the UTC
  * year has already turned, and the list would start on a year that is over.
  */
@@ -690,10 +690,10 @@ internal fun scheduleFirstYear(nowMillis: Long, zone: ZoneId): Int =
     Instant.ofEpochMilli(nowMillis).atZone(zone).year
 
 /**
- * The lock toggle's cycle: off → sign → encrypt → off. Pure, so the hand-set path can be tested
- * against [draftSaveAllowed] (#35). THREE STOPS, and [PgpMode.ENCRYPT_UNSIGNED] is not one — a short
+ * The lock toggle's cycle: off, sign, encrypt, off. Pure, so the hand-set path can be tested
+ * against [draftSaveAllowed] (#35). Three stops, and [PgpMode.ENCRYPT_UNSIGNED] is not one, a short
  * tap must not walk anyone into sending unsigned mail; that mode is reached only from the long-press
- * menu, and has a branch here only so a tap can get OUT of it.
+ * menu, and has a branch here only so a tap can get out of it.
  */
 internal fun nextPgpMode(current: PgpMode): PgpMode = when (current) {
     PgpMode.OFF -> PgpMode.SIGN
@@ -703,12 +703,12 @@ internal fun nextPgpMode(current: PgpMode): PgpMode = when (current) {
 }
 
 /**
- * The face each mode wears, in the top bar AND in the long-press menu — one function, so the icon the
+ * The face each mode wears, in the top bar and in the long-press menu, one function, so the icon the
  * menu offers is the icon the bar will show.
  *
- * [PgpMode.ENCRYPT_UNSIGNED] does NOT wear `Icons.Outlined.Lock`: measured, the outlined padlock
+ * [PgpMode.ENCRYPT_UNSIGNED] does not wear `Icons.Outlined.Lock`: measured, the outlined padlock
  * differed from `Icons.Filled.LockOpen` by 82 rasterised pixels out of 9216, so it reads as "off".
- * It wears a KEY instead — the message is just as encrypted, and the missing signature is told by
+ * It wears a key instead, the message is just as encrypted, and the missing signature is told by
  * the absence of the padlock's pen. [PgpModeIconFacesTest] keeps the four faces pairwise distinct.
  */
 internal fun pgpModeIcon(mode: PgpMode): ImageVector = when (mode) {
@@ -719,11 +719,11 @@ internal fun pgpModeIcon(mode: PgpMode): ImageVector = when (mode) {
 }
 
 /**
- * The two arguments of `PgpEngine.signAndEncrypt`, which are NOT the same thing and must never be
+ * The two arguments of `PgpEngine.signAndEncrypt`, which are not the same thing and must never be
  * derived from one another: [signKeyId] is who signs (null = do not sign), [recipientKeyIds] who can
  * decrypt.
  *
- * The account's own key plays both roles — it signs, and it is a recipient, the encrypt-to-self that
+ * The account's own key plays both roles, it signs, and it is a recipient, the encrypt-to-self that
  * keeps the Sent copy readable. Filtering "the sign key" out of the recipients would make every
  * unsigned encrypted message in Sent permanently unreadable, with no error anywhere.
  */
@@ -745,8 +745,8 @@ internal data class PgpEncryptArgs(val signKeyId: Long?, val recipientKeyIds: Lo
 
 /**
  * Who signs and who can read, for an encrypting [mode]. The only thing the unsigned mode changes in
- * the send path is the signer: [selfKeyId] is in the recipients in BOTH modes (the encrypt-to-self)
- * and is the signer only in [PgpMode.ENCRYPT].
+ * the send path is the signer: [selfKeyId] is in the recipients in both modes (the encrypt-to-self)
+ * and is the signer only in [PgpMode.Encrypt].
  *
  * A non-encrypting [mode] is a programming error and says so: the send site reaches this only from
  * its encrypting branch, so a mode arriving here means the mode moved under the send, and the honest
@@ -761,14 +761,14 @@ internal fun pgpEncryptArgs(mode: PgpMode, selfKeyId: Long, recipientKeys: List<
 }
 
 /**
- * The subject to repeat INSIDE the entity about to be encrypted (RFC 9788 protected headers), or null.
+ * The subject to repeat inside the entity about to be encrypted (RFC 9788 protected headers), or null.
  *
- * This is INTEGRITY, not confidentiality: the subject keeps travelling in the clear on the envelope,
+ * This is integrity, not confidentiality: the subject keeps travelling in the clear on the envelope,
  * and the sealed copy only lets a relay's rewrite be caught. Do not turn it into subject masking
  * (§ 5.2.2): the composer's note tells the user the subject is not encrypted.
  *
- * [mode] is asked through [encrypts], never `== PgpMode.ENCRYPT`, the unsigned mode needing the same
- * protection while a SIGN-only message must get NOTHING. A blank subject is skipped.
+ * [mode] is asked through [encrypts], never `== PgpMode.Encrypt`, the unsigned mode needing the same
+ * protection while a sign-only message must get nothing. A blank subject is skipped.
  */
 internal fun protectedSubject(mode: PgpMode, subject: String): String? =
     subject.takeIf { mode.encrypts && it.isNotBlank() }
@@ -781,12 +781,12 @@ internal data class PgpRefreshOutcome(val mode: PgpMode, val dropped: PgpDropRea
 
 /**
  * Re-arbitrate the lock after anything that can change what OpenPGP can do here (#35). [available] is
- * "this account has OpenPGP set up AND the provider answers"; [accountConfigured] only picks WHICH
+ * "this account has OpenPGP set up and the provider answers"; [accountConfigured] only picks which
  * explanation is owed. Three outcomes:
- *  - nothing can encrypt or sign → OFF, and [dropped] with a reason when something visible went away.
- *    This is the case that was silent: a message queued as ENCRYPT, reopened after OpenKeychain was
+ *  - nothing can encrypt or sign: off, and [dropped] with a reason when something visible went away.
+ *    This is the case that was silent: a message queued as encrypt, reopened after OpenKeychain was
  *    uninstalled, came back with no padlock and no word;
- *  - encrypt-by-default with the lock untouched → ENCRYPT, from which [deriveAutoMode] backs off;
+ *  - encrypt-by-default with the lock untouched: encrypt, from which [deriveAutoMode] backs off;
  *  - otherwise the mode stands: a hand-set lock is never quietly rewritten.
  */
 internal fun pgpRefresh(
@@ -808,9 +808,9 @@ internal fun pgpRefresh(
     else -> PgpRefreshOutcome(current, PgpDropReason.NONE)
 }
 
-// --- Signature (pure text, living in the body — WYSIWYG) -----------------------------------------
+// --- Signature (pure text, living in the body, WYSIWYG) -----------------------------------------
 // The signature is ordinary text in the editable body, inserted when compose opens, like K-9 and
-// Thunderbird. It is NOT appended at send time: what the composer shows is what leaves.
+// Thunderbird. It is not appended at send time: what the composer shows is what leaves.
 
 /** The standard signature delimiter line (RFC 3676 §4.3): two hyphens and a space. */
 internal const val SIGNATURE_DELIMITER = "-- "
@@ -819,7 +819,7 @@ internal const val SIGNATURE_DELIMITER = "-- "
  * The block a [signature] occupies in a body: a blank line, the delimiter line, then the signature.
  * Empty for a blank signature, so every caller can concatenate unconditionally.
  *
- * [delimiter] is the "Separator line above the signature" setting (#90). It governs what is WRITTEN;
+ * [delimiter] is the "Separator line above the signature" setting (#90). It governs what is written;
  * both shapes are still recognised when reading a body back (see [signatureBlockAt]).
  */
 internal fun signatureBlock(signature: String, delimiter: Boolean): String = when {
@@ -843,7 +843,7 @@ internal fun bodyWithSignature(
 }
 
 /**
- * [body] with [signature]'s block added where the prefill would have put it — used when the "From"
+ * [body] with [signature]'s block added where the prefill would have put it, used when the "From"
  * identity changes and the identity being left had NO signature (D5).
  *
  * With the signature above [quoted] (the default) the block goes immediately before it; below the
@@ -864,9 +864,9 @@ internal fun insertSignatureBlock(
 }
 
 /**
- * [body] with the block of [oldSignature] swapped for [newSignature]'s — or null when the block is not
+ * [body] with the block of [oldSignature] swapped for [newSignature]'s, or null when the block is not
  * there verbatim, which means the user edited it and their text must be left alone (D5). A blank
- * [oldSignature] is [insertSignatureBlock]'s case. The old block is looked up in BOTH shapes; the new
+ * [oldSignature] is [insertSignatureBlock]'s case. The old block is looked up in both shapes; the new
  * one is written in the shape [delimiter] asks for.
  */
 internal fun replaceSignatureBlock(
@@ -885,13 +885,13 @@ internal fun replaceSignatureBlock(
 private data class SignatureBlockMatch(val start: Int, val end: Int, val withDelimiter: Boolean)
 
 /**
- * Where [signature]'s block sits in [body] verbatim, or null. The LAST occurrence wins, so a reply
+ * Where [signature]'s block sits in [body] verbatim, or null. The last occurrence wins, so a reply
  * quoting an older message with the same signature swaps the live block at the bottom, and the block
- * must END on a line boundary — text appended to its last line means the user edited it.
+ * must end on a line boundary, text appended to its last line means the user edited it.
  *
- * BOTH shapes are recognised whatever the setting says (#90), or a draft written under the other one
+ * Both shapes are recognised whatever the setting says (#90), or a draft written under the other one
  * would stop being found and both features built on this lookup would go quiet. The shape named by
- * [delimiter] is tried FIRST.
+ * [delimiter] is tried first.
  */
 private fun signatureBlockAt(body: String, signature: String, delimiter: Boolean): SignatureBlockMatch? {
     for (withDelimiter in listOf(delimiter, !delimiter)) {
@@ -916,13 +916,13 @@ private fun lastBlockIndex(body: String, block: String): Int {
 }
 
 /**
- * The outgoing text/html alternative for [body]: its text escaped, its styling (#131) as tags, and —
- * when the identity has an imported HTML signature AND the plain block is still untouched — that block
+ * The outgoing text/html alternative for [body]: its text escaped, its styling (#131) as tags, and,
+ * when the identity has an imported HTML signature and the plain block is still untouched, that block
  * replaced by the HTML version.
  *
  * Once the user edits the block, their text wins in both alternatives (WYSIWYG beats fidelity), and a
  * style range laid over even one character of it IS such an edit. The delimiter line is emitted only
- * when the block found in the BODY carries one, not when the setting says so: the two alternatives of
+ * when the block found in the body carries one, not when the setting says so: the two alternatives of
  * one message must say the same thing (#90).
  */
 internal fun htmlBodyWithSignature(
@@ -939,12 +939,12 @@ internal fun htmlBodyWithSignature(
 }
 
 /**
- * Whether nothing the user laid over the body — no style range, and no LINK (#131) — reaches into
+ * Whether nothing the user laid over the body (no style range, and no link, #131) reaches into
  * `[start, end)` of [body]; half-open on both sides.
  *
  * The links belong here for the ranges' reason, and their absence would be worse: the substitution
- * REPLACES those characters with the stored HTML, so a link on a word of the signature block would
- * simply not be in the message. The list BLOCKS are not counted, which is the lists' question.
+ * replaces those characters with the stored HTML, so a link on a word of the signature block would
+ * simply not be in the message. The list blocks are not counted, which is the lists' question.
  */
 internal fun signatureBlockIsIntact(body: RichBody, start: Int, end: Int): Boolean =
     body.ranges.values.none { spans -> spans.any { it.start < end && it.end > start } } &&
@@ -955,8 +955,8 @@ internal fun signatureBlockIsIntact(body: RichBody, start: Int, end: Int): Boole
 // offline from the cached row of a mail that was never opened.
 
 /**
- * Who an answer to [o] is addressed to, as a LIST: the original's `Reply-To` when it sets one — ALL of
- * its addresses, in order — and only otherwise its sender. Answering the From instead writes to the
+ * Who an answer to [o] is addressed to, as a LIST: the original's `Reply-To` when it sets one, all of
+ * its addresses, in order, and only otherwise its sender. Answering the From instead writes to the
  * address the sender deliberately set aside. Never both: the From is precisely what a `Reply-To`
  * displaces (K-9 and Thunderbird do the same), and one holding only blanks falls back to it.
  *
@@ -978,8 +978,8 @@ internal fun replyRecipient(o: Email): String =
 
 /**
  * The recipients of a reply-all: [replyRecipients] plus everyone on the original's To and Cc, minus
- * your OWN addresses and blanks/duplicates. [selves] is every address the account can send as, not
- * just the login: an account with aliases used to reply to its own other alias (B5).
+ * your own addresses and blanks/duplicates. [selves] is every address the account can send as, not
+ * just the login, or an account with aliases replies to its own other alias (B5).
  */
 internal fun replyAllRecipients(o: Email, selves: Collection<String>): String {
     val mine = selves.map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
@@ -994,7 +994,7 @@ internal fun replyAllRecipients(o: Email, selves: Collection<String>): String {
  * Which of your own addresses [o] was delivered to: the first address of its To, then its Cc, that
  * belongs to you. Returned as the original spells it, matched case-insensitively.
  *
- * Null when none of your addresses is named — a mailing list, or a Bcc delivery. Callers must treat
+ * Null when none of your addresses is named, a mailing list, or a Bcc delivery. Callers must treat
  * that as "unknown"; it is never a reason to guess.
  */
 internal fun receivingAddress(o: Email, mine: Collection<String>): String? {
@@ -1027,7 +1027,7 @@ internal fun withPrefix(subject: String?, prefix: String): String {
     return if (s.startsWith(prefix, ignoreCase = true)) s else "$prefix $s"
 }
 
-/** What a compose `mode` navigation argument opens. Parsed ONCE, here, so the three places in
+/** What a compose `mode` navigation argument opens. Parsed once, here, so the three places in
  *  [ComposeViewModel.prepare] that branch on it cannot disagree: a mode known to one and not the
  *  others opened, in silence, a quoted reply carrying In-Reply-To. */
 internal enum class ComposeOpening(
@@ -1061,7 +1061,7 @@ internal fun composeOpening(mode: String?): ComposeOpening = when (mode) {
  * Which sentence a draft that could not be read shows. [offline] is the app's one offline verdict,
  * decided by the caller because only it holds both the throwable and the link state.
  *
- * Two sentences, because they ask for different things. Neither names a CAUSE — no server is even
+ * Two sentences, because they ask for different things. Neither names a cause, no server is even
  * contacted on the "no credentials" path, and a captive portal, a refused certificate and a 401 land
  * here identically. And neither promises a recovery that does not exist: nothing re-runs the fetch,
  * so both ask for the one thing that works. Neither says a word about saving.
@@ -1090,11 +1090,11 @@ internal sealed interface DraftReopenView {
 
 /**
  * Which of the three a reopened draft's composer draws, from what the ViewModel publishes about the
- * fetch and from the one thing the SCREEN knows: [prefillApplied].
- * [prefillApplied] WINS OVER BOTH. It is the fact "this screen has already shown the draft", and what
+ * fetch and from the one thing the screen knows: [prefillApplied].
+ * [prefillApplied] wins over both. It is the fact "this screen has already shown the draft", and what
  * a spinner or a dead end over it would hide is the reader's own typing: `body` and this flag survive
  * process death while the ViewModel does not, so after a kill the replayed fetch dead-ends over words
- * still in memory, and the X would offer a save that puts a SECOND draft on the server.
+ * still in memory, and the X would offer a save that puts a second draft on the server.
  * `carryDraftAttachments` runs after `_prefill` and before [loading] is lowered; what keeps that
  * window safe is a missing LICENCE, not a missing id. [loading] wins over [failureNotice].
  */
@@ -1115,7 +1115,7 @@ internal fun draftReopenView(
 internal fun canApplyReplyQuote(applied: Boolean, bodyText: String, initialBody: String): Boolean =
     applied && bodyText == initialBody
 
-/** The time zone the composer renders an OUTGOING date in — a reply's attribution line and a forward's
+/** The time zone the composer renders an outgoing date in, a reply's attribution line and a forward's
  *  Date header (#120). Nothing else changes zone through here: the reader and the list rows keep the
  *  device's clock, and the SMTP `Date:` header was already UTC. */
 internal fun outgoingDateZone(
@@ -1125,7 +1125,7 @@ internal fun outgoingDateZone(
 
 /** [outgoingDateZone], resolved by SUSPENDING on the stored setting: the first emission is awaited,
  *  never substituted with a default. DataStore answers a beat late on a cold start, and "not answered
- *  yet" is not "off" — a reply prefilled in that beat would write the local time with the switch on. */
+ *  yet" is not "off", a reply prefilled in that beat would write the local time with the switch on. */
 internal suspend fun resolveOutgoingDateZone(
     quotedDatesUtc: Flow<Boolean>,
     deviceZone: ZoneId = ZoneId.systemDefault(),
@@ -1140,12 +1140,12 @@ internal data class StagedAttachmentSweep(
 /**
  * Which of the composer's [attachments] still have bytes behind them, and which are now a chip and
  * nothing else. A picked file lives in `cacheDir/outgoing`, which Clear cache empties and Android
- * evicts under pressure — neither of which closes the composer, so the chip stayed drawn over a file
+ * evicts under pressure, neither of which closes the composer, so the chip stayed drawn over a file
  * that was gone and the save was what found out.
  *
- * ONLY PATHS UNDER [outgoingRoot] ARE ASKED ABOUT, and that guard is the whole difficulty: a
+ * Only paths under [outgoingRoot] are asked about, and that guard is the whole difficulty: a
  * `partId` exists only for a part staged on this phone. Anything this function is not sure about is
- * KEPT, and an inline part carrying a `cid` is kept whatever the filesystem says.
+ * kept, and an inline part carrying a `cid` is kept whatever the filesystem says.
  */
 internal fun sweepStagedAttachments(
     attachments: List<EmailBodyPart>,

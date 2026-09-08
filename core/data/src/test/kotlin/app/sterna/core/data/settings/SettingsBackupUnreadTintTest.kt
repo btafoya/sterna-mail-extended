@@ -38,7 +38,7 @@ class SettingsBackupUnreadTintTest {
 
     @Test fun itIsCarriedAsFalseWhenExplicitlyOff() {
         // The direction that matters: the default is true, so "off" is the answer a backup has to
-        // carry. The VALUE, not the key — the codec writes with encodeDefaults, so an unset field
+        // carry. The value, not the key, the codec writes with encodeDefaults, so an unset field
         // is exported as `"unreadTint": null` and contains("unreadTint") is true of every export
         // ever written, including one that lost the setting entirely.
         val encoded = SettingsBackupCodec.encode(SettingsBackup(unreadTint = false))
@@ -47,7 +47,7 @@ class SettingsBackupUnreadTintTest {
 
     @Test fun unreadRowsAreTintedUntilSomebodyTurnsItOff() {
         // The default, run rather than described: the decision is executed on Preferences where the
-        // key is ABSENT, which is the only state a fresh install is ever in. Flipping the elvis in
+        // key is absent, which is the only state a fresh install is ever in. Flipping the elvis in
         // unreadTintFrom takes the background away from every user who has never opened Appearance,
         // and nothing else in this repo would notice.
         assertTrue(
@@ -70,6 +70,6 @@ class SettingsBackupUnreadTintTest {
         assertTrue(unreadTintFrom(preferencesOf(booleanPreferencesKey("reply_bar") to false)))
     }
 
-    /** The persisted key, spelled as the store spells it — see the test above. */
+    /** The persisted key, spelled as the store spells it, see the test above. */
     private val storedKey = booleanPreferencesKey("unread_tint")
 }

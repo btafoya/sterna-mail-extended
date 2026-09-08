@@ -8,7 +8,7 @@ import app.sterna.core.data.account.StoredAccount
 internal enum class WidgetTapTarget { UnifiedInbox, AppAsIs }
 
 /**
- * WHAT a tap asks the app for, kept apart from Android so it can be EXECUTED in a JVM test; the
+ * What a tap asks the app for, kept apart from Android so it can be executed in a JVM test;
  */
 internal object UnreadWidgetTap {
 

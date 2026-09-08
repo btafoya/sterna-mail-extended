@@ -2,7 +2,7 @@ package app.sterna.ui.inbox
 
 /** What a finished bulk action has to tell the user. */
 internal enum class BulkOutcome {
-    /** Everything the batches were given went through — say nothing. */
+    /** Everything the batches were given went through, say nothing. */
     NONE,
 
     /** Some ids went through and some did not. */

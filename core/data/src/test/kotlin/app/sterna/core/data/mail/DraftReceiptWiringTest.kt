@@ -5,21 +5,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * THIS TEST READS SOURCE TEXT — the last resort, exactly as [DraftAddressingWiringTest] does:
+ * This test reads source text, the last resort, exactly as [DraftAddressingWiringTest] does:
  */
 class DraftReceiptWiringTest {
 
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
-    /** The code lines of [body] naming [needle] — comments dropped, so prose can neither satisfy
+    /** The code lines of [body] naming [needle], comments dropped, so prose can neither satisfy
      *  a rule nor break one. Whole lines: the assertions compare them, never search inside them. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
             .filter { needle in it }
 
-    // ---- the open: the header is read on BOTH protocols ---------------------------------------
+    // ---- the open: the header is read on both protocols ---------------------------------------
 
     @Test fun theImapOpenFillsTheSameFieldTheJmapPropertyFills() {
         assertEquals(
@@ -33,7 +33,7 @@ class DraftReceiptWiringTest {
     // ---- the save: the decision, its arguments, and where it is plugged in ---------------------
 
     @Test fun bothBranchesAskWhetherTheReceiptRequestSurvived() {
-        // Two calls, one per protocol. A single one — the IMAP branch returns early — leaves the
+        // Two calls, one per protocol. A single one (the IMAP branch returns early) leaves the
         // other protocol destroying originals on the old, unguarded rule.
         assertEquals(
             "uploadDraft must put the question to draftReceiptRequestIsCarried on BOTH branches",
@@ -67,7 +67,7 @@ class DraftReceiptWiringTest {
     }
 
     @Test fun theVerdictHandedToTheGuardIsTheOneJustRead() {
-        // `= true` on either line is the whole debt, restored — and both executable suites stay
+        // `= true` on either line is the whole debt, restored, and both executable suites stay
         // green, because neither of them can see this call.
         assertEquals(
             "both branches must hand draftReplacementIsFaithful the verdict they just read; " +
@@ -83,7 +83,7 @@ class DraftReceiptWiringTest {
     // ---- the two readers: an unknown must never come back as a "no" ---------------------------
 
     /**
-     * NOT a closed list of the bail-outs, and deliberately: an assertion that pins how MANY
+     * Not a closed list of the bail-outs, and deliberately: an assertion that pins how many
      */
     @Test fun everyBailOutOfTheImapReadAnswersUnknownAndNeverANo() {
         val body = bodyOf("imapDraftReceiptRequested")
@@ -113,7 +113,7 @@ class DraftReceiptWiringTest {
     @Test fun theJmapReadTreatsARefusingServerAsUnknown() {
         val body = bodyOf("jmapDraftReceiptRequested")
         // Whole lines, arguments included: a prefix match is blind to every mutation that
-        // lengthens the line — reading some other account, or some other id.
+        // lengthens the line, reading some other account, or some other id.
         assertEquals(
             "the original is fetched for the id being replaced, on this account's session",
             listOf("val email = client.getEmail(ctx.session, ctx.accountId, emailId, ctx.auth)"),

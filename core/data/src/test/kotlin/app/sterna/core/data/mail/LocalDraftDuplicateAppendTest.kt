@@ -17,7 +17,7 @@ import java.io.IOException
  */
 class LocalDraftDuplicateAppendTest {
 
-    /** What the harness was asked, in order — so "exactly once", "never" and "with what" are facts. */
+    /** What the harness was asked, in order, so "exactly once", "never" and "with what" are facts. */
     private val asked = mutableListOf<String>()
     private val appended = mutableListOf<String>()
 
@@ -28,24 +28,24 @@ class LocalDraftDuplicateAppendTest {
     }
 
     @Test fun `a draft that has failed before may have got there all the same`() {
-        // The whole point: the failure the client SAW says nothing about what the server did with
+        // The whole point: the failure the client saw says nothing about what the server did with
         // the bytes it had already received.
         assertTrue(localDraftMayAlreadyBeOnServer(row(attemptCount = 1)))
         assertTrue(localDraftMayAlreadyBeOnServer(row(attemptCount = 7)))
     }
 
     @Test fun `a draft with no name at all is not something the server can be asked about`() {
-        // The abstention is only ever safe because a NAME is being compared. A row with none has
+        // The abstention is only ever safe because a name is being compared. A row with none has
         // nothing that could match, and asking anyway would spend a round trip on a folder read
         assertFalse(localDraftMayAlreadyBeOnServer(row(attemptCount = 3, messageId = "")))
         assertFalse(localDraftMayAlreadyBeOnServer(row(attemptCount = 3, messageId = "   ")))
     }
 
-    // ---- 1b. THE decision: is what the server reported our draft? --------------------------------
+    // ---- 1b. The decision: is what the server reported our draft? --------------------------------
 
     @Test fun `the id the server reports in brackets names the same draft as our naked one`() {
         // The two values are written differently by construction: ours is the naked id the save
-        // minted, and the ENVELOPE hands the header back as stored — `<id>`, brackets included.
+        // minted, and the ENVELOPE hands the header back as stored, `<id>`, brackets included.
         assertTrue(localDraftMessageIdMatches("abc-123@masto.top", "<abc-123@masto.top>"))
         assertTrue(localDraftMessageIdMatches("abc-123@masto.top", "abc-123@masto.top"))
         assertTrue(localDraftMessageIdMatches("<abc-123@masto.top>", "<abc-123@masto.top>"))
@@ -56,7 +56,7 @@ class LocalDraftDuplicateAppendTest {
     }
 
     @Test fun `an id that merely CONTAINS ours is a different draft`() {
-        // THE mutation this exists for. A substring test would call all four of these a match,
+        // The mutation this exists for. A substring test would call all four of these a match,
         // and a false "already there" is not a cosmetic error: the append is skipped, the row is
         // consumed by `uploadLocalDraftOnce`, and the text exists nowhere afterwards. A duplicate
         // in Drafts is visible and deletable; this is not.
@@ -74,7 +74,7 @@ class LocalDraftDuplicateAppendTest {
     }
 
     @Test fun `a message the server reports with no id at all never matches`() {
-        // The ENVELOPE slot is NIL — common enough on mail another client wrote. Two nameless
+        // The ENVELOPE slot is NIL, common enough on mail another client wrote. Two nameless
         // things are not the same thing.
         assertFalse(localDraftMessageIdMatches("abc-123@masto.top", null))
         assertFalse(localDraftMessageIdMatches("abc-123@masto.top", ""))
@@ -113,8 +113,8 @@ class LocalDraftDuplicateAppendTest {
         val wentOut = runBlocking {
             appendDraftUnlessAlreadyThere(row(attemptCount = 1, messageId = "abc-123@masto.top"), ::alreadyThere, ::append)
         }
-        // The ARGUMENT, not merely that a call happened: the id has to be the row's frozen one
-        // and it goes NAKED, as the row stores it. The brackets the header is written with are
+        // The argument, not merely that a call happened: the id has to be the row's frozen one
+        // and it goes naked, as the row stores it. The brackets the header is written with are
         // dealt with where the two ids are compared (`localDraftMessageIdMatches`), not here.
         assertEquals(listOf("abc-123@masto.top"), asked)
         assertEquals("nothing was found, so the draft still has to go up", listOf("appended"), appended)
@@ -132,7 +132,7 @@ class LocalDraftDuplicateAppendTest {
     }
 
     @Test fun `a search that fails appends rather than abstaining`() {
-        // THE rule, and it is about loss, not about tidiness. The caller consumes the row the
+        // The rule, and it is about loss, not about tidiness. The caller consumes the row the
         // moment the upload returns: reading "I could not look" as "it is there" deletes the text
         // and leaves it nowhere. A duplicate is visible and deletable; an absence is not.
         val wentOut = runBlocking {
@@ -147,8 +147,7 @@ class LocalDraftDuplicateAppendTest {
     }
 
     @Test fun `a lookup the server REFUSES appends, and that failure is an ImapException`() {
-        // The type is the whole test. `ImapException` is what a refused `UID SEARCH` throws
-        // (`core/imap/ImapClient.kt`: `class ImapException(…) : Exception(message)`) — it is NOT an
+        // The type is the whole test.
         val wentOut = runBlocking {
             appendDraftUnlessAlreadyThere(
                 row(attemptCount = 3, messageId = "abc-123@masto.top"),
@@ -162,7 +161,7 @@ class LocalDraftDuplicateAppendTest {
     }
 
     @Test fun `a lookup that throws anything at all appends just the same`() {
-        // A bare `Exception` — a parse that trips, a stand-in that was not set up, whatever a
+        // A bare `Exception`, a parse that trips, a stand-in that was not set up, whatever a
         // future session puts on this path. "Everything that is not a cancellation" is the rule,
         // and it is stated by exercising a type nobody enumerated.
         val wentOut = runBlocking {
@@ -179,7 +178,7 @@ class LocalDraftDuplicateAppendTest {
 
     @Test fun `a cancelled search is not a failure and appends nothing`() {
         // The worker is being stopped. The row keeps the state it had and the next attempt starts
-        // over — an APPEND fired on the way out would be the duplicate this exists to prevent.
+        // over, an APPEND fired on the way out would be the duplicate this exists to prevent.
         assertThrows(CancellationException::class.java) {
             runBlocking {
                 appendDraftUnlessAlreadyThere(

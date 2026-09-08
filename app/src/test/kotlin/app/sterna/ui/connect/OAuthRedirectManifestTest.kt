@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as [OAuthWiringTest]. A
+ * Source lint, not a behaviour test, same instrument and disclaimer as [OAuthWiringTest].
  */
 class OAuthRedirectManifestTest {
 
@@ -51,7 +51,7 @@ class OAuthRedirectManifestTest {
         /** Written with the character, not a raw-string escape, so what is compared is readable. */
         const val DOLLAR = '$'
 
-        /** The whole line, compared for equality — the strongest anchor there is. */
+        /** The whole line, compared for equality, the strongest anchor there is. */
         val REQUIRED = "<data android:scheme=\"$DOLLAR{applicationId}\" android:host=\"oauth\" />"
 
         val LITERAL = Regex("""android:scheme="app\.sterna""")

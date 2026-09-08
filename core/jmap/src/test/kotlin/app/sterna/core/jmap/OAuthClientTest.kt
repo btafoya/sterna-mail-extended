@@ -129,12 +129,12 @@ class OAuthClientTest {
 
     // ---- A malformed token response must not carry the tokens into the error ----
     //
-    // kotlinx.serialization puts a SLICE OF THE OFFENDING JSON in its message, and for a token
+    // kotlinx.serialization puts a slice of the offending JSON in its message, and for a token
     // endpoint that JSON is the access and refresh tokens themselves. That message travels:
     // refresh() -> OAuthTokenRefresher -> jmapAuth -> MailRepository.refresh ->
     // InboxViewModel's `t.message` -> the list's error banner.
     //
-    // The trigger is a response the parser cannot finish, NOT the `"expires_in": "3600"` a
+    // The trigger is a response the parser cannot finish, not the `"expires_in": "3600"` a
     // lenient-looking provider sends: this Json coerces that one to the property default without
 
     @Test fun refresh_doesNotPutTheTokensInTheErrorOfAMalformedResponse() {
@@ -155,7 +155,7 @@ class OAuthClientTest {
 
     @Test fun pollDeviceToken_doesNotPutTheTokensInTheErrorOfAMalformedResponse() {
         // Same payload on the device-flow path, whose failure text reaches the connect screen.
-        // Read whatever surfaces — a returned Failed or a thrown exception: the guard is that
+        // Read whatever surfaces, a returned Failed or a thrown exception: the guard is that
         // the tokens are in neither, and it must not depend on which shape the failure takes.
         server.enqueue(
             MockResponse().setBody(
@@ -174,7 +174,7 @@ class OAuthClientTest {
     }
 
     /**
-     * A body this client cannot read is NOT a transport failure. The poll used to wrap the whole
+     * A body this client cannot read is not a transport failure. The poll used to wrap the whole
      */
     @Test fun pollDeviceToken_doesNotCallAnUnreadableAnswerANetworkFailure() {
         server.enqueue(
@@ -212,8 +212,8 @@ class OAuthClientTest {
 
     // ---- The refusal must reach the screen, and only the protocol's word for it ----
     //
-    // Two halves of the same rule. The connect screen has to be able to say WHY a sign-in failed,
-    // so the server's `error` field has to survive the call — but an exception message here is
+    // Two halves of the same rule. The connect screen has to be able to say why a sign-in failed,
+    // so the server's `error` field has to survive the call, but an exception message here is
     // written by OkHttp and carries the URL, the host and the port, and the response body is the
     // caller's own tokens. So: the closed vocabulary of RFC 6749 §5.2 travels, the prose does not.
 
@@ -263,10 +263,10 @@ class OAuthClientTest {
 
     // ---- A 3xx on one of the three POSTs must not send the secret to the host it names ----
     //
-    // OkHttp follows a 307/308 by re-issuing the SAME method with the SAME body (verified against
+    // OkHttp follows a 307/308 by re-issuing the same method with the same body (verified against
     // okhttp 4.12: on a 307 the second server receives
     //
-    // Every test below goes through `client`, i.e. the PUBLIC OAuthClient() constructor. The
+    // Every test below goes through `client`, i.e. the public OAuthClient() constructor. The
     // internal constructor takes an injected client, so a test that hands in its own would only
 
     private fun startSecondServer(): MockWebServer = MockWebServer().apply { start() }
@@ -375,11 +375,11 @@ class OAuthClientTest {
 
     // ---- The witness that the cut stopped at the POSTs ----
     //
-    // Discovery is a GET carrying no secret, and a deployment whose
+    // Discovery is a get carrying no secret, and a deployment whose
     // /.well-known/oauth-authorization-server sits behind a proxy or a vhost answers a 3xx there.
 
     /**
-     * The hop itself: the fetch must still be CARRIED to the redirect target, and the document
+     * The hop itself: the fetch must still be carried to the redirect target, and the document
      */
     @Test fun discoverMetadata_stillFollowsARedirect() = runBlocking {
         val second = startSecondServer()
@@ -409,7 +409,7 @@ class OAuthClientTest {
         }
     }
 
-    /** The other half: a document served behind a redirect and naming an ACCEPTABLE host is
+    /** The other half: a document served behind a redirect and naming an acceptable host is
      *  kept whole, and the sign-in it describes is drivable. */
     @Test fun discoverMetadata_keepsTheMetadataBehindARedirectWhenItIsOnDomain() = runBlocking {
         val second = startSecondServer()
@@ -449,10 +449,10 @@ class OAuthClientTest {
 
     // ════════ The authorization-code grant with PKCE (RFC 6749 §4.1 + RFC 7636) ════════
     //
-    // The three pieces that decide anything here are PURE FUNCTIONS, and these tests EXECUTE them
+    // The three pieces that decide anything here are pure functions, and these tests execute them
     // with pinned arguments. Nothing below re-derives the rule to choose what to replay: the PKCE
 
-    /** `application/x-www-form-urlencoded` decoding — what RFC 6749 §3.1 says both sides speak. */
+    /** `application/x-www-form-urlencoded` decoding, what RFC 6749 §3.1 says both sides speak. */
     private fun formFields(encoded: String): Map<String, String> =
         encoded.split("&").filter { it.isNotEmpty() }.associate { pair ->
             val cut = pair.indexOf('=')
@@ -463,6 +463,8 @@ class OAuthClientTest {
 
     /**
      * RFC 7636 appendix B, verbatim. The verifier and the challenge are the RFC's, not ours: a
+     * derivation that re-encoded the digest with padding, hashed the UTF-16 bytes, or used the
+     * standard (non-URL) alphabet cannot pass this, and no test here recomputes it.
      */
     @Test fun pkce_pinsTheRfc7636AppendixBVector() {
         assertEquals(
@@ -474,6 +476,7 @@ class OAuthClientTest {
 
     /**
      * The draw itself, not just its shape. "two draws differ" and "the alphabet is right" are
+     * both satisfied by `java.util.Random(1)`, and a predictable verifier makes PKCE decorative:
      */
     @Test fun pkce_drawsFromACryptographicSource() {
         val source: java.util.Random = Pkce.random
@@ -545,7 +548,7 @@ class OAuthClientTest {
     }
 
     /**
-     * The BYTES on the wire, not the value a decoder gives back.
+     * The bytes on the wire, not the value a decoder gives back.
      */
     @Test fun authorizationUrl_isPinnedAsSentAndEncodesHostileValues() {
         val url = buildAuthorizationUrl(
@@ -576,7 +579,7 @@ class OAuthClientTest {
     }
 
     /**
-     * RFC 6749 §3.1: a parameter must not appear twice. The endpoint can be TYPED IN, so it can
+     * RFC 6749 §3.1: a parameter must not appear twice. The endpoint can be typed in, so it can
      */
     @Test fun authorizationUrl_ourParametersReplaceTheOnesTheEndpointCarried() {
         val url = buildAuthorizationUrl(
@@ -596,6 +599,8 @@ class OAuthClientTest {
 
     /**
      * https only (#2). This URL goes to a browser: over cleartext the code coming back is
+     * readable and rewritable by anything on the path. Nothing is built, the caller cannot end up
+     * holding a half-usable URL it might still open.
      */
     @Test fun authorizationUrl_refusesAnEndpointThatIsNotHttps() {
         listOf(
@@ -759,7 +764,7 @@ class OAuthClientTest {
     // -- login_hint on the approval page (#55) -----------------------------------------------------
 
     /**
-     * The whole string is pinned, literally, and NOT recomputed here: a test that rebuilds the URL
+     * The whole string is pinned, literally, and not recomputed here: a test that rebuilds the URL
      */
     @Test fun loginHint_isAddedAsAQueryToABareUrl() {
         assertEquals(
@@ -777,7 +782,7 @@ class OAuthClientTest {
         )
     }
 
-    /** A fragment ends the URL, so a parameter written after it is read by nobody — it must stay
+    /** A fragment ends the URL, so a parameter written after it is read by nobody, it must stay
      *  in the query, ahead of the `#`. */
     @Test fun loginHint_staysInTheQueryAheadOfAFragment() {
         assertEquals(
@@ -787,7 +792,7 @@ class OAuthClientTest {
     }
 
     /**
-     * A URL we cannot read comes back WORD FOR WORD — not null, not "", not truncated, and not
+     * A URL we cannot read comes back word for word, not null, not "", not truncated, and not
      */
     @Test fun loginHint_givesAnUnreadableUrlBackVerbatim() {
         assertEquals(
@@ -817,7 +822,9 @@ class OAuthClientTest {
     }
 
     /**
-     * `URLEncoder` writes a space as `+` — and, read back per RFC 3986, an address typed with a
+     * `URLEncoder` writes a space as `+`, and, read back per RFC 3986, an address typed with a
+     * space in it arrives as a different address, one carrying a plus. `nina+qa@example.com` alone
+     * does not see that: `URLEncoder` percent-encodes a literal `+` exactly like [percentEncode]
      */
     @Test fun loginHint_percentEncodesAndNeverFormEncodes() {
         assertEquals(
@@ -846,7 +853,7 @@ class OAuthClientTest {
     }
 
     /**
-     * NOT over cleartext. `toHttpUrlOrNull` takes `http://` as happily as `https://`, and the
+     * Not over cleartext.
      */
     @Test fun loginHint_refusesToPutAnIdentityOnACleartextUrl() {
         assertEquals(
@@ -856,7 +863,9 @@ class OAuthClientTest {
     }
 
     /**
-     * The whole URL is rebuilt through `HttpUrl`, so what the SERVER wrote in its own query has to
+     * The whole URL is rebuilt through `HttpUrl`, so what the server wrote in its own query has to
+     * survive byte for byte: a `code=` the approval page cannot read back is a page that cannot be
+     * completed. A `+` in the server's own value is the one okhttp could plausibly touch.
      */
     @Test fun loginHint_leavesTheServersOwnQueryBytesAlone() {
         assertEquals(
@@ -866,7 +875,7 @@ class OAuthClientTest {
     }
 
     /** A bare `?` with nothing behind it: pinned as okhttp actually renders it, not as it ought to
-     *  look — this one is an observation, and a change of okhttp must be seen here. */
+     *  look, this one is an observation, and a change of okhttp must be seen here. */
     @Test fun loginHint_pinsWhatABareQuestionMarkBecomes() {
         assertEquals(
             "https://idp.example.com/device?&login_hint=nina%40example.com",
@@ -886,12 +895,13 @@ class OAuthClientTest {
         )
     }
 
-    // ════════ WHERE a discovery document is allowed to send the secrets ════════
+    // ════════ where a discovery document is allowed to send the secrets ════════
     //
-    // The discovery GET follows 3xx on purpose (above), and what comes back names the three
-    // endpoints that the device code, the authorization code, the PKCE verifier and — for the
+    // The discovery get follows 3xx on purpose (above), and what comes back names the three
+    // endpoints that the device code, the authorization code, the PKCE verifier and, for the
+    // whole life of the account, the refresh token are POSTed to. `AccountStore.addOAuth`
     //
-    // The decision is `oauthEndpointAllowed`, a PURE FUNCTION, and the tests below EXECUTE it
+    // The decision is `oauthEndpointAllowed`, a pure function, and the tests below execute it
     // with pinned literal arguments. Nothing here re-derives the rule to choose what it expects:
     // invert the rule in the source and these go red.
 
@@ -997,7 +1007,7 @@ class OAuthClientTest {
     }
 
     /**
-     * The neighbour case, and it is the BENCH's own deployment: the host asked is not the host
+     * The neighbour case, and it is the bench's own deployment: the host asked is not the host
      */
     @Test fun discoverMetadata_keepsASiblingHostUnderTheAddressDomain() = runBlocking {
         server.enqueue(
@@ -1018,7 +1028,7 @@ class OAuthClientTest {
         assertFalse("and nothing was blanked", metadata?.endpointsOffDomain == true)
     }
 
-    /** One endpoint elsewhere does not condemn the others — nor does it pass. */
+    /** One endpoint elsewhere does not condemn the others, nor does it pass. */
     @Test fun discoverMetadata_blanksOnlyTheEndpointThatIsElsewhere() = runBlocking {
         server.enqueue(
             MockResponse().setHeader("Content-Type", "application/json").setBody(
@@ -1040,7 +1050,8 @@ class OAuthClientTest {
     }
 
     /**
-     * Acceptance coming from THE HOST THAT WAS ASKED, alone: the address' domain here is
+     * Acceptance coming from the host that was asked, alone: the address' domain here is
+     * unrelated, so only the queried host can let these endpoints through.
      */
     @Test fun discoverMetadata_keepsEndpointsOnTheHostThatWasAsked() = runBlocking {
         val asked = "https://${server.hostName}:${server.port}"
@@ -1058,7 +1069,7 @@ class OAuthClientTest {
         assertFalse("nothing was blanked", metadata?.endpointsOffDomain == true)
     }
 
-    /** A document with no token endpoint is a server WITHOUT OAuth, not a refusal. Still null. */
+    /** A document with no token endpoint is a server without OAuth, not a refusal. Still null. */
     @Test fun discoverMetadata_aDocumentWithoutATokenEndpointIsStillNull() = runBlocking {
         server.enqueue(
             MockResponse().setHeader("Content-Type", "application/json").setBody(
@@ -1084,10 +1095,10 @@ class OAuthClientTest {
         assertFalse("the server does not get to set this", metadata?.endpointsOffDomain == true)
     }
 
-    // ---- The fact is about WHO, not about every refusal ----
+    // ---- The fact is about who, not about every refusal ----
     //
     // `oauthEndpointAllowed` refuses for three reasons: another host, cleartext, and a string that
-    // is not a URL. Only the FIRST is something the connect screen may describe as the server
+    // is not a URL. Only the first is something the connect screen may describe as the server
     // handing sign-in to another domain. Widening the fact to "an endpoint was refused" puts a new
     // lie exactly where #54/#137 took one out.
 
@@ -1119,7 +1130,7 @@ class OAuthClientTest {
     }
 
     /**
-     * The whole document is on the host asked, but in the clear. Blanked, and the sign-in fails —
+     * The whole document is on the host asked, but in the clear. Blanked, and the sign-in fails,
      * yet nothing may claim a third party was named.
      */
     @Test fun discoverMetadata_blanksCleartextWithoutCallingItAnotherDomain() = runBlocking {
@@ -1142,7 +1153,7 @@ class OAuthClientTest {
     }
 
     /**
-     * The token endpoint ALONE must raise the fact. Written because a document that also names
+     * The token endpoint alone must raise the fact. Written because a document that also names
      */
     @Test fun discoverMetadata_raisesTheFactOnTheTokenEndpointAlone() = runBlocking {
         server.enqueue(
@@ -1159,7 +1170,7 @@ class OAuthClientTest {
     }
 
     /**
-     * And the mirror: a token endpoint kept, a DEVICE endpoint sent elsewhere, no authorization
+     * And the mirror: a token endpoint kept, a device endpoint sent elsewhere, no authorization
      */
     @Test fun discoverMetadata_raisesTheFactWhileTheTokenEndpointSurvives() = runBlocking {
         server.enqueue(

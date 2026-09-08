@@ -4,16 +4,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * THE DECISIONS NOBODY WAS WATCHING on the read-and-bin path of a move between accounts (#99, #189).
+ * The decisions nobody was watching on the read-and-bin path of a move between accounts (#99, #189).
  *
  * This file guards nothing new. It closes four mutations that changed real behaviour and left the
  * whole suite green, found by `/go-no-go` and by two counter-expertises of this branch. Every rule
  * below is stated as the mutation it kills, because a lint whose reason is not written is a lint
  * the next person deletes.
  *
- * WHY THE EXISTING LINTS MISSED THEM. The ones next door filter a body by
+ * Why the existing lints missed them. The ones next door filter a body by
  * `Regex("(?i)(numbering|validity|frozen|recorded)")` or by `"rawSource(" in it`. Two of these four
- * mutations sit on lines that name NONE of those words while deciding WHICH MESSAGE IS READ, and one
+ * mutations sit on lines that name none of those words while deciding which message is read, and one
  * is an enclosure rather than a line at all. A closed list only sees what its needle matches.
  *
  * Source lint, the last resort as always: `MailRepository` needs Room, a `Context` and a socket,
@@ -27,7 +27,7 @@ class NumberedReadsAreNotSwallowedTest {
             .filter { it.isNotEmpty() }
 
     /**
-     * MUTATION: the body of `rawSource` reduced to `openEmail(credentials, emailId, markRead =
+     * Mutation: the body of `rawSource` reduced to `openEmail(credentials, emailId, markRead =
      */
     @Test fun `the whole body of the public read is these lines, and nothing else decides`() {
         val body = DaoQuerySource.mailFunctionBody("MailRepository", "rawSource")
@@ -52,7 +52,8 @@ class NumberedReadsAreNotSwallowedTest {
     }
 
     /**
-     * MUTATION: `fetchRawSource`'s default flipped from `FrozenNumbering.NothingFrozen` to
+     * Mutation: `fetchRawSource`'s default flipped from `FrozenNumbering.NothingFrozen` to
+     * `FrozenNumbering.Frozen(null)`. One token, no call site touched, suite green.
      */
     @Test fun `the fetch defaults to nothing frozen, in its signature`() {
         val signature = signatureOf("fetchRawSource")
@@ -75,7 +76,9 @@ class NumberedReadsAreNotSwallowedTest {
     }
 
     /**
-     * MUTATION: a `runCatching { … }` — or a `try/catch` — around the IMAP block of
+     * Mutation: a `runCatching { … }` (or a `try/catch`) around the IMAP block of
+     * `MailRepository.delete`. It reads as defensive, it compiles, and every line pinned elsewhere
+     * stays byte-identical.
      */
     @Test fun `no IMAP command that carries a numbering sits inside a block that catches`() {
         val lines = DaoQuerySource.mailSource("MailRepository").lines()
@@ -107,7 +110,7 @@ class NumberedReadsAreNotSwallowedTest {
         }
     }
 
-    /** The declaration lines of [function] — from its `fun` line to the line its body opens on.
+    /** The declaration lines of [function], from its `fun` line to the line its body opens on.
      *  These signatures are written one parameter per line precisely so this can read them. */
     private fun signatureOf(function: String): String {
         val lines = DaoQuerySource.mailSource("MailRepository").lines()

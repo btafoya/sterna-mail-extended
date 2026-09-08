@@ -6,12 +6,12 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads TWO sources as TEXT — `ComposeViewModel.kt`,
+ * Source lint, not a behaviour test.
  */
 class OnlyCopyWiringTest {
 
     /**
-     * WHOLE LINES, never `contains`. The mutation this rule exists for is
+     * Whole lines, never `contains`.
      */
     @Test fun `the undone send is marked as the only copy, from the id and nothing else`() {
         val body = bodyOf("bindQueuedRow")
@@ -42,7 +42,7 @@ class OnlyCopyWiringTest {
     }
 
     /**
-     * The census the rule above cannot see through. It reads the body of `prepare` only; a
+     * The census the rule above cannot see through. It reads the body of `prepare` only;
      */
     @Test fun `every line naming the flag in the file is one of these three`() {
         val lines = codeLines(COMPOSE_VIEW_MODEL)
@@ -65,7 +65,7 @@ class OnlyCopyWiringTest {
     }
 
     /**
-     * The link BETWEEN the two files, pinned as a whole line. The rule above watches the flow
+     * The link between the two files, pinned as a whole line. The rule above watches the flow
      */
     @Test fun `the screen collects the flag from the view model, in this one line`() {
         assertEquals(
@@ -84,7 +84,7 @@ class OnlyCopyWiringTest {
     }
 
     /**
-     * The value the screen HANDS the verdict, parsed out of the call and compared whole.
+     * The value the screen hands the verdict, parsed out of the call and compared whole.
      */
     @Test fun `the screen still hands the flag to the leave guard`() {
         val call = callsOf(withoutComments(COMPOSE_SCREEN.readText()), "ComposeDirty.isDirty(").single()
@@ -101,7 +101,8 @@ class OnlyCopyWiringTest {
     }
 
     /**
-     * WHERE the write stands, which the rule above cannot see. That rule compares the TEXT of
+     * Where the write stands, which the rule above cannot see. That rule compares the text of
+     * `_onlyCopy.value = d.editingOutboxId == null`; the file census compares the same text again.
      */
     @Test fun `the flag is written inside the restored draft, just before the row is consumed`() {
         val body = prepareBody()
@@ -146,7 +147,7 @@ class OnlyCopyWiringTest {
     }
 
     /**
-     * The PREMISE of every rule above, and the only one of them that is held by an OMISSION.
+     * The premise of every rule above, and the only one of them that is held by an omission.
      */
     @Test fun `the draft kept for undo names no queued row`() {
         val body = bodyOf("sendInternal")
@@ -190,16 +191,18 @@ class OnlyCopyWiringTest {
     /** The body of `fun prepare(`, braces balanced, comments cut. */
     private fun prepareBody(): String = bodyOf("prepare")
 
-    /** [body]'s code lines, trimmed and blanks dropped — the shape a whole-body rule would compare. */
+    /** [body]'s code lines, trimmed and blanks dropped, the shape a whole-body rule would compare. */
     private fun codeOf(body: String): List<String> =
         body.lines().map { it.trim() }.filter { it.isNotEmpty() }
 
-    /** [body]'s code lines that name [needle], trimmed — whole lines, in the order they are written. */
+    /** [body]'s code lines that name [needle], trimmed, whole lines, in the order they are written. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         codeOf(body).filter { needle in it }
 
     /**
-     * [body] split at the `handed?.let { d -> … }` block: what is INSIDE it, and
+     * [body] split at the `handed?.let { d -> … }` block: what is inside it, and
+     * what follows its closing brace. Braces are walked, not searched for, so a line that keeps its
+     * text and changes block shows up on the other side of the pair.
      */
     private fun restoredLambda(body: String): Pair<String, String> {
         val at = body.indexOf(RESTORED_LAMBDA)
@@ -336,6 +339,8 @@ class OnlyCopyWiringTest {
 
     /**
      * [source] with every comment removed, string literals untouched. Recopied from
+     * `ReadReceiptWiringTest`, where it is called `codeOf`; renamed here because this file already
+     * has a `codeOf` of its own, over the lines of a body.
      */
     private fun withoutComments(source: String): String {
         val out = StringBuilder()

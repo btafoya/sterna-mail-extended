@@ -3,7 +3,7 @@ package app.sterna.contacts
 import app.sterna.core.data.db.ContactRow
 
 /**
- * One row of the recipient autocomplete menu: an address, the name to show above it, and — only
+ * One row of the recipient autocomplete menu: an address, the name to show above it, and, only
  */
 data class ContactSuggestion(
     val email: String,

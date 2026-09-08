@@ -6,12 +6,16 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, and the last resort it is meant to be: nothing in this chain can be built on the
+ * Source lint, and the last resort it is meant to be: nothing in this chain can be built on the
+ * JVM ([NewMailNotifier] and [Notifications] need an Application and a NotificationManager,
+ * [FetchAndNotify] needs a repository with a socket behind it). Every decision it carries is
+ * executed next door, the pre-pass in [NotificationPreviewGatheringTest], what a position may
+ * reveal in [MailNotificationTextTest], and none of it is restated here.
  */
 class PreviewReachesTheNotificationWiringTest {
 
     /**
-     * THE ORDER, AND THE ONLY WAY THIS FEATURE CAN LOSE MAIL.
+     * The order, and the only way this feature can lose mail.
      */
     @Test fun `the openings are gathered in one pre-pass, not inside the posting loop`() {
         val body = bodyOf(NOTIFIER, "notifyDiff")
@@ -43,7 +47,9 @@ class PreviewReachesTheNotificationWiringTest {
     }
 
     /**
-     * WHAT ACTUALLY CLOSES THE PERIL, stated as a check rather than as reasoning: between the
+     * What actually closes the peril, stated as a check rather than as reasoning: between the
+     * moment the gathering returns and the moment the baseline is advanced there is NO suspension
+     * point, so nothing can be cancelled in between and leave a batch announced but not remembered.
      */
     @Test fun `nothing between the gathering and the baseline may suspend`() {
         val signature = PREVIEWS.readText()
@@ -68,7 +74,7 @@ class PreviewReachesTheNotificationWiringTest {
     }
 
     /**
-     * EVERY ARGUMENT OF THE PRE-PASS, IN ORDER, WHOLE LINES — because the two that matter most
+     * Every argument of the pre-PASS, in order, whole lines, because the two that matter most
      */
     @Test fun `every argument of the pre-pass is pinned, positional ones included`() {
         assertEquals(
@@ -97,7 +103,7 @@ class PreviewReachesTheNotificationWiringTest {
     }
 
     /**
-     * ONE BUDGET FOR THE ACCOUNT'S WHOLE PASS, made OUTSIDE the folder loop.
+     * One budget for the account's whole pass, made outside the folder loop.
      */
     @Test fun `the account pass makes one budget and shares it between its folders`() {
         val lines = codeLinesOf(bodyOf(FETCH_AND_NOTIFY, "run"))
@@ -123,7 +129,9 @@ class PreviewReachesTheNotificationWiringTest {
     }
 
     /**
-     * The opening travels ON the message, so the two paths that post a mail notification — a
+     * The opening travels on the message, so the two paths that post a mail notification, a
+     * folder diff and a snooze waking up, read it from one field, and the privacy setting keeps
+     * deciding on its own whether it is ever shown.
      */
     @Test fun `the gathered opening is carried on the message that is posted`() {
         assertEquals(
@@ -224,7 +232,7 @@ class PreviewReachesTheNotificationWiringTest {
     }
 
     /**
-     * The code lines of the call opened by the line that ENDS with [opener], through to the line
+     * The code lines of the call opened by the line that ends with [opener], through to the line
      */
     private fun callLines(body: String, opener: String): List<String> {
         val lines = codeLinesOf(body)
@@ -238,7 +246,7 @@ class PreviewReachesTheNotificationWiringTest {
         error("unbalanced parentheses after '$opener'")
     }
 
-    /** Every CODE line of [body], trimmed — comments and blank lines dropped. */
+    /** Every code line of [body], trimmed, comments and blank lines dropped. */
     private fun codeLinesOf(body: String): List<String> =
         body.lines().map { it.trim() }
             .filterNot { it.isEmpty() || it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
@@ -249,7 +257,7 @@ class PreviewReachesTheNotificationWiringTest {
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
             .filter { needle in it }
 
-    /** The block body of `fun [name]` in [file] — braces included. */
+    /** The block body of `fun [name]` in [file], braces included. */
     private fun bodyOf(file: File, name: String): String {
         val source = file.readText()
         val fn = Regex("""\bfun\s+$name\s*\(""").find(source)

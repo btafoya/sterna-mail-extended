@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * EXECUTES the proof that lets a caller destroy the only copy of a message, and pins all FOUR
+ * Executes the proof that lets a caller destroy the only copy of a message, and pins all four
  */
 class AccountDepartureProofTest {
 
@@ -24,7 +24,7 @@ class AccountDepartureProofTest {
     }
 
     /**
-     * The whole point of the volet. An unreadable blob makes `accounts()` answer an EMPTY list, so
+     * The whole point of the volet. An unreadable blob makes `accounts()` answer an empty list, so
      * the id is missing for a reason that has nothing to do with the user.
      */
     @Test fun `an unreadable account blob proves nothing`() {
@@ -48,7 +48,7 @@ class AccountDepartureProofTest {
     }
 
     /**
-     * Incoherent input — an unreadable blob cannot list anything — pinned all the same: the rule
+     * Incoherent input (an unreadable blob cannot list anything) pinned all the same: the rule
      */
     @Test fun `an unreadable blob that still lists the account proves nothing either`() {
         assertFalse(

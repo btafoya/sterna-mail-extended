@@ -10,6 +10,8 @@ import org.junit.Test
 
 /**
  * What the account selector observes (issue #31): the list republished on every write to
+ * [AccountStore], so a shared mailbox granted or revoked server-side reaches the drawer without
+ * the screen being recreated, and nothing at all when a write changes nothing.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class AccountsStateTest {
@@ -78,7 +80,7 @@ class AccountsStateTest {
         }
         runCurrent()
 
-        // Every connect reconciles, and the usual outcome is "nothing changed" — rebuilt list
+        // Every connect reconciles, and the usual outcome is "nothing changed", rebuilt list
         // objects, equal contents. Re-emitting those would recompose the drawer for nothing.
         state.publish(listOf(login, shared("sub-1")))
         state.publish(listOf(login, shared("sub-1")))

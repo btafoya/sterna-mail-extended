@@ -11,17 +11,17 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
-/** What the "Scheduled" screen has to say after a cancellation (#170). The X used to drop the job
- *  and delete the queued row, and scheduling saves NO draft — so that row was the only copy of the
- *  message. Cancelling now files it in Drafts first, and this says which of the three happened. */
+/** What the "Scheduled" screen has to say after a cancellation (#170). Scheduling saves no draft,
+ *  so the queued row is the only copy of the message: cancelling files it in Drafts first, then
+ *  drops the job and the row, and this says which of the three happened. */
 enum class ScheduledCancelReport {
-    /** The message is in Drafts — on the server, or durably on the phone with an upload booked. */
+    /** The message is in Drafts, on the server, or durably on the phone with an upload booked. */
     RETURNED_TO_DRAFTS,
 
     /** The row's account no longer exists, so there was nowhere to file it; the row is dropped. */
     ACCOUNT_GONE,
 
-    /** Filing it failed, so NOTHING was destroyed: the row is still scheduled and still the copy. */
+    /** Filing it failed, so nothing was destroyed: the row is still scheduled and still the copy. */
     NOT_CANCELLED,
 }
 
@@ -32,8 +32,8 @@ data class ScheduledSendDraft(
     val bcc: List<String>,
     val subject: String,
     val body: String,
-    /** The `text/html` part the returned draft is stored with (#131), or null. NOT the row's own
-     *  `htmlBody`, which is the SEND's html: only the part that reads back as styling survives. */
+    /** The `text/html` part the returned draft is stored with (#131), or null. Not the row's own
+     *  `htmlBody`, which is the send's html: only the part that reads back as styling survives. */
     val html: String?,
     val inReplyTo: List<String>,
     val references: List<String>,
@@ -43,12 +43,12 @@ data class ScheduledSendDraft(
 )
 
 /**
- * The scheduled [row] read back into the fields `saveDraft` takes — the same splitting
+ * The scheduled [row] read back into the fields `saveDraft` takes, the same splitting
  */
 fun draftFromScheduledSend(row: ScheduledSendEntity): ScheduledSendDraft {
     // The html first, the stored text as the fallback, and the draft's own html derived from what
-    // came back rather than copied from the row: both halves out of ONE answer. Same accepted cost
-    // as `composeDraftOf` — an unparsable html files a draft holding `- milk` as letters. And the
+    // came back rather than copied from the row: both halves out of one answer. Same accepted cost
+    // as `composeDraftOf`, an unparsable html files a draft holding `- milk` as letters. And the
     // text filed is `toPlainText`, never `rich.text` (#131).
     val rich = richBodyFrom(row.htmlBody) { row.textBody }
     return ScheduledSendDraft(
@@ -77,14 +77,14 @@ fun scheduledCancelReport(outcome: DraftSaveOutcome?): ScheduledCancelReport = w
 }
 
 /**
- * Whether the queued row may now be destroyed — i.e. whether another copy of the text exists, or
+ * Whether the queued row may now be destroyed, i.e. whether another copy of the text exists, or
  * whether there is no account left that could ever send it.
  */
 fun scheduledCancelDropsTheRow(report: ScheduledCancelReport): Boolean =
     report != ScheduledCancelReport.NOT_CANCELLED
 
 /**
- * Cancel the scheduled send [id]: file it in Drafts, and ONLY THEN drop its row and its job (#170).
+ * Cancel the scheduled send [id]: file it in Drafts, and only then drop its row and its job (#170).
  */
 suspend fun <C> cancelScheduledSend(
     id: Long,
@@ -96,7 +96,7 @@ suspend fun <C> cancelScheduledSend(
     deleteRow: suspend (Long) -> Unit,
 ): ScheduledCancelReport? {
     val r = row(id) ?: return null
-    // The boundary, read BEFORE the shelter: a caller already gone leaves the message scheduled.
+    // The boundary, read before the shelter: a caller already gone leaves the message scheduled.
     coroutineContext.ensureActive()
     return withContext(NonCancellable) {
         val c = credentials(r.accountId)
@@ -105,7 +105,7 @@ suspend fun <C> cancelScheduledSend(
             // Not `runCatching { }.getOrNull()`, which reads a cancellation as a failed save.
             c != null -> runCatching { saveDraft(c, draftFromScheduledSend(r)) }
                 .getOrElseUnlessCancelled { return@withContext ScheduledCancelReport.NOT_CANCELLED }
-            // No credentials AND the account really is gone: nowhere to file it, and nothing left
+            // No credentials and the account really is gone: nowhere to file it, and nothing left
             // that could send it.
             accountIsGone(r.accountId) -> null
             // No credentials but the account is still there: we have proved nothing, destroy nothing.

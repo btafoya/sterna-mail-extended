@@ -16,7 +16,7 @@ import app.sterna.core.data.text.Span
 internal fun span(selection: TextRange): Span = Span(selection.min, selection.max)
 
 /**
- * The body as the text field draws it: the text cut at EVERY span boundary, and one `SpanStyle` per
+ * The body as the text field draws it: the text cut at every span boundary, and one `SpanStyle` per
  */
 fun toAnnotatedString(rich: RichBody, linkColor: Color): AnnotatedString {
     if (rich.isPlain) return AnnotatedString(rich.text)
@@ -49,7 +49,7 @@ fun toAnnotatedString(rich: RichBody, linkColor: Color): AnnotatedString {
 }
 
 /**
- * [text] with the body's styling laid on it, ready for the TEXT LAYER — the only place a span may live
+ * [text] with the body's styling laid on it, ready for the text layer, the only place a span may live
  */
 fun styledBody(text: AnnotatedString, rich: RichBody, linkColor: Color): AnnotatedString = when {
     rich.ranges.isEmpty() && rich.links.isEmpty() -> text

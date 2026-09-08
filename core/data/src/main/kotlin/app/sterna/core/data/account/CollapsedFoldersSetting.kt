@@ -2,9 +2,9 @@ package app.sterna.core.data.account
 
 /** The write behind the drawer's collapse chevron, kept out of [AccountStore] for a JVM test. */
 
-/** [accounts] with the collapse choice for [folderId] on the ONE record [id] names.
- * `false` WRITES `false` (absent = undecided); `it.id == id` matters because on IMAP
- *  folder ids are PATHS — without it a fold hits a namesake folder on another account (#92/#121). */
+/** [accounts] with the collapse choice for [folderId] on the one record [id] names.
+ * `false` writes `false` (absent = undecided); `it.id == id` matters because on IMAP
+ *  folder ids are paths, without it a fold hits a namesake folder on another account (#92/#121). */
 internal fun withCollapsedFolder(
     accounts: List<StoredAccount>,
     id: String,
@@ -19,7 +19,7 @@ internal fun withCollapsedFolder(
         }
     }
 
-/** [accounts] with [id]'s fold registry RE-KEYED after a rename ([oldId] + descendants moved
+/** [accounts] with [id]'s fold registry re-keyed after a rename ([oldId] + descendants moved
  * to [newId], same as [AccountStore.replaceWatchedFolder]). Descendant test is the full
  *  prefix + delimiter, never bare, or `Travailleur` would be dragged along with `Travail`. */
 internal fun withRenamedCollapsedFolder(

@@ -7,7 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * [planSelectionDelete] — who is destroyed and who is moved, executed rather than re-derived.
+ * [planSelectionDelete], who is destroyed and who is moved, executed rather than re-derived.
  */
 class SelectionDeletePlanTest {
 
@@ -69,7 +69,7 @@ class SelectionDeletePlanTest {
 
     /**
      * No Trash: the account-level probe answers no, and the move has nowhere the caller can
-     * name. A row we cannot place is then left alone — the caller counts it and says so — instead of being destroyed.
+     * name. A row we cannot place is then left alone (the caller counts it and says so) instead of being destroyed.
      */
     @Test
     fun `on an account with no Trash an untrusted row is left alone, not destroyed`() = runTest {
@@ -100,7 +100,7 @@ class SelectionDeletePlanTest {
     }
 
     /** And the other half of the same shipped rule, through the same plan: a trusted row that IS
-     *  in the Trash is destroyed — otherwise a delete inside the bin moves it onto itself. */
+     *  in the Trash is destroyed, otherwise a delete inside the bin moves it onto itself. */
     @Test
     fun `a trusted row sitting in the Trash is destroyed, by the shipped rule`() = runTest {
         val plan = planSelectionDelete(
@@ -113,7 +113,7 @@ class SelectionDeletePlanTest {
     }
 
     /**
-     * A mixed selection, and the same id in both trust states — the two rows a merge can produce
+     * A mixed selection, and the same id in both trust states, the two rows a merge can produce
      */
     @Test
     fun `the same id trusted and untrusted lands in both legs, in either order`() = runTest {
@@ -135,7 +135,7 @@ class SelectionDeletePlanTest {
     }
 
     /**
-     * The Trash question is about the ACCOUNT, so it is asked once per account. Asked per message
+     * The Trash question is about the account, so it is asked once per account. Asked per message
      */
     @Test
     fun `the Trash is asked about once per account, not once per message`() = runTest {

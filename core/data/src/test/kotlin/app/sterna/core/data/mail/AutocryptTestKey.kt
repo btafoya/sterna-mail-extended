@@ -1,7 +1,7 @@
 package app.sterna.core.data.mail
 
 /**
- * The SAME RSA-4096 public key `:core:imap`'s test fixture holds
+ * The same RSA-4096 public key `:core:imap`'s test fixture holds
  */
 internal object AutocryptTestKey {
 

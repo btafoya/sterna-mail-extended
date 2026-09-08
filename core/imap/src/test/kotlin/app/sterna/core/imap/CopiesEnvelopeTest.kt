@@ -14,7 +14,7 @@ class CopiesEnvelopeTest {
     private fun wire(text: String, charset: Charset): String =
         String(text.toByteArray(charset), Charsets.ISO_8859_1)
 
-    /** An IMAP literal — the only shape RFC 3501 leaves a server for a non-ASCII envelope value. */
+    /** An IMAP literal, the only shape RFC 3501 leaves a server for a non-ASCII envelope value. */
     private fun literal(value: String): String = "{${value.length}}\r\n$value"
 
     /**
@@ -71,7 +71,9 @@ class CopiesEnvelopeTest {
     }
 
     /**
-     * THE SLOT. Index 7 is the blind copy: if it is what the visible `Cc` field is filled from,
+     * The slot. Index 7 is the blind copy: if it is what the visible `Cc` field is filled from,
+     * the app shows (and a reply-all writes to) an address the sender chose to hide. This test
+     * is what an off-by-one dies on, in the direction that leaks.
      */
     @Test
     fun `the bcc is not read as the cc, and the cc is not read as the bcc`() {
@@ -140,7 +142,7 @@ class CopiesEnvelopeTest {
         assertEquals(listOf("Copy Cat", "Billing"), message?.cc?.map { it.name })
     }
 
-    /** No copies at all — the common case: empty lists, and no address borrowed from a neighbour. */
+    /** No copies at all, the common case: empty lists, and no address borrowed from a neighbour. */
     @Test
     fun `a message without copies has empty lists, not borrowed addresses`() {
         val message = fetched(cc = "NIL", bcc = "NIL")
@@ -152,7 +154,7 @@ class CopiesEnvelopeTest {
     }
 
     /**
-     * Slot 6 NIL, slot 7 filled — the shape a fallback survives. Every other fixture here fills
+     * Slot 6 NIL, slot 7 filled, the shape a fallback survives. Every other fixture here fills
      */
     @Test
     fun `a bcc with no cc is not read as the cc`() {

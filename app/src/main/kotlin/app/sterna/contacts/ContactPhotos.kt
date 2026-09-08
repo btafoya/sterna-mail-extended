@@ -29,11 +29,11 @@ object ContactPhotos {
     // a single decode.
     private val cache = PhotoCache<Cached>(MAX_ENTRIES, MAX_BYTES)
 
-    /** What is already in memory for [photoUri] — lets a row draw its photo without a frame of monogram. */
+    /** What is already in memory for [photoUri], lets a row draw its photo without a frame of monogram. */
     fun cached(photoUri: String?): ImageBitmap? = photoUri?.let { cache.get(it)?.image }
 
     /**
-     * The thumbnail for [photoUri], decoded on IO and cached. Returns null — and the caller falls
+     * The thumbnail for [photoUri], decoded on IO and cached. Returns null, and the caller falls
      */
     suspend fun load(context: Context, photoUri: String?): ImageBitmap? {
         if (photoUri.isNullOrBlank()) return null

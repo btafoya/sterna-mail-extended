@@ -4,7 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * RFC 5322 group syntax in an envelope address slot — `Cc: undisclosed-recipients:;` and its
+ * RFC 5322 group syntax in an envelope address slot, `Cc: undisclosed-recipients:;` and its
+ * kin, read off a real socket and, for the decision itself, run directly.
  */
 class GroupSyntaxEnvelopeTest {
 
@@ -86,7 +87,7 @@ class GroupSyntaxEnvelopeTest {
         assertEquals(listOf("copy@masto.top"), message?.cc?.map { it.email })
     }
 
-    /** A group with members is carried BY its members: the delimiters add nothing. */
+    /** A group with members is carried by its members: the delimiters add nothing. */
     @Test
     fun `a group with members is unchanged, the group name does not appear`() {
         val message = fetched(
@@ -149,7 +150,7 @@ class GroupSyntaxEnvelopeTest {
     }
 
     /** The same shape alone in the slot. Hypothetical too: our own round trip now writes
-     *  `undisclosed-recipients:;` and gets a start AND an end back. */
+     *  `undisclosed-recipients:;` and gets a start and an end back. */
     @Test
     fun `a cc that is a bare group start alone reopens with its name`() {
         val message = fetched(cc = "((NIL NIL \"undisclosed-recipients\" NIL))")
@@ -165,9 +166,9 @@ class GroupSyntaxEnvelopeTest {
             cc = "((NIL NIL \"=?utf-8?B?w4lxdWlwZSBTw6ljdXJpdMOp?=\" NIL)(NIL NIL NIL NIL))",
         )
 
-        // The name of a group lives in the MAILBOX field (index 2); index 0 is NIL, which is
+        // The name of a group lives in the mailbox field (index 2); index 0 is NIL, which is
         // why the field was lost in the first place. It gets decodeWords like any other display
-        // name — decodeHeaderBytes alone would hand back the raw =?utf-8?B?…?= to the composer.
+        // name, decodeHeaderBytes alone would hand back the raw =?utf-8?B?…?= to the composer.
         assertEquals(
             listOf(ImapAddress(name = "Équipe Sécurité", email = null)),
             message?.cc,
@@ -212,7 +213,7 @@ class GroupSyntaxEnvelopeTest {
 
     @Test
     fun `pure - a group start followed by a name-only entry is dropped`() {
-        // `Cc: the-list: "Nobody";` — a member can be a display name with no address at all.
+        // `Cc: the-list: "Nobody";`, a member can be a display name with no address at all.
         // A rule that only looked for the `(NIL NIL NIL NIL)` end marker would emit the group
         // name too, and the field would carry a recipient nobody wrote.
         assertEquals(
@@ -230,7 +231,7 @@ class GroupSyntaxEnvelopeTest {
 
     @Test
     fun `pure - two group ends in a row yield nothing`() {
-        // The guard that drops an entry with neither an address nor a name is only NARROWED
+        // The guard that drops an entry with neither an address nor a name is only narrowed
         // by the empty group, never removed: a delimiter must never become a nameless, addressless
         // recipient in the composer's Cc field.
         assertEquals(emptyList<ImapAddress>(), envelopeAddresses(listOf(groupEnd, groupEnd)))
@@ -238,7 +239,7 @@ class GroupSyntaxEnvelopeTest {
 
     @Test
     fun `pure - a group start followed by a group start yields both names`() {
-        // Start, start, end. Neither start is followed by a MEMBER, so both are named
+        // Start, start, end. Neither start is followed by a member, so both are named
         // destinations that name nobody, and both are carried. Pinned as the rule gives it: no
         // sender writes this, and losing a name here is the loss this whole file exists to stop.
         assertEquals(
@@ -268,7 +269,7 @@ class GroupSyntaxEnvelopeTest {
 
     @Test
     fun `pure - an entry with a host is an address, never a group start`() {
-        // The group start is recognised by the ABSENCE of a host. An address whose display name
+        // The group start is recognised by the absence of a host. An address whose display name
         // is missing is not one, and must not lose its address to a group name.
         assertEquals(
             listOf(ImapAddress(name = null, email = "membre@masto.top")),

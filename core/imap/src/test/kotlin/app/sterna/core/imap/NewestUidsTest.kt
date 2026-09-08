@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Reading the NEWEST end of a folder, driven against a scripted server on loopback (#95).
+ * Reading the newest end of a folder, driven against a scripted server on loopback (#95).
  */
 class NewestUidsTest {
 
@@ -30,7 +30,7 @@ class NewestUidsTest {
         }
     }
 
-    /** One command, no envelope fetched to build the list, and `ALL` is the key sent. */
+    /** One command, no envelope fetched to build the list, and `all` is the key sent. */
     @Test
     fun `it costs one UID SEARCH ALL and no fetch`() {
         FakeImapServer { tag, line ->
@@ -77,7 +77,7 @@ class NewestUidsTest {
     }
 
     /**
-     * The ids are the HIGHEST, not merely the last ones listed: RFC 3501 promises no order at all
+     * The ids are the highest, not merely the last ones listed: RFC 3501 promises no order at all
      * for a `SEARCH` response, and "the newest" is a claim about UID values.
      */
     @Test
@@ -117,7 +117,7 @@ class NewestUidsTest {
         }
     }
 
-    /** An empty folder is an empty list — and the caller reads that as "append it". */
+    /** An empty folder is an empty list, and the caller reads that as "append it". */
     @Test
     fun `an empty folder yields nothing`() {
         FakeImapServer { tag, line ->
@@ -149,7 +149,7 @@ class NewestUidsTest {
     }
 
     /**
-     * A refused search THROWS. Answering an empty list instead would be an invented fact — "the
+     * A refused search throws.
      */
     @Test
     fun `a server refusing the search fails instead of reporting an empty folder`() {

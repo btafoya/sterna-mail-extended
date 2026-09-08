@@ -104,7 +104,7 @@ fun SearchScreen(
     val keyboard = LocalSoftwareKeyboardController.current
 
     fun runSearch() {
-        // Fold the keyboard away with the panel: it used to stay up over the results.
+        // Fold the keyboard away with the panel, or it stays up over the results.
         focusManager.clearFocus()
         keyboard?.hide()
         viewModel.search()
@@ -114,7 +114,7 @@ fun SearchScreen(
     // under the search box drives a top overlay, and the results never reflow. form.expanded stays
     // the single source of truth, so a drag only sets it and the snap animation follows.
     //
-    // All of this lives ABOVE the Scaffold rather than inside its content, because the title bar is
+    // All of this lives above the Scaffold rather than inside its content, because the title bar is
     // one of the drag points and Scaffold's topBar cannot see the content's locals.
     val scope = rememberCoroutineScope()
     val motionEnabled = rememberMotionEnabled()
@@ -129,14 +129,15 @@ fun SearchScreen(
     // synchronously, and the only reader of the panel's position on this screen.
     //
     // Not an Animatable, which can only be moved from a coroutine: a nested scroll must answer
-    // "how much did you take?" the instant it is asked, and two touch events drained in one pass of
+    // "how much did you take?" the instant it is asked, even for two touch events drained in one
+    // pass of the input loop.
     var offsetPx by remember { mutableFloatStateOf(0f) }
-    // Kept only to DRIVE the settle animation, not to hold the position. Its mutex is the point:
+    // Kept only to drive the settle animation, not to hold the position. Its mutex is the point:
     // two settles racing cancel each other instead of both writing.
     val animation = remember { Animatable(0f) }
 
     suspend fun glideTo(target: Float) {
-        animation.snapTo(offsetPx) // start from wherever the finger actually left it
+        animation.snapTo(offsetPx) // start from wherever the finger actually left it.
         animation.animateTo(target) { offsetPx = value }
     }
 
@@ -163,7 +164,7 @@ fun SearchScreen(
         viewModel.setExpanded(open)
     }
 
-    // Move the panel by [delta] px and report how much was actually used — a nested scroll has to
+    // Move the panel by [delta] px and report how much was actually used, a nested scroll has to
     // hand back exactly what it took. Read and write are in the same synchronous call, so the panel
     // moves by precisely the number returned.
     fun nudge(delta: Float): Float {
@@ -174,7 +175,7 @@ fun SearchScreen(
     }
 
     // One drag behaviour at every grab point: the handle, the title bar and the free-text field.
-    // Same state, and above all the same release decision — see [searchPanelSettlesOpen].
+    // Same state, and above all the same release decision, see [searchPanelSettlesOpen].
     val dragState = rememberDraggableState { delta -> nudge(delta) }
     val panelDrag = Modifier.draggable(
         orientation = Orientation.Vertical,
@@ -184,7 +185,7 @@ fun SearchScreen(
         },
     )
 
-    // Folding by dragging up from inside the panel is NOT a `draggable`: the panel scrolls, and a
+    // Folding by dragging up from inside the panel is not a `draggable`: the panel scrolls, and a
     // drag modifier over it would swallow that scroll and put the Search button out of reach in
     // exactly the cramped cases the scroll exists for. Nested scroll instead, so the panel's own
     // scroll is served first and the fold gets only what it could not consume.
@@ -193,7 +194,7 @@ fun SearchScreen(
     val panelNestedScroll = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                // Coming back DOWN after a partial fold: pull the panel out again BEFORE its
+                // Coming back down after a partial fold: pull the panel out again before its
                 // content scrolls, or a reversed gesture leaves it stuck half-way.
                 if (source != NestedScrollSource.UserInput || available.y <= 0f) return Offset.Zero
                 if (offsetPx >= panelHeightPx) return Offset.Zero
@@ -205,7 +206,7 @@ fun SearchScreen(
                 available: Offset,
                 source: NestedScrollSource,
             ): Offset {
-                // Going UP: this only runs on what the panel's scroll could not use.
+                // Going up: this only runs on what the panel's scroll could not use.
                 if (source != NestedScrollSource.UserInput || available.y >= 0f) return Offset.Zero
                 return Offset(0f, nudge(available.y))
             }
@@ -213,6 +214,7 @@ fun SearchScreen(
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 // Release. Settle only if this gesture actually moved the panel: when it merely
                 // scrolled the panel's content, the fling belongs to that content and taking it
+                // would stop the list dead.
                 val committed = if (form.expanded) panelHeightPx.toFloat() else 0f
                 if (panelHeightPx == 0 || offsetPx == committed) return Velocity.Zero
                 settle(searchPanelSettlesOpen(offsetPx, panelHeightPx.toFloat(), available.y))
@@ -252,7 +254,7 @@ fun SearchScreen(
     ) { padding ->
         // imePadding: the screen gives the keyboard the room it takes instead of being drawn under it.
         Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
-            // Wrapped rather than modified directly so the strip AROUND the field drags too: the
+            // Wrapped rather than modified directly so the strip around the field drags too: the
             // whole band between the title bar and the handle is one grab area.
             Box(Modifier.fillMaxWidth().then(panelDrag)) {
                 OutlinedTextField(
@@ -266,13 +268,13 @@ fun SearchScreen(
                 )
             }
             // clipToBounds hides the panel where it rests above the handle; weight(1f) is the
-            // results' space AND the overlay's stage, so opening the panel never resizes the list.
+            // results' space and the overlay's stage, so opening the panel never resizes the list.
             Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
-                // The results, at full size UNDER the overlay, with a top inset the height of the
+                // The results, at full size under the overlay, with a top inset the height of the
                 // handle.
                 Column(Modifier.fillMaxSize().padding(top = handleHeight)) {
                     if (!form.expanded) {
-                        // Folded: the criteria the RESULTS came from, never the half-edited form.
+                        // Folded: the criteria the results came from, never the half-edited form.
                         val applied = (state as? SearchState.Results)?.query ?: query
                         CriteriaSummary(applied, onClick = viewModel::togglePanel)
                     }
@@ -304,7 +306,7 @@ fun SearchScreen(
                                 color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.align(Alignment.Center).padding(24.dp),
                             )
-                            // A truncated scan that returned nothing has NOT proven there is
+                            // A truncated scan that returned nothing has not proven there is
                             // nothing: say it stopped short rather than reporting "no results" as a
                             // fact. Routed through the shared decision so the inbox's bar cannot
                             // word the same situation differently.
@@ -328,7 +330,7 @@ fun SearchScreen(
                                         modifier = Modifier.align(Alignment.Center),
                                     )
                                 }
-                                // Unreachable here — spelled out rather than left to an else, so
+                                // Unreachable here, spelled out rather than left to an else, so
                                 // adding a case to the enum has to be answered here too.
                                 SearchDisplay.SPINNER -> LoadingRing(Modifier.align(Alignment.Center))
                                 SearchDisplay.RESULTS -> LazyColumn(Modifier.fillMaxSize()) {
@@ -386,7 +388,7 @@ fun SearchScreen(
                     // field each cut the height it gets, and without this the flagged switch and
                     // the Search button are clipped away with no gesture to bring them back.
                     //
-                    // nestedScroll sits OUTSIDE verticalScroll on purpose: that order makes the
+                    // nestedScroll sits outside verticalScroll on purpose: that order makes the
                     // scroll the first served and the fold the second.
                     Column(
                         Modifier
@@ -403,7 +405,7 @@ fun SearchScreen(
                             keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                         )
-                        // Matches To OR Cc: a message that only carries the address in copy was
+                        // Matches To or Cc: a message that only carries the address in copy was
                         // still received at it, so one field and no To/Cc switch.
                         OutlinedTextField(
                             value = query.recipient,
@@ -470,7 +472,7 @@ fun SearchScreen(
                 }
 
                 // The separator / drag handle: the drawer's moving edge, riding at the panel's
-                // bottom — the line under the search box when closed, then travelling DOWN with the
+                // bottom, the line under the search box when closed, then travelling down with the
                 // panel. Drawn last so it stays on top of the panel's bottom edge, and a tap toggle
                 // as well as a drag, for reach.
                 Box(
@@ -518,7 +520,7 @@ private fun CriteriaSummary(query: SearchQuery, onClick: () -> Unit) {
             SearchCriterion.ATTACHMENT -> stringResource(R.string.search_has_attachment)
             SearchCriterion.FLAGGED -> stringResource(R.string.search_flagged)
             // The date labels are already worded as prepositions, so they take the value without a
-            // colon — hence a second join pattern.
+            // colon, hence a second join pattern.
             SearchCriterion.AFTER -> stringResource(
                 R.string.search_criteria_pair_date,
                 stringResource(R.string.search_after),

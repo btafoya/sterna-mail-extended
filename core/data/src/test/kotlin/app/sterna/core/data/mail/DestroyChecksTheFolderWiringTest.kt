@@ -5,14 +5,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * THIS TEST READS SOURCE TEXT — the last resort, exactly as [ChunkedIdReadsSourceTest] says:
+ * This test reads source text, the last resort, exactly as [ChunkedIdReadsSourceTest] says:
  */
 class DestroyChecksTheFolderWiringTest {
 
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
-    /** The code lines of [body] naming [needle] — comments dropped, so prose can neither satisfy
+    /** The code lines of [body] naming [needle], comments dropped, so prose can neither satisfy
      *  a rule nor break one. Whole lines: the assertions compare them, never search inside them. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }
@@ -20,7 +20,7 @@ class DestroyChecksTheFolderWiringTest {
             .filter { needle in it }
 
     @Test fun theDestroyRequestCarriesTheSURVIVORS_notTheWaveItWasHanded() {
-        // THE line of #122. Handing `emailIds` (or any re-derivation of it) to the destroyer is
+        // The line of #122. Handing `emailIds` (or any re-derivation of it) to the destroyer is
         // the defect itself: the rescued message is destroyed in the folder it was rescued into.
         assertEquals(
             "destroyAll must destroy the ids the server just confirmed are still in the expected " +
@@ -31,7 +31,7 @@ class DestroyChecksTheFolderWiringTest {
     }
 
     /**
-     * The door the fix of #122 left open: the destroy of ONE draft. `destroyDraft`'s JMAP branch
+     * The door the fix of #122 left open: the destroy of one draft. `destroyDraft`'s JMAP branch
      */
     @Test fun aDraftIsDestroyedThroughTheSameCheck_neverStraightOnTheWire() {
         val body = bodyOf("destroyDraft")
@@ -132,7 +132,7 @@ class DestroyChecksTheFolderWiringTest {
 
     @Test fun aSparedWaveSaysSoInTheSyncLog() {
         // A guard doing its job and a server that never reports `mailboxIds` at all look IDENTICAL
-        // from outside: both spare, both destroy nothing. The second would be total and permanent,
+        // from outside: both spare, both destroy nothing.
         val body = bodyOf("destroyAll")
         assertEquals(
             "the spared ids must be logged, and only when there are some",
@@ -159,7 +159,7 @@ class DestroyChecksTheFolderWiringTest {
     }
 
     @Test fun theWaveLoopStillDrainsWhateverTheServerSays() {
-        // Invariant, not decoration: read a wave → destroy → delete THE WHOLE WAVE. Ids the check
+        // Invariant, not decoration: read a wave → destroy → delete the whole wave. Ids the check
         // spared must leave the snapshot too, or the loop reads them again forever; and the delete
         // must stay behind the destroy, so a killed process resumes on exactly the ids left.
         val lines = bodyOf("purgeSnapshot").lines().map { it.trim() }

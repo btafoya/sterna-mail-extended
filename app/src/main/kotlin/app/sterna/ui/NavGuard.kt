@@ -9,21 +9,22 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavBackStackEntry
 
 /** True only while this lifecycle is the resumed (settled, on-top) one. A destination
- *  mid-transition is at most STARTED, and one just navigated away from drops out of RESUMED
+ *  mid-transition is at most started, and one just navigated away from drops out of RESUMED
  *  synchronously, so the whole re-entrancy question reduces to this one read. */
 private fun Lifecycle.isSettled(): Boolean = currentState == Lifecycle.State.RESUMED
 
 private fun NavBackStackEntry.isSettled(): Boolean = lifecycle.isSettled()
 
 /**
- * THE single decision point for every navigation action in the app. A new NavHost that forgets it is
+ * The single decision point for every navigation action in the app. A new NavHost that forgets it is
+ * (MainNavHost) and the settings graph alike. Every `nav.navigate(...)` / `nav.popBackStack()`
  */
 internal fun NavBackStackEntry.navigateOnce(action: () -> Unit) {
     if (isSettled()) action()
 }
 
 /**
- * The same guarantee as [navigateOnce] for an action that LEAVES the app (#106 follow-up: a double
+ * The same guarantee as [navigateOnce] for an action that leaves the app (#106 follow-up: a double
  */
 @Composable
 internal fun rememberLeaveOnce(entry: NavBackStackEntry): (() -> Boolean) -> Unit =
@@ -49,7 +50,7 @@ private fun rememberLeaveOnce(lifecycle: Lifecycle): (() -> Boolean) -> Unit {
     return { action -> latch.leave(lifecycle.isSettled(), action) }
 }
 
-/** The decision [rememberLeaveOnce] makes, on its own so it can be tested without a composition —
+/** The decision [rememberLeaveOnce] makes, on its own so it can be tested without a composition,
  *  which is why the caller's `startActivity` has to report back rather than swallow its exception.
  *  Plain fields, not Compose state: nothing reads the latch while composing. */
 internal class LeaveLatch {

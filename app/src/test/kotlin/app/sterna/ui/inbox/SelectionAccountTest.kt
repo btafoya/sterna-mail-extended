@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The move-to-folder picker offers the SELECTION's account folders, so a secondary-account message
+ * The move-to-folder picker offers the selection's account folders, so a secondary-account message
  */
 class SelectionAccountTest {
     private fun key(account: String?, id: String) = EmailKey(account, id)

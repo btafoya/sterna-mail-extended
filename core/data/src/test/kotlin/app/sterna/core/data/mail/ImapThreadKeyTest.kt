@@ -8,6 +8,7 @@ import org.junit.Test
 
 /**
  * An IMAP account folds into conversations like a JMAP one: the thread key is rebuilt on the
+ * client from the threading headers, and [ImapMessage.toEntity] writes it into the row.
  */
 class ImapThreadKeyTest {
 
@@ -68,7 +69,9 @@ class ImapThreadKeyTest {
     }
 
     /**
-     * A bracket-less `References` naming SEVERAL ids keys on the FIRST word, wrapped. Were the
+     * A bracket-less `References` naming several ids keys on the first word, wrapped. Were the
+     * whole value wrapped instead (`<a@x b@x c@x>`), two messages of one chain would fork by the
+     * length of their list; and the same rule holds for a bracket-less `In-Reply-To`.
      */
     @Test fun aBareReferencesWithSeveralIdsKeysOnTheFirstWord() {
         assertEquals("<a@x>", imapThreadKey("a@x b@x c@x", null, null))

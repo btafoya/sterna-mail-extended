@@ -17,7 +17,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * What the body field DRAWS for a rich body (#131): the text cut at every span boundary, one
+ * What the body field draws for a rich body (#131): the text cut at every span boundary, one
  */
 class RichBodyStyleTest {
 
@@ -87,7 +87,7 @@ class RichBodyStyleTest {
     }
 
     /**
-     * A list AND a link on one body. The two never meet and that is the point: the markers are
+     * A list and a link on one body.
      */
     @Test
     fun `a body with a list and a link draws the link at the model's own offsets`() {

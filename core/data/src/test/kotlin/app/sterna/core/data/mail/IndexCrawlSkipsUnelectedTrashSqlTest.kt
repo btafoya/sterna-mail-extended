@@ -8,7 +8,7 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * The OTHER half of "a second trash never surfaces in search": the index build itself
+ * The other half of "a second trash never surfaces in search": the index build itself
  */
 class IndexCrawlSkipsUnelectedTrashSqlTest {
     private lateinit var db: Connection
@@ -112,7 +112,7 @@ class IndexCrawlSkipsUnelectedTrashSqlTest {
     }
 
     /**
-     * The case this branch exists for: the SECOND trash, the one that lost the role and is stored
+     * The case this branch exists for: the second trash, the one that lost the role and is stored
      */
     @Test fun theCrawlSkipsAnUnelectedTrashAndAnUnelectedJunk() {
         folder("mb-inbox", role = "inbox")

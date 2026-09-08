@@ -21,7 +21,8 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * READING the raw header fields of SEVERAL messages in one call — what the body prefetch needs to
+ * Reading the raw header fields of several messages in one call, what the body prefetch needs to
+ * name a forwarded message's real author on the twenty inbox messages it caches (#160).
  */
 class OriginSenderHeadersOnTheWireTest {
 
@@ -61,7 +62,7 @@ class OriginSenderHeadersOnTheWireTest {
 
     private fun field(name: String, value: String) = """{"name":"$name","value":"$value"}"""
 
-    /** The `Email/get` arguments of a recorded request — what the server was actually asked. */
+    /** The `Email/get` arguments of a recorded request, what the server was actually asked. */
     private fun argumentsOf(request: RecordedRequest) =
         Json.parseToJsonElement(request.body.readUtf8())
             .jsonObject["methodCalls"]!!.jsonArray.single()
@@ -70,7 +71,7 @@ class OriginSenderHeadersOnTheWireTest {
     // -- 1. the request, pinned whole ------------------------------------------------------------
 
     /**
-     * `properties: ["id","headers"]` and NOTHING else — no `bodyValues`, no `header:` property, no
+     * `properties: ["id","headers"]` and nothing else, no `bodyValues`, no `header:` property, no
      * subject. The whole arguments object is compared, so an added key fails this test.
      */
     @Test fun `the grouped call asks for the ids and their headers, and for nothing else`() = runBlocking {
@@ -109,7 +110,9 @@ class OriginSenderHeadersOnTheWireTest {
     // -- 2. the split, pinned as a union ---------------------------------------------------------
 
     /**
-     * Five ids on a server that admits to two per get: MORE THAN ONE request, and the union of
+     * Five ids on a server that admits to two per get: more than one request, and the union of
+     * everything asked for is exactly the five given, no id dropped, none asked for twice, and no
+     * batch carrying more than the server said it would accept.
      */
     @Test fun `a server with a small get limit is asked in several batches, losing no id`() = runBlocking {
         val ids = listOf("m1", "m2", "m3", "m4", "m5")

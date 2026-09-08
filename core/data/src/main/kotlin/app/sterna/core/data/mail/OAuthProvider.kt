@@ -19,8 +19,8 @@ data class OAuthProvider(
 
     companion object {
         /** Outlook / Microsoft (personal + work/school) over IMAP+SMTP with XOAUTH2. Requires a
-         *  registered public Azure app (Entra ID → App registrations): Authentication → "Allow
-         *  that registration's (public, non-secret) client id into [clientId]. */
+         *  registered public Azure app (Entra ID, App registrations) with public client flows
+         *  allowed; that registration's (public, non-secret) client id goes into [clientId]. */
         val MICROSOFT = OAuthProvider(
             id = "microsoft",
             clientId = "46f1f544-a6df-45d0-9d26-3e4dad7a6c12",

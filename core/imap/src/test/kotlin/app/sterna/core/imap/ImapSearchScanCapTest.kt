@@ -9,6 +9,7 @@ import java.time.ZoneOffset
 
 /**
  * The attachment scan's ceiling, driven on a real socket: when a folder is deeper than the walk is
+ * allowed to look, and what that costs the folders next to it.
  */
 class ImapSearchScanCapTest {
 
@@ -21,6 +22,8 @@ class ImapSearchScanCapTest {
 
     /**
      * A folder the walk got through end to end: every candidate was examined, so what it kept IS
+     * the answer for that folder. The witness, without it, "marked incomplete" could just be a
+     * constant and every search would call itself partial.
      */
     @Test
     fun `a folder walked to the end under the scan cap answers in full`() {
@@ -43,7 +46,9 @@ class ImapSearchScanCapTest {
     }
 
     /**
-     * The same folder, deeper than the walk may go: it keeps what it found on the way and SAYS the
+     * The same folder, deeper than the walk may go: it keeps what it found on the way and says the
+     * answer is short. Both halves matter, dropping the hits would lose mail the user can see is
+     * there, and dropping the flag would pass a partial scan off as the whole folder.
      */
     @Test
     fun `a folder deeper than the scan cap keeps what it found and says the answer is short`() {
@@ -67,7 +72,7 @@ class ImapSearchScanCapTest {
     }
 
     /**
-     * THE witness that matters, and the case no test covered: several folders, ONE of them
+     * The witness that matters, and the case no test covered: several folders, one of them
      */
     @Test
     fun `one saturated folder makes the walk short without costing the other folders their hits`() {
@@ -152,7 +157,7 @@ class ImapSearchScanCapTest {
     }
 
     /**
-     * What keeps the scan affordable: the attachment filter narrows a set the SERVER already cut
+     * What keeps the scan affordable: the attachment filter narrows a set the server already cut
      */
     @Test
     fun `the attachment scan filters what the server already narrowed rather than replacing the query`() {
@@ -174,7 +179,7 @@ class ImapSearchScanCapTest {
                 listOf("""UID SEARCH FROM "alex.rivera@masto.top" SINCE 1-Jun-2026"""),
                 server.issued().filter { it.startsWith("UID SEARCH") },
             )
-            // One FETCH, of the three the server picked — not a crawl over the folder.
+            // One FETCH, of the three the server picked, not a crawl over the folder.
             val fetches = server.issued().filter { it.startsWith("UID FETCH") }
             assertEquals(1, fetches.size)
             assertEquals(narrowed, uidsOf(fetches.single()).sorted())

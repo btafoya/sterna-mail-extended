@@ -49,7 +49,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * `Reporting-UA` names the product and NOTHING else. The classic form of the field is
+     * `Reporting-UA` names the product and nothing else.
      */
     @Test fun `the reporting UA names no host and no version`() {
         assertEquals("Sterna Mail", READ_RECEIPT_UA)
@@ -63,7 +63,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * A `Message-ID` read out of a received message arrives WITH its angle brackets — that is how
+     * A `Message-ID` read out of a received message arrives with its angle brackets, that is how
      */
     @Test fun `a message id arrives wrapped in angle brackets and is not wrapped twice`() {
         val entity = readReceiptEntity("B", "hi", "ann@example.org", "<abc@sender.example>")
@@ -193,7 +193,8 @@ class ReadReceiptMailTest {
     // ---- 2. the text shown IS the text sent ---------------------------------------------------
 
     /**
-     * ONE function decides the wording, and the proof is executed: the body of the outbox row, the
+     * One function decides the wording, and the proof is executed: the body of the outbox row, the
+     * text base64'd inside the entity and what [readReceiptPreview] returns are the same string.
      */
     @Test fun `the text shown, the text in the row and the text in the entity are one string`() {
         val mail = mail(subject = "Quarterly report")!!
@@ -209,7 +210,7 @@ class ReadReceiptMailTest {
         assertEquals(preview.subject, mail.subject)
     }
 
-    /** The wording itself, pinned — fixed English, and it promises only what an MDN can keep. */
+    /** The wording itself, pinned, fixed English, and it promises only what an MDN can keep. */
     @Test fun `the wording is fixed english and claims only that the message was displayed`() {
         val preview = readReceiptPreview("Quarterly report", "ann@example.org")
 
@@ -242,7 +243,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * NONE of this is translated, and none of it may become so.
+     * None of this is translated, and none of it may become so.
      */
     @Test fun `none of the receipt wording is a translatable resource`() {
         val strings = locate("app/src/main/res/values/strings.xml").readText()
@@ -259,9 +260,9 @@ class ReadReceiptMailTest {
                 fixed in strings,
             )
         }
-        // READ_RECEIPT_UA is deliberately NOT on that list: "Sterna Mail" is also the app's own
-        // label, `app_name`, and it is legitimately translated THERE. What matters is that the
-        // receipt does not read it from there — hence the source check below, and the fact that
+        // READ_RECEIPT_UA is deliberately not on that list: "Sterna Mail" is also the app's own
+        // label, `app_name`, and it is legitimately translated there. What matters is that the
+        // receipt does not read it from there, hence the source check below, and the fact that
         // this module cannot see `R` at all.
         val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/ReadReceiptMail.kt").readText()
         listOf("R.string", "getString", "Locale", "stringResource").forEach { forbidden ->
@@ -288,6 +289,9 @@ class ReadReceiptMailTest {
 
     /**
      * The account's own identity travels with the receipt (issue #31): a delegated sub-account is
+     * submitted through its LOGIN, so without this the sender gets a receipt from an address they
+     * never wrote to, about a message they will not recognise. The same address is what the
+     * notification reports as the mailbox that received.
      */
     @Test fun `the account identity is carried, and is what the notification reports`() {
         val mail = readReceiptMail(
@@ -311,10 +315,10 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * THE ADDRESS THAT RECEIVED wins — it is a parameter, not a guess.
+     * The address that received wins, it is a parameter, not a guess.
      */
     @Test fun `the address the message arrived at is what the receipt reports`() {
-        // The three addresses are deliberately DIFFERENT. An alias that received without having
+        // The three addresses are deliberately different. An alias that received without having
         // an identity of its own is the only shape that can tell the three apart: with
         // deliveredTo == identityEmail, dropping deliveredTo from the rule changes nothing and the
         // test proves nothing about it.
@@ -348,6 +352,8 @@ class ReadReceiptMailTest {
 
     /**
      * When the caller does not know which address received, the identity's own answers, then the
+     * login. A receipt naming the account's default alias is worse than one naming the right alias,
+     * and better than none, but it is the last answer, never the first.
      */
     @Test fun `an unknown delivery address falls back to the identity, then to the login`() {
         val viaIdentity = readReceiptMail(
@@ -373,7 +379,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * The identity is CHOSEN by the address that received, not taken as the first one stored.
+     * The identity is chosen by the address that received, not taken as the first one stored.
      */
     @Test fun `the identity is the one whose address received the message`() {
         val identities = listOf(
@@ -425,7 +431,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * The sender is NOT learned into the contact suggestions.
+     * The sender is not learned into the contact suggestions.
      */
     @Test fun `a receipt teaches nothing to the contact suggestions`() {
         assertEquals(false, mail()!!.learnRecipients)
@@ -437,7 +443,7 @@ class ReadReceiptMailTest {
     // ---- 4. nothing at all to answer ----------------------------------------------------------
 
     /**
-     * An empty address list must produce NOTHING, and must not throw.
+     * An empty address list must produce nothing, and must not throw.
      */
     @Test fun `nothing to answer builds nothing and throws nothing`() {
         assertNull(mail(receiptTo = emptyList()))
@@ -447,10 +453,10 @@ class ReadReceiptMailTest {
         assertNull(mail(receiptTo = ReadReceiptHeader.recipients("<>")))
     }
 
-    // ---- 5. the hand-over to the outbox, read out of the shipped source: a LAST RESORT ---------
+    // ---- 5. the hand-over to the outbox, read out of the shipped source: a last resort ---------
 
     /**
-     * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `MailRepository.kt` as text and proves nothing
+     * Source lint, not a behaviour test. It reads `MailRepository.kt` as text and proves nothing
      */
     @Test fun `the repository hands each field to the argument of the same name`() {
         val lines = sendReadReceiptBody().lines().map { it.trim() }
@@ -461,7 +467,7 @@ class ReadReceiptMailTest {
                 sendReadReceiptBody(),
             "val mail = readReceiptMail(" in lines,
         )
-        // …and WHAT it is called with, line by line. Checking only that the call exists leaves
+        // …and what it is called with, line by line. Checking only that the call exists leaves
         // three edits that compile, keep everything green, and ship a broken receipt every time:
         listOf(
             "receiptTo = receiptTo,",
@@ -497,7 +503,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * SOURCE LINT, its own test — deliberately not folded into the one above. A failed assertion
+     * Source lint, its own test, deliberately not folded into the one above. A failed assertion
      */
     @Test fun `the boundary is drawn fresh for each receipt`() {
         val lines = sendReadReceiptBody().lines().map { it.trim() }
@@ -508,7 +514,7 @@ class ReadReceiptMailTest {
         )
     }
 
-    /** SOURCE LINT, its own test. The identity is chosen, not taken as the first one stored. */
+    /** Source lint, its own test. The identity is chosen, not taken as the first one stored. */
     @Test fun `the identity is chosen from the address that received`() {
         val lines = sendReadReceiptBody().lines().map { it.trim() }
 
@@ -519,7 +525,7 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * SOURCE LINT, its own test. What was queued is handed back, so the banner shows those strings
+     * Source lint, its own test. What was queued is handed back, so the banner shows those strings
      * instead of deriving "the address that received" a second time and drifting from them.
      */
     @Test fun `what was queued is handed back for the banner`() {
@@ -529,7 +535,8 @@ class ReadReceiptMailTest {
     }
 
     /**
-     * SOURCE LINT, its own test. The empty-list guard is `?: return null` on the builder's result —
+     * Source lint, its own test. The empty-list guard is `?: return null` on the builder's result,
+     * before the outbox is touched.
      */
     @Test fun `nothing to answer returns before the outbox is touched`() {
         val lines = sendReadReceiptBody().lines().map { it.trim() }

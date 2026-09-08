@@ -6,14 +6,14 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
- * The decision a composer opened on a saved draft is drawn from, EXECUTED — not read as text.
+ * The decision a composer opened on a saved draft is drawn from, executed, not read as text.
  */
 class DraftReopenViewTest {
 
     // -- what a draft that could not be read says -----------------------------------------------
 
     /**
-     * THE TWO SENTENCES, PINNED ON THEIR RESOURCE. They ask for opposite things: offline, the
+     * The two sentences, pinned on their resource.
      */
     @Test fun `offline and a live link do not get the same sentence`() {
         assertEquals(R.string.compose_draft_offline, draftLoadNoticeFor(offline = true))
@@ -44,7 +44,7 @@ class DraftReopenViewTest {
     }
 
     /**
-     * LOADING WINS. This is the case an "obvious" simplification gets wrong — test the failure
+     * Loading wins. This is the case an "obvious" simplification gets wrong, test the failure
      */
     @Test fun `a fetch in flight outranks a notice left from an earlier attempt`() {
         assertEquals(
@@ -70,7 +70,7 @@ class DraftReopenViewTest {
     }
 
     /**
-     * THE NOTICE IS TRANSPORTED, NOT RE-CHOSEN. Asserted with an id that is not either of the
+     * The notice is transported, not re-chosen.
      */
     @Test fun `the dead end hands back the exact notice it was given`() {
         assertEquals(
@@ -82,7 +82,7 @@ class DraftReopenViewTest {
     // -- once the draft HAS been shown, nothing may take it off the screen ----------------------
 
     /**
-     * A SCREEN THAT ALREADY SHOWED THE DRAFT MAY NOT HIDE IT AGAIN, EVEN WHILE A FETCH IS OUT.
+     * A screen that already showed the DRAFT may not hide it again, even while a FETCH is out.
      */
     @Test fun `a draft already shown stays on screen while a fetch is out`() {
         assertEquals(
@@ -92,7 +92,7 @@ class DraftReopenViewTest {
     }
 
     /**
-     * AND EVEN WHEN THAT FETCH FAILED. The dead end's whole claim is "there is nothing here to
+     * And even when that FETCH failed.
      */
     @Test fun `a draft already shown stays on screen even after the fetch failed`() {
         assertEquals(

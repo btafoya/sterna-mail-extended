@@ -8,6 +8,10 @@ import org.junit.Test
 
 /**
  * The eviction decisions of a sync (see SyncEvictions.kt): which cached ids a delta drops, which
+ * the ghost sweep drops, and which the retention window drops. The first two encode the ghost
+ * invariant (an externally-destroyed message must leave the cache within one sync cycle)
+ * without reopening the recently-mutated spare's protections (a live row is never pruned off a
+ * stale snapshot; only an authoritative per-id notFound overrides the spare).
  */
 class SyncEvictionsTest {
 
@@ -38,7 +42,7 @@ class SyncEvictionsTest {
 
     @Test fun protectedRemovalIsSpared() {
         // A delta computed from a pre-mutation query state can report a just-flagged row as
-        // removed although it only changed a keyword — the spare must keep it (audit C9).
+        // removed although it only changed a keyword, the spare must keep it (audit C9).
         val out = deltaEvictions(
             removed = listOf("justFlagged", "reallyGone"),
             added = emptySet(),
@@ -50,7 +54,7 @@ class SyncEvictionsTest {
 
     @Test fun protectedDestroyIsSparedByTheDeltaButCaughtByTheSweep() {
         // Documents the residual C9 hazard: a spared id's destroy notice is filtered while
-        // the cursors advance past it — the DELTA never prunes it...
+        // the cursors advance past it, the delta never prunes it...
         val delta = deltaEvictions(
             removed = listOf("ghost"),
             added = emptySet(),
@@ -59,8 +63,8 @@ class SyncEvictionsTest {
         )
         assertEquals(emptyList<String>(), delta)
         // ...but the ghost sweep does, because Email/get's notFound is an authoritative point
-        // lookup that the spare deliberately does not shield. WHETHER that sweep runs in this
-        // cycle is a separate question, decided by shouldSweepGhosts — see the #107 probe cases.
+        // lookup that the spare deliberately does not shield. Whether that sweep runs in this
+        // cycle is a separate question, decided by shouldSweepGhosts, see the #107 probe cases.
         val swept = ghostEvictions(cachedIds = listOf("ghost", "alive"), notFound = setOf("ghost"))
         assertEquals(listOf("ghost"), swept)
     }
@@ -69,13 +73,13 @@ class SyncEvictionsTest {
 
     @Test fun aDestroyArrivingInsideTheSparingWindowIsNamedAsADestroy() {
         // The scenario the class doc admits to and nothing asserted until now: the server says the
-        // message is GONE while the id is still inside its 45 s local-mutation window (the user
+        // message is gone while the id is still inside its 45 s local-mutation window (the user
         // read or flagged it moments before it was destroyed elsewhere). The delta keeps the row…
         val removed = listOf("ghost")
         val destroyed = listOf("ghost")
         val protect: (String) -> Boolean = { it == "ghost" }
         assertEquals(emptyList<String>(), deltaEvictions(removed, setOf(), destroyed, protect))
-        // …and the log must say WHICH row and that it was a destroy, not a mere removal — that
+        // …and the log must say which row and that it was a destroy, not a mere removal, that
         // word is the whole difference between a benign spare and a ghost.
         assertEquals(
             listOf("ghost" to SpareReason.DESTROY),
@@ -84,7 +88,7 @@ class SyncEvictionsTest {
     }
 
     @Test fun aDestroyOutranksARemovalForTheSameId() {
-        // Reported in both deltas at once: "removal" would understate it — the message is gone.
+        // Reported in both deltas at once: "removal" would understate it, the message is gone.
         assertEquals(
             listOf("x" to SpareReason.DESTROY),
             sparedEvictions(listOf("x"), emptySet(), listOf("x"), isProtected = { true }),
@@ -93,7 +97,7 @@ class SyncEvictionsTest {
 
     @Test fun aSparedRemovalIsReportedAsSuchAndNotAsADestroy() {
         // The spare's normal, benign job: a just-flagged row reported as removed off a
-        // pre-mutation query state. It must NOT be logged as a destroy, or the log cries wolf
+        // pre-mutation query state. It must not be logged as a destroy, or the log cries wolf
         // on every flag change and the real losses drown in it.
         assertEquals(
             listOf("justFlagged" to SpareReason.REMOVAL),
@@ -115,7 +119,7 @@ class SyncEvictionsTest {
     }
 
     @Test fun aReorderedRowIsNotReportedAsSpared() {
-        // Present in removed AND added = a reorder. Nothing was skipped, so nothing to log.
+        // Present in removed and added = a reorder. Nothing was skipped, so nothing to log.
         assertEquals(
             emptyList<Pair<String, SpareReason>>(),
             sparedEvictions(listOf("e1"), setOf("e1"), emptyList(), isProtected = { true }),
@@ -155,7 +159,7 @@ class SyncEvictionsTest {
     private val day = 86_400_000L
     private val now = 1_800_000_000_000L
 
-    /** The default account setting: DAYS_90 — 90 days of mail, 200 messages a page. */
+    /** The default account setting: DAYS_90, 90 days of mail, 200 messages a page. */
     private val cutoff90 = now - 90 * day
     private val floor200 = 200
 
@@ -165,9 +169,9 @@ class SyncEvictionsTest {
 
     @Test fun theFreshPageIsNeverPrunedByTheAgeWindow() {
         // Codeberg #110 in the reporter's own numbers: a ten-message folder, eight of them from
-        // December, on the default 90-day window. The refresh re-queried the folder and the
+        // December, on the default 90-day window.
         //
-        // keepNewest is 0 here ON PURPOSE, so the floor cannot be what saves them: this asserts
+        // keepNewest is 0 here on purpose, so the floor cannot be what saves them: this asserts
         // the fresh-ids clause alone, on the deep-folder case where the floor does not reach.
         val cached = (1..8).map { row("dec$it", 220) } + row("jul17", 13) + row("jul29", 1)
         val fresh = cached.mapTo(HashSet()) { it.id }
@@ -180,7 +184,7 @@ class SyncEvictionsTest {
     @Test fun anOldRowTheFreshPageDidNotCarryIsStillPruned() {
         // The negative witness, and the reason the case above proves anything: sparing what the
         // sync fetched must not amount to switching the window off. A row that has fallen off the
-        // server's newest page AND out of the window is exactly what retention is for.
+        // server's newest page and out of the window is exactly what retention is for.
         val cached = listOf(row("stillThere", 220), row("scrolledInLongAgo", 400), row("recent", 1))
         assertEquals(
             listOf("scrolledInLongAgo"),
@@ -197,6 +201,7 @@ class SyncEvictionsTest {
     @Test fun whatAnIncrementalDeltaJustFetchedIsSparedLikeAFullPage() {
         // The delta branch's half of #110, composed from the two shipped functions rather than
         // asserted on hand-made sets. A Sieve rule files a 2019 message into a deep folder: the
+        // delta reports it added, the cache has never held it, so the sync fetches and writes it.
         val cachedIds = (1..250).mapTo(HashSet()) { "m$it" }
         val fetched = deltaFetches(added = setOf("sieveFiled2019"), cachedIds = cachedIds, updated = emptyList())
         val cache = (1..250).map { row("m$it", 200) } + row("sieveFiled2019", 2500)
@@ -211,7 +216,7 @@ class SyncEvictionsTest {
                 keepNewest = floor200,
             ).filter { it == "sieveFiled2019" },
         )
-        // Control: had the delta reported nothing — the defect this replaced — the same row goes.
+        // Control: had the delta reported nothing (the defect this replaced) the same row goes.
         assertTrue(
             "with no fetched ids reported, the prune deletes the message the sync just delivered",
             "sieveFiled2019" in retentionEvictions(
@@ -234,7 +239,7 @@ class SyncEvictionsTest {
             emptyList<String>(),
             retentionEvictions(cache, cutoff90, freshIds = null, spareIds = emptySet(), keepNewest = 0),
         )
-        // The empty set, on the same input, DOES prune — otherwise the case above would pass for
+        // The empty set, on the same input, DOES prune, otherwise the case above would pass for
         // the wrong reason and null would be indistinguishable from empty.
         assertEquals(
             listOf("old"),
@@ -244,7 +249,7 @@ class SyncEvictionsTest {
 
     @Test fun theRecentlyMutatedSpareIsNotUndoneByTheWindow() {
         // The reconcile spares a locally-restored row from the fresh page's reconcile
-        // (EmailDao.deleteNotInSparing); the prune runs a few lines later on the same folder and
+        // (EmailDao.deleteNotInSparing);
         val cache = (1..200).map { row("page$it", 5) } + row("undone2019", 2500)
         assertEquals(
             emptyList<String>(),
@@ -256,7 +261,7 @@ class SyncEvictionsTest {
                 keepNewest = floor200,
             ),
         )
-        // Without the spare set the same refresh eats it — this is what the clause buys.
+        // Without the spare set the same refresh eats it, this is what the clause buys.
         assertEquals(
             listOf("undone2019"),
             retentionEvictions(
@@ -290,7 +295,7 @@ class SyncEvictionsTest {
 
     @Test fun aFolderSmallerThanTheFloorLosesNothingAtAll() {
         // The reporter's folder on a sync with nothing to spare. Ten rows against a floor of 200
-        // takes the short-circuit — no row can possibly be outside the newest 200 — which is
+        // takes the short-circuit (no row can possibly be outside the newest 200) which is
         // exactly the shape of every small mailbox and worth pinning as such. The case below is
         // the one that exercises the floor's actual computation.
         val cached = (1..8).map { row("dec$it", 220) } + row("jul17", 13) + row("jul29", 1)
@@ -380,7 +385,7 @@ class SyncEvictionsTest {
 
     @Test fun accountWideActivityAloneDoesNotResweep() {
         // The regression this gate exists for: Email/changes' state is account-wide, so it
-        // advances on activity in ANY folder. Sweeping on that alone re-verified the whole
+        // advances on activity in any folder. Sweeping on that alone re-verified the whole
         // cache of every watched mailbox on nearly every incremental sync.
         assertFalse(
             shouldSweepGhosts(
@@ -391,8 +396,8 @@ class SyncEvictionsTest {
     }
 
     @Test fun aRemovalInThisMailboxSweepsAtOnce() {
-        // Something genuinely left THIS folder — the shape of a destroy the recently-mutated
-        // spare can swallow — so verify immediately rather than waiting out the floor.
+        // Something genuinely left THIS folder, the shape of a destroy the recently-mutated
+        // spare can swallow, so verify immediately rather than waiting out the floor.
         assertTrue(
             shouldSweepGhosts(
                 firstThisSession = false, stateAdvanced = true, vanishedFromMailbox = true,
@@ -402,8 +407,8 @@ class SyncEvictionsTest {
     }
 
     @Test fun theFloorLetsTheSilentDestroyCaseThroughAgain() {
-        // Some servers report a destroy in NEITHER delta (verified against Stalwart on a
-        // delegated view), so the recurring sweep still has to run — once per interval.
+        // Some servers report a destroy in neither delta (verified against Stalwart on a
+        // delegated view), so the recurring sweep still has to run, once per interval.
         assertTrue(
             shouldSweepGhosts(
                 firstThisSession = false, stateAdvanced = true, vanishedFromMailbox = false,
@@ -413,7 +418,7 @@ class SyncEvictionsTest {
     }
 
     @Test fun anIdleAccountIsThrottledButNeverBlocked() {
-        // FAILS ON THE PRE-FIX TREE (the second assertion).
+        // Fails on the pre-fix tree (the second assertion).
         // Was `anIdleAccountNeverResweeps`, and its old name was the defect (Codeberg #107): "no
         assertFalse(
             shouldSweepGhosts(
@@ -429,13 +434,13 @@ class SyncEvictionsTest {
         )
     }
 
-    // -- what happens AFTER a lost destroy notice (Codeberg #107) -------------------------
+    // -- what happens after a lost destroy notice (Codeberg #107) -------------------------
     //
     // These pinned the hole while it was open (they were written as characterisation cases against
     // the shipped gate). The gate has since changed, so they have been re-read and re-aimed rather
 
     @Test fun aDestroyReportedOnlyInTheChangesDeltaDoesNotTripTheImmediateSweep() {
-        // vanishedFromMailbox is computed from queryChanges.removed ALONE (MailRepository), so a
+        // vanishedFromMailbox is computed from queryChanges.removed alone (MailRepository), so a
         // destroy the server reports only in Email/changes.destroyed does not count as "something
         assertFalse(
             shouldSweepGhosts(
@@ -453,7 +458,7 @@ class SyncEvictionsTest {
     }
 
     @Test fun aQuietAccountRefreshingForEverIsSweptWhenTheIntervalElapses() {
-        // FAILS ON THE PRE-FIX TREE — it is the fix. The sync that lost the destroy notice also
+        // Fails on the pre-fix tree, it is the fix. The sync that lost the destroy notice also
         // stored the cursors it came with, so every later sync of a quiet account compares equal:
         assertFalse(
             "a refresh inside the interval must stay free",
@@ -478,7 +483,7 @@ class SyncEvictionsTest {
                 ),
             )
             // The token is what the bench reads back: `floor/idle` is an existence check on an
-            // account whose deltas said nothing — the line that could not be printed before.
+            // account whose deltas said nothing, the line that could not be printed before.
             assertEquals(
                 "floor/idle",
                 sweepReason(
@@ -513,7 +518,7 @@ class SyncEvictionsTest {
     @Test fun noEvictionBatchCanOverrunTheSqliteBound() {
         // A folder scrolled deep (the mediator writes past the window) then re-queried whole: the
         // reconcile has thousands of rows to drop. One statement per id list means one statement
-        // with thousands of bound variables, and SQLite below Android 12 accepts 999 — it throws,
+        // with thousands of bound variables, and SQLite below Android 12 accepts 999, it throws,
         // before the sync cursor is stored, so the next refresh re-runs the same full query.
         val cached = (1..5000).map { "e$it" }
         val keep = (1..1000).map { "e$it" }.toSet()
@@ -529,8 +534,8 @@ class SyncEvictionsTest {
     }
 
     @Test fun theSetToDropIsDecidedAgainstTheWHOLEKeptListBeforeItIsCutUp() {
-        // The trap of the obvious fix: chunking a `NOT IN (:keepIds)` into several statements
-        // deletes everything outside each chunk in turn — the whole folder, one batch at a time.
+        // The trap of the obvious fix: chunking a `not in (:keepIds)` into several statements
+        // deletes everything outside each chunk in turn, the whole folder, one batch at a time.
         // Here nothing was dropped from the page, so nothing may be evicted, however it is cut.
         val cached = (1..1000).map { "e$it" }
 

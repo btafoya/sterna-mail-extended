@@ -12,13 +12,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * Brings live push back after a reboot, and after the app is updated in place (#98). Only one of
+ * Brings live push back after a reboot, and after the app is updated in place (#98).
  */
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         // Both actions are protected broadcasts, but the receiver has to be exported to receive
-        // them at all — so check what we got.
+        // them at all, so check what we got.
         if (intent.action != Intent.ACTION_BOOT_COMPLETED &&
             intent.action != Intent.ACTION_MY_PACKAGE_REPLACED
         ) {
@@ -29,9 +29,9 @@ class BootReceiver : BroadcastReceiver() {
         // and DataStore, and at boot the disk is cold and contended. goAsync() keeps the process at
         // receiver importance until finish(), which every path below reaches.
         //
-        // What lets us start a foreground service from here is NOT goAsync(): it is the temporary
+        // What lets us start a foreground service from here is not goAsync(): it is the temporary
         // power exemption the system grants the UID when it dispatches BOOT_COMPLETED, bounded in
-        // TIME (~20 s by default), which finish() neither extends nor ends. So the work below must
+        // time (~20 s by default), which finish() neither extends nor ends. So the work below must
         // stay short; anything long would silently fall out of the window and the start be refused.
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -41,7 +41,7 @@ class BootReceiver : BroadcastReceiver() {
                 // A coroutine that lets an exception escape takes the process down, and boot
                 // receivers are retried. Mail keeps arriving through the fallback poll either way.
                 // This catches CancellationException too, which is safe only because
-                // restartPushIfNeeded is NOT suspend and this scope is never cancelled.
+                // restartPushIfNeeded is not suspend and this scope is never cancelled.
                 Log.w(TAG, "Push restart failed at boot; fallback poll carries delivery", t)
             } finally {
                 // Exactly once, on every path: never finishing leaks the broadcast, twice throws.
@@ -50,10 +50,10 @@ class BootReceiver : BroadcastReceiver() {
         }
     }
 
-    /** Blocking — reads the account store and the delivery setting. Callers are off-main. */
+    /** Blocking, reads the account store and the delivery setting. Callers are off-main. */
     private fun restartPushIfNeeded(app: Application) {
         // Reaching the container means Application.onCreate already ran, which is what
-        // (re)schedules the fallback poll — the safety net for everything below.
+        // (re)schedules the fallback poll, the safety net for everything below.
         val container = app.container
         val store = container.accountStore
         val watched = if (store.pushAllAccounts()) store.allCredentials() else listOfNotNull(store.load())

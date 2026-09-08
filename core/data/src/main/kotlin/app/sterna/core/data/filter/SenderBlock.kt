@@ -16,14 +16,17 @@ fun blockRule(address: String, trashFolder: String): FilterRule = FilterRule(
 )
 
 /**
- * Whether [rules] already send [address] away — a FROM/IS rule on the same address, case ignored,
+ * Whether [rules] already send [address] away, a from/IS rule on the same address, case ignored,
+ * ignored, since that is how the screen groups. A `contains` rule, or one on another field, is
+ * not this rule: it may or may not catch the same mail, and guessing would either add a
+ * duplicate or silently refuse to add anything.
  */
 fun alreadyBlocked(rules: List<FilterRule>, address: String): Boolean = rules.any {
     it.field == RuleField.FROM && it.match == RuleMatch.IS && it.value.equals(address, ignoreCase = true)
 }
 
 /**
- * Whether a block rule may target [address] at all — asked before anything the account's script
+ * Whether a block rule may target [address] at all, asked before anything the account's script
  */
 fun blockableSender(address: String, ownAddresses: List<String>): Boolean {
     val target = address.trim()
@@ -32,7 +35,7 @@ fun blockableSender(address: String, ownAddresses: List<String>): Boolean {
 }
 
 /**
- * [loaded] plus the new rule — ADDED, never substituted. `MailRepository.saveFilterRules`
+ * [loaded] plus the new rule, added, never substituted. `MailRepository.saveFilterRules`
  */
 fun withBlockRule(loaded: List<FilterRule>, address: String, trashFolder: String): List<FilterRule> =
     if (alreadyBlocked(loaded, address)) loaded else loaded + blockRule(address, trashFolder)
@@ -42,10 +45,10 @@ enum class BlockOutcome {
     /** The script now carries the rule, on top of everything it already carried. */
     ADDED,
 
-    /** A FROM/IS rule for this address was already there; nothing was written. */
+    /** A from/IS rule for this address was already there; nothing was written. */
     ALREADY_PRESENT,
 
-    /** The rules could not be read, or the save was refused. NOTHING was written. */
+    /** The rules could not be read, or the save was refused. Nothing was written. */
     FAILED,
 }
 
@@ -60,7 +63,7 @@ suspend fun addBlockRule(
 ): BlockOutcome {
     val state = runCatching { load() }.getOrNull()
     if (state !is FilterRulesState.Loaded) return BlockOutcome.FAILED
-    // The duplicate check answers BEFORE the foreign-script refusal, and the order is the message.
+    // The duplicate check answers before the foreign-script refusal, and the order is the message.
     // Neither branch writes, so they differ only in what the screen says: on an address the script
     // already handles, nothing went wrong.
     if (alreadyBlocked(state.rules, address)) return BlockOutcome.ALREADY_PRESENT

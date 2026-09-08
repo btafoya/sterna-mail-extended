@@ -5,7 +5,8 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Runs the drawer's memory of the current view — [encodeSelection] and [restoreSelection] — as the
+ * Runs the drawer's memory of the current view ([encodeSelection] and [restoreSelection]) as the
+ * pure functions they are, on the JVM, with LITERAL expectations.
  */
 class SelectionMemoryTest {
 
@@ -19,7 +20,7 @@ class SelectionMemoryTest {
     }
 
     /**
-     * The account id travels WITH the selection, never a bare folder id: two accounts on the same
+     * The account id travels with the selection, never a bare folder id: two accounts on the same
      */
     @Test
     fun `two accounts encode the same folder id to two different strings`() {
@@ -63,7 +64,7 @@ class SelectionMemoryTest {
     }
 
     /**
-     * A folder id CAN carry the separator, and the answer is to FORGET the view, not to escape
+     * A folder id can carry the separator, and the answer is to FORGET the view, not to escape
      */
     @Test
     fun `a folder id carrying the separator is refused, not escaped`() {
@@ -90,7 +91,7 @@ class SelectionMemoryTest {
     }
 
     /**
-     * The central guard: the memory belongs to ONE account. Deleted account, account switched
+     * The central guard: the memory belongs to one account. Deleted account, account switched
      */
     @Test
     fun `a memory of another account is refused, in all three forms`() {
@@ -101,6 +102,8 @@ class SelectionMemoryTest {
 
     /**
      * The unified view has no drawer entry on a single-account install (`InboxScreen` posts it
+     * under `accounts.size > 1`): restored there, it would draw a list the reader cannot leave by
+     * the way they entered it, under a title naming a view the app does not offer.
      */
     @Test
     fun `the unified view is only restored where the app offers it`() {
@@ -138,7 +141,9 @@ class SelectionMemoryTest {
     // -- what a sign-out takes with it (PRIVACY.md: "removed when you remove the account") --------
 
     /**
-     * Pins the string RETURNED, not merely whether it is null: a `prunedView` answering `""`, or
+     * Pins the string returned, not merely whether it is null: a `prunedView` answering `""`, or
+     * answering the removed account's own id back, satisfies an assertNotNull and is still a
+     * memory nobody can read and nobody removed.
      */
     @Test
     fun `a view naming a removed account is forgotten, a survivor's is kept byte for byte`() {
@@ -169,7 +174,7 @@ class SelectionMemoryTest {
     }
 
     /**
-     * The FIRST field decides, not a well-formed value. A folder id can hold a line feed — an
+     * The first field decides, not a well-formed value.
      */
     @Test
     fun `a four field memory is pruned on its account like any other`() {
@@ -181,7 +186,9 @@ class SelectionMemoryTest {
     }
 
     /**
-     * The removed id is matched as the WHOLE first field, never looked for anywhere in the
+     * The removed id is matched as the whole first field, never looked for anywhere in the
+     * string: a folder whose name happens to be a removed account's id must not take a surviving
+     * account's memory down with it.
      */
     @Test
     fun `a removed id sitting in the payload prunes nothing`() {

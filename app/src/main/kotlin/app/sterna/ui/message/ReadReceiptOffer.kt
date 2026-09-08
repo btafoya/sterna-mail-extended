@@ -19,20 +19,20 @@ enum class ReadReceiptSetting {
     /** Read and off (the default): the header is ignored, no banner, no menu entry, no trace. */
     OFF,
 
-    /** Read and on: the app ASKS. Not "sends" — there is deliberately no third position. Turning the
+    /** Read and on: the app asks. Not "sends", there is deliberately no third position. Turning the
      *  switch on is consent to be asked, never consent to answer. */
     ON,
 }
 
-/** How a message came to be marked read — the parameter that carries "a person had it on screen",
+/** How a message came to be marked read, the parameter that carries "a person had it on screen",
  * which no boolean called `read` can carry. Do not add a value meaning "close enough": the eight
- *  non-reader ways a message becomes read are all [OTHER]. */
+ *  non-reader ways a message becomes read are all [other]. */
 enum class ReadMarking {
-    /** The reader's pager SETTLED on this message and it was still unread until that moment — the
+    /** The reader's pager settled on this message and it was still unread until that moment, the
      *  unread → read transition, and the only one a human made. */
     READER_SETTLE_UNREAD,
 
-    /** The reader settled on a message that was ALREADY read. No transition, so nothing is offered:
+    /** The reader settled on a message that was already read. No transition, so nothing is offered:
      * reopening must not re-ask, which keeps this work free of an "already answered" column. Marking
      *  unread again and reopening does ask again. */
     READER_SETTLE_ALREADY_READ,
@@ -44,7 +44,8 @@ enum class ReadMarking {
 }
 
 /**
- * What would be answered, captured whole at the moment the question is raised: read again when the
+ * What would be answered, captured whole at the moment the question is raised, rather than read
+ * again when the reader taps: the message behind a banner can be reloaded in between.
  */
 data class ReadReceiptRequest(
     val receiptTo: List<String>,
@@ -76,7 +77,7 @@ internal fun coverSubjectAfterOpen(held: String?, opened: Email, crypto: Message
     if (crypto is MessageCrypto.Decrypted) held else opened.subject ?: held
 
 /**
- * The question to put to the reader, or null when there is none — the whole of the policy in one
+ * The question to put to the reader, or null when there is none, the whole of the policy in one
  */
 fun offeredReadReceipt(
     setting: ReadReceiptSetting,
@@ -110,8 +111,8 @@ enum class ReadReceiptAnswer {
 }
 
 /** Lifecycle of the receipt on the open message. Session-only, like [UnsubscribeState]: remembering it
- * would be a column in the message table. There is no `Sent` — a receipt has one road, the durable
- *  outbox — and a state nothing can produce is a branch no test could reach. */
+ * would be a column in the message table. There is no `Sent`, a receipt has one road, the durable
+ *  outbox, and a state nothing can produce is a branch no test could reach. */
 sealed interface ReadReceiptState {
     /** Nothing done: the question stands, if there is one. */
     data object Idle : ReadReceiptState
@@ -120,7 +121,7 @@ sealed interface ReadReceiptState {
     data object Sending : ReadReceiptState
 
     /** In the outbox; delivery and retry are the outbox's business from here. [preview] is what
-     * `sendReadReceipt` HANDED BACK, never rebuilt here: two sites deriving the same wording drift,
+     * `sendReadReceipt` handed back, never rebuilt here: two sites deriving the same wording drift,
      *  and the banner would name one text while another leaves. */
     data class Queued(val preview: ReadReceiptPreview) : ReadReceiptState
 
@@ -129,21 +130,21 @@ sealed interface ReadReceiptState {
 }
 
 /** What the reader is told after a send attempt. A null [preview] means nothing was queued, and the
- *  honest word is [ReadReceiptState.Failed] — not Idle, which would put the button back as if nothing
+ *  honest word is [ReadReceiptState.Failed], not Idle, which would put the button back as if nothing
  *  had been pressed, nor Queued, which would name a row that does not exist. */
 fun readReceiptSendOutcome(preview: ReadReceiptPreview?): ReadReceiptState =
     if (preview == null) ReadReceiptState.Failed else ReadReceiptState.Queued(preview)
 
 /**
- * How TALL the strip is allowed to be, which outranks everything else about it. The measured header
+ * How tall the strip is allowed to be, which outranks everything else about it. The measured header
  */
 enum class ReadReceiptStripShape {
-    /** The line is held to ONE line, so the row is exactly the button's height — the same height in
+    /** The line is held to one line, so the row is exactly the button's height, the same height in
      *  every state wearing this shape, at every font scale. */
     BUTTON_ROW,
 
     /** The one shape allowed to grow: the line may wrap, because a failure has to say what happened,
-     * and it is only reached AFTER a deliberate gesture. Not "no button": the button is drawn in
+     * and it is only reached after a deliberate gesture. Not "no button": the button is drawn in
      *  every state, and here it is live again. */
     SENTENCE,
 }
@@ -153,11 +154,11 @@ enum class ReadReceiptStripShape {
  *  `readReceiptPreview`, held out of `strings.xml` by `ReadReceiptMailTest`. */
 enum class ReadReceiptStripBody(
     @StringRes val line: Int,
-    /** The BUTTON's own label, which changes with the state — not a constant "Send" left greyed under
+    /** The button's own label, which changes with the state, not a constant "Send" left greyed under
      *  a line saying the answer is already queued. And the button never leaves: replacing it with a
      *  bare [String] once spent is the measured height defect above. */
     @StringRes val button: Int,
-    /** Whether [line] carries a `%1$s` — see [ReadReceiptStrip.named] for what fills it. */
+    /** Whether [line] carries a `%1$s`, see [ReadReceiptStrip.named] for what fills it. */
     val names: Boolean,
     val shape: ReadReceiptStripShape,
 ) {
@@ -178,7 +179,7 @@ enum class ReadReceiptStripBody(
         shape = ReadReceiptStripShape.BUTTON_ROW,
     ),
 
-    /** In the outbox, and the furthest this app can honestly say — [ReadReceiptState] has no `Sent` and
+    /** In the outbox, and the furthest this app can honestly say, [ReadReceiptState] has no `Sent` and
      *  must not grow one. The button says what became of the gesture. */
     QUEUED(
         line = R.string.message_read_receipt_queued,
@@ -199,22 +200,22 @@ enum class ReadReceiptStripBody(
     ),
     ;
 
-    /** Whether the button may fire — `enabled`, and the same question `sendReadReceipt` re-runs before
-     *  anything leaves. [FAILED] acts because nothing left the device. */
+    /** Whether the button may fire, `enabled`, and the same question `sendReadReceipt` re-runs before
+     *  anything leaves. [failed] acts because nothing left the device. */
     val acts: Boolean get() = this == ASK || this == FAILED
 
     /** Whether the refusal is on offer: only while the question stands untouched, since once a receipt
      * is queued there is nothing left to refuse and nothing this app can recall. Deliberately not
-     *  extended to [FAILED], which would teach `declineReadReceipt` a second job. */
+     *  extended to [failed], which would teach `declineReadReceipt` a second job. */
     val declines: Boolean get() = this == ASK
 }
 
 /** Everything the strip draws, or null when there is no strip at all. [named] fills the line's `%1$s`
- *  and is CARRIED, not looked up: asking, who the receipt would go to; queued, the subject of the row
+ *  and is carried, not looked up: asking, who the receipt would go to; queued, the subject of the row
  * `sendReadReceipt` actually put in the outbox, handed back and never rebuilt here. */
 data class ReadReceiptStrip(val body: ReadReceiptStripBody, val named: String)
 
-/** See [ReadReceiptStrip] — null means the header draws nothing at all, not an empty row, and is the
+/** See [ReadReceiptStrip], null means the header draws nothing at all, not an empty row, and is the
  * answer for very nearly every message. This function re-derives none of it: [offeredReadReceipt]
  *  took the decision, and asking it twice is how two guards end up disagreeing. */
 fun readReceiptStrip(offer: ReadReceiptRequest?, state: ReadReceiptState): ReadReceiptStrip? =

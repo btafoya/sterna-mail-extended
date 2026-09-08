@@ -26,7 +26,7 @@ class SelectAllKeysTest {
 
     @Test
     fun `a search bar left open over the navigation list is still the folder`() {
-        // The screen shows the paged list whenever the query is blank, whatever the bar's state —
+        // The screen shows the paged list whenever the query is blank, whatever the bar's state,
         // and results left over from a query since cleared must not be selected under it.
         assertEquals(folder.toSet(), keys(searching = true, query = "   ", results = hits))
     }
@@ -50,7 +50,7 @@ class SelectAllKeysTest {
     @Test
     fun `results still being added are the ones on screen`() {
         // Both legs union in as they answer; the screen keeps showing the rows it has while the
-        // second one runs (SearchDisplay.RESULTS wins over the spinner). Select all takes those.
+        // second one runs (SearchDisplay.Results wins over the spinner). Select all takes those.
         assertEquals(
             hits.toSet(),
             keys(searching = true, query = "invoice", results = hits, loading = true, complete = false),

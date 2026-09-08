@@ -6,11 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [sourceCouldNotBeRead], EXECUTED — the verdict standing between an IMAP source that never came
+ * [sourceCouldNotBeRead], executed, the verdict standing between an IMAP source that never came
  */
 class SourceCouldNotBeReadTest {
 
-    /** THE case: `ImapClient.bodyItem` answers "" when the FETCH carried no body item. */
+    /** The case: `ImapClient.bodyItem` answers "" when the FETCH carried no body item. */
     @Test fun anEmptySourceCouldNotBeRead() {
         assertTrue(
             "an empty source is a message that did not come back, never an empty draft",
@@ -19,7 +19,7 @@ class SourceCouldNotBeReadTest {
     }
 
     /**
-     * The case that forbids `isEmpty()`, and it is a DELIBERATE over-refusal, not an observed
+     * The case that forbids `isEmpty()`, and it is a deliberate over-refusal, not an observed
      */
     @Test fun aSourceOfNothingButALineEndingCouldNotBeRead() {
         assertTrue(
@@ -49,7 +49,7 @@ class SourceCouldNotBeReadTest {
     }
 
     /**
-     * THE control that forbids refusing too much: a draft with an empty text body is ordinary
+     * The control that forbids refusing too much: a draft with an empty text body is ordinary
      */
     @Test fun headersAloneWithAnEmptyBodyCanBeRead() {
         assertFalse(
@@ -71,14 +71,14 @@ class SourceCouldNotBeReadTest {
 }
 
 /**
- * THIS TEST READS SOURCE TEXT — the last resort, exactly as [DraftReceiptWiringTest] does:
+ * This test reads source text, the last resort, exactly as [DraftReceiptWiringTest] does:
  */
 class SourceRefusalWiringTest {
 
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
-    /** The code lines of [body] naming [needle] — comments dropped, so prose can neither satisfy
+    /** The code lines of [body] naming [needle], comments dropped, so prose can neither satisfy
      *  a rule nor break one. Whole lines: the assertions compare them, never search inside them. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }
@@ -108,7 +108,7 @@ class SourceRefusalWiringTest {
     }
 
     /**
-     * The line right UNDER the guard, and nothing else. A "does openEmailImap contain a
+     * The line right under the guard, and nothing else.
      */
     @Test fun theRefusalIsRaisedAsTheUnavailableMessageTheReadersAlreadyTranslate() {
         val lines = bodyOf("openEmailImap").lines().map { it.trim() }
@@ -122,7 +122,8 @@ class SourceRefusalWiringTest {
     }
 
     /**
-     * THE hole every trimmed-line assertion is blind to: wrapping the guard in
+     * The hole every trimmed-line assertion is blind to: wrapping the guard in
+     * another block moves it out of the parse without changing a single line.
      */
     @Test fun theRefusalSitsInTheSameBlockAsTheParse() {
         val lines = bodyOf("openEmailImap").lines()
@@ -138,7 +139,9 @@ class SourceRefusalWiringTest {
     }
 
     /**
-     * And the fetch line itself, whole. Nothing else pinned it, so an `.ifBlank { "" }` — or
+     * And the fetch line itself, whole. Nothing else pinned it, so an `.ifBlank { "" }`, or
+     * an `.ifBlank { cachedBodyText }`, hung on the end of it would answer the guard with a value
+     * that is no longer blank, and the refusal would never fire on a source that never arrived.
      */
     @Test fun theSourceIsTakenFromTheServerAndHandedOnUntouched() {
         assertEquals(

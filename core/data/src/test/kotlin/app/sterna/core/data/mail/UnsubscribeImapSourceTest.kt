@@ -5,7 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The IMAP half of the unsubscribe headers, read off a real message source — the same message
+ * The IMAP half of the unsubscribe headers, read off a real message source, the same message
  */
 class UnsubscribeImapSourceTest {
 
@@ -45,7 +45,9 @@ class UnsubscribeImapSourceTest {
     }
 
     /**
-     * A folded header, which is the common shape for two URIs: read as ONE value, then split by
+     * A folded header, which is the common shape for two URIs: read as one value, then split by
+     * the shared parser. Reading it unfolded would hand the parser half a header and lose the
+     * `mailto:` fallback without a word.
      */
     @Test fun `a folded header comes back whole and parses into both gestures`() {
         val (list, post) = unsubscribeHeadersOf(
@@ -79,7 +81,9 @@ class UnsubscribeImapSourceTest {
     }
 
     /**
-     * A header in the BODY is not a header. Worth pinning: an unsubscribe URL quoted inside a
+     * A header in the body is not a header. Worth pinning: an unsubscribe URL quoted inside a
+     * forwarded message would otherwise put a button on the reader that acts on somebody else's
+     * subscription.
      */
     @Test fun `a header-looking line inside the body is not read`() {
         val (list, _) = unsubscribeHeadersOf(

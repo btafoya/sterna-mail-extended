@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHAT a tap on a list row does.
+ * What a tap on a list row does.
  */
 class RowTapActionTest {
 
@@ -88,7 +88,7 @@ class RowTapActionTest {
         )
     }
 
-    // -- a child of an unfolded conversation, judged by ITS OWN folder ----------------------------
+    // -- a child of an unfolded conversation, judged by its own folder ----------------------------
 
     @Test
     fun `a child filed in Drafts edits`() {

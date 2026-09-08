@@ -30,6 +30,8 @@ class JmapSearchScopeTest {
 
     /**
      * The never-synced account: nothing cached, so nothing to exclude, so the server searches the
+     * whole account, deleted and refused mail included. The results are still shown, they are just
+     * no longer presented as the account's answer.
      */
     @Test fun `a search on an account with no cached folder excludes nothing and cannot be stated as a total`() {
         val cached = folders()
@@ -63,6 +65,10 @@ class JmapSearchScopeTest {
 
     /**
      * The two counts a JMAP search comes back with are not one number: `Email/query` matches ids,
+     * `Email/get` fetches objects, and the get returns fewer when the server caps it or when a
+     * message is destroyed between the two calls. 50 matched under a cap of 50 is capped; 50 matched
+     * and 49 handed back is a list that is not what matched. Neither is a total, and the count on
+     * screen must not be read off the shorter list as though the difference did not exist.
      */
     @Test fun `a get that brought back less than the query matched is not a total`() {
         val cached = folders("i" to "inbox", "t" to "trash")
@@ -73,7 +79,7 @@ class JmapSearchScopeTest {
     }
 
     /**
-     * The server said nothing about how many ids matched — no `ids` array at all. "It did not say"
+     * The server said nothing about how many ids matched, no `ids` array at all. "It did not say"
      */
     @Test fun `a server that never said how many ids matched cannot be quoted for a total`() {
         val cached = folders("i" to "inbox", "t" to "trash")
@@ -87,7 +93,7 @@ class JmapSearchScopeTest {
     // ---- the wiring, read out of the shipped repository ----
 
     /**
-     * The one that cannot be called. Two ways to get this wrong, and both compile: judging the
+     * The one that cannot be called.
      */
     @Test fun `the JMAP branch judges its answer on the folder list, not on the exclusions derived from it`() {
         val source = jmapSearchBranch()
@@ -125,6 +131,9 @@ class JmapSearchScopeTest {
 
     /**
      * The JMAP half of `search(credentials, query, limit)`: from the connection that opens it to the
+     * unified `search(accounts, …)` that follows. Every marker is asserted, so a rename fails the
+     * test loudly instead of handing back an empty slice that every `contains` would then fail on
+     * for the wrong reason.
      */
     private fun jmapSearchBranch(): String {
         val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt").readText()
@@ -137,7 +146,7 @@ class JmapSearchScopeTest {
         return source.substring(jmap, end)
     }
 
-    /** [relative] resolved from the test's working directory, walking up — as [DaoQuerySource] does. */
+    /** [relative] resolved from the test's working directory, walking up, as [DaoQuerySource] does. */
     private fun locate(relative: String): File {
         val fromModule = relative.substringAfter("core/data/")
         var dir: File? = File(System.getProperty("user.dir")).absoluteFile

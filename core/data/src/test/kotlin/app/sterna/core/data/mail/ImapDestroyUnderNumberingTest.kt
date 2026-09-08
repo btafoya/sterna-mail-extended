@@ -6,6 +6,7 @@ import org.junit.Test
 
 /**
  * The IMAP twin of [DestroyableIdsTest] (Codeberg #99): given the numbering a destroy was
+ * confirmed under, what may be destroyed at all, and how the wave is routed.
  */
 class ImapDestroyUnderNumberingTest {
 
@@ -14,7 +15,7 @@ class ImapDestroyUnderNumberingTest {
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
-    /** The code lines of [body] naming [needle] — comments dropped. Whole lines: the assertions
+    /** The code lines of [body] naming [needle], comments dropped. Whole lines: the assertions
      *  compare them, never search inside them. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }
@@ -43,7 +44,7 @@ class ImapDestroyUnderNumberingTest {
         )
     }
 
-    /** The inverse witness, without which "always empty" would satisfy every case above — and
+    /** The inverse witness, without which "always empty" would satisfy every case above, and
      *  refusing every destroy is a total regression, not a guard. */
     @Test fun `a destroy carrying its numbering keeps its whole list, in its own order`() {
         assertEquals(
@@ -99,7 +100,7 @@ class ImapDestroyUnderNumberingTest {
     }
 
     @Test fun `a folder path containing colons survives the grouping`() {
-        // IMAP paths can hold ':' — the id parser keeps them, and so must the plan.
+        // IMAP paths can hold ':', the id parser keeps them, and so must the plan.
         val ids = listOf(id("a:b", 7L))
 
         assertEquals(mapOf("a:b" to ids), UidValidity.imapDestroyPlan(ids, expected = 42L).byFolder)
@@ -161,7 +162,8 @@ class ImapDestroyUnderNumberingTest {
     }
 
     /**
-     * The OTHER destroy path, and the one `destroyAll` never routed: discarding a draft, or
+     * The other destroy path, and the one `destroyAll` never routed: discarding a draft, or
+     * replacing one that was re-saved, expunges a single id straight from the folder it names.
      */
     @Test fun `discarding a draft opposes the numbering frozen when its id was read`() {
         val body = bodyOf("destroyDraft")
@@ -210,7 +212,7 @@ class ImapDestroyUnderNumberingTest {
     }
 
     /**
-     * And it must refuse WITHOUT A WORD ON SCREEN.
+     * And it must refuse without a word on screen.
      */
     @Test fun `a draft the server will not confirm the numbering of is refused in silence`() {
         val body = bodyOf("destroyDraft")
@@ -257,7 +259,7 @@ class ImapDestroyUnderNumberingTest {
     }
 
     /**
-     * The numbering ARRIVES on this path; it is never read on it. A local read — including one
+     * The numbering arrives on this path; it is never read on it. A local read, including one
      */
     @Test fun `the destroy path never looks the numbering up for itself`() {
         listOf("destroyAll", "imapDestroyGroup", "destroyDraft", "discardDraft", "finishDraftSave")
@@ -272,7 +274,11 @@ class ImapDestroyUnderNumberingTest {
     }
 
     /**
-     * And every one of them must be written as a BLOCK, because a single-expression body is
+     * And every one of them must be written as a block, because a single-expression body is
+     * invisible to the rule above: [DaoQuerySource.mailFunctionBody] delimits a body by matching
+     * braces, an expression body has none, and the lookup then fails instead of reading. A
+     * `discardDraft` written as
+     * suspend fun discardDraft(…) = destroyDraft(c, id, frozen ?: recordedUidValidityForDraft(c, id))
      */
     @Test fun `the draft destroy path is written in blocks, or no rule can see inside it`() {
         listOf("destroyDraft", "discardDraft", "finishDraftSave").forEach { function ->
@@ -286,7 +292,7 @@ class ImapDestroyUnderNumberingTest {
     }
 
     /**
-     * The freezing accessor, everywhere it is CALLED in the repository — pinned as a list rather
+     * The freezing accessor, everywhere it is called in the repository, pinned as a list rather
      */
     @Test fun `the freezing accessor is declared for the composer and called at no execution point`() {
         assertEquals(
@@ -303,7 +309,7 @@ class ImapDestroyUnderNumberingTest {
     }
 
     /**
-     * The two hand-overs of `uploadDraft` (`saveDraft`'s upload half since #95) — the IMAP branch
+     * The two hand-overs of `uploadDraft` (`saveDraft`'s upload half since #95), the IMAP branch
      */
     @Test fun `re-saving hands on the numbering the composer froze, on both protocols`() {
         val body = bodyOf("uploadDraft")

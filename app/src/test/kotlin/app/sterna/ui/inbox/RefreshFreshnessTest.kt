@@ -7,12 +7,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The real test of #178's freshness guard: it EXECUTES the decision, on literal instants.
+ * The real test of #178's freshness guard: it executes the decision, on literal instants.
  *
  * Nothing here recomputes the rule to choose what it replays. Every instant is written out
  * (`T0`, `T0 + 29_000`, …) and every expectation is a constant, so inverting the shipped condition
- * has to redden something. `RefreshFreshnessWiringLintTest` covers the other half — which callers
- * are behind the guard and which must never be — because `InboxViewModel` is an `AndroidViewModel`
+ * has to redden something. `RefreshFreshnessWiringLintTest` covers the other half, which callers
+ * are behind the guard and which must never be, because `InboxViewModel` is an `AndroidViewModel`
  * and cannot be built on the JVM.
  */
 class RefreshFreshnessTest {
@@ -35,8 +35,8 @@ class RefreshFreshnessTest {
     }
 
     /**
-     * The wall clock can move BACKWARDS (NTP, a hand-set date). A stamp left in the future must
-     * read as stale, or the list stops reconciling until the clock catches up — possibly never.
+     * The wall clock can move backwards (NTP, a hand-set date). A stamp left in the future must
+     * read as stale, or the list stops reconciling until the clock catches up, possibly never.
      */
     @Test fun `a stamp in the future is not fresh`() {
         val entries = listOf(FreshScope(ACCOUNT_A, INBOX, T0 + 5_000L))
@@ -70,7 +70,7 @@ class RefreshFreshnessTest {
     // -- the key ---------------------------------------------------------------------------------
 
     /**
-     * #92 / #121: two accounts on the SAME server number their mailboxes independently, so the id
+     * #92 / #121: two accounts on the same server number their mailboxes independently, so the id
      * `"1"` names a different folder in each. A register keyed on the folder id alone would let
      * account A's fresh Inbox skip account B's first ever fetch.
      */
@@ -146,7 +146,7 @@ class RefreshFreshnessTest {
         val before = listOf(
             FreshScope(ACCOUNT_B, INBOX, T0 - 30_000L), // exactly out
             FreshScope(ACCOUNT_B, ARCHIVE, T0 - 29_000L), // still in
-            FreshScope(ACCOUNT_C, INBOX, T0 + 60_000L), // clock went back: drop it
+            FreshScope(ACCOUNT_C, INBOX, T0 + 60_000L), // clock went back: dropped.
         )
         val after = recordFresh(before, listOf(ACCOUNT_A to INBOX), T0)
         assertEquals(
@@ -193,8 +193,8 @@ class RefreshFreshnessTest {
     /**
      * A folder id can carry the separator: an IMAP path is decoded from modified UTF-7 with
      * nothing filtered out, so a mailbox named with a line feed travels as `&AAo-` and comes back
-     * holding U+000A. Such an entry is not stored — so that folder is simply reconciled again,
-     * which is the safe direction — and it does not corrupt its neighbours.
+     * holding U+000A. Such an entry is not stored, so that folder is simply reconciled again,
+     * which is the safe direction, and it does not corrupt its neighbours.
      */
     @Test fun `a folder id carrying a separator is refused, and poisons nothing`() {
         val entries = listOf(
@@ -219,7 +219,7 @@ class RefreshFreshnessTest {
 
     @Test fun `an unstorable entry does not survive a record and a round trip`() {
         val recorded = recordFresh(emptyList(), listOf(ACCOUNT_A to "INBOX/two\nlines"), T0)
-        assertEquals(1, recorded.size) // it is IN the list in memory …
+        assertEquals(1, recorded.size) // it is in the list in memory …
         assertNull(encodeFreshness(recorded)) // … and refused on the way to disk
     }
 
@@ -290,9 +290,9 @@ class RefreshFreshnessTest {
     }
 
     /**
-     * It prunes by ACCOUNT, not by time. A surviving account's entry stamped well outside the
-     * window is stale, and staleness is [isFresh]'s business, read at the guard: dropping it here —
-     * or restamping it — would be a second answer to a question that already has one.
+     * It prunes by account, not by time. A surviving account's entry stamped well outside the
+     * window is stale, and staleness is [isFresh]'s business, read at the guard: dropping it here,
+     * or restamping it, would be a second answer to a question that already has one.
      */
     @Test fun `a survivor's out of window entry is carried through with its own stamp`() {
         val stored = "$ACCOUNT_A\t$INBOX\t$T0\n$ACCOUNT_B\t$INBOX\t${T0 - 300_000L}"
@@ -310,7 +310,7 @@ class RefreshFreshnessTest {
         const val ACCOUNT_B = "22222222-2222-2222-2222-222222222222"
         const val ACCOUNT_C = "33333333-3333-3333-3333-333333333333"
 
-        /** Same id under two accounts on purpose — Stalwart numbers mailboxes per account. */
+        /** Same id under two accounts on purpose, Stalwart numbers mailboxes per account. */
         const val INBOX = "a1"
         const val ARCHIVE = "a7"
     }

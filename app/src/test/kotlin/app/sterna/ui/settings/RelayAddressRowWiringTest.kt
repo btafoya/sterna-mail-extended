@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE AND RESOURCE LINT, NOT A BEHAVIOUR TEST — it reads files as text and proves nothing about what is drawn.
+ * Source and resource lint, not a behaviour test, it reads files as text and proves nothing about what is drawn.
  */
 class RelayAddressRowWiringTest {
 
@@ -106,7 +106,7 @@ class RelayAddressRowWiringTest {
         )
     }
 
-    /** The negative half of the rule above — `contains`, deliberately: it screens for absence. */
+    /** The negative half of the rule above, `contains`, deliberately: it screens for absence. */
     @Test fun `the 500 ms loop asks the package manager nothing`() {
         val loop = blockBody(relaySectionBody(), "LaunchedEffect(accountId) {")
         assertEquals(
@@ -150,7 +150,7 @@ class RelayAddressRowWiringTest {
         )
     }
 
-    /** SOURCE LINT for the OTHER 500 ms loop, the status line's: the rule above reads the relay
+    /** Source lint for the other 500 ms loop, the status line's: the rule above reads the relay
      *  block's and nothing else. It does not judge what the line says, only where the distributor
      *  is read and that the tick asks the package manager nothing. */
     @Test fun `the status line's 500 ms loop asks the package manager nothing`() {
@@ -233,7 +233,7 @@ class RelayAddressRowWiringTest {
         )
     }
 
-    /** The negative screen — `contains`, deliberately: it looks for what must be absent. */
+    /** The negative screen, `contains`, deliberately: it looks for what must be absent. */
     @Test fun `the status line states a dated fact, never a verdict of health`() {
         val files = stringFiles()
         assertEquals(
@@ -269,7 +269,7 @@ class RelayAddressRowWiringTest {
     // -- the strings ---------------------------------------------------------------------------
 
     /**
-     * What `TranslationParityTest` already covers, and which is deliberately NOT repeated here:
+     * What `TranslationParityTest` already covers, and which is deliberately not repeated here:
      */
     @Test fun `the nine languages all carry the eight relay strings`() {
         val files = stringFiles()
@@ -330,7 +330,7 @@ class RelayAddressRowWiringTest {
         val stack = ArrayDeque<String>()
         for (line in screenLines()) {
             if (line == call) return stack.toList()
-            // A brace pair opened AND closed on one line encloses nothing: counted, it pops the
+            // A brace pair opened and closed on one line encloses nothing: counted, it pops the
             // block the call really sits in and stands in its place. `} else {` is not that.
             val opens = line.count { it == '{' }
             val closes = line.count { it == '}' }

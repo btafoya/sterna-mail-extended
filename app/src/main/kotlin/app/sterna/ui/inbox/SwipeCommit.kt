@@ -3,12 +3,12 @@ package app.sterna.ui.inbox
 import kotlin.math.abs
 
 /*
- * How far — or how fast — a list row must be dragged before letting go runs its swipe action (#125).
+ * How far, or how fast, a list row must be dragged before letting go runs its swipe action (#125).
  * Drag handler and composition call this one decision, so the reveal arms exactly when releasing
  * would act. Everything is in px: the caller converts.
  */
 
-/** The travel a swipe must reach to commit, in dp — absolute, not a share of the row. 72 dp is what
+/** The travel a swipe must reach to commit, in dp, absolute, not a share of the row. 72 dp is what
  *  K-9 / Thunderbird commit at, the reference clients #125 names. */
 internal const val SWIPE_COMMIT_DISTANCE_DP = 72
 
@@ -48,7 +48,7 @@ internal fun swipeCommitDirection(
     if (offsetPx >= thresholdPx) return 1
     if (-offsetPx >= thresholdPx) return -1
 
-    // 2. Velocity — all four of ItemTouchHelper.checkHorizontalSwipe's conditions, plus a fifth we
+    // 2. Velocity, all four of ItemTouchHelper.checkHorizontalSwipe's conditions, plus a fifth we
     // owe to our own construction. |vx| >= escape alone would be looser than K-9.
 
     // The side the row was pulled towards. A row still at 0 has none, and that is reachable: the

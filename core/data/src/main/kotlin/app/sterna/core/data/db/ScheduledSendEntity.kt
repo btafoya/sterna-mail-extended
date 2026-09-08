@@ -26,6 +26,6 @@ data class ScheduledSendEntity(
      *  [app.sterna.send.ScheduledSendWorker] fires. `null` destroys nothing. */
     val draftUidValidity: Long? = null,
     /** Read receipt request (RFC 8098); duplicated from [OutboxEntity] for the same reason as
-     *  [draftUidValidity] — missing here at hand-over, the message goes out without asking. */
+     *  [draftUidValidity], missing here at hand-over, the message goes out without asking. */
     val requestReceipt: Boolean = false,
 )

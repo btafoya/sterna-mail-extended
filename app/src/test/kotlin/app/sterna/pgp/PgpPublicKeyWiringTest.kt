@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads two view models as text and proves nothing about what
+ * Source lint, not a behaviour test. It reads two view models as text and proves nothing about what
  */
 class PgpPublicKeyWiringTest {
 
@@ -91,7 +91,7 @@ class PgpPublicKeyWiringTest {
     }
 
     @Test fun `the catch-up is hung off the PGP refresh, and only when the provider answers`() {
-        // refreshPgp runs on opening, on restore and on every From change — the composer's own
+        // refreshPgp runs on opening, on restore and on every From change, the composer's own
         // "something about PGP may have changed" point. Behind `available`, so a phone with no
         // OpenPGP app at all is not asked once per composer for a key nobody can read.
         assertEquals(
@@ -106,7 +106,7 @@ class PgpPublicKeyWiringTest {
     }
 
     /** Same helper as the account-store wiring tests: whole trimmed code lines, comments and blank
-     *  lines dropped, anchored on the ONE line starting with [prefix] — a prefix matching anything
+     *  lines dropped, anchored on the one line starting with [prefix], a prefix matching anything
      *  other than exactly one line returns a message rather than nothing, so the assertion says
      *  what happened instead of silently comparing an empty list. */
     private fun block(path: String, prefix: String, count: Int, startingLinesEarlier: Int = 0): List<String> {

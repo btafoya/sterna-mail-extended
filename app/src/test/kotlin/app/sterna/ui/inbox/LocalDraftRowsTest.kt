@@ -65,7 +65,7 @@ class LocalDraftRowsTest {
         ).first()
         assertEquals("a plain user folder has no role and must show nothing", emptyList<InboxRow>(), roleless.rows)
 
-        // The unified inbox has no selected folder id — and it is not one account's Drafts.
+        // The unified inbox has no selected folder id, and it is not one account's Drafts.
         val unified = localDraftRowsFlow(
             currentAccountId = flowOf("acc-1"),
             selectedMailboxId = flowOf(null),
@@ -213,7 +213,7 @@ class LocalDraftRowsTest {
 
     @Test
     fun `a row that speaks for a whole conversation is never hidden`() {
-        // Conversation view is the DEFAULT and Drafts is paged through it like any other folder, so
+        // Conversation view is the default and Drafts is paged through it like any other folder, so
         // this row can be the representative of a group. Hiding it hides every message behind it:
         // a server draft that is perfectly present, listed nowhere at all. The duplicate is the
         // lesser error and it is the one taken.
@@ -257,7 +257,7 @@ class LocalDraftRowsTest {
 
     @Test
     fun `insertHeaderItem is fed oldest first, so the newest draft ends up on top`() {
-        // Each call prepends ONE item. Fed newest first, the list would come out upside down.
+        // Each call prepends one item. Fed newest first, the list would come out upside down.
         val newest = serverRow("newest")
         val middle = serverRow("middle")
         val oldest = serverRow("oldest")
@@ -271,8 +271,8 @@ class LocalDraftRowsTest {
 
     @Test
     fun `a local draft row is not swipeable at all - the refusal cannot wait for the animation`() {
-        // The guard has to answer BEFORE the gesture runs: commitSwipe plays the whole take-off
-        // (the row leaves by the edge, tilts, fades to nothing) and only THEN calls onSwipe, and
+        // The guard has to answer before the gesture runs: commitSwipe plays the whole take-off
+        // (the row leaves by the edge, tilts, fades to nothing) and only then calls onSwipe, and
         // the left swipe is DELETE by default. A refusal further down arrives after the row has
         // been destroyed on screen, with no snackbar and no Undo, over a draft still in the table.
         assertFalse(rowGesturesEnabled(LOCAL + "d1", selectionActive = false))

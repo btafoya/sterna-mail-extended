@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Arming the delivery worker is NOT queueing the send, and [armOrNote] is where that is decided.
+ * Arming the delivery worker is not queueing the send, and [armOrNote] is where that is decided.
  */
 class ArmingIsNotQueueingTest {
 

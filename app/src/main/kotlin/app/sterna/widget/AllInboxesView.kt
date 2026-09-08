@@ -3,7 +3,7 @@ package app.sterna.widget
 import app.sterna.core.data.account.StoredAccount
 
 /**
- * Does the app HAVE a cross-account "All inboxes" list at all? One bound, in one place, because the
+ * Does the app have a cross-account "All inboxes" list at all?
  */
 internal object AllInboxesView {
 

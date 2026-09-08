@@ -30,7 +30,8 @@ const val LOCAL_DRAFT_UPLOAD_BUDGET_MS: Int = 60_000
 const val LOCAL_DRAFT_ATTEMPT_BUDGET_MS: Long = 5L * 60 * 1000
 
 /**
- * An ordinary [Exception], deliberately not a [CancellationException]: the
+ * An ordinary [Exception], deliberately not a [CancellationException]: the caller's `catch` must
+ * see it and record the failed attempt.
  */
 class LocalDraftAttemptExpired(budgetMs: Long, cause: Throwable? = null) :
     Exception("The upload did not finish within ${budgetMs / 1000} s.", cause)
@@ -108,6 +109,7 @@ fun localDraftUploadIsDue(state: LocalDraftState, notBeforeMillis: Long, nowMill
 
 /**
  * `UPLOADING` marks that an attempt started, it is not a lock: [localDraftUploadIsDue] and
+ * the budget decide whether a row in that state may be retried.
  */
 @Suppress("LongParameterList")
 internal suspend fun uploadLocalDraftOnce(
@@ -142,7 +144,8 @@ internal suspend fun uploadLocalDraftOnce(
 }
 
 /**
- * On a [CancellationException] nothing else can re-book, since the row's own `record` never runs —
+ * On a [CancellationException] nothing else can re-book, since the row's own `record` never runs,
+ * so this is where the next attempt is booked.
  */
 suspend fun uploadLocalDraftRebooking(
     now: () -> Long,
@@ -161,6 +164,7 @@ suspend fun uploadLocalDraftRebooking(
 
 /**
  * Only a row that has failed at least once: on a first attempt the `Message-ID` has never been on a
+ * server, so there is nothing to look for.
  */
 fun localDraftMayAlreadyBeOnServer(row: LocalDraftEntity): Boolean =
     row.attemptCount > 0 && row.messageId.isNotBlank()
@@ -179,7 +183,8 @@ private fun unbracketedMessageId(value: String): String =
     value.trim().removeSurrounding("<", ">").trim()
 
 /**
- * [alreadyThere] may throw — a live read over the link that just failed — and a lookup that throws
+ * [alreadyThere] may throw (a live read over the link that just failed), and a lookup that throws
+ * proves nothing either way, so the append is attempted.
  */
 internal suspend fun appendDraftUnlessAlreadyThere(
     row: LocalDraftEntity,

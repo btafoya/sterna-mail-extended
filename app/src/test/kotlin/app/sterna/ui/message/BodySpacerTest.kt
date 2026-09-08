@@ -7,7 +7,7 @@ import org.junit.Test
 import java.util.Locale
 
 /**
- * The reader's blank-space decision (#171), EXECUTED — not re-derived here.
+ * The reader's blank-space decision (#171), executed, not re-derived here.
  */
 class BodySpacerTest {
 
@@ -18,7 +18,7 @@ class BodySpacerTest {
     }
 
     @Test fun `the reservation is a share of the view, not of one bench device`() {
-        // The SAME header height against three different viewports, each pinned as a literal.
+        // The same header height against three different viewports, each pinned as a literal.
         // The bench measured one device; a formula that hard-codes its 2037 px viewport answers
         assertEquals("26.4114vh", bodySpacerCss(538, 2037))
         assertEquals("52.8487vh", bodySpacerCss(538, 1018))
@@ -29,10 +29,10 @@ class BodySpacerTest {
 
     @Test fun `the length is the share of the view the layer covers`() {
         // What `Nvh` is worth, without a page scale anywhere in the arithmetic: N hundredths of the
-        // view. THAT is what this function decides, and it is all it decides.
+        // view. That is what this function decides, and it is all it decides.
         //
-        // The other half — that the browser paints those hundredths at the same screen size
-        // whatever scale the page laid out at — is a property of Blink, NOT of this code, and no
+        // The other half, that the browser paints those hundredths at the same screen size
+        // whatever scale the page laid out at, is a property of Blink, not of this code, and no
         for ((reserved, viewport) in listOf(538 to 2037, 250 to 2037, 538 to 1018, 96 to 640)) {
             val vh = bodySpacerCss(reserved, viewport).removeSuffix("vh").toDouble()
             assertEquals(
@@ -54,8 +54,8 @@ class BodySpacerTest {
 
     @Test fun `a comma-decimal locale must not put a comma in the CSS`() {
         // The device locale must not reach the stylesheet. `height:26,4114vh` does not parse: the
-        // declaration is dropped, the blank falls to ZERO, and the opaque header covers the top of
-        // EVERY message — in French, German, Spanish, Russian, Portuguese…
+        // declaration is dropped, the blank falls to zero, and the opaque header covers the top of
+        // every message, in French, German, Spanish, Russian, Portuguese…
         Locale.setDefault(Locale.FRANCE)
 
         val css = bodySpacerCss(538, 2037)

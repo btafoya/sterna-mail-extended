@@ -9,11 +9,11 @@ import java.lang.reflect.Modifier
 import java.sql.DriverManager
 
 /**
- * [LocalDraftEntity] and [LOCAL_DRAFTS_CREATE_SQL], each read from itself and compared — the one
+ * [LocalDraftEntity] and [LOCAL_DRAFTS_CREATE_SQL], each read from itself and compared, the one
  */
 class LocalDraftEntityMatchesItsTableTest {
 
-    /** A column as both sides must agree on it — the two things Room's `TableInfo.Column` compares. */
+    /** A column as both sides must agree on it, the two things Room's `TableInfo.Column` compares. */
     private data class Shape(val affinity: String, val notNull: Boolean)
 
     // --- what the shipped CREATE actually builds --------------------------------------------------
@@ -76,6 +76,8 @@ class LocalDraftEntityMatchesItsTableTest {
 
     /**
      * The entity's columns as the entity itself defines them: names from the backing fields,
+     * affinity from the type, and nullability executed, a primitive parameter cannot hold null at
+     * all, and for a reference one we hand the constructor a null and watch what it does.
      */
     private fun entityShapes(): Map<String, Shape> {
         val fields = LocalDraftEntity::class.java.declaredFields
@@ -92,7 +94,7 @@ class LocalDraftEntityMatchesItsTableTest {
             out[name] = Shape(affinityOf(type), notNull)
         }
         // If nothing ever refused a null, the probe is inoperative (parameter assertions compiled
-        // out) and every reference column would be reported nullable — a green that means nothing.
+        // out) and every reference column would be reported nullable, a green that means nothing.
         assertTrue(
             "Not one reference parameter of LocalDraftEntity refused a null, so Kotlin's parameter " +
                 "assertions are not in this build and nullability cannot be read by executing the " +
@@ -103,7 +105,8 @@ class LocalDraftEntityMatchesItsTableTest {
     }
 
     /**
-     * Whether the constructor rejects a null in position [i] — i.e. whether that parameter is
+     * Whether the constructor rejects a null in position [i], i.e. whether that parameter is
+     * non-null, which is what makes the column `not NULL`.
      */
     private fun refusesNull(constructor: Constructor<*>, good: Array<Any?>, i: Int, name: String): Boolean {
         val args = good.copyOf()

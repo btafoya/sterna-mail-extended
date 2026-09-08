@@ -20,6 +20,7 @@ internal fun IncognitoKeyboard(content: @Composable () -> Unit) {
 
 /**
  * The interceptor itself, a top-level value rather than something built inside the composition: it
+ * captures nothing and adds one constant bit, so every instance would be interchangeable.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 internal val INCOGNITO_INTERCEPTOR = object : PlatformTextInputInterceptor {
@@ -29,8 +30,8 @@ internal val INCOGNITO_INTERCEPTOR = object : PlatformTextInputInterceptor {
     ): Nothing {
         val incognito = object : PlatformTextInputMethodRequest {
             override fun createInputConnection(outAttributes: EditorInfo): InputConnection {
-                // The delegate WRITES outAttributes (imeOptions, inputType, the action of the
-                // field that asked). So it runs first and our bit is added after — reversing the
+                // The delegate writes outAttributes (imeOptions, inputType, the action of the
+                // field that asked). So it runs first and our bit is added after, reversing the
                 // two lines would silently drop the flag.
                 val connection = request.createInputConnection(outAttributes)
                 outAttributes.imeOptions = incognitoImeOptions(outAttributes.imeOptions)

@@ -6,17 +6,17 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE + RESOURCE LINT, NOT A BEHAVIOUR TEST — said first, because what it guards is a RENDERING
+ * Source + resource lint, not a behaviour test, said first, because what it guards is a rendering
  */
 class AccountToastFitTest {
 
     /**
-     * 56 characters, and where the number comes from — a bench reading, three steps, all of them
+     * 56 characters, and where the number comes from, a bench reading, three steps, all of them
      */
     private val maxToastChars = 56
 
     /**
-     * The rule that keeps the other two honest: what is being measured is FOUND.
+     * The rule that keeps the other two honest: what is being measured is found.
      */
     @Test fun `the sentences a finished add can show are found, and there is at least one`() {
         val body = decisionBody()
@@ -43,7 +43,7 @@ class AccountToastFitTest {
     }
 
     /**
-     * FAIL CLOSED on the resources, second half. An id the string map does not resolve is measured
+     * Fail closed on the resources, second half. An id the string map does not resolve is measured
      */
     @Test fun `every sentence an add ends on resolves in the nine languages`() {
         val strings = locales().associate { it.name to stringsOf(it) }
@@ -62,7 +62,7 @@ class AccountToastFitTest {
     }
 
     /**
-     * THE DEFECT: a two-line box, and a sentence longer than two lines.
+     * The defect: a two-line box, and a sentence longer than two lines.
      */
     @Test fun `no sentence an add ends on is too long for a toast`() {
         val strings = locales().associate { it.name to stringsOf(it) }
@@ -89,7 +89,7 @@ class AccountToastFitTest {
     }
 
     /**
-     * THE OTHER HALF, and the one the plafond above cannot see: a sentence can FIT and still be
+     * The other half, and the one the plafond above cannot see: a sentence can fit and still be
      */
     @Test fun `the re-add sentence says a re-add, in every language, and not a create`() {
         val strings = locales().associate { it.name to stringsOf(it) }
@@ -162,7 +162,7 @@ class AccountToastFitTest {
         )
     }
 
-    /** Trimmed, lowercased, trailing punctuation dropped: what two sentences must differ by MORE
+    /** Trimmed, lowercased, trailing punctuation dropped: what two sentences must differ by more
      *  than. "Konto hinzugefügt." and "Konto hinzugefügt" are the same sentence to a reader. */
     private fun normalised(text: String): String =
         text.trim().lowercase().trimEnd('.', '!', '?', '…', ' ')
@@ -177,6 +177,7 @@ class AccountToastFitTest {
 
     /**
      * The body of `accountAddedToast`: its declaration line plus every indented line under it (a
+     * top-level declaration starts at column 0, so that is where the body ends).
      */
     private fun decisionBody(): String {
         val lines = code(VIEW_MODEL).lines()
@@ -191,7 +192,7 @@ class AccountToastFitTest {
     }
 
     /** The argument text of every call to `accountAddedToast(` under `app/src/main/kotlin`, the
-     *  declaration itself excluded — it matches the same name and carries no resource. */
+     *  declaration itself excluded, it matches the same name and carries no resource. */
     private fun callSites(): List<String> = File(root, "app/src/main/kotlin")
         .walkTopDown()
         .filter { it.isFile && it.extension == "kt" }
@@ -266,7 +267,7 @@ class AccountToastFitTest {
     }
 
     /** The file with its comment lines and trailing comments removed, so no rule here can be
-     *  satisfied — or defeated — by prose. Copied from `SenderRuleDialogFitTest`. */
+     *  satisfied (or defeated) by prose. Copied from `SenderRuleDialogFitTest`. */
     private fun code(file: File): String = file.readLines().mapNotNull { line ->
         val trimmed = line.trimStart()
         if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) null
@@ -303,7 +304,7 @@ class AccountToastFitTest {
     private companion object {
         const val DECISION = "accountAddedToast"
 
-        /** The declaration, and the call, told apart — the declaration carries no resource and
+        /** The declaration, and the call, told apart, the declaration carries no resource and
          *  would fail the two-argument reading on its own parameter list. */
         val DECLARATION = Regex("""\bfun\s+$DECISION\(""")
         val CALL = Regex("""(?<!fun )\b$DECISION\(""")
@@ -312,7 +313,7 @@ class AccountToastFitTest {
         val RESOURCE = Regex("""R\.string\.(\w+)""")
 
         /**
-         * A `<string>` with its text — attributes ALLOWED, as `TranslationParityTest` reads them.
+         * A `<string>` with its text, attributes allowed, as `TranslationParityTest` reads them.
          */
         val STRING = Regex("""<string\s+name="([^"]+)"[^>]*>(.*?)</string>""", RegexOption.DOT_MATCHES_ALL)
 

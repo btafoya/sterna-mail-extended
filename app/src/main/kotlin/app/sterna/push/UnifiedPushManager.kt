@@ -38,13 +38,13 @@ class UnifiedPushManager(
 
     private val _needsDistributorChoice = MutableStateFlow(false)
 
-    /** True while >1 distributor is installed and none chosen — the UI shows the picker. */
+    /** True while >1 distributor is installed and none chosen, the UI shows the picker. */
     val needsDistributorChoice: StateFlow<Boolean> = _needsDistributorChoice.asStateFlow()
 
     fun distributorInstalled(): Boolean = UnifiedPush.getDistributors(context).isNotEmpty()
 
     /** Make sure a distributor is chosen: one installed is saved silently, several with none saved
-     *  raises the picker — the only case with UI. False while no usable choice exists. */
+     *  raises the picker, the only case with UI. False while no usable choice exists. */
     private fun ensureDistributor(): Boolean {
         if (UnifiedPush.getAckDistributor(context) != null) return true
         if (UnifiedPush.getSavedDistributor(context) != null) return true
@@ -69,7 +69,7 @@ class UnifiedPushManager(
         onTransportStateChanged?.invoke()
     }
 
-    /** Clear the FAILED a lost distributor stamped, ahead of `onTransportStateChanged` whose
+    /** Clear the failed a lost distributor stamped, ahead of `onTransportStateChanged` whose
      *  apply() reads it back. From the in-person pick only: the connector drops its own saved
      *  distributor on the last unregister, so `ensureDistributor` re-enrols and would loop here. */
     private fun rearmFailedAccounts() {
@@ -94,12 +94,12 @@ class UnifiedPushManager(
         store.load(accountStore.account(accountId)?.loginKey() ?: accountId)?.status == UpStatus.ACTIVE
 
     /** Reality check before transport decisions: the saved distributor was uninstalled while
-     *  accounts rode it, so mark them FAILED and let their direct connections resume. Called by the
+     *  accounts rode it, so mark them failed and let their direct connections resume. Called by the
      *  controller and the worker themselves, hence no [onTransportStateChanged] here. */
     fun reconcileDistributorPresence() {
         val saved = UnifiedPush.getAckDistributor(context) ?: UnifiedPush.getSavedDistributor(context)
         if (saved != null && saved in UnifiedPush.getDistributors(context)) return
-        // The connector lookups above stay OUTSIDE the monitor; only read-decide-write is locked.
+        // The connector lookups above stay outside the monitor; only read-decide-write is locked.
         val credentials = accountStore.allCredentials()
         synchronized(this) {
             credentials.forEach { account ->
@@ -115,7 +115,7 @@ class UnifiedPushManager(
         }
     }
 
-    /** Registration/verification in flight and not stale — the EventSource stays up meanwhile. */
+    /** Registration/verification in flight and not stale, the EventSource stays up meanwhile. */
     fun isPending(accountId: String): Boolean {
         val state = store.load(accountId) ?: return false
         return (state.status == UpStatus.REGISTERING || state.status == UpStatus.VERIFYING) &&
@@ -123,7 +123,7 @@ class UnifiedPushManager(
     }
 
     /** Read-only dossier for [RelayPush.unifiedPushMissing]: the account should be on UnifiedPush
-     *  and is not. Asks the connector nothing — the status line reads this twice a second. */
+     *  and is not. Asks the connector nothing, the status line reads this twice a second. */
     fun unifiedPushMissing(accountId: String, protocol: MailProtocol?): Boolean {
         val state = store.load(accountId)
         return RelayPush.unifiedPushMissing(
@@ -140,7 +140,7 @@ class UnifiedPushManager(
 
     fun distributors(): List<String> = UnifiedPush.getDistributors(context)
 
-    /** Drive the account towards ACTIVE: register when NONE/FAILED, re-register when a pending
+    /** Drive the account towards active: register when none/failed, re-register when a pending
      *  state went stale (a lazy watchdog, no timers). The decision is [RelayPush.shouldRegister]. */
     @Synchronized
     fun ensureRegistered(credentials: AccountCredentials) {
@@ -150,9 +150,9 @@ class UnifiedPushManager(
         // and must not reach ensureDistributor(), whose picker is this subsystem's only UI.
         val known = store.load(credentials.id)
         if (!RelayPush.mayUsePush(credentials.protocol, known?.relayRequested ?: false)) return
-        // ensureDistributor() runs BEFORE the registration window: it also enrols a single
+        // ensureDistributor() runs before the registration window: it also enrols a single
         // installed distributor and raises the picker, and behind shouldRegister an account just
-        // marked FAILED stopped reaching it for the whole cooldown.
+        // marked failed stopped reaching it for the whole cooldown.
         if (!ensureDistributor()) return
         if (!RelayPush.shouldRegister(
                 protocol = credentials.protocol,
@@ -210,14 +210,14 @@ class UnifiedPushManager(
 
     fun relayRequested(accountId: String): Boolean = store.load(accountId)?.relayRequested == true
 
-    /** The published relay address, or null unless there is a live one to show —
+    /** The published relay address, or null unless there is a live one to show.
      *  [RelayPush.publishedAddress] holds the rule. */
     fun relayEndpoint(accountId: String): String? = RelayPush.publishedAddress(store.load(accountId))
 
     fun relayLastDeliveryMillis(accountId: String): Long = store.load(accountId)?.lastDeliveryMillis ?: 0
 
     /**
-     * Is this account served by an ARMED relay — one the user asked for, holding no PushSubscription
+     * Is this account served by an armed relay, one the user asked for, holding no PushSubscription
      */
     fun relayArmed(accountId: String): Boolean {
         val state = store.load(accountId) ?: return false
@@ -229,7 +229,7 @@ class UnifiedPushManager(
         scope.launch {
             // The connector redelivers the endpoint on every register, so the no-change case has to
             // be recognised; a relay account stops at its own state. Read, decide and write in
-            // ONE block, under ensureRegistered's monitor: read outside the lock and a withdrawal
+            // one block, under ensureRegistered's monitor: read outside the lock and a withdrawal
             // landing in between is overwritten, the removed address coming back published.
             val (prev, outcome) = synchronized(this@UnifiedPushManager) {
                 val current = store.getOrCreate(accountId)
@@ -249,14 +249,14 @@ class UnifiedPushManager(
                 EndpointOutcome.Subscribe -> Unit
             }
             // Before the destroy on purpose: a verification that is merely slow still has a live
-            // subscription to land on, and onMessage's Verification arm takes it to ACTIVE alone.
+            // subscription to land on, and onMessage's Verification arm takes it to active alone.
             if (RelayPush.createBudgetSpent(prev, endpoint.url)) {
                 Log.w(TAG, "PushSubscription never verified after ${prev.createAttempts} creations for $accountId")
                 markFailed(accountId)
                 return@launch
             }
             if (prev.subscriptionId != null) {
-                // Rotation or a lapsed verification: the old subscription is dead — drop it.
+                // Rotation or a lapsed verification: the old subscription is dead, drop it.
                 runCatching { repo.destroyPushSubscription(credentials, prev.subscriptionId) }
             }
             val keys = endpoint.pubKeySet
@@ -302,13 +302,13 @@ class UnifiedPushManager(
     fun onMessage(accountId: String, message: PushMessage) {
         when (val payload = decodePayload(accountId, message)) {
             is PushMessagePayload.Verification -> {
-                // A relay address is a topic ANYONE may post to. Without this guard a stranger
+                // A relay address is a topic anyone may post to. Without this guard a stranger
                 // posts {"@type":"PushVerification"} and it is carried into verifyPushSubscription
                 // with the account's credentials against an IMAP host: the failure calls markFailed,
                 // so that stranger switches the relay off for fifteen minutes at will.
                 //
-                // The question is the PROTOCOL, not the stored subscriptionId, which is written
-                // only once createPushSubscription has returned — a guard on it would depend on
+                // The question is the protocol, not the stored subscriptionId, which is written
+                // only once createPushSubscription has returned, a guard on it would depend on
                 // which of two messages wins a race.
                 val credentials = credentialsFor(accountId) ?: return unregisterOrphan(accountId)
                 if (credentials.protocol != MailProtocol.JMAP) {
@@ -343,7 +343,7 @@ class UnifiedPushManager(
                 recordDelivery(accountId)
                 enqueueForLogin(accountId)
             }
-            // Unknown/undecryptable payload: treat as a bare wake signal — still fetch.
+            // Unknown/undecryptable payload: treat as a bare wake signal, still fetch.
             null -> {
                 // Log.i, not d: release builds strip d/v, and this is the evidence when push
                 // misbehaves on a distributor I cannot test.
@@ -354,21 +354,21 @@ class UnifiedPushManager(
         }
     }
 
-    /** Mail really came through this account's endpoint — the only thing that arms a relay
+    /** Mail really came through this account's endpoint, the only thing that arms a relay
      *  ([RelayPush.onDelivery] holds the rule). Called from the two arms that carry mail, never
      *  from Verification. */
     private fun recordDelivery(accountId: String) {
         // Read, decide and write under ensureRegistered's monitor. This is the only write that
         // arms the transport, and it runs on the connector's thread while a rotation writes from
-        // Dispatchers.IO: outside the lock, a payload on the OLD address persists over the
-        // rotation. The callback below stays outside — it re-enters the manager.
+        // Dispatchers.IO: outside the lock, a payload on the old address persists over the
+        // rotation. The callback below stays outside, it re-enters the manager.
         val update = synchronized(this) {
             val prev = store.load(accountId) ?: return
             val decided = RelayPush.onDelivery(prev, System.currentTimeMillis()) ?: return
             store.save(accountId, decided.state)
             decided
         }
-        // Only the PUBLISHED → ACTIVE crossing: this callback rebuilds every connection.
+        // Only the crossing from published to active: this callback rebuilds every connection.
         if (update.armed) {
             Log.i(TAG, "UnifiedPush relay armed by a delivery for $accountId")
             onTransportStateChanged?.invoke()
@@ -406,7 +406,7 @@ class UnifiedPushManager(
 
     fun onUnregistered(accountId: String) {
         Log.i(TAG, "UnifiedPush unregistered for $accountId")
-        // FAILED, not NONE: NONE re-registers instantly through the transport callback and
+        // Failed, not none: none re-registers instantly through the transport callback and
         // ping-pongs against a distributor that keeps answering with unregister.
         synchronized(this) {
             store.load(accountId)?.let {
@@ -465,7 +465,7 @@ class UnifiedPushManager(
     private fun credentialsFor(accountId: String): AccountCredentials? =
         accountStore.allCredentials().firstOrNull { it.id == accountId }
 
-    /** Re-encode any base64 variant as base64url WITH padding: Stalwart's decoder requires canonical
+    /** Re-encode any base64 variant as base64url with padding: Stalwart's decoder requires canonical
      *  padding and rejects the RFC 7515-style unpadded form. */
     private fun base64Url(value: String): String {
         val bytes = try {

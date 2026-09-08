@@ -16,8 +16,8 @@ import java.sql.DriverManager
 class ConversationSqlTest {
     private lateinit var db: Connection
 
-    /** Two same-server accounts whose inbox carries the same server-assigned id — the unified
-     *  list's scope for them: one (account, folder) pair EACH, never the shared id alone. */
+    /** Two same-server accounts whose inbox carries the same server-assigned id, the unified
+     *  list's scope for them: one (account, folder) pair each, never the shared id alone. */
     private val BOTH_ACCOUNTS = listOf("accA" to "inbox", "accB" to "inbox")
 
     @Before fun setUp() {
@@ -64,7 +64,7 @@ class ConversationSqlTest {
     }
 
     /**
-     * Run the grouping SQL over [scopes] — (account id, mailbox id) pairs, as the app binds them
+     * Run the grouping SQL over [scopes], (account id, mailbox id) pairs, as the app binds them
      * ([conversationQuery]); the default is the single-account "acc"/"inbox" fixture. Returns rows
      * as maps.
      */
@@ -75,7 +75,7 @@ class ConversationSqlTest {
     ): List<Map<String, Any?>> {
         val sql = conversationSql(scopeCount = scopes.size, sort = sort, unreadOnly = unreadOnly)
         return db.prepareStatement(sql).use { ps ->
-            // in-view sub-query, in-view count sub-query, outer WHERE — each binds every scope,
+            // in-view sub-query, in-view count sub-query, outer where, each binds every scope,
             // account id first.
             val args = (1..3).flatMap { scopes.flatMap { (acc, mb) -> listOf(acc, mb) } }
             args.forEachIndexed { i, a -> ps.setString(i + 1, a) }
@@ -134,8 +134,8 @@ class ConversationSqlTest {
     }
 
     @Test fun accountScopeExcludesOtherAccountSharingAMailboxId() {
-        // Two accounts whose inbox shares the same server-assigned mailbox id ("inbox")
-        // — the case that made a single-account folder view show a mix of both accounts.
+        // Two accounts whose inbox shares the same server-assigned mailbox id ("inbox"),
+        // the case that made a single-account folder view show a mix of both accounts.
         insert("a1", threadId = null, seen = 1, flagged = 0, sortKey = 100, accountId = "accA")
         insert("b1", threadId = null, seen = 1, flagged = 0, sortKey = 200, accountId = "accB")
 
@@ -147,8 +147,8 @@ class ConversationSqlTest {
         run(scopes = listOf(accountId to "inbox")).map { it["id"] as String }
 
     @Test fun sameEmailIdAcrossAccountsStaysScoped() {
-        // Two sub-accounts of one login (issue #31) whose server minted the SAME email id
-        // in the SAME-named mailbox — the composite (accountId, id) key case. Each scoped
+        // Two sub-accounts of one login (issue #31) whose server minted the same email id
+        // in the same-named mailbox, the composite (accountId, id) key case. Each scoped
         // view must show exactly its own row.
         insert("e1", threadId = null, seen = 0, flagged = 0, sortKey = 100, accountId = "accA")
         insert("e1", threadId = null, seen = 1, flagged = 0, sortKey = 200, accountId = "accB")
@@ -169,7 +169,7 @@ class ConversationSqlTest {
     }
 
     /** Run the SQL as bound in production for the Inbox of account "acc" with a Sent folder:
-     *  `g` and the outer WHERE scope to the Inbox; the chip sub-query `c` also takes the
+     *  `g` and the outer where scope to the Inbox; the chip sub-query `c` also takes the
      *  account-pinned ("acc", "sent") pair. */
     private fun runWithSent(): List<Map<String, Any?>> {
         val sql = conversationSql(
@@ -178,7 +178,7 @@ class ConversationSqlTest {
         return db.prepareStatement(sql).use { ps ->
             ps.setString(1, "acc"); ps.setString(2, "inbox") // in-view sub-query g
             ps.setString(3, "acc"); ps.setString(4, "inbox"); ps.setString(5, "acc"); ps.setString(6, "sent") // chip c
-            ps.setString(7, "acc"); ps.setString(8, "inbox") // outer WHERE
+            ps.setString(7, "acc"); ps.setString(8, "inbox") // the outer where clause
             ps.executeQuery().use { rs ->
                 buildList {
                     while (rs.next()) {
@@ -197,7 +197,7 @@ class ConversationSqlTest {
 
     @Test fun chipCountsFolderPlusSentMembersMatchingTheUnfoldedConversation() {
         // A thread with one message in the Inbox and its reply filed in Sent: the unfolded
-        // conversation shows both, so the chip says 2 — while the representative stays the
+        // conversation shows both, so the chip says 2, while the representative stays the
         // in-view (Inbox) message.
         insert("in1", threadId = "T1", seen = 0, flagged = 0, sortKey = 100, mailbox = "inbox")
         insert("sent1", threadId = "T1", seen = 1, flagged = 0, sortKey = 200, mailbox = "sent")
@@ -219,7 +219,7 @@ class ConversationSqlTest {
 
         val rows = runWithSent()
         assertEquals(1, rows.size)
-        assertEquals("in1", rows[0]["id"]) // representative = newest IN-VIEW member, not tr1/sent1
+        assertEquals("in1", rows[0]["id"]) // representative = newest in-view member, not tr1/sent1
         assertEquals(2, rows[0]["threadCount"])
         assertEquals(3, rows[0]["threadTotal"])
     }
@@ -233,7 +233,7 @@ class ConversationSqlTest {
     }
 
     @Test fun threadCountIgnoresMembersOutsideTheViewedFolder() {
-        // No Sent folder bound: two members in the viewed folder, one filed elsewhere —
+        // No Sent folder bound: two members in the viewed folder, one filed elsewhere,
         // chip 2, total 3.
         insert("in1", threadId = "T1", seen = 1, flagged = 0, sortKey = 100, mailbox = "inbox")
         insert("in2", threadId = "T1", seen = 0, flagged = 0, sortKey = 200, mailbox = "inbox")
@@ -241,14 +241,14 @@ class ConversationSqlTest {
 
         val rows = run()
         assertEquals(1, rows.size)
-        assertEquals("in2", rows[0]["id"]) // representative = newest IN-VIEW member, not tr1
+        assertEquals("in2", rows[0]["id"]) // representative = newest in-view member, not tr1
         assertEquals(2, rows[0]["threadCount"])
         assertEquals(3, rows[0]["threadTotal"])
     }
 
     @Test fun countsDoNotMixAccountsSharingMailboxAndThreadIds() {
         // Unified view (no account bind): two accounts whose server assigned the same
-        // mailbox AND thread ids — one row EACH (grouping is per (account, thread)), and
+        // mailbox and thread ids, one row each (grouping is per (account, thread)), and
         // the counts stay per the representative's account.
         insert("a1", threadId = "T1", seen = 0, flagged = 0, sortKey = 200, accountId = "accA")
         insert("b1", threadId = "T1", seen = 1, flagged = 0, sortKey = 100, accountId = "accB")
@@ -264,9 +264,9 @@ class ConversationSqlTest {
     }
 
     @Test fun unifiedViewKeepsBothAccountsConversationsWhenThreadIdsCollide() {
-        // The data-loss case: two accounts of the same server carry the SAME thread id, each
+        // The data-loss case: two accounts of the same server carry the same thread id, each
         // with a 2-message conversation. Grouped on the thread key alone, the two collapsed
-        // into a single row and only the newest account's conversation survived — the other
+        // into a single row and only the newest account's conversation survived, the other
         // account's mail was simply absent from the unified list.
         insert("a1", threadId = "T1", seen = 1, flagged = 0, sortKey = 100, accountId = "accA")
         insert("a2", threadId = "T1", seen = 0, flagged = 0, sortKey = 400, accountId = "accA")
@@ -286,7 +286,7 @@ class ConversationSqlTest {
 
     @Test fun unreadOnlyKeepsEachAccountsThreadIndependently() {
         // Colliding thread ids again, filtered: accB's conversation is unread and must show
-        // even though accA's — grouped under the same thread key — is fully read.
+        // even though accA's (grouped under the same thread key) is fully read.
         insert("a1", threadId = "T1", seen = 1, flagged = 0, sortKey = 400, accountId = "accA")
         insert("b1", threadId = "T1", seen = 0, flagged = 0, sortKey = 100, accountId = "accB")
 
@@ -295,7 +295,7 @@ class ConversationSqlTest {
     }
 
     @Test fun sameEmailIdAndNoThreadAcrossAccountsKeepsBothRows() {
-        // Thread-less messages group on their own id, so a colliding EMAIL id is the same
+        // Thread-less messages group on their own id, so a colliding email id is the same
         // collapse hazard: both accounts' messages must still be listed.
         insert("e1", threadId = null, seen = 0, flagged = 0, sortKey = 200, accountId = "accA")
         insert("e1", threadId = null, seen = 0, flagged = 0, sortKey = 100, accountId = "accB")
@@ -305,8 +305,8 @@ class ConversationSqlTest {
 
     @Test fun sentPairDoesNotLeakACollidingMailboxIdAcrossAccounts() {
         // Unified view: account B's Sent folder id ("X") collides with a plain folder of
-        // account A. A's chip must not count its "X"-folder member (X is not A's Sent) —
-        // the pair binding pins the Sent widening to account B — while B's chip still
+        // account A. A's chip must not count its "X"-folder member (X is not A's Sent),
+        // the pair binding pins the Sent widening to account B, while B's chip still
         // counts its Sent reply.
         insert("a1", threadId = "T1", seen = 0, flagged = 0, sortKey = 200, accountId = "accA")
         insert("ax", threadId = "T1", seen = 1, flagged = 0, sortKey = 100, mailbox = "X", accountId = "accA")
@@ -331,13 +331,13 @@ class ConversationSqlTest {
 
     // -- sort orders and the favourite pin (issue #111) -----------------------------------
     //
-    // Until 1.4.5 every ORDER BY was prefixed with `flagged DESC`, so each of the five menu
+    // Until 1.4.5 every order by was prefixed with `flagged DESC`, so each of the five menu
     // entries silently meant "…, except the starred ones". Pinning is now its own entry,
     // SortOrder.FLAGGED_FIRST, and the other five must order on their own criterion alone.
     //
-    // One fixture serves all six orders, arranged so that the starred rows LOSE under every
-    // non-pinning order — otherwise the assertion would pass whether or not the prefix is
-    // there. `p` is unread, mid-dated, first alphabetically by subject AND sender; `s2`/`s`
+    // One fixture serves all six orders, arranged so that the starred rows lose under every
+    // non-pinning order, otherwise the assertion would pass whether or not the prefix is
+    // there. `p` is unread, mid-dated, first alphabetically by subject and sender; `s2`/`s`
     // are starred, read, and sort behind it on every criterion but the pin.
     private fun insertSortFixture() {
         insert("p", threadId = null, seen = 0, flagged = 0, sortKey = 200, subject = "aaa", fromName = "Anna")
@@ -354,7 +354,7 @@ class ConversationSqlTest {
         assertEquals(listOf("s", "p", "s2"), ids(run(SortOrder.DATE_ASC)))
         assertEquals(listOf("p", "s2", "s"), ids(run(SortOrder.SUBJECT)))
         assertEquals(listOf("p", "s2", "s"), ids(run(SortOrder.SENDER)))
-        // The starkest case: "Unread first" used to put a starred READ message above an
+        // The starkest case: "Unread first" used to put a starred read message above an
         // unread one, which is the one thing the entry's name promises it will not do.
         assertEquals(listOf("p", "s2", "s"), ids(run(SortOrder.UNREAD_FIRST)))
     }
@@ -368,14 +368,14 @@ class ConversationSqlTest {
     }
 
     @Test fun favouritesFirstOrdersOnTheStarTheRowActuallyDraws() {
-        // Collapsed rows draw the REPRESENTATIVE message's star, and that is what the order
-        // follows — not "any message of the thread is starred". Ordering on the thread-wide
+        // Collapsed rows draw the representative message's star, and that is what the order
+        // follows, not "any message of the thread is starred". Ordering on the thread-wide
         // MAX(flagged) was tried and rejected: a thread would then sit at the top wearing an
         // empty star, and tapping that star twice would not shift it, because an invisible
         // older message held it there. Pinning the reader cannot see or undo is the very
         // WYSIWYG break this change removes.
         //
-        // Thread T carries a star on an OLD message; its representative t2 is unstarred, so T
+        // Thread T carries a star on an old message; its representative t2 is unstarred, so T
         // does not pin. Thread U's representative u2 IS starred, so U does.
         insert("t1", threadId = "T", seen = 1, flagged = 1, sortKey = 100) // starred, older, not drawn
         insert("t2", threadId = "T", seen = 1, flagged = 0, sortKey = 200) // representative, unstarred
@@ -387,14 +387,14 @@ class ConversationSqlTest {
         assertEquals(listOf("u2", "plain", "t2"), ids(rows))
         assertEquals(2, rows[0]["threadCount"])
         // Worth stating plainly: this distinction arises on both protocols now that IMAP rows
-        // carry a header-rebuilt threadId (imapThreadKey). Only a message with a null threadId —
-        // one with no threading header at all — is its own thread, and there the representative's
+        // carry a header-rebuilt threadId (imapThreadKey). Only a message with a null threadId,
+        // one with no threading header at all, is its own thread, and there the representative's
         // flag IS the thread's.
     }
 
     @Test fun favouritesFirstCoexistsWithTheUnreadOnlyFilter() {
         // The only combination of the new order left unexercised: FLAGGED_FIRST alongside
-        // unreadOnly, whose HAVING MIN(seen) = 0 sits in the same grouped query.
+        // unreadOnly, whose having min(seen) = 0 sits in the same grouped query.
         insert("fu", threadId = null, seen = 0, flagged = 1, sortKey = 100) // starred + unread → kept, pinned
         insert("fr", threadId = null, seen = 1, flagged = 1, sortKey = 400) // starred but read → filtered out
         insert("pu", threadId = null, seen = 0, flagged = 0, sortKey = 300) // plain + unread → kept
@@ -407,13 +407,13 @@ class ConversationSqlTest {
 
     // -- flat (uncollapsed) mode, colliding mailbox ids -----------------------------------
     //
-    // Conversation mode is exercised above; the same views also run FLAT, through a different
+    // Conversation mode is exercised above; the same views also run flat, through a different
     // query ([pagingSql]), which carried the same defect and is fixed the same way. Stalwart
-    // numbers mailboxes per account from "a", so on one server EVERY account's Inbox is "a", its
-    // Trash "b", its Junk "c" — the ids collide wholesale, which is what makes this worth pinning
+    // numbers mailboxes per account from "a", so on one server every account's Inbox is "a", its
+    // Trash "b", its Junk "c", the ids collide wholesale, which is what makes this worth pinning
     // rather than assuming (Codeberg #107 probe, #121 fix).
 
-    /** Flat list over [scopes] — (account id, mailbox id) pairs, one for a folder view, one per
+    /** Flat list over [scopes], (account id, mailbox id) pairs, one for a folder view, one per
      *  account for the unified inbox. Bind order per scope: account id, then mailbox id. */
     private fun runFlat(
         vararg scopes: Pair<String, String>,
@@ -430,7 +430,7 @@ class ConversationSqlTest {
 
     @Test fun flatUnifiedSpansAccountsThatShareTheirInboxId() {
         // The intended case: ten Stalwart accounts all call their Inbox "a", and all ten must
-        // surface. They do because ten PAIRS are bound, one per account — not because the account
+        // surface. They do because ten pairs are bound, one per account, not because the account
         // is left out of the filter.
         insert("a1", threadId = null, seen = 0, flagged = 0, sortKey = 100, mailbox = "a", accountId = "accA")
         insert("b1", threadId = null, seen = 0, flagged = 0, sortKey = 200, mailbox = "a", accountId = "accB")
@@ -450,9 +450,9 @@ class ConversationSqlTest {
 
     @Test fun flatUnifiedDoesNotSelectOnTheMailboxIdStringAloneAcrossRoles() {
         // Was a characterisation test of the defect, and is now its assertion the other way round.
-        // The unified list used to match the id STRING, not "this account's Inbox": a row filed
-        // under ANOTHER account's folder that happened to carry the bound id was listed as if it
-        // were inbox mail. Binding the pair ends it — accB's Trash is not in the scope, so its
+        // The unified list used to match the id string, not "this account's Inbox": a row filed
+        // under another account's folder that happened to carry the bound id was listed as if it
+        // were inbox mail. Binding the pair ends it, accB's Trash is not in the scope, so its
         // row is not in the list, whatever accB numbered that folder.
         insert("inbox1", threadId = null, seen = 0, flagged = 0, sortKey = 100, mailbox = "a", accountId = "accA")
         insert("trash1", threadId = null, seen = 0, flagged = 0, sortKey = 200, mailbox = "a", accountId = "accB")
@@ -461,7 +461,7 @@ class ConversationSqlTest {
     }
 
     @Test fun flatUnifiedKeepsBothRowsWhenTheEmailIdsCollideToo() {
-        // Same-server accounts can be handed the same EMAIL id as well (issue #31, composite
+        // Same-server accounts can be handed the same email id as well (issue #31, composite
         // (accountId, id) key). The flat list must show one row per account, not one row.
         insert("e1", threadId = null, seen = 0, flagged = 0, sortKey = 100, mailbox = "a", accountId = "accA")
         insert("e1", threadId = null, seen = 0, flagged = 0, sortKey = 200, mailbox = "a", accountId = "accB")
@@ -484,17 +484,17 @@ class ConversationSqlTest {
 
     // -- the reported defect: a row whose account is gone (Codeberg #121) ------------------
     //
-    // Fastmail (JMAP) + Mail.ru (IMAP), "All inboxes": some messages appeared TWICE — once with
+    // Fastmail (JMAP) + Mail.ru (IMAP), "All inboxes": some messages appeared twice, once with
     // their account chip, in the right state, and once without a chip, bold and starred. The
     // unlabelled twin is a row of an account that is no longer configured: its mailbox id came
     // from the server and survived the account being removed and added back, while the account id
     // is a locally minted UUID and did not. Scoped on the folder id alone, the old rows stayed in
     // the list; the chip is resolved per account (InboxScreen), so they drew none.
     //
-    // Each case below has its WITNESS: the same row under a KNOWN account, which must still be
+    // Each case below has its WITNESS: the same row under a known account, which must still be
     // listed. Without it a query that returned nothing at all would pass just as well.
 
-    /** One message per account in the same server-numbered inbox — accA is configured, "gone" is
+    /** One message per account in the same server-numbered inbox, accA is configured, "gone" is
      *  the account the user removed. */
     private fun anOrphanBesideItsTwin() {
         insert("live", threadId = null, seen = 1, flagged = 0, sortKey = 100, mailbox = "a", accountId = "accA")
@@ -532,9 +532,9 @@ class ConversationSqlTest {
 
     // -- flat mode: sort orders and the favourite pin (issue #111) -------------------------
     //
-    // The flat query had NO favourite-pin coverage at all before this — every case above
+    // The flat query had NO favourite-pin coverage at all before this, every case above
     // inserts flagged = 0, so the prefix could have been removed or kept and nothing here
-    // would have noticed. Conversation view is ON by default, so this is the second list
+    // would have noticed. Conversation view is on by default, so this is the second list
     // rather than the main one, but it is a wholly separate query (pagingSql) that carried
     // the same defect, and one whose only pin coverage was the one it never had.
 

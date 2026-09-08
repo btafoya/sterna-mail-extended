@@ -16,7 +16,7 @@ import java.time.ZoneId
 import java.util.Locale
 
 /**
- * ONE row of the latest-messages widget, as the launcher will draw it: six fields, all decided.
+ * One row of the latest-messages widget, as the launcher will draw it: six fields, all decided.
  */
 internal data class RecentWidgetRow(
     val primary: String,
@@ -27,12 +27,12 @@ internal data class RecentWidgetRow(
     val monogram: RecentRowMonogram?,
 )
 
-/** The badge one row wears: the letter, and WHICH of the palette's eighteen colours paints it —
+/** The badge one row wears: the letter, and which of the palette's eighteen colours paints it,
  *  never the colour itself. A widget row is projected once and drawn many times, possibly after a
  *  theme change, so a resolved colour would be the palette of the moment the mail arrived. */
 internal data class RecentRowMonogram(val initial: String, val slot: MonogramSlot)
 
-/** What the CELL is, before a single row is considered — three states, and the third is easy to get
+/** What the cell is, before a single row is considered, three states, and the third is easy to get
  *  wrong: `recentUnifiedInbox` answers false to `configured` for no account, a blob that failed to
  *  decode, and an inbox id not known yet, the state every restored backup starts in. In none of
  *  them is "your inbox is empty" a true sentence. */
@@ -40,15 +40,15 @@ internal sealed interface RecentWidgetCell {
 
     data object Rows : RecentWidgetCell
 
-    /** Inboxes are known and hold nothing. The ONLY state that may say the mailbox is empty. */
+    /** Inboxes are known and hold nothing. The only state that may say the mailbox is empty. */
     data object EmptyInbox : RecentWidgetCell
 
     /** Nothing may be affirmed about mail. Not "no account": see the three causes above. */
     data object NothingToSay : RecentWidgetCell
 }
 
-/** One line of the list, both halves: what it DRAWS and what it OPENS. Two fields and not one
- *  flat row — merged, an identifier on the drawn type would be one `setTextViewText` away from the
+/** One line of the list, both halves: what it draws and what it opens. Two fields and not one
+ *  flat row, merged, an identifier on the drawn type would be one `setTextViewText` away from the
  *  home screen. */
 internal data class RecentWidgetItem(val drawn: RecentWidgetRow, val tap: RecentRowTap)
 
@@ -56,12 +56,13 @@ internal data class RecentWidgetItem(val drawn: RecentWidgetRow, val tap: Recent
 internal data class RecentWidgetSnapshot(val cell: RecentWidgetCell, val rows: List<RecentWidgetItem>)
 
 /**
- * The latest-messages widget's whole decision, kept apart from Android so it can be EXECUTED in a
+ * The latest-messages widget's whole decision, kept apart from Android so it can be executed in a
+ * JVM test, same shape and same reason as [UnreadWidgetContent] and [UnreadWidgetTap] next door.
  */
 internal object RecentMailWidgetContent {
 
     /** The three states, from what the read answered. [hasRows] and not the rows themselves: the
-     *  decision is about the SHAPE of the cell and must not be able to look at a subject. */
+     *  decision is about the shape of the cell and must not be able to look at a subject. */
     fun cell(configured: Boolean, hasRows: Boolean): RecentWidgetCell = when {
         // First arm, deliberately: a read that knows no inbox says nothing. Folded into "no
         // rows", three restored accounts read as an empty mailbox.
@@ -70,7 +71,7 @@ internal object RecentMailWidgetContent {
         else -> RecentWidgetCell.EmptyInbox
     }
 
-    /** The single line drawn INSTEAD of the list, or null when the list is what the cell shows.
+    /** The single line drawn instead of the list, or null when the list is what the cell shows.
      * [RecentWidgetCell.NothingToSay] resolves to the app's own name, never to the empty-inbox
      *  line: that is the whole difference between the two silent-looking states. */
     fun notice(cell: RecentWidgetCell): Int? = when (cell) {
@@ -80,14 +81,14 @@ internal object RecentMailWidgetContent {
     }
 
     /**
-     * The dot each account's rows wear, by account id — and an EMPTY map whenever no dot should be
+     * The dot each account's rows wear, by account id, and an empty map whenever no dot should be
      */
     fun accountColors(accounts: List<StoredAccount>): Map<String, Int> =
         if (!AllInboxesView.existsFor(accounts)) emptyMap()
         else accounts.mapNotNull { account -> account.color?.let { account.id to it } }.toMap()
 
     /** One database row, projected onto what the launcher draws. [unknownSender] and [noSubject] are
-     *  the app's stand-ins, applied HERE because the widget-row rule takes non-null `String`s while
+     *  the app's stand-ins, applied here because the widget-row rule takes non-null `String`s while
      *  the columns are nullable. The date and the unread mark are not governed by the setting:
      *  neither names anyone. */
     fun row(
@@ -115,8 +116,10 @@ internal object RecentMailWidgetContent {
             secondary = drawn.secondary,
             date = MailDates.formatListDate(row.receivedAt, zone, today, locale),
             unread = !row.seen,
-            // The badge is drawn only where the row ALREADY names its sender, and that answer
-            // comes from the rule above — the only place that has seen the app lock fold the
+            // The badge is drawn only where the row already names its sender, and that answer
+            // comes from the rule above, the only place that has seen the app lock fold the
+            // position onto NONE: an initial is a letter of somebody's name, and a badge on a
+            // locked home screen would be the lock's promise broken in one character.
             monogram = if (!listMonogram || !drawn.namesSender) null else RecentRowMonogram(
                 initial = initialOf(row.fromName.orEmpty(), sender(row, unknownSender)),
                 slot = monogramSlot(seed(row, unknownSender)),
@@ -127,7 +130,7 @@ internal object RecentMailWidgetContent {
         )
     }
 
-    /** One database row, projected onto BOTH halves of a line, so the line that opens a message can
+    /** One database row, projected onto both halves of a line, so the line that opens a message can
      *  never be a different line from the one that named it. */
     fun item(
         row: RecentEmailRow,
@@ -177,8 +180,8 @@ internal object RecentMailWidgetContent {
         return RecentWidgetSnapshot(shape, rows)
     }
 
-    /** The name a row wears: `fromName`, else `fromEmail`, else the app's stand-in — the message
-     *  list's own three steps, so the two never call one message two things. BLANK counts as
+    /** The name a row wears: `fromName`, else `fromEmail`, else the app's stand-in, the message
+     *  list's own three steps, so the two never call one message two things. Blank counts as
      *  absent at every step. */
     private fun sender(row: RecentEmailRow, unknownSender: String): String =
         row.fromName?.takeIf { it.isNotBlank() }
@@ -186,7 +189,8 @@ internal object RecentMailWidgetContent {
             ?: unknownSender
 
     /**
-     * What a badge's COLOUR is derived from: the address, else the name shown, else the stand-in —
+     * What a badge's colour is derived from: the address, else the name shown, else the stand-in,
+     * the message list's own order, and it is that order and not this row's that matters.
      */
     private fun seed(row: RecentEmailRow, unknownSender: String): String =
         row.fromEmail?.takeIf { it.isNotBlank() }

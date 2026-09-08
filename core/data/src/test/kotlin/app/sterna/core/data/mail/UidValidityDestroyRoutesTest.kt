@@ -4,12 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * How a held-back destroy splits into requests — the decision `InboxViewModel.foldersToDestroy`
+ * How a held-back destroy splits into requests, the decision `InboxViewModel.foldersToDestroy`
  */
 class UidValidityDestroyRoutesTest {
 
     /**
-     * THE CASE THE OLD GROUPING GOT WRONG. Two rows of ONE folder, read either side of a
+     * The case the old grouping got wrong.
      */
     @Test fun `one folder read under two numberings becomes two requests, each with its own number`() {
         val numbering = mapOf("old-a" to 42L, "fresh" to 77L, "old-b" to 42L)
@@ -47,7 +47,9 @@ class UidValidityDestroyRoutesTest {
     }
 
     /**
-     * A row the cache no longer holds answers nothing, and "nothing" is NOT the same key as a
+     * A row the cache no longer holds answers nothing, and "nothing" is not the same key as a
+     * number: it must not be folded in with the ids that do have one, because the request it ends
+     * up in destroys nothing at all (`UidValidity.mayDestroy`) and would take the others with it.
      */
     @Test fun `an id whose row says nothing is routed apart, opposing nothing`() {
         val numbering = mapOf("known" to 42L)
@@ -81,7 +83,7 @@ class UidValidityDestroyRoutesTest {
         )
     }
 
-    /** The folder comes from the TARGET — the row frozen at the confirmation — and never from the
+    /** The folder comes from the target (the row frozen at the confirmation) and never from the
      *  id: `ImapMailService.mailboxOf` would answer nothing for a JMAP id, and this path serves
      *  both protocols. An id that looks like nothing at all still routes under the folder it was
      *  confirmed in. */

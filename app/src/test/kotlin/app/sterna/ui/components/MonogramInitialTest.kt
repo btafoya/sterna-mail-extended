@@ -22,7 +22,7 @@ class MonogramInitialTest {
         assertEquals("B", initialOf("", "bob@example.org"))
     }
 
-    /** Nothing to draw at all — the badge shows a question mark rather than an empty circle. */
+    /** Nothing to draw at all, the badge shows a question mark rather than an empty circle. */
     @Test fun `a label and a fallback with no letter or digit give a question mark`() {
         assertEquals("?", initialOf("!!!", "###"))
     }

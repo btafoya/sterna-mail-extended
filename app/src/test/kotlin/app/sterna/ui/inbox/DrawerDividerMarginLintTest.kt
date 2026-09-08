@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
+ * Source lint, not a behaviour test, read this before trusting it.
  */
 class DrawerDividerMarginLintTest {
 
@@ -26,7 +26,11 @@ class DrawerDividerMarginLintTest {
     }
 
     /**
-     * The counterpart, and the reason the rule above is about the DIVIDER: the margin belongs to
+     * The counterpart, and the reason the rule above is about the divider: the margin belongs to
+     * the line, never to the rows. Put on "All inboxes" it fixes nothing for a single-account
+     * install, where "Unread" is the row against the line; put on both it drifts apart from the
+     * folder rows below. `UnreadViewWiringLintTest` pins the unread entry's whole argument list and
+     * would redden too, this rule says so out loud, and covers the unified entry it does not read.
      */
     @Test
     fun `the entries under the divider did not take the margin instead`() {
@@ -159,7 +163,10 @@ class DrawerDividerMarginLintTest {
     }
 
     /**
-     * [file] as ONE line of code: comments taken out, runs of whitespace collapsed — so a call the
+     * [file] as one line of code: comments taken out, runs of whitespace collapsed, so a call the
+     * formatter spreads over eight lines reads like one written on a line. Same scanner as
+     * `UnreadViewWiringLintTest`'s, and for the same reason: a `//` inside a string literal is not
+     * a comment, and a line starting with `*` is not always a comment either.
      */
     private fun codeText(file: File): String = strippedLines(file).joinToString(" ")
         .replace(Regex("""\s+"""), " ").trim()
@@ -204,7 +211,7 @@ class DrawerDividerMarginLintTest {
     }
 
     companion object {
-        /** The divider that closes the account list, whole — margin on the line, below only. */
+        /** The divider that closes the account list, whole, margin on the line, below only. */
         private const val EXPECTED_DIVIDER_CALL =
             "HorizontalDivider(Modifier.padding(bottom = 12.dp))"
 

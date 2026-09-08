@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads source files as text and proves nothing about what
+ * Source lint, not a behaviour test, it reads source files as text and proves nothing about what
  */
 class ReplyBarWiringTest {
 
@@ -40,8 +40,8 @@ class ReplyBarWiringTest {
 
     @Test fun `the invisible measuring copy is not composed when the bar is off`() {
         // alpha(0f) hides a node from the eye, not from the finger: Compose hit-tests a fully
-        // transparent node like any other. With the setting OFF and nothing drawn on top of it —
-        // offline, or a body that failed to load — a band the height of a bar the user switched
+        // transparent node like any other. With the setting off and nothing drawn on top of it,
+        // offline, or a body that failed to load, a band the height of a bar the user switched
         // off would sit at the bottom of the reader swallowing taps.
         val screen = code(MESSAGE_SCREEN)
         val at = screen.indexOf("ReplyForwardBar {}")
@@ -59,7 +59,7 @@ class ReplyBarWiringTest {
 
     @Test fun `the reveal machinery is not what the setting switches off`() {
         // bodyReady also drives the body's alpha and its spinner; scrollY drives the collapsing
-        // header. The setting must reach barVisible and the inset, and stop there — gating the
+        // header. The setting must reach barVisible and the inset, and stop there, gating the
         // reveal itself would make the message body disappear along with the bar.
         val touched = code(MESSAGE_SCREEN).lines()
             .filter { "replyBarEnabled" in it }
@@ -97,10 +97,10 @@ class ReplyBarWiringTest {
     @Test fun `the subtitle's promise matches where the two actions really are`() {
         // The setting's subtitle told the user where Reply and Forward would still be found with
         // the bar off, and it was wrong in nine languages: "Both stay available in the toolbar at
-        // the top" — Forward is not in the toolbar, it is in the overflow menu beside it. Reply's
+        // the top", Forward is not in the toolbar, it is in the overflow menu beside it. Reply's
         // own icon is there; Reply all and Forward are menu items.
         //
-        // So the rule reads the READER, not the sentence: if Forward ever moves up into the
+        // So the rule reads the reader, not the sentence: if Forward ever moves up into the
         // toolbar, this fails and the sentence is rewritten with it.
         val screen = code(MESSAGE_SCREEN).replace(Regex("""\s+"""), " ")
         assertTrue(
@@ -125,8 +125,8 @@ class ReplyBarWiringTest {
 
     @Test fun `every language puts Forward in a menu, not in the top bar`() {
         // Same instrument and same trade as SettingsScreenHonestyTest's protocol rule: requiring a
-        // literal constrains the SHAPE of every translation, and that is accepted here because the
-        // whole point of the sentence is WHERE the action is. Translation parity cannot see this —
+        // literal constrains the shape of every translation, and that is accepted here because the
+        // whole point of the sentence is where the action is. Translation parity cannot see this,
         // the key exists in every locale already; only its content was false.
         val files = localeStringFiles()
         assertTrue(
@@ -157,8 +157,8 @@ class ReplyBarWiringTest {
         .sortedBy { it.parentFile.name }
 
 
-    /** [file]'s code line by line, comments cut and each line trimmed — for the rules that must
-     *  pin a WHOLE line: a `contains` on a fragment is blind to anything appended to it. */
+    /** [file]'s code line by line, comments cut and each line trimmed, for the rules that must
+     *  pin a whole line: a `contains` on a fragment is blind to anything appended to it. */
     private fun codeLines(file: File): List<String> = code(file).lines().map { it.trim() }
 
     /** The `header { … }` block in [source], braces balanced, whitespace runs collapsed. Comments
@@ -184,7 +184,7 @@ class ReplyBarWiringTest {
         error("unbalanced braces after: $header")
     }
 
-    /** [file]'s code as one string, comments cut — the comments beside these call sites name the
+    /** [file]'s code as one string, comments cut, the comments beside these call sites name the
      *  very expressions the rules forbid. */
     private fun code(file: File): String = file.readLines().mapNotNull { line ->
         val trimmed = line.trimStart()
@@ -209,11 +209,11 @@ class ReplyBarWiringTest {
     }
 
     @Test fun `the settle poll refuses to conclude on a reading that measured nothing`() {
-        // The reader's ONE guaranteed report of the resting geometry is this poll's terminal one.
+        // The reader's one guaranteed report of the resting geometry is this poll's terminal one.
         // contentRangePx() is floored at the view's own height, so a body whose renderer is still
         //
         // BarReveal now discards such a report. That alone is not enough, and this rule is why: if
-        // the poll still STOPPED on the floor, its report would be discarded and nothing would ever
+        // the poll still stopped on the floor, its report would be discarded and nothing would ever
         val screen = code(MESSAGE_SCREEN).replace(Regex("""\s+"""), " ")
         assertTrue(
             "the settle poll must gate its stability counter on the WHOLE call " +
@@ -255,7 +255,7 @@ class ReplyBarWiringTest {
 
     @Test fun `the two writers are wired to the one place that decides`() {
         // Both doors must fold through BarReveal, and the live one must pass the last-word flag on.
-        // Rewired to anything else — or the flag dropped at the call site — the guards above are
+        // Rewired to anything else (or the flag dropped at the call site) the guards above are
         // still there, still tested, and no longer reached.
         val screen = code(MESSAGE_SCREEN).replace(Regex("""\s+"""), " ")
         assertTrue(
@@ -273,7 +273,7 @@ class ReplyBarWiringTest {
     }
 
     @Test fun `the third writer is wired to the one place that decides`() {
-        // The body's OWN gesture door (#63's cousin): closing the <details> that folds a reply's
+        // The body's own gesture door (#63's cousin): closing the <details> that folds a reply's
         // quoted history shortens the document under a reader who is not scrolling, so no scroll
         val screen = code(MESSAGE_SCREEN).replace(Regex("""\s+"""), " ")
         assertTrue(
@@ -295,6 +295,10 @@ class ReplyBarWiringTest {
     @Test fun `the resize probe hangs off the end of the reader's gesture, and expires in silence`() {
         // javaScriptEnabled = false and CSP default-src 'none': nothing in the document can tell us
         // it resized, and there is no permanent size watcher on purpose (a body that relayouts in a
+        // loop exists (it is why the settle poll is capped) and a watcher would blink the bar on
+        // it). What changes a script-less document's height is a gesture of the reader's, tapping
+        // a <summary>, or pinching to zoom, which this reader supports, so the probe is armed by
+        // the end of a gesture, once per gesture, and never per frame.
         val lines = codeLines(MESSAGE_SCREEN)
         assertTrue(
             "the gesture door must be exactly 'MotionEvent.ACTION_UP -> onActivated?.invoke()' in " +
@@ -413,8 +417,8 @@ class ReplyBarWiringTest {
     }
 
     @Test fun `both doors report the raw geometry, so the decision stays in one place`() {
-        // The two writers must hand BarReveal what they READ — range, viewport and the document's
-        // own laid-out height — not a maxScroll they already reduced. Reduced to maxScroll, "the
+        // The two writers must hand BarReveal what they read, range, viewport and the document's
+        // own laid-out height, not a maxScroll they already reduced. Reduced to maxScroll, "the
         // renderer has not laid out yet" and "the body fits" are the same number, and no guard
         // downstream can tell them apart.
         val screen = code(MESSAGE_SCREEN).replace(Regex("""\s+"""), " ")
@@ -460,7 +464,7 @@ class ReplyBarWiringTest {
         private const val SETTINGS_REPOSITORY_PATH =
             "core/data/src/main/kotlin/app/sterna/core/data/settings/SettingsRepository.kt"
 
-        /** Repo root, walked up from the module's working directory — the rules read BOTH modules. */
+        /** Repo root, walked up from the module's working directory, the rules read both modules. */
         private val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, MESSAGE_SCREEN_PATH).isFile }

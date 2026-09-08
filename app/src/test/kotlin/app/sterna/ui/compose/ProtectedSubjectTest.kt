@@ -6,7 +6,8 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Which messages repeat their subject INSIDE the entity that gets encrypted (RFC 9788 § 3), and
+ * Which messages repeat their subject inside the entity that gets encrypted (RFC 9788 § 3), and
+ * which repeat nothing, [protectedSubject].
  */
 class ProtectedSubjectTest {
 

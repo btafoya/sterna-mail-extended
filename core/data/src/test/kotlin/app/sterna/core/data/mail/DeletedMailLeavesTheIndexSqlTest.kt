@@ -9,7 +9,9 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * Verifies, against in-memory SQLite, the OTHER half of "a deleted message must not come back in
+ * Verifies, against in-memory SQLite, the other half of "a deleted message must not come back in
+ * search results": [app.sterna.core.data.db.EmailDao.deleteById] / `deleteByIds` take the search
+ * index row away with the cached message.
  */
 class DeletedMailLeavesTheIndexSqlTest {
     private lateinit var db: Connection
@@ -92,7 +94,10 @@ class DeletedMailLeavesTheIndexSqlTest {
     // ---- the shipped statements ---------------------------------------------------------------
 
     /**
-     * Replay one of `EmailDao`'s composed delete functions: the statements ITS OWN BODY calls, in
+     * Replay one of `EmailDao`'s composed delete functions: the statements its own body calls, in
+     * the order it calls them, with the two properties of the shipped body that decide what a
+     * failure does, whether it is wrapped in `@Transaction`, and whether the call is guarded by a
+     * `runCatching`.
      */
     private fun deletePath(function: String, values: Map<String, Any>, busy: Busy? = null) {
         val path = DaoQuerySource.emailDaoPath(function)
@@ -137,7 +142,8 @@ class DeletedMailLeavesTheIndexSqlTest {
     }
 
     /**
-     * A lock SQLite refuses ONE statement over, leaving the transaction around it standing —
+     * A lock SQLite refuses one statement over, leaving the transaction around it standing,
+     * fired [times] times on [onSql].
      */
     private class Busy(private val onSql: String, private var times: Int) {
         var fired = 0
@@ -176,7 +182,7 @@ class DeletedMailLeavesTheIndexSqlTest {
     }
 
     /**
-     * The ids the shipped `EmailFtsDao.search` returns — the local half of a user's search, scoped
+     * The ids the shipped `EmailFtsDao.search` returns, the local half of a user's search, scoped
      */
     private fun search(
         match: String = "token*",
@@ -206,19 +212,19 @@ class DeletedMailLeavesTheIndexSqlTest {
         }
     }
 
-    /** What the INDEX itself holds, whatever the search query chooses to show. */
+    /** What the index itself holds, whatever the search query chooses to show. */
     private fun indexed(): List<String> =
         db.prepareStatement("SELECT emailId FROM email_fts ORDER BY emailId").use { ps ->
             ps.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString("emailId")) } }
         }
 
-    /** What the display CACHE itself holds. */
+    /** What the display cache itself holds. */
     private fun cached(): List<String> =
         db.prepareStatement("SELECT id FROM emails ORDER BY id").use { ps ->
             ps.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString("id")) } }
         }
 
-    /** Whose rows are left in [table] — what says an account-scoped statement stayed in its account. */
+    /** Whose rows are left in [table], what says an account-scoped statement stayed in its account. */
     private fun accountsIn(table: String): List<String> =
         db.prepareStatement("SELECT accountId FROM $table ORDER BY accountId").use { ps ->
             ps.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } }
@@ -235,7 +241,7 @@ class DeletedMailLeavesTheIndexSqlTest {
 
     @Test fun aRowLabelledTrashIsHiddenByTheQueryAndStaysInTheIndex() {
         // The witness of the query-side filter, restated here so removing it is visibly a
-        // regression of a DIFFERENT defence: this row was written already carrying the Trash
+        // regression of a different defence: this row was written already carrying the Trash
         // mailbox (unsynced folder roles, a late role, MIGRATION_14_15), nothing deleted it.
         folder("mb-trash", role = "trash")
         message("labelled", "mb-trash")
@@ -246,7 +252,7 @@ class DeletedMailLeavesTheIndexSqlTest {
 
     @Test fun aMessageDeletedFromTheInboxLosesItsIndexRowToo() {
         // The reported case, exactly: indexed while it sat in the Inbox, then thrown away. Its
-        // index row still says "inbox", so the query-side filter is blind to it — what keeps it
+        // index row still says "inbox", so the query-side filter is blind to it, what keeps it
         // out of the results is that the delete path took the index row with it.
         folder("mb-inbox", role = "inbox")
         message("thrown", "mb-inbox")
@@ -273,7 +279,7 @@ class DeletedMailLeavesTheIndexSqlTest {
     }
 
     @Test fun deletingInOneAccountLeavesTheSiblingAccountsIndexAlone() {
-        // Two accounts of one login (issue #31) share mailbox AND message ids: the delete must be
+        // Two accounts of one login (issue #31) share mailbox and message ids: the delete must be
         // account-scoped on the index for the same reason it is on the cache.
         folder("mb-7", role = "inbox", accountId = "accA")
         folder("mb-7", role = "inbox", accountId = "accB")
@@ -295,9 +301,9 @@ class DeletedMailLeavesTheIndexSqlTest {
 
     @Test fun anActionThatMovedNothingKeepsTheIndexRowOfWhatItDidNotMove() {
         // Archiving a message that is already in the Archive, moving one to the folder it is in:
-        // nothing leaves anything, the message stays in a SEARCHABLE folder, and the row only goes
+        // nothing leaves anything, the message stays in a searchable folder, and the row only goes
         //
-        // Deleting a message that is already in the Trash is NOT one of these — see
+        // Deleting a message that is already in the Trash is not one of these, see
         // [aTrashDeleteTakesTheIndexRowOneByOneAsInBulk].
         folder("mb-archive", role = "archive")
         message("already", "mb-archive")
@@ -312,7 +318,7 @@ class DeletedMailLeavesTheIndexSqlTest {
 
     @Test fun aNoOpInAFolderSearchNeverLooksAtTakesTheIndexRowWithIt() {
         // The other side of the line the case above draws, and the reason it cannot be drawn on
-        // "did anything move?" alone: the same two no-op branches are ALSO how a message is filed
+        // "did anything move?" alone: the same two no-op branches are also how a message is filed
         folder("mb-junk", role = "junk")
         message("reported", "mb-junk")
         message("other", "mb-junk")
@@ -328,7 +334,6 @@ class DeletedMailLeavesTheIndexSqlTest {
         // to the one eviction that asks what folder the message stayed in. Each of these has a branch
         //
         // jmapMoveAll is the one that had no such branch at all: `archiveAll`/`moveAllToMailbox`
-        // short-circuit the no-op themselves on IMAP, but on JMAP the whole selection goes to the
         val missing = listOf("archive", "moveToMailbox", "archiveAll", "moveAllToMailbox", "jmapMoveAll")
             .filterNot { "$NO_OP_EVICTION(" in DaoQuerySource.mailFunctionBody("MailRepository", it) }
         assertEquals(
@@ -339,9 +344,9 @@ class DeletedMailLeavesTheIndexSqlTest {
     }
 
     @Test fun aBulkJmapMoveTellsTheNoOpPartFromThePartThatMoved() {
-        // What the wiring rule above cannot state: WHICH ids of a confirmed bulk move never moved.
-        // The server's answer does not say — an `Email/set` filing a message into the folder it is
-        // already in succeeds like any other — so the split is made against the rows read before the
+        // What the wiring rule above cannot state: which ids of a confirmed bulk move never moved.
+        // The server's answer does not say, an `Email/set` filing a message into the folder it is
+        // already in succeeds like any other, so the split is made against the rows read before the
         // move, and only the part that really left goes to the un-indexing eviction.
         val rows = listOf(row("already", "mb-archive"), row("moved", "mb-inbox"))
 
@@ -351,7 +356,7 @@ class DeletedMailLeavesTheIndexSqlTest {
             listOf("already"), idsAlreadyIn(rows, setOf("already", "moved", "uncached"), "mb-archive"),
         )
         // No cached row means we cannot say where it sat: it belongs to the moved part, whose
-        // eviction takes the index row — the conservative direction (the index must not outlive a
+        // eviction takes the index row, the conservative direction (the index must not outlive a
         // message that did leave).
         assertEquals(emptyList<String>(), idsAlreadyIn(emptyList(), setOf("uncached"), "mb-archive"))
         // An id the server did not confirm is in neither part: its cached row survives untouched.
@@ -360,7 +365,10 @@ class DeletedMailLeavesTheIndexSqlTest {
 
     @Test fun aBulkDeleteInOneAccountLeavesTheSiblingAccountsRowsAlone() {
         // The bulk halves' account scope, which nothing exercised: the only cross-account case in
-        // the repository ran the SINGLE-id path, so dropping `accountId = :accountId` from
+        // the repository ran the single-id path, so dropping `accountId = :accountId` from
+        // deleteRowsByIds and unindexByIds left every test green. Two sub-accounts of one server
+        // (issue #31) share message ids, so a multi-selection delete, an Empty-trash or a retention
+        // purge in account A would have taken account B's cached rows and its index rows with it.
         folder("mb-7", role = "inbox", accountId = "accA")
         folder("mb-7", role = "inbox", accountId = "accB")
         listOf("e-9", "e-10").forEach {
@@ -378,7 +386,8 @@ class DeletedMailLeavesTheIndexSqlTest {
 
     @Test fun theDeletePathsLetACancellationThrough() {
         // The signal, not the rows. `runCatching` swallows a CancellationException like any other
-        // failure, so a screen closed mid-delete came out of the path looking like a clean delete —
+        // failure, so a screen closed mid-delete came out of the path looking like a clean delete,
+        // with the cache row committed and the index row standing.
         listOf("deleteById", "deleteByIds").forEach { function ->
             val body = DaoQuerySource.daoFunctionBody("EmailDao", function)
             val cancellationArm = body.substringAfter("CancellationException)", "")
@@ -399,8 +408,7 @@ class DeletedMailLeavesTheIndexSqlTest {
     }
 
     @Test fun anIndexLockThatDoesNotClearLeavesTheOrphanTheDeleteCannotWaitFor() {
-        // The residue, stated as a case instead of as a paragraph. The retry outside the transaction
-        // is IMMEDIATE — no delay, no backoff — so a lock still held microseconds later refuses it
+        // The residue, stated as a case instead of as a paragraph.
         folder("mb-inbox", role = "inbox")
         message("thrown", "mb-inbox")
         message("kept", "mb-inbox")
@@ -418,7 +426,7 @@ class DeletedMailLeavesTheIndexSqlTest {
     }
 
     @Test fun aTrashDeleteTakesTheIndexRowOneByOneAsInBulk() {
-        // The two delete paths must state it the same way: deleting a message that is ALREADY in the
+        // The two delete paths must state it the same way: deleting a message that is already in the
         // Trash moves nothing on the server either, but the Trash is excluded from search at both
         val paths = listOf("delete", "deleteAll")
         val sparing = paths.filter { "$NO_OP_EVICTION(" in DaoQuerySource.mailFunctionBody("MailRepository", it) }
@@ -489,7 +497,9 @@ class DeletedMailLeavesTheIndexSqlTest {
             ?: error("MailRepository.$repositoryFunction no longer evicts anything through EmailDao")
 
     /**
-     * The `EmailDao` function an action that moved nothing in a folder of this [role] evicts with —
+     * The `EmailDao` function an action that moved nothing in a folder of this [role] evicts with,
+     * obtained by running the shipped rule ([noOpEvictionFor]) and reading the eviction its
+     * answer dispatches to. Nothing here restates the rule or the wiring.
      */
     private fun noOpEviction(role: String?): String = noOpEvictionDao(noOpEvictionFor("mb-any", role))
 
@@ -515,7 +525,7 @@ class DeletedMailLeavesTheIndexSqlTest {
 
     @Test fun theRuleSparesTheIndexRowOnlyWhereASearchLooks() {
         // The decision itself, executed. It is the one thing the cases below must not restate, and
-        // the one thing that says WHICH folders are which.
+        // the one thing that says which folders are which.
         assertEquals(NoOpEviction.SPARE_INDEX_ROW, noOpEvictionFor("mb-1", "archive"))
         assertEquals(NoOpEviction.SPARE_INDEX_ROW, noOpEvictionFor("mb-1", "inbox"))
         // A folder the cache knows no role for: spared, the harmless direction (an index row in a
@@ -566,7 +576,7 @@ class DeletedMailLeavesTheIndexSqlTest {
 
     @Test fun theDeletePathIsOneTransaction() {
         // Restored after being dropped on the theory that only a transaction could let a broken
-        // index block a delete. It cannot — the fallback below is what keeps the delete landing.
+        // index block a delete. It cannot, the fallback below is what keeps the delete landing.
         listOf("deleteById", "deleteByIds").forEach { function ->
             assertEquals(
                 "the statements EmailDao.$function issues must run as ONE transaction — its own " +
@@ -579,7 +589,7 @@ class DeletedMailLeavesTheIndexSqlTest {
 
     @Test fun theTransactionDoesNotSwallowTheIndexFailureInsideItself() {
         // The form this replaced: both statements in the transaction, the un-index wrapped in a
-        // runCatching INSIDE it. It reads as "the delete lands whatever the index does", and it does
+        // runCatching inside it. It reads as "the delete lands whatever the index does", and it does
         listOf("deleteById", "deleteByIds").forEach { function ->
             assertEquals(
                 "EmailDao.$function guards a statement INSIDE its transaction: a failure swallowed " +
@@ -592,8 +602,8 @@ class DeletedMailLeavesTheIndexSqlTest {
     }
 
     @Test fun aRefusedIndexStatementTakesNeitherHalfWithIt() {
-        // The case the shape rules above are about, played out. The index delete is refused once —
-        // a lock, not a corruption — and the two halves must end up in step: either both rows go or
+        // The case the shape rules above are about, played out. The index delete is refused once,
+        // a lock, not a corruption, and the two halves must end up in step: either both rows go or
         // neither does, and the message must not be left cached-out but still searchable.
         folder("mb-inbox", role = "inbox")
         message("thrown", "mb-inbox")
@@ -613,7 +623,7 @@ class DeletedMailLeavesTheIndexSqlTest {
 
     @Test fun anIndexTooBrokenToWriteStillLetsTheMailBeDeleted() {
         // Issue #71's ground: a search table that cannot be written (damaged, or locked). Deleting
-        // is a folder action, not a search feature — it must land whatever the index says. It could
+        // is a folder action, not a search feature, it must land whatever the index says. It could
         folder("mb-inbox", role = "inbox")
         message("thrown", "mb-inbox")
         message("kept", "mb-inbox")
@@ -643,7 +653,10 @@ class DeletedMailLeavesTheIndexSqlTest {
     }
 
     /**
-     * The `EmailDao` function `MailRepository.pruneRetention` evicts with — read out of that
+     * The `EmailDao` function `MailRepository.pruneRetention` evicts with, read out of that
+     * function's own body, so the case above follows whatever the retention path calls instead of
+     * asserting against a hand-picked function it may no longer use. The eviction is the DAO call
+     * whose statements DELETE (the other one reads the rows to decide on).
      */
     private fun retentionEviction(): String =
         Regex("""emailDao\.(\w+)\(""")
@@ -674,11 +687,11 @@ class DeletedMailLeavesTheIndexSqlTest {
 
     private companion object {
         /** The `MailRepository` function every "the destination is where it already is" branch
-         *  hands its ids to — named once, so the two rules above cannot drift apart. The delete
+         *  hands its ids to, named once, so the two rules above cannot drift apart. The delete
          *  paths are the exception, and [REMOVAL_WRAPPERS] is how the rule sees what they use. */
         const val NO_OP_EVICTION = "evictAlreadyThere"
 
-        /** The wrapper that takes the index row with the cached one — where the no-op eviction
+        /** The wrapper that takes the index row with the cached one, where the no-op eviction
          *  sends a folder no search looks at. */
         const val INDEXING_REMOVAL = "deleteFromCacheAndIndex"
 

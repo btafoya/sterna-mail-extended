@@ -7,11 +7,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * A folder walk that read NOTHING is not a walk over an empty folder — on the wire, where the
+ * A folder walk that read nothing is not a walk over an empty folder, on the wire, where the
+ * difference is made.
  */
 class ExistsThatWasNeverStatedTest {
 
-    /** A SELECT answer whose untagged lines are exactly [untagged] — EXISTS included, or not. */
+    /** A SELECT answer whose untagged lines are exactly [untagged], exists included, or not. */
     private fun selecting(untagged: String, onFetch: (String, String) -> String = { tag, _ -> ok(tag) }) =
         FakeImapServer { tag, line ->
             when {
@@ -48,7 +49,7 @@ class ExistsThatWasNeverStatedTest {
     }
 
     @Test fun `an EXISTS whose count will not parse says nothing either`() {
-        // `* NIL EXISTS`, and any other unparseable n. `folderMoved` already treats such a line as
+        // `* NIL exists`, and any other unparseable n. `folderMoved` already treats such a line as
         // movement rather than as a number; select() used to treat it as zero.
         selecting("* NIL EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n").use { server ->
             val (status, walk) = walked(server)
@@ -61,9 +62,9 @@ class ExistsThatWasNeverStatedTest {
     // -- forme 2: the count was stated, and every FETCH came back unreadable ---------------------------
 
     @Test fun `a thousand messages and no readable FETCH is still not an empty folder`() {
-        // The shape a fix that only looks at EXISTS misses. The count is stated and large; the
+        // The shape a fix that only looks at exists misses. The count is stated and large; the
         // responses carry no UID, so `messages()` drops all of them and the walk ends with nothing.
-        // Empty UIDs, and NOT an empty folder.
+        // Empty UIDs, and not an empty folder.
         val server = selecting("* 1000 EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n") { tag, _ ->
             "* 12 FETCH (FLAGS (\\Seen))\r\n$tag OK fetch completed\r\n"
         }
@@ -89,7 +90,7 @@ class ExistsThatWasNeverStatedTest {
     @Test fun `a SELECT that really said zero DOES state an empty folder — the witness`() {
         // Without this, "never say the folder is empty" would pass every assertion above, the
         // cache would never be cleared again, and an emptied folder would show its old contents for
-        // ever. `* 0 EXISTS` RECEIVED is a fact, and it licenses the delete.
+        // ever. `* 0 exists` received is a fact, and it licenses the delete.
         selecting("* 0 EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n").use { server ->
             val (status, walk) = walked(server)
 

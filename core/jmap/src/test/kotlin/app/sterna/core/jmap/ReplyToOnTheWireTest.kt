@@ -120,7 +120,7 @@ class ReplyToOnTheWireTest {
     }
 
     /**
-     * THE guard. Every path whose result is kept asks for the property — otherwise the three
+     * The guard. Every path whose result is kept asks for the property, otherwise the three
      * that write an `emails` row silently wipe, through their `@Upsert`, what the others wrote.
      */
     @Test fun `every fetch that fills the cache asks the server for replyTo`() {
@@ -137,7 +137,7 @@ class ReplyToOnTheWireTest {
         )
     }
 
-    /** The same fact per path, so a failure names ONE call instead of a list. */
+    /** The same fact per path, so a failure names one call instead of a list. */
     @Test fun `the body fetch asks for replyTo`() {
         val asked = propertiesAskedBy(cachingPaths()[1])
         assertTrue("EMAIL_BODY_PROPERTIES must carry it, got $asked", "replyTo" in asked)
@@ -159,7 +159,7 @@ class ReplyToOnTheWireTest {
     }
 
     /**
-     * Asked for AND decoded, in the server's order, display names included: the reply screen puts
+     * Asked for and decoded, in the server's order, display names included: the reply screen puts
      * these straight into the To field, and an order swapped here is a mail sent to the wrong one.
      */
     @Test fun `the returned addresses reach the model in order, names included`() {

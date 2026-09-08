@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads four source files as text and proves nothing about
+ * Source lint, not a behaviour test, it reads four source files as text and proves nothing about
  */
 class PureBlackWiringTest {
 
@@ -42,7 +42,7 @@ class PureBlackWiringTest {
         )
     }
 
-    /** The negative screen — a `contains`, deliberately: it looks for what must be absent. */
+    /** The negative screen, a `contains`, deliberately: it looks for what must be absent. */
     @Test fun `no copy of the default is spelled out as a boolean`() {
         val offenders = codeLines(MAIN_ACTIVITY)
             .filter { "pureBlack" in it || "PURE_BLACK" in it }
@@ -218,7 +218,7 @@ class PureBlackWiringTest {
         section.indexOfFirst { it == EXPECTED_SWITCH[1] }.let { if (it <= 0) -1 else it - 1 }
 
     /**
-     * The body of `SettingsSection(stringResource(R.string.settings_theme_section)) {` — each line
+     * The body of `SettingsSection(stringResource(R.string.settings_theme_section)) {`, each line
      */
     private fun themeSection(): List<Pair<Int, String>> {
         val lines = codeLines(SETTINGS_SCREEN)
@@ -282,7 +282,7 @@ class PureBlackWiringTest {
         private const val SETTINGS_REPOSITORY_PATH =
             "core/data/src/main/kotlin/app/sterna/core/data/settings/SettingsRepository.kt"
 
-        /** Repo root, walked up from the module's working directory — the rules read BOTH modules. */
+        /** Repo root, walked up from the module's working directory, the rules read both modules. */
         val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, SETTINGS_REPOSITORY_PATH).isFile }

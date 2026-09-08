@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [isLostRoleClaim], EXECUTED on the values the cache actually holds.
+ * [isLostRoleClaim], executed on the values the cache actually holds.
  */
 class LostRoleClaimTest {
 
@@ -37,7 +37,10 @@ class LostRoleClaimTest {
     }
 
     /**
-     * The mark is a PREFIX, and the two readings of it must agree on every input: a value this
+     * The mark is a prefix, and the two readings of it must agree on every input: a value this
+     * says is a lost claim is exactly a value [unmarkedRole] erases. Drifting apart would put a
+     * `~junk` on screen with its role (the ⋮ menu defect of the search fix) or leave a losing folder
+     * both role-less and unlisted, which is the defect this closes.
      */
     @Test fun `it is the exact complement of the erasure, on every value tried here`() {
         val stored = listOf(null, "", "trash", "junk", "spam", "inbox", "~trash", "~junk", "~spam", "x~junk")

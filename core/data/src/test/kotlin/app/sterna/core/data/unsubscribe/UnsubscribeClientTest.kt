@@ -11,7 +11,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * What the one-click unsubscribe puts on the wire, and — more importantly — what it refuses to do.
+ * What the one-click unsubscribe puts on the wire, and (more importantly) what it refuses to do.
  */
 class UnsubscribeClientTest {
     private lateinit var server: MockWebServer
@@ -58,7 +58,7 @@ class UnsubscribeClientTest {
     }
 
     /**
-     * The URL is used VERBATIM — path and query string, byte for byte (decision D6).
+     * The URL is used verbatim, path and query string, byte for byte (decision D6).
      */
     @Test fun `the whole url is sent, query string included`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(200))
@@ -84,7 +84,10 @@ class UnsubscribeClientTest {
     }
 
     /**
-     * A 3xx is a FAILURE, and the decisive assertion is the second one: OkHttp follows a
+     * A 3xx is a failure, and the decisive assertion is the second one: OkHttp follows a
+     * 301/302/303 by re-issuing the call as a get, which would turn the one request that loads
+     * nothing into exactly the page fetch (with its IP address, its User-Agent and its pixel)
+     * that this feature exists to avoid (decision D3). Nothing may leave after the redirect.
      */
     @Test fun `a redirect is refused and no second request leaves`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", "/somewhere-else"))
@@ -145,6 +148,9 @@ class UnsubscribeClientTest {
 
     /**
      * The witness that [UnsubscribeClient.oneClick] does not short-circuit its https branch: an
+     * https URL nothing is listening on comes back as offline, which only a real connection
+     * attempt (through the real client, mapped by [oneClickFailure]) can produce. A version
+     * that answered refused without trying would pass every other test in this file.
      */
     @Test fun `an https url that cannot be reached is reported as no network`() = runBlocking {
         online = false // the case where "no network" is the true sentence; see the table below
@@ -168,7 +174,7 @@ class UnsubscribeClientTest {
     }
 
     /**
-     * The transport dying on a device that is really offline is "no network" — word for word the
+     * The transport dying on a device that is really offline is "no network", word for word the
      * behaviour that shipped; anything else keeps the neutral refusal.
      */
     @Test fun `transport failures are told apart from server refusals`() {
@@ -202,7 +208,7 @@ class UnsubscribeClientTest {
     // ---- who is blamed when the transport dies: the reader's link, or the sender's host ----
 
     /**
-     * THE DECISION TABLE, executed rather than described (F2, found on the bench on 02/08: a POST
+     * The decision table, executed rather than described (F2, found on the bench on 02/08: a POST
      */
     @Test fun `a dead transport blames the sender's host, unless the device really is offline`() {
         val transport = listOf(
@@ -243,6 +249,7 @@ class UnsubscribeClientTest {
 
     /**
      * The wiring, as far as a JVM test can follow it: connectivity is asked **at the moment of the
+     * failure, on every attempt, and is not a value the client captured when it was built.
      */
     @Test fun `connectivity is answered at each failure, never captured once`() = runBlocking {
         // Port 1 is privileged and unbound: the connection dies on the transport immediately.
@@ -267,7 +274,7 @@ class UnsubscribeClientTest {
     }
 
     /**
-     * And it is asked ONLY on failure: a response that came back is proof the link works, so
+     * And it is asked only on failure: a response that came back is proof the link works, so
      */
     @Test fun `connectivity is not consulted when the server answers`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(200))

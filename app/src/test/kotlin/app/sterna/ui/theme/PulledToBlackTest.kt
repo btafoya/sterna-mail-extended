@@ -21,7 +21,9 @@ class PulledToBlackTest {
     private val noir = PelagicColorScheme.pulledToBlack()
 
     /**
-     * A dark scheme that shares nothing with [PelagicColorScheme] — it stands in for
+     * A dark scheme that shares nothing with [PelagicColorScheme], it stands in for
+     * `dynamicDarkColorScheme(context)`, which is built from the wallpaper and is a different
+     * object with different greys on every phone.
      */
     private val schemaTiers: ColorScheme = darkColorScheme(
         background = Color(0xFF101010),
@@ -118,7 +120,7 @@ class PulledToBlackTest {
 
     @Test
     fun `chaque conteneur garde au moins l arete la plus faible deja livree`() {
-        // surfaceContainerLowest is excluded on purpose: today it sits BELOW the page (#091317 under
+        // surfaceContainerLowest is excluded on purpose: today it sits below the page (#091317 under
         // #0E1A1F), so it has no edge over the background to preserve. What it owes is measured
         // against the unread row instead, in the chip test below.
         listOf(
@@ -132,6 +134,8 @@ class PulledToBlackTest {
 
     /**
      * The other side of the bracket. The rule above forbids compressing too far; nothing in it
+     * forbids compressing by nothing at all, which would make the whole setting a no-op on every
+     * raised surface while still claiming to darken them.
      */
     @Test
     fun `les conteneurs sont reellement assombris`() {
@@ -147,7 +151,7 @@ class PulledToBlackTest {
     @Test
     fun `la pastille de compte reste visible sur une ligne non lue`() {
         // chipFill (EmailListItem): on an unread row the account chip is surfaceContainerLowest
-        // laid ON surfaceContainerHighest. Both are compressed, so the gap that matters is between
+        // laid on surfaceContainerHighest. Both are compressed, so the gap that matters is between
         // the two compressed values, not between either of them and black.
         val pastille = noir.surfaceContainerLowest
         val ligne = noir.surfaceContainerHighest
@@ -162,7 +166,7 @@ class PulledToBlackTest {
     // ── ce qui ne doit pas bouger ─────────────────────────────────────────────────────────────
 
     /**
-     * Every role a [ColorScheme] carries, read off its own `toString`. Enumerating the ones that
+     * Every role a [ColorScheme] carries, read off its own `toString`.
      */
     private fun rolesOf(s: ColorScheme): Map<String, String> =
         Regex("""(\w+)=(Color\([^)]*\))""").findAll(s.toString())
@@ -223,7 +227,7 @@ class PulledToBlackTest {
 
     @Test
     fun `en theme clair rien n est noirci`() {
-        // ThemeMode.SYSTEM on a light system: darkTheme is false and the setting must be inert,
+        // ThemeMode.System on a light system: darkTheme is false and the setting must be inert,
         // whatever the user's OLED preference says.
         val obtenu = applyPureBlack(ArcticColorScheme, darkTheme = false, pureBlack = true)
         assertEquals("background", ArcticColorScheme.background, obtenu.background)
@@ -259,7 +263,7 @@ class PulledToBlackTest {
     }
 
     /**
-     * SOURCE RULE, and the only thing that can see the defect the two tests above cannot.
+     * Source rule, and the only thing that can see the defect the two tests above cannot.
      */
     @Test
     fun `la compression est posee sur le resultat du when, pas dans une de ses branches`() {

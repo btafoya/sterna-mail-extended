@@ -14,12 +14,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** The Android half of the widget's colours: everything the two rules next door cannot touch,
- *  needing an Application, a Configuration or a resource id. They decide; this only FETCHES what
+ *  needing an Application, a Configuration or a resource id. They decide; this only fetches what
  *  they decide on, which is what makes the decision testable at all. */
 internal object WidgetThemeReader {
 
     /**
-     * EVERYTHING one reading of the colours learns — the palette override to post and the badge
+     * Everything one reading of the colours learns, the palette override to post and the badge
      */
     suspend fun colours(app: Application): WidgetColours? = withTimeoutOrNull(PALETTE_TIMEOUT_MS) {
         val settings = app.container.settingsRepository
@@ -41,18 +41,18 @@ internal object WidgetThemeReader {
         )
     }
 
-    /** The palette half of [colours], and nothing else — one projection, no second read. It is what
+    /** The palette half of [colours], and nothing else, one projection, no second read. It is what
      * the counter still calls, whose behaviour must not have moved by a hair: a settings read
      *  reinstalled here would answer from a different moment than the rows'. */
     suspend fun palette(app: Application): WidgetPalette? = colours(app)?.palette
 
-    /** How long [colours] may spend before the resources answer instead. Deliberately SMALL — a
-     *  quarter of the smallest enclosing budget — so a colour read that never answers cannot make
-     *  the MAIL read miss its own, nor push a broadcast towards the ~10 s at which the system kills
+    /** How long [colours] may spend before the resources answer instead. Deliberately small, a
+     *  quarter of the smallest enclosing budget, so a colour read that never answers cannot make
+     *  the mail read miss its own, nor push a broadcast towards the ~10 s at which the system kills
      *  the process. Expiring costs nothing. */
     private const val PALETTE_TIMEOUT_MS = 1_000L
 
-    /** WHICH pre-built drawable carries [surface] — three files, and the only place that names
+    /** Which pre-built drawable carries [surface], three files, and the only place that names
      *  them: a `RemoteViews` can be handed a resource id but not a shape. */
     @DrawableRes
     fun background(surface: WidgetSurface): Int = when (surface) {

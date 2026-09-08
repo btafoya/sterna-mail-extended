@@ -16,6 +16,9 @@ import java.sql.DriverManager
 
 /**
  * **Why `local_drafts` is a table of its own** (#95), stated as four executions instead of as a
+ * paragraph: the four cache-pruning paths are run against a real SQLite engine holding the same
+ * draft twice (once as a row in `emails`, once in `local_drafts`) and the `emails` copy is gone
+ * every time.
  */
 class LocalDraftsSurviveTheCachePrunesSqlTest {
     private lateinit var db: Connection
@@ -36,7 +39,7 @@ class LocalDraftsSurviveTheCachePrunesSqlTest {
 
     // ---- the fixture: one draft, held twice -----------------------------------------------------
 
-    /** A message the SERVER knows about, cached in the Drafts folder. */
+    /** A message the server knows about, cached in the Drafts folder. */
     private fun cacheServerRow(id: String, sortKey: Long) {
         db.prepareStatement(
             "INSERT INTO emails (id, accountId, mailboxId, subject, seen, flagged, hasAttachment, sortKey) " +
@@ -51,7 +54,7 @@ class LocalDraftsSurviveTheCachePrunesSqlTest {
     }
 
     /**
-     * The draft written on the phone, in BOTH stores: the row `emails` would hold if the local
+     * The draft written on the phone, in both stores: the row `emails` would hold if the local
      */
     private fun theDraft(sortKey: Long = WRITTEN_LONG_AGO) {
         db.prepareStatement(
@@ -95,8 +98,8 @@ class LocalDraftsSurviveTheCachePrunesSqlTest {
     // ---- the shipped statements, executed --------------------------------------------------------
 
     /**
-     * Run one shipped `@Query`, binding its named parameters from [args] — a list parameter (Room's
-     * `IN (:ids)`) is bound element by element, in order.
+     * Run one shipped `@Query`, binding its named parameters from [args], a list parameter (Room's
+     * `in (:ids)`) is bound element by element, in order.
      */
     private fun execute(sql: String, args: Map<String, List<String>>): Int {
         val (statement, order) = DaoQuerySource.bindOrder(sql, args.mapValues { it.value.size })
@@ -112,7 +115,7 @@ class LocalDraftsSurviveTheCachePrunesSqlTest {
         }
     }
 
-    /** `EmailDao.idsForMailbox`'s shipped SQL, run for real — what every path below reads first. */
+    /** `EmailDao.idsForMailbox`'s shipped SQL, run for real, what every path below reads first. */
     private fun idsForMailbox(): List<String> {
         val (statement, order) = DaoQuerySource.bindOrder(DaoQuerySource.emailDaoQuery("idsForMailbox"))
         return db.prepareStatement(statement).use { ps ->
@@ -121,7 +124,7 @@ class LocalDraftsSurviveTheCachePrunesSqlTest {
         }
     }
 
-    /** `EmailDao.retentionRows`'s shipped SQL, run for real — the rows the retention prune judges. */
+    /** `EmailDao.retentionRows`'s shipped SQL, run for real, the rows the retention prune judges. */
     private fun retentionRows(): List<EmailRetentionRow> {
         val (statement, order) = DaoQuerySource.bindOrder(DaoQuerySource.emailDaoQuery("retentionRows"))
         return db.prepareStatement(statement).use { ps ->
@@ -157,8 +160,8 @@ class LocalDraftsSurviveTheCachePrunesSqlTest {
     // ---- 1. the full-query reconcile -------------------------------------------------------------
 
     @Test fun `the reconcile deletes the cached draft row and cannot reach the local one`() {
-        // The walk names what the SERVER holds in Drafts. A draft that never left the phone is in
-        // no walk's answer — by construction, not by accident — so it is in the complement.
+        // The walk names what the server holds in Drafts. A draft that never left the phone is in
+        // no walk's answer (by construction, not by accident) so it is in the complement.
         theDraft()
         cacheServerRow("imap:acc:Drafts:12", sortKey = NOW)
 
@@ -186,7 +189,7 @@ class LocalDraftsSurviveTheCachePrunesSqlTest {
         cacheServerRow("imap:acc:Drafts:12", sortKey = NOW)
 
         // `Email/get` answers for the ids the cache holds. It has never heard of a draft that is
-        // still on the phone, so that id comes back in `notFound` — the sweep's word for "the
+        // still on the phone, so that id comes back in `notFound`, the sweep's word for "the
         // server destroyed this", which here is simply false.
         val cached = idsForMailbox()
         val ghosts = ghostEvictions(cached, notFound = setOf(DRAFT_ID))
@@ -224,7 +227,7 @@ class LocalDraftsSurviveTheCachePrunesSqlTest {
         stillCalls("pruneRetention", "retentionRows(", "retentionEvictions(", "evictFromCacheKeepingIndex(")
         // A phone that has been away from its server for months: the draft was written before the
         // window and three server messages have landed since. This is the shape in which the
-        // retention prune is the path that destroys it — the age is the whole point, so the fixture
+        // retention prune is the path that destroys it, the age is the whole point, so the fixture
         // states it rather than pretending every prune reaches every row.
         theDraft(sortKey = WRITTEN_LONG_AGO)
         cacheServerRow("imap:acc:Drafts:12", sortKey = NOW)
@@ -255,7 +258,7 @@ class LocalDraftsSurviveTheCachePrunesSqlTest {
     // ---- 4. the same delete, reached from a folder the account no longer syncs ---------------------
 
     @Test fun `a delete scoped to the account empties the cached folder and leaves the drafts table`() {
-        // The last shape of the same statement: `reconcileMailbox` called with an EMPTY keep set —
+        // The last shape of the same statement: `reconcileMailbox` called with an empty keep set,
         // what a folder that came back empty from the server produces. Nothing in `emails` is
         // spared; `local_drafts` is not in the statement's reach at all.
         theDraft()
@@ -288,7 +291,7 @@ class LocalDraftsSurviveTheCachePrunesSqlTest {
         const val TEXT = "I will be there at six, do not wait for me at the station"
         const val NOW = 1_760_000_000_000L
 
-        /** Written four months before [NOW]: a phone that has not reached its server since. */
+        /** Written four months before [now]: a phone that has not reached its server since. */
         const val WRITTEN_LONG_AGO = NOW - 120L * 24 * 3_600_000
     }
 }

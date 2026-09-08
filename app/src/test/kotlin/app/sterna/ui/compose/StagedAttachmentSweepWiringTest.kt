@@ -6,14 +6,14 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `ComposeScreen.kt` and `ComposeViewModel.kt` as text
+ * Source lint, not a behaviour test, it reads `ComposeScreen.kt` and `ComposeViewModel.kt` as text
  */
 class StagedAttachmentSweepWiringTest {
 
     // -- the screen: when the sweep happens ------------------------------------------------------
 
     /**
-     * ON_START, AND THE OBSERVER IS TAKEN BACK OFF. The bytes disappear while the composer is in
+     * ON_START, and the observer is taken back off.
      */
     @Test
     fun `the sweep is armed as the composer comes back to the front`() {
@@ -54,7 +54,7 @@ class StagedAttachmentSweepWiringTest {
     // -- the ViewModel: what the sweep is given, and what it does with the answer ------------------
 
     /**
-     * THE ARGUMENTS, NOT THE NAME. [sweepStagedAttachments] only knows what is staged because it
+     * The arguments, not the name.
      */
     @Test
     fun `the ViewModel hands the sweep the staging root and the real filesystem`() {
@@ -69,7 +69,7 @@ class StagedAttachmentSweepWiringTest {
     }
 
     /**
-     * THE LINE THAT IS NOT AN OPTIMISATION — take it out and the app destroys mail.
+     * The line that is not an optimisation, take it out and the app destroys mail.
      */
     @Test
     fun `the sweep stands down while this composer holds the only copy`() {
@@ -86,7 +86,7 @@ class StagedAttachmentSweepWiringTest {
     }
 
     /**
-     * THE EDIT FLAG, NAMED ON ITS OWN because the price of dropping it is invisible on screen.
+     * The edit flag, named on its own because the price of dropping it is invisible on screen.
      */
     @Test
     fun `a removal by sweep counts as an edit`() {
@@ -98,7 +98,7 @@ class StagedAttachmentSweepWiringTest {
     }
 
     /**
-     * AND IT DOES NOT BLAME THE NETWORK. `attach` routes its failure through `isOfflineFailure`
+     * And it does not blame the network. `attach` routes its failure through `isOfflineFailure`
      */
     @Test
     fun `the sentence is not routed through the offline verdict`() {
@@ -130,6 +130,7 @@ class StagedAttachmentSweepWiringTest {
 
     /**
      * The `DisposableEffect` in `ComposeScreen.kt` that mentions the sweep, from the call to the
+     * brace that balances its first `{`, collapsed to one line.
      */
     private fun observerBlock(): String {
         val text = codeText(COMPOSE_SCREEN)
@@ -186,7 +187,7 @@ class StagedAttachmentSweepWiringTest {
         else withoutTrailingComment(line).takeIf { it.isNotBlank() }
     }
 
-    /** [file] as ONE line of code, so a call the formatter spread over eight lines reads as one. */
+    /** [file] as one line of code, so a call the formatter spread over eight lines reads as one. */
     private fun codeText(file: File): String =
         codeLines(file).joinToString(" ").replace(Regex("""\s+"""), " ").trim()
 
@@ -207,7 +208,7 @@ class StagedAttachmentSweepWiringTest {
     }
 
     companion object {
-        /** The observer, whole — the shape InboxScreen.kt already uses for its own ON_START. */
+        /** The observer, whole, the shape InboxScreen.kt already uses for its own ON_START. */
         private const val EXPECTED_OBSERVER_BLOCK =
             "DisposableEffect(lifecycleOwner) { " +
                 "val observer = LifecycleEventObserver { _, event -> " +

@@ -78,7 +78,7 @@ class MailboxPathTest {
     }
 
     @Test fun `a path too long to fit loses its OUTERMOST folders, never the nearest`() {
-        // Eliding at the end would cut off the segment that tells one "Done" from another —
+        // Eliding at the end would cut off the segment that tells one "Done" from another,
         // the reported bug, one line lower.
         val deep = imap("INBOX.Clients.Very Long Client Name Indeed.Archived Threads.Done")
         val label = mailboxPathLabel(deep, listOf(deep))!!
@@ -89,7 +89,7 @@ class MailboxPathTest {
 
     @Test fun `a single ancestor too long is cut in the MIDDLE, keeping both ends`() {
         // Nothing left to drop, so cutting either end would pick a favourite. These two differ
-        // only at the FRONT: a start-cut would have made them the same row again.
+        // only at the front: a start-cut would have made them the same row again.
         val alpha = imap("ProjectAlpha - Archives des vieux echanges.Done")
         val beta = imap("ProjectBeta - Archives des vieux echanges.Done")
         val a = mailboxPathLabel(alpha, listOf(alpha))!!
@@ -132,7 +132,7 @@ class MailboxPathTest {
         assertTrue(listed.none { it.id == "INBOX.ProjectA" })
         assertEquals("INBOX / ProjectA", mailboxPathLabel(child, listed))
         // JMAP: the name lives in the parent's own record, so an absent parent leaves nothing
-        // to show — and, below, nothing a rule could name either.
+        // to show, and, below, nothing a rule could name either.
         val orphan = jmap("mb3", "Done", parentId = "mb2")
         assertNull(mailboxPathLabel(orphan, listOf(orphan)))
     }
@@ -148,7 +148,7 @@ class MailboxPathTest {
 
     // ---- what a server-side rule must name -------------------------------------------------
     //
-    // Server-side rules are JMAP-ONLY: MailRepository.loadFilterRules answers Unsupported for
+    // Server-side rules are JMAP-only: MailRepository.loadFilterRules answers Unsupported for
     // every IMAP account, and the rule editor is this function's single caller. So only the
     // JMAP cases below describe something that reaches a wire today; the IMAP ones pin the
     // behaviour of a branch kept for the day IMAP filters exist, and say so in their name.

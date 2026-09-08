@@ -7,7 +7,8 @@ import app.sterna.core.jmap.model.Email
 import app.sterna.ui.compose.bodySource
 
 /**
- * What the reader is about to RENDER for one message (#149). Both modes end up in the same WebView and
+ * What the reader is about to render for one message (#149). Both modes end up in the same WebView and
+ * toggle (#149), pulled out of [buildHtmlDocument] so a test can execute it.
  */
 internal data class ReaderBody(
     /** The HTML fragment to insert into the document's body. */
@@ -45,7 +46,7 @@ internal fun readerBody(
 }
 
 /**
- * Whether switching reading mode would CHANGE what [email] puts on the screen (#149).
+ * Whether switching reading mode would change what [email] puts on the screen (#149).
  */
 internal fun readingModesDiffer(email: Email, derivedNotice: String, noContent: String): Boolean {
     val asHtml = readerBody(email, plainText = false, derivedNotice, noContent)
@@ -53,26 +54,26 @@ internal fun readingModesDiffer(email: Email, derivedNotice: String, noContent: 
     // One document carries the message's own markup, or the other had to flatten it away: two
     // different pages by construction, whatever text they end up holding.
     if (asHtml.richHtml || asText.derived) return true
-    // Neither side carries markup any more: both are text we wrapped ourselves, so compare the TEXT
-    // and not the fragments — a message with no body shows the same preview in a <p> here and a
+    // Neither side carries markup any more: both are text we wrapped ourselves, so compare the text
+    // and not the fragments, a message with no body shows the same preview in a <p> here and a
     // <pre> there, and a wrapper we chose is not a change the reader asked for.
     return htmlToText(asHtml.fragment) != htmlToText(asText.fragment)
 }
 
 /**
- * Whether remote images may be fetched for the page as it currently stands. The reader decides this
+ * Whether remote images may be fetched for the page as it currently stands.
  */
 internal fun showRemoteImages(plainText: Boolean, manualShow: Boolean, senderAllowed: Boolean): Boolean =
     !plainText && (manualShow || senderAllowed)
 
 /**
- * Which mode the reader RENDERS, from this message's own answer and the stored setting (#149).
+ * Which mode the reader renders, from this message's own answer and the stored setting (#149).
  */
 internal fun plainTextForBody(override: Boolean?, setting: Boolean?): Boolean =
     override ?: setting ?: PLAIN_TEXT_DEFAULT
 
 /**
- * The same two answers, read for the REMOTE-IMAGE question — where the unread setting counts the other
+ * The same two answers, read for the remote-image question, where the unread setting counts the other
  */
 internal fun plainTextForImages(override: Boolean?, setting: Boolean?): Boolean =
     override ?: setting ?: PLAIN_TEXT_UNLOADED_FOR_IMAGES

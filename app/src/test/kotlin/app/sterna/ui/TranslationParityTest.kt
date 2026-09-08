@@ -6,11 +6,11 @@ import org.junit.Test
 import java.io.File
 
 /**
- * RESOURCE LINT, NOT A BEHAVIOUR TEST. It reads the string resources as text and checks the one
- * rule the build cannot: a string the app shows exists in EVERY language it ships, or in none.
+ * Resource lint, not a behaviour test. It reads the string resources as text and checks the one
+ * rule the build cannot: a string the app shows exists in every language it ships, or in none.
  *
- * Android has no complaint to make about a half-translated string — it silently falls back to
- * English — so a new label added to `values/` alone reaches eight of nine users as a stray English
+ * Android has no complaint to make about a half-translated string, it silently falls back to
+ * English, so a new label added to `values/` alone reaches eight of nine users as a stray English
  * word, and nothing says so. That has happened here before, which is why it is a test and not a
  * habit. Nine languages is the real cost of one new label, and this is where that cost is stated.
  */
@@ -37,11 +37,11 @@ class TranslationParityTest {
     }
 
     /**
-     * The third way a translated string goes wrong, and the only one that CRASHES: a format
+     * The third way a translated string goes wrong, and the only one that crashes: a format
      * argument that does not survive the translation. `getString(id, x)` on a text whose `%1$s`
-     * was dropped renders without it — the sentence loses the very thing it was naming, which for
+     * was dropped renders without it, the sentence loses the very thing it was naming, which for
      * "Sterna will send an unsubscribe request to %1$s." means a confirmation that no longer says
-     * to whom — and an extra or renumbered specifier throws `IllegalFormatException` outright, in
+     * to whom, and an extra or renumbered specifier throws `IllegalFormatException` outright, in
      * one language, on one screen, where nothing in the build had anything to say about it.
      */
     @Test
@@ -58,7 +58,7 @@ class TranslationParityTest {
     }
 
     /**
-     * The home-screen widget's two texts, by name in the nine languages — the general rule at the
+     * The home-screen widget's two texts, by name in the nine languages, the general rule at the
      * top compares against `values/`, so it would go green on a widget never translated at all.
      *
      * They are the only strings the widget contributes, and they are read in the one place the app
@@ -76,19 +76,19 @@ class TranslationParityTest {
     }
 
     /**
-     * The SECOND widget's four texts, by name in the nine languages. Two of them are read in the
+     * The second widget's four texts, by name in the nine languages. Two of them are read in the
      * widget picker like the counter's; the other two are read on the home screen itself, which is
-     * worse ground for a stray English word — the cell has no window, no menu and no way to be
+     * worse ground for a stray English word, the cell has no window, no menu and no way to be
      * asked what it means:
      *
      *  - `widget_latest_empty` is the one line that may say a mailbox is empty;
-     *  - `widget_latest_hidden` is what a row wears INSTEAD of a name, when the notification
+     *  - `widget_latest_hidden` is what a row wears instead of a name, when the notification
      *    content setting or the app lock says it may name nobody. Left in English it is the
      *    privacy setting itself that speaks the wrong language, on a locked phone.
      *
-     * There was a fifth, `widget_latest_unread`: the contentDescription of an unread DOT the row
+     * There was a fifth, `widget_latest_unread`: the contentDescription of an unread dot the row
      * no longer has. Unread is now shown by weight, like the message list inside the app, and a
-     * weight has no description to translate — the sender's name is read out as itself.
+     * weight has no description to translate, the sender's name is read out as itself.
      */
     @Test
     fun `the nine languages all name the latest-messages widget`() {
@@ -106,7 +106,7 @@ class TranslationParityTest {
 
     /**
      * The rules above compare against whatever `values-*` happen to exist, so they say nothing
-     * about a language that disappears — and nothing about the label added last. Both are pinned
+     * about a language that disappears, and nothing about the label added last. Both are pinned
      * here: the nine directories the app ships, by name, and the black-background switch (#117),
      * which is the setting that would otherwise reach eight of nine users as two English lines in
      * the middle of a translated Appearance screen.
@@ -130,7 +130,7 @@ class TranslationParityTest {
     }
 
     /**
-     * The read-receipt switch (#148), by name in the nine languages — the general parity rule
+     * The read-receipt switch (#148), by name in the nine languages, the general parity rule
      * above compares against `values/`, so it would go green on a switch never translated at all.
      *
      * It is a privacy switch: left in English, eight of nine readers meet a stray sentence about
@@ -145,10 +145,10 @@ class TranslationParityTest {
     }
 
     /**
-     * WHAT THAT SWITCH PROMISES, PINNED WHOLE: it makes the app **ask**, never send.
+     * What that switch promises, pinned whole: it makes the app **ask**, never send.
      *
      * There is no third position and there must never be one. A label saying "Send read receipts"
-     * describes a setting this app does not have — turning it on raises a question on a message,
+     * describes a setting this app does not have, turning it on raises a question on a message,
      * one message at a time, and nothing leaves without a tap. Getting that wording wrong is worse
      * than having no setting: the reader would believe her phone answers strangers on its own.
      *
@@ -186,13 +186,13 @@ class TranslationParityTest {
     }
 
     /**
-     * WHAT THE STRIP MAY SAY, PINNED WHOLE — and the three things it must never say.
+     * What the strip may say, pinned whole, and the three things it must never say.
      *
      * 1. **Never "read".** An MDN reports that a message was DISPLAYED on a device. Nobody knows
      *    whether it was read, least of all this app, and "%1$s will know you read this" is a claim
      *    made on the reader's behalf to someone who cannot check it.
      * 2. **Never "sent".** A receipt has one road, the durable outbox, and nothing here watches it
-     *    leave — "in the outbox" is the furthest the app can honestly go (`ReadReceiptState` has no
+     *    leave, "in the outbox" is the furthest the app can honestly go (`ReadReceiptState` has no
      *    `Sent`, deliberately).
      * 3. **Never automatic, silent or transparent.** The whole feature is one gesture on one
      *    message; wording that suggests otherwise describes a setting this app refused to build.
@@ -207,7 +207,7 @@ class TranslationParityTest {
     fun `the strip asks, names who would be told, and never claims the message was read`() {
         val actual = valuesOf(File(res, "values/strings.xml"))
             .filterKeys { it in READ_RECEIPT_STRIP_ENGLISH }
-        // The screen runs FIRST, on what the file actually says: a reword that broke the promise
+        // The screen runs first, on what the file actually says: a reword that broke the promise
         // should be told what it promised, not merely that the pin below no longer matches.
         val forbidden = actual.values.flatMap { value ->
             FORBIDDEN_OF_A_RECEIPT.filter { it in value.lowercase() }.map { "'$it' in \"$value\"" }
@@ -245,20 +245,20 @@ class TranslationParityTest {
     }
 
     /**
-     * WHAT THAT SCREEN PROMISES, pinned whole, because getting it wrong is worse than not having
-     * the screen. The accounts are still on the device, untouched — the whole point of the write
-     * refusal behind this — so the text must not say, or suggest, that anything was deleted.
+     * What that screen promises, pinned whole, because getting it wrong is worse than not having
+     * the screen. The accounts are still on the device, untouched, the whole point of the write
+     * refusal behind this, so the text must not say, or suggest, that anything was deleted.
      *
-     * And the last sentence is deliberately "MAY bring them back", not "brings them back". The gate
-     * raises its flag on ANY decode failure, not only on the enum name a newer build would know: a
+     * And the last sentence is deliberately "may bring them back", not "brings them back". The gate
+     * raises its flag on any decode failure, not only on the enum name a newer build would know: a
      * truncated blob or a damaged prefs file lands here too, and no update fixes those. Promising
      * the recovery unconditionally would be the displayed state lying about the real one.
      *
-     * Whole-value equality on purpose: `contains` is blind to anything a reword APPENDS, and this
+     * Whole-value equality on purpose: `contains` is blind to anything a reword appends, and this
      * text is a promise made to someone who has just been told her mail is missing.
      *
      * Not checked here, and stated as debt: that the eight translations say the same three things.
-     * Their KEYS are held by the rule above and their FALLBACK to English by
+     * Their keys are held by the rule above and their fallback to English by
      * [no language leaves the account switch in English]'s sibling rules, but nothing reads their
      * meaning.
      */
@@ -277,29 +277,29 @@ class TranslationParityTest {
     }
 
     /**
-     * WHAT A DRAFT THE PHONE NO LONGER HOLDS IS TOLD (#95), pinned whole — because that sentence
+     * What a DRAFT the phone NO longer holds is told (#95), pinned whole, because that sentence
      * IS what its branch delivers, and nothing else in the build reads it.
      *
-     * The two wiring lints of that route pin the RESOURCE ID it writes
+     * The two wiring lints of that route pin the resource ID it writes
      * (`_draftLoadFailed.value = R.string.compose_local_draft_gone`), the rules at the top of this
-     * file pin the key in the nine languages and its format arguments — so the English TEXT could
-     * be replaced by anything at all, including one of the two sentences it was written NOT to be,
+     * file pin the key in the nine languages and its format arguments, so the English text could
+     * be replaced by anything at all, including one of the two sentences it was written not to be,
      * and the whole suite would stay green.
      *
      * The two it must not become, both of them strings this app already ships:
      * `compose_draft_load_failed` ("Close this screen and try opening it again") asks for a gesture
-     * that CANNOT work here — the row the uploader consumed does not come back on a reopen — and
+     * that cannot work here (the row the uploader consumed does not come back on a reopen) and
      * `compose_draft_offline` accuses a network that had no part in this. So the sentence owes two
      * statements and no third: the draft is not on this phone any more, and where to look for it if
      * it got out. It asks for nothing, and it promises nothing about a draft that was thrown away.
      *
-     * The forbidden screen runs FIRST on purpose: a reword that walked the sentence back to one of
-     * those two meanings should be told WHICH promise it broke, not merely that a pin stopped
+     * The forbidden screen runs first on purpose: a reword that walked the sentence back to one of
+     * those two meanings should be told which promise it broke, not merely that a pin stopped
      * matching.
      *
      * Whole-value equality, because `contains` is blind to anything a reword appends.
      *
-     * The eight translations are NOT pinned here, and that is a decision, not an oversight:
+     * The eight translations are not pinned here, and that is a decision, not an oversight:
      * nobody on this side reads them, so freezing their text would block a translation fix while
      * proving nothing about meaning. Their keys are held by the parity rule at the top of this file.
      */
@@ -307,7 +307,7 @@ class TranslationParityTest {
     fun `the draft the phone lost asks for nothing, and blames no network`() {
         val actual = valuesOf(File(res, "values/strings.xml"))
             .filterKeys { it in LOCAL_DRAFT_GONE_ENGLISH }
-        // The screen runs FIRST, on what the file actually says.
+        // The screen runs first, on what the file actually says.
         val forbidden = actual.values.flatMap { value ->
             FORBIDDEN_OF_A_LOST_DRAFT.filter { it in value.lowercase() }.map { "'$it' in \"$value\"" }
         }
@@ -329,34 +329,34 @@ class TranslationParityTest {
     }
 
     /**
-     * WHAT A ROW THAT IS STILL WAITING IS TOLD (#183 × the arming fix), pinned whole — because
-     * those two strings ARE what this branch delivers, and nothing else in the build reads their
+     * What a row that is still waiting is told (#183 × the arming fix), pinned whole, because
+     * those two strings are what this branch delivers, and nothing else in the build reads their
      * text. The wiring lints pin the resource IDS (`outboxWaitingReasonLabel()`,
      * `R.string.outbox_error_not_armed`) and the rule at the top of this file pins the keys in the
-     * nine languages, so the English could be replaced by anything at all — including
+     * nine languages, so the English could be replaced by anything at all, including
      * "Couldn\'t send: it will go out the next time you open the app", which commits both of the
-     * two forbidden acts at once — and the whole suite would stay green.
+     * two forbidden acts at once, and the whole suite would stay green.
      *
      * The two statements they owe, and the two they may never make:
-     *  - the row has NOT failed. It is QUEUED or HELD, the send worker will pick it up, and
+     *  - the row has not failed. It is queued or held, the send worker will pick it up, and
      *    `outboxStateIsError` deliberately paints nothing red here. "Failed" belongs to
-     *    OutboxState.FAILED and to it alone, and no repaint would ever take it back;
-     *  - and nobody may promise WHEN it leaves. `MailRepository.unarmedNote` writes down why:
+     *    OutboxState.Failed and to it alone, and no repaint would ever take it back;
+     *  - and nobody may promise when it leaves. `MailRepository.unarmedNote` writes down why:
      *    the startup re-arm it relies on (`SternaApplication`) walks the unfinished rows in an
-     *    UNGUARDED forEach, so a scheduler still broken at the next start stops that walk on its
+     *    unguarded forEach, so a scheduler still broken at the next start stops that walk on its
      *    first bad row. "It will be sent next time you open the app" is a guarantee the layer
      *    below does not give.
      *
-     * The frame is the second half of the same fix: `lastError` is the LAST reason recorded, not
-     * necessarily the current one — a re-arm that succeeded does not clear it — so the reason is
+     * The frame is the second half of the same fix: `lastError` is the last reason recorded, not
+     * necessarily the current one (a re-arm that succeeded does not clear it) so the reason is
      * printed as history ("Last error: …") and not as the present state of the row.
      *
-     * The forbidden screen runs FIRST on purpose: a reword that walked either sentence into one of
-     * those claims should be told WHICH promise it broke, not merely that a pin stopped matching.
+     * The forbidden screen runs first on purpose: a reword that walked either sentence into one of
+     * those claims should be told which promise it broke, not merely that a pin stopped matching.
      *
      * Whole-value equality, because `contains` is blind to anything a reword appends.
      *
-     * The eight translations are NOT pinned here, for the reason given over
+     * The eight translations are not pinned here, for the reason given over
      * [the draft the phone lost asks for nothing, and blames no network]: nobody on this side
      * reads them, so freezing their text would block a translation fix while proving nothing about
      * meaning. Their keys are held by the parity rule at the top of this file.
@@ -365,7 +365,7 @@ class TranslationParityTest {
     fun `the waiting row is told no failure, and promised no departure`() {
         val actual = valuesOf(File(res, "values/strings.xml"))
             .filterKeys { it in WAITING_REASON_ENGLISH }
-        // The screen runs FIRST, on what the file actually says. Backslashes are dropped before
+        // The screen runs first, on what the file actually says. Backslashes are dropped before
         // matching: the XML escapes an apostrophe as \', so "couldn't send" would otherwise slip
         // through the one screen written to catch it.
         val forbidden = actual.values.flatMap { value ->
@@ -397,7 +397,7 @@ class TranslationParityTest {
      *
      * Named keys rather than the general parity rule at the top of this file: that rule compares
      * whatever `values/` happens to carry, so it stays green on a sentence that was never added
-     * anywhere at all — which is exactly the state this button was in.
+     * anywhere at all, which is exactly the state this button was in.
      *
      * Left in English, eight of nine readers meet the only warning they get about the button
      * erasing another account's downloaded files in a language they did not choose, one tap before
@@ -414,7 +414,7 @@ class TranslationParityTest {
             missing,
         )
         // A key is not a sentence. `keysOf` matches the tag, so `<string name="…"></string>` and
-        // the English text pasted into `values-de` both satisfy the rule above — the first leaves the
+        // the English text pasted into `values-de` both satisfy the rule above, the first leaves the
         // button with a blank line where its only warning should be, the second warns eight readers
         // out of nine in a language they did not choose. Neither can be seen from a key list.
         val blank = files.filter { valuesOf(it)[ACCOUNT_CACHE_HELP_KEY].isNullOrBlank() }
@@ -429,29 +429,29 @@ class TranslationParityTest {
     }
 
     /**
-     * WHAT THE BUTTON ERASES, PINNED WHOLE — and the one claim that would make the sentence
+     * What the button erases, pinned whole, and the one claim that would make the sentence
      * worse than no sentence at all.
      *
-     * The attachment cache is ONE flat directory shared by every account (`StorageRepository`'s
+     * The attachment cache is one flat directory shared by every account (`StorageRepository`'s
      * `attachmentsDir`), so "Clear this account's cache" deletes the downloaded attachments of all
-     * of them. The sentence owes three statements: the MESSAGES that go are this account's, the
-     * ATTACHMENTS that go are every account's, and nothing is lost for good — the accounts stay
+     * of them. The sentence owes three statements: the messages that go are this account's, the
+     * attachments that go are every account's, and nothing is lost for good, the accounts stay
      * signed in and the bytes come back on opening.
      *
      * The claim it must never make is the reassuring one: that the attachments erased are this
      * account's. A reader who believes that keeps her other account's files on the phone in her
      * head only; there is no undo and no warning dialog (deliberately, none was added). And it must
-     * never mention a background purge — the 30-day sweep is `pruneOldMessages`, which no button on
+     * never mention a background purge, the 30-day sweep is `pruneOldMessages`, which no button on
      * this screen calls, so "automatically" or "30 days" here describes a mechanism that does not
      * run.
      *
-     * The forbidden screen runs FIRST on purpose: a reword that walked the sentence back to the
-     * reassuring version should be told WHAT it now promises, not merely that a pin stopped
+     * The forbidden screen runs first on purpose: a reword that walked the sentence back to the
+     * reassuring version should be told what it now promises, not merely that a pin stopped
      * matching.
      *
      * Whole-value equality, because `contains` is blind to anything a reword appends.
      *
-     * The eight translations are NOT pinned here, and that is a decision: nobody on this side
+     * The eight translations are not pinned here, and that is a decision: nobody on this side
      * reads them, so freezing their text would block a translation fix while proving nothing. Their
      * keys are held by the rule above. Stated as debt: that the eight say "all your accounts" and
      * not "this account".
@@ -460,7 +460,7 @@ class TranslationParityTest {
     fun `the account-cache help says the attachments of every account go, never only this one's`() {
         val actual = valuesOf(File(res, "values/strings.xml"))
             .filterKeys { it in ACCOUNT_CACHE_ENGLISH }
-        // The screen runs FIRST, on what the file actually says. Backslashes are dropped so that
+        // The screen runs first, on what the file actually says. Backslashes are dropped so that
         // `account\'s` and `account's` screen the same: whether the apostrophe is escaped is the
         // rewriter's business, what it says is not.
         val forbidden = actual.values.flatMap { value ->
@@ -489,31 +489,31 @@ class TranslationParityTest {
     }
 
     /**
-     * AND THAT THE SCREEN ACTUALLY SHOWS IT. Everything above reads XML; nothing in it touches a
-     * call site, so the sentence can exist, translated nine times, and be read by nobody — which
+     * And that the screen actually shows it. Everything above reads XML; nothing in it touches a
+     * call site, so the sentence can exist, translated nine times, and be read by nobody, which
      * leaves the button erasing the other account's downloaded files in silence, the state this
      * branch exists to end.
      *
      * Source text as the last resort, for `SettingsScreen.kt`'s reason: the account detail screen
      * is a `@Composable` taking a `ViewModel`, so no JVM test can render it. Whole lines are
-     * compared, arguments included — a `contains` on a fragment is blind to every mutation that
+     * compared, arguments included, a `contains` on a fragment is blind to every mutation that
      * lengthens a line.
      *
-     * THE ORDER, and it is not a taste: the line comes BEFORE the button, as the global one does.
-     * In linear navigation — TalkBack, a keyboard — a warning placed after the control is reached
+     * The order, and it is not a taste: the line comes before the button, as the global one does.
+     * In linear navigation (TalkBack, a keyboard) a warning placed after the control is reached
      * after it, and this button purges on first activation with no confirmation dialog.
      *
-     * AND ADJACENCY, because "somewhere later in the file" is not a position: with only a
+     * And adjacency, because "somewhere later in the file" is not a position: with only a
      * relative index compared, the whole `Text(…)` block moves into the vacation-responder form
      * 400 lines down and every assertion here still passes, leaving the purge button bare again.
      *
-     * AND THE WHOLE BLOCK, arguments included: pinning the `stringResource` line alone leaves
-     * `color = Color.Transparent` (or `Modifier.height(0.dp)`) green — a warning that is present,
+     * And the whole block, arguments included: pinning the `stringResource` line alone leaves
+     * `color = Color.Transparent` (or `Modifier.height(0.dp)`) green, a warning that is present,
      * translated nine times, and invisible.
      *
-     * Still deliberately NOT pinned: the padding values and that the block sits in the storage
+     * Still deliberately not pinned: the padding values and that the block sits in the storage
      * section rather than elsewhere in the same screen. Slicing a composable body by counting braces
-     * is too brittle to be a guard; where it LOOKS right is the bench relevé's business.
+     * is too brittle to be a guard; where it looks right is the bench relevé's business.
      */
     @Test
     fun `the account detail screen shows the account-cache help line, visible, just above the button`() {
@@ -547,7 +547,7 @@ class TranslationParityTest {
                 "says where the help line sits",
             button >= 0,
         )
-        // BEFORE the button, and NEXT to it. The gap is this block's remaining lines plus the
+        // Before the button, and next to it. The gap is this block's remaining lines plus the
         // button's own; anything wider means the two are no longer one thing on the screen.
         assertTrue(
             "the help line must come just BEFORE the button it warns about (linear navigation " +
@@ -566,7 +566,7 @@ class TranslationParityTest {
             }
 
     /**
-     * PARITY OF KEYS IS NOT PARITY OF MEANING, AND THIS SWITCH IS WHERE THAT BITES.
+     * Parity of keys is not parity of meaning, and this switch is where that bites.
      *
      * `notificationsEnabled` reads like a display setting and is not one: five of the six places
      * that consult it go and FETCH mail (`PushController`, `PushService`, `MailFetchWorker`,
@@ -575,14 +575,14 @@ class TranslationParityTest {
      * about what turning it off costs. The English text is pinned here, whole, so that the honest
      * wording cannot be quietly walked back to the display-only one it replaced.
      *
-     * The SECTION heading is the exception, and it is pinned to "Notifications" on purpose: a
+     * The section heading is the exception, and it is pinned to "Notifications" on purpose: a
      * heading is not a displayed state, it names where the setting lives, and it can say
      * "Notifications" without promising anything as long as the switch inside it says "Sync new
      * mail". It was widened to "Sync and notifications" once and had to come back: the account
      * screen already has a "Sync" section, and one heading being the prefix of the other left the
      * reader unable to tell which one governed what.
      *
-     * Whole-value equality on purpose: `contains` is blind to anything a mutation APPENDS, and that
+     * Whole-value equality on purpose: `contains` is blind to anything a mutation appends, and that
      * blindness has cost this repo three defects already.
      */
     @Test
@@ -598,15 +598,15 @@ class TranslationParityTest {
 
     /**
      * The failure the key-parity rules above cannot see: a `values-*` that carries the key and the
-     * ENGLISH text under it. For a label being reworded that is the likely accident — copy the new
-     * English into the eight files, translate seven of them — and it ships as a screen where one
+     * ENGLISH text under it. For a label being reworded that is the likely accident, copy the new
+     * English into the eight files, translate seven of them, and it ships as a screen where one
      * language silently reverts to the old, wrong promise.
      *
      * One pair reads exactly as the English does and is legitimate, so it is written down as the
-     * value it must have, not as a key the rule skips (see [TRANSLATED]). The difference matters:
-     * an exemption would let this language carry WHATEVER the English says, which is the accident
+     * value it must have, not as a key the rule skips (see [translated]). The difference matters:
+     * an exemption would let this language carry whatever the English says, which is the accident
      * itself; a pinned value only lets it carry that one word. So the rule below is absolute again
-     * — `emptyMap()` — and a language named in [TRANSLATED] is held to its own text, English or
+     * (`emptyMap()`) and a language named in [translated] is held to its own text, English or
      * not.
      *
      * Not checked here: a key present in [ENGLISH] and absent from a translation, which is the
@@ -635,7 +635,7 @@ class TranslationParityTest {
     }
 
     /**
-     * TWO labels of this switch make TWO statements each, and a translation that keeps only the
+     * Two labels of this switch make two statements each, and a translation that keeps only the
      * first is wrong in a way no parity rule notices.
      *
      * The subtitle: (a) the switch drives the background fetch, and (b) with it off the mail still
@@ -643,10 +643,10 @@ class TranslationParityTest {
      * means no mail", which it is not. The unwatched note: (a) turning "Push for all accounts" on
      * is what fetches this account's mail in the background, and (b) it is also what notifies. Drop
      * (a) and the note is back to promising a display setting, which is the defect this rule exists
-     * for — a reader who turns the option off to get fewer notifications stops the fetch instead.
+     * for, a reader who turns the option off to get fewer notifications stops the fetch instead.
      *
      * (b) cannot be checked by meaning here, so it is checked by shape: each label has to be at
-     * least two sentences long, each one long enough to be one (see [sentencesOf] — a dot count
+     * least two sentences long, each one long enough to be one (see [sentencesOf], a dot count
      * alone would take "z. B." for a second sentence), plus a floor on the whole text.
      */
     @Test
@@ -672,26 +672,26 @@ class TranslationParityTest {
     }
 
     /**
-     * THE SHAPE RULE ABOVE IS AN HONEST PROXY FOR THE SUBTITLE AND AN EMPTY ONE FOR THE NOTE, AND
-     * THAT WAS MEASURED, NOT GUESSED.
+     * The shape rule above is an honest proxy for the subtitle and an empty one for the NOTE, and
+     * that was measured, not guessed.
      *
-     * The subtitle's two statements ARE its two sentences, so counting them says something. The
+     * The subtitle's two statements are its two sentences, so counting them says something. The
      * note's first sentence is a bare observation ("This account is not being watched.") that
-     * carries NEITHER half; both live inside the second one. So the wrong text — the pre-#140 note
-     * that spoke only of notifications — clears two sentences and 95 to 109 characters in all nine
+     * carries neither half; both live inside the second one. So the wrong text, the pre-#140 note
+     * that spoke only of notifications, clears two sentences and 95 to 109 characters in all nine
      * languages. Shape added nothing for that key, and only English was really held, by the
      * whole-value equality of [ENGLISH], which reads `values/strings.xml` and nothing else.
      *
-     * What this rule adds is a REQUIREMENT OF PRESENCE on the eight translations, where nothing
+     * What this rule adds is a requirement of presence on the eight translations, where nothing
      * distinguished the good text from the bad one: each language has to name half (a), the
-     * background fetch, in its own words (see [BACKGROUND_FETCH]), in BOTH labels.
+     * background fetch, in its own words (see [BACKGROUND_FETCH]), in both labels.
      *
-     * `contains` here is a FLOOR, not a pin: it is blind to anything a rewrite appends, and the
+     * `contains` here is a floor, not a pin: it is blind to anything a rewrite appends, and the
      * pinning job belongs to [ENGLISH]. The falsification this rule is answerable to is the return
-     * of a translation to its text from before the fix — put the `values-fr` note of `cda6648c`
+     * of a translation to its text from before the fix, put the `values-fr` note of `cda6648c`
      * back and this test, and only this test, has to go red.
      *
-     * Not checked on purpose: the ORDER of the two halves, and the wording of half (b). Both are
+     * Not checked on purpose: the order of the two halves, and the wording of half (b). Both are
      * left as stated debt rather than pretended coverage.
      */
     @Test
@@ -719,12 +719,12 @@ class TranslationParityTest {
 
     /**
      * The sentences of a label: split on a full stop / question mark / exclamation mark that ends a
-     * word, keeping only the parts that look like a sentence — 20 characters or more, AND opening
+     * word, keeping only the parts that look like a sentence, 20 characters or more, and opening
      * on a capital letter.
      *
      * Both conditions were needed. Counting dots alone takes "z. B." for a sentence break; the
      * length floor alone does not save it, because the tail it leaves ("auf dem Sperrbildschirm",
-     * 23 characters) clears the floor on its own — that mutation went green here before the capital
+     * 23 characters) clears the floor on its own, that mutation went green here before the capital
      * was required, and what kills it is that the tail of an abbreviation resumes in lower case.
      *
      * The price is a translation whose second sentence starts on a lower-case word (a "de Vries",
@@ -775,19 +775,19 @@ class TranslationParityTest {
         const val UNWATCHED_NOTE = "settings_account_notifications_unwatched_note"
 
         /**
-         * The labels that owe the reader TWO statements, not one. Both are about the same flag, so
+         * The labels that owe the reader two statements, not one. Both are about the same flag, so
          * both are checked by the same shape rule.
          */
         val TWO_HALVES = listOf(SUBTITLE, UNWATCHED_NOTE)
 
         /**
-         * The words each language uses for half (a) — the fetch that happens in the background —
-         * as they stand in BOTH labels of [TWO_HALVES] today. Checked against the resources when
+         * The words each language uses for half (a), the fetch that happens in the background,
+         * as they stand in both labels of [TWO_HALVES] today. Checked against the resources when
          * written: every one of the eighteen values carries its language's marker verbatim.
          *
          * A fragment, not a sentence, and deliberately the shortest one that cannot be said by
          * accident while talking about notifications alone ("w tle", "фоновом режиме"). Rewording
-         * a label around a different phrase is allowed and means editing this map ON PURPOSE — the
+         * a label around a different phrase is allowed and means editing this map on purpose, the
          * one thing that must not happen is the phrase disappearing while nobody notices.
          */
         val BACKGROUND_FETCH = mapOf(
@@ -806,8 +806,8 @@ class TranslationParityTest {
          * The three labels of the read-receipt switch, in English, whole.
          *
          * The heading is hyphenated on purpose. `ReadReceiptMailTest` screens
-         * `values/strings.xml` for the MDN's OWN fixed English — "Read receipt", the subject that
-         * leaves the device — so that nobody "tidies" it into a translatable resource where the
+         * `values/strings.xml` for the MDN's own fixed English, "Read receipt", the subject that
+         * leaves the device, so that nobody "tidies" it into a translatable resource where the
          * nine languages would claim it. A section titled "Read receipts" collides with that guard
          * as a plain substring; "Read-receipt requests" is also the truer name, since what the
          * section governs is what happens to a request somebody else made.
@@ -815,9 +815,9 @@ class TranslationParityTest {
         /**
          * The six labels of the read-receipt strip, in English, whole.
          *
-         * None of these is what LEAVES the device: the mail itself is fixed English built by
+         * None of these is what leaves the device: the mail itself is fixed English built by
          * `readReceiptPreview`, and `ReadReceiptMailTest` screens this very file to keep it out of
-         * the resources — a correspondent's client does not speak the reader's language. Only the
+         * the resources, a correspondent's client does not speak the reader's language. Only the
          * interface is translated, which is what these six are.
          */
         val READ_RECEIPT_STRIP_ENGLISH = mapOf(
@@ -837,11 +837,11 @@ class TranslationParityTest {
         /**
          * What a receipt's own strip may never claim, in lower case.
          *
-         * Three families, and each has a victim. Saying the message was READ tells a stranger
-         * something nobody knows — an MDN reports a display, and the reader may well have shut the
+         * Three families, and each has a victim. Saying the message was read tells a stranger
+         * something nobody knows, an MDN reports a display, and the reader may well have shut the
          * message without a glance. Saying it was SENT names a delivery this app never watched:
          * the receipt is in an outbox that retries, offline, for as long as it takes. Saying it
-         * happens AUTOMATICALLY describes the "always" position `SECURITY.md` says this app does
+         * happens automatically describes the "always" position `SECURITY.md` says this app does
          * not have.
          */
         val FORBIDDEN_OF_A_RECEIPT = listOf(
@@ -870,7 +870,7 @@ class TranslationParityTest {
         /**
          * What that sentence may never say, in lower case: an instruction to repeat a gesture on a
          * row that is gone, and any accusation of the link. Both are sentences this app already
-         * has for OTHER causes, which is what makes them the likely accident.
+         * has for other causes, which is what makes them the likely accident.
          */
         val FORBIDDEN_OF_A_LOST_DRAFT = listOf(
             "close this screen", "open it again", "opening it again", "try again",
@@ -878,10 +878,10 @@ class TranslationParityTest {
         )
 
         /**
-         * The two strings a WAITING Outbox row prints, in English, whole: the frame and the
+         * The two strings a waiting Outbox row prints, in English, whole: the frame and the
          * fragment substituted into it.
          *
-         * The fragment is a FRAGMENT (lower case, no full stop), of the same shape as
+         * The fragment is a fragment (lower case, no full stop), of the same shape as
          * `outbox_error_edit_interrupted`: it is never printed on its own any more.
          */
         val WAITING_REASON_ENGLISH = mapOf(
@@ -903,7 +903,7 @@ class TranslationParityTest {
         /**
          * The help line of the per-account "Clear this account's cache" button, in English, whole.
          *
-         * It is NOT the global button's line (`settings_clear_cache_help`), which says "from this
+         * It is not the global button's line (`settings_clear_cache_help`), which says "from this
          * device" and is true of the global button. This one has to say the harder thing: the
          * messages are this account's, the attachments are everybody's.
          */
@@ -919,7 +919,7 @@ class TranslationParityTest {
          *
          * Two families. The first is the reassuring lie: any wording that attributes the deleted
          * attachments to THIS account. It is the likely accident, because the button, its label and
-         * the whole screen are about one account, and it is the worst possible one — the reader
+         * the whole screen are about one account, and it is the worst possible one, the reader
          * would leave believing her other account's downloaded files are still on the phone, and
          * there is no undo and no confirmation dialog to catch her.
          *
@@ -935,9 +935,9 @@ class TranslationParityTest {
             "this account's attachments", "this account's downloaded attachments",
             "its attachments", "its downloaded attachments", "only this account",
             "30 days", "automatically", "in the background",
-            // The third family, and the first draft of this line said it: that EVERYTHING comes
+            // The third family, and the first draft of this line said it: that everything comes
             // back. The sweep also empties `cacheDir/outgoing`, where compose stages the bytes of an
-            // attachment picked on the phone for an IMAP or a PGP send — no server holds those, so
+            // attachment picked on the phone for an IMAP or a PGP send, no server holds those, so
             // nothing re-downloads them. The mail comes back; "everything" does not.
             "everything re-downloads", "everything is downloaded again", "everything comes back",
         )
@@ -965,11 +965,11 @@ class TranslationParityTest {
          * the value each one owes: French for "Notifications" is "Notifications".
          *
          * What is pinned is that word, not the fact of being equal to English. Rewording the
-         * heading therefore means editing TWO maps — this one and [ENGLISH] — and forgetting this
+         * heading therefore means editing two maps (this one and [ENGLISH]) and forgetting this
          * one is the failure the rule catches, because French would then carry the new English
          * text instead of "Notifications".
          *
-         * What is NOT pinned, and cannot be from here: that this string is the one the section
+         * What is not pinned, and cannot be from here: that this string is the one the section
          * heading actually shows. This file reads XML as text; it never touches a call site. A
          * rename or a heading wired to another key leaves this map green and says nothing.
          */
@@ -978,7 +978,7 @@ class TranslationParityTest {
         )
 
         /**
-         * The settings screen, read as TEXT — the one call site this file looks at, and only
+         * The settings screen, read as text, the one call site this file looks at, and only
          * because a string nobody displays is the defect the account-cache lint exists for.
          */
         val SETTINGS_SCREEN: File by lazy {

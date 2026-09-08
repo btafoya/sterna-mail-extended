@@ -5,7 +5,7 @@ import app.sterna.core.data.mail.emailKey
 import app.sterna.core.jmap.model.Email
 
 /** One selected message a bulk action is about to act on, and whether its folder can be believed.
- *  [folderTrusted] is false for a row only ever drawn on screen — a search hit, whose `mailboxId`
+ *  [folderTrusted] is false for a row only ever drawn on screen, a search hit, whose `mailboxId`
  * was frozen at crawl time. A non-empty [Email.mailboxId] is not evidence. */
 internal data class SelectionTarget(val email: Email, val folderTrusted: Boolean)
 

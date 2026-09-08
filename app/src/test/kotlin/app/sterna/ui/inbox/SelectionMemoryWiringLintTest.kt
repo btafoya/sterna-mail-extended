@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
+ * Source lint, not a behaviour test, read this before trusting it.
  */
 class SelectionMemoryWiringLintTest {
 
@@ -39,7 +39,7 @@ class SelectionMemoryWiringLintTest {
     }
 
     /**
-     * The OTHER half of "one reader", and the one the count above cannot see: the store itself.
+     * The other half of "one reader", and the one the count above cannot see: the store itself.
      */
     @Test
     fun `the stored view is read out of the store in exactly two named places`() {
@@ -131,7 +131,7 @@ class SelectionMemoryWiringLintTest {
     }
 
     /**
-     * Every Kotlin source of the app module's THREE production source sets. `restoreSelection` and
+     * Every Kotlin source of the app module's three production source sets.
      */
     private fun mainSources(): List<File> = MODULE_SOURCE_DIRS
         .map { File(root, it) }
@@ -147,7 +147,7 @@ class SelectionMemoryWiringLintTest {
         strippedLines(file).map { it.trim() }.filter { it.isNotEmpty() }
 
     /**
-     * Every CALL of [name] in [text], whole, arguments included, in source order — the function's
+     * Every call of [name] in [text], whole, arguments included, in source order, the function's
      * own `fun` declaration excluded, since it is the thing being called, not a caller of it.
      */
     private fun callSitesTo(name: String, text: String): List<String> =
@@ -217,7 +217,9 @@ class SelectionMemoryWiringLintTest {
     }
 
     /**
-     * [file] as ONE line of code: comments taken out, runs of whitespace collapsed. Same scanner as
+     * [file] as one line of code: comments taken out, runs of whitespace collapsed. Same scanner as
+     * `UnreadViewWiringLintTest`'s, and for the same reason: a `//` inside a string literal is not a
+     * comment, and a line starting with `*` is not always a comment either.
      */
     private fun codeText(file: File): String = strippedLines(file).joinToString(" ")
         .replace(Regex("""\s+"""), " ").trim()
@@ -262,7 +264,7 @@ class SelectionMemoryWiringLintTest {
     }
 
     companion object {
-        /** The module's production source sets, all three — see [mainSources]. */
+        /** The module's production source sets, all three, see [mainSources]. */
         private val MODULE_SOURCE_DIRS = listOf(
             "app/src/main/kotlin",
             "app/src/benchShared/kotlin",
@@ -276,7 +278,7 @@ class SelectionMemoryWiringLintTest {
             "AllInboxesView.existsFor(store.accounts())",
         )
 
-        /** The whole selection declaration, whitespace collapsed — memory first, inbox as fallback. */
+        /** The whole selection declaration, whitespace collapsed, memory first, inbox as fallback. */
         private const val EXPECTED_SELECTION_DECLARATION =
             "MutableStateFlow<Sel>( restoredSelection(store) ?: Sel.Folder(store.inboxMailboxId()), )"
 

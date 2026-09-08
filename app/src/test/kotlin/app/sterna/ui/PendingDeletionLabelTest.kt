@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * RESOURCE LINT, NOT A BEHAVIOUR TEST — and a lint on a MARK, not on a meaning.
+ * Resource lint, not a behaviour test, and a lint on a mark, not on a meaning.
  */
 class PendingDeletionLabelTest {
 
@@ -37,6 +37,8 @@ class PendingDeletionLabelTest {
 
     /**
      * The falsification this file answers to: the 27 sentences the app shipped, by locale and by
+     * key, taken from the resources as they stood before the fix. Put any single one back and this
+     * test goes red on it by name.
      */
     @Test
     fun `no label went back to announcing the delete as already done`() {
@@ -54,7 +56,7 @@ class PendingDeletionLabelTest {
     }
 
     /**
-     * THE #99 GUARD: a second tap has to repost the SAME text.
+     * The #99 guard: a second tap has to repost the same text.
      */
     @Test
     fun `the message and trash labels take no argument, so a second tap reposts the same text`() {
@@ -134,7 +136,7 @@ class PendingDeletionLabelTest {
          */
         val FORMAT = Regex("%(?:\\d+\\$)?[-#+0,(]*\\d*(?:\\.\\d+)?[a-zA-Z]")
 
-        /** U+2026, the single character. Three full stops are NOT this and must not be. */
+        /** U+2026, the single character. Three full stops are not this and must not be. */
         const val ELLIPSIS = "…"
 
         /** A permanent destroy, held behind the Undo window (`heldBackDestroy`). */
@@ -155,7 +157,7 @@ class PendingDeletionLabelTest {
 
         /**
          * The 27 sentences the app used to post while the write was still pending, read out of the
-         * resources at the commit before the fix. Nothing else is forbidden — a reword is free.
+         * resources at the commit before the fix. Nothing else is forbidden, a reword is free.
          */
         val ANNOUNCED_AS_DONE = mapOf(
             "values" to mapOf(

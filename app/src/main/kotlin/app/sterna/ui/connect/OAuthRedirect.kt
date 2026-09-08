@@ -14,7 +14,7 @@ const val OAUTH_REDIRECT_HOST = "oauth"
  *  packages claiming one scheme make the return non-deterministic. */
 fun oauthRedirectUri(applicationId: String): String = "$applicationId://$OAUTH_REDIRECT_HOST"
 
-/** True when a VIEW intent's [scheme]/[host] are this app's own OAuth redirect and nothing else. */
+/** True when a view intent's [scheme]/[host] are this app's own OAuth redirect and nothing else. */
 fun isOAuthRedirect(scheme: String?, host: String?, applicationId: String): Boolean =
     scheme.equals(applicationId, ignoreCase = true) && host.equals(OAUTH_REDIRECT_HOST, ignoreCase = true)
 
@@ -98,7 +98,7 @@ fun tokenExchangeFor(verdict: RedirectVerdict.Exchange, redirectUri: String): To
     )
 
 /** The one in-flight request, redeemed once: the browser can deliver the same redirect twice, so
- *  the request is cleared as soon as it produced a verdict — except on the two verdicts meaning
+ *  the request is cleared as soon as it produced a verdict, except on the two verdicts meaning
  *  "not our sign-in", where clearing would let any link cancel her real sign-in. */
 class AuthorizationRequestSlot {
     private var pending: PendingAuthorization? = null

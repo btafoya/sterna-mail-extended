@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * EXECUTES [rawSourceFromCache] — the decision that decides whether the raw-source cache is asked
+ * Executes [rawSourceFromCache], the decision that decides whether the raw-source cache is asked
  */
 class RawSourceFromCacheTest {
 
@@ -20,7 +20,7 @@ class RawSourceFromCacheTest {
     }
 
     /**
-     * THE CASE THAT COSTS THE DUPLICATE: a caller carrying a frozen numbering. The cache holds
+     * The case that costs the duplicate: a caller carrying a frozen numbering. The cache holds
      */
     @Test fun `a stated numbering skips the cache, and does not even look`() {
         val lookup = Lookup("Subject: whoever holds that uid now\r\n")
@@ -40,7 +40,7 @@ class RawSourceFromCacheTest {
         )
     }
 
-    /** Any stated number, not only the one this test picked — including the two edge values a
+    /** Any stated number, not only the one this test picked, including the two edge values a
      *  numbering can carry on the wire. */
     @Test fun `every stated numbering skips the cache`() {
         listOf(1L, 42L, 0L, Long.MAX_VALUE).forEach { stated ->
@@ -51,7 +51,7 @@ class RawSourceFromCacheTest {
     }
 
     /**
-     * THE CASE A `Long?` COULD NOT EXPRESS, and the one this volet adds: a row that WAS ticked
+     * The case a `Long?` could not express, and the one this volet adds: a row that WAS ticked
      */
     @Test fun `a frozen absence skips the cache too, so the refusal is never late`() {
         val lookup = Lookup("Subject: the octets of whoever holds that uid now\r\n")
@@ -65,7 +65,7 @@ class RawSourceFromCacheTest {
     }
 
     /**
-     * THE INVERSE WITNESS, without which "never answer from the cache" satisfies the case above
+     * The inverse witness, without which "never answer from the cache" satisfies the case above
      */
     @Test fun `no stated numbering answers from the cache, exactly as before`() {
         val lookup = Lookup("Subject: the message that was read\r\n")
@@ -79,7 +79,7 @@ class RawSourceFromCacheTest {
     }
 
     /**
-     * THE OTHER PROTOCOL, AND IT IS NOT A DETAIL. On JMAP `numberingStampsOfRows` answers an
+     * The other protocol, and it is not a detail.
      */
     @Test fun `a JMAP read is served by the cache whatever was frozen`() {
         listOf(FrozenNumbering.NothingFrozen, FrozenNumbering.Frozen(null), FrozenNumbering.Frozen(42L))

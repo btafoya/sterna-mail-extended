@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [Mailbox.lostRoleClaim] decoded with the SHIPPING [JmapClient.DefaultJson] — the same trap
+ * [Mailbox.lostRoleClaim] decoded with the shipping [JmapClient.DefaultJson], the same trap
  */
 class MailboxLostRoleClaimDecodeTest {
     private val json: Json = JmapClient.DefaultJson

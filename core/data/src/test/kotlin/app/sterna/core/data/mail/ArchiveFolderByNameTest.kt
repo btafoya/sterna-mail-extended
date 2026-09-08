@@ -6,7 +6,9 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Which folder a JMAP archive falls back on when NO folder carries the `archive` role — the
+ * Which folder a JMAP archive falls back on when NO folder carries the `archive` role, the
+ * decision run, with its arguments pinned. It used to be a `private val` + a `filter` inside
+ * `MailRepository`, i.e. a rule no JVM test could reach (Room + a `Context` + a socket).
  */
 class ArchiveFolderByNameTest {
 

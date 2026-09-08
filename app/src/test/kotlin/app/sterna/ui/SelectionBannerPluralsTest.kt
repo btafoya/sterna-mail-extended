@@ -5,7 +5,9 @@ import org.junit.Test
 import java.io.File
 
 /**
- * RESOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Resource lint, not a behaviour test, same instrument and the same disclaimer as
+ * [TranslationParityTest]: it reads the string resources as text, and a JVM test cannot call
+ * `getQuantityString` to see the sentence the user gets.
  */
 class SelectionBannerPluralsTest {
 
@@ -41,7 +43,7 @@ class SelectionBannerPluralsTest {
         assertEquals("plural forms with no number in them", emptyList<String>(), offenders)
     }
 
-    /** `values/` plus every `values-xx/` that ships strings — nine files as of this change. */
+    /** `values/` plus every `values-xx/` that ships strings, nine files as of this change. */
     private fun localeFiles(): List<File> = (res.listFiles() ?: emptyArray())
         .filter { it.isDirectory && (it.name == "values" || it.name.startsWith("values-")) }
         .map { File(it, "strings.xml") }
@@ -65,6 +67,8 @@ class SelectionBannerPluralsTest {
 
         /**
          * The CLDR categories each language must carry, following the same reading of them as the
+         * six plurals already shipped (commit 32198222). A language absent from this map is not
+         * checked, the map is the promise, not the file listing.
          */
         val CATEGORIES = mapOf(
             "values" to listOf("one", "other"),

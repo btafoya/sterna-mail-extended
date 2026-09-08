@@ -8,13 +8,13 @@ import java.io.ByteArrayInputStream
 import java.io.InputStream
 
 /**
- * THE END OF A STREAM IS NOT A BLANK LINE (#156).
+ * The end of a stream is not a blank line (#156).
  */
 class ImapEndOfStreamTest {
 
     private fun parser(raw: String) = ImapParser(ByteArrayInputStream(raw.toByteArray(Charsets.ISO_8859_1)))
 
-    /** A1 — nothing left at all, at the start of a line. */
+    /** A1, nothing left at all, at the start of a line. */
     @Test
     fun `a stream that has ended throws instead of answering an empty line`() {
         val parser = parser("* OK fake IMAP ready\r\n")
@@ -29,7 +29,9 @@ class ImapEndOfStreamTest {
     }
 
     /**
-     * A1b — and it throws EVERY time, without going back to the stream ONCE. `peek()` keeps the
+     * A1b, and it throws every time, without going back to the stream once. `peek()` keeps the
+     * `-1` in `peeked` (which is `none` = -2 when empty), so a hundred calls past the end cost a
+     * single read: the exception is free, and the count says so to the byte.
      */
     @Test
     fun `every later call throws too, without reading the stream again`() {
@@ -51,7 +53,7 @@ class ImapEndOfStreamTest {
         )
     }
 
-    /** A2 — the EOF lands inside a literal, mid-message: no truncated answer comes back. */
+    /** A2, the EOF lands inside a literal, mid-message: no truncated answer comes back. */
     @Test
     fun `an EOF inside a literal throws instead of returning what was read`() {
         val error = assertThrows(ImapException::class.java) {
@@ -61,7 +63,7 @@ class ImapEndOfStreamTest {
         assertEquals("Connection closed", error.message)
     }
 
-    /** A2 — the EOF lands inside a parenthesised list. */
+    /** A2, the EOF lands inside a parenthesised list. */
     @Test
     fun `an EOF inside a list throws instead of returning half of it`() {
         val error = assertThrows(ImapException::class.java) {
@@ -70,7 +72,7 @@ class ImapEndOfStreamTest {
         assertEquals("Connection closed", error.message)
     }
 
-    /** A2 — the EOF lands inside a quoted string. */
+    /** A2, the EOF lands inside a quoted string. */
     @Test
     fun `an EOF inside a quoted string throws instead of returning the fragment`() {
         val error = assertThrows(ImapException::class.java) {
@@ -80,7 +82,8 @@ class ImapEndOfStreamTest {
     }
 
     /**
-     * A3 — the case the fix must NOT swallow. A lone CRLF is a blank line, and a blank line is an
+     * A3, the case the fix must not swallow. A lone CRLF is a blank line, and a blank line is an
+     * answer: the parser hands back an empty list and the next response is still there to be read.
      */
     @Test
     fun `a blank line is still a blank line, and the response after it is still read`() {
@@ -103,11 +106,12 @@ class ImapEndOfStreamTest {
 }
 
 /**
- * The other half of the same rule, and it does not live in the parser: the CALLER must go on
+ * The other half of the same rule, and it does not live in the parser: the caller must go on
+ * skipping blank lines.
  */
 class ImapBlankLineOnTheWireTest {
 
-    /** `command()` — the most widely reached of the seven read sites. */
+    /** `command()`, the most widely reached of the seven read sites. */
     @Test(timeout = 60_000)
     fun `a blank line inside a response is skipped, not taken for a dead connection`() {
         FakeImapServer { tag, line ->
@@ -132,7 +136,7 @@ class ImapBlankLineOnTheWireTest {
         }
     }
 
-    /** `idle()` — the same skip, on the site the defect was reported from. */
+    /** `idle()`, the same skip, on the site the defect was reported from. */
     @Test(timeout = 60_000)
     fun `a blank line before an EXISTS still announces new mail`() {
         var idleTag = ""
@@ -156,7 +160,7 @@ class ImapBlankLineOnTheWireTest {
 }
 
 /**
- * SOURCE LINT (A9), the belt to the braces above: the `return tokens` that swallowed a closed
+ * Source lint (A9), the belt to the braces above: the `return tokens` that swallowed a closed
  */
 class ImapEndOfStreamLintTest {
 
@@ -183,7 +187,7 @@ class ImapEndOfStreamLintTest {
 }
 
 /**
- * An [InputStream] that counts the calls and the bytes that reach the wire — the instrumented
+ * An [InputStream] that counts the calls and the bytes that reach the wire, the instrumented
  */
 internal class CountingStream(private val delegate: InputStream) : InputStream() {
     /** Number of read calls, of either shape. */

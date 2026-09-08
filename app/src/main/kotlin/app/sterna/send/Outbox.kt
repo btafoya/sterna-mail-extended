@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
  */
 object Outbox {
     /**
-     * One unique work item per outbox id, so everything here books under ONE name and the policy
+     * One unique work item per outbox id, so everything here books under one name and the policy
      */
     fun enqueue(
         context: Context,

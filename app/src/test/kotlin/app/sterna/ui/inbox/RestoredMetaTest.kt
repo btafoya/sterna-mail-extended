@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The header a RESTORED view claims, EXECUTED — both halves of it.
+ * The header a restored view claims, executed, both halves of it.
  */
 class RestoredMetaTest {
 

@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT — the wiring of [resumeOutboxRow] and [outboxRowToResume] into the three places
+ * Source lint, the wiring of [resumeOutboxRow] and [outboxRowToResume] into the three places
  */
 class OutboxResumeWiringTest {
 
@@ -39,8 +39,8 @@ class OutboxResumeWiringTest {
 
     @Test fun `the resume never writes the fields — they come back from the screen's own saveables`() {
         // A8: To/Cc/Bcc/subject are `rememberSaveable`, the body comes through the resume slot or
-        // is lost — and then "Close this screen and reopen the message" is true. A `_prefill` here
-        // would paint the ROW's text over what the user had typed since queueing it.
+        // is lost, and then "Close this screen and reopen the message" is true. A `_prefill` here
+        // would paint the row's text over what the user had typed since queueing it.
         assertEquals(
             "⛔ resumeOutboxEdit writes _prefill: the row's fields would overwrite the restored ones",
             emptyList<String>(),
@@ -125,7 +125,7 @@ class OutboxResumeWiringTest {
             "outboxId = entry.arguments?.getString(\"outboxId\")?.toLongOrNull(),",
             // Outbox → Edit: the id travels in the route, so it survives the process.
             "onEditDraft = { id -> entry.navigateOnce { nav.navigate(\"compose?restore=true&outboxId=\$id\") } },",
-            // The Undo route does NOT: an undone send has no row to come back to.
+            // The Undo route does not: an undone send has no row to come back to.
             "onReopenDraft = { nav.navigate(\"compose?restore=true\") },",
         )) {
             assertTrue("SternaApp.kt has no line reading exactly:\n  $line", line in app)

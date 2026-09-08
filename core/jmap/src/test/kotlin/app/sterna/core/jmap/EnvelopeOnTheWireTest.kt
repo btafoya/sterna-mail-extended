@@ -19,7 +19,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * The EmailSubmission `envelope` (RFC 8621 §7.5) on the wire — the OCTETS that leave, read back
+ * The EmailSubmission `envelope` (RFC 8621 §7.5) on the wire, the octets that leave, read back
  */
 class EnvelopeOnTheWireTest {
 
@@ -54,6 +54,8 @@ class EnvelopeOnTheWireTest {
 
     /**
      * The second request every JMAP send now makes: it reads back what the server did with the
+     * submission it just created (#183). Nothing is refused here, so the send goes through, but the
+     * response must be queued, or the call sits on the read timeout.
      */
     private val submissionGetResponse =
         """{"methodResponses":[

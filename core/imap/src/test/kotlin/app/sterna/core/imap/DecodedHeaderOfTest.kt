@@ -6,7 +6,8 @@ import org.junit.Test
 import java.util.Base64
 
 /**
- * [MimeParser.decodedHeaderOf] — the read that hands a header over READY TO SHOW, next to
+ * [MimeParser.decodedHeaderOf], the read that hands a header over ready to show, next to
+ * [MimeParser.headerOf], which hands it over as it was sent.
  */
 class DecodedHeaderOfTest {
 
@@ -45,7 +46,7 @@ class DecodedHeaderOfTest {
         assertEquals("Réunion / Отчёт", MimeParser.decodedHeaderOf(raw, "sUbJeCt"))
     }
 
-    // -- where the header block ENDS ---------------------------------------------------------------
+    // -- where the header block ends ---------------------------------------------------------------
     //
     // `headerOf` reads the header block alone, and it stopped copying the body to get at it: on a
     // decrypted PGP/MIME entity that copy was the whole entity, attachments included. The three
@@ -59,7 +60,7 @@ class DecodedHeaderOfTest {
         assertNull("a body line is not a header", MimeParser.headerOf(raw, "X-Body"))
     }
 
-    /** A part with no blank line at all is all headers — the split has always answered that. */
+    /** A part with no blank line at all is all headers, the split has always answered that. */
     @Test fun `a part with no blank line at all is header block to its last line`() {
         val raw = "Subject: no body follows\r\nFrom: a@b.test"
         assertEquals("no body follows", MimeParser.headerOf(raw, "Subject"))

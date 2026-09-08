@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
+ * Source lint, not a behaviour test, read this before trusting it.
  */
 class UnreadRowFolderWiringLintTest {
 
@@ -61,7 +61,7 @@ class UnreadRowFolderWiringLintTest {
     }
 
     /**
-     * The value the whole volet stands on. [unreadRowFolder] compares the row's account to
+     * The value the whole volet stands on.
      */
     @Test
     fun `the account on screen is folded into the state and carried into it`() {
@@ -95,9 +95,9 @@ class UnreadRowFolderWiringLintTest {
     private fun stateBlock(): List<String> {
         val lines = codeLines(INBOX_VIEW_MODEL)
         val start = lines.indexOfFirst { it.contains("val state: StateFlow<MailUi>") }
-        // Searched AFTER the start, not from the top: InboxViewModel.kt closes several other
+        // Searched after the start, not from the top: InboxViewModel.kt closes several other
         // flows with '}.stateIn(' long before this one, and the first of them made this rule read
-        // a backwards slice — i.e. nothing at all.
+        // a backwards slice, i.e. nothing at all.
         val end = lines.drop(start + 1).indexOfFirst { it.contains("}.stateIn(") } + start + 1
         check(start >= 0 && end > start + 1) {
             "InboxViewModel.kt is expected to build 'val state: StateFlow<MailUi>' from a combine " +
@@ -149,7 +149,7 @@ class UnreadRowFolderWiringLintTest {
     }
 
     companion object {
-        /** The single chip slot, at each of the places it is filled — account first, always. */
+        /** The single chip slot, at each of the places it is filled, account first, always. */
         private val EXPECTED_ORIGIN_LABEL_LINES = listOf(
             "originLabel = originLabel,",
             "originLabel = ownerAccount?.label() ?: folderFor(child)?.let { mailboxDisplayName(it.role, it.name) },",
@@ -171,7 +171,7 @@ class UnreadRowFolderWiringLintTest {
             "originLabel = ownerAccount?.label() ?: folderFor(child)?.let { mailboxDisplayName(it.role, it.name) },",
         )
 
-        /** The one fold into [MailUi], carrying the badge AND the account that qualifies a folder. */
+        /** The one fold into [MailUi], carrying the badge and the account that qualifies a folder. */
         private val EXPECTED_BASE_COPY_LINES = listOf(
             "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed), showRefreshIndicator = showing)",
         )

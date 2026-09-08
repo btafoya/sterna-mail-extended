@@ -8,7 +8,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * WHICH hosts the default path may ask how the mail signs in — [mailOAuthCandidates], EXECUTED,
+ * Which hosts the default path may ask how the mail signs in, [mailOAuthCandidates], executed,
+ * with pinned arguments and pinned results.
  */
 class MailOAuthCandidatesTest {
 
@@ -36,7 +37,7 @@ class MailOAuthCandidatesTest {
     }
 
     /**
-     * Exactly ONE candidate is dropped, and it is the bare domain. Both halves matter: a rule
+     * Exactly one candidate is dropped, and it is the bare domain. Both halves matter: a rule
      */
     @Test fun `what is removed is the bare domain, and nothing else`() {
         val all = Jmap.autodiscoverHosts("nina@masto.top")
@@ -62,7 +63,7 @@ class MailOAuthCandidatesTest {
     }
 
     /**
-     * A DOMAIN OF THREE LABELS OR MORE, and the reason it is here rather than "for completeness":
+     * A domain of three labels or more, and the reason it is here rather than "for completeness":
      */
     @Test fun `a domain of three labels or more drops its bare domain too, and only that`() {
         assertEquals(
@@ -90,7 +91,7 @@ class MailOAuthCandidatesTest {
 }
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as [OAuthCodeWiringTest].
+ * Source lint, not a behaviour test, same instrument and disclaimer as [OAuthCodeWiringTest].
  */
 class MailOAuthCandidatesWiringTest {
 
@@ -123,7 +124,7 @@ class MailOAuthCandidatesWiringTest {
     }
 
     /**
-     * The manual fallback's OAuth button keeps ALL FOUR candidates, deliberately.
+     * The manual fallback's OAuth button keeps all four candidates, deliberately.
      */
     @Test fun `the manual button keeps all four candidates`() {
         val body = functionBody("connectOAuth")

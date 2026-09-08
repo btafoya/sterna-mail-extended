@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * WHICH arguments `MailRepository` hands [app.sterna.core.data.account.autocryptHeaderValue] at each
+ * Which arguments `MailRepository` hands [app.sterna.core.data.account.autocryptHeaderValue] at each
  */
 class AutocryptSendWiringTest {
 
@@ -39,7 +39,7 @@ class AutocryptSendWiringTest {
                 // `outgoing` builds the From from fromEmail, falling back to the account's own
                 // address, and the rule is asked about that very address.
                 "sendingAccount, fromEmail?.takeIf { it.isNotBlank() } ?: credentials.username",
-                // JMAP with a pre-built entity — a signed or encrypted send, whose raw message is
+                // JMAP with a pre-built entity, a signed or encrypted send, whose raw message is
                 // built by OutgoingMime.build.
                 "sendingAccount, from.email",
                 // JMAP, the ordinary send.
@@ -58,7 +58,7 @@ class AutocryptSendWiringTest {
 
     @Test fun `from is still the address the correspondent will see`() {
         // `from.email` only means what this test claims while THIS is how `from` is built: the
-        // message's own sender address, trimmed — not the identity the submission runs under, which
+        // message's own sender address, trimmed, not the identity the submission runs under, which
         // on a delegated send belongs to the login.
         assertTrue(
             source.lines().map { it.trim() }.contains(

@@ -15,12 +15,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The widget's push, RUN — not read as source. What is pinned here is not that the app counts
+ * The widget's push, run, not read as source. What is pinned here is not that the app counts
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class UnreadWidgetPushTest {
 
-    /** Nothing but the id matters here: the bound this pane follows is the list's SIZE. */
+    /** Nothing but the id matters here: the bound this pane follows is the list's size. */
     private fun account(id: String) = StoredAccount(id = id, server = "s", username = "u")
 
     /** Two accounts: above [AllInboxesView.existsFor], so the cell is called "All inboxes". */
@@ -110,6 +110,7 @@ class UnreadWidgetPushTest {
 
     /**
      * The claim [kotlinx.coroutines.flow.flatMapLatest] makes, executed rather than believed: the
+     * subscription is dropped when the last cell goes, not merely superseded. With `flatMapMerge`
      */
     @Test fun `the last widget removed really stops the collection`() = runTest {
         val counter = Counter()
@@ -134,7 +135,7 @@ class UnreadWidgetPushTest {
         job.cancel()
     }
 
-    /** A widget placed again after the last one was removed gets a FRESH subscription. */
+    /** A widget placed again after the last one was removed gets a fresh subscription. */
     @Test fun `a widget placed again is counted again, on a new subscription`() = runTest {
         val counter = Counter()
         val placed = MutableStateFlow(true)
@@ -158,7 +159,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * The gate's ceiling: an answer that has not CHANGED must not re-subscribe. The presence flow
+     * The gate's ceiling: an answer that has not changed must not re-subscribe. The presence flow
      */
     @Test fun `the same answer twice does not re-subscribe the count`() = runTest {
         val counter = Counter()
@@ -177,7 +178,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * THE SAME BREAKDOWN TWICE IS ONE DRAW. Nothing upstream says so: the real counter is a
+     * The same breakdown twice is one draw.
      */
     @Test fun `the same count arriving twice is drawn once`() = runTest {
         val seen = mutableListOf<Map<String, Int>>()
@@ -202,7 +203,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * THE NUMBERS DO NOT MOVE AND THE CELL MUST STILL BE REDRAWN — the defect this pane closes.
+     * The numbers do not MOVE and the cell must still be redrawn, the defect this pane closes.
      */
     @Test fun `crossing the two-account bound redraws, on a count that did not move`() = runTest {
         val counter = Counter()
@@ -234,7 +235,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * THE OTHER BOUND, and the one a boolean arm would lose: NO ACCOUNT AT ALL versus ONE.
+     * The other bound, and the one a boolean arm would lose: NO account at all versus one.
      */
     @Test fun `the first account arriving and the last one leaving are redraws too`() = runTest {
         val counter = Counter { emptyMap() }
@@ -265,7 +266,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * THE THIRD PAIR, AND THE ONE THE TWO TESTS ABOVE CANNOT SEE: no account at all versus two.
+     * The third pair, and the one the two tests above cannot see: no account at all versus two.
      */
     @Test fun `no account becoming two in one step redraws, and back`() = runTest {
         val counter = Counter { emptyMap() }
@@ -297,7 +298,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * THE PRICE OF THE ARM ABOVE, and the reason it carries a BOUND and not the account list.
+     * The price of the arm above, and the reason it carries a bound and not the account list.
      */
     @Test fun `an account list that does not cross the bound costs nothing`() = runTest {
         val counter = Counter()
@@ -334,7 +335,9 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * ONE ACCOUNT IS NOT AN ABSENCE OF ACCOUNTS, and this test exists because the arm added for
+     * One account is not an absence of accounts, and this test exists because the arm added for
+     * the label reads a bound: on a single-account install (the large majority) that bound never
+     * changes for the whole life of the process.
      */
     @Test fun `a single account still follows the mail`() = runTest {
         val counter = Counter()
@@ -362,7 +365,7 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * THE GATE GOVERNS BOTH ARMS, and this is the half a combine placed outside
+     * The gate governs both arms, and this is the half a combine placed outside
      */
     @Test fun `an account list that moves while no cell is placed redraws nothing`() = runTest {
         val counter = Counter()

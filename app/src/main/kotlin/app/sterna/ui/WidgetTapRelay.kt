@@ -24,7 +24,7 @@ object WidgetTapRelay {
     fun step(ordered: Boolean, held: Boolean, listReady: Boolean): WidgetTapStep = when {
         // Neither a fresh order nor one already taken: the widget was not touched.
         !ordered && !held -> WidgetTapStep.Ignore
-        // The list exists — deliver, whichever of the two flags carries the order.
+        // The list exists, deliver, whichever of the two flags carries the order.
         listReady -> WidgetTapStep.Deliver
         // An order with no list to give it to: keep it rather than drop it. The caller consumes the
         // activity's flag in this same step, which is what brings the next composition.

@@ -5,7 +5,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — the instrument of [SubscribedFoldersSurfaceWiringTest],
+ * Source lint, not a behaviour test, the instrument of [SubscribedFoldersSurfaceWiringTest],
+ * with its disclaimer: it reads the source as text and proves nothing about behaviour.
  */
 class CollapsedFoldersSurfaceWiringTest {
 
@@ -67,7 +68,7 @@ class CollapsedFoldersSurfaceWiringTest {
     }
 
     /**
-     * The badge, pinned with its ARGUMENTS and with the branch that reads it.
+     * The badge, pinned with its arguments and with the branch that reads it.
      */
     @Test fun `the row's badge is the folded-aware count, asked about the drawn list and the same folded set`() {
         assertEquals(
@@ -90,7 +91,7 @@ class CollapsedFoldersSurfaceWiringTest {
     }
 
     /**
-     * The two writes, pinned with their ARGUMENTS and in source order.
+     * The two writes, pinned with their arguments and in source order.
      */
     @Test fun `both writes go through the ViewModel, with the argument each one owes`() {
         assertEquals(
@@ -135,7 +136,9 @@ class CollapsedFoldersSurfaceWiringTest {
     }
 
     /**
-     * The account switch. `InboxScreen` switches accounts IN PLACE, so without this re-read the
+     * The account switch. `InboxScreen` switches accounts in place, so without this re-read the
+     * departing account's registry stays on screen, and IMAP mailbox ids are paths, so a folder
+     * named "Travail" on the arriving account inherits the fold decided on the other one (#92/#121).
      */
     @Test fun `the registry is re-read on an account switch, and REPLACED not merged`() {
         assertEquals(
@@ -213,7 +216,7 @@ class CollapsedFoldersSurfaceWiringTest {
     }
 
     /**
-     * The two lines that EXPOSE the flows, pinned whole — the weakest link of the chain above.
+     * The two lines that expose the flows, pinned whole, the weakest link of the chain above.
      */
     @Test fun `both flows are exposed as themselves, never as a constant`() {
         assertEquals(
@@ -236,7 +239,7 @@ class CollapsedFoldersSurfaceWiringTest {
 
     // ── instrument (copied from SubscribedFoldersSurfaceWiringTest) ──────────────────────────────
 
-    /** [count] consecutive code lines from the ONE line starting with [prefix]. */
+    /** [count] consecutive code lines from the one line starting with [prefix]. */
     private fun block(file: File, prefix: String, count: Int): List<String> {
         val lines = codeLines(file)
         val at = only(lines, prefix)

@@ -5,12 +5,15 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as [OAuthWiringTest]: it
+ * Source lint, not a behaviour test, same instrument and same disclaimer as [OAuthWiringTest]: it
+ * reads the source as text and proves nothing about behaviour.
  */
 class LoginHintWiringTest {
 
     /**
      * The mutation this exists to kill: `connectOAuth` handing `null` (or the untrimmed `email`, or
+     * `accountName`) as the hint. That is the defect itself, the address is right there in
+     * `emailTrim`, the user typed it one screen ago, and the approval page asks for it again.
      */
     @Test fun `the generic device flow hands over the address the user typed`() {
         assertEquals(
@@ -25,7 +28,7 @@ class LoginHintWiringTest {
     }
 
     /**
-     * The mutation this exists to kill: the Outlook mirror passing `p.userCode`'s address — i.e.
+     * The mutation this exists to kill: the Outlook mirror passing `p.userCode`'s address, i.e.
      */
     @Test fun `the Outlook mirror passes no hint`() {
         assertEquals(
@@ -40,6 +43,8 @@ class LoginHintWiringTest {
 
     /**
      * The mutation this exists to kill: `DeviceApprovalPanel` passing `null` instead of
+     * `state.loginHint`. It compiles, every other test stays green, and the fix is silently gone,
+     * the panel is the only place the state's hint reaches the button.
      */
     @Test fun `the approval panel forwards the state's hint`() {
         assertEquals(
@@ -55,6 +60,8 @@ class LoginHintWiringTest {
 
     /**
      * The mutation this exists to kill: the post-import panel passing `approval.loginHint` or a
+     * field of its own. That path is Microsoft's after a K-9 import, it shares the composable with
+     * the generic flow, and sharing the composable must not mean sharing the hint.
      */
     @Test fun `the imported-account sign-in passes no hint`() {
         assertEquals(
@@ -68,7 +75,7 @@ class LoginHintWiringTest {
     }
 
     /**
-     * THE ONE LINE OF PRODUCTION THAT JOINS the pure function to the user, and the four rules above
+     * The one line of production that joins the pure function to the user, and the four rules above
      */
     @Test fun `the approval button computes its target through the hint`() {
         assertEquals(
@@ -107,8 +114,8 @@ class LoginHintWiringTest {
             .replace(",)", ")")
     }
 
-    /** The body of a function of [file], as text. Braces counted raw, as the other source lints do
-     *  — sound only while the file's string literals carry no braces. */
+    /** The body of a function of [file], as text. Braces counted raw, as the other source lints do,
+     *  sound only while the file's string literals carry no braces. */
     private fun functionBody(file: File, name: String): String {
         val lines = file.readLines()
         val start = lines.indexOfFirst { Regex("""\bfun $name\b""").containsMatchIn(it) }

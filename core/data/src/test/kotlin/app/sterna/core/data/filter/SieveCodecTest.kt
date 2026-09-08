@@ -67,7 +67,7 @@ class SieveCodecTest {
     }
 
     /**
-     * A script with content and no marker is UNREADABLE, not empty.
+     * A script with content and no marker is unreadable, not empty.
      */
     @Test fun `a script with content and no marker cannot be read`() {
         assertNull(SieveCodec.parseRulesOrNull("require [\"fileinto\"];\nif true { keep; }"))
@@ -91,7 +91,7 @@ class SieveCodecTest {
         assertEquals(emptyList<FilterRule>(), SieveCodec.parseRulesOrNull("  \n\t\n "))
     }
 
-    /** A script this codec wrote reads back as the very rules it was given — still. */
+    /** A script this codec wrote reads back as the very rules it was given, still. */
     @Test fun `a generated script is readable and gives its rules back`() {
         val rules = listOf(
             FilterRule(name = "Boss", field = RuleField.FROM, value = "boss@example.com", flag = true),
@@ -107,7 +107,7 @@ class SieveCodecTest {
 
     /**
      * The compared value: the marker line out whole, the rest normalised and otherwise untouched.
-     * Pinned with literal input and literal output — indentation and interior blank lines survive.
+     * Pinned with literal input and literal output, indentation and interior blank lines survive.
      */
     @Test fun `sieveBody drops the marker line and normalises blanks`() {
         assertEquals(
@@ -118,7 +118,7 @@ class SieveCodecTest {
         )
     }
 
-    /** Only the FIRST marker line is ours; a second one further down is content like any other. */
+    /** Only the first marker line is ours; a second one further down is content like any other. */
     @Test fun `sieveBody keeps a second marker line`() {
         assertEquals(
             "keep;\n# STERNA-RULES-V1: []",

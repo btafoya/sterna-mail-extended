@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The decision behind a notification quick reply, EXECUTED — not re-derived. Every expectation
+ * The decision behind a notification quick reply, executed, not re-derived. Every expectation
  */
 class QuickReplyOutcomeTest {
 
@@ -48,7 +48,7 @@ class QuickReplyOutcomeTest {
     }
 
     @Test fun `a message with no subject answers under the bare prefix`() {
-        // Pinned as shipped today, trailing space included — this test is a lock, not a redesign.
+        // Pinned as shipped today, trailing space included, this test is a lock, not a redesign.
         assertEquals(
             QuickReplyOutcome.Send("alice@example.com", "Re: ", "ok"),
             quickReplyOutcome("ok", original.copy(subject = null)),
@@ -100,7 +100,7 @@ class QuickReplyOutcomeTest {
     // --- No recipient: the text comes back, and the notification must not be taken down ---
 
     @Test fun `an uncached message hands the text back`() {
-        // "a notification implies a cached message" is FALSE — the cache can be evicted, or the
+        // "a notification implies a cached message" is FALSE, the cache can be evicted, or the
         // row can belong to an account whose credentials are gone.
         assertEquals(
             QuickReplyOutcome.HandBack("Re: ", "the text I typed"),
@@ -111,7 +111,7 @@ class QuickReplyOutcomeTest {
     @Test fun `a message with no sender hands the text back`() {
         // Reachable: Notifications.actionsFor offers Reply on a mail that has a subject and no
         // From at all (NotificationActionsTest, "no sender keeps its actions at sender and
-        // subject") — daemon mail, or a malformed header.
+        // subject"), daemon mail, or a malformed header.
         assertEquals(
             QuickReplyOutcome.HandBack("Re: Sprint notes", "the text I typed"),
             quickReplyOutcome("the text I typed", original.copy(from = emptyList())),
@@ -125,9 +125,9 @@ class QuickReplyOutcomeTest {
     // --- After the attempt: which way round these two ends go IS the bug ---
     //
     // No source lint can hold this. A lint sees a `dismiss(…)` line and a `notifySendFailed(…)`
-    // line and is satisfied whichever branch each sits in — swap them and the suite stays green
+    // line and is satisfied whichever branch each sits in, swap them and the suite stays green
     // while a successful send raises a false "not sent" and a failed one wipes the text. So the
-    // decision is a function, and the function is EXECUTED here against literals.
+    // decision is a function, and the function is executed here against literals.
 
     @Test fun `a queued reply, and only a queued reply, takes the notification down`() {
         val send = QuickReplyOutcome.Send("alice@example.com", "Re: Sprint notes", "on my way")
@@ -157,7 +157,7 @@ class QuickReplyOutcomeTest {
 
     @Test fun `an address that is only whitespace is no address`() {
         // MailRepository.enqueueSend trims, then require()s a non-empty recipient: a blank address
-        // throws INSIDE the send, where the throw used to eat the text. It has to be caught here,
+        // throws inside the send, where the throw used to eat the text. It has to be caught here,
         // before the Outbox is asked for anything.
         assertEquals(
             QuickReplyOutcome.HandBack("Re: Sprint notes", "hello"),

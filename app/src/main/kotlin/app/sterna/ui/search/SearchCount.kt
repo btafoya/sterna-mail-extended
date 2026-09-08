@@ -6,13 +6,13 @@ package app.sterna.ui.search
 enum class SearchCount { EXACT, AT_LEAST }
 
 /**
- * The one place both search surfaces decide how to phrase the count, so they cannot drift apart. A
+ * The one place both search surfaces decide how to phrase the count, so they cannot drift apart.
  */
 fun searchCount(complete: Boolean, loading: Boolean): SearchCount =
     if (complete && !loading) SearchCount.EXACT else SearchCount.AT_LEAST
 
 /**
- * An answer is complete only when EVERY leg ran to the end — the inbox's bar has two, the local
+ * An answer is complete only when every leg ran to the end, the inbox's bar has two, the local
  */
 fun searchComplete(local: Boolean, server: Boolean): Boolean = local && server
 
@@ -20,7 +20,7 @@ fun searchComplete(local: Boolean, server: Boolean): Boolean = local && server
 enum class SearchDisplay {
     RESULTS,
     SPINNER,
-    /** Nothing found, but the search stopped short — so nothing has been PROVEN absent. */
+    /** Nothing found, but the search stopped short, so nothing has been proven absent. */
     INCOMPLETE_EMPTY,
     /** Nothing found by a search that ran to the end: the only case that may say "no results". */
     EMPTY,

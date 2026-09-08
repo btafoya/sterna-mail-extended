@@ -4,7 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * What this app EMITS as Sieve, held still — because every script already sitting on a server was
+ * What this app emits as Sieve, held still, because every script already sitting on a server was
+ * written by it, and reading one now compares its Sieve to what this codec would write today.
  */
 class SieveEmissionTest {
 
@@ -19,7 +20,7 @@ class SieveEmissionTest {
     }
 
     /** No action anywhere, so no `require` at all; `:is` on a header test; a disabled rule kept
-     *  in the metadata and NOT emitted. */
+     *  in the metadata and not emitted. */
     @Test fun `a rule with no action emits no require`() {
         val rules = listOf(
             FilterRule(name = "plain", field = RuleField.SUBJECT, match = RuleMatch.IS, value = "Hi"),
@@ -97,7 +98,7 @@ class SieveEmissionTest {
     }
 
     /**
-     * Both requires at once, the flags emitted BEFORE the `fileinto` so the filed copy carries
+     * Both requires at once, the flags emitted before the `fileinto` so the filed copy carries
      */
     @Test fun `moving and flagging emits both requires, escaped`() {
         val rules = listOf(
@@ -145,7 +146,7 @@ class SieveEmissionTest {
 
     private fun script(vararg lines: String) = lines.joinToString("\n", postfix = "\n")
 
-    // ---- the source lint: a LAST RESORT on top of the golden, for the branches it does not run ----
+    // ---- the source lint: a last resort on top of the golden, for the branches it does not run ----
 
     /**
      * Whole lines, never substrings: a `contains` is blind to every mutation that makes a line
@@ -196,7 +197,7 @@ class SieveEmissionTest {
             ),
             SourceText.codeLines(SourceText.functionSource(source, "private fun ruleToSieve(rule: FilterRule): String {")),
         )
-        // `escape` is emitted Sieve too, and it was the hole: it is the LAST member of the
+        // `escape` is emitted Sieve too, and it was the hole: it is the last member of the
         // object, so the slice that ends at the next KDoc found nothing and it stayed unpinned.
         assertEquals(
             V2_RULE,

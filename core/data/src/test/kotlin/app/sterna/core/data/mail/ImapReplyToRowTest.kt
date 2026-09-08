@@ -10,7 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The end of the IMAP road: the envelope's `Reply-To` has to land in the CACHE ROW.
+ * The end of the IMAP road: the envelope's `Reply-To` has to land in the cache row.
  */
 class ImapReplyToRowTest {
 

@@ -55,7 +55,7 @@ class OAuthCodeSignIn(
     private val _outcomes = MutableSharedFlow<OAuthCodeOutcome>(extraBufferCapacity = 1)
     val outcomes: SharedFlow<OAuthCodeOutcome> = _outcomes.asSharedFlow()
 
-    /** The one request in flight, in memory only — see [PendingAuthorization]. */
+    /** The one request in flight, in memory only, see [PendingAuthorization]. */
     private val slot = AuthorizationRequestSlot()
 
     private var job: Job? = null
@@ -76,7 +76,7 @@ class OAuthCodeSignIn(
         val url = try {
             repo.authorizationUrl(metadata, redirectUri, state, Pkce.codeChallengeOf(verifier))
         } catch (t: Throwable) {
-            // A non-https or unusable authorization endpoint (#2) — the URL is never half-built.
+            // A non-https or unusable authorization endpoint (#2), the URL is never half-built.
             fail(failureMessage(t, R.string.connect_oauth_failed))
             return
         }
@@ -93,8 +93,8 @@ class OAuthCodeSignIn(
         _progress.value = OAuthCodeProgress.AwaitingBrowser(url)
     }
 
-    /** A VIEW intent came in. True when it was ours and has been dealt with, false when it belongs
-     *  to somebody else — in which case nothing of it has been read. */
+    /** A view intent came in. True when it was ours and has been dealt with, false when it belongs
+     *  to somebody else, in which case nothing of it has been read. */
     fun onRedirect(uri: Uri): Boolean {
         if (!isOAuthRedirect(uri.scheme, uri.host, applicationId)) return false
         val verdict = slot.redeem(
@@ -107,7 +107,7 @@ class OAuthCodeSignIn(
             RedirectVerdict.NoPendingRequest -> fail(string(R.string.connect_oauth_code_lost))
             RedirectVerdict.StateMismatch -> fail(string(R.string.connect_oauth_code_mismatch))
             // The reader declined, or the server refused our client: its own word, and only if it
-            // looks like one — oauthFailureSpec is where that vocabulary is closed.
+            // looks like one, oauthFailureSpec is where that vocabulary is closed.
             is RedirectVerdict.Refused -> fail(render(oauthFailureSpec(verdict.error, "", null)))
             RedirectVerdict.NothingUsable ->
                 fail(render(oauthFailureSpec("", "", null, R.string.connect_oauth_failed)))
@@ -170,7 +170,7 @@ class OAuthCodeSignIn(
         }
     }
 
-    /** A query parameter, or null — an opaque or malformed URI answers null instead of throwing. */
+    /** A query parameter, or null, an opaque or malformed URI answers null instead of throwing. */
     private fun param(uri: Uri, name: String): String? =
         runCatching { uri.getQueryParameter(name) }.getOrNull()
 

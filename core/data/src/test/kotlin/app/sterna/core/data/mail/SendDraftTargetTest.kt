@@ -6,14 +6,14 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * What a send destroys, and what leaving the composer gives back — both EXECUTED (#95).
+ * What a send destroys, and what leaving the composer gives back, both executed (#95).
  */
 class SendDraftTargetTest {
 
     // -- the pair a send carries -----------------------------------------------------------------
 
     @Test fun `a draft the server issued is destroyed under the composer's own numbering`() {
-        // Both pairs are filled and they DIFFER: only reading the composer's can pass.
+        // Both pairs are filled and they differ: only reading the composer's can pass.
         assertEquals(
             SendDraftTarget("imap:acc:Drafts:41", 900L),
             sendDraftTarget(
@@ -38,8 +38,8 @@ class SendDraftTargetTest {
     }
 
     @Test fun `a reopened local draft sends the SERVER draft it stands in for, numbering included`() {
-        // The defect this closes. The composer holds the ROW's id, for which sendDraftEmailId
-        // answers null — correctly — and before this nobody named the server draft any more: the
+        // The defect this closes. The composer holds the row's id, for which sendDraftEmailId
+        // answers null (correctly) and before this nobody named the server draft any more: the
         // row was consumed by the send, the mask lifted, and the pre-edit text reappeared in Drafts
         // beside the message that had just gone out.
         assertEquals(
@@ -55,8 +55,8 @@ class SendDraftTargetTest {
 
     @Test fun `the id and the numbering are never taken from two different places`() {
         // The pair is one answer. A row's id beside the composer's numbering is the worst of
-        // both: on IMAP a UID EXPUNGE opposed to the wrong UIDVALIDITY hits ANOTHER message of
-        // Drafts. So 12L must NOT come out here, though the composer holds it.
+        // both: on IMAP a UID EXPUNGE opposed to the wrong UIDVALIDITY hits another message of
+        // Drafts. So 12L must not come out here, though the composer holds it.
         assertEquals(
             SendDraftTarget("imap:acc:Drafts:41", 900L),
             sendDraftTarget(
@@ -94,7 +94,7 @@ class SendDraftTargetTest {
 
     @Test fun `a replaced id this phone minted is refused too, in belt`() {
         // The row's `replacesEmailId` is written by localDraftTarget and should never hold a local
-        // id — this is the belt on top of that braces, and it must take the numbering with it.
+        // id, this is the belt on top of that braces, and it must take the numbering with it.
         assertEquals(
             SendDraftTarget(null, null),
             sendDraftTarget(
@@ -106,12 +106,12 @@ class SendDraftTargetTest {
         )
     }
 
-    // -- the fidelity verdict, applied to the PAIR -----------------------------------------------
+    // -- the fidelity verdict, applied to the pair -----------------------------------------------
 
     @Test fun `a body this composer cannot reproduce withholds the id AND its numbering`() {
         // The scheduled table has no column for the verdict, so the id itself is the carrier: no id
         // means "keep the original, live with the duplicate" (#63). The numbering goes with it.
-        // A number left beside a null id destroys nothing today — it is the STATEMENT that is the
+        // A number left beside a null id destroys nothing today, it is the statement that is the
         // defect: half a pair on a row that waits for hours is the shape the next reader copies.
         assertEquals(
             SendDraftTarget(null, null),
@@ -137,7 +137,7 @@ class SendDraftTargetTest {
     }
 
     @Test fun `the verdict also takes away a server draft named off the local row`() {
-        // The pair the ROW carries is withheld exactly as the composer's own is: a draft this phone
+        // The pair the row carries is withheld exactly as the composer's own is: a draft this phone
         // never read whole keeps its server copy whichever way that copy is named.
         assertEquals(
             SendDraftTarget(null, null),
@@ -150,12 +150,12 @@ class SendDraftTargetTest {
         )
     }
 
-    // -- the account guard, applied to the PAIR --------------------------------------------------
+    // -- the account guard, applied to the pair --------------------------------------------------
 
     @Test fun `a draft read under another account is not carried into the one being written as`() {
         // The refusal, and the only one on this path. A new copy is about to be created on B
         // while the original lives on A: carrying the id would have B's delivery worker destroy a
-        // name it never issued — on JMAP spared in silence, on IMAP a bare NUMBER in B's own
+        // name it never issued, on JMAP spared in silence, on IMAP a bare number in B's own
         // Drafts, which two accounts of one server can hold under the same UIDVALIDITY.
         assertEquals(
             SendDraftTarget(null, null),
@@ -165,7 +165,7 @@ class SendDraftTargetTest {
     }
 
     @Test fun `the ordinary single-account save keeps the pair whole, both members`() {
-        // The other half, and the one everybody plays: inverted, this leaves a SECOND draft in
+        // The other half, and the one everybody plays: inverted, this leaves a second draft in
         // Drafts at every save, for every user, because nothing names the original any more.
         assertEquals(
             SendDraftTarget("imap:accA:Drafts:41", 900L),
@@ -194,7 +194,7 @@ class SendDraftTargetTest {
     }
 
     @Test fun `an account it cannot name is still another account`() {
-        // Not a prefix, not a "looks like the same server": two sub-accounts of ONE login mint
+        // Not a prefix, not a "looks like the same server": two sub-accounts of one login mint
         // the same draft ids (#31), which is the case where a sloppy comparison costs a message.
         assertEquals(
             SendDraftTarget(null, null),
@@ -204,9 +204,9 @@ class SendDraftTargetTest {
     }
 
     @Test fun `the two guards compose the way the scheduled route chains them`() {
-        // Fidelity and addressing are DIFFERENT questions and neither replaces the other: the
+        // Fidelity and addressing are different questions and neither replaces the other: the
         // scheduled route asks both, in this order. A clean body under another account is still
-        // withheld — and that is the leg an "unlessBodyIsLossy is enough" reading loses.
+        // withheld, and that is the leg an "unlessBodyIsLossy is enough" reading loses.
         assertEquals(
             SendDraftTarget(null, null),
             sendDraftTarget(
@@ -232,7 +232,7 @@ class SendDraftTargetTest {
     // -- which account the carried id was read under ----------------------------------------------
 
     @Test fun `a server id answers with the account it was frozen under`() {
-        // Both fields are filled and they DIFFER: reading the local one instead passes the lease's
+        // Both fields are filled and they differ: reading the local one instead passes the lease's
         // account off as the draft's, and the guard above then compares the wrong pair of names.
         assertEquals(
             "accA",
@@ -246,7 +246,7 @@ class SendDraftTargetTest {
 
     @Test fun `a reopened local row answers with the account its lease was taken under`() {
         // The route that arms NO server account at all: `editingDraftAccountId` stays null there
-        // on purpose, and the pair the send carries is the row's `replacesEmailId` — a draft of the
+        // on purpose, and the pair the send carries is the row's `replacesEmailId`, a draft of the
         // account the row belongs to. Answering the server field here answers null, i.e. "unknown",
         // and the guard lets an id of A ride a send made as B.
         assertEquals(
@@ -285,7 +285,7 @@ class SendDraftTargetTest {
 
     @Test fun `the composer's pair and its account are read off the same id`() {
         // The witness for the pair above: what `sendDraftTarget` answers with, and what
-        // `carriedDraftAccountId` names, must be the SAME draft — here the row's server copy,
+        // `carriedDraftAccountId` names, must be the same draft, here the row's server copy,
         // which belongs to the account the row was leased under and not to any server account the
         // composer holds. Read apart, the guard would compare A's name with B's draft.
         val target = sendDraftTarget(
@@ -315,8 +315,8 @@ class SendDraftTargetTest {
 
     @Test fun `a send in flight gives NOTHING back, neither the row nor the queue`() {
         // The defect this closes. The send owns the message and consumes both itself; releasing
-        // the local row from under it puts it back to PENDING, the upload worker takes it, and a
-        // copy of the message that has just gone out is filed in the server's Drafts — which the
+        // the local row from under it puts it back to pending, the upload worker takes it, and a
+        // copy of the message that has just gone out is filed in the server's Drafts, which the
         // startup re-arm then keeps putting back.
         assertEquals(
             AbandonPlan(null, null, null),
@@ -333,7 +333,7 @@ class SendDraftTargetTest {
     @Test fun `a composer with no queued row still gives its own draft back`() {
         // The other half, and the reason the guard cannot simply be moved to the bottom: every
         // reopened local draft has a null outbox id, and a release written under the outbox `?:
-        // return` would never run — the row would stay EDITING for ever, invisible to the upload
+        // return` would never run, the row would stay editing for ever, invisible to the upload
         // worker and to the startup re-arm alike.
         assertEquals(
             AbandonPlan(LOCAL_DRAFT_ID_PREFIX + "d5", null, null),
@@ -376,14 +376,14 @@ class SendDraftTargetTest {
 
     @Test fun `emptying the draft gives the phone's own row back to nobody`() {
         // The close that accompanies a DELETION, and it must hand the row to no one. Given back,
-        // it goes PENDING and its upload is re-armed at the row's own instant — for a draft saved
-        // with no network, NOW — so the text the user has just emptied races the delete to the
+        // it goes pending and its upload is re-armed at the row's own instant, for a draft saved
+        // with no network, now, so the text the user has just emptied races the delete to the
         // server and is filed in Drafts while she reads that the deletion failed.
         //
-        // And it is decided HERE rather than by blanking the composer's field before the call,
+        // And it is decided here rather than by blanking the composer's field before the call,
         // which is where it lived: one field cannot carry both "which row I hold" and "give nothing
-        // back this once". Blanked, a submit() that FAILED left the row EDITING with nobody left to
-        // release it — never uploaded again, and not a word on screen.
+        // back this once". Blanked, a submit() that failed left the row editing with nobody left to
+        // release it, never uploaded again, and not a word on screen.
         assertEquals(
             AbandonPlan(null, 42L, null),
             abandonPlan(
@@ -397,10 +397,10 @@ class SendDraftTargetTest {
     }
 
     @Test fun `a send in flight beats an empty save, and gives back nothing at all`() {
-        // THE ORDER OF THE TWO GUARDS, and nothing else pins it: swap the two `return`s and this
-        // is the only case that changes. `sending` must be read FIRST. Answered as an emptying
-        // instead, the queued outbox row goes back to the QUEUE — the very row the send in flight is
-        // consuming — and the same message is delivered twice (#70).
+        // The order of the two guards, and nothing else pins it: swap the two `return`s and this
+        // is the only case that changes. `sending` must be read first. Answered as an emptying
+        // instead, the queued outbox row goes back to the queue, the very row the send in flight is
+        // consuming, and the same message is delivered twice (#70).
         assertEquals(
             AbandonPlan(null, null, null),
             abandonPlan(
@@ -423,11 +423,10 @@ class SendDraftTargetTest {
         )
     }
 
-    // -- what closing over a LOST body does to the queued row ------------------------------------
+    // -- what closing over a lost body does to the queued row ------------------------------------
 
     @Test fun `closing over a lost body parks the queued row instead of giving it back`() {
-        // The defect this closes. The send route refuses a lost body over a queued row with
-        // "Close this screen and reopen the message" — and closing gave the row back to the queue,
+        // The defect this closes.
         assertEquals(
             AbandonPlan(LOCAL_DRAFT_ID_PREFIX + "d10", null, 42L),
             abandonPlan(
@@ -450,7 +449,7 @@ class SendDraftTargetTest {
 
     @Test fun `a send in flight beats the park, and gives back nothing at all`() {
         // The send owns the row and consumes it when it lands (consumeEditingOutbox); parking it
-        // from under the send would leave a FAILED row beside a message that went out.
+        // from under the send would leave a failed row beside a message that went out.
         assertEquals(
             AbandonPlan(null, null, null),
             abandonPlan(
@@ -485,11 +484,13 @@ class SendDraftTargetTest {
         )
     }
 
-    // -- who gets the row back when a SAVE is over -----------------------------------------------
+    // -- who gets the row back when a save is over -----------------------------------------------
 
     @Test fun `a save that went through hands the row back, or it stays EDITING for ever`() {
-        // The defect this closes. `abandon()` is the only other release and only the CANCEL
+        // The defect this closes. `abandon()` is the only other release and only the cancel
         // of the screen calls it: a save closes on ComposeState.Done without passing through, on
+        // the understanding that the save rewrote the row itself. Move the "From" picker to
+        // another account (it covers every account on the phone) and it did not:
         assertEquals(
             "the row must go back to the upload worker. Under the SAME account this is a real " +
                 "no-op — the save already rewrote the row PENDING and giveLocalDraftEditBack " +
@@ -501,8 +502,8 @@ class SendDraftTargetTest {
     }
 
     @Test fun `a save that failed keeps the row, or the worker uploads the text being typed`() {
-        // And giving it back on the failure is NOT the fix — word for word abandonPlan's
-        // own argument, one gesture along. The composer is still open, the user still holds the
+        // And giving it back on the failure is not the fix, word for word abandonPlan's
+        // own argument, one gesture along.
         assertNull(
             "a failed save releases NOTHING: the screen is still open on that row",
             localDraftLeaseAfterSave(LOCAL_DRAFT_ID_PREFIX + "d2", saved = false),
@@ -510,9 +511,9 @@ class SendDraftTargetTest {
     }
 
     @Test fun `a composer holding no row of its own releases nothing on a save that went through`() {
-        // The lease is read AS IT STANDS at the end of the gesture, never captured at the start:
-        // on the empty-save routes the row is consumed INSIDE the gesture, so what is read here is
-        // null and must stay null. Released from a stale id it goes back to PENDING, and the
+        // The lease is read as it stands at the end of the gesture, never captured at the start:
+        // on the empty-save routes the row is consumed inside the gesture, so what is read here is
+        // null and must stay null. Released from a stale id it goes back to pending, and the
         // upload worker files in the server's Drafts the draft that was just deleted, for good.
         assertNull(
             "nothing is held, so nothing may be handed to the upload worker",
@@ -523,7 +524,7 @@ class SendDraftTargetTest {
     @Test fun `a save that failed with no row held releases nothing either`() {
         // The weak one of the four, and said so rather than dressed up: `(null, false)` answers
         // null under every variant of this shape, inversion included, so it falsifies nothing on
-        // its own. It is here to close the table — a decision that started FABRICATING an id out
+        // its own. It is here to close the table, a decision that started fabricating an id out
         // of a composer that holds none is the only thing it can catch.
         assertNull(
             "nothing is held and nothing went through: there is no id to hand anybody",

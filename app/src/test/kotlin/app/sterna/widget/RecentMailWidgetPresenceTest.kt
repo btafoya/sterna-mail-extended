@@ -5,7 +5,7 @@ import org.junit.Assert.assertNotSame
 import org.junit.Test
 
 /**
- * The two widgets' presence gates, RUN side by side — the half of them that needs no Android.
+ * The two widgets' presence gates, run side by side, the half of them that needs no Android.
  */
 class RecentMailWidgetPresenceTest {
 
@@ -27,7 +27,7 @@ class RecentMailWidgetPresenceTest {
     }
 
     /**
-     * The one that matters: the last latest-messages cell going must leave the COUNTER's gate
+     * The one that matters: the last latest-messages cell going must leave the counter's gate
      * exactly as it was. A counter cell is still on the home screen.
      */
     @Test fun `removing the last latest-messages cell leaves the counter's gate open`() {

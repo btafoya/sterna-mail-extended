@@ -4,14 +4,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * THIS TEST READS SOURCE TEXT — the last resort, for the reason [DestroyChecksTheFolderWiringTest]
+ * This test reads source text, the last resort, for the reason [DestroyChecksTheFolderWiringTest]
  */
 class DeleteResolvesOrCreatesTrashWiringTest {
 
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
-    /** The code lines of [body] naming [needle] — comments dropped, so prose can neither satisfy
+    /** The code lines of [body] naming [needle], comments dropped, so prose can neither satisfy
      *  a rule nor break one. Whole lines: the assertions compare them, never search inside them. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }
@@ -43,7 +43,7 @@ class DeleteResolvesOrCreatesTrashWiringTest {
 
     @Test fun `no delete anywhere on this path falls back on All Mail`() {
         // Archive has that fallback because "all mail" IS an acceptable archive. It is not an
-        // acceptable BIN: the message would stay in the list, so the user's delete would appear
+        // acceptable bin: the message would stay in the list, so the user's delete would appear
         // to do nothing while the message is still there.
         listOf("delete", "createTrashFolder", "trashMailboxId").forEach { function ->
             val body = bodyOf(function)

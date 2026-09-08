@@ -10,13 +10,13 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * EXECUTES the sign-in failure decision, it does not read the code that holds it.
+ * Executes the sign-in failure decision, it does not read the code that holds it.
  */
 class OAuthErrorMessagesTest {
 
     // ---- The witness in the other direction ----
     //
-    // "Sign-in was declined or cancelled." is not a wrong sentence, it was a wrong DEFAULT. These
+    // "Sign-in was declined or cancelled." is not a wrong sentence, it was a wrong default. These
     // two cases are the ones where it is true, and they must keep it.
 
     @Test fun `access_denied still says the user declined`() {
@@ -82,7 +82,7 @@ class OAuthErrorMessagesTest {
     }
 
     /**
-     * The admin-consent sentence NAMES MICROSOFT. Until this screen started going through this
+     * The admin-consent sentence names MICROSOFT.
      */
     @Test fun `an administrator mentioned by a self-hosted server is not a Microsoft consent refusal`() {
         val spec = oauthFailureSpec(
@@ -147,7 +147,7 @@ class OAuthErrorMessagesTest {
         )
     }
 
-    // ---- A wait that ran out: WHICH END went quiet (#55) ----
+    // ---- A wait that ran out: which end went quiet (#55) ----
 
     @Test fun `a deadline reached on answered polls is an expiry`() {
         assertEquals(
@@ -202,8 +202,8 @@ class OAuthErrorMessagesTest {
 
     // ---- Which of the candidate hosts the sign-in goes to ----
     //
-    // `Jmap.autodiscoverHosts` tries <domain>, mail.<domain>, jmap.<domain>, api.<domain> — the
-    // bare domain FIRST, i.e. the organisation's website. Taking the first host that answers at
+    // `Jmap.autodiscoverHosts` tries <domain>, mail.<domain>, jmap.<domain>, api.<domain>, the
+    // bare domain first, i.e. the organisation's website.
 
     private fun meta(host: String, deviceFlow: Boolean, codeFlow: Boolean = false) = OAuthMetadata(
         issuer = "https://$host",
@@ -258,7 +258,7 @@ class OAuthErrorMessagesTest {
         assertNull(oauthDiscoveryFailure(usable))
     }
 
-    // ---- WHICH grant is driven (#55) ----
+    // ---- which grant is driven (#55) ----
     //
     // The authorization-code grant is the fallback, not the new default. It leaves the app for a
     // browser and comes back through an intent; the device flow does not leave at all, it is what
@@ -329,10 +329,10 @@ class OAuthErrorMessagesTest {
         assertNull(oauthDiscoveryFailure(meta("mail.example.org", deviceFlow = false, codeFlow = true)))
     }
 
-    // ---- WHICH hosts are probed, and which answer ends the search ----
+    // ---- which hosts are probed, and which answer ends the search ----
     //
     // The list `chooseOAuthHost` ranks is not given: it is what the probe loop collected, and the
-    // loop can make its promise unreachable. `Jmap.autodiscoverHosts` asks the BARE DOMAIN first.
+    // loop can make its promise unreachable. `Jmap.autodiscoverHosts` asks the bare domain first.
 
     /** The regression this pins: the website has an authorization endpoint, the mail server has
      *  the device flow, and stopping at the website sends a working sign-in off to a browser. */
@@ -372,7 +372,7 @@ class OAuthErrorMessagesTest {
             meta(host, deviceFlow = false, codeFlow = host == "mail.example.org")
         }
         assertEquals(listOf("example.org", "mail.example.org"), asked)
-        // Only NOW does the code grant's rank matter, and it picks the host that has it.
+        // Only now does the code grant's rank matter, and it picks the host that has it.
         assertEquals("mail.example.org", chooseOAuthHost(discovered)?.first)
     }
 
@@ -397,19 +397,19 @@ class OAuthErrorMessagesTest {
         )
     }
 
-    // ---- Discovery that was REFUSED BY US, not by the server ----
+    // ---- Discovery that was refused by us, not by the server ----
     //
     // `OAuthClient.discoverMetadata` blanks an endpoint a document names off the queried host and
     // off the address domain, and hands the fact back as `endpointsOffDomain`. A document blanked
-    // down to nothing then looks EXACTLY like a server with no usable grant, and used to be told
-    // "not in a way Sterna can use yet" — the server's OAuth is fine, the refusal is ours.
+    // down to nothing then looks exactly like a server with no usable grant, and used to be told
+    // "not in a way Sterna can use yet", the server's OAuth is fine, the refusal is ours.
     //
-    // These EXECUTE `oauthDiscoveryFailure` on metadata built by hand and pin the resource it
-    // returns; nothing here recomputes the rule, so inverting the order of the two `NONE` arms,
-    // or dropping the `&& NONE` conjunction, has to redden.
+    // These execute `oauthDiscoveryFailure` on metadata built by hand and pin the resource it
+    // returns; nothing here recomputes the rule, so inverting the order of the two `none` arms,
+    // or dropping the `&& none` conjunction, has to redden.
 
     /** Built the way `discoverMetadata` returns it: every endpoint refused, so the token
-     *  endpoint is BLANK (not null) and the two others are null, with the fact carried alongside. */
+     *  endpoint is blank (not null) and the two others are null, with the fact carried alongside. */
     @Test fun `a document blanked down to nothing says the sign-in was handed elsewhere`() {
         val blanked = OAuthMetadata(
             issuer = "https://idp.example",
@@ -423,6 +423,8 @@ class OAuthErrorMessagesTest {
 
     /**
      * The witness that keeps the new branch from eating the old one: nothing was refused here,
+     * the server itself advertises OAuth with no grant this app can drive. Same `none`, same empty
+     * flow, different fact, and this one keeps the sentence it already had.
      */
     @Test fun `a server with no usable grant and nothing refused keeps the flow sentence`() {
         val advertised = OAuthMetadata(
@@ -448,7 +450,9 @@ class OAuthErrorMessagesTest {
     }
 
     /**
-     * THE WITNESS OF THE CONJUNCTION. Only the device endpoint was off-domain and blanked; the
+     * The witness of the conjunction. Only the device endpoint was off-domain and blanked; the
+     * authorization and token endpoints survived, so the code grant still runs. Refusing here would
+     * break a sign-in that works. `endpointsOffDomain` alone must say nothing.
      */
     @Test fun `a partial refusal that still leaves a usable grant is no failure`() {
         val partly = OAuthMetadata(
@@ -475,7 +479,9 @@ class OAuthErrorMessagesTest {
     }
 
     /**
-     * THE WITNESS OF THE SHAPE, and it is the one the suite was missing. The token endpoint is
+     * The witness of the shape, and it is the one the suite was missing. The token endpoint is
+     * on-domain and survives; only the device endpoint was sent to a third party, and there is no
+     * authorization endpoint, so nothing can be driven, and the reason is the third party.
      */
     @Test fun `a token endpoint that survives still says elsewhere when nothing can be driven`() {
         val handed = OAuthMetadata(
@@ -489,7 +495,7 @@ class OAuthErrorMessagesTest {
         assertEquals(R.string.connect_oauth_elsewhere, oauthDiscoveryFailure(handed))
     }
 
-    /** No metadata at all stays "this server has no OAuth" — see also
+    /** No metadata at all stays "this server has no OAuth", see also
      *  `no metadata means the server has no OAuth`; the elsewhere branch must not reach it. */
     @Test fun `nothing discovered is still no OAuth, not a handover`() {
         assertNotEquals(R.string.connect_oauth_elsewhere, oauthDiscoveryFailure(null))

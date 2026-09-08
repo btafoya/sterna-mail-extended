@@ -3,7 +3,7 @@ package app.sterna.widget
 import app.sterna.core.data.db.RecentEmailRow
 
 /**
- * WHAT ONE ROW ASKS THE APP TO OPEN: the three identifiers a tap carries, and nothing else.
+ * What one row asks the app to open: the three identifiers a tap carries, and nothing else.
  */
 internal data class RecentRowTap(
     val emailId: String,
@@ -17,7 +17,7 @@ internal data class RecentRowTap(
 internal object RecentMailWidgetTap {
 
     /**
-     * BLANK IS ABSENT, on the two that may be. `MainActivity.parseEmailOpen` already reads both
+     * Blank is absent, on the two that may be. `MainActivity.parseEmailOpen` already reads both
      */
     fun of(row: RecentEmailRow): RecentRowTap = RecentRowTap(
         emailId = row.id,

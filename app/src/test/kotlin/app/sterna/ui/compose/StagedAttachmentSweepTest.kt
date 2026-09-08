@@ -6,7 +6,9 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The DECISION is executed here, not read. [sweepStagedAttachments] answers the one question the
+ * The decision is executed here, not read. [sweepStagedAttachments] answers the one question the
+ * composer cannot answer for itself: of the chips on screen, which ones still have bytes behind
+ * them?
  */
 class StagedAttachmentSweepTest {
 
@@ -36,7 +38,7 @@ class StagedAttachmentSweepTest {
         name = "$id.txt",
     )
 
-    /** A staged part the BODY points at, the shape a forward stages its inline images in. */
+    /** A staged part the body points at, the shape a forward stages its inline images in. */
     private fun stagedInline(name: String, disposition: String? = "inline", cid: String? = "i1@sterna") =
         EmailBodyPart(
             partId = File(outgoing, name).path,
@@ -64,7 +66,7 @@ class StagedAttachmentSweepTest {
     }
 
     /**
-     * THE ONE THAT MUST NEVER GO GREEN BY ACCIDENT. The predicate says no to everything, exactly
+     * The one that must never go green by accident. The predicate says no to everything, exactly
      */
     @Test
     fun `a JMAP blob part is kept and never asked about`() {
@@ -99,7 +101,7 @@ class StagedAttachmentSweepTest {
     }
 
     /**
-     * AN INLINE PART THE BODY POINTS AT IS NEVER SWEPT, file or no file. On a forward, an inline
+     * An inline part the body points at is never swept, file or no file. On a forward, an inline
      */
     @Test
     fun `an inline part with a cid is kept and never asked about`() {
@@ -118,7 +120,7 @@ class StagedAttachmentSweepTest {
     }
 
     /**
-     * THE CONDITION IS THE CONJUNCTION, half 1: a regular attachment that happens to carry a
+     * The condition is the conjunction, half 1: a regular attachment that happens to carry a
      * `cid` is not referenced by the body and is swept like any other.
      */
     @Test
@@ -133,7 +135,7 @@ class StagedAttachmentSweepTest {
         assertEquals(listOf(File(part.partId!!)), existenceProbes)
     }
 
-    /** THE CONJUNCTION, half 2: inline with no `cid` is nothing the body can reference. */
+    /** The conjunction, half 2: inline with no `cid` is nothing the body can reference. */
     @Test
     fun `an inline part without a cid is still swept`() {
         val part = stagedInline("3-photo.png", cid = null)
@@ -143,7 +145,7 @@ class StagedAttachmentSweepTest {
         assertEquals(listOf(File(part.partId!!)), existenceProbes)
     }
 
-    /** A blank `cid` is no `cid` — the same `isNullOrBlank` the repository's own two arms use. */
+    /** A blank `cid` is no `cid`, the same `isNullOrBlank` the repository's own two arms use. */
     @Test
     fun `an inline part with a blank cid is still swept`() {
         val part = stagedInline("4-photo.png", cid = "   ")
@@ -162,7 +164,7 @@ class StagedAttachmentSweepTest {
     }
 
     /**
-     * The root is a PREFIX, not a substring: a sibling directory whose name starts with the same
+     * The root is a prefix, not a substring: a sibling directory whose name starts with the same
      * letters is not inside it. `/…/cache/outgoing-old/1-x` starts with `/…/cache/outgoing`.
      */
     @Test

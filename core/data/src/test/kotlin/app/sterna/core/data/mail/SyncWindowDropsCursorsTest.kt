@@ -11,6 +11,8 @@ import org.junit.Test
 
 /**
  * Changing "Messages to sync" has to drop that account's sync cursors, because the delta branch of
+ * `MailRepository.syncMailbox` never sends the window and never fetches backwards: on a folder that
+ * already has a cursor, the setting was inert until the user emptied the cache by hand.
  */
 class SyncWindowDropsCursorsTest {
 
@@ -55,7 +57,7 @@ class SyncWindowDropsCursorsTest {
 
     @Test fun `two windows that fetch the same number of messages are still a change`() {
         // COUNT_200 and DAYS_90 share limit = 200 and differ only in maxAgeDays. A comparison
-        // written on the fetch size would call this "no change" and leave the row inert — which is
+        // written on the fetch size would call this "no change" and leave the row inert, which is
         // the whole defect, on a pair of values the picker offers side by side.
         assertEquals(SyncWindow.COUNT_200.limit, SyncWindow.DAYS_90.limit)
         assertTrue(syncWindowChanged(SyncWindow.DAYS_90, SyncWindow.COUNT_200))
@@ -67,7 +69,7 @@ class SyncWindowDropsCursorsTest {
         SyncWindow.entries.forEach { assertFalse(it.name, syncWindowChanged(it, it)) }
     }
 
-    // -- 2. the drop falls in memory AND on disk --------------------------------------------------
+    // -- 2. the drop falls in memory and on disk --------------------------------------------------
 
     @Test fun `the dropped cursor is gone from memory`() {
         val store = FakeStore()
@@ -82,7 +84,7 @@ class SyncWindowDropsCursorsTest {
 
     @Test fun `the dropped cursor is gone from disk, so a cold start cannot resume it`() {
         // The half that matters at the next process start (issue #17 persisted the cursors on
-        // purpose). Dropping only the map leaves the app applying the OLD window for ever after
+        // purpose). Dropping only the map leaves the app applying the old window for ever after
         // the first restart, and nothing on screen says so.
         val store = FakeStore()
         val cursors = seed(store, alice, "inbox")
@@ -119,8 +121,8 @@ class SyncWindowDropsCursorsTest {
 
     @Test fun `dropping one cursor takes it off disk as well`() {
         // drop() is what the full query calls when the server answers without a state to resume
-        // from. Left on disk, that stale pair is what the next COLD START reads back and resumes a
-        // delta against — nothing shows while the process lives.
+        // from. Left on disk, that stale pair is what the next cold start reads back and resumes a
+        // delta against, nothing shows while the process lives.
         val store = FakeStore()
         val cursors = seed(store, alice, "inbox", "archive")
         cursors.drop(key(alice, "inbox"))
@@ -132,7 +134,7 @@ class SyncWindowDropsCursorsTest {
     @Test fun `clearing forgets every cursor on disk, not only in memory`() {
         // clear() is what "Clear account cache" runs behind. A clear that only emptied the map
         // would look right for the rest of the process's life; after a restart the cold start reads
-        // a cursor back, takes the delta branch against an EMPTY cache, fetches nothing, and the
+        // a cursor back, takes the delta branch against an empty cache, fetches nothing, and the
         // folder never fills again.
         val store = FakeStore()
         val cursors = cursors(store)
@@ -186,7 +188,7 @@ class SyncWindowDropsCursorsTest {
     // -- 4. the key is a prefix, and that has to be exact ------------------------------------------
 
     @Test fun `a sibling id starting with this one keeps its cursors`() {
-        // Shipped ids are UUIDs, so this cannot happen today — which is exactly why a bare
+        // Shipped ids are UUIDs, so this cannot happen today, which is exactly why a bare
         // startsWith would never be caught if an id of another shape ever appeared. The longest
         // matching account id owns the key.
         val keys = listOf("1inbox", "12inbox")
@@ -229,7 +231,7 @@ class SyncWindowDropsCursorsTest {
 
     @Test fun `after the drop the mailbox has no cursor to resume, which is the full-query branch`() {
         // syncMailbox decides on exactly this: `val stored = loadSyncState(key)` then
-        // `if (stored != null)`. No cursor means the full query — the only branch that sends the
+        // `if (stored != null)`. No cursor means the full query, the only branch that sends the
         // window (`sizing.windowTarget`) to the server. The branch's own text is pinned in
         // [SyncCursorDropWiringTest].
         val store = FakeStore()

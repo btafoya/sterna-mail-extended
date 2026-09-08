@@ -9,7 +9,7 @@ import kotlinx.serialization.json.longOrNull
 
     /** Ids per request for a server that advertises no usable per-call object limit. Deliberately
      *  smaller than any `maxObjectsInSet`/`maxObjectsInGet` measured (Stalwart: 500): too few is
-     *  merely slow, too many is the server rejecting the WHOLE request (RFC 8620 §5.1). */
+     *  merely slow, too many is the server rejecting the whole request (RFC 8620 §5.1). */
 const val JMAP_BATCH_FALLBACK = 100
 
     /** Hard cap on the ids we put in one request, whatever the server advertises: a server announcing
@@ -34,7 +34,7 @@ data class JmapSession(
     fun mailAccountId(): String? =
         primaryAccounts[Jmap.MAIL_CAPABILITY] ?: accounts.keys.firstOrNull()
 
-        /** Every mail-capable account in the session (RFC 8620 §1.6.2), primary first — a single login
+        /** Every mail-capable account in the session (RFC 8620 §1.6.2), primary first, a single login
          *  can expose several (delegated / shared mailboxes, issue #31). A server that omits
          *  accountCapabilities falls back to the primary mail account, degrading to single-account. */
     fun mailAccountIds(): List<String> {
@@ -50,18 +50,19 @@ data class JmapSession(
         (capabilities[Jmap.WEBPUSH_VAPID_CAPABILITY]?.get("applicationServerKey") as? JsonPrimitive)
             ?.contentOrNull
 
-        /** Ids one `Email/set` may carry: the server's `maxObjectsInSet` (RFC 8620 §2, CORE
+        /** Ids one `Email/set` may carry: the server's `maxObjectsInSet` (RFC 8620 §2, core
          *  capability), guarded and capped by [advertisedLimit]. */
     fun setBatchSize(): Int = advertisedLimit("maxObjectsInSet")
 
         /**
          * Ids one `Email/get` may ask for: `maxObjectsInGet`, read exactly like [setBatchSize] but
+         * from its own property, since a server advertises the two separately.
          */
     fun getBatchSize(): Int = advertisedLimit("maxObjectsInGet")
 
-        /** A per-call object limit of the CORE capability, guarded: absent, non-numeric, zero or
+        /** A per-call object limit of the core capability, guarded: absent, non-numeric, zero or
          *  negative falls back to [JMAP_BATCH_FALLBACK], anything above [JMAP_BATCH_CEILING] is capped,
-         *  and a value SMALLER than the fallback is respected — that is the server's limit. Read as a
+         *  and a value SMALLER than the fallback is respected, that is the server's limit. Read as a
          *  `Long`, so a value past `Int.MAX_VALUE` is capped rather than wrapped. */
     private fun advertisedLimit(property: String): Int {
         val announced = (capabilities[Jmap.CORE_CAPABILITY]?.get(property) as? JsonPrimitive)

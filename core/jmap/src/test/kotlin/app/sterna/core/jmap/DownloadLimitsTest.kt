@@ -10,6 +10,8 @@ import org.junit.Test
 
 /**
  * The decision itself: given the size a message announces for a part, do we agree to pull it
+ * into memory? No network, no server, that is the point, the refusal has to be decidable from
+ * the message alone, before any round-trip.
  */
 class DownloadLimitsTest {
 
@@ -51,14 +53,14 @@ class DownloadLimitsTest {
     }
 
     @Test fun anUnstatedSizeIsNotATicket() {
-        // A server that announces nothing passes this gate — the read is capped anyway.
+        // A server that announces nothing passes this gate, the read is capped anyway.
         assertTrue(DownloadLimits.allows(0, DownloadLimits.INLINE_IMAGE_MAX_BYTES))
         assertTrue(DownloadLimits.allows(-1, DownloadLimits.INLINE_IMAGE_MAX_BYTES))
     }
 
     @Test fun enforceThrowsPastTheLimitAndCarriesTheSizes() {
         // The shared choke point downloadAttachment calls before the protocol branch, so IMAP and
-        // JMAP alike refuse an oversized part (IMAP used to skip this — the check sat behind its
+        // JMAP alike refuse an oversized part (IMAP used to skip this, the check sat behind its
         // early return). The exception carries both sizes so the caller can word the refusal.
         val ex = assertThrows(ContentTooLargeException::class.java) {
             DownloadLimits.enforce(DownloadLimits.ATTACHMENT_MAX_BYTES + 1, DownloadLimits.ATTACHMENT_MAX_BYTES)
@@ -69,7 +71,7 @@ class DownloadLimitsTest {
 
     @Test fun enforceAllowsAtOrUnderTheLimitAndAnUnstatedSize() {
         // No throw for a part within the ceiling, exactly at it, or one whose size the server didn't
-        // announce (0 / negative) — the read is capped anyway.
+        // announce (0 / negative), the read is capped anyway.
         DownloadLimits.enforce(4L * 1024 * 1024, DownloadLimits.ATTACHMENT_MAX_BYTES)
         DownloadLimits.enforce(DownloadLimits.ATTACHMENT_MAX_BYTES, DownloadLimits.ATTACHMENT_MAX_BYTES)
         DownloadLimits.enforce(0, DownloadLimits.INLINE_IMAGE_MAX_BYTES)
@@ -91,7 +93,7 @@ class DownloadLimitsTest {
             size = DownloadLimits.INLINE_IMAGE_MAX_BYTES + 1,
         )
         val email = Email(id = "m1", attachments = listOf(small, huge, attachment))
-        // Only inline (cid:) images count — the attachment has its own, larger ceiling.
+        // Only inline (cid:) images count, the attachment has its own, larger ceiling.
         assertEquals(1, email.oversizedInlineImageCount())
         assertEquals(0, Email(id = "m2", attachments = listOf(small)).oversizedInlineImageCount())
     }

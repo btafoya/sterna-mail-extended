@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, same instrument and disclaimer as [UploadSentCopyStoreWiringTest]: it reads
+ * Source lint, same instrument and disclaimer as [UploadSentCopyStoreWiringTest]: it reads
  */
 class StoredViewStoreWiringTest {
 
@@ -45,7 +45,10 @@ class StoredViewStoreWiringTest {
     }
 
     /**
-     * [count] consecutive CODE lines of `AccountStore.kt` from the single one starting with
+     * [count] consecutive code lines of `AccountStore.kt` from the single one starting with
+     * [prefix], trimmed. Comments and blank lines are dropped first, so no rule can be satisfied by
+     * prose; a prefix matching anything other than exactly one line returns a message, so an
+     * assertion can never pass by matching nothing.
      */
     private fun block(prefix: String, count: Int): List<String> {
         val path = "core/data/src/main/kotlin/app/sterna/core/data/account/AccountStore.kt"

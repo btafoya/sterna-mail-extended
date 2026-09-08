@@ -30,7 +30,7 @@ class UnifiedSearchMergeTest {
 
     @Test fun `an account whose mail is all older is not starved by the cap`() {
         // The silent omission: account A alone fills the cap with newer mail, so merging then
-        // keeping the newest [limit] left NOTHING of account B — a message the user finds by
+        // keeping the newest [limit] left nothing of account B, a message the user finds by
         // searching B alone was simply absent from the unified search.
         val a = MailSearchResult(manyRecent("accA", 10))
         val b = MailSearchResult(listOf(hit("accB", "b1", "2020-01-01T10:00:00Z")))

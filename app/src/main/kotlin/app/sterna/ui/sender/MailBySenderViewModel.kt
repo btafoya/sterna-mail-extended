@@ -27,18 +27,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-/** The header's number, from the LINES the screen prints — never a second `COUNT(*)`: messages
+/** The header's number, from the lines the screen prints, never a second `count(*)`: messages
  *  with no usable sender make no line, so the two numbers would not reconcile on screen. */
 internal fun cachedTotal(rows: List<SenderVolume>): Int = rows.sumOf { it.total }
 
 /** The path a server-side rule must name to file mail into this account's Trash, or null when no
- *  Trash can be named with certainty — the answer that HIDES the gesture. Read from the cached
+ *  Trash can be named with certainty, the answer that hides the gesture. Read from the cached
  *  folder list, so the screen costs no network call. */
 internal fun trashFilePath(mailboxes: List<Mailbox>): String? =
     mailboxes.firstOrNull { it.role == "trash" }?.let { mailboxFilePath(it, mailboxes) }
 
 /**
  * Whether the "future mail to Trash" entry may appear, from the account's script read ([state],
+ * answered ([state], null when the read failed) and whether the Trash can be named [trashPath].
  */
 internal fun canBlockSender(state: FilterRulesState?, trashPath: String?): Boolean =
     blockAvailability(state, trashPath) == BlockAvailability.OFFERED
@@ -63,8 +64,8 @@ internal fun blockNoteRes(availability: BlockAvailability): Int? =
 
 internal enum class SenderScreenBody { NO_ACCOUNT, LOADING, FAILED, EMPTY, ROWS }
 
-/** What the screen shows for [state]. The ORDER is the content: LOADING before anything a count
- *  could say, and FAILED before EMPTY — "no mail stored on this phone" is a count, and a read that
+/** What the screen shows for [state]. The order is the content: loading before anything a count
+ *  could say, and failed before empty, "no mail stored on this phone" is a count, and a read that
  *  threw made none. */
 internal fun screenBody(state: MailBySenderUiState): SenderScreenBody = when {
     state.noAccount -> SenderScreenBody.NO_ACCOUNT
@@ -108,7 +109,7 @@ internal fun senderMenuEntries(
 
 /** The move-backs an Undo has to make: for each confirmed id, the folder it came from and the one
  *  it went to. An id whose source is unknown is dropped, and so is one whose source IS the
- *  destination — "restoring" it would report a success while the mail stays put. */
+ *  destination, "restoring" it would report a success while the mail stays put. */
 internal fun restoreTargets(
     succeeded: Set<String>,
     sources: Map<String, String?>,
@@ -117,14 +118,14 @@ internal fun restoreTargets(
     .filter { (id, source) -> id in succeeded && source != null && source != dest }
     .map { (id, source) -> MailRepository.RestoreTarget(id, source!!, dest) }
 
-/** A delete being confirmed: the sender, and the ids MATERIALISED when the dialog opened, so the
+/** A delete being confirmed: the sender, and the ids materialised when the dialog opened, so the
  *  announcement and the delete are one list read once. Deliberately no `total` field: a dialog that
  *  cannot reach the row's staler number cannot print it. */
 data class PendingDelete(
     val sender: SenderVolume,
     val ids: List<String>,
     /**
-     * The IMAP numbering each source folder was recorded under WHEN THE IDS WERE READ (#99).
+     * The IMAP numbering each source folder was recorded under when the ids were read (#99).
      */
     val numbering: Map<String, Long?> = emptyMap(),
 )
@@ -135,15 +136,15 @@ data class MailBySenderUiState(
     val accountLabel: String = "",
     val rows: List<SenderVolume> = emptyList(),
     val total: Int = 0,
-    /** Whether the row menu offers "delete these messages" — true on every account, the batch
+    /** Whether the row menu offers "delete these messages", true on every account, the batch
      * resolving the Trash by role, by name, or creating it. Not the Sieve gesture's question:
-     *  filing FUTURE mail needs a Trash the app can NAME. */
+     *  filing future mail needs a Trash the app can name. */
     val canDelete: Boolean = false,
     val canBlock: Boolean = false,
     /** The note under the last row, or null while the script has not been read: nothing is known
      *  yet, so there is nothing to explain. */
     val blockNote: Int? = null,
-    /** The rules the account's script carries, as last read — for the duplicate check. */
+    /** The rules the account's script carries, as last read, for the duplicate check. */
     val rules: List<FilterRule> = emptyList(),
     /** The account's own addresses, so a row that IS the account does not offer to file its own
      *  mail away. Read from the store with the counts: an empty list is a menu that offers the
@@ -157,9 +158,9 @@ data class MailBySenderUiState(
     val pending: PendingDelete? = null,
 )
 
-/** The state a confirmed delete leaves behind: the batch on its way, and the dialog GONE. Raising
+/** The state a confirmed delete leaves behind: the batch on its way, and the dialog gone. Raising
  *  `working` without clearing `pending` leaves the dialog over a batch in flight, and its button
- *  then returns at the `working` guard — a second tap that does and says nothing. One function, so
+ *  then returns at the `working` guard, a second tap that does and says nothing. One function, so
  *  that half cannot be dropped without a test noticing. */
 internal fun deleteStarted(state: MailBySenderUiState): MailBySenderUiState =
     state.copy(working = true, pending = null)
@@ -173,11 +174,11 @@ data class SenderUndo(
     val deleted: Int,
 )
 
-/** How many messages the "deleted" message may claim: the ids the server CONFIRMED it moved —
+/** How many messages the "deleted" message may claim: the ids the server confirmed it moved,
  *  not the batch that was sent, and not the Undo's targets. */
 internal fun deletedCount(result: MailRepository.BulkResult): Int = result.succeeded.size
 
-/** What a finished delete has to SAY, as a string resource, or null. [attempted] and [failed] go to
+/** What a finished delete has to say, as a string resource, or null. [attempted] and [failed] go to
  *  [bulkOutcome], the inbox's own decision, so the two screens cannot drift apart. */
 internal fun deleteMessageRes(attempted: Int, failed: Int): Int? = when (bulkOutcome(attempted, failed)) {
     BulkOutcome.NONE -> null
@@ -185,7 +186,7 @@ internal fun deleteMessageRes(attempted: Int, failed: Int): Int? = when (bulkOut
     BulkOutcome.TOTAL -> R.string.status_action_failed
 }
 
-/** Backs "Mail by sender": what this phone holds, per sender, for the CURRENT account — like the
+/** Backs "Mail by sender": what this phone holds, per sender, for the current account, like the
  *  Filters screen whose rules it writes into. A global screen would have to disambiguate the sender
  *  who writes to two accounts before it could name one in a rule. */
 class MailBySenderViewModel(application: Application) : AndroidViewModel(application) {
@@ -203,7 +204,7 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
 
     init { load() }
 
-    /** Read the numbers, then — separately, and only to decide what the row menu may offer — the
+    /** Read the numbers, then, separately and only to decide what the row menu may offer, the
      *  account's filter rules. The counts land immediately; the rules are a network round-trip, so
      *  they follow instead of holding the screen up. */
     fun load() {
@@ -235,7 +236,7 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
                 rows = counted,
                 total = cachedTotal(counted),
                 // Offered on every account, the bin being resolved by role, by name, or created.
-                // Not the Sieve gesture below, which needs the Trash to be NAMEABLE.
+                // Not the Sieve gesture below, which needs the Trash to be nameable.
                 canDelete = true,
                 canBlock = false,
                 rules = emptyList(),
@@ -247,7 +248,7 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
                 .getOrElseUnlessCancelled { null }
             _state.value = _state.value.copy(
                 canBlock = canBlockSender(loaded, trashPath),
-                // From the SAME two readings the availability is decided from, so the note and the
+                // From the same two readings the availability is decided from, so the note and the
                 // missing entry cannot describe different accounts.
                 blockNote = blockNoteRes(blockAvailability(loaded, trashPath)),
                 rules = (loaded as? FilterRulesState.Loaded)?.rules.orEmpty(),
@@ -260,14 +261,14 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
     private fun ownAddresses(credentials: AccountCredentials): List<String> =
         accountAddresses(store.identities(credentials.id), credentials.username)
 
-    /** Open the confirmation for [sender], reading the ids it will act on NOW, so the dialog
+    /** Open the confirmation for [sender], reading the ids it will act on now, so the dialog
      *  announces the size of the very list the delete receives. */
     fun askDelete(sender: SenderVolume) {
         val credentials = store.load() ?: return
         if (_state.value.working) return
         viewModelScope.launch {
             val ids = repo.senderMessageIds(credentials.id, sender.email)
-            // Frozen HERE, with the ids, not at the confirmation: see [PendingDelete.numbering].
+            // Frozen here, with the ids, not at the confirmation: see [PendingDelete.numbering].
             val numbering = ids.mapNotNull { ImapMailService.mailboxOf(it) }.distinct()
                 .associateWith { repo.recordedUidValidity(credentials, it) }
             _state.value = _state.value.copy(pending = PendingDelete(sender, ids, numbering))
@@ -277,7 +278,7 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
     fun cancelDelete() { _state.value = _state.value.copy(pending = null) }
 
     /** Move the confirmed batch to the Trash, and offer to put it back. It acts on
-     *  [PendingDelete.ids] — the list the dialog counted, not a fresh read — through `deleteAll`,
+     *  [PendingDelete.ids], the list the dialog counted, not a fresh read, through `deleteAll`,
      *  which moves to Trash and never destroys. */
     fun confirmDelete() {
         val pending = _state.value.pending ?: return
@@ -287,7 +288,7 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             try {
                 val ids = pending.ids
-                // Captured BEFORE the delete: the rows are gone from the cache afterwards, and the
+                // Captured before the delete: the rows are gone from the cache afterwards, and the
                 // undo needs each message's source folder.
                 val sources = repo.cachedEmailsByIds(ids.map { EmailKey(credentials.id, it) })
                     .associate { it.id to it.mailboxId }
@@ -306,7 +307,7 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
                 }
                 load()
             } finally {
-                // On EVERY way out. `cachedEmailsByIds` is unprotected on purpose, but the flag it
+                // On every way out. `cachedEmailsByIds` is unprotected on purpose, but the flag it
                 // raised must not outlive a throw: left up, every row menu stays greyed.
                 _state.value = _state.value.copy(working = false)
             }
@@ -365,7 +366,7 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
                 )
                 load()
             } finally {
-                // Every way out, the early return included — see confirmDelete.
+                // Every way out, the early return included, see confirmDelete.
                 _state.value = _state.value.copy(working = false)
             }
         }

@@ -9,39 +9,39 @@ import java.io.File
  * The account screen shares one form between two ways of writing: four sections (colour,
  * notifications, sync window, PGP) are written the instant they are tapped, while the typed fields
  * wait for Save because they have to be validated first. The button is `enabled = canSave && dirty`
- * (#34), so after an autosaved tap it stays grey — correctly, there is nothing left to write — and
+ * (#34), so after an autosaved tap it stays grey (correctly, there is nothing left to write) and
  * on a screen carrying a Save button a grey button reads as a refusal. Nothing on the screen said
  * which fields the button owns. `settings_save_scope` is that sentence.
  *
  * Three rules are held here, and they fail for different reasons.
  *
- * 1. SOURCE LINT (not a behaviour test): the caption is rendered, above the button, in the same
- *    block as the button. Compose is not renderable in this module — no Robolectric, no
- *    instrumented tests — so reading the source is what is left. It proves nothing about pixels.
- * It compares WHOLE LINES, never `"fragment" in line`: a containment check is blind to every
+ * 1. Source lint (not a behaviour test): the caption is rendered, above the button, in the same
+ *    block as the button. Compose is not renderable in this module, no Robolectric, no
+ *    instrumented tests, so reading the source is what is left. It proves nothing about pixels.
+ * It compares whole lines, never `"fragment" in line`: a containment check is blind to every
  *    mutation that makes the line longer, which is most of them (adding a `modifier =`, wrapping
  *    the call in a condition, swapping the style for a louder one).
  *
- * 2. THE WORDING DECISION, executed. The caption must NOT say the other settings take effect
+ * 2. The wording decision, executed. The caption must not say the other settings take effect
  *    immediately, because they do not: `AccountsViewModel.setSyncWindow` writes the value and calls
- *    `refresh()`, which re-reads `currentId` and nothing else — no sync is restarted. Saying
+ *    `refresh()`, which re-reads `currentId` and nothing else, no sync is restarted. Saying
  *    "applies immediately" would replace a mute screen with a false one, on the very row that
  *    produced the report. That decision is [promisesImmediateEffect], a pure function, and it is
- *    RUN twice: once on every shipped caption (must say no) and once on a witness sentence per
+ *    run twice: once on every shipped caption (must say no) and once on a witness sentence per
  *    language that does promise immediacy (must say yes). Without the witness half, a rule that
  *    answers "no" to everything would be green for the wrong reason.
  *
- * 3. THE POSITIVE ANCHORS. A ban list can only forbid, and seven of the nine captions had nothing
+ * 3. The positive anchors. A ban list can only forbid, and seven of the nine captions had nothing
  *    else holding them: an audit reversed the Dutch second sentence into its exact opposite ("are
  *    only saved when you press Save") and the whole file stayed green, because the reversal
- *    contains none of the forbidden words. So each caption must also SAY three things, checked
- *    against the same locale's own resources — its own Save label, its own Identities section
- *    name — plus two sentences and a connective meaning "as soon as you change them". Only the
+ *    contains none of the forbidden words. So each caption must also say three things, checked
+ *    against the same locale's own resources, its own Save label, its own Identities section
+ *    name, plus two sentences and a connective meaning "as soon as you change them". Only the
  *    connective list is written per language here; the other two anchors hold nine translations
  *    without this file containing any of them.
  *
- * What is NOT covered: that any translation means what it says. No test reads a sentence for
- * meaning — a caption can satisfy every anchor and still be clumsy or subtly wrong. The safety net
+ * What is not covered: that any translation means what it says. No test reads a sentence for
+ * meaning, a caption can satisfy every anchor and still be clumsy or subtly wrong. The safety net
  * against the enumeration going stale as `save()` grows is the comment on that signature, not this
  * file. And the caption explains only the grey caused by "nothing to write" (`!dirty`), never the
  * grey caused by an invalid form (`!canSave`, `AccountEditorSave-70`); that is known and out
@@ -132,7 +132,7 @@ class SaveScopeCaptionTest {
         assertEquals("the French caption changed", FRENCH, captions["values-fr"])
     }
 
-    // -- 3. the positive anchors: what every translation must still SAY -------------------------
+    // -- 3. the positive anchors: what every translation must still say -------------------------
 
     @Test fun `every language names the button that writes, and the identities it writes`() {
         val broken = anchorFailures().mapValues { (_, missing) ->
@@ -245,7 +245,7 @@ class SaveScopeCaptionTest {
                 "written for nine",
         )
         return buildList {
-            // BOTH the label and the word "button": in English and Italian the Save label IS the
+            // Both the label and the word "button": in English and Italian the Save label IS the
             // bare verb, so "Saves the account name…" / "Salva il nome…" contains it by accident
             if (saveLabel.lowercase() !in text || buttonWords.none { it in text }) add(NAMES_SAVE_BUTTON)
             if (identitiesLabel.lowercase() !in text) add(NAMES_IDENTITIES)
@@ -290,10 +290,10 @@ class SaveScopeCaptionTest {
         code.startsWith("//") || code.startsWith("*") || code.startsWith("/*")
     }
 
-    /** The one line that is the caption's argument, matched WHOLE. */
+    /** The one line that is the caption's argument, matched whole. */
     private fun captionArgIndex(lines: List<String>): Int = onlyLine(lines, CAPTION_ARG)
 
-    /** The one line that is the Save button's guard, matched WHOLE — the button's unique marker. */
+    /** The one line that is the Save button's guard, matched whole, the button's unique marker. */
     private fun saveGuardIndex(lines: List<String>): Int = onlyLine(lines, SAVE_GUARD)
 
     private fun onlyLine(lines: List<String>, whole: String): Int {
@@ -306,7 +306,7 @@ class SaveScopeCaptionTest {
         return hits.single()
     }
 
-    /** The nearest preceding code line indented LESS than [i] — the line that opens its block. */
+    /** The nearest preceding code line indented less than [i], the line that opens its block. */
     private fun enclosingIndex(lines: List<String>, i: Int): Int {
         val indent = lines[i].indentWidth()
         return (i - 1 downTo 0)
@@ -332,7 +332,7 @@ class SaveScopeCaptionTest {
         const val CAPTION_ARG = "stringResource(R.string.settings_save_scope),"
         const val SAVE_GUARD = "enabled = canSave && dirty,"
 
-        /** Whole lines, in order — not fragments, so that anything ADDED to the call fails too. */
+        /** Whole lines, in order, not fragments, so that anything added to the call fails too. */
         val EXPECTED_CALL = listOf(
             "Text(",
             CAPTION_ARG,
@@ -356,7 +356,7 @@ class SaveScopeCaptionTest {
         const val SAYS_SAVED_ON_CHANGE = "does not say the rest is saved as you change it"
 
         /**
-         * Ways each language says "takes effect now" — the one thing this caption must not say.
+         * Ways each language says "takes effect now", the one thing this caption must not say.
          */
         val IMMEDIACY = mapOf(
             "values" to listOf("immediat", "appl", "take effect", "takes effect", "taking effect", "at once", "instant", "right away", "straight away", "in effect"),
@@ -371,7 +371,11 @@ class SaveScopeCaptionTest {
         )
 
         /**
-         * WRITTEN BEFORE [IMMEDIACY] WAS TOUCHED, and deliberately not from it: these are the
+         * Written before [IMMEDIACY] was touched, and deliberately not from it: these are the
+         * sentences a translator would plausibly write if they believed the setting took effect,
+         * not sentences assembled out of the ban list. Two of them are the exact leaks an audit
+         * found in the first version (German `gelten`, Polish `obowiązywać … od zaraz`) which is
+         * what a witness is for: a list that only catches its own words catches nothing.
          */
         val WITNESS = mapOf(
             "values" to "The other settings on this screen take effect straight away.",
@@ -385,7 +389,7 @@ class SaveScopeCaptionTest {
             "values-ru" to "Остальные настройки вступают в силу сразу же.",
         )
 
-        /** How each language says "button" — the caption has to name the thing it describes. */
+        /** How each language says "button", the caption has to name the thing it describes. */
         val BUTTON = mapOf(
             "values" to listOf("button"),
             "values-fr" to listOf("bouton"),
@@ -398,7 +402,7 @@ class SaveScopeCaptionTest {
             "values-ru" to listOf("кнопк"),
         )
 
-        /** How each language says "as soon as you change them" — the claim, not the wording. */
+        /** How each language says "as soon as you change them", the claim, not the wording. */
         val AS_SOON_AS = mapOf(
             "values" to listOf("as soon as", "the moment"),
             "values-fr" to listOf("dès que", "dès lors que", "au moment où"),

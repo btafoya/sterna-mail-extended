@@ -12,7 +12,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The decisions behind a move into ANOTHER account's folder (#189), EXECUTED: which account the
+ * The decisions behind a move into another account's folder (#189), executed: which account the
+ * picker lists, which folder it hides, whether the gesture leaves the account at all, and what the
+ * one banner at the end says. Their call sites are pinned by [CrossAccountMoveWiringLintTest].
  */
 class CrossAccountPickerTest {
 
@@ -56,7 +58,10 @@ class CrossAccountPickerTest {
     }
 
     /**
-     * The list's picker on a MIXED selection: spec.md § 1 keeps a selection spanning accounts on
+     * The list's picker on a mixed selection: spec.md § 1 keeps a selection spanning accounts on
+     * main's behaviour (the retained account's messages go, the others are counted as skipped), so
+     * the account row must not be drawn at all. It is not drawn by handing it no account to choose
+     * from: [MoveAccountRow] returns straight away under two entries.
      */
     @Test
     fun `a selection that spans accounts is offered no account at all`() {
@@ -71,7 +76,7 @@ class CrossAccountPickerTest {
             emptyList<StoredAccount>(),
             selectionPickerAccounts(accounts, setOf(EmailKey("A", "1"), EmailKey("B", "2"))),
         )
-        // The whole list, in the store's own order — this is the case #189 exists for (#73).
+        // The whole list, in the store's own order, this is the case #189 exists for (#73).
         assertEquals(
             "a selection inside ONE account keeps the account row, untouched and in order",
             accounts,
@@ -91,7 +96,7 @@ class CrossAccountPickerTest {
     }
 
     /**
-     * The same guard, at the OTHER end: what the picker LISTS and where the tap GOES. The account
+     * The same guard, at the other end: what the picker LISTS and where the tap GOES. The account
      */
     @Test
     fun `an account chosen on one selection stops counting on a selection that spans accounts`() {
@@ -110,7 +115,7 @@ class CrossAccountPickerTest {
         // No choice made is no choice, whatever is selected.
         assertNull(selectionMoveAccount(null, single))
         assertNull(selectionMoveAccount(null, mixed))
-        // Nothing selected resolves no account either — same answer as the row's.
+        // Nothing selected resolves no account either, same answer as the row's.
         assertNull(selectionMoveAccount("B", emptySet()))
     }
 
@@ -136,7 +141,7 @@ class CrossAccountPickerTest {
     }
 
     /**
-     * A batch where nothing was CONFIRMED written says so — "Couldn't complete the action", not
+     * A batch where nothing was confirmed written says so, "Couldn't complete the action", not
      */
     @Test
     fun `a batch where nothing went through says so, not that some of it did`() {
@@ -147,11 +152,11 @@ class CrossAccountPickerTest {
         assertEquals(CrossAccountOutcome.ALL_FAILED, crossAccountBanner(listOf(failed), skipped = 0))
         // Nothing was attempted for the ones set aside either: still "nothing went through".
         assertEquals(CrossAccountOutcome.ALL_FAILED, crossAccountBanner(listOf(failed), skipped = 2))
-        // One that DID travel and the line goes back to "some": the existential branch stays.
+        // One that did travel and the line goes back to "some": the existential branch stays.
         assertEquals(CrossAccountOutcome.PARTLY_FAILED, crossAccountBanner(listOf(failed, moved), skipped = 0))
         // And a copy whose original stayed is still the truth said first.
         assertEquals(CrossAccountOutcome.SOME_COPIED_NOT_REMOVED, crossAccountBanner(listOf(failed, copied), skipped = 0))
-        // NO VERDICT AT ALL IS NOT A TOTAL FAILURE, and this change must not turn it into one.
+        // NO verdict at all is not a total failure, and this change must not turn it into one.
         // An empty `results` is the race where the batch wrote nothing anywhere (already ruled
         // out of scope): it stays exactly as it shipped.
         assertEquals(CrossAccountOutcome.ALL_MOVED, crossAccountBanner(emptyList(), skipped = 0))
@@ -159,7 +164,10 @@ class CrossAccountPickerTest {
     }
 
     /**
-     * WHICH lines go back under the tick when a move between accounts is over (#189) — the rule is
+     * Which lines go back under the tick when a move between accounts is over (#189), the rule is
+     * executed here, and every expected answer is written out by hand. A test that re-derives the
+     * rule from the outcomes it feeds in is a copy of the shipped condition: invert the condition
+     * and the copy inverts with it, green throughout.
      */
     @Test
     fun `what did not move goes back ticked, whichever refusal it was`() {
@@ -172,7 +180,7 @@ class CrossAccountPickerTest {
             copied to CrossAccountMove.CopiedNotRemoved("the copy on B could not be named"),
             // The refusal MailRepository raises at the read: an ordinary Failed, carrying a log
             // string and nothing the caller can sort on. The give-back that used to be keyed on
-            // the numbering split never saw this one — the defect this test closes.
+            // the numbering split never saw this one, the defect this test closes.
             refusedAtTheRead to CrossAccountMove.Failed("ImapNumberingUnconfirmed"),
             refusedByTheNumbering to CrossAccountMove.Failed("renumbered since it was ticked: 4"),
         )
@@ -233,11 +241,11 @@ class CrossAccountPickerTest {
     }
 
     /**
-     * The words each verdict of ONE message comes with — the banner is the only thing said, there
+     * The words each verdict of one message comes with, the banner is the only thing said, there
      */
     @Test
     fun `a copy whose original stayed is never announced as a move`() {
-        // The three answers must BE three answers: a vacuous test would pass with all ids equal.
+        // The three answers must be three answers: a vacuous test would pass with all ids equal.
         assertNotEquals(R.string.status_moved_to_account, R.string.status_copied_not_removed)
         assertNotEquals(R.string.status_action_failed, R.string.status_action_offline)
 
@@ -258,7 +266,7 @@ class CrossAccountPickerTest {
         assertEquals(R.string.status_action_offline, crossAccountMessageRes(CrossAccountMove.Failed("y"), online = false))
     }
 
-    /** The same, for the ONE line a selection ends on — counted for two outcomes, plain for the third. */
+    /** The same, for the one line a selection ends on, counted for two outcomes, plain for the third. */
     @Test
     fun `the selection banner counts what it says, and says nothing else`() {
         assertNotEquals(R.plurals.status_selection_moved, R.plurals.status_selection_copied_not_removed)
@@ -283,7 +291,7 @@ class CrossAccountPickerTest {
             R.string.status_action_partly_failed,
             crossAccountSelectionFailedRes(CrossAccountOutcome.PARTLY_FAILED),
         )
-        // TWO OUTCOMES, TWO SENTENCES, AND NEVER ONE BRANCH FOR BOTH. Both expected ids are
+        // Two outcomes, two sentences, and never one branch for both. Both expected ids are
         // written out by hand: merge the two branches in the shipped `when` and one of these two
         assertNotEquals(R.string.status_action_failed, R.string.status_action_partly_failed)
         assertEquals(

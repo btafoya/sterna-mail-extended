@@ -10,7 +10,7 @@ import androidx.room.Query
 const val PURGE_SNAPSHOT_UNLIST_SQL: String =
     "DELETE FROM purge_snapshot WHERE accountId = :accountId AND emailId IN (:emailIds)"
 
-/** The frozen destroy list of a confirmed "Empty trash"; every read is scoped by `purgeId` AND `accountId` (#31, #99).
+/** The frozen destroy list of a confirmed "Empty trash"; every read is scoped by `purgeId` and `accountId` (#31, #99).
  *  */
 @Dao
 interface PurgeSnapshotDao {
@@ -41,7 +41,7 @@ interface PurgeSnapshotDao {
     )
     suspend fun deleteIds(purgeId: String, accountId: String, emailIds: List<String>)
 
-    /** A message left its folder mid-purge: withdraw it from EVERY destroy list of that account (#99), not scoped by
+    /** A message left its folder mid-purge: withdraw it from every destroy list of that account (#99), not scoped by
      *  `purgeId`. */
     @Query(PURGE_SNAPSHOT_UNLIST_SQL)
     suspend fun unlistEmails(accountId: String, emailIds: List<String>)

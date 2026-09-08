@@ -6,16 +6,17 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — and here that is not a shortcut, it is the whole reachable
+ * Source lint, not a behaviour test, and here that is not a shortcut, it is the whole reachable
  */
 class SignedOutAccountLeavesNoPushErrorTest {
 
     @Test fun `the pass drops a signed-out account instead of reporting it as a failure`() {
-        // Pinned as a block: the arm has to SWALLOW. A `throw gone` or a `Result`-shaped rethrow
+        // Pinned as a block: the arm has to swallow. A `throw gone` or a `Result`-shaped rethrow
         // slipped between the two lines puts the error entry and the two retries straight back.
         //
-        // And WHAT the line claims is not decided here. The guard throws when the pass's id is
-        // not in `AccountStore.accounts()`, which answers an UNREADABLE blob with an empty list —
+        // And what the line claims is not decided here. The guard throws when the pass's id is
+        // not in `AccountStore.accounts()`, which answers an unreadable blob with an empty list,
+        // so a blob nobody can read is a signed-out account and not a crash.
         assertEquals(
             "the AccountGoneException arm of FetchAndNotify.run is no longer, line for line, what " +
                 "this was written against. Either it no longer asks accountGoneCause what " +
@@ -37,17 +38,17 @@ class SignedOutAccountLeavesNoPushErrorTest {
     }
 
     @Test fun `nothing catches ahead of it — AccountGoneException IS a CancellationException`() {
-        // Not cosmetic. The refusal is a cancellation by design, so ANY arm above this one that
+        // Not cosmetic. The refusal is a cancellation by design, so any arm above this one that
         // names CancellationException (or Throwable) takes it first and the dedicated arm becomes
         //
         // This filter is what carries the ordering constraint. There is deliberately no
         // `catch (c: CancellationException) { throw c }` under the arm below (nothing catches
         // Throwable in this function, so it would be a no-op line), which means the order is
-        // stated HERE or nowhere.
+        // stated here or nowhere.
         //
-        // Asked PER FUNCTION since the second arm landed. `ARM` is one constant and the two arms
+        // Asked per function since the second arm landed. `arm` is one constant and the two arms
         // are spelled identically, so a whole-file `catches.first()` would state the order for
-        // `run` twice and for `onInboxRefreshed` never — and an arm slipped above the second one
+        // `run` twice and for `onInboxRefreshed` never, and an arm slipped above the second one
         // would be invisible while its own test still found its block further down.
         listOf("run", "onInboxRefreshed").forEach { function ->
             val catches = lines(function).filter { CATCH.containsMatchIn(it) }
@@ -80,7 +81,7 @@ class SignedOutAccountLeavesNoPushErrorTest {
         )
         assertTrue("refreshAccountFolders is now called outside the try", opened < call)
         assertTrue("the arm no longer closes a try that is open at the call", call < arm)
-        // The un-archive is the SECOND thing in that try that can refuse (its own two guards, added
+        // The un-archive is the second thing in that try that can refuse (its own two guards, added
         // for the path #121 never walked), and it is deeper in: inside the per-folder forEach.
         val unarchive = body.indexOf(UNARCHIVE)
         assertTrue(
@@ -92,15 +93,15 @@ class SignedOutAccountLeavesNoPushErrorTest {
         assertTrue("the arm no longer closes a try that is open at the un-archive", unarchive < arm)
     }
 
-    // -- the un-archive: a refusal that has to LEAVE the runCatching wrapping it ---------------------
+    // -- the un-archive: a refusal that has to leave the runCatching wrapping it ---------------------
 
     @Test fun `the background pass lets the un-archive's refusal out of its best-effort wrapper`() {
         // The `runCatching` is not the defect and must stay: a move the server refuses must not
-        // cost the notification. What it must not do is eat the sign-out, because the guards in
+        // cost the notification.
         //
         // Pinned as a block: `.rethrowIfCancelled()` deleted, or moved after `.getOrDefault(...)`
         // where it can never see the exception, leaves the two guards next door doing nothing at
-        // all — with SignedOutAccountWiringTest still green, since it only reads MailRepository.kt.
+        // all, with SignedOutAccountWiringTest still green, since it only reads MailRepository.kt.
         assertEquals(
             "the un-archive call of FetchAndNotify.run is no longer, line for line, what this was " +
                 "written against. Back to a bare .getOrDefault(emptyList()), the sign-out refusal " +
@@ -116,11 +117,10 @@ class SignedOutAccountLeavesNoPushErrorTest {
     }
 
     @Test fun `the foreground inbox hook drops the signed-out account on the spot`() {
-        // The same wrapper, in the hook the UI calls after it refreshed an inbox itself. Not for
-        // the caller's sake: `InboxViewModel` wraps both of its calls to this hook in a
+        // The same wrapper, in the hook the UI calls after it refreshed an inbox itself.
         //
         // The claim is [app.sterna.core.data.mail.accountGoneCause]'s, executed by
-        // `AccountGoneCauseTest`, and what is pinned here is that this site ASKS it, with a FRESH
+        // `AccountGoneCauseTest`, and what is pinned here is that this site asks it, with a fresh
         assertEquals(
             "the AccountGoneException arm of FetchAndNotify.onInboxRefreshed is no longer, line " +
                 "for line, what this was written against. Either it stopped asking " +
@@ -141,7 +141,7 @@ class SignedOutAccountLeavesNoPushErrorTest {
     }
 
     @Test fun `the foreground hook's arm encloses the un-archive AND everything it would feed`() {
-        // What must stop is the REST of the hook: `notifyDiff` and `seed` both write the shared
+        // What must stop is the rest of the hook: `notifyDiff` and `seed` both write the shared
         // notifier baseline under credentials.id, and an arm that only wrapped the call itself
         assertEquals(
             "the un-archive call of FetchAndNotify.onInboxRefreshed is no longer, line for line, " +
@@ -180,18 +180,18 @@ class SignedOutAccountLeavesNoPushErrorTest {
     }
 
     @Test fun `nothing else is open around the guarded calls that could swallow the refusal`() {
-        // THE rule this file was missing, and a counter-expertise proved it by mutation: every
-        // other rule here is about PRESENCE and ORDER, and both survive an enclosure. Wrap the
+        // The rule this file was missing, and a counter-expertise proved it by mutation: every
+        // other rule here is about presence and order, and both survive an enclosure.
         //
         // So this asks what `SignedOutAccountWiringTest.openBlocksAt` asks of MailRepository, on
         // the file that one cannot see. Duplicated rather than shared: `:app` and `core:data` do
         // not share test source, and a helper reached across modules would be one more thing to
         // keep true in two places anyway.
         //
-        // The call's OWN `runCatching { … }` never appears: it opens and closes on that one line,
-        // so it is not a block that is still open there. That is exactly the intent — that wrapper
+        // The call's own `runCatching { … }` never appears: it opens and closes on that one line,
+        // so it is not a block that is still open there. That is exactly the intent, that wrapper
         // is allowed (a refused move must not cost the notification), it is the one whose refusal
-        // `rethrowIfCancelled()` re-throws. Anything ELSE still open is a place for it to die.
+        // `rethrowIfCancelled()` re-throws. Anything else still open is a place for it to die.
         listOf("run" to UNARCHIVE, "onInboxRefreshed" to UNARCHIVE_HOOK).forEach { (function, call) ->
             val body = lines(function)
             val at = body.indexOf(call)
@@ -216,7 +216,7 @@ class SignedOutAccountLeavesNoPushErrorTest {
         }
     }
 
-    /** The lines that opened the blocks still open just before [index] — the call's enclosure.
+    /** The lines that opened the blocks still open just before [index], the call's enclosure.
      * A twin of `SignedOutAccountWiringTest.openBlocksAt`; see the note above for why it is
      *  copied and not shared. */
     private fun openBlocksAt(lines: List<String>, index: Int): List<String> {
@@ -257,7 +257,7 @@ class SignedOutAccountLeavesNoPushErrorTest {
     }
 
     /**
-     * The code of ONE function of the file, from its declaration to the next declaration's.
+     * The code of one function of the file, from its declaration to the next declaration's.
      */
     private fun lines(function: String): List<String> {
         val body = lines()
@@ -276,7 +276,7 @@ class SignedOutAccountLeavesNoPushErrorTest {
         return body.subList(bounds[here], bounds.getOrNull(here + 1) ?: body.size)
     }
 
-    /** The file's code, trimmed, comments and blank lines cut — every rule here is about which
+    /** The file's code, trimmed, comments and blank lines cut, every rule here is about which
      *  statement follows which, and a comment between two of them changes nothing. */
     private fun lines(): List<String> = FETCH_AND_NOTIFY.readLines().map { it.trim() }.filter {
         it.isNotEmpty() && !it.startsWith("//") && !it.startsWith("*") && !it.startsWith("/*")
@@ -285,14 +285,14 @@ class SignedOutAccountLeavesNoPushErrorTest {
     private companion object {
         const val ARM = "} catch (gone: AccountGoneException) {"
         const val PATH = "app/src/main/kotlin/app/sterna/push/FetchAndNotify.kt"
-        /** The un-archive call of [FetchAndNotify.run] — bare, its `val returned = if (…)` is above. */
+        /** The un-archive call of [FetchAndNotify.run], bare, its `val returned = if (…)` is above. */
         const val UNARCHIVE =
             "runCatching { container.mailRepository.unarchiveThreadsOnReply(credentials, threads) }"
 
         /** The same call in [FetchAndNotify.onInboxRefreshed], where it opens its own statement. */
         const val UNARCHIVE_HOOK = "val returned = $UNARCHIVE"
 
-        /** Every top-level declaration of the file, in source order — the slicing boundaries of
+        /** Every top-level declaration of the file, in source order, the slicing boundaries of
          *  [lines]. A function added between two of these has to be registered here, or its code
          *  is read as part of the one above it. */
         val DECLARATIONS = listOf(

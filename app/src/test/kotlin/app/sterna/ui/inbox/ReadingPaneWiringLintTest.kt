@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
+ * Source lint, not a behaviour test, read this before trusting it.
  */
 class ReadingPaneWiringLintTest {
 

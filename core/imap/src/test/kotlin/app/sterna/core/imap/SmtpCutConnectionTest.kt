@@ -7,14 +7,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * A submission that dies in the MIDDLE of a multi-line response.
+ * A submission that dies in the middle of a multi-line response.
  */
 class SmtpCutConnectionTest {
 
     private fun send(server: FakeSmtpServer, subject: String = "hello there") =
         runBlocking { SmtpClient().send(server.config, outgoingFixture(subject)) }
 
-    /** J1 — the cut lands between two lines of the EHLO response, the one that is always multi-line. */
+    /** J1, the cut lands between two lines of the EHLO response, the one that is always multi-line. */
     @Test
     fun `an EHLO cut after a continuation line fails at the EHLO, not three steps later`() {
         FakeSmtpServer(
@@ -41,7 +41,7 @@ class SmtpCutConnectionTest {
     }
 
     /**
-     * J2 — the cut lands inside the 250 that acknowledges the message BODY, after a continuation
+     * J2, the cut lands inside the 250 that acknowledges the message body, after a continuation
      */
     @Test
     fun `a cut inside the 250 that acknowledges the body is a successful send`() {
@@ -59,7 +59,7 @@ class SmtpCutConnectionTest {
     }
 
     /**
-     * J2-witness — the same two-line acknowledgement, complete this time.
+     * J2-witness, the same two-line acknowledgement, complete this time.
      */
     @Test
     fun `a complete multi-line acknowledgement of the body queues the message`() {
@@ -83,7 +83,7 @@ class SmtpCutConnectionTest {
     }
 
     /**
-     * J2b — the cut lands BEFORE a single line of the body's acknowledgement.
+     * J2b, the cut lands before a single line of the body's acknowledgement.
      */
     @Test
     fun `a cut before any line of the body acknowledgement is still a failed send`() {
@@ -103,7 +103,9 @@ class SmtpCutConnectionTest {
     }
 
     /**
-     * J2c — a cut acknowledgement whose code is a REFUSAL. The code decides, not the fact that a
+     * J2c, a cut acknowledgement whose code is a refusal. The code decides, not the fact that a
+     * line was read: `421-…` is a server closing the channel, and a send it never queued must not
+     * be reported as delivered.
      */
     @Test
     fun `a cut 421 answering the body is a failed send, quoting the line`() {
@@ -130,7 +132,7 @@ class SmtpCutConnectionTest {
         }
     }
 
-    /** J3 — the case that already worked: not a single byte of the response. Must not change. */
+    /** J3, the case that already worked: not a single byte of the response. Must not change. */
     @Test
     fun `a cut before the first line of a response still says Connection closed`() {
         FakeSmtpServer(
@@ -145,15 +147,15 @@ class SmtpCutConnectionTest {
         }
     }
 
-    /** J4 — the nominal multi-line response, complete. The final line is returned, `expect` is happy. */
+    /** J4, the nominal multi-line response, complete. The final line is returned, `expect` is happy. */
     @Test
     fun `a complete multi-line response is still read whole and still sends`() {
         FakeSmtpServer(authLine = "AUTH PLAIN LOGIN", multiline = true).use { server ->
             send(server, subject = "complete multiline")
 
             val issued = server.issued()
-            // AUTH PLAIN was announced on a CONTINUATION line of the EHLO response: choosing it
-            // proves every line was accumulated. Reaching MAIL FROM proves only that the reader is
+            // AUTH PLAIN was announced on a continuation line of the EHLO response: choosing it
+            // proves every line was accumulated.
             assertEquals(
                 "expected exactly one AUTH command between EHLO and MAIL FROM, got $issued",
                 1,
@@ -175,7 +177,7 @@ class SmtpCutConnectionTest {
     }
 
     /**
-     * J5 — a REAL EHLO, eight continuation lines before the final one. Gmail and Stalwart answer
+     * J5, a real EHLO, eight continuation lines before the final one. Gmail and Stalwart answer
      */
     @Test
     fun `an eight-line EHLO is read to its last line, capability and all`() {
@@ -203,8 +205,8 @@ class SmtpCutConnectionTest {
                 1,
                 issued.count { it.startsWith("AUTH PLAIN ") },
             )
-            // And reaching the envelope means the loop stopped on the REAL final line, "250 HELP",
-            // leaving nothing of the EHLO in the buffer for MAIL FROM to trip over.
+            // And reaching the envelope means the loop stopped on the real final line, "250 HELP",
+            // leaving nothing of the EHLO in the buffer for mail from to trip over.
             assertEquals(
                 listOf("EHLO [127.0.0.1]", "MAIL FROM:<tester@example.org>", "RCPT TO:<dest@example.org>", "DATA"),
                 issued.filterNot { it.startsWith("AUTH ") },
@@ -217,7 +219,7 @@ class SmtpCutConnectionTest {
     }
 
     /**
-     * J6 — the FINAL line, not merely "a line of the response".
+     * J6, the final line, not merely "a line of the response".
      */
     @Test
     fun `the line handed back is the last one, which is the one the error message quotes`() {
@@ -245,7 +247,9 @@ class SmtpCutConnectionTest {
 }
 
 /**
- * SOURCE LINT (J11), the belt to the braces of the four tests above: the `break` that swallowed a
+ * Source lint (J11), the belt to the braces of the four tests above: the `break` that swallowed a
+ * cut connection must not come back. Whole lines, never `contains`: a substring check is blind to
+ * every mutation that LENGTHENS the line.
  */
 class SmtpCutLintTest {
 
@@ -264,11 +268,11 @@ class SmtpCutLintTest {
     }
 
     /**
-     * The same belt for `readBodyAck`, whose two reads are NOT the same rule: the first throws like
+     * The same belt for `readBodyAck`, whose two reads are not the same rule: the first throws like
      */
     @Test
     fun `readBodyAck throws on the first line and yields on a later one`() {
-        // Comment lines dropped, and only they — the KDoc there quotes the wrong form of the very
+        // Comment lines dropped, and only they, the KDoc there quotes the wrong form of the very
         // line being pinned, and a comment naming a read is not a read. Nothing else is filtered: a
         // mutation that lengthens a statement still shows up whole.
         val body = ImapSource.functionBody("SmtpClient", "readBodyAck")

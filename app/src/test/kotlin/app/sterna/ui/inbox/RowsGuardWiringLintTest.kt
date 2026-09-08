@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxScreen.kt` as text and proves nothing about
+ * Source lint, not a behaviour test. It reads `InboxScreen.kt` as text and proves nothing about
  */
 class RowsGuardWiringLintTest {
 
@@ -29,8 +29,7 @@ class RowsGuardWiringLintTest {
                 "refreshUnlessFresh() returns inside the window — so `ui.refreshing` is false and " +
                 "its branch does not catch; this arm catches and draws nothing, leaving the centre " +
                 "empty and the tern to speak — #63's decision.) The indicator lines found were:",
-            // The arm CATCHES wider than it DRAWS, deliberately. It catches on refreshLoading ||
-            // staleRows — that is what this rule is about — and falling through would hand the
+            // The arm CATCHES wider than it draws, deliberately.
             listOf("refreshLoading || staleRows -> if (ringShowing) LoadingRing(Modifier.align(Alignment.Center)) else Unit"),
             codeLines(INBOX_SCREEN).map { it.trim() }.filter { it.startsWith("refreshLoading") && "LoadingRing" in it },
         )
@@ -186,7 +185,7 @@ class RowsGuardWiringLintTest {
         )
     }
 
-    /** [file]'s non-blank lines, indentation kept, with every comment taken out — block comments
+    /** [file]'s non-blank lines, indentation kept, with every comment taken out, block comments
      *  tracked across lines, and a `//` only honoured outside a double-quoted string. */
     private fun codeLines(file: File): List<String> {
         val out = mutableListOf<String>()

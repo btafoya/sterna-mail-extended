@@ -96,7 +96,7 @@ class MimeParserTest {
 
     @Test
     fun keepsNestedMultipartSectionPaths() {
-        // multipart/mixed [ multipart/alternative [ plain, html ], attachment ] — the ordinary
+        // multipart/mixed [ multipart/alternative [ plain, html ], attachment ], the ordinary
         // shape of a rich message with a file; section paths must stay 1.1 / 1.2 / 2.
         val fileB64 = Base64.getEncoder().encodeToString("DATA".toByteArray())
         val raw = buildString {
@@ -159,7 +159,10 @@ class MimeParserTest {
     }
 
     /**
-     * THE WITNESS for "the parser reads bytes now": a UTF-8 body in 8 bits is the ordinary case,
+     * The witness for "the parser reads bytes now": a UTF-8 body in 8 bits is the ordinary case,
+     * and it must come out identical. Applying the byte reading without applying the declared
+     * charset afterwards would turn every one of these into latin-1 gibberish, a far bigger
+     * regression than the defect being fixed.
      */
     @Test
     fun anEightBitUtf8BodyIsStillCorrect() {
@@ -176,7 +179,7 @@ class MimeParserTest {
     }
 
     /**
-     * THE WITNESS for the majority case: `base64` and `quoted-printable` are ASCII on the wire
+     * The witness for the majority case: `base64` and `quoted-printable` are ASCII on the wire
      */
     @Test
     fun base64AndQuotedPrintableAreUnaffected() {
@@ -212,6 +215,9 @@ class MimeParserTest {
 
     /**
      * The shortcut that keeps an ordinary `7bit` part from being copied twice: when the body is
+     * pure ASCII and the charset reads an ASCII byte as itself, the round trip is provably the
+     * identity, so it is skipped. Asserted under all three whitelisted charsets, because the
+     * shortcut is only sound for those.
      */
     @Test
     fun anAsciiSevenBitBodyIsUnchangedUnderEveryAsciiTransparentCharset() {
@@ -223,7 +229,7 @@ class MimeParserTest {
     }
 
     /**
-     * THE WITNESS that the shortcut checks the charset and not just the bytes. A UTF-16 body is
+     * The witness that the shortcut checks the charset and not just the bytes.
      */
     @Test
     fun aUtf16BodyStillTakesTheCharsetPath() {
@@ -232,7 +238,7 @@ class MimeParserTest {
         assertEquals("Hi", MimeParser.parseBody(raw).text)
     }
 
-    /** An HTML part gets the same treatment as a plain one — same call, both branches. */
+    /** An HTML part gets the same treatment as a plain one, same call, both branches. */
     @Test
     fun anEightBitHtmlPartIsDecodedToo() {
         val raw = "Content-Type: text/html; charset=iso-8859-1\r\nContent-Transfer-Encoding: 8bit\r\n\r\n" +
@@ -244,7 +250,7 @@ class MimeParserTest {
 
     @Test
     fun aFloodOfBoundariesStopsAtTheSiblingCap() {
-        // 60 000 one-line parts. The cap must bound the WORK, not just the recursion: splitting
+        // 60 000 one-line parts. The cap must bound the work, not just the recursion: splitting
         // the whole body first would materialise every segment before the first one is dropped.
         val parts = 60_000
         val raw = buildString(24 * parts + 128) {
@@ -311,7 +317,7 @@ class MimeParserTest {
             for (i in depth downTo 0) append("--${b(i)}--\r\n")
         }
         val body = MimeParser.parseBody(raw)
-        // Too deep to reach — refused, not crashed.
+        // Too deep to reach, refused, not crashed.
         assertNull(body.text)
         assertNull(body.html)
     }
@@ -345,7 +351,7 @@ class MimeParserTest {
     }
 
     /**
-     * "View headers" shows a header as it was sent — encoded-words stay encoded, deliberately.
+     * "View headers" shows a header as it was sent, encoded-words stay encoded, deliberately.
      */
     @Test
     fun rawHeadersShowRawEightBitValuesAsText() {

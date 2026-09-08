@@ -5,11 +5,13 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, same instrument and the same disclaimer as
+ * [SelectionTargetsWiringTest]: it reads `InboxViewModel.kt` as text, proves nothing about what
+ * happens on screen, and would still pass if the code it points at were broken inside.
  */
 class BulkSelectionWiringTest {
 
-    // -- A. every path resolves the SELECTION, not the cache's answer ---------------------------
+    // -- A. every path resolves the selection, not the cache's answer ---------------------------
 
     /**
      * The three arguments each path must hand the shared resolution. `displayed` is what makes a
@@ -68,6 +70,8 @@ class BulkSelectionWiringTest {
 
     /**
      * The cache may only be read AS the `cached` argument. A second, direct read left in a body is
+     * the defect itself wearing the fix as a hat: the resolution runs, and the loop still walks
+     * what the query returned.
      */
     @Test fun `no path reads the cache anywhere but into the resolution`() {
         for ((name, keys) in listOf("bulk" to "keys", "bulkBatched" to "targetKeys", "deleteSelected" to "keys")) {
@@ -82,7 +86,11 @@ class BulkSelectionWiringTest {
     }
 
     /**
-     * The snooze MAY set a target aside — a row with no local `emails` row cannot be snoozed at
+     * The snooze may set a target aside, a row with no local `emails` row cannot be snoozed at
+     * all: `SnoozeWorker` resolves the message back through that very table, so the reminder is
+     * written, the worker fires, nothing is found, nothing rings, and the `snoozed` row is deleted
+     * on the way, taking the message out of "Snoozed" too. What it may never do is set one aside in
+     * silence: a refused row is not `unresolved`, so a partition that does not reach `failed`
      */
     @Test fun `the snooze never sets a target aside in silence`() {
         val body = body(INBOX_VIEW_MODEL, "bulk")
@@ -123,7 +131,7 @@ class BulkSelectionWiringTest {
 
     /**
      * A message whose account credentials are gone was never written either, and it is not
-     * `unresolved` — nothing but this counter stands between that case and total silence.
+     * `unresolved`, nothing but this counter stands between that case and total silence.
      */
     @Test fun `a message with no credentials is counted, not skipped`() {
         assertEquals(
@@ -160,7 +168,7 @@ class BulkSelectionWiringTest {
     // -- B. Undo: never built on a folder that is a crawl artefact ------------------------------
 
     /**
-     * `restoreAll` moves a message back with `client.move(..., sourceMailboxId)`, which OVERWRITES
+     * `restoreAll` moves a message back with `client.move(..., sourceMailboxId)`, which overwrites
      */
     @Test fun `neither writing path builds an Undo entry of its own`() {
         for (name in listOf("bulk", "bulkBatched")) {
@@ -181,6 +189,7 @@ class BulkSelectionWiringTest {
 
     /**
      * And offer them unchanged, only when there are some. The two bodies diverge here since the
+     * batched path's banner counts, so they are pinned apart.
      */
     @Test fun `the snooze path offers its entries under a fixed label`() {
         val body = body(INBOX_VIEW_MODEL, "bulk")
@@ -196,6 +205,7 @@ class BulkSelectionWiringTest {
 
     /**
      * The batched path is the one the user reaches with a selection, so its banner is a plural and
+     * both halves of it are the batch's business:
      */
     @Test fun `the batched path offers its entries under a counted plural`() {
         val body = body(INBOX_VIEW_MODEL, "bulkBatched")
@@ -227,7 +237,7 @@ class BulkSelectionWiringTest {
         )
     }
 
-    /** What each path collects for that decision: the TARGET (trust included), and the destination. */
+    /** What each path collects for that decision: the target (trust included), and the destination. */
     @Test fun `the Undo candidates carry the target itself, not a bare row`() {
         assertEquals(
             "bulk() (the snooze) moves nothing, so its candidates carry no destination. Body was:",
@@ -249,6 +259,8 @@ class BulkSelectionWiringTest {
 
     /**
      * `deleteWouldDestroy` reads the row's own folder, which an untrusted row cannot supply: on a
+     * row that only exists on screen that folder was frozen at crawl time, so the partition is
+     * made by [planSelectionDelete], which only ever asks it about a trusted row.
      */
     @Test fun `the delete partition is the shared plan, fed by the two probes`() {
         val body = body(INBOX_VIEW_MODEL, "deleteSelected")
@@ -280,8 +292,7 @@ class BulkSelectionWiringTest {
     /** And each leg of the plan goes where it belongs, untouched. */
     @Test fun `only the plan's destroy leg is destroyed, and only its move leg is batched`() {
         val body = body(INBOX_VIEW_MODEL, "deleteSelected")
-        // NO LONGER "whole and unfiltered", and the change is the point. The destroy leg is now
-        // cut in two before it is destroyed: the rows still on the line that was TICKED, and the
+        // NO longer "whole and unfiltered", and the change is the point.
         assertEquals(
             "the held-back destroy takes the kept half of the tick split, whole and unfiltered — " +
                 "one cut, made by the pure function, and no other. Body was:\n$body",
@@ -298,9 +309,9 @@ class BulkSelectionWiringTest {
         // permanently…" on the one snackbar host, under an Undo that covers only the moved leg.
         // Whole line, never `in`: a substring rule would accept the takeIf being dropped.
         //
-        // And the condition is the KEPT half of the split, never `plan.destroy`: a destroy leg
+        // And the condition is the kept half of the split, never `plan.destroy`: a destroy leg
         // the split refused entirely schedules nothing and puts no bar up, so reading the planned
-        // leg there withholds the move's Undo in favour of a snackbar that never appears — the
+        // leg there withholds the move's Undo in favour of a snackbar that never appears, the
         // moved messages lose their one-tap way back for a destruction that did not happen.
         assertEquals(
             "the batched delete's label must be withheld while a destruction is actually pending " +
@@ -337,7 +348,8 @@ class BulkSelectionWiringTest {
     // -- D. saying what was not done, once, over the whole selection ----------------------------
 
     /**
-     * `attempted` is the WHOLE selection and `failed` counts everything the snooze did not write —
+     * `attempted` is the whole selection and `failed` counts everything the snooze did not write,
+     * on both sides of the account split.
      */
     @Test fun `the snooze counts the lost keys on both sides`() {
         val body = body(INBOX_VIEW_MODEL, "bulk")
@@ -392,11 +404,14 @@ class BulkSelectionWiringTest {
 
     /**
      * The delete handles part of the selection itself (the held-back destroy) and loses part of it
+     * (unresolved keys, and untrusted rows on a Trash-less account). Both travel to the delegate so
+     * one honest message comes out over the whole delete: two toasts on a `StateFlow` would chase
+     * each other and only the last would be seen, and leaving the destroyed messages out of
+     * `attempted` turns "99 destroyed, 1 lost" into "Couldn't complete the action".
      */
     @Test fun `the delete hands what it handled and what it lost to the delegate`() {
         val body = body(INBOX_VIEW_MODEL, "deleteSelected")
-        // Two numbers now, not one. `lostBefore` is what the delete lost BEFORE the destroy leg
-        // was cut — unresolved keys and untrusted rows on a Trash-less account — and `lost` adds the
+        // Two numbers now, not one.
         assertEquals(
             "what the delete lost on its own must be counted, and separately from what the tick " +
                 "split refused. Body was:\n$body",
@@ -490,7 +505,10 @@ class BulkSelectionWiringTest {
     }
 
     /**
-     * ONE announcement leaves this body, and only on the leg that delegated nothing: pinned as
+     * One announcement leaves this body, and only on the leg that delegated nothing: pinned as
+     * every `_message.value` line of the body, and as the order of the two strings it reads, the
+     * other-account sentence below the delegation's Undo label. Putting it back above the
+     * delegation, or writing `_message.value` a second time, reddens here.
      */
     @Test fun `the move announces the other account once, and only when it delegated nothing`() {
         val body = body(INBOX_VIEW_MODEL, "moveSelectedTo")
@@ -531,6 +549,9 @@ class BulkSelectionWiringTest {
 
     /**
      * And the guard deciding who is movable stays written: without the fallback and the partition,
+     * a mailbox id of the selection's account is sent into a sibling account, where an IMAP server
+     * with a same-named Archive accepts it silently. [SelectionAccountTest] executes the resolution
+     * itself; this only says it is still the one being called.
      */
     @Test fun `the move still resolves one account and partitions on it`() {
         val body = body(INBOX_VIEW_MODEL, "moveSelectedTo")
@@ -602,6 +623,8 @@ class BulkSelectionWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text. Fails loudly when the
+     * declaration is not found, a rename must break these rules rather than satisfy them silently
+     * against an empty string.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)

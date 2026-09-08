@@ -17,7 +17,7 @@ class PrebuiltEntityTest {
     // ---- what queueing writes -----------------------------------------------------------------
 
     /**
-     * THE DECOUPLING. An entity with NO PGP mode at all is stored, exactly as one with a mode is.
+     * The decoupling. An entity with NO PGP mode at all is stored, exactly as one with a mode is.
      */
     @Test fun `an entity with no pgp mode is written beside the row`() {
         assertEquals(
@@ -46,7 +46,7 @@ class PrebuiltEntityTest {
     }
 
     /**
-     * The mode that encrypts WITHOUT signing blanks the row exactly like the signed one. The
+     * The mode that encrypts without signing blanks the row exactly like the signed one.
      */
     @Test fun `an unsigned encrypted message keeps no plaintext at rest either`() {
         assertEquals(
@@ -58,7 +58,7 @@ class PrebuiltEntityTest {
     }
 
     /**
-     * Blanking the row still needs BOTH the mode and the entity. A row marked ENCRYPT whose
+     * Blanking the row still needs both the mode and the entity. A row marked encrypt whose
      */
     @Test fun `a mode without an entity blanks nothing and writes nothing`() {
         assertEquals(
@@ -78,13 +78,13 @@ class PrebuiltEntityTest {
         assertNull(prebuiltEntityAt(null) { error("must not read anything") })
     }
 
-    /** A row naming a file is delivered from that file, verbatim — whatever the PGP mode says. */
+    /** A row naming a file is delivered from that file, verbatim, whatever the PGP mode says. */
     @Test fun `a row naming a file is delivered from it, byte for byte`() {
         assertEquals(entity, prebuiltEntityAt("/outbox/7/prebuilt-entity.mime") { entity })
     }
 
     /**
-     * An unreadable file FAILS the delivery. It must never fall back to the row's own body: that
+     * An unreadable file fails the delivery.
      */
     @Test fun `a file that cannot be read fails the delivery instead of sending a shell`() {
         val thrown = runCatching { prebuiltEntityAt("/outbox/7/gone.mime") { null } }.exceptionOrNull()
@@ -97,7 +97,7 @@ class PrebuiltEntityTest {
         )
     }
 
-    /** Read ONCE, above the protocol fork, so both branches see the same value. */
+    /** Read once, above the protocol fork, so both branches see the same value. */
     @Test fun `the file is read exactly once`() {
         var reads = 0
         prebuiltEntityAt("/outbox/7/prebuilt-entity.mime") { reads++; entity }
@@ -110,10 +110,10 @@ class PrebuiltEntityTest {
         assertEquals("prebuilt-entity.mime", PREBUILT_ENTITY_FILE)
     }
 
-    // ---- the call sites, read out of the shipped source: a LAST RESORT --------------------------
+    // ---- the call sites, read out of the shipped source: a last resort --------------------------
 
     /**
-     * SOURCE LINT, NOT A BEHAVIOUR TEST — `MailRepository` needs Room, a `Context` and a socket, so
+     * Source lint, not a behaviour test, `MailRepository` needs Room, a `Context` and a socket, so
      */
     @Test fun `both protocols route on the entity, never on the pgp mode`() {
         val source = repositorySource()
@@ -139,7 +139,7 @@ class PrebuiltEntityTest {
     }
 
     /**
-     * SOURCE LINT, on BOTH call sites. `OutboxLogic.canEdit` only refuses a row it is TOLD about:
+     * Source lint, on both call sites. `OutboxLogic.canEdit` only refuses a row it is told about:
      */
     @Test fun `the edit guard is told whether the row can be rebuilt, at both call sites`() {
         assertTrue(
@@ -167,7 +167,7 @@ class PrebuiltEntityTest {
     }
 
     /**
-     * SOURCE LINT. `learnRecipients` guards the contacts list, and its default is `true` — drop the
+     * Source lint. `learnRecipients` guards the contacts list, and its default is `true`, drop the
      * argument at the one call site that needs `false` and nothing anywhere goes red.
      */
     @Test fun `the contacts list is taught through the one decision function`() {

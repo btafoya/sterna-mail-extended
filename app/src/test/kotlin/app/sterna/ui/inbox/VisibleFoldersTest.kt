@@ -9,7 +9,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Which folders the screens show when an account asks for its SUBSCRIBED folders only (#174) — the
+ * Which folders the screens show when an account asks for its subscribed folders only (#174), the
+ * rule, executed, never read as text.
  */
 class VisibleFoldersTest {
 
@@ -108,7 +109,7 @@ class VisibleFoldersTest {
     // ── T3b: a folder that CLAIMED a role and lost the election ──────────────────────────────────
 
     /**
-     * The defect. An IMAP account with both a `Junk` and a `Spam`: only one can be THE junk
+     * The defect. An IMAP account with both a `Junk` and a `Spam`: only one can be the junk
      */
     @Test fun `an unsubscribed folder that claimed a role and LOST it stays`() {
         val folders = listOf(
@@ -151,7 +152,7 @@ class VisibleFoldersTest {
         )
     }
 
-    /** A JMAP-shaped parent works the same way — the walk is [folderParentId]'s, not a path trick. */
+    /** A JMAP-shaped parent works the same way, the walk is [folderParentId]'s, not a path trick. */
     @Test fun `a losing child of a hidden JMAP parent keeps that parent`() {
         val folders = listOf(
             folder("mb1", name = "Inbox", role = "inbox"),
@@ -162,7 +163,7 @@ class VisibleFoldersTest {
         assertEquals(listOf("mb1", "mb7", "mb8"), visibleFolders(folders, true).map { it.id })
     }
 
-    /** With the box UNTICKED the list is handed back as it stands — the claim changes nothing
+    /** With the box unticked the list is handed back as it stands, the claim changes nothing
      *  about the default path, which is still an identity and not a rebuild. */
     @Test fun `with the setting off a losing folder changes nothing about the untouched list`() {
         val folders = listOf(
@@ -175,7 +176,9 @@ class VisibleFoldersTest {
     }
 
     /**
-     * The reprieve KEEPS the row, it does not rewrite it: the folder comes out of the filter with
+     * The reprieve keeps the row, it does not rewrite it: the folder comes out of the filter with
+     * the `role == null` it went in with, which is what `InboxScreen` gates Rename / Delete / New
+     * subfolder on.
      */
     @Test fun `the filter hands back the row it kept, role and all`() {
         val loser = folder("Spam", name = "Spam", subscribed = false, lostClaim = true)
@@ -283,7 +286,7 @@ class VisibleFoldersTest {
         assertEquals(emptyList<String>(), visibleFolders(emptyList(), false).map { it.id })
     }
 
-    // ── the boolean is the OPEN account's, not some account's ────────────────────────────────────
+    // ── the boolean is the open account's, not some account's ────────────────────────────────────
 
     @Test fun `the setting is read off the account named, and only that one`() {
         val accounts = listOf(account("a1", on = false), account("a2", on = true))

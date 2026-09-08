@@ -14,7 +14,7 @@ class ImapParserTest {
         ImapParser(ByteArrayInputStream(raw.toByteArray(Charsets.UTF_8))).readResponse()
 
     /**
-     * The same entry point taking the WIRE BYTES. The `String` overload cannot express the case
+     * The same entry point taking the wire bytes. The `String` overload cannot express the case
      */
     private fun parseBytes(raw: ByteArray): List<Any?> =
         ImapParser(ByteArrayInputStream(raw)).readResponse()
@@ -81,7 +81,7 @@ class ImapParserTest {
     }
 
     /** And the bytes of a multi-byte character survive as their own chars, to be reassembled
-     *  later by whoever knows the charset — never decoded, never merged, never lost. */
+     *  later by whoever knows the charset, never decoded, never merged, never lost. */
     @Test
     fun aLiteralDoesNotDecodeUtf8ByItself() {
         // "é" in UTF-8 is C3 A9; "日" is E6 97 A5.
@@ -95,7 +95,7 @@ class ImapParserTest {
     }
 
     /**
-     * A hostile server announces a literal past [MAX_LITERAL]. The parser must REFUSE IT WITHOUT
+     * A hostile server announces a literal past [MAX_LITERAL]. The parser must refuse it without
      */
     @Test
     fun oversizeLiteralIsRefusedNotAllocated() {
@@ -122,7 +122,9 @@ class ImapParserTest {
     }
 
     /**
-     * The other half of [MAX_LITERAL]: what is UNDER the cap comes back WHOLE. 100 000 bytes is a
+     * The other half of [MAX_LITERAL]: what is under the cap comes back whole. 100 000 bytes is a
+     * plain message body, and it is the only assertion that fails if the cap is lowered, an
+     * oversize fixture stays "oversize" whatever the cap becomes, so it can never see that.
      */
     @Test
     fun literalUnderTheCapComesBackWhole() {
@@ -147,7 +149,7 @@ class ImapParserTest {
         assertEquals("Connection closed", error.message)
     }
 
-    /** `size` bytes of `x`, made up as they are read — never held anywhere. */
+    /** `size` bytes of `x`, made up as they are read, never held anywhere. */
     private fun generated(size: Int): InputStream = object : InputStream() {
         private var left = size
         override fun read(): Int = if (left-- > 0) 'x'.code else -1
@@ -198,6 +200,8 @@ class ImapParserTest {
 
     /**
      * An ENVELOPE address part sent as a literal (`{n}`) keeps CR/LF verbatim: literals are
+     * length-delimited, so unlike a quoted-string they are not line-bounded. That makes a
+     * hostile server's `From` mailbox a CR/LF carrier all the way into `ImapMessage.fromEmail`
      */
     @Test
     fun envelopeAddressLiteralKeepsCrlf() {
@@ -221,7 +225,7 @@ class ImapParserTest {
     }
 
     /**
-     * A section item name is ONE atom, brackets and everything inside them included. Cut on the
+     * A section item name is one atom, brackets and everything inside them included.
      */
     @Test
     fun aHeaderFieldsSectionIsOneAtom() {
@@ -240,7 +244,7 @@ class ImapParserTest {
         assertEquals(listOf("UID", "1", "BODY[HEADER.FIELDS (\"REFERENCES\")]", null), args)
     }
 
-    /** The partial-fetch form, one atom as it always was — the suffix rides with the brackets. */
+    /** The partial-fetch form, one atom as it always was, the suffix rides with the brackets. */
     @Test
     fun aPartialBodySectionIsOneAtom() {
         val r = parse("* 1 FETCH (UID 1 BODY[1]<0> {5}\r\nhello FLAGS (\\Seen))\r\n")

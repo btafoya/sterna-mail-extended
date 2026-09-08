@@ -12,7 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * THE RACE BETWEEN THE TICK AND THE TAP (#99, #189).
+ * The race between the tick and the tap (#99, #189).
  */
 class TickedNumberingBarrierTest {
 
@@ -20,10 +20,12 @@ class TickedNumberingBarrierTest {
     private val b = EmailKey("acc", "imap:acc:INBOX:2")
     private val c = EmailKey("other", "imap:other:INBOX:3")
 
-    // ---- the decision, RUN ---------------------------------------------------------------------
+    // ---- the decision, run ---------------------------------------------------------------------
 
     /**
      * Four inputs, four verdicts, stated as literals: this test does not recompute the rule it
+     * checks. The third is the one a naive rule gets wrong, "something has been published" is not
+     * "this selection has been published", and a partial map is exactly what the race hands over.
      */
     @Test fun `a map covers a selection when every key of it has an entry`() {
         assertTrue(
@@ -45,10 +47,12 @@ class TickedNumberingBarrierTest {
         assertFalse("and an empty map covers nothing that was asked for", numberingStampsCover(setOf(a), emptyMap()))
     }
 
-    // ---- the wait, RUN ------------------------------------------------------------------------
+    // ---- the wait, run ------------------------------------------------------------------------
 
     /**
-     * THE WITNESS OF THE RACE, and the only test that tells a barrier apart from a `delay`: the
+     * The witness of the race, and the only test that tells a barrier apart from a `delay`: the
+     * flow publishes a partial map first, the gesture asks, and it must still be waiting; the full
+     * map lands afterwards and that is what the gesture gets.
      */
     @Test fun `the gesture gets the map published after it asked, not the partial one that was there`() = runTest {
         val published = MutableStateFlow<Map<EmailKey, Long?>>(mapOf(a to 7L))
@@ -73,7 +77,7 @@ class TickedNumberingBarrierTest {
     }
 
     /**
-     * THE INVERSE WITNESS, without which "always sleep for the budget" satisfies the one above
+     * The inverse witness, without which "always sleep for the budget" satisfies the one above
      */
     @Test fun `an already covered map is handed over without spending a single tick`() = runTest {
         val published = MutableStateFlow<Map<EmailKey, Long?>>(mapOf(a to 7L, b to 9L))
@@ -88,7 +92,10 @@ class TickedNumberingBarrierTest {
     }
 
     /**
-     * AND IT IS BOUNDED, because coverage can become UNREACHABLE — and the reason is the
+     * And it is bounded, because coverage can become unreachable, and the reason is the
+     * selection moving, not a key nobody can resolve. `rememberTickedNumbering` ends on
+     * `filterKeys { it in still }`, so it publishes only what is still ticked: once the selection
+     * changes, no publication will ever contain the awaited keys again.
      */
     @Test fun `a key that is never published gives the partial map back, on the budget`() = runTest {
         val published = MutableStateFlow<Map<EmailKey, Long?>>(mapOf(a to 7L))
@@ -107,7 +114,7 @@ class TickedNumberingBarrierTest {
     }
 
     /**
-     * THE REGRESSION THIS CLOSES, and the reachable path that produces it. While the wait runs,
+     * The regression this closes, and the reachable path that produces it.
      */
     @Test fun `a selection emptied during the wait still gets the map the gesture asked with`() = runTest {
         val published = MutableStateFlow<Map<EmailKey, Long?>>(mapOf(a to 7L))
@@ -128,7 +135,7 @@ class TickedNumberingBarrierTest {
     }
 
     /**
-     * THE SHIPPED BUDGET, EXECUTED. Without this the constant is pinned nowhere: the two tests
+     * The shipped budget, executed. Without this the constant is pinned nowhere: the two tests
      */
     @Test fun `the default budget is the one shipped, and it is what gets spent`() = runTest {
         val published = MutableStateFlow<Map<EmailKey, Long?>>(mapOf(a to 7L))
@@ -147,7 +154,7 @@ class TickedNumberingBarrierTest {
 
     /**
      * Source lint, the last resort: `InboxViewModel` needs an `Application` and Room. What only
-     * the text can say is that BOTH gestures go through the ONE wait — "a barrier posted on one
+     * the text can say is that both gestures go through the one wait, "a barrier posted on one
      * side leaves the other open", and the two sides destroy the same mail.
      */
     @Test fun `both selection gestures take their stamps through the one wait`() {
@@ -208,7 +215,7 @@ class TickedNumberingBarrierTest {
     private fun codeLinesNaming(source: String, needle: String): List<String> =
         codeLines(source).filter { needle in it }
 
-    /** [count] consecutive CODE lines from the one that reads exactly [first] — whole lines, so a
+    /** [count] consecutive code lines from the one that reads exactly [first], whole lines, so a
      *  mutation that lengthens any of them is seen. */
     private fun blockAt(source: String, first: String, count: Int): List<String> {
         val lines = codeLines(source)

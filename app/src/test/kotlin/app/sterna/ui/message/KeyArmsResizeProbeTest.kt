@@ -4,24 +4,24 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The keyboard door's decision, RUN: [BodyReveal.keyArmsResizeProbe].
+ * The keyboard door's decision, run: [BodyReveal.keyArmsResizeProbe].
  *
- * Measured on the bench: folding the quoted history WITH A FINGER gives Reply/Forward back, folding
- * it with SPACE / ENTER / DPAD_CENTER folds the body and the bar never comes back — 24 swipes did
+ * Measured on the bench: folding the quoted history with a finger gives Reply/Forward back, folding
+ * it with space / ENTER / DPAD_CENTER folds the body and the bar never comes back, 24 swipes did
  * not bring it, one touch fold/unfold did. Two things were wrong at once and only one of them can
  * be measured here:
  *
- *  - WHICH EVENT the platform delivers to us at all (the door used to hang off `onKeyUp`, which is
- *    only reached for a key nobody consumed — and Blink consumed it, since the body did fold).
- * NOT COVERED BY ANY TEST IN THIS REPO: nothing in a JVM suite can build a WebView, press a
+ *  - which event the platform delivers to us at all (the door used to hang off `onKeyUp`, which is
+ *    only reached for a key nobody consumed, and Blink consumed it, since the body did fold).
+ * Not covered by any test in this repo: nothing in a JVM suite can build a WebView, press a
  *    key and watch which override runs. Its falsifier is a bench pass, and only a bench pass.
- *  - WHEN the door arms, which is what this file pins. The probe has to take its `atGesture`
- *    reading BEFORE the document acts on the key, or [BodyReveal.resizeStep] compares the folded
- *    height with itself and expires in silence — the symptom, restored. Which of DOWN and UP the
- *    document acts on is NOT knowable here and is not the same for every key, so BOTH arm; see
+ *  - when the door arms, which is what this file pins. The probe has to take its `atGesture`
+ *    reading before the document acts on the key, or [BodyReveal.resizeStep] compares the folded
+ *    height with itself and expires in silence, the symptom, restored. Which of down and up the
+ *    document acts on is not knowable here and is not the same for every key, so both arm; see
  *    [BodyReveal.keyArmsResizeProbe] for the arbitration and what the spare probe costs.
  *
- * EVERY NUMBER IS WRITTEN OUT — the platform's own constants, and the three key codes actually
+ * Every number is written out, the platform's own constants, and the three key codes actually
  * pressed on the bench. Nothing here re-derives the shipped rule to decide what to expect: drop
  * either instant, add a key to the set, or let a held key through, and this file goes red.
  */
@@ -32,10 +32,10 @@ class KeyArmsResizeProbeTest {
     private val actionDown = 0 // ACTION_DOWN
     private val actionUp = 1 // ACTION_UP
     private val actionMultiple = 2 // ACTION_MULTIPLE
-    private val space = 62 // KEYCODE_SPACE — bench
-    private val enter = 66 // KEYCODE_ENTER — bench
-    private val dpadCenter = 23 // KEYCODE_DPAD_CENTER — bench
-    private val numpadEnter = 160 // KEYCODE_NUMPAD_ENTER — the fourth activation key
+    private val space = 62 // KEYCODE_SPACE, bench
+    private val enter = 66 // KEYCODE_ENTER, bench
+    private val dpadCenter = 23 // KEYCODE_DPAD_CENTER, bench
+    private val numpadEnter = 160 // KEYCODE_NUMPAD_ENTER, the fourth activation key
 
     @Test fun `the three keys pressed on the bench arm the probe on their press`() {
         assertEquals(
@@ -64,9 +64,9 @@ class KeyArmsResizeProbeTest {
 
     @Test fun `the release arms it too, because which instant the document acts on is not known`() {
         // Not symmetry for its own sake, and not caution: it is the arbitration. In Blink, a
-        // keydown on SPACE only marks the <summary> active and the synthesised click leaves on the
-        // KEYUP, while ENTER and DPAD_CENTER act on the press — that reading cannot be checked from
-        // this repo, and if it is right then arming on the press ALONE loses a held SPACE: the
+        // keydown on space only marks the <summary> active and the synthesised click leaves on the
+        // KEYUP, while ENTER and DPAD_CENTER act on the press, that reading cannot be checked from
+        // this repo, and if it is right then arming on the press alone loses a held space: the
         // twenty ticks (~1s) expire before the fold arrives at the release, and nothing re-arms.
         // Arming on both costs one bounded probe that reads the same height twice and says nothing
         // (resizeStep → Done). Losing the bar until the message is reopened costs the reader.
@@ -94,7 +94,7 @@ class KeyArmsResizeProbeTest {
     }
 
     @Test fun `a held key repeats without re-arming, and its release arms once`() {
-        // A key held down produces DOWN after DOWN with a growing repeat count. Arming on the
+        // A key held down produces down after down with a growing repeat count. Arming on the
         // repeats would hang a fresh twenty-tick probe off the UI thread several times a second
         // for as long as the key is held: a permanent size watcher through the back door, which is
         // the bar-blink of Codeberg #63. The final release still carries repeatCount 0, so the
@@ -142,8 +142,8 @@ class KeyArmsResizeProbeTest {
     }
 
     @Test fun `exactly four key codes arm the probe, out of every code the platform has`() {
-        // The WHOLE key space, not three chosen counter-examples: a key added to the set — say
-        // KEYCODE_DPAD_UP (19), which only moves focus — would hang a twenty-tick probe off every
+        // The whole key space, not three chosen counter-examples: a key added to the set, say
+        // KEYCODE_DPAD_UP (19), which only moves focus, would hang a twenty-tick probe off every
         // press of it, and three negative examples would never notice. 400 covers KEYCODE_MAX on
         // every API this app runs on, with room over it: an unassigned code must not arm either.
         val codes = 0..400

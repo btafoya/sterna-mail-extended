@@ -4,20 +4,22 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Where the move's numbering guard is PLUGGED IN — the source-text half of
+ * Where the move's numbering guard is PLUGGED in, the source-text half of
+ * [MoveNeedsTheNumberingStatedNowTest], and the twin of the wiring half of
+ * [ImapDestroyUnderNumberingTest] (Codeberg #99).
  */
 class ImapMoveUnderNumberingTest {
 
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
-    /** The code lines of [body] naming [needle] — comments dropped, whitespace normalised. Whole
+    /** The code lines of [body] naming [needle], comments dropped, whitespace normalised. Whole
      *  lines: the assertions compare them, never search inside them. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         codeLinesOf(body).filter { needle in it }
 
     /**
-     * The same, for a needle that has to catch SYNONYMS.
+     * The same, for a needle that has to catch synonyms.
      */
     private fun codeLinesNaming(body: String, needle: Regex): List<String> =
         codeLinesOf(body).filter { needle.containsMatchIn(it) }
@@ -28,13 +30,15 @@ class ImapMoveUnderNumberingTest {
 
     /**
      * Any mention of a numbering, under any spelling: `recordedUidValidity`, `recordedNumbering`,
+     * `expectedUidValidity`, a local called `numbering`. Rules using it pin the whole list of
+     * lines that match, so the legitimate ones are named and a new one cannot slip in.
      */
     private val anyNumbering = Regex("(?i)(numbering|validity|frozen|recorded)")
 
     // ---- the three single-message movers ------------------------------------------------------
 
     /**
-     * `archive` and `moveToMailbox` each read the numbering ON THE SPOT, for the folder the message
+     * `archive` and `moveToMailbox` each read the numbering on the spot, for the folder the message
      */
     @Test fun `the single-message movers oppose the source folder's recorded numbering`() {
         val expected = mapOf(
@@ -56,7 +60,7 @@ class ImapMoveUnderNumberingTest {
     }
 
     /**
-     * `delete` IS THE BIN, AND IT IS ALSO THE SECOND HALF OF A MOVE BETWEEN ACCOUNTS (#189).
+     * `delete` is the bin, and it is also the second half of a MOVE between accounts (#189).
      */
     @Test fun `the bin opposes the stamp it was handed, falling back on the folder's record`() {
         val body = bodyOf("delete")
@@ -99,7 +103,8 @@ class ImapMoveUnderNumberingTest {
     }
 
     /**
-     * The undo of a move is a move, and it is the one that puts the message BACK: it selects the
+     * The undo of a move is a move, and it is the one that puts the message back: it selects the
+     * folder the forward move landed it in, and the UIDs it carries are the ones `COPYUID`
      */
     @Test fun `the restore opposes the frozen numbering of the folder it takes the mail out of`() {
         val body = bodyOf("restoreAll")
@@ -157,7 +162,7 @@ class ImapMoveUnderNumberingTest {
     }
 
     /**
-     * THE UNDO ABSORBS A REFUSED MOVE-BACK, AND THE APP LAYER DEPENDS ON IT WITHOUT SAYING SO.
+     * The undo absorbs a refused MOVE-back, and the app layer depends on it without saying so.
      */
     @Test fun `a move-back that is refused stops here, and never reaches the banner`() {
         val body = bodyOf("restoreAll")
@@ -179,7 +184,7 @@ class ImapMoveUnderNumberingTest {
     }
 
     /**
-     * WHAT IS FROZEN, at the four sites that write an Undo landing: the numbering the move's own
+     * What is frozen, at the four sites that write an Undo landing: the numbering the move's own
      */
     @Test fun `every undo landing freezes the numbering COPYUID stated for the destination`() {
         val source = DaoQuerySource.mailSource("MailRepository")
@@ -203,7 +208,7 @@ class ImapMoveUnderNumberingTest {
     // ---- the batch mover, and the three bulk gestures that feed it ----------------------------
 
     /**
-     * On the batch path the numbering ARRIVES; it is not read here. The bulk gestures are the ones
+     * On the batch path the numbering arrives; it is not read here. The bulk gestures are the ones
      */
     @Test fun `the batch move takes the numbering it is handed, and reads none of its own`() {
         val body = bodyOf("imapMoveGroup")
@@ -236,7 +241,7 @@ class ImapMoveUnderNumberingTest {
     }
 
     /**
-     * And the refusal must feed `failed` WITHOUT a catch of its own. `ImapNumberingUnconfirmed`
+     * And the refusal must feed `failed` without a catch of its own. `ImapNumberingUnconfirmed`
      */
     @Test fun `a refused batch move fails its ids instead of counting them moved`() {
         val body = bodyOf("imapMoveGroup")
@@ -256,7 +261,7 @@ class ImapMoveUnderNumberingTest {
     }
 
     /**
-     * The three bulk gestures, each handing its group's own numbering down. The key is the
+     * The three bulk gestures, each handing its group's own numbering down.
      */
     @Test fun `each bulk gesture hands the batch its own source folder's numbering`() {
         val expected = mapOf(
@@ -285,7 +290,7 @@ class ImapMoveUnderNumberingTest {
     }
 
     /**
-     * THE BLIND SPOT that got the first delivery rejected: the rules above each look at a mover
+     * The blind spot that got the first delivery rejected: the rules above each look at a mover
      */
     @Test fun `every caller of a bulk mover inside the repository hands the numbering on`() {
         val calls = codeLinesNaming(
@@ -306,7 +311,7 @@ class ImapMoveUnderNumberingTest {
     }
 
     /**
-     * The parameter itself, pinned on each declaration — the map must stay a map keyed by source
+     * The parameter itself, pinned on each declaration, the map must stay a map keyed by source
      */
     @Test fun `the bulk gestures take a per-source-folder numbering, defaulting to nothing`() {
         listOf("archiveAll", "moveAllToMailbox", "deleteAll", "reportSpamAll", "notSpamAll").forEach { function ->
@@ -330,7 +335,7 @@ class ImapMoveUnderNumberingTest {
         )
     }
 
-    /** The declaration lines of [function] — from its `fun` line to the line its body opens on.
+    /** The declaration lines of [function], from its `fun` line to the line its body opens on.
      *  These signatures are written one parameter per line precisely so this can read them. */
     private fun signatureOf(function: String): String {
         val lines = DaoQuerySource.mailSource("MailRepository").lines()

@@ -15,7 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The read-receipt decision, EXECUTED — the whole truth table of [offeredReadReceipt], the capture
+ * The read-receipt decision, executed, the whole truth table of [offeredReadReceipt], the capture
  */
 class ReadReceiptOfferTest {
 
@@ -28,7 +28,7 @@ class ReadReceiptOfferTest {
 
     // -- 1. the truth table -----------------------------------------------------------------------
 
-    /** The ONE yes: switched on, the reader settled on it, nobody has answered, and somebody is
+    /** The one yes: switched on, the reader settled on it, nobody has answered, and somebody is
      *  named. */
     @Test fun `a message read by a person, with the switch on, may ask`() {
         assertEquals(
@@ -43,7 +43,7 @@ class ReadReceiptOfferTest {
     }
 
     /**
-     * The setting nobody has answered yet is NOT the setting turned on. This is the row the
+     * The setting nobody has answered yet is not the setting turned on.
      */
     @Test fun `a setting still being read asks nothing`() {
         assertNull(
@@ -69,14 +69,16 @@ class ReadReceiptOfferTest {
     }
 
     /**
-     * The eight other ways a message becomes read. A swipe, a multi-select, "mark all read", a
+     * The eight other ways a message becomes read.
      */
     @Test fun `a message marked read by anything but the reader asks nothing`() {
         assertNull(offeredReadReceipt(ReadReceiptSetting.ON, ReadMarking.OTHER, asked, answered = false))
     }
 
     /**
-     * Reopening a message that was already read asks nothing — the trigger is the transition, and
+     * Reopening a message that was already read asks nothing, the trigger is the transition, and
+     * this is what keeps the work free of an "already answered" column, its migration and its
+     * resync.
      */
     @Test fun `a message that was already read asks nothing`() {
         assertNull(
@@ -102,7 +104,7 @@ class ReadReceiptOfferTest {
     }
 
     /**
-     * The header was there and named nothing usable — `<>`, a bare word, a group with no
+     * The header was there and named nothing usable, `<>`, a bare word, a group with no
      */
     @Test fun `a header naming no usable address asks nothing, and does not throw`() {
         assertNull(
@@ -116,7 +118,7 @@ class ReadReceiptOfferTest {
     }
 
     /**
-     * REPLAYING THE DECISION IS NOT FORGETTING THE ANSWER.
+     * Replaying the decision is not forgetting the answer.
      */
     @Test fun `a question the reader has answered is not asked again`() {
         assertNull(
@@ -163,7 +165,9 @@ class ReadReceiptOfferTest {
     // -- 2. the capture ---------------------------------------------------------------------------
 
     /**
-     * `deliveredTo` is carried into the request, and it is the address the message ARRIVED at —
+     * `deliveredTo` is carried into the request, and it is the address the message arrived at,
+     * handed in by the caller, never derived from the account here: an account with several
+     * aliases has several addresses and only one of them was written to.
      */
     @Test fun `the capture carries the address the message arrived at`() {
         val request = readReceiptRequest(
@@ -212,7 +216,7 @@ class ReadReceiptOfferTest {
     }
 
     /**
-     * THE SUBJECT THAT LEAVES THE DEVICE IS THE COVER ONE, and the one on the [Email] is not
+     * The subject that leaves the device is the cover one, and the one on the [Email] is not
      */
     @Test fun `the receipt carries the cover subject, never the one on the message shown`() {
         val request = readReceiptRequest(
@@ -250,7 +254,9 @@ class ReadReceiptOfferTest {
     // -- 3. the two directions the replay has to get right -----------------------------------------
 
     /**
-     * The setting changing under a standing question, both ways, through the ONE decision that is
+     * The setting changing under a standing question, both ways, through the one decision that is
+     * replayed on every emission: off takes the banner away, on puts it, and neither is a separate
+     * piece of code that could disagree with the other.
      */
     @Test fun `the switch moving takes the question away and puts it back`() {
         assertNull(
@@ -278,7 +284,7 @@ class ReadReceiptOfferTest {
     // -- 4. what the reader is told after saying yes -----------------------------------------------
 
     /**
-     * The preview is RELAYED, never rebuilt. The strings below are deliberately not the ones
+     * The preview is relayed, never rebuilt. The strings below are deliberately not the ones
      */
     @Test fun `what was queued is what the state carries`() {
         val queued = ReadReceiptPreview(
@@ -297,10 +303,11 @@ class ReadReceiptOfferTest {
         assertEquals(ReadReceiptState.Failed, readReceiptSendOutcome(null))
     }
 
-    // -- 5. what an OPEN is allowed to write into the cover ---------------------------------------
+    // -- 5. what an open is allowed to write into the cover ---------------------------------------
 
     /**
-     * THE ROW THIS WHOLE FUNCTION EXISTS FOR — re-opening a message decrypted earlier in this
+     * The row this whole function exists for, re-opening a message decrypted earlier in this
+     * process (leave the list, come back, tap it again).
      */
     @Test fun `re-opening a decrypted message does not overwrite the cover with the protected subject`() {
         val held = coverSubjectAfterOpen(
@@ -313,7 +320,7 @@ class ReadReceiptOfferTest {
         assertNotEquals("Quarterly budget review", held)
     }
 
-    /** Locked is still the ENVELOPE — nothing has been decrypted yet, so its subject is the cover
+    /** Locked is still the ENVELOPE, nothing has been decrypted yet, so its subject is the cover
      * and it is the freshest read of it there is. Not swept up by a wider guard. */
     @Test fun `an encrypted message that is still locked hands over its own subject`() {
         assertEquals(
@@ -330,7 +337,7 @@ class ReadReceiptOfferTest {
         )
     }
 
-    /** A null never erases what the cached row already found — in every crypto state. */
+    /** A null never erases what the cached row already found, in every crypto state. */
     @Test fun `an open with no subject at all keeps what is held`() {
         assertEquals("[...]", coverSubjectAfterOpen("[...]", email(subject = null), null))
         assertEquals(
@@ -340,7 +347,7 @@ class ReadReceiptOfferTest {
         assertEquals("[...]", coverSubjectAfterOpen("[...]", email(subject = null), decrypted))
     }
 
-    /** And no fallback the other way either: nothing held plus a decrypted open is NOTHING. The
+    /** And no fallback the other way either: nothing held plus a decrypted open is nothing. The
      *  receipt then goes out untitled, which loses nothing and leaks nothing. */
     @Test fun `nothing held and a decrypted open stays nothing`() {
         assertNull(coverSubjectAfterOpen(null, email(subject = "Quarterly budget review"), decrypted))

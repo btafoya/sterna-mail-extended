@@ -60,7 +60,7 @@ private fun codePointOrNull(cp: Int): String? =
     if (cp <= 0 || cp > 0x10FFFF || cp in 0xD800..0xDFFF) null else String(Character.toChars(cp))
 
 /**
- * Named references worth decoding — not the full HTML5 table, just what shows up in signatures
+ * Named references worth decoding, not the full HTML5 table, just what shows up in signatures
  * and quoted mail. `&nbsp;` decodes to a normal space, not U+00A0, so plain text still wraps.
  */
 private val NAMED_ENTITIES: Map<String, Int> = mapOf(

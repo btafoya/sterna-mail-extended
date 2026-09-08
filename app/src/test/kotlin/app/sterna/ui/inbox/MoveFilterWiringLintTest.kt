@@ -5,7 +5,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — the instrument of [SubscribedFoldersSurfaceWiringTest],
+ * Source lint, not a behaviour test, the instrument of [SubscribedFoldersSurfaceWiringTest],
+ * pointed at the move-to-folder picker's filter field (#182).
  */
 class MoveFilterWiringLintTest {
 
@@ -69,7 +70,7 @@ class MoveFilterWiringLintTest {
             listOf("var folderQuery by remember { mutableStateOf(\"\") }"),
             block(MESSAGE_SCREEN, "var folderQuery by", 1),
         )
-        // Held inside the `if` means: declared AFTER the line that opens it, and before the dialog.
+        // Held inside the `if` means: declared after the line that opens it, and before the dialog.
         assertEquals("the list picker's query is declared outside `if (showMoveSheet)`", 1, opensBefore(INBOX_SCREEN, "if (showMoveSheet) {", "var moveQuery by"))
         assertEquals("the reader's query is declared outside `if (movePicker)`", 1, opensBefore(MESSAGE_SCREEN, "if (movePicker) {", "var folderQuery by"))
     }
@@ -119,14 +120,14 @@ class MoveFilterWiringLintTest {
 
     // ── instrument (copied from SubscribedFoldersSurfaceWiringTest) ──────────────────────────────
 
-    /** [count] consecutive code lines from the ONE line starting with [prefix]. */
+    /** [count] consecutive code lines from the one line starting with [prefix]. */
     private fun block(file: File, prefix: String, count: Int): List<String> {
         val lines = codeLines(file)
         val at = only(lines, prefix)
         return lines.subList(at, minOf(at + count, lines.size))
     }
 
-    /** 1 when the ONE line starting with [outer] comes before the ONE starting with [inner]. */
+    /** 1 when the one line starting with [outer] comes before the one starting with [inner]. */
     private fun opensBefore(file: File, outer: String, inner: String): Int {
         val lines = codeLines(file)
         return if (only(lines, outer) < only(lines, inner)) 1 else 0

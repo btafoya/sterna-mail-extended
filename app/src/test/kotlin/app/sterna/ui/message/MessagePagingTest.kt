@@ -182,8 +182,8 @@ class MessagePagingTest {
     }
 
     @Test fun `an unsettled page in the error state does not load either`() {
-        // The trap the old shape fell into: the guard read "no reload needed AND not in error",
-        // an OR in disguise, so an error state re-loaded whatever the page's status. A neighbour
+        // The trap the old shape fell into: the guard read "no reload needed and not in error",
+        // an or in disguise, so an error state re-loaded whatever the page's status. A neighbour
         // whose previous fetch failed is still a message nobody touched.
         assertFalse(
             MessagePaging.needsLoad(
@@ -249,7 +249,7 @@ class MessagePagingTest {
         )
     }
 
-    /** [MessagePaging.needsLoad] for a settled page whose last load did not fail — where the #92
+    /** [MessagePaging.needsLoad] for a settled page whose last load did not fail, where the #92
      *  cases below all live. It forwards its arguments and decides nothing. */
     private fun settledOk(loadedId: String?, loadedAccountId: String?, emailId: String, accountId: String?) =
         MessagePaging.needsLoad(
@@ -289,7 +289,7 @@ class MessagePagingTest {
 
     @Test fun `the guard agrees with the page key, once the page has settled`() {
         // One rule, two uses: on the settled page, a reload is needed exactly when the entry key
-        // changes. Unsettled, the two part company on purpose — see the tests above.
+        // changes. Unsettled, the two part company on purpose, see the tests above.
         fun agree(id1: String, acc1: String?, id2: String, acc2: String?) {
             val differentKey = MessagePaging.entryKey(id1, acc1) != MessagePaging.entryKey(id2, acc2)
             assertEquals(differentKey, settledOk(id1, acc1, id2, acc2))
@@ -301,11 +301,11 @@ class MessagePagingTest {
         agree("M42", null, "M42", "acct-a")
     }
 
-    // --- settledEntry: which MESSAGE the reader is settled on (bench G-décalage, 2026-09-04) ---
+    // --- settledEntry: which message the reader is settled on (bench G-décalage, 2026-09-04) ---
     //
     // The answer is an entry, never a page number. A page number is refreshed only around a
-    // scroll, so a list that moves underneath an open reader leaves it naming the neighbour above
-    // — which then loads, and on IMAP a load files that sender's announced key in OpenKeychain.
+    // scroll, so a list that moves underneath an open reader leaves it naming the neighbour above,
+    // which then loads, and on IMAP a load files that sender's announced key in OpenKeychain.
 
     @Test fun `at rest the settled entry is the one under the reader's eyes`() {
         assertEquals("b", MessagePaging.settledEntry(previous = "a", atRest = "b", scrolling = false))
@@ -313,7 +313,7 @@ class MessagePagingTest {
 
     @Test fun `a page merely brushed past while scrolling never becomes the settled one`() {
         // G16: the finger crosses the neighbour's page mid-gesture. `isScrollInProgress` is true
-        // for the whole of it, drag and fling alike, so the previously settled message stands —
+        // for the whole of it, drag and fling alike, so the previously settled message stands,
         // this is the guard that carries the value of the old `settledPage`.
         assertEquals("a", MessagePaging.settledEntry(previous = "a", atRest = "b", scrolling = true))
         assertEquals("a", MessagePaging.settledEntry(previous = "a", atRest = null, scrolling = true))
@@ -330,7 +330,9 @@ class MessagePagingTest {
     }
 
     /**
-     * What an insertion at the top of the mailbox does to a RANK and to an IDENTITY, played with
+     * What an insertion at the top of the mailbox does to a rank and to an identity, played with
+     * the repository's own functions ([MessagePaging.mergeEntries], [MessagePaging.entryKey]) and
+     * nothing re-implemented here.
      */
     @Test fun `mail injected at the top moves the rank, never the identity`() {
         val neigh = "GB-NEIGH" to "acct-a"
@@ -340,7 +342,7 @@ class MessagePagingTest {
         val idOf = { e: Pair<String, String?> -> MessagePaging.entryKey(e.first, e.second) }
 
         val before = MessagePaging.mergeEntries(emptyList(), listOf(neigh, open, older), idOf)
-        // The reader settles on GB-OPEN: page 1 of [GB-NEIGH, GB-OPEN, GB-OLD].
+        // The reader settles on GB-open: page 1 of [GB-NEIGH, GB-open, GB-old].
         val pageSettledOn = before.indexOfFirst { idOf(it) == idOf(open) }
         assertEquals(1, pageSettledOn)
 
@@ -348,7 +350,7 @@ class MessagePagingTest {
         val after = MessagePaging.mergeEntries(before, listOf(injected, neigh, open, older), idOf)
         assertEquals(listOf(injected, neigh, open, older), after)
 
-        // BY RANK — the page number the reader settled on now names the message ABOVE hers. This
+        // By rank, the page number the reader settled on now names the message above hers. This
         // is the bench red: GB-NEIGH's page believed itself settled, loaded, and its sender's key
         // landed in OpenKeychain from a message nobody opened.
         assertEquals(
@@ -357,7 +359,7 @@ class MessagePagingTest {
             after[pageSettledOn],
         )
 
-        // BY IDENTITY — GB-OPEN is still in the list, and it is no longer at that number. Holding
+        // By identity, GB-open is still in the list, and it is no longer at that number. Holding
         // the settled page as the entry is what survives the shift; holding it as a rank does not.
         val whereOpenIsNow = after.indexOfFirst { idOf(it) == idOf(open) }
         assertNotEquals(pageSettledOn, whereOpenIsNow)
@@ -366,6 +368,8 @@ class MessagePagingTest {
 
     /**
      * And the two ways the screen can then be driven, run through the shipped decision: at rest on
+     * the entry the pager re-anchored to, GB-open stands; and if no emission comes at all (nothing
+     * moved for the pager to report), the previous answer is what the screen keeps.
      */
     @Test fun `the settled message survives the shift, whichever way the pager reports it`() {
         val open = "GB-OPEN" to "acct-a"
@@ -374,14 +378,14 @@ class MessagePagingTest {
         val atRestOnOpen = MessagePaging.settledEntry(previous = open, atRest = open, scrolling = false)
         assertEquals(open, atRestOnOpen)
 
-        // A report that arrives WHILE the list is still moving must not be taken: the neighbour
+        // A report that arrives while the list is still moving must not be taken: the neighbour
         // sitting at the old number is exactly what `scrolling` refuses.
         assertEquals(open, MessagePaging.settledEntry(previous = open, atRest = neigh, scrolling = true))
     }
 
     // --- warmable: may this cached body be put on screen before the finger arrives? ---
     //
-    // The decision is EXECUTED here, on values, never re-derived by the test. The call site
+    // The decision is executed here, on values, never re-derived by the test. The call site
     //    that feeds it (MessageViewModel.warmFromCache) is pinned separately, line for line, by
     //    LoadOnSettleCallSiteTest: a pure function is green against any arguments at all.
 
@@ -441,7 +445,7 @@ class MessagePagingTest {
     @Test fun `a body whose inline images are still missing is not warmed`() {
         // The JMAP prefetch writes `inlineImages = emptyMap()`. Warming this builds a document
         // with holes; settling on it downloads the images, `html` is rebuilt on `msg.inlineImages`
-        // and the WebView RELOADS — a white flash, worse than the spinner it replaced.
+        // and the WebView reloads, a white flash, worse than the spinner it replaced.
         assertFalse(
             MessagePaging.warmable(
                 cryptoKind = null,
@@ -466,7 +470,7 @@ class MessagePagingTest {
     @Test fun `the predicate is exactly the condition under which ensureInlineImages does nothing`() {
         // MailRepository.ensureInlineImages returns the cached body untouched when
         // `inlineImageParts().isEmpty() || inlineImages.isNotEmpty()`. Warming under anything
-        // WIDER is what makes the WebView reload; this pins the two halves and the corner where
+        // wider is what makes the WebView reload; this pins the two halves and the corner where
         // more images are cached than the body references.
         assertTrue(MessagePaging.warmable(null, 0, cachedInlineImages = 3, senderAllowedRemoteImages = false))
         assertTrue(MessagePaging.warmable(null, 3, cachedInlineImages = 1, senderAllowedRemoteImages = false))
@@ -474,7 +478,7 @@ class MessagePagingTest {
     }
 
     /**
-     * THE REFUSAL, PINNED — but NOT for the reason first written here. That reason was: a
+     * The refusal, pinned, but not for the reason first written here.
      */
     @Test fun `a body whose sender loads remote images automatically is never warmed`() {
         assertFalse(

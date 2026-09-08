@@ -21,7 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 /**
- * A calm, coastal line-art scene for an empty screen. Each one is drawn as a
+ * A calm, coastal line-art scene for an empty screen.
  */
 enum class EmptyArt { INBOX_ZERO, SEARCH, FOLDER, TRASH, OFFLINE }
 
@@ -66,14 +66,14 @@ private fun artVector(art: EmptyArt, ink: Color, accent: Color): ImageVector = w
         stroke("M32,52 L50,52 L56,58 L88,58 L88,82 L32,82 Z", ink)
         fill("M58,42 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z", accent)
     }
-    // An empty bin, swept clean — a small coral sparkle.
+    // An empty bin, swept clean, a small coral sparkle.
     EmptyArt.TRASH -> buildArt("trashEmpty") {
         stroke("M40,52 L80,52", ink)
         stroke("M44,52 L48,82 L72,82 L76,52", ink)
         stroke("M54,52 L54,47 L66,47 L66,52", ink)
         fill("M60,33 L61.6,38.4 L67,40 L61.6,41.6 L60,47 L58.4,41.6 L53,40 L58.4,38.4 Z", accent)
     }
-    // A cloud, adrift and disconnected — a coral line across it.
+    // A cloud, adrift and disconnected, a coral line across it.
     EmptyArt.OFFLINE -> buildArt("offline") {
         stroke("M44,72 C34,72 33,59 43,57 C44,46 61,45 63,55 C72,52 78,65 69,72 Z", ink)
         stroke("M40,46 L80,76", accent)

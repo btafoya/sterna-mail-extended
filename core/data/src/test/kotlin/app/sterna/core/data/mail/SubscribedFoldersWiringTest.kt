@@ -5,27 +5,27 @@ import org.junit.Test
 import java.io.File
 
 /**
- * WHICH boolean reaches `ImapSession.listFolders`, and at which call sites (#174).
+ * Which boolean reaches `ImapSession.listFolders`, and at which call sites (#174).
  *
- * The decision itself is executed elsewhere — `withSubscriptions`/`parseLsubPaths` in
+ * The decision itself is executed elsewhere, `withSubscriptions`/`parseLsubPaths` in
  * `:core:imap` (`SubscribedFoldersTest`) and `showOnlySubscribedFoldersOf` in
- * `ShowOnlySubscribedFoldersTest`. What no executable test on this bench can reach is the WIRING:
+ * `ShowOnlySubscribedFoldersTest`. What no executable test on this bench can reach is the wiring:
  * `MailRepository` opens an `AccountStore` (shared preferences) in its constructor and
- * `ImapMailService` needs a live session, and there is no Robolectric here — same reason as
+ * `ImapMailService` needs a live session, and there is no Robolectric here, same reason as
  * [DecryptedSubjectCallSiteTest], whose source-reading harness this reuses.
  *
  * Both halves matter and neither implies the other:
  * - passing a hard-coded `false` from the repository compiles, keeps every other test green, and
- *   leaves the setting INERT on IMAP — nothing is ever hidden, the switch does nothing;
+ *   leaves the setting inert on IMAP, nothing is ever hidden, the switch does nothing;
  * - passing `onlySubscribed` at a call site whose rows are DISCARDED costs an LSUB round trip for
  *   nothing. Three such sites exist and all three must stay bare: the rename-delimiter lookup, the
- *   connection test, and the push-wake refresh. `ImapMailService.listMailboxes` is a fourth — its
+ *   connection test, and the push-wake refresh. `ImapMailService.listMailboxes` is a fourth, its
  *   one caller reads a role off the rows and writes none of them, so a flag there would buy an
  *   extra full listing on every archive and every delete, on exactly the big-folder-list account
  *   this feature was asked for.
  *
- * Assertions are on WHOLE trimmed lines, by equality, and they screen EVERY code line that calls
- * these functions — never `contains`, which is blind to any mutation that lengthens a line.
+ * Assertions are on whole trimmed lines, by equality, and they screen every code line that calls
+ * these functions, never `contains`, which is blind to any mutation that lengthens a line.
  */
 class SubscribedFoldersWiringTest {
 
@@ -40,7 +40,7 @@ class SubscribedFoldersWiringTest {
                 // Bare, and the only bare one in this list: these rows are never cached, so a
                 // subscription fetched for them is an LSUB paid on every archive and every delete.
                 "val folders = imap.listMailboxes(credentials)",
-                // The value STATED by the caller, not re-read from the store here: the toggle
+                // The value stated by the caller, not re-read from the store here: the toggle
                 // path hands it down (`refreshFolderList`), so no ordering between the store write
                 // and this listing can turn the feature off.
                 "val load = imap.loadFolder(credentials, requestedMailboxId = null, limit = 1, " +
@@ -58,10 +58,10 @@ class SubscribedFoldersWiringTest {
                 "and the watched-folder refresh all discard their rows and must keep their bare " +
                 "LIST. Lines found:",
             listOf(
-                "withSession(credentials) { it.listFolders() }", // listImapFolders — a delimiter, no more
+                "withSession(credentials) { it.listFolders() }", // listImapFolders, a delimiter, no more
                 "withSession(credentials) { it.listFolders() }", // testConnection
-                "session.listFolders().mapIndexed { index, folder ->", // listMailboxes — rows discarded
-                "val folders = session.listFolders(onlySubscribed)", // loadFolder — the cached rows
+                "session.listFolders().mapIndexed { index, folder ->", // listMailboxes, rows discarded
+                "val folders = session.listFolders(onlySubscribed)", // loadFolder, the cached rows
                 "val folders = session.listFolders()", // the push-wake refresh: no LSUB on every wake-up
             ),
             codeLines("core/data/src/main/kotlin/app/sterna/core/data/mail/ImapMailService.kt")
@@ -70,15 +70,15 @@ class SubscribedFoldersWiringTest {
     }
 
     /**
-     * WHERE the boolean comes from, at each of the two doors into the folder-list refresh — the
+     * Where the boolean comes from, at each of the two doors into the folder-list refresh, the
      * order of these seven lines IS the fix (#174).
      *
      * The toggle path enters by `refreshFolderList(accountId, onlySubscribed)` and hands its own
      * argument down; the create/rename/delete paths enter by the one-argument overload, which has
      * no opinion of its own and reads the account's stored setting. Collapse the two into a single
      * function that re-reads the store and the tick becomes order-dependent: sync before write and
-     * the listing goes out under the OLD value, the LSUB is never asked for, and the switch is
-     * inert again — with every other test in this branch still green.
+     * the listing goes out under the old value, the LSUB is never asked for, and the switch is
+     * inert again, with every other test in this branch still green.
      */
     @Test fun `the toggle's own value reaches the listing, and only the other door reads the store`() {
         val lines = codeLines("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt")
@@ -88,7 +88,7 @@ class SubscribedFoldersWiringTest {
             listOf(
                 "suspend fun refreshFolderList(accountId: String, onlySubscribed: Boolean) {",
                 "val credentials = accountStore.credentials(accountId) ?: return",
-                // `onlySubscribed`, the caller's — NOT accountStore.showOnlySubscribedFolders(...).
+                // `onlySubscribed`, the caller's, not accountStore.showOnlySubscribedFolders(...).
                 "refreshMailboxes(credentials, onlySubscribed)",
                 "}",
                 "private suspend fun refreshMailboxes(credentials: AccountCredentials) =",
@@ -100,7 +100,7 @@ class SubscribedFoldersWiringTest {
     }
 
     /**
-     * **What is WRITTEN to the folder cache — every write, whole line** (#174).
+     * **What is written to the folder cache, every write, whole line** (#174).
      *
      * The pin this branch was missing, and the mutation it exists for:
      *
@@ -110,18 +110,18 @@ class SubscribedFoldersWiringTest {
      * ```
      *
      * That one passed the whole suite. The seven-line pin above stops at the private overload's
-     * SIGNATURE, the call-site pin above only reads lines naming `imap.loadFolder(`, the executable
+     * signature, the call-site pin above only reads lines naming `imap.loadFolder(`, the executable
      * test next door never builds a `MailRepository` at all, and the "filter at the screen" guard
-     * lives in `:app` and scans `app/src/main` only — `:core:data` is not swept by it.
+     * lives in `:app` and scans `app/src/main` only, `:core:data` is not swept by it.
      *
-     * And the damage is DATA, not display: ticking the box would DELETE the unsubscribed
+     * And the damage is data, not display: ticking the box would DELETE the unsubscribed
      * folders' rows from the cache. A folder delete would no longer find its hidden children
-     * (`InboxViewModel.subfolderIdsOf`) — mail nobody can reach any more — the reader's parent path
+     * (`InboxViewModel.subfolderIdsOf`) (mail nobody can reach any more) the reader's parent path
      * would lose a segment (#109), and unticking the box would leave a drawer with holes in it.
-     * The cache keeps everything the server listed; hiding is the SCREEN's job, and only the
+     * The cache keeps everything the server listed; hiding is the screen's job, and only the
      * screen's.
      *
-     * Whole lines, by equality, screening EVERY write — never `contains`, which is blind to any
+     * Whole lines, by equality, screening every write, never `contains`, which is blind to any
      * mutation that lengthens a line, and never a subset, which is blind to a new write appearing.
      */
     @Test fun `every folder-cache write keeps what the server listed, unfiltered`() {
@@ -135,7 +135,7 @@ class SubscribedFoldersWiringTest {
                 "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.map { it.toEntity(credentials.id) })",
                 "mailboxDao.replaceAll(credentials.id, mailboxes.map { it.toEntity(credentials.id) })",
                 "mailboxDao.replaceAll(credentials.id, load.mailboxes)",
-                // THE one the switch drives: `refreshFolderList` → `refreshMailboxes(credentials, onlySubscribed)`.
+                // The one the switch drives: `refreshFolderList` → `refreshMailboxes(credentials, onlySubscribed)`.
                 "mailboxDao.replaceAll(credentials.id, load.mailboxes)",
                 "mailboxDao.replaceAll(credentials.id, client.getMailboxes(ctx.session, ctx.accountId, ctx.auth).map { it.toEntity(credentials.id) })",
                 "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.map { it.toEntity(credentials.id) })",
@@ -145,7 +145,7 @@ class SubscribedFoldersWiringTest {
         )
     }
 
-    /** [relative]'s code lines, trimmed, comments and blanks dropped — as [DecryptedSubjectCallSiteTest] does. */
+    /** [relative]'s code lines, trimmed, comments and blanks dropped, as [DecryptedSubjectCallSiteTest] does. */
     private fun codeLines(relative: String): List<String> = locate(relative).readLines()
         .map { it.trim() }
         .filter { it.isNotEmpty() && !it.startsWith("//") && !it.startsWith("*") && !it.startsWith("/*") }

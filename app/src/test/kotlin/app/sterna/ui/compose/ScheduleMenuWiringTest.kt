@@ -6,7 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads a source file as text, same instrument and
+ * Source lint, not a behaviour test, it reads a source file as text, same instrument and
+ * disclaimer as every source lint in this tree: it proves nothing about behaviour.
  */
 class ScheduleMenuWiringTest {
 
@@ -75,8 +76,8 @@ class ScheduleMenuWiringTest {
     }
 
     /**
-     * The other confirmation, on the free picker three hundred lines above — the same rule, and it
-     * has no `else` branch to bound it, so it is read as the lines that FOLLOW the schedule.
+     * The other confirmation, on the free picker three hundred lines above, the same rule, and it
+     * has no `else` branch to bound it, so it is read as the lines that follow the schedule.
      */
     @Test fun `the hand-picked confirmation lives inside the same answer`() {
         val all = lines(COMPOSE_SCREEN)
@@ -141,8 +142,8 @@ class ScheduleMenuWiringTest {
     @Test fun `the label table pairs each preset with its own string`() {
         // Nothing else pins this table: `schedulePresets` is private and needs a Context, so no JVM
         // test executes it. Permute two branches, or hard-wire the Triple's first field, and the
-        // menu offers "Tomorrow, 8 AM" while the tap schedules an hour from now — the label and the
-        // instant would disagree, and the confirmation repeats the LABEL.
+        // menu offers "Tomorrow, 8 AM" while the tap schedules an hour from now, the label and the
+        // instant would disagree, and the confirmation repeats the label.
         assertEquals(
             "schedulePresets' label table and its Triple must be exactly these lines, in order",
             LABEL_TABLE,
@@ -200,10 +201,10 @@ class ScheduleMenuWiringTest {
         return all.drop(signature + 1)
     }
 
-    /** The code lines strictly between [GUARD] and [ELSE], i.e. the path that schedules. */
+    /** The code lines strictly between [guard] and [else], i.e. the path that schedules. */
     private fun guardedBlock(): List<String> = tapBranches().first
 
-    /** The code lines strictly between [ELSE] and the brace that closes it. */
+    /** The code lines strictly between [else] and the brace that closes it. */
     private fun elseBlock(): List<String> = tapBranches().second
 
     private fun tapBranches(): Pair<List<String>, List<String>> {
@@ -223,11 +224,11 @@ class ScheduleMenuWiringTest {
 
     // -- reading the sources ---------------------------------------------------------------------
 
-    /** [file]'s code as trimmed WHOLE lines, comments cut. Rules compare with equality, never
+    /** [file]'s code as trimmed whole lines, comments cut. Rules compare with equality, never
      *  contains: a mutation that lengthens a line must change the line. */
     private fun lines(file: File): List<String> = code(file).lines().map { it.trim() }
 
-    /** [file]'s code as one string, comments cut — same reader as [OutgoingDateWiringTest]. */
+    /** [file]'s code as one string, comments cut, same reader as [OutgoingDateWiringTest]. */
     private fun code(file: File): String = file.readLines().mapNotNull { line ->
         val trimmed = line.trimStart()
         if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) null
@@ -257,7 +258,7 @@ class ScheduleMenuWiringTest {
             "val sendAt = presetMillisAtTap(preset, drawnAt, System.currentTimeMillis(), java.time.ZoneId.systemDefault())"
         private const val GUARD = "if (sendAt != null) {"
 
-        /** The free picker's own call, WHOLE: the confirmation hangs off the answer, or off nothing. */
+        /** The free picker's own call, whole: the confirmation hangs off the answer, or off nothing. */
         private const val PICKER_SCHEDULE =
             "if (viewModel.scheduleSend(to, cc, bcc, subject.text, rich, millis, requestReceipt)) {"
         private const val ELSE = "} else {"

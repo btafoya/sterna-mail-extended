@@ -3,7 +3,7 @@ package app.sterna.ui
 /** What a consumed widget tap does to the back stack. Two arms, and no third. */
 enum class WidgetTapReturn {
 
-    /** Pop back to the list, so the unified inbox the tap asked for is what the user SEES. */
+    /** Pop back to the list, so the unified inbox the tap asked for is what the user sees. */
     BackToList,
 
     /** Leave the back stack exactly as it is. The list underneath still changes selection. */
@@ -11,7 +11,9 @@ enum class WidgetTapReturn {
 }
 
 /**
- * Whether a home-screen widget tap may unwind the back stack (#112), decided from the WHOLE STACK of
+ * Whether a home-screen widget tap may unwind the back stack (#112), decided from the whole stack of
+ * of routes and with no Android type in hand, so the rule can be executed in a JVM test, same
+ * shape and the same reason as [NotificationAccountSwitch] and [NotificationFolderSwitch] beside it.
  */
 object WidgetTapNavigation {
 
@@ -34,7 +36,7 @@ object WidgetTapNavigation {
     private fun destination(route: String?): String? =
         route?.takeWhile { it != '/' && it != '?' }
 
-    /** The list's route in `SternaApp`'s NavHost — the floor the caller pops back to. */
+    /** The list's route in `SternaApp`'s NavHost, the floor the caller pops back to. */
     private const val INBOX = "inbox"
 
     /** The reader's route in `SternaApp`'s NavHost, and the only destination that is popped. */

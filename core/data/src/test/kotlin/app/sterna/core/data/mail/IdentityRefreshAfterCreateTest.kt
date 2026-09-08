@@ -7,7 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * #172, second half: an identity the app has just created on the server must appear WITHOUT
+ * #172, second half: an identity the app has just created on the server must appear without
  */
 class IdentityRefreshAfterCreateTest {
 
@@ -169,7 +169,7 @@ class IdentityRefreshAfterCreateTest {
     }
 
     /**
-     * The server's OWN html signature field (RFC 8621 §6), which is not the legacy case above: here
+     * The server's own html signature field (RFC 8621 §6), which is not the legacy case above: here
      */
     @Test fun `the signature the server holds as HTML survives the re-read`() {
         val answered = listOf(
@@ -196,7 +196,7 @@ class IdentityRefreshAfterCreateTest {
     }
 
     /**
-     * [count] consecutive CODE lines of [path] from the single one starting with [prefix]. Comments
+     * [count] consecutive code lines of [path] from the single one starting with [prefix]. Comments
      */
     private fun block(path: String, prefix: String, count: Int): List<String> {
         val code = SourceText.codeLines(SourceText.read(path))

@@ -4,7 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Where the stamp factory is PLUGGED IN — the source half of [NumberingStampsTest], which runs the
+ * Where the stamp factory is PLUGGED in, the source half of [NumberingStampsTest], which runs the
+ * decision itself (Codeberg #99).
  */
 class NumberingStampsSourceTest {
 
@@ -12,7 +13,7 @@ class NumberingStampsSourceTest {
         "return numberingStampsOfRows(credentials, emailIds) { chunk -> " +
             "emailDao.numberingOfRows(credentials.id, chunk) }"
 
-    /** Code lines, comments dropped and whitespace normalised — compared whole, never searched. */
+    /** Code lines, comments dropped and whitespace normalised, compared whole, never searched. */
     private fun codeLinesOf(body: String): List<String> =
         body.lines().map { it.replace(Regex("""\s+"""), " ").trim() }
             .filterNot { it.isEmpty() || it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
@@ -21,7 +22,9 @@ class NumberingStampsSourceTest {
         codeLinesOf(body).filter { needle.containsMatchIn(it) }
 
     /**
-     * Any mention of a numbering under any spelling — the same needle as
+     * Any mention of a numbering under any spelling, the same needle as
+     * [ImapMoveUnderNumberingTest]. A rule pinned to one identifier is blind to the same value
+     * under another name, and Kotlin's shadowing leaves the guarded line byte-identical.
      */
     private val anyNumbering = Regex("(?i)(numbering|validity|frozen|recorded|stamp)")
 

@@ -5,12 +5,14 @@ import org.junit.Test
 import java.io.File
 
 /**
- * RESOURCE LINT, NOT A BEHAVIOUR TEST — the same instrument as [TranslationParityTest]: it reads
+ * Resource lint, not a behaviour test, the same instrument as [TranslationParityTest]: it reads
  */
 class DraftDeleteBodyTest {
 
     /**
-     * The rule of #127. 140 is a GROWTH CEILING, not a measurement of the slot and not a
+     * The rule of #127. 140 is a growth ceiling, not a measurement of the slot and not a
+     * derivation: it is set below the only length ever SEEN to fail, 147, German, on a Moto G
+     * (Android 9, 720×1280, `font_scale 2.0`) on 2026-08-07.
      */
     @Test
     fun `the draft-delete body fits the dialog in every language`() {
@@ -57,6 +59,8 @@ class DraftDeleteBodyTest {
 
     /**
      * The words this dialog may not borrow, per language: the outbox's ("isn't saved anywhere else",
+     * "will be lost" and their calques), an unreserved "for good", a possessive "your Trash folder",
+     * and the affirmative future, since offline the move fails and is not queued.
      */
     @Test
     fun `no language borrows the outbox's words, or promises the future`() {
@@ -104,8 +108,8 @@ class DraftDeleteBodyTest {
     }
 
     /**
-     * The XML text as it reaches the screen: entities resolved, Android's backslash escapes dropped
-     * — `\'` is one apostrophe on screen and must be counted as one character, not two.
+     * The XML text as it reaches the screen: entities resolved, Android's backslash escapes dropped,
+     * `\'` is one apostrophe on screen and must be counted as one character, not two.
      */
     private fun rendered(raw: String): String = raw
         .replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'")
@@ -123,6 +127,7 @@ class DraftDeleteBodyTest {
 
         /**
          * Per language, in this order: the destination, the deletion verb, the NEGATION that
+         * carries the branch, the unsaved typing.
          */
         val REQUIRED = mapOf(
             "values" to listOf("Trash", "deleted", "no Trash folder", "isn't saved"),

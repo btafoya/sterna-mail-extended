@@ -10,7 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The end of the IMAP road: the envelope's copies have to land in the CACHE ROW.
+ * The end of the IMAP road: the envelope's copies have to land in the cache row.
  */
 class ImapCopiesRowTest {
 
@@ -120,7 +120,7 @@ class ImapCopiesRowTest {
     }
 
     /**
-     * A Cc with no Bcc — what a received message really looks like, since a server does not tell a
+     * A Cc with no Bcc, what a received message really looks like, since a server does not tell a
      * recipient who was blind-copied. The empty column must not swallow the full one.
      */
     @Test
@@ -132,7 +132,7 @@ class ImapCopiesRowTest {
     }
 
     /**
-     * THE ONE-SIDED SHAPE THAT LEAKS: nobody in Cc, somebody in Bcc — a message this account
+     * The one-sided shape that leaks: nobody in Cc, somebody in Bcc, a message this account
      */
     @Test
     fun `a bcc without a cc stays out of the visible column`() {

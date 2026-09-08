@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT — the last resort, and for the same reason as `LocalDraftUploadWiringTest`:
+ * Source lint, the last resort, and for the same reason as `LocalDraftUploadWiringTest`:
  */
 class AttachmentCacheWiringTest {
 
@@ -14,7 +14,7 @@ class AttachmentCacheWiringTest {
         body.lines().map { it.trim() }
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") || it.isEmpty() }
 
-    /** Every WHOLE line of [source] naming [needle] — the idiom used across `core/data`'s tests. */
+    /** Every whole line of [source] naming [needle], the idiom used across `core/data`'s tests. */
     private fun codeLinesNaming(source: String, needle: String): List<String> =
         codeOf(source).filter { needle in it }
 
@@ -40,9 +40,9 @@ class AttachmentCacheWiringTest {
 
     @Test fun `clearing one account's cache takes the decrypted attachment files with it`() {
         // The whole body, in order: the file sweep is the step that was missing, and it is the last
-        // one — the rows go first so a throw from the file system cannot keep them.
+        // one, the rows go first so a throw from the file system cannot keep them.
         //
-        // `clearAttachments()` is passed NOTHING and must stay that way. The directory is flat
+        // `clearAttachments()` is passed nothing and must stay that way. The directory is flat
         // and shared, not namespaced per account (`enforceAttachmentCap` filters `isFile`,
         // `usage()` sums `length()`): an `accountId` argument here would mean someone has carved
         // sub-directories, which all three of those readers would stop seeing in silence.
@@ -65,7 +65,7 @@ class AttachmentCacheWiringTest {
     }
 
     @Test fun `the shared sweep is handed the two cache trees and nothing else`() {
-        // The ARGUMENTS, not the name of the call. Two ways to break this that both compile:
+        // The arguments, not the name of the call. Two ways to break this that both compile:
         //  - `outgoingDir` dropped: staged copies of already-queued sends (#70) survive every
         assertEquals(
             "⛔ StorageRepository.clearAttachments must hand clearAttachmentTrees the two CACHE " +
@@ -81,7 +81,7 @@ class AttachmentCacheWiringTest {
     }
 
     /**
-     * THE TWO TREES THEMSELVES, whole line. The lint above pins the two IDENTIFIERS handed to the
+     * The two trees themselves, whole line.
      */
     @Test fun `the two swept trees resolve under cacheDir, by their own names`() {
         assertEquals(
@@ -97,7 +97,7 @@ class AttachmentCacheWiringTest {
     }
 
     /**
-     * THE SWEEP ITSELF, whole line — the one function [ClearAttachmentTreesTest] executes, pinned
+     * The sweep itself, whole line, the one function [ClearAttachmentTreesTest] executes, pinned
      */
     @Test fun `the sweep deletes every file in both trees, with no condition on any of them`() {
         assertEquals(
@@ -115,7 +115,8 @@ class AttachmentCacheWiringTest {
     }
 
     /**
-     * THE GLOBAL BUTTON, whole body — the garde this branch must not defeat while fixing its
+     * The global button, whole body, the garde this branch must not defeat while fixing its
+     * neighbour. `PRIVACY.md:41-49` promises, by name, that "Clear cache" (Settings → Storage)
      */
     @Test fun `the global clear-cache still takes the attachment files with it`() {
         assertEquals(

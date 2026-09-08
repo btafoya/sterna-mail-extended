@@ -9,12 +9,14 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The two decisions of the IMAP list preview, EXECUTED (#187): whether to read opening lines at
+ * The two decisions of the IMAP list preview, executed (#187): whether to read opening lines at
+ * all, and whether the value read survives into the cache row.
  */
 class ListPreviewDecisionTest {
 
     /**
-     * THE WHOLE PRODUCT OF BOTH ENUMERATIONS, sixteen couples, each stated. Two claims live in
+     * The whole product of both enumerations, sixteen couples, each stated. Two claims live in
+     * it and both are load-bearing:
      */
     @Test fun `the list wants an opening line for these settings, and only these`() {
         val wanted = mutableListOf<Pair<PreviewLines, NotificationContent>>()
@@ -46,7 +48,7 @@ class ListPreviewDecisionTest {
         )
     }
 
-    /** And the ONE couple that reads nothing, stated on its own so the line cannot be lost in
+    /** And the one couple that reads nothing, stated on its own so the line cannot be lost in
      *  the list above: an account that shows no preview anywhere spends nothing on the radio. */
     @Test fun `an account that shows no preview anywhere reads no body`() {
         assertFalse(previewWantedInList(PreviewLines.NONE, NotificationContent.SENDER_AND_SUBJECT))
@@ -70,7 +72,7 @@ class ListPreviewDecisionTest {
     )
 
     /**
-     * THE END OF THE ROAD, and the line issue #187 was: the value read for a message has to reach
+     * The end of the road, and the line issue #187 was: the value read for a message has to reach
      */
     @Test fun `the opening line read for a message reaches the cache row`() {
         assertEquals(

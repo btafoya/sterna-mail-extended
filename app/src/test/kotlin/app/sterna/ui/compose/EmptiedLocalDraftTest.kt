@@ -14,6 +14,7 @@ import org.junit.Test
 
 /**
  * Emptying a draft the phone kept for a server draft it could not replace yet (#95 × #69), as the
+ * two decisions run, not as a lint watching a call happen.
  */
 class EmptiedLocalDraftTest {
 
@@ -101,7 +102,7 @@ class EmptiedLocalDraftTest {
         )
     }
 
-    // -- the copy this phone never read whole is KEPT ---------------------------------------------
+    // -- the copy this phone never read whole is kept ---------------------------------------------
 
     @Test fun `a draft this phone could not read whole leaves the server copy alone`() {
         val plan = planForEmptiedLocalDraft(
@@ -161,7 +162,7 @@ class EmptiedLocalDraftTest {
     }
 
     @Test fun `the eight cases are eight, and only one of them destroys`() {
-        // Every combination EXECUTED against a literal table — the two keeping terms crossed with
+        // Every combination executed against a literal table, the two keeping terms crossed with
         // "this row stands in for nothing". A constant, or a term dropped, fails whole rows here.
         val ids = listOf(null, "Mb42")
         assertEquals(
@@ -282,7 +283,8 @@ class EmptiedLocalDraftTest {
 
     @Test fun `the back gesture during the destroy does not leave the row behind`() {
         // The twin's shelter, for the twin's reason (`commitThenConsumeLocalDraft`), and this
-        // volet is what makes the hole reachable by ONE tap: the delete runs in viewModelScope, and
+        // volet is what makes the hole reachable by one tap: the delete runs in viewModelScope, and
+        // that scope dies with the NavBackStackEntry the moment the screen is popped.
         val done = mutableListOf<String>()
         runBlocking {
             val screen = Job()
@@ -316,7 +318,7 @@ class EmptiedLocalDraftTest {
 
     @Test fun `a screen closed BEFORE anything is destroyed destroys nothing`() {
         // The boundary, and it is deliberate: the shelter covers the acts, not the wait in front
-        // of them. Nothing has been destroyed yet, so the draft is precisely what must survive —
+        // of them. Nothing has been destroyed yet, so the draft is precisely what must survive,
         // the row stays where the user can still see it and the lease is given back by the caller.
         val done = mutableListOf<String>()
         runBlocking {
@@ -344,7 +346,7 @@ class EmptiedLocalDraftTest {
         assertEquals(listOf("cancelled before anything was destroyed"), done)
     }
 
-    // -- what the dialog owes the reader, BEFORE the finger ----------------------------------------
+    // -- what the dialog owes the reader, before the finger ----------------------------------------
 
     @Test fun `a copy this phone never read whole is announced as kept`() {
         assertTrue(

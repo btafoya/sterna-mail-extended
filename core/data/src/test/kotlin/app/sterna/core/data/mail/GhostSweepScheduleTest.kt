@@ -7,6 +7,10 @@ import org.junit.Test
 
 /**
  * The stateful half of the ghost sweep's gate (Codeberg #107): the bookkeeping that decides when a
+ * mailbox may be existence-checked again, exercised over sequences of syncs rather than one
+ * decision at a time. The pure gate is pinned in SyncEvictionsTest; what is pinned here is what a
+ * long-lived process does with it, the reporter's app holds a push foreground service, so "it
+ * heals on the next launch" was never an answer.
  */
 class GhostSweepScheduleTest {
 
@@ -21,7 +25,7 @@ class GhostSweepScheduleTest {
 
     private fun bench() = Bench(floor)
 
-    /** A sync of [mailbox] that reports nothing at all — a quiet account's pull-to-refresh. */
+    /** A sync of [mailbox] that reports nothing at all, a quiet account's pull-to-refresh. */
     private fun Bench.quietSync(account: String = "acc", mailbox: String = "a") =
         schedule.claim(account, mailbox, stateAdvanced = false, vanishedFromMailbox = false)
 
@@ -41,7 +45,7 @@ class GhostSweepScheduleTest {
     }
 
     @Test fun aQuietMailboxIsSweptAgainOnceTheFloorElapsesWithoutRelaunchingTheApp() {
-        // THE #107 fix, over the sequence that produced the bug report: the destroy is lost, the
+        // The #107 fix, over the sequence that produced the bug report: the destroy is lost, the
         // account then says nothing ever again, and the user pulls to refresh. Before the fix
         // every one of these refreshes was a `skip/idle` and the row only died on a cold start.
         val b = bench()
@@ -59,7 +63,7 @@ class GhostSweepScheduleTest {
     }
 
     @Test fun refusedClaimsDoNotPushTheNextSweepAway() {
-        // The trap the shape must avoid: if a REFUSED claim restamped the clock, a user pulling to
+        // The trap the shape must avoid: if a refused claim restamped the clock, a user pulling to
         // refresh every ten seconds would postpone the sweep for ever and the ghost would outlive
         // the fix. The floor is measured from the last sweep that actually ran.
         val b = bench()
@@ -102,7 +106,7 @@ class GhostSweepScheduleTest {
 
     @Test fun twoAccountsSharingAMailboxIdKeepSeparateSweepClocks() {
         // Stalwart numbers mailboxes per account, so every account's Inbox is "a". A clock keyed by
-        // the mailbox id alone would let account A's sweep silence account B's for five minutes —
+        // the mailbox id alone would let account A's sweep silence account B's for five minutes,
         // and with ten accounts, nine of them would go unswept behind the busiest one.
         val b = bench()
         assertTrue("A's own first sweep", b.quietSync(account = "A", mailbox = "a").sweep)
@@ -126,7 +130,7 @@ class GhostSweepScheduleTest {
     }
 
     @Test fun anAccountIdEndingWhereAMailboxIdBeginsIsNotTheSameKey() {
-        // "$account$mailbox" would make ("ab", "1") and ("ab1", "") — or ("a", "b1") — one key.
+        // "$account$mailbox" would make ("ab", "1") and ("ab1", "") (or ("a", "b1")) one key.
         // The pair is what identifies a sweep target, not the concatenation.
         val b = bench()
         assertTrue(b.quietSync(account = "ab", mailbox = "1").sweep)
@@ -155,6 +159,9 @@ class GhostSweepScheduleTest {
     @Test fun aFailedSweepThatWasNotTheSessionsFirstWaitsOutAWholeFloor() {
         // The documented other half of releaseFailed, and a deliberate choice rather than an
         // oversight: only the once-per-process credit is handed back, so a sweep that fails on the
+        // recurring path is retried one interval later instead of on every single sync. An unhappy
+        // server therefore cannot turn a failing existence check into a per-sync request storm; the
+        // price is that a ghost can outlive one extra interval when the network drops mid-sweep.
         val b = bench()
         assertTrue(b.quietSync().sweep) // spends the session credit
         b.elapse(floor)
@@ -189,7 +196,7 @@ class GhostSweepScheduleTest {
     }
 
     @Test fun aSweepThatSucceededIsNotRepeatedByAReleaseOfSomeoneElsesClaim() {
-        // releaseFailed only ever gives back a credit the SAME claim took: a successful sweep
+        // releaseFailed only ever gives back a credit the same claim took: a successful sweep
         // followed by a throttled (never-swept) claim must not open the gate.
         val b = bench()
         assertTrue(b.quietSync().sweep)

@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * EXECUTES [isBenchOutPathAllowed] against pinned arguments — it does not read the rule, it runs it.
+ * Executes [isBenchOutPathAllowed] against pinned arguments, it does not read the rule, it runs it.
  */
 class BenchOutPathTest {
 

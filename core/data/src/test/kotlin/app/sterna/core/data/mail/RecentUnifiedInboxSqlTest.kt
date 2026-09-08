@@ -61,7 +61,7 @@ class RecentUnifiedInboxSqlTest {
 
     /**
      * Room binds a query by handing it a statement to write itself into; this records what it
-     * writes, in the positions it writes them. Nothing here decides the order — the query does.
+     * writes, in the positions it writes them. Nothing here decides the order, the query does.
      */
     private class RecordingStatement : SupportSQLiteProgram {
         val bound = sortedMapOf<Int, Any?>()
@@ -75,7 +75,7 @@ class RecentUnifiedInboxSqlTest {
     }
 
     /**
-     * The widget's read AS THE REPOSITORY BUILDS IT — statement and binds together.
+     * The widget's read as the repository builds it, statement and binds together.
      */
     private fun widget(scopes: List<Pair<String, String>>, limit: Int) =
         recentUnifiedInboxFrom(scopes) { s ->
@@ -150,7 +150,7 @@ class RecentUnifiedInboxSqlTest {
     }
 
     @Test fun `a sibling account's identically numbered inbox stays out`() {
-        // Servers number mailboxes per account (#121/#31): "inbox" in acc2 is NOT acc1's inbox.
+        // Servers number mailboxes per account (#121/#31): "inbox" in acc2 is not acc1's inbox.
         insert("mine", sortKey = 200)
         insert("theirs", sortKey = 300, accountId = "acc2")
 
@@ -210,7 +210,8 @@ class RecentUnifiedInboxSqlTest {
     }
 
     /**
-     * The body never leaves the database — asserted on the statement the repository SHIPS, by
+     * The body never leaves the database, asserted on the statement the repository ships, by
+     * running it and reading back which columns it actually selected.
      */
     @Test fun `the widget's statement cannot carry the body of a message`() {
         insert("m1", sortKey = 100)
@@ -238,7 +239,7 @@ class RecentUnifiedInboxSqlTest {
     }
 
     /**
-     * What a line actually CARRIES — every drawn field compared to a value, not just counted.
+     * What a line actually CARRIES, every drawn field compared to a value, not just counted.
      */
     @Test fun `a line carries the fields it draws, and never the body under another name`() {
         insert("m1", sortKey = 100, seen = 0)
@@ -261,7 +262,7 @@ class RecentUnifiedInboxSqlTest {
     }
 
     /**
-     * A bound that is not a bound. The number of rows is the most natural thing for a widget to
+     * A bound that is not a bound.
      */
     @Test fun `a non-positive row bound is not a way to read everything, nor to claim emptiness`() {
         (1..5).forEach { insert("m$it", sortKey = it.toLong()) }

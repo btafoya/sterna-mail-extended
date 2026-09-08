@@ -70,9 +70,9 @@ class OutgoingDateZoneTest {
 
     @Test fun aLateFirstEmissionIsAwaitedNeverReplacedByTheDefault() = runBlocking {
         // DataStore's first emission after a cold start arrives a beat late. A reader that falls
-        // back to the default in that beat writes the local time despite the switch being on —
+        // back to the default in that beat writes the local time despite the switch being on,
         // the very leak the switch closes. So: a flow whose stored value (true) takes its time,
-        // and the resolution MUST come back UTC.
+        // and the resolution must come back UTC.
         val stored = flow {
             delay(150)
             emit(true)

@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The decision behind a notification banner's Delete button, EXECUTED — not re-derived. Every
+ * The decision behind a notification banner's Delete button, executed, not re-derived. Every
  */
 class BannerDeleteActTest {
 
@@ -34,13 +34,13 @@ class BannerDeleteActTest {
 
     @Test fun `a folder that lost its claim to the Trash role is not the Trash`() {
         // `~trash` is how the cache stores a folder whose claim another folder won
-        // (UNELECTED_ROLE_MARK): a delete really does move OUT of it, so it takes the normal path.
+        // (UNELECTED_ROLE_MARK): a delete really does move out of it, so it takes the normal path.
         assertEquals(BannerDeleteAct.MoveToTrash, bannerDeleteAct(cachedRole = "~trash", hasCachedTrash = true))
     }
 
     @Test fun `a Trash row on an account whose Trash is not cached still moves nothing`() {
-        // Both reasons at once — already at destination AND no elected Trash in the cache. Either
-        // arm answers DoNothing, so this pins the ANSWER, not an order between them.
+        // Both reasons at once, already at destination and no elected Trash in the cache. Either
+        // arm answers DoNothing, so this pins the answer, not an order between them.
         assertEquals(BannerDeleteAct.DoNothing, bannerDeleteAct(cachedRole = "trash", hasCachedTrash = false))
     }
 }

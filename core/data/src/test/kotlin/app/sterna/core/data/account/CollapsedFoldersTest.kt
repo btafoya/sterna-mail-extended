@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The drawer's fold/unfold choice (per account, persisted), EXECUTED: the write `AccountStore`
+ * The drawer's fold/unfold choice (per account, persisted), executed: the write `AccountStore`
  */
 class CollapsedFoldersTest {
 
@@ -35,7 +35,7 @@ class CollapsedFoldersTest {
     }
 
     /**
-     * THE test of this branch. The registry is the EXPLICIT choice per folder, so unfolding must
+     * The test of this branch. The registry is the explicit choice per folder, so unfolding must
      */
     @Test fun `unfolding WRITES false, it does not drop the key`() {
         val after = withCollapsedFolder(
@@ -107,7 +107,7 @@ class CollapsedFoldersTest {
     // ── the IMAP rename: the id IS the path, so the keys have to follow ─────────────────────────
 
     /**
-     * THE defect of this half. On IMAP a folder's id is its PATH, so renaming it CHANGES the id
+     * The defect of this half. On IMAP a folder's id is its path, so renaming it changes the id
      */
     @Test fun `an IMAP rename re-keys the folder AND its descendants, keeping their values`() {
         val after = withRenamedCollapsedFolder(
@@ -130,6 +130,8 @@ class CollapsedFoldersTest {
 
     /**
      * The prefix is `oldId + delimiter`, never `oldId`. `Travailleur` starts with `Travail` and
+     * is not under it, re-keying it would move a fold onto a folder nobody renamed, and on the
+     * next launch two different folders would answer to keys that describe neither.
      */
     @Test fun `a folder whose name merely STARTS with the old one is left alone`() {
         val after = withRenamedCollapsedFolder(
@@ -148,7 +150,7 @@ class CollapsedFoldersTest {
     }
 
     /**
-     * Dovecot's delimiter is `.` — the other branch `MailRepository.renameFolder` resolves and
+     * Dovecot's delimiter is `.`, the other branch `MailRepository.renameFolder` resolves and
      * hands down. A re-key that only knows "/" moves nothing at all on such an account.
      */
     @Test fun `the delimiter handed in is the one used, dot included`() {

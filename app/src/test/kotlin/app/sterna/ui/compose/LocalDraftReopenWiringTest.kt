@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Reopening a draft the phone holds and the server has not got (#95) — SOURCE LINT, THE LAST
+ * Reopening a draft the phone holds and the server has not got (#95), source lint, the last
  */
 class LocalDraftReopenWiringTest {
 
@@ -73,7 +73,8 @@ class LocalDraftReopenWiringTest {
     }
 
     /**
-     * The lease this coroutine took, given back BY THIS COROUTINE when the screen goes while the
+     * The lease this coroutine took, given back by this coroutine when the screen goes while the
+     * take is still out (#95). `takeLocalDraftEditOrGiveItBack` is executed by `LocalDraftReopenTest`
      */
     @Test fun `the lease is given back by the coroutine that took it`() {
         val body = functionBody(COMPOSE_VIEW_MODEL, "private suspend fun prepareLocalDraft(")
@@ -105,7 +106,7 @@ class LocalDraftReopenWiringTest {
     }
 
     /**
-     * Two failures, two sentences, and the difference is the point — not the wording.
+     * Two failures, two sentences, and the difference is the point, not the wording.
      */
     @Test fun `the refused row and the missing row say different things`() {
         val body = functionBody(COMPOSE_VIEW_MODEL, "private suspend fun prepareLocalDraft(")
@@ -154,7 +155,8 @@ class LocalDraftReopenWiringTest {
     }
 
     /**
-     * THE WHOLE BODY, line by line and in order — because the cheapest mutation here is a
+     * The whole body, line by line and in order, because the cheapest mutation here is a
+     * line moved, which no presence check can see.
      */
     @Test fun `the whole of prepareLocalDraft, line by line`() {
         val body = functionBody(COMPOSE_VIEW_MODEL, "private suspend fun prepareLocalDraft(")
@@ -205,8 +207,8 @@ class LocalDraftReopenWiringTest {
                 // …and its lists (#131), out of that same projection. Left out, a draft holding a
                 // list reopens flat and the next save writes the flattening.
                 "bodyBlocks = fields.bodyBlocks,",
-                // …and its LINKS (#131) — ROUTE 3 OF 4. Left out, a draft that carries an address
-                // reopens without it, and since the anchor PARSED the row is judged reproducible:
+                // …and its links (#131), route 3 of 4. Left out, a draft that carries an address
+                // reopens without it, and since the anchor parsed the row is judged reproducible:
                 // the next save writes the removal over the only copy that had it.
                 "bodyLinks = fields.bodyLinks,",
                 "expand = fields.expand,",
@@ -226,8 +228,10 @@ class LocalDraftReopenWiringTest {
                 "editingDraftId = fields.editingDraftId",
                 "replacedServerDraftId = fields.replacedServerDraftId",
                 "replacedServerDraftUidValidity = fields.replacedServerDraftUidValidity",
-                // The delete confirmation's warning is armed HERE, from the row's own two terms
+                // The delete confirmation's warning is armed here, from the row's own two terms
                 // and by the same decision the empty save's notice is posted from (#95). Left out,
+                // the dialog goes on promising "this can't be undone" over a row whose server copy
+                // this gesture deliberately keeps.
                 "_deleteKeepsServerCopy.value = emptiedLocalDraftKeepsServerCopy(",
                 "fields.replacedServerDraftId,",
                 "fields.bodyIsLossy,",
@@ -285,7 +289,7 @@ class LocalDraftReopenWiringTest {
     }
 
     @Test fun `every send raises the sending flag BEFORE its coroutine, not inside it`() {
-        // What abandon() reads to decide it must give NOTHING back is this flag, and between the
+        // What abandon() reads to decide it must give nothing back is this flag, and between the
         // tap and the first dispatch of the coroutine there is a real window: a Compose recomposition
         val lines = codeLines(codeOf(COMPOSE_VIEW_MODEL.readText()))
         val raised = lines.withIndex().filter { it.value == "_state.value = ComposeState.Sending" }
@@ -331,8 +335,8 @@ class LocalDraftReopenWiringTest {
                     "_state.value = ComposeState.Sending",
                     "viewModelScope.launch {",
                     // The same shape as the deletion above, and for the same reason: whether the
-                    // gesture went through is a VALUE the `finally` reads, not a position in the
-                    // try — see `a save that went through gives the phone's own row back`.
+                    // gesture went through is a value the `finally` reads, not a position in the
+                    // try, see `a save that went through gives the phone's own row back`.
                     "var saved = false",
                 ),
             ),
@@ -423,7 +427,7 @@ class LocalDraftReopenWiringTest {
     }
 
     /**
-     * **A body this composer LOST is refused in front of BOTH sends** (#95 × the parcel).
+     * **A body this composer lost is refused in front of both sends** (#95 × the parcel).
      */
     @Test fun `a lost body is refused in front of both sends, on the RAW body`() {
         val send = codeLines(bodyOf(COMPOSE_VIEW_MODEL, "sendInternal"))
@@ -513,7 +517,7 @@ class LocalDraftReopenWiringTest {
     }
 
     /**
-     * **The SAVE has a decision of its own, and it is asked ONCE.**
+     * **The save has a decision of its own, and it is asked once.**
      */
     @Test fun `the save asks what it would destroy exactly once, on the raw body and the queued row`() {
         val code = codeLines(codeOf(COMPOSE_VIEW_MODEL.readText()))
@@ -562,10 +566,10 @@ class LocalDraftReopenWiringTest {
                 "} else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {",
                 "submit(to) { _, _ -> destroyReplacedServerDraft(original) }",
                 "} else {",
-                // …and the SERVER route reads the same fidelity verdict this one does: a draft
+                // …and the server route reads the same fidelity verdict this one does: a draft
                 // the composer never read whole keeps its server copy and the screen says so
                 "submit(to) { _, _ ->",
-                // The account is resolved by a LOCAL FUN and not into a val up front: a
+                // The account is resolved by a local fun and not into a val up front: a
                 // lossy draft keeps its copy whatever the account says, and resolving an account
                 "fun destroyingCredentials(): AccountCredentials =",
                 "credentialsDestroyingEmptiedServerDraft(",
@@ -574,7 +578,7 @@ class LocalDraftReopenWiringTest {
                 "lookup = { store.credentials(it) },",
                 ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
                 // The second term of the guard, and the whole correction: the addressing
-                // of the copy about to be expunged, PROVEN empty or not proven at all. Read under
+                // of the copy about to be expunged, proven empty or not proven at all. Read under
                 "val addressingIsProvenEmpty = !editingDraftLossy &&",
                 "repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
                 "if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {",
@@ -637,7 +641,9 @@ class LocalDraftReopenWiringTest {
                 "mailboxId = serverDraft?.let { repo.draftMailboxOf(credentials, it) },",
                 "bodyIsLossy = editingDraftLossy,",
                 // The second keeping term, read here for the same reason `mailboxId` is: it
-                // takes a server read, and the decision stays pure. Under the account the ROW was
+                // takes a server read, and the decision stays pure. Under the account the row was
+                // leased under. `= true` written here is the emptying destroying a Cc this phone
+                // never managed to read, which is #63 on the gesture that leaves no duplicate.
                 "addressingIsProvenEmpty = serverDraft != null && !editingDraftLossy &&",
                 "repo.emptiedDraftAddressingIsProvenEmpty(credentials, serverDraft),",
                 ")",
@@ -672,7 +678,7 @@ class LocalDraftReopenWiringTest {
     }
 
     /**
-     * **Deleting a draft the phone is keeping is the EMPTYING, reached by a button** (#95 × #69).
+     * **Deleting a draft the phone is keeping is the emptying, reached by a button** (#95 × #69).
      */
     @Test fun `deleting a kept draft is the emptying gesture, reached by a button`() {
         assertEquals(
@@ -816,7 +822,7 @@ class LocalDraftReopenWiringTest {
     }
 
     /**
-     * M55's second half. `draftDestroyFolder` is EXECUTED by `DraftDestroyFolderTest` (core:data)
+     * M55's second half. `draftDestroyFolder` is executed by `DraftDestroyFolderTest` (core:data)
      */
     @Test fun `the draft's destroy folder is decided by the pure function, fed both answers`() {
         assertEquals(
@@ -896,8 +902,8 @@ class LocalDraftReopenWiringTest {
                 "val plan = abandonPlan(",
                 "sending = _state.value is ComposeState.Sending,",
                 "emptying = emptying,",
-                // The queued row's door is decided on the RAW body handed in, through the one
-                // reading of a lost body the send and the save already use — never on a flag
+                // The queued row's door is decided on the raw body handed in, through the one
+                // reading of a lost body the send and the save already use, never on a flag
                 // saying a refusal was shown, and never inside the ViewModel.
                 "parkOutbox = closingParksQueuedRow(composerBodyWasLost, body),",
                 "localDraftId = _editingLocalDraftId.value,",
@@ -942,7 +948,9 @@ class LocalDraftReopenWiringTest {
     }
 
     /**
-     * **The DECLARATION of `abandon`, whole — not its body.** The rule above reads the body, and
+     * **The declaration of `abandon`, whole, not its body.** The rule above reads the body, and
+     * a body-reader starts at the first `{` after the closing parenthesis: the parameter list, and
+     * therefore its default value, is outside every window this file otherwise looks at.
      */
     @Test fun `the emptying flag is off by default, and only the emptied save turns it on`() {
         assertEquals(
@@ -989,7 +997,7 @@ class LocalDraftReopenWiringTest {
     }
 
     /**
-     * The body of the declaration whose line contains [opener] in [file] — the lines between the
+     * The body of the declaration whose line contains [opener] in [file], the lines between the
      * brace it opens and the one that closes it, trimmed, in order, braces excluded.
      */
     private fun functionBody(file: File, opener: String): List<String> {
@@ -1013,7 +1021,7 @@ class LocalDraftReopenWiringTest {
     }
 
     /**
-     * The declaration line of [opener] in [file] and its EXPRESSION body — from the `=` that ends
+     * The declaration line of [opener] in [file] and its expression body, from the `=` that ends
      */
     private fun expressionBodyOf(file: File, opener: String): List<String> {
         val lines = codeOf(file.readText()).lines().map { it.trim() }.filter { it.isNotEmpty() }
@@ -1036,7 +1044,7 @@ class LocalDraftReopenWiringTest {
     private fun codeLines(body: String): List<String> =
         body.lines().map { it.trim() }.filter { it.isNotEmpty() }
 
-    /** [text] with every comment taken out — block comments tracked, `//` honoured outside strings. */
+    /** [text] with every comment taken out, block comments tracked, `//` honoured outside strings. */
     private fun codeOf(text: String): String {
         val out = StringBuilder()
         var inBlockComment = false
@@ -1084,7 +1092,8 @@ class LocalDraftReopenWiringTest {
         const val COMMIT = "val id = commitThenConsumeLocalDraft("
 
         /**
-         * The head of the two calls to `lostBodySendWording`, and the arguments each hands it —
+         * The head of the two calls to `lostBodySendWording`, and the arguments each hands it,
+         * as whole lines, because the arguments are the proof.
          */
         const val LOST_BODY_HEAD = "val lostBody = lostBodySendWording("
         const val LOST_BODY_LOST = "bodyWasLost = composerBodyWasLost,"
@@ -1095,7 +1104,7 @@ class LocalDraftReopenWiringTest {
                 "editingOutboxId != null,"
 
         /**
-         * …and the sentence the refusal owes the reader, which is TWO sentences and not one: a tap
+         * …and the sentence the refusal owes the reader, which is two sentences and not one: a tap
          */
         val LOST_BODY_NOTICE = listOf(
             "_notices.tryEmit(",
@@ -1107,7 +1116,7 @@ class LocalDraftReopenWiringTest {
         )
 
         /**
-         * …and the SAVE route's guard, whole, for the same reason: the arguments ARE the proof.
+         * …and the save route's guard, whole, for the same reason: the arguments are the proof.
          */
         const val SAVE_LOST_BODY_GUARD =
             "if (lostBodySaveDestroysQueuedRow(bodyWasLost = composerBodyWasLost, body = body.text, " +
@@ -1122,7 +1131,7 @@ class LocalDraftReopenWiringTest {
             repoFile("app/src/main/kotlin/app/sterna/ui/compose/ComposeViewModel.kt")
         }
 
-        /** The screen the ordinary close lives on — the caller the default value exists for. */
+        /** The screen the ordinary close lives on, the caller the default value exists for. */
         val COMPOSE_SCREEN: File by lazy {
             repoFile("app/src/main/kotlin/app/sterna/ui/compose/ComposeScreen.kt")
         }

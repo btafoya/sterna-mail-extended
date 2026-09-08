@@ -75,8 +75,7 @@ class ReadReceiptWiringTest {
     }
 
     @Test fun `the one builder of every raw write puts its parameter on the message, whole`() {
-        // The consumer, not the callers. `outgoing(` is asked for the receipt at four sites and
-        // every one of them is pinned above — but all four hand it to THIS body, and this body is
+        // The consumer, not the callers.
         val calls = callsOf(bodyOf("outgoing"), "OutgoingMessage(")
         assertEquals("outgoing() must still build exactly one OutgoingMessage", 1, calls.size)
         assertEquals(
@@ -99,9 +98,9 @@ class ReadReceiptWiringTest {
     }
 
     @Test fun `the PGP route inherits the MIME write and is wired at the same source`() {
-        // The mute path. The raw bytes are built by the SAME `outgoing(` above and imported
+        // The mute path. The raw bytes are built by the same `outgoing(` above and imported
         // verbatim, so this states that the PGP branch's own build is one of the calls the first
-        // test covers — and that it is the LAST of them, i.e. inside the `pgpEntity != null` branch.
+        // test covers, and that it is the last of them, i.e. inside the `pgpEntity != null` branch.
         val body = bodyOf("performDelivery")
         val calls = callsOf(body, "outgoing(")
         assertTrue("the PGP branch must still build the raw message itself", calls.size >= 2)
@@ -118,9 +117,9 @@ class ReadReceiptWiringTest {
 
     @Test fun `the saved draft row is what carries the receipt to both protocols`() {
         // Moved by #95. The draft is written to `local_drafts` before either protocol is tried,
-        // and BOTH uploads then read the row — so this one argument is now the single hop, and
+        // and both uploads then read the row, so this one argument is now the single hop, and
         // `requestReceipt = false` here mutes the header on IMAP and on JMAP at once.
-        // What the IMAP APPEND makes of it is EXECUTED in LocalDraftSaveTest.
+        // What the IMAP APPEND makes of it is executed in LocalDraftSaveTest.
         val calls = callsOf(bodyOf("saveDraft"), "localDraftRow(")
         assertEquals("saveDraft must still build its row with localDraftRow", 1, calls.size)
         assertEquals(
@@ -245,7 +244,7 @@ class ReadReceiptWiringTest {
     }
 
     /**
-     * [body] with every comment removed — block comments included, and string literals left alone.
+     * [body] with every comment removed, block comments included, and string literals left alone.
      */
     private fun codeOf(body: String): String {
         val out = StringBuilder()

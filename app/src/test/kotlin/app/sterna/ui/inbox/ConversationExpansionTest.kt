@@ -91,7 +91,7 @@ class ConversationExpansionTest {
     }
 
     // The unfolded conversation is no longer built from the wire: the server completion only
-    // fills the cache, and the rows on screen are a live reading of it (ThreadMemberStream). The
+    // fills the cache, and the rows on screen are a live reading of it (ThreadMemberStream).
 
     // --- threadEntries: the reading view's swipe context (Codeberg #13) ---
 
@@ -127,7 +127,7 @@ class ConversationExpansionTest {
     }
 
     @Test fun `the entries feed straight into the pager's opening page`() {
-        // The tapped message is the second member — page 2 of a 3-message conversation.
+        // The tapped message is the second member, page 2 of a 3-message conversation.
         val members = listOf(Email(id = "m2"), Email(id = "m1"))
         val entries = ConversationExpansion.threadEntries("m3", "acc", members)
         assertEquals(

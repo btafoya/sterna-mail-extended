@@ -8,6 +8,9 @@ import org.junit.Test
 
 /**
  * Queueing a send inserts the outbox row first, then stages its payload/attachments (it needs the
+ * row id to key the durable dir). If staging throws, no row may survive: an orphan with no
+ * attachments would be re-armed at the next startup and sent amputated (#70). [stageOrRollback] is
+ * what guarantees that, a staging failure deletes the row and relays the error to the caller.
  */
 class EnqueueRollbackTest {
 

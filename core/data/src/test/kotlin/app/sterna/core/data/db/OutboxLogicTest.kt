@@ -81,7 +81,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * The same door, on the row a draft save parks (#95 × #70): the message the user chose to KEEP
+     * The same door, on the row a draft save parks (#95 × #70): the message the user chose to keep
      * must not be reopenable either, or looking at it sends it.
      */
     @Test fun aRowKeptAsADraftCannotBeReopenedInTheComposer() {
@@ -97,7 +97,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * The whole state axis of [OutboxLogic.canEdit], executed against a map written out by hand —
+     * The whole state axis of [OutboxLogic.canEdit], executed against a map written out by hand,
      * never recomputed from the shipped rule, so inverting the rule turns this red.
      */
     @Test fun onlyAGenuinelyWaitingRowCanBeReopened() {
@@ -169,7 +169,8 @@ class OutboxLogicTest {
     }
 
     /**
-     * #183: a delivery the SERVER refused is over. Whatever the attempt count, the row is parked —
+     * #183: a delivery the server refused is over. Whatever the attempt count, the row is parked,
+     * not retried.
      */
     @Test fun aRefusedDeliveryIsParkedAtOnce() {
         val refused = JmapException("Not delivered to nope@masto.top: 550 5.1.2 Mailbox does not exist.", permanent = true)
@@ -187,7 +188,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * THE CHAIN, not the links. Parking a refusal as FAILED is worth nothing on its own:
+     * The chain, not the links. Parking a refusal as failed is worth nothing on its own:
      */
     @Test fun aRefusedDeliveryStaysParkedEvenAfterBeingReopened() {
         val refused = JmapException("Not delivered to nope@masto.top: 550 5.1.2 Mailbox does not exist.", permanent = true)
@@ -211,7 +212,10 @@ class OutboxLogicTest {
                 OutboxLogic.stateAfterEdit(attempts),
             )
             // The second door, in the terms the SQL uses: OutboxDao.revertEditingExhaustedToFailed
-            // claims EDITING rows at `attemptCount >= MAX_ATTEMPTS` at startup, and the rest are
+            // claims editing rows at `attemptCount >= MAX_ATTEMPTS` at startup, and the rest are
+            // parked under the interrupted-edit reason (parkAllEditingAsInterrupted). Nothing is
+            // requeued any more; what the cap decides is which reason the row keeps. Asserted as
+            // the comparison, not as the query text.
             assertTrue(
                 "⛔ a refused row stranded in EDITING by a process death must be claimed by the " +
                     "exhausted statement first (attemptCount >= ${OutboxLogic.MAX_ATTEMPTS}), or " +
@@ -224,6 +228,8 @@ class OutboxLogicTest {
 
     /**
      * The counter-test of the ruse above, and it is the expensive one to get wrong: forcing the
+     * cap on an ordinary failure would park every send that only needed a second try, offline
+     * sends first of all.
      */
     @Test fun anOrdinaryFailureCountsOneAttemptAndNothingMore() {
         for (failure in listOf(
@@ -247,12 +253,12 @@ class OutboxLogicTest {
     }
 
     /**
-     * And the other side of it, which is the easy thing to break: every ORDINARY failure keeps
+     * And the other side of it, which is the easy thing to break: every ordinary failure keeps
      */
     @Test fun anOrdinaryFailureStillRetriesUntilTheCap() {
         for (failure in listOf(
             java.io.IOException("connection reset"),
-            // A JmapException that is NOT permanent: the type is not the rule, the flag is.
+            // A JmapException that is not permanent: the type is not the rule, the flag is.
             JmapException("JMAP request failed: HTTP 503 Service Unavailable", httpCode = 503),
         )) {
             assertEquals("$failure at 0", OutboxState.QUEUED, OutboxLogic.stateAfterFailure(0, failure))
@@ -272,7 +278,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * #70 regression: a reopened item closed untouched returns to QUEUED only while it still has
+     * #70 regression: a reopened item closed untouched returns to queued only while it still has
      */
     @Test fun aReopenedItemUnderTheRetryCapGoesBackToTheQueue() {
         assertEquals(OutboxState.QUEUED, OutboxLogic.stateAfterEdit(0))
@@ -299,7 +305,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * #70: offline nothing takes the row out of HELD, so the row must count on the clock alone —
+     * #70: offline nothing takes the row out of held, so the row must count on the clock alone,
      * #82 only pushes that instant [OutboxLogic.BADGE_GRACE_MILLIS] past the end of the window.
      */
     @Test fun badgeCountsAHeldRowOnceItsWindowAndTheGraceHaveElapsed() {
@@ -313,6 +319,8 @@ class OutboxLogicTest {
 
     /**
      * #82: the grace hangs off the row's own deadline and is never restarted. A row put back to
+     * queued after a failed attempt therefore does not buy itself another silent half-minute: it
+     * counts at the instant it would have counted anyway.
      */
     @Test fun aRequeuedRowDoesNotGetAFreshGrace() {
         val requeued = OutboxBadgeItem(OutboxState.QUEUED, notBeforeMillis = 5_000) // attempt failed at ~5_100
@@ -323,6 +331,8 @@ class OutboxLogicTest {
 
     /**
      * #82: Retry rewrites the row's deadline (MailRepository.retryOutbox), and that deadline is the
+     * badge's anchor, so a row just retried does not count, by the same rule as a fresh send. The
+     * Outbox screen offers Retry on every row, failed or merely waiting, so this holds for both.
      */
     @Test fun aRowWhoseDeadlineWasJustResetByRetryDoesNotCount() {
         val retriedAt = 100_000L
@@ -344,7 +354,7 @@ class OutboxLogicTest {
         assertEquals(0, OutboxLogic.activeCount(emptyList(), now = 1))
     }
 
-    /** #70: a row open in the composer is being handled, not waiting — keep it off the badge. */
+    /** #70: a row open in the composer is being handled, not waiting, keep it off the badge. */
     @Test fun badgeIgnoresAnItemOpenForEditing() {
         val queuedAt = 10_000L
         val items = listOf(
@@ -370,7 +380,7 @@ class OutboxLogicTest {
         assertEquals(7_000 + grace, OutboxLogic.nextBadgeChange(items, now = 3_000 + grace))
     }
 
-    /** Nothing left to wait for: an already-counting row and a FAILED one schedule no wake-up. */
+    /** Nothing left to wait for: an already-counting row and a failed one schedule no wake-up. */
     @Test fun thereIsNoNextBadgeChangeWhenEveryRowHasSettled() {
         val grace = OutboxLogic.BADGE_GRACE_MILLIS
         val items = listOf(
@@ -382,7 +392,8 @@ class OutboxLogicTest {
     }
 
     /**
-     * The three rows below are the ONLY three shapes production ever writes, and the tests that
+     * The three rows below are the only three shapes production ever writes, and the tests that
+     * follow run the rule on each of them.
      */
     private fun signed() = OutboxLogic.isUnreplayablePrebuiltEntity("SIGN", "/outbox/1/prebuilt-entity.mime")
     private fun encrypted() = OutboxLogic.isUnreplayablePrebuiltEntity("ENCRYPT", "/outbox/2/prebuilt-entity.mime")
@@ -405,7 +416,8 @@ class OutboxLogicTest {
     }
 
     /**
-     * THE WITNESS, and the regression it caught. A SIGNED row carries a pre-built entity too —
+     * The witness, and the regression it caught. A signed row carries a pre-built entity too,
+     * and it must still be editable: the composer can produce that entity again.
      */
     @Test fun aSignedItemStillOffersEditAlthoughItCarriesAnEntity() {
         assertEquals("a signed row's entity is one the composer can produce again", false, signed())
@@ -415,7 +427,7 @@ class OutboxLogicTest {
     }
 
     /**
-     * WHAT THE OUTBOX COLUMN IS FOR, executed end to end: [OutboxLogic.outboxPgpModeName] writes
+     * What the outbox column is for, executed end to end: [OutboxLogic.outboxPgpModeName] writes
      */
     @Test fun anUnsignedEncryptedRowIsFiledAsEncryptedAndOffersNoEdit() {
         assertEquals(
@@ -436,7 +448,7 @@ class OutboxLogicTest {
         )
     }
 
-    /** The rest of the column, unchanged: OFF and "no PGP" store nothing, SIGN stores itself. */
+    /** The rest of the column, unchanged: off and "no PGP" store nothing, sign stores itself. */
     @Test fun theOutboxColumnStoresNothingForAPlainMessage() {
         assertNull(OutboxLogic.outboxPgpModeName(null))
         assertNull(

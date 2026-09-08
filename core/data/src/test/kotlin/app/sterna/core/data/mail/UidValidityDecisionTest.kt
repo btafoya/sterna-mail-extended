@@ -8,7 +8,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * What a recorded UIDVALIDITY licenses (Codeberg #99) — the decision itself, with no server and
+ * What a recorded UIDVALIDITY licenses (Codeberg #99), the decision itself, with no server and
+ * no database, because the consequence it guards (destroy, or refuse to) cannot be reproduced on
+ * a real account without persuading a server to renumber a folder on demand.
  */
 class UidValidityDecisionTest {
 
@@ -27,17 +29,17 @@ class UidValidityDecisionTest {
     }
 
     /** A server that announces no UIDVALIDITY cannot be checked; refusing would break the folder
-     *  outright, which is the wrong direction for a guard about DESTROYING. */
+     *  outright, which is the wrong direction for a guard about destroying. */
     @Test fun `a server announcing nothing is unverifiable, not changed`() {
         assertEquals(Verdict.UNVERIFIABLE, UidValidity.verdict(recorded = 42L, observed = 0L))
         assertEquals(Verdict.UNVERIFIABLE, UidValidity.verdict(recorded = null, observed = 0L))
         assertEquals(Verdict.UNVERIFIABLE, UidValidity.verdict(recorded = 0L, observed = 42L))
     }
 
-    // ---- what the server STATED --------------------------------------------------------------
+    // ---- what the server stated --------------------------------------------------------------
     //
     // One rule, two kinds of caller, and that is why it has a name. `ImapMailboxStatus
-    // .uidValidity` is a `Long` where 0 means "the server said nothing"; every row is WRITTEN with
+    // .uidValidity` is a `Long` where 0 means "the server said nothing";
 
     /** Nothing stated is not a numbering: `null` in, `null` out, and the column stays NULL. */
     @Test fun `a server that stated nothing states no numbering`() {
@@ -45,7 +47,7 @@ class UidValidityDecisionTest {
     }
 
     /**
-     * AND NEITHER IS ZERO — the case the whole function exists for. `ImapMailboxStatus` carries
+     * And neither is zero, the case the whole function exists for. `ImapMailboxStatus` carries
      */
     @Test fun `zero is what the server did not say, not a numbering`() {
         assertNull(UidValidity.stated(0L))
@@ -57,7 +59,7 @@ class UidValidityDecisionTest {
         assertNull(UidValidity.stated(-1L))
     }
 
-    /** A numbering the server did state comes back untouched — the ordinary case, and the one that
+    /** A numbering the server did state comes back untouched, the ordinary case, and the one that
      *  fails the moment someone "simplifies" the rule into a constant. */
     @Test fun `a stated numbering comes back as it was stated`() {
         assertEquals(1L, UidValidity.stated(1L))
@@ -68,7 +70,8 @@ class UidValidityDecisionTest {
     // ---- the destroy decision ---------------------------------------------------------------
 
     /**
-     * THE data-loss guard. A snapshot with no numbering cannot be shown to still mean anything —
+     * The data-loss guard. A snapshot with no numbering cannot be shown to still mean anything,
+     * so it destroys nothing.
      */
     @Test fun `a snapshot with no numbering destroys nothing`() {
         assertFalse(UidValidity.mayDestroy(null))
@@ -88,7 +91,7 @@ class UidValidityDecisionTest {
     }
 
     /**
-     * Offline: the server could not be asked and the CACHED ids stood in. Those ids were fetched
+     * Offline: the server could not be asked and the cached ids stood in. Those ids were fetched
      */
     @Test fun `an offline snapshot inherits the numbering its cached ids belong to`() {
         assertEquals(4L, TrashPurge.snapshotUidValidity(observed = null, recorded = 4L))

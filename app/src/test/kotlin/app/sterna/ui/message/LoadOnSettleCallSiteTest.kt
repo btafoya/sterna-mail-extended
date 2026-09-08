@@ -5,12 +5,12 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
+ * Source lint, not a behaviour test, read this before trusting it.
  */
 class LoadOnSettleCallSiteTest {
 
     /**
-     * The load effect, whole and exactly once. `active` must appear TWICE on it: as the third
+     * The load effect, whole and exactly once. `active` must appear twice on it: as the third
      */
     @Test fun `a page loads only once it is the page the reader settled on`() {
         assertEquals(
@@ -28,7 +28,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * And where that `active` comes from: the settled MESSAGE, compared by identity, pinned
+     * And where that `active` comes from: the settled message, compared by identity, pinned
      */
     @Test fun `active is the settled message compared by identity, inside the call that receives it`() {
         assertEquals(
@@ -52,7 +52,10 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * The inventory, and it covers EVERY name by which this screen may put a message on a page,
+     * The inventory, and it covers every name by which this screen may put a message on a page,
+     * the cache warm-up included. Restricted to `viewModel.load(`, as it was, a method called
+     * `warmFromCache(` passed underneath it unseen and the whole rule became decoration: the
+     * warm-up is a second door into the same ViewModel, and it is opened on the neighbours.
      */
     @Test fun `only these three lines put a message on a page at all`() {
         assertEquals(
@@ -68,7 +71,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * The warm-up effect, whole, and ABOVE the load effect with nothing between them.
+     * The warm-up effect, whole, and above the load effect with nothing between them.
      */
     @Test fun `the cache warm-up stands directly above the load effect`() {
         assertEquals(
@@ -84,7 +87,11 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * THE promise this volet is allowed to exist under: the warm-up reads the LOCAL CACHE and
+     * The promise this volet is allowed to exist under: the warm-up reads the local cache and
+     * nothing else. Every name below reaches the network, and on IMAP a fetched source hands the
+     * sender's announced key to the OpenPGP provider (`importAutocryptKey`) from a message nobody
+     * opened, which is exactly why `798a5fd1` removed the previous warm-up, and what
+     * ENCRYPTION.md:177-180 and SECURITY.md promise in those words.
      */
     @Test fun `the warm-up names no fetch of any kind`() {
         assertEquals(
@@ -99,7 +106,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * RISK Nº 1 OF THE VOLET, and it loses the message silently. `loadedId` is what
+     * Risk Nº 1 of the volet, and it loses the message silently. `loadedId` is what
      */
     @Test fun `only load writes the identity that says a message is already loaded`() {
         assertEquals(
@@ -142,7 +149,8 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * THE LINK BELOW `repo.cryptoKindOf(` — the rule above pins that the warm-up ASKS the
+     * The link below `repo.cryptoKindOf(`, the rule above pins that the warm-up asks the
+     * repository; this one pins what the repository does with the answer.
      */
     @Test fun `cryptoKindOf still hands the body to the executed inline-armour decision`() {
         assertEquals(
@@ -168,7 +176,8 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * The same six lines read the other way round — as an INVENTORY of the function, from its
+     * The same six lines read the other way round, as an INVENTORY of the function, from its
+     * declaration to the next member, rather than as a window of fixed length opened on the file.
      */
     @Test fun `cryptoKindOf holds these three decisions and nothing else`() {
         assertEquals(
@@ -185,7 +194,9 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * WHAT THE WARM-UP ACTUALLY PAINTS — the lines that sit BETWEEN two pinned blocks (the
+     * What the warm-up actually paints, the lines that sit between two pinned blocks (the
+     * `warmable` consultation above, `load`'s two erasures below) and were therefore watched by
+     * nothing at all. Every one of them is load-bearing:
      */
     @Test fun `the warm-up paints the cached body whole, and marks the page warmed`() {
         assertEquals(
@@ -223,7 +234,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * THE VOLET ITSELF, and without these two blocks it corrects nothing at all. `load` erased
+     * The volet itself, and without these two blocks it corrects nothing at all. `load` erased
      */
     @Test fun `load keeps a body the warm-up put there, for this account and this id`() {
         assertEquals(
@@ -252,7 +263,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * T4 — an inventory proves a call EXISTS, never that it is REACHED. Wrapping the load
+     * T4, an inventory proves a call exists, never that it is reached. Wrapping the load
      */
     @Test fun `the load effect stands unguarded, next to the read-marking effect`() {
         assertEquals(
@@ -273,7 +284,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * T3 — and a pin on a NAME is worth nothing without a pin on what that name is BOUND to.
+     * T3, and a pin on a name is worth nothing without a pin on what that name is bound to.
      */
     @Test fun `the whole screen binds the name active exactly twice, and to these`() {
         assertEquals(
@@ -289,7 +300,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * T1 and T2 — the MIDDLE LINK, which nothing watched: the screen passes `active`, the pure
+     * T1 and T2, the middle link, which nothing watched: the screen passes `active`, the pure
      */
     @Test fun `the ViewModel forwards the page's own settled and failed to the decision`() {
         assertEquals(
@@ -308,7 +319,7 @@ class LoadOnSettleCallSiteTest {
         )
     }
 
-    /** And the decision is consulted THERE and nowhere else in the ViewModel: a second call, on
+    /** And the decision is consulted there and nowhere else in the ViewModel: a second call, on
      *  another path, is a load this file's reasoning does not cover. */
     @Test fun `the ViewModel asks the decision on exactly one line`() {
         assertEquals(
@@ -320,7 +331,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * G-décalage, 2026-09-04 — the stale index must not be named ANYWHERE in the screen.
+     * G-décalage, 2026-09-04, the stale index must not be named anywhere in the screen.
      */
     @Test fun `the screen never names the stale settled page index`() {
         assertEquals(
@@ -373,7 +384,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * And the key the pages compare themselves against is bound ONCE, to the settled entry.
+     * And the key the pages compare themselves against is bound once, to the settled entry.
      */
     @Test fun `settledKey is bound exactly once, to the settled entry`() {
         assertEquals(
@@ -388,7 +399,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * The identity itself, body included. Before this volet `active` compared two `Int`s and
+     * The identity itself, body included.
      */
     @Test fun `the pager's identity is the account and the id, not the id alone`() {
         assertEquals(
@@ -405,7 +416,8 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * The `scrolling` guard can be undone from OUTSIDE the pure function, and every test of
+     * The `scrolling` guard can be undone from outside the pure function, and every test of
+     * [MessagePaging.settledEntry] stays green while it is: a second `settledEntry = entryAt(page)`
      */
     @Test fun `the settled entry is written on exactly one line`() {
         assertEquals(
@@ -421,7 +433,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * The SAME flag, spent on the other thing a composed-but-never-opened page can do: fetch
+     * The same flag, spent on the other thing a composed-but-never-opened page can do: fetch
      */
     @Test fun `the neighbour's allowlist answer is latched to a page the reader has settled on`() {
         assertEquals(
@@ -443,7 +455,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * And the latch itself, which the rule above only names. An inventory of one line proves a
+     * And the latch itself, which the rule above only names.
      */
     @Test fun `the latch is one-way, and set on exactly one line`() {
         assertEquals(
@@ -473,7 +485,9 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * And the same latch again, counted this time by every line that so much as NAMES it,
+     * And the same latch again, counted this time by every line that so much as names it,
+     * wherever the name sits on the line: the rule above reads assignments anchored at the
+     * start of a line, which is a hole with a shape.
      */
     @Test fun `the latch is named on exactly six lines, wherever the name sits`() {
         assertEquals(
@@ -496,7 +510,7 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * THE SECOND PRODUCER of the very same answer, latched on the same flag. `showRemoteImages`
+     * The second producer of the very same answer, latched on the same flag. `showRemoteImages`
      */
     @Test fun `the neighbour's manual show-images answer is latched too`() {
         assertEquals(
@@ -539,19 +553,21 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * Every code line of [lines] that BINDS the name [name] — a `val`/`var` declaration, a bare
+     * Every code line of [lines] that binds the name [name], a `val`/`var` declaration, a bare
      */
     private fun bindingsOf(lines: List<String>, name: String): List<String> =
         lines.filter { Regex("""^(val\s+|var\s+)?$name\s*=(?!=)""").containsMatchIn(it) }
 
     /**
-     * Every code line of [lines] that MENTIONS [name] as a whole word, wherever it sits on the
+     * Every code line of [lines] that mentions [name] as a whole word, wherever it sits on the
+     * line, declaration, set, argument, parameter, or a read buried inside a lambda.
      */
     private fun mentionsOf(lines: List<String>, name: String): List<String> =
         lines.filter { Regex("""\b""" + Regex.escape(name) + """\b""").containsMatchIn(it) }
 
     /**
-     * [text]'s lines as CODE: every COMPLETE block comment removed from wherever it sits on the
+     * [text]'s lines as code: every complete block comment removed from wherever it sits on the
+     * line, runs of whitespace collapsed to one, and the line dropped only when nothing is left.
      */
     private fun codeLines(text: String): List<String> = text.lines()
         .map { WHITESPACE.replace(BLOCK_COMMENT.replace(it, " "), " ").trim() }
@@ -566,7 +582,9 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * Every code line of [lines] from the single line equal to [needle] to the LAST one — the
+     * Every code line of [lines] from the single line equal to [needle] to the last one, the
+     * tail of the extract, never a window of fixed length. Empty when [needle] is not there
+     * exactly once, for [adjacentBlock]'s reason.
      */
     private fun tailFrom(lines: List<String>, needle: String): List<String> {
         val at = lines.indices.filter { lines[it] == needle }.singleOrNull() ?: return emptyList()
@@ -592,7 +610,7 @@ class LoadOnSettleCallSiteTest {
     private fun screen(): File = locate("app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt")
 
     /**
-     * Another module's source, read by path on purpose. The rule below it lives HERE rather
+     * Another module's source, read by path on purpose. The rule below it lives here rather
      */
     private fun repository(): File =
         locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt")
@@ -623,7 +641,8 @@ class LoadOnSettleCallSiteTest {
         val PAGE_ENTRY_POINTS = listOf("viewModel.load(", "viewModel.warmFromCache(")
 
         /**
-         * A DENYLIST OF KNOWN NAMES — repository entry points that reach the SERVER for a body,
+         * A denylist of known names, repository entry points that reach the server for a body,
+         * none of which a warm-up may call.
          */
         val FETCHING_NAMES = listOf(
             "openMessage(",
@@ -645,7 +664,7 @@ class LoadOnSettleCallSiteTest {
         const val WARM_BINDING = "val warm = warmedId == emailId && warmedAccountId == accountId"
 
         /**
-         * The tail of `warmFromCache`: the re-check, the state, the thread row with its BODY and
+         * The tail of `warmFromCache`: the re-check, the state, the thread row with its body and
          * its inline images, and the two fields that say "there is a body on this page already".
          */
         val WARM_PAINT = listOf(
@@ -665,10 +684,14 @@ class LoadOnSettleCallSiteTest {
 
         /**
          * …and the two braces that close the coroutine and the function, which is what makes the
+         * rule say "and nothing after". Not decoration: a statement slipped in under
+         * `warmedAccountId = accountId` is the one mutation that survives a fixed-length window,
+         * and `runCatching { repo.setRead(credentials, emailId, true) }` there marks a page
+         * nobody opened as read on the server.
          */
         val WARM_TAIL = WARM_PAINT + listOf("}", "}")
 
-        /** Every line of the ViewModel that may so much as NAME the warm mark: field, set, read. */
+        /** Every line of the ViewModel that may so much as name the warm mark: field, set, read. */
         val WARMED_ID_MENTIONS = listOf(
             "private var warmedId: String? = null",
             "warmedId = emailId",
@@ -682,7 +705,7 @@ class LoadOnSettleCallSiteTest {
         )
 
         /**
-         * The consultation of the pure warm/no-warm decision, argument by argument — AND the line
+         * The consultation of the pure warm/no-warm decision, argument by argument, and the line
          */
         val WARMABLE_CALL = listOf(
             "val warmable = MessagePaging.warmable(",
@@ -716,6 +739,8 @@ class LoadOnSettleCallSiteTest {
 
         /**
          * `MailRepository.cryptoKindOf`, whole. Arguments included: the value handed to
+         * `inlineArmorKind` is half of what is pinned, `inlineArmorKind("")` is a call, is a
+         * mention, and answers `null` for every message on earth.
          */
         val CRYPTO_KIND_OF = listOf(
             "fun cryptoKindOf(email: Email): CryptoKind? {",
@@ -746,11 +771,13 @@ class LoadOnSettleCallSiteTest {
         /** Declared `false`, set only under the settle flag: the three lines, adjacent. */
         val LATCH_BLOCK = listOf(LATCH_DECLARATION, "if (active) {", "everActive = true")
 
-        /** Every line that may ASSIGN the latch — the set, and the argument it is handed on. */
+        /** Every line that may ASSIGN the latch, the set, and the argument it is handed on. */
         val LATCH_BINDINGS = listOf("everActive = true", "everActive = everActive,")
 
         /**
-         * Every line that may so much as NAME the latch, in source order: seed, set, argument,
+         * Every line that may so much as name the latch, in source order: seed, set, argument,
+         * parameter, and the one answer it gates. Whole lines: a mention added anywhere else,
+         * in any form, is a second way to arm the latch on a page nobody opened.
          */
         val LATCH_MENTIONS = listOf(
             LATCH_DECLARATION,
@@ -762,7 +789,7 @@ class LoadOnSettleCallSiteTest {
         )
 
         /**
-         * The page's SECOND producer of the remote-image answer, at its origin and latched.
+         * The page's second producer of the remote-image answer, at its origin and latched.
          */
         const val MANUAL_SHOW_RAW =
             "val manualShowRaw by viewModel.manualShowImages.collectAsStateWithLifecycle()"
@@ -808,7 +835,7 @@ class LoadOnSettleCallSiteTest {
         const val LOAD_GUARD =
             "if (!MessagePaging.needsLoad(settled, loadedId, this.accountId, emailId, accountId, failed)) {"
 
-        /** A block comment that OPENS AND CLOSES on the same line — the only kind that can sit
+        /** A block comment that opens and closes on the same line, the only kind that can sit
          *  beside code, and therefore the only kind [codeLines] may remove rather than obey. */
         val BLOCK_COMMENT = Regex("""/\*.*?\*/""")
 

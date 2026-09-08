@@ -6,6 +6,9 @@ import org.junit.Test
 
 /**
  * Bench, 2026-08-17, JMAP: a message unarchived (Archive → Inbox) landed in the Inbox, survived a
+ * pull-to-refresh there and a cold start, and then one pull-to-refresh of the unread view, which
+ * syncs several folders of the account at once, made it disappear from the Inbox, from the unread
+ * view and from the FTS index, for good. Ten messages on the server, five rows in the app.
  */
 class DeltaEvictsOnlyItsOwnFolderTest {
 
@@ -41,7 +44,7 @@ class DeltaEvictsOnlyItsOwnFolderTest {
     }
 
     @Test fun `the unarchived message survives the refresh of the folder it left`() {
-        // THE bench sequence, replayed end to end and with the two decisions composed exactly as
+        // The bench sequence, replayed end to end and with the two decisions composed exactly as
         // the shipped delta composes them.
         //
         // State: M7 was in Archive, has been moved to the Inbox, and the Inbox delta has already
@@ -63,8 +66,8 @@ class DeltaEvictsOnlyItsOwnFolderTest {
         val archiveRows = cache.filterValues { it == "archive" }.keys
         val toDelete = mailboxScopedEvictions(candidates, archiveRows)
 
-        // What the shipped DELETE does with that list: `WHERE accountId = ? AND id IN (?)`, no
-        // folder — the statement pinned below. Run it on the cache and read the Inbox.
+        // What the shipped DELETE does with that list: `where accountId = ? And id in (?)`, no
+        // folder, the statement pinned below. Run it on the cache and read the Inbox.
         toDelete.forEach { cache.remove(it) }
 
         assertEquals("the Archive delta may delete nothing here", emptyList<String>(), toDelete)
@@ -73,8 +76,8 @@ class DeltaEvictsOnlyItsOwnFolderTest {
     }
 
     @Test fun `a message another client filed into Archive is not lost by the Inbox pass behind it`() {
-        // The other direction, and it was losing mail too — but by the sequence the app really
-        // runs, which is NOT one multi-folder pass: `refreshAccountFolders` always puts the inbox
+        // The other direction, and it was losing mail too, but by the sequence the app really
+        // runs, which is not one multi-folder pass: `refreshAccountFolders` always puts the inbox
         val cache = mutableMapOf("M8" to "archive")
         val inboxRows = cache.filterValues { it == "inbox" }.keys
 
@@ -91,7 +94,7 @@ class DeltaEvictsOnlyItsOwnFolderTest {
     // ---- the premise the gate rests on, read from the shipped DAO --------------------------
 
     @Test fun `the delete this gate bounds still names no folder`() {
-        // If this ever stops holding, the gate above is not the fix any more — re-read it rather
+        // If this ever stops holding, the gate above is not the fix any more, re-read it rather
         // than deleting it. It is the whole reason a folder's delta can reach another folder's row.
         val sql = DaoQuerySource.emailDaoQuery("deleteRowsByIds")
         assertEquals(
@@ -126,7 +129,7 @@ class DeltaEvictsOnlyItsOwnFolderTest {
             listOf(
                 "if (toRemove.isEmpty()) emptySet() else emailDao.idsForMailbox(localAccountId, mailboxId).toSet()",
                 "val cachedIds = emailDao.idsForMailbox(localAccountId, mailboxId).toSet()",
-                // The full-query branch's own read (#165): the folder as it stood BEFORE the walk,
+                // The full-query branch's own read (#165): the folder as it stood before the walk,
                 // subtracted from a second read at the reconcile so that mail which landed during
                 // the walk is not deleted. Same two arguments, for the same reason as the two above.
                 "folderIds = { emailDao.idsForMailbox(localAccountId, mailboxId).toSet() },",
@@ -134,8 +137,7 @@ class DeltaEvictsOnlyItsOwnFolderTest {
             codeLinesNaming(body, "idsForMailbox("),
         )
 
-        // And EXACTLY one call to the reconcile, inside the write-through's `reconcile` lambda.
-        // The hole this closes was found by counter-expertise and no other test sees it: an
+        // And exactly one call to the reconcile, inside the write-through's `reconcile` lambda.
         assertEquals(
             "syncMailbox no longer reconciles exactly once, from inside the write-through, with " +
                 "the bound the write-through computed (evictableIds = evictable). A second call, " +
@@ -166,8 +168,7 @@ class DeltaEvictsOnlyItsOwnFolderTest {
     }
 
     @Test fun `the comparison set is the folder's rows and nothing added to them`() {
-        // THE LINE NO OTHER ASSERTION READS. The declaration is split in two, and every pinned
-        // keyword (`idsForMailbox(`, `mailboxScopedEvictions(`, `deleteByIds(`) lives on one of
+        // The line NO other assertion reads.
         assertEquals(
             "nothing may be added to the set the gate compares against: it is this folder's " +
                 "cached rows, exactly, or the gate spares nobody",
@@ -180,7 +181,7 @@ class DeltaEvictsOnlyItsOwnFolderTest {
     }
 
     @Test fun `what the folder reports as departed is unchanged, and stays the server's word`() {
-        // Deliberately NOT toDelete. The server did say those ids left this mailbox, which is
+        // Deliberately not toDelete. The server did say those ids left this mailbox, which is
         // exactly what a notification cancellation claims (#134) and what `confirmDepartures` then
         // puts to the server. Only the local DELETE is bounded by the folder.
         assertEquals(

@@ -75,7 +75,7 @@ class LocalSearchFolderFilterSqlTest {
     }
 
     /**
-     * Put an excluded folder's id on an index row — the state this filter exists for.
+     * Put an excluded folder's id on an index row, the state this filter exists for.
      */
     private fun labelIndexRow(emailId: String, mailboxId: String) {
         db.prepareStatement("UPDATE email_fts SET mailboxId = ? WHERE emailId = ?").use {
@@ -108,7 +108,7 @@ class LocalSearchFolderFilterSqlTest {
         }
     }
 
-    /** The witness: what the INDEX holds, filter or no filter. */
+    /** The witness: what the index holds, filter or no filter. */
     private fun indexedIds(match: String): List<String> =
         db.prepareStatement("SELECT emailId FROM email_fts WHERE email_fts MATCH ? ORDER BY emailId").use { ps ->
             ps.setString(1, match)
@@ -131,7 +131,7 @@ class LocalSearchFolderFilterSqlTest {
         labelIndexRow("thrown", "mb-trash")
 
         assertEquals(emptyList<String>(), search("token*"))
-        // The witness: nothing cleaned the index — the QUERY is what hides the message.
+        // The witness: nothing cleaned the index, the query is what hides the message.
         assertEquals(listOf("thrown"), indexedIds("token*"))
     }
 
@@ -149,7 +149,7 @@ class LocalSearchFolderFilterSqlTest {
 
     @Test fun aSpamFolderIsHiddenUnderWhateverSpellingTheServerSentItsRole() {
         // Servers spell roles inconsistently (`Trash`, ` Spam `): the same folding the index build
-        // applies (LOWER(TRIM(...))) must apply here, or the filter misses the folder it targets.
+        // applies (lower(TRIM(...))) must apply here, or the filter misses the folder it targets.
         folder("mb-inbox", role = "inbox")
         folder("mb-spam", role = " Spam ")
         folder("mb-trash", role = "TRASH")
@@ -162,7 +162,7 @@ class LocalSearchFolderFilterSqlTest {
     }
 
     /**
-     * The SECOND trash. An account with a personal `Trash` and a shared `Shared/…/Trash` gives the
+     * The second trash.
      */
     @Test fun aRowLabelledWithAnUnelectedTrashIsHiddenToo() {
         folder("mb-inbox", role = "inbox")
@@ -190,7 +190,7 @@ class LocalSearchFolderFilterSqlTest {
     }
 
     /**
-     * The witness for the two above: the mark is not a wildcard. A folder whose role merely STARTS
+     * The witness for the two above: the mark is not a wildcard. A folder whose role merely starts
      */
     @Test fun theMarkHidesTrashAndJunkAndNothingElse() {
         folder("mb-sent", role = "~sent")
@@ -210,7 +210,7 @@ class LocalSearchFolderFilterSqlTest {
     }
 
     @Test fun aSiblingAccountsTrashDoesNotHideThisAccountsMessage() {
-        // Two accounts of one login (issue #31) can mint the SAME mailbox id: account A's inbox
+        // Two accounts of one login (issue #31) can mint the same mailbox id: account A's inbox
         // and account B's trash both being "mb-7" must not make A's message vanish.
         folder("mb-7", role = "inbox", accountId = "accA")
         folder("mb-7", role = "trash", accountId = "accB")
@@ -222,7 +222,7 @@ class LocalSearchFolderFilterSqlTest {
     }
 
     /**
-     * A row indexed under an account that is GONE stays cherchable otherwise: the index carries no
+     * A row indexed under an account that is gone stays cherchable otherwise: the index carries no
      */
     @Test fun aRowOfAnAccountThatIsGoneIsHiddenWhileStayingInTheIndex() {
         folder("mb-inbox", role = "inbox", accountId = "accA")
@@ -234,7 +234,7 @@ class LocalSearchFolderFilterSqlTest {
     }
 
     /**
-     * The inverse witness for the case above: name BOTH accounts and both hits come back. Without
+     * The inverse witness for the case above: name both accounts and both hits come back. Without
      */
     @Test fun everyAccountNamedInTheScopeIsSearched() {
         folder("mb-inbox", role = "inbox", accountId = "accA")
@@ -245,7 +245,7 @@ class LocalSearchFolderFilterSqlTest {
     }
 
     /**
-     * An EMPTY scope filters nothing, deliberately. `AccountStore.accounts()` answers with an empty
+     * An empty scope filters nothing, deliberately. `AccountStore.accounts()` answers with an empty
      */
     @Test fun anEmptyScopeFiltersNoAccountAtAll() {
         folder("mb-inbox", role = "inbox", accountId = "accA")

@@ -15,7 +15,7 @@ private fun Char.isDirect(): Boolean = code in 0x20..0x7E && this != '&'
 private fun Char.isModifiedBase64(): Boolean = this in MODIFIED_BASE64
 
     /**
-     * A Unicode mailbox name as it must appear on the wire. Pure ASCII (bar `&`) comes back untouched,
+     * A Unicode mailbox name as it must appear on the wire.
      */
 fun encodeModifiedUtf7(name: String): String {
     if (name.all { it.isDirect() }) return name
@@ -68,7 +68,9 @@ fun decodeModifiedUtf7(name: String): String {
 }
 
     /**
-     * A mailbox path as the app will hold it: the decoding when it is faithful, the RAW WIRE FORM when
+     * A mailbox path as the app will hold it: the decoding when it is faithful, the raw wire form when
+     * when it is not. The identity function for a folder, and the one every persisted id must be
+     * passed through (see `MailRepository`'s watched-folder re-key).
      */
 fun decodeMailboxPath(raw: String): String {
     val decoded = decodeModifiedUtf7(raw)

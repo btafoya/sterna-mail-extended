@@ -6,11 +6,15 @@ import java.io.File
 
 /**
  * "Save as .eml" has no decision a JVM test can execute on the app side: the ViewModel needs an
+ * `Application` and a `ContentResolver`, the screen is a `@Composable`. [RawSourceBytesTest] in
+ * `core/data` executes the one decision (bytes, refusal); this pins that the app is still wired
+ * to it, whole trimmed lines compared by list equality, never `contains` (blind to any mutation
+ * that lengthens the line). Comment lines are dropped, so prose can neither satisfy nor break a rule.
  */
 class ExportSourceCallSiteTest {
 
     /**
-     * The ViewModel asks the repository for the BYTES, and writes those bytes. Rewrite the first
+     * The ViewModel asks the repository for the bytes, and writes those bytes. Rewrite the first
      */
     @Test fun `the ViewModel writes the repository's bytes, truncating the document first`() {
         val lines = codeLines(viewModel().readText())
@@ -53,7 +57,9 @@ class ExportSourceCallSiteTest {
     }
 
     /**
-     * The screen declares the picker with the message MIME type — `text/plain` or a wildcard type and the
+     * The screen declares the picker with the message MIME type, `text/plain` or a wildcard type and the
+     * picker proposes the wrong app and the wrong extension, and the menu entry actually launches
+     * it: an entry whose onClick only closes the menu would sit there and save nothing.
      */
     @Test fun `the menu entry launches a message-rfc822 document picker`() {
         val lines = codeLines(screen().readText())

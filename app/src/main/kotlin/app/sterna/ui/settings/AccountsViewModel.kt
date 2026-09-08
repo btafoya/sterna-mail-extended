@@ -312,7 +312,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         store.setDefaultIdentity(id, defaultIdentityId)
         if (password.isNotBlank()) {
             store.updatePassword(id, password)
-            // Saving a password signs in an inert BASIC import — take it off the pending list.
+            // Saving a password signs in an inert BASIC import, take it off the pending list.
             store.setImportPending(id, false)
         }
         refresh()
@@ -485,7 +485,8 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
-     * Persist [packageName] as the OpenPGP app to use, and — only when that is a real switch of
+     * Persist [packageName] as the OpenPGP app to use, and, only when that is a real switch of
+     * keyring ([PgpProviders.switchErasesKeys]), drop every account's signing key.
      */
     fun setPgpProvider(packageName: String) {
         viewModelScope.launch {
@@ -513,7 +514,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
             when (val result = pgp.getSignKeyId(account.username, interactionResult)) {
                 is PgpResult.Success -> {
                     // The public half, cached alongside the id (StoredAccount.pgpPublicKey).
-                    // Best effort: the key id is persisted and the gesture succeeds either way —
+                    // Best effort: the key id is persisted and the gesture succeeds either way, and
                     // this cache is one the composer backfills.
                     val publicKey = when (val key = pgp.getPublicKey(result.value, account.username)) {
                         is PgpResult.Success -> pgpPublicKeyCacheValue(key.value)
@@ -558,7 +559,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
      */
     fun signOut(id: String) {
         val app = getApplication<Application>()
-        // Everything this sign-out will remove, resolved BEFORE removal so UnifiedPush teardown
+        // Everything this sign-out will remove, resolved before removal so UnifiedPush teardown
         // (which needs the credentials) and the cache purge can run per removed account.
         val target = store.account(id)
         val toRemove = buildList {

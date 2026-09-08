@@ -5,7 +5,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * What a drawer row COUNTS, EXECUTED ([drawerUnreadCount]) — a folded folder answers the unread it
+ * What a drawer row counts, executed ([drawerUnreadCount]), a folded folder answers the unread it
+ * hides, an open one answers its own. The rule lives in a function precisely so this file can run
+ * it: at the call site it sits inside a Composable nothing in this module can build.
  */
 class DrawerUnreadCountTest {
 
@@ -38,7 +40,7 @@ class DrawerUnreadCountTest {
     }
 
     /**
-     * THE state the app STARTS in, which no other case here plays: a parent and one of its own
+     * The state the app starts in, which no other case here plays: a parent and one of its own
      */
     @Test fun `the first launch folds a parent AND its child, and the top row still counts through`() {
         val started = setOf("Travail", "Travail/Client A")
@@ -81,7 +83,7 @@ class DrawerUnreadCountTest {
     }
 
     /**
-     * The sum follows what is HIDDEN, not the hierarchy. With Travail open and Client A folded,
+     * The sum follows what is hidden, not the hierarchy. With Travail open and Client A folded,
      * Devis is the only row off screen, and it is Client A's row that has to account for it.
      */
     @Test fun `an open parent of a folded child stays on its own count, the folded child sums`() {
@@ -102,7 +104,9 @@ class DrawerUnreadCountTest {
     }
 
     /**
-     * The scope. The drawer hands its DRAWN list (`MailUi.visibleMailboxes`); a descendant the
+     * The scope. The drawer hands its drawn list (`MailUi.visibleMailboxes`); a descendant the
+     * "only subscribed folders" setting hides (#174) has no row and is inside no chevron, so
+     * counting it advertises mail no gesture in this drawer reaches.
      */
     @Test fun `a descendant absent from the list handed in is not counted`() {
         val drawn = listOf(folder("Travail"), folder("Travail/Client A"))
@@ -152,7 +156,7 @@ class DrawerUnreadCountTest {
     }
 
     /**
-     * A cycle is a server answer, not an impossibility — the guard [mailboxTree] and
+     * A cycle is a server answer, not an impossibility, the guard [mailboxTree] and
      * [visibleFolders] both carry. Without it this walk either never ends or counts a folder twice.
      */
     @Test(timeout = 5_000) fun `a parentId pointing back down its own chain neither spins nor double-counts`() {

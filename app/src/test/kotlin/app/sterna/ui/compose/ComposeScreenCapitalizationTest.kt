@@ -7,7 +7,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * [ComposeScreenIncognitoTest]: it reads sources as text. It proves nothing about what the keyboard
+ * receives. `KeyboardCapitalization` ends up in the `EditorInfo.inputType`
  */
 class ComposeScreenCapitalizationTest {
 
@@ -64,7 +66,7 @@ class ComposeScreenCapitalizationTest {
 
     @Test fun `the body still names no ime action`() {
         // #26: the body is the only multi-line field of the screen, so an ImeAction there replaces
-        // the line break. Checked over the WHOLE call, not just the keyboardOptions argument.
+        // the line break. Checked over the whole call, not just the keyboardOptions argument.
         val (_, block) = fields(composeScreen).single { it.first == BODY }
         val named = block.filter { !composeScreen[it].isComment() && "ImeAction" in composeScreen[it] }
         assertTrue(
@@ -87,7 +89,7 @@ class ComposeScreenCapitalizationTest {
     }
 
     @Test fun `a lengthened argument is not accepted`() {
-        // THE reason this lint compares whole strings: `contains` would still find the
+        // The reason this lint compares whole strings: `contains` would still find the
         // capitalisation here and call it a pass.
         val read = optionsOf(FIXTURE_BODY_WITH_IME_ACTION, "ComposeScreen")
         assertTrue("the substring a naive lint would look for is present", CAPITALIZATION in read)
@@ -112,7 +114,9 @@ class ComposeScreenCapitalizationTest {
     // --- the decisions ---------------------------------------------------------------------------
 
     /**
-     * The whole `keyboardOptions = KeyboardOptions(…)` argument of the [FIELD] call written in
+     * The whole `keyboardOptions = KeyboardOptions(…)` argument of the [field] call written in
+     * top-level function [owner], joined across lines with whitespace collapsed and any trailing
+     * comma dropped, or [missing] when the call names no such argument.
      */
     private fun optionsOf(lines: List<String>, owner: String): String {
         val (_, block) = fields(lines).singleOrNull { it.first == owner }
@@ -128,7 +132,7 @@ class ComposeScreenCapitalizationTest {
             .removeSuffix(",")
     }
 
-    /** Every [FIELD] call, as (name of the top-level function writing it, lines it spans). */
+    /** Every [field] call, as (name of the top-level function writing it, lines it spans). */
     private fun fields(lines: List<String>): List<Pair<String, IntRange>> {
         val ranges = functionRanges(lines)
         return lines.indices

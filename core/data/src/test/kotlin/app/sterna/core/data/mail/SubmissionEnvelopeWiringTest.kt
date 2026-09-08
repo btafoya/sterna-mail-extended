@@ -4,14 +4,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * THIS TEST READS SOURCE TEXT — the last resort, exactly as [DraftAddressingWiringTest] does:
+ * This test reads source text, the last resort, exactly as [DraftAddressingWiringTest] does:
  */
 class SubmissionEnvelopeWiringTest {
 
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
-    /** The code lines of [body] naming [needle] — comments dropped, so prose can neither satisfy
+    /** The code lines of [body] naming [needle], comments dropped, so prose can neither satisfy
      *  a rule nor break one. Whole lines: the assertions compare them, never search inside them. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }

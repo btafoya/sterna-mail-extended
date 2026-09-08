@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHAT the "unread" view pages — the scope, run as a function.
+ * What the "unread" view pages, the scope, run as a function.
  */
 class UnreadViewScopesTest {
 
@@ -36,8 +36,8 @@ class UnreadViewScopesTest {
 
     @Test
     fun `a user folder with no role at all is paged`() {
-        // The rule excludes what it can NAME. A folder the user made ("Projets") has no role, and
-        // unread mail filed there is unread mail — dropping it would make the view lie by omission,
+        // The rule excludes what it can name. A folder the user made ("Projets") has no role, and
+        // unread mail filed there is unread mail, dropping it would make the view lie by omission,
         // which is the one direction of error this scope cannot afford.
         val scopes = unreadViewScopes("a", listOf(folder("inbox", "inbox"), folder("projets")))
         assertEquals(listOf("a" to "inbox", "a" to "projets"), scopes)
@@ -47,6 +47,9 @@ class UnreadViewScopesTest {
     fun `a folder whose trash claim was refused is an ordinary folder`() {
         // `~trash` is MailRepository's UNELECTED_ROLE_MARK: this folder claimed the trash role and
         // another folder of the account was elected to it (an account with a personal Trash and a
+        // shared Trash has two, and only one can be the trash). Outside :core:data such a folder is
+        // byte for byte the role-less folder it was before that fix (same icon, same menu) so it
+        // is paged like one. The mark is erased on the way to Mailbox, so this is belt and braces:
         val scopes = unreadViewScopes(
             "a",
             listOf(folder("shared-trash", "~trash"), folder("shared-junk", "~junk"), folder("t", "trash")),
@@ -69,7 +72,7 @@ class UnreadViewScopesTest {
     @Test
     fun `every scope carries the account id, never a bare folder id`() {
         // Codeberg #121/#31: servers number mailboxes per account, so a bare folder id matches a
-        // sibling account's homonymous folder — and a REMOVED account's leftover rows, which no
+        // sibling account's homonymous folder, and a removed account's leftover rows, which no
         // account could then label, sync or act on. See MailRepository.folderScopeSql.
         val scopes = unreadViewScopes("acct-2", listOf(folder("a", "inbox"), folder("b", "archive")))
         assertEquals(listOf("acct-2" to "a", "acct-2" to "b"), scopes)

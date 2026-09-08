@@ -79,7 +79,7 @@ class SubscribedFolderMigrationSqlTest {
             }
         } as SupportSQLiteDatabase
 
-    /** The published v15 schema, populated — the state a real install carries before any of this. */
+    /** The published v15 schema, populated, the state a real install carries before any of this. */
     private fun seedPublishedV15() {
         db.createStatement().use { st ->
             st.executeUpdate(publishedEmailsCreate)
@@ -102,7 +102,7 @@ class SubscribedFolderMigrationSqlTest {
             )
             st.executeUpdate("INSERT INTO `email_bodies` VALUES ('e1', 'accA', '{}', '{}', 42)")
             // The user data a destructive fallback destroys: a snooze, and above all mail written
-            // and never sent — one row waiting in the outbox, one waiting for its hour.
+            // and never sent, one row waiting in the outbox, one waiting for its hour.
             st.executeUpdate("INSERT INTO `snoozed` VALUES ('e1', 'accA', 99999)")
             st.executeUpdate(
                 "INSERT INTO `outbox` (`accountId`, `recipients`, `subject`, `textBody`, " +
@@ -136,7 +136,7 @@ class SubscribedFolderMigrationSqlTest {
         }
     }
 
-    /** The draft that only exists on the phone — the third store a destructive fallback empties. */
+    /** The draft that only exists on the phone, the third store a destructive fallback empties. */
     private fun fillTheV24Table() {
         db.createStatement().use { st ->
             st.executeUpdate(
@@ -150,7 +150,7 @@ class SubscribedFolderMigrationSqlTest {
     }
 
     /**
-     * A REAL v25 database: the published v15 schema, populated, then carried forward by the very
+     * A real v25 database: the published v15 schema, populated, then carried forward by the very
      */
     private fun seedV25() {
         seedPublishedV15()
@@ -177,7 +177,7 @@ class SubscribedFolderMigrationSqlTest {
         }
     }
 
-    /** The value of a single-cell query, or null — `getLong` alone reads a SQL NULL as 0. */
+    /** The value of a single-cell query, or null, `getLong` alone reads a SQL NULL as 0. */
     private fun longOrNull(sql: String): Long? = db.createStatement().use { st ->
         st.executeQuery(sql).use { rs ->
             assertTrue("no row for: $sql", rs.next())
@@ -200,7 +200,7 @@ class SubscribedFolderMigrationSqlTest {
     }
 
     /**
-     * The DECLARED shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`.
+     * The declared shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`.
      */
     private fun columnShapes(table: String): Map<String, Triple<String, Int, String?>> {
         val shapes = mutableMapOf<String, Triple<String, Int, String?>>()
@@ -269,10 +269,10 @@ class SubscribedFolderMigrationSqlTest {
         assertEquals(1, count("SELECT COUNT(*) FROM `local_drafts` WHERE `subject` = 'Only here'"))
     }
 
-    // --- (b) what a row cached BEFORE the step reads back ------------------------------------------
+    // --- (b) what a row cached before the step reads back ------------------------------------------
 
     /**
-     * The decision this migration carries. A folder cached before v26 was cached by a build that
+     * The decision this migration carries.
      */
     @Test fun aFolderCachedBeforeTheStepReadsBackSubscribed() {
         seedV25()
@@ -296,8 +296,8 @@ class SubscribedFolderMigrationSqlTest {
         seedV25()
         migrate25to26()
 
-        // The entity field is a non-null `Boolean`, and SQLite requires a DEFAULT to add a NOT NULL
-        // column to a populated table. Room compares defaults at open time only when the ENTITY
+        // The entity field is a non-null `Boolean`, and SQLite requires a default to add a not NULL
+        // column to a populated table. Room compares defaults at open time only when the entity
         assertEquals(Triple("INTEGER", 1, "1"), columnShapes("mailboxes")["isSubscribed"])
         // The witnesses: a nullable column beside it, and a non-null one with no default.
         assertEquals(Triple("TEXT", 0, null), columnShapes("mailboxes")["role"])
@@ -313,7 +313,7 @@ class SubscribedFolderMigrationSqlTest {
         }
 
         assertEquals(0L, longOrNull("SELECT `isSubscribed` FROM `mailboxes` WHERE `id` = 'mb2'"))
-        // Per ROW: marking one folder must not answer for its neighbour in the same account.
+        // Per row: marking one folder must not answer for its neighbour in the same account.
         assertEquals(1L, longOrNull("SELECT `isSubscribed` FROM `mailboxes` WHERE `id` = 'mb1'"))
     }
 
@@ -358,15 +358,15 @@ class SubscribedFolderMigrationSqlTest {
     }
 
     /**
-     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
+     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from, the
      * annotation is not retained at runtime, so it cannot be read reflectively.
      */
     @Test fun theRegisteredMigrationsReachTheDeclaredSchemaVersion() {
         val reached = SternaDatabase.ALL_MIGRATIONS.filter { it.startVersion >= 15 }.maxOf { it.endVersion }
 
         // Bumping the version without registering its step is the destructive case: Room asks for a
-        // path to the declared version and, finding none, drops every table. The converse — a step
-        // registered while the version stays behind — is just as wrong: the step never runs, the
+        // path to the declared version and, finding none, drops every table. The converse, a step
+        // registered while the version stays behind, is just as wrong: the step never runs, the
         // entity declares a column the schema has not got, and validateMigration fails at open.
         assertEquals(
             "the registered chain stops at v$reached while the database declares v$SCHEMA_VERSION",

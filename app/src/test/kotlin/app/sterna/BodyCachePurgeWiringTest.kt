@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, and a narrow one: nothing in this chain runs in a JVM test — `AppContainer.init`
+ * Source lint, and a narrow one: nothing in this chain runs in a JVM test, `AppContainer.init`
  */
 class BodyCachePurgeWiringTest {
 
@@ -41,7 +41,7 @@ class BodyCachePurgeWiringTest {
         )
     }
 
-    /** The block of the lambda passed to `onceForVersion` — braces included. */
+    /** The block of the lambda passed to `onceForVersion`, braces included. */
     private fun purgeLambda(): String = blockAfter(SOURCE, "onceForVersion(")
 
     /** The code lines of [body] naming [needle], comments dropped. */
@@ -50,7 +50,7 @@ class BodyCachePurgeWiringTest {
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
             .filter { needle in it }
 
-    /** The block opened by the first `{` after [anchor] in [file] — braces included. */
+    /** The block opened by the first `{` after [anchor] in [file], braces included. */
     private fun blockAfter(file: File, anchor: String): String {
         val source = file.readText()
         val at = source.indexOf(anchor)

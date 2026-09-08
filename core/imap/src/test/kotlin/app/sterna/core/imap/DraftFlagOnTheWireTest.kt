@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * WHAT `fetchIsDraft` PUTS ON THE WIRE, and what it makes of the answer — driven against a
+ * What `fetchIsDraft` puts on the wire, and what it makes of the answer, driven against a
  * scripted server, so the three answers (yes, no, and "I could not read that") are told apart.
  */
 class DraftFlagOnTheWireTest {
@@ -47,7 +47,7 @@ class DraftFlagOnTheWireTest {
     }
 
     @Test fun `the flags asked for are the ONLY thing asked for`() {
-        // A body item slipped into this fetch would have to be `BODY.PEEK[]`; the plain `BODY[]` a
+        // A body item slipped into this fetch would have to be `body.PEEK[]`; the plain `body[]` a
         // widened fetch is written with sets \Seen on mail that was only ever looked at.
         val (issued, _) = conversation { tag ->
             "* 1 FETCH (UID 7 FLAGS (\\Draft))\r\n$tag OK fetched\r\n"

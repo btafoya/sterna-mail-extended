@@ -60,7 +60,7 @@ class DraftVerdictWiringTest {
 
     @Test fun `the verdict is computed from the draft itself, every leg of it`() {
         // The mutation that used to pass: `editingDraftLossy = false` here left the whole suite
-        // green and brought the entire symptom back — the verdict is the ONLY thing standing
+        // green and brought the entire symptom back, the verdict is the only thing standing
         // between a reopened HTML/inline/calendar draft and its destruction on send.
         val body = bodyOf(COMPOSE_VIEW_MODEL, "prepare")
         val lines = body.lines().map { it.trim() }.filter { it.isNotEmpty() }
@@ -182,14 +182,14 @@ class DraftVerdictWiringTest {
     }
 
     @Test fun `the reopened draft's id and a pessimistic verdict are armed together, before the coroutine`() {
-        // THIS INVARIANT IS THE INVERSE OF THE ONE THIS TEST USED TO PIN, and the old race is why
-        // it existed: editingDraftId was once set BEFORE carryDraftAttachments, so sending while
+        // This invariant is the inverse of the one this test used to pin, and the old race is why
+        // it existed: editingDraftId was once set before carryDraftAttachments, so sending while
         //
         // That answer paid for the race with a hole. `applied` (a `rememberSaveable` in
         // ComposeScreen) survives process death, so a draft reopened before the process was killed
         //
-        // So the id no longer buys the safety; the VERDICT does, and the invariant moved WITH it:
-        // it is not "the id is laid last", it is "the LICENCE TO DESTROY is laid last".
+        // So the id no longer buys the safety; the verdict does, and the invariant moved with it:
+        // it is not "the id is laid last", it is "the licence to destroy is laid last".
         val lines = bodyOf(COMPOSE_VIEW_MODEL, "prepare").lines().map { it.trim() }
         val assignments = lines.withIndex()
             .filter { Regex("""\beditingDraftId\s*=""").containsMatchIn(it.value) }
@@ -283,7 +283,7 @@ class DraftVerdictWiringTest {
     }
 
     /**
-     * AND THE ANSWER THE WHOLE THING NOW RESTS ON, since the verdict is lowered from what it says.
+     * And the answer the whole thing now rests on, since the verdict is lowered from what it says.
      */
     @Test fun `the attachment carry answers whether EVERY part came across`() {
         val body = bodyOf(COMPOSE_VIEW_MODEL, "carryDraftAttachments")
@@ -307,7 +307,7 @@ class DraftVerdictWiringTest {
     }
 
     @Test fun `a scheduled row's id is written only against a clean verdict, and the worker relies on it`() {
-        // The scheduled table cannot carry the verdict (no column — a migration is forbidden
+        // The scheduled table cannot carry the verdict (no column, a migration is forbidden
         // while another is in flight), so the id itself is the carrier. Two lines, one invariant,
         // pinned together: relax either alone and a scheduled send of a lossy draft destroys it.
         assertEquals(
@@ -356,7 +356,7 @@ class DraftVerdictWiringTest {
         return code.substring(start, (i - 1).coerceAtLeast(start))
     }
 
-    /** The code lines of [body] naming [needle], trimmed — comments are already cut by [codeOf]. */
+    /** The code lines of [body] naming [needle], trimmed, comments are already cut by [codeOf]. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }.filter { needle in it }
 

@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `MessageScreen.kt` as text and proves nothing about
+ * Source lint, not a behaviour test, it reads `MessageScreen.kt` as text and proves nothing about
  */
 class BodySideScrollWiringTest {
 
@@ -28,8 +28,8 @@ class BodySideScrollWiringTest {
     }
 
     @Test fun `the threshold is the view's own touch slop, taken whole`() {
-        // THE value behind the whole fix, and the one thing the pins above cannot see: they hold the
-        // NAME `touchSlop`, never what it is worth. `ViewConfiguration.get(context).scaledTouchSlop / 8`
+        // The value behind the whole fix, and the one thing the pins above cannot see: they hold the
+        // name `touchSlop`, never what it is worth. `ViewConfiguration.get(context).scaledTouchSlop / 8`
         val declarations = code(MESSAGE_SCREEN).lines()
             .map { it.trim() }
             .filter { it.startsWith("private val touchSlop") }
@@ -68,7 +68,7 @@ class BodySideScrollWiringTest {
 
     @Test fun `the ACTION_DOWN claim gets both courses and the touch slop as its threshold`() {
         // Argument by argument, like the call above: the three arguments are of two types, so
-        // swapping the courses compiles and reads fine, and passing 0 as minTravel compiles too —
+        // swapping the courses compiles and reads fine, and passing 0 as minTravel compiles too,
         // and that one puts the 3px defect straight back while every executing test stays green,
         // because the decision function is only ever as good as the threshold it is handed.
         assertEquals(
@@ -84,8 +84,8 @@ class BodySideScrollWiringTest {
     }
 
     @Test fun `the whole touch handler is what it is meant to be, line for line`() {
-        // EQUALITY, not `in`: a substring assertion is blind to every mutation that LENGTHENS the
-        // line it pins. `axisDecided = true && owner == BodyDrag.CLAIM` still contains
+        // Equality, not `in`: a substring assertion is blind to every mutation that LENGTHENS the
+        // line it pins. `axisDecided = true && owner == BodyDrag.Claim` still contains
         assertEquals(
             "MessageScreen.BodyWebView.onTouchEvent, whole, is the wiring no JVM test can execute. " +
                 "Everything it holds is silent if edited:\n" +
@@ -210,8 +210,8 @@ class BodySideScrollWiringTest {
         )
     }
 
-    // SWIPE_HORIZONTAL_DOMINANCE is deliberately NOT pinned here: BodyDragOwnerTest exercises the
-    // 3:1 ratio itself (dx=30/dy=10 → CLAIM, dx=31/dy=10 → RELEASE), so lowering the constant turns
+    // SWIPE_HORIZONTAL_DOMINANCE is deliberately not pinned here: BodyDragOwnerTest exercises the
+    // 3:1 ratio itself (dx=30/dy=10 → claim, dx=31/dy=10 → release), so lowering the constant turns
     // that test red on execution. A source assertion on it would add a blind sub-string and cover
     // nothing new.
 
@@ -237,7 +237,7 @@ class BodySideScrollWiringTest {
         error("unbalanced braces after: $header")
     }
 
-    /** The whole `name(...)` CALL in [source] — the declaration `fun name(` is skipped — with the
+    /** The whole `name(...)` call in [source] (the declaration `fun name(` is skipped) with the
      *  parentheses balanced and whitespace runs collapsed. */
     private fun call(name: String, source: String): String {
         val sites = Regex("""(?<!fun )\b${Regex.escape(name)}\(""").findAll(source).map { it.range.first }.toList()
@@ -265,7 +265,7 @@ class BodySideScrollWiringTest {
         error("unbalanced parentheses after $name( in MessageScreen.kt")
     }
 
-    /** [file]'s code as one string, comments cut — the comments here name the very expressions
+    /** [file]'s code as one string, comments cut, the comments here name the very expressions
      *  these rules are about. */
     private fun code(file: File): String = file.readLines().mapNotNull { line ->
         val trimmed = line.trimStart()

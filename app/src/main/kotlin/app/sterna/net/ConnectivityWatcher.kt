@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
  *  callbacks describe the plumbing; only a request that went out and came back describes the
  *  service, and a VPN killswitch is invisible to the plumbing. */
 internal enum class Reachability {
-    /** Nothing has been tried yet — believe the framework. */
+    /** Nothing has been tried yet, believe the framework. */
     UNKNOWN,
 
     /** A request completed: whatever the plumbing says, traffic flows. */
@@ -51,7 +51,7 @@ internal class ReconnectGate(link: Boolean) {
      *  clears a previous failure, it never overrules the plumbing. */
     val online: StateFlow<Boolean> = _online.asStateFlow()
 
-    /** A real transport became usable — on a genuine down → up transition, and when an unseen
+    /** A real transport became usable, on a genuine down-to-up transition, and when an unseen
      *  transport turns up while requests are known to be dying ([settle]). */
     fun onTransportAvailable(handle: Long): Boolean {
         // Moving means "different from something we had", never "different from nothing": with no
@@ -69,7 +69,7 @@ internal class ReconnectGate(link: Boolean) {
     }
 
     fun onRouteAvailable(handle: Long): Boolean {
-        // A tunnel that reconnects comes back as a NEW network, so a differing handle is the one
+        // A tunnel that reconnects comes back as a new network, so a differing handle is the one
         // visible trace of a rebuild that never took the link down.
         val moved = route != null && route != handle
         route = handle
@@ -77,7 +77,7 @@ internal class ReconnectGate(link: Boolean) {
         return settle(moved)
     }
 
-    /** The route went away — ignored when it is the *old* half of a handover. */
+    /** The route went away, ignored when it is the *old* half of a handover. */
     fun onRouteLost(handle: Long) {
         if (route != null && route != handle) return
         route = null
@@ -103,7 +103,7 @@ internal class ReconnectGate(link: Boolean) {
     }
 
     /**
-     * Recompute the link, publish, and report whether a resync should be attempted. Two reasons: the
+     * Recompute the link, publish, and report whether a resync should be attempted.
      */
     private fun settle(moved: Boolean = false): Boolean {
         val up = transportsUp && routeUp && !blocked
@@ -126,7 +126,7 @@ internal object ReconnectRefresh {
     const val MAX_TRIES = 4
 
     /** Settle before the first attempt: the window a burst of callbacks is collapsed into, sized
-     *  from what the framework does — a handover emits its run within a few hundred milliseconds. */
+     *  from what the framework does, a handover emits its run within a few hundred milliseconds. */
     private const val SETTLE_MS = 1_500L
 
     /** Widening gaps between the retries, capped: with the settle they cover a couple of WireGuard
@@ -147,6 +147,8 @@ internal object ReconnectRefresh {
 
 /**
  * Watches connectivity and calls [onReconnect] when it actually comes back. Register with [start],
+ * empty state's promise ("we'll sync as soon as you're back") is kept. Register with [start],
+ * and always [stop] when the owner goes away, the callbacks outlive it otherwise.
  */
 class ConnectivityWatcher(context: Context, private val onReconnect: () -> Unit) {
     private val manager = context.applicationContext.getSystemService(ConnectivityManager::class.java)
@@ -189,7 +191,7 @@ class ConnectivityWatcher(context: Context, private val onReconnect: () -> Unit)
     }
 
     /** A request failed. Only a failure that died on the transport says anything about
-     *  connectivity — a 500 or a rejected password proves the link works. */
+     *  connectivity, a 500 or a rejected password proves the link works. */
     fun reportFailure(t: Throwable) {
         if (isNetworkFailure(t)) gate.onRequestFailed() else gate.onRequestSucceeded()
     }
@@ -206,7 +208,7 @@ class ConnectivityWatcher(context: Context, private val onReconnect: () -> Unit)
 }
 
 /**
- * Whether traffic can leave the device right now — a cheap synchronous read of the capabilities, not
+ * Whether traffic can leave the device right now, a cheap synchronous read of the capabilities, not
  */
 fun hasUsableNetwork(context: Context): Boolean {
     val cm = context.applicationContext.getSystemService(ConnectivityManager::class.java) ?: return false

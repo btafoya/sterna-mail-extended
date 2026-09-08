@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The "(Draft)" chip on a list row — [showsDraftBadge], run as the pure function it is.
+ * The "(Draft)" chip on a list row, [showsDraftBadge], run as the pure function it is.
  */
 class ShowsDraftBadgeTest {
 
@@ -38,7 +38,7 @@ class ShowsDraftBadgeTest {
     // -- the folder path: IMAP, and JMAP after process death -------------------------------------
 
     @Test fun `a row in the Drafts folder shows the chip without the keyword`() {
-        // THE CASE THIS BRANCH IS FOR. On IMAP the keyword is never recorded at all; on JMAP it
+        // The case this branch is for. On IMAP the keyword is never recorded at all; on JMAP it
         // is lost with the process and a delta sync does not bring it back. The folder role does,
         // from the cache, on the first frame, with no resynchronisation.
         assertTrue(
@@ -51,7 +51,7 @@ class ShowsDraftBadgeTest {
 
     @Test fun `the role is matched however the server spells it`() {
         // Without trim + lowercase, a server answering "Drafts" leaves the reported symptom exactly
-        // where it was found — the Drafts folder with no chip on any row.
+        // where it was found, the Drafts folder with no chip on any row.
         assertTrue(
             "a server spelling the role 'Drafts' must be understood — unnormalised, the Drafts " +
                 "folder stays exactly as reported: no chip on any row.",
@@ -78,7 +78,7 @@ class ShowsDraftBadgeTest {
     @Test fun `an unknown folder answers no, rather than throwing`() {
         // A folder the cache knows no role for, an account whose folders have not synced yet, a row
         // with no account or no folder on it (search hits, the unified view's own state): all
-        // "cannot say", and "cannot say" is no chip — the pre-existing behaviour, not nonsense.
+        // "cannot say", and "cannot say" is no chip, the pre-existing behaviour, not nonsense.
         assertFalse(showsDraftBadge(isDraft = false, accountId = "a", mailboxId = "unsynced", roles = roles))
         assertFalse(showsDraftBadge(isDraft = false, accountId = "zz", mailboxId = "d", roles = roles))
         assertFalse(showsDraftBadge(isDraft = false, accountId = null, mailboxId = "d", roles = roles))

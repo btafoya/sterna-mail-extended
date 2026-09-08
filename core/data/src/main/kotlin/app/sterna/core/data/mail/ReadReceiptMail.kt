@@ -61,9 +61,9 @@ internal fun readReceiptEntity(
     finalRecipient: String,
     originalMessageId: String?,
 ): String {
-    // One sanitised spelling for the parameter AND the delimiters, so the two cannot disagree.
+    // One sanitised spelling for the parameter and the delimiters, so the two cannot disagree.
     val b = OutgoingMime.headerSafe(boundary).replace("\"", "")
-    // REMOVED, not trimmed: headerSafe passes `<` and `>` through, so a value carrying them in
+    // Removed, not trimmed: headerSafe passes `<` and `>` through, so a value carrying them in
     // the middle would leave `<evil@x>Disposition: …>`, which a strict parser may drop whole.
     val messageId = originalMessageId
         ?.let { OutgoingMime.headerSafe(it) }
@@ -80,7 +80,7 @@ internal fun readReceiptEntity(
         append("\r\n")
         append(base64(humanText))
         append("\r\n")
-        // Fields only, in the order RFC 8098 §3.1's ABNF requires.
+        // Fields only, in the order RFC 8098 §3.1's grammar requires.
         append("--$b\r\n")
         append("Content-Type: message/disposition-notification\r\n")
         append("\r\n")
@@ -95,7 +95,7 @@ internal fun readReceiptEntity(
 
 /**
  * Not `…encodeToString(…).replace("\n", "\r\n")`: the separators are already `\r\n`, so that
- * yields a bare CR (RFC 5321 § 2.3.8), and on a SIGNED message the recipient reads "invalid".
+ * yields a bare CR (RFC 5321 § 2.3.8), and on a signed message the recipient reads "invalid".
  */
 private fun base64(text: String): String =
     Base64.getMimeEncoder().encodeToString(text.toByteArray(Charsets.UTF_8))
@@ -111,6 +111,7 @@ internal fun receiptIdentity(identities: List<StoredIdentity>, deliveredTo: Stri
 
 /**
  * Null when there is nothing to answer: [ReadReceiptHeader.recipients] yields an empty list for a
+ * header that names nobody.
  */
 internal fun readReceiptMail(
     receiptTo: List<String>,

@@ -7,7 +7,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The rules stop filtering when the responder is switched on, and STAY stopped when it is
+ * The rules stop filtering when the responder is switched on, and stay stopped when it is
+ * switched off (measured against Stalwart, 2026-08-03 and 04: a single active Sieve script per
+ * account, and the return from holiday leaves none active at all). Neither screen said a word.
  */
 class FilterScriptWarningTest {
 
@@ -92,7 +94,7 @@ class FilterScriptWarningTest {
 
     @Test
     fun `an active script with no vacation script predicts nothing`() {
-        // THE FIRST WITNESS. Without it, "always shown" reads exactly like "shown when it should
+        // The first witness. Without it, "always shown" reads exactly like "shown when it should
         // be": the coupling was measured on one server and must not be announced on every server.
         assertNull(
             "with no vacation script there is no observed reason to claim the responder suspends anything",
@@ -108,8 +110,8 @@ class FilterScriptWarningTest {
 
     @Test
     fun `nothing is predicted to somebody whose responder is already on`() {
-        // THE SECOND WITNESS. Rules running, responder running: on a server that couples the two
-        // this is unreachable, but on one that does not it is the permanent state — and there
+        // The second witness. Rules running, responder running: on a server that couples the two
+        // this is unreachable, but on one that does not it is the permanent state, and there
         // "turning the auto-reply on will suspend your rules" is false in the present tense about
         // rules the user can see working.
         assertNull(
@@ -126,7 +128,7 @@ class FilterScriptWarningTest {
 
     @Test
     fun `nothing is predicted when the responder state is unknown`() {
-        // What the filters screen passes: it never loads the responder. Unknown is not "off" —
+        // What the filters screen passes: it never loads the responder. Unknown is not "off",
         // predicting on a guess is how a warning earns its reputation.
         assertNull(
             "an unknown responder state must not be read as off",
@@ -186,6 +188,8 @@ class FilterScriptWarningTest {
 
     /**
      * The name is not decoration: the repo looks for a script called exactly this, and getting the
+     * spelling wrong makes the prediction permanently mute with every test still green, the tests
+     * above pass `vacationScriptExists` as a boolean and never travel through the constant.
      */
     @Test
     fun `the vacation script is looked for under the name the server uses`() {

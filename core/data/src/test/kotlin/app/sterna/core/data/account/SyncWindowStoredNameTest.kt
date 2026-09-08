@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * `SyncWindow` is `@Serializable` and stored in every account record BY CONSTANT NAME
+ * `SyncWindow` is `@Serializable` and stored in every account record by constant name
  */
 class SyncWindowStoredNameTest {
 
@@ -16,7 +16,7 @@ class SyncWindowStoredNameTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test fun `the ten stored names are these, in this order`() {
-        // Order is not itself persisted (names are); what this pins is the SET, whole, so a renamed
+        // Order is not itself persisted (names are); what this pins is the set, whole, so a renamed
         // or dropped entry cannot pass as a reordering. Nothing here may ever be removed: the
         // picker's contents are decided by `syncWindowChoices()` and not by this list.
         assertEquals(
@@ -35,7 +35,7 @@ class SyncWindowStoredNameTest {
     }
 
     /**
-     * THE TEST OF THIS VOLET. Seven account records, exactly as an install written BEFORE the
+     * The test of this volet.
      */
     @Test fun `every window an older install may have stored still decodes, one record each`() {
         listOf(
@@ -75,7 +75,7 @@ class SyncWindowStoredNameTest {
     }
 
     @Test fun `and it is written back unchanged`() {
-        // Defaults are not encoded, so this is the whole record — a value compare, not a search.
+        // Defaults are not encoded, so this is the whole record, a value compare, not a search.
         assertEquals(
             """{"id":"a1","server":"https://mail.example.org","username":"u","syncWindow":"ALL"}""",
             json.encodeToString(
@@ -87,7 +87,7 @@ class SyncWindowStoredNameTest {
 
     @Test fun `a name this build does not know reads back as NO ACCOUNTS, and freezes every write`() {
         // The consequence of a rename, executed on the shipped decision. `SyncWindow` has no
-        // entry called PAST_YEAR_2, exactly as a renamed ALL would have none called ALL — and the
+        // entry called PAST_YEAR_2, exactly as a renamed all would have none called all, and the
         // record next to it is a perfectly good account that goes down with it.
         val stored = """[{"id":"a1","server":"s","username":"u","syncWindow":"PAST_YEAR_2"},""" +
             """{"id":"a2","server":"s","username":"v"}]"""
@@ -95,8 +95,8 @@ class SyncWindowStoredNameTest {
         val decoded = runCatching { json.decodeFromString<List<StoredAccount>>(stored) }
         assertTrue("kotlinx now accepts an unknown constant — this whole file's premise is gone", decoded.isFailure)
 
-        // What `AccountStore.accounts()` runs, run here on that blob. The answer is STILL an empty
-        // list — nothing above it can tell that apart from a device with no accounts — but the
+        // What `AccountStore.accounts()` runs, run here on that blob. The answer is still an empty
+        // list (nothing above it can tell that apart from a device with no accounts) but the
         // store now knows why, and refuses to write, so the records above survive on disk and come
         // back with a build that knows the name. See AccountBlobGateTest for the rest.
         val gate = AccountBlobGate(

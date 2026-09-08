@@ -7,7 +7,7 @@ import org.junit.Assert.assertSame
 import org.junit.Test
 
 /**
- * The decision "is this account already there?", EXECUTED. Every assertion below runs the shipped
+ * The decision "is this account already there?", executed. Every assertion below runs the shipped
  */
 class AccountIdentityTest {
 
@@ -128,7 +128,7 @@ class AccountIdentityTest {
     //
     // Literal on both sides throughout: nothing below calls normalizeEndpoint to build what it
     // then expects. Swallowing the path would merge two genuinely different JMAP servers hosted
-    // under one name at two paths — the recognised account overwrites the other's connection AND
+    // under one name at two paths, the recognised account overwrites the other's connection and
     // its encrypted secret, which has no second copy. Nothing brings that back.
 
     @Test fun `a path is part of the endpoint, so one name at two paths is two servers`() {
@@ -203,8 +203,8 @@ class AccountIdentityTest {
     }
 
     @Test fun `a trailing slash alone is not a path`() {
-        // Where the rule STOPS, and deliberately: `mail.example.test/` names no path, so it is the
-        // same endpoint as the bare host — that is what trimEnd('/') decides. Pinned so the day
+        // Where the rule stops, and deliberately: `mail.example.test/` names no path, so it is the
+        // same endpoint as the bare host, that is what trimEnd('/') decides. Pinned so the day
         // someone widens or narrows the path rule, the boundary itself is in the diff.
         assertEquals("mail.example.test", normalizeEndpoint("mail.example.test/"))
         assertEquals("mail.example.test", normalizeEndpoint("https://mail.example.test/"))
@@ -299,8 +299,8 @@ class AccountIdentityTest {
         assertEquals("the sync window fell back to the default", SyncWindow.YEAR_1, r.syncWindow)
         assertEquals("her per-account notification opt-out is gone", false, r.notificationsEnabled)
         assertEquals("her sent-copy choice is gone", false, r.uploadSentCopy)
-        // #174: `proven` carries this one OFF (a sign-in form builds the default), so a
-        // re-add written as `proven.copy(...)` would silently UNHIDE the folders she chose to hide,
+        // #174: `proven` carries this one off (a sign-in form builds the default), so a
+        // re-add written as `proven.copy(...)` would silently unhide the folders she chose to hide,
         // and only this direction can tell the two spellings apart.
         assertEquals("her subscribed-folders-only choice is gone", true, r.showOnlySubscribedFolders)
         assertEquals("the folders she watches for new mail are gone", setOf("mbx-2", "mbx-3"), r.watchedFolders)
@@ -341,7 +341,7 @@ class AccountIdentityTest {
     }
 
     @Test fun `re-adding an OAuth account with a password drops the tokens it no longer has`() {
-        // Deliberate: the password is written into the SAME encrypted slot that held the refresh
+        // Deliberate: the password is written into the same encrypted slot that held the refresh
         // token, so keeping oauth* would describe a credential the record no longer carries.
         val r = refreshedWith(settled, provenPassword)
         assertEquals(AuthType.BASIC, r.authType)
@@ -352,7 +352,7 @@ class AccountIdentityTest {
     }
 
     @Test fun `an add resolves onto a login, never onto a linked sub-account`() {
-        // A sub-account BORROWS its login's secret (loginKey() == loginId ?: id). Resolving an add
+        // A sub-account borrows its login's secret (loginKey() == loginId ?: id). Resolving an add
         // onto one would file the new secret under an id nothing reads, leaving the account signed
         // in with someone else's credential.
         val shared = jmap("shared-1", "mail.example.test", "ana@example.test")
@@ -399,7 +399,7 @@ class AccountIdentityTest {
 
     @Test fun `when both rows exist the FIRST key wins, so an add lands on the current one`() {
         // The old row comes first in the list on purpose: an implementation that scanned the
-        // ACCOUNTS and took whichever matched any key would answer the 1.5.x row here.
+        // accounts and took whichever matched any key would answer the 1.5.x row here.
         val legacy = jmap("oauth-old", "mail.masto.top", "ana@masto.top", AuthType.OAUTH)
         val current = jmap("oauth-new", "masto.top", "ana@masto.top", AuthType.OAUTH)
         assertSame(

@@ -106,7 +106,7 @@ class DraftNumberingCarriedWiringTest {
     }
 
     /**
-     * The four arguments the composer must hand `sendDraftTarget`, by name and whole — both send
+     * The four arguments the composer must hand `sendDraftTarget`, by name and whole, both send
      */
     private val SEND_TARGET = mapOf(
         "editingDraftId" to "editingDraftId",
@@ -162,7 +162,7 @@ class DraftNumberingCarriedWiringTest {
 
     /**
      * Its own test, deliberately: a failed assertion ends its method, so the rule above would hide
-     * this one exactly when both are broken — which is the same edit.
+     * this one exactly when both are broken, which is the same edit.
      */
     @Test fun `the outbox screen builds no ComposeDraft of its own`() {
         assertEquals(
@@ -176,7 +176,7 @@ class DraftNumberingCarriedWiringTest {
     }
 
     @Test fun `nothing in the composer assigns that field anything else`() {
-        // Whole lines, in order, across the WHOLE class: `= null` at either site is a draft left
+        // Whole lines, in order, across the whole class: `= null` at either site is a draft left
         // behind for ever, and a third assignment smuggled in anywhere is a number nobody froze.
         val assignments = codeLines(COMPOSE_VIEW_MODEL.readText())
             .filter { it.startsWith("editingDraftUidValidity =") }
@@ -210,7 +210,7 @@ class DraftNumberingCarriedWiringTest {
     }
 
     /** The non-blank lines of [text], trimmed. [text] is expected to have been stripped of comments
-     *  already ([codeOf]) — prose naming these very assignments must not answer for the code. */
+     *  already ([codeOf]), prose naming these very assignments must not answer for the code. */
     private fun codeLines(text: String): List<String> =
         codeOf(text).lines().map { it.trim() }.filter { it.isNotBlank() }
 

@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `SettingsRepository.kt` as text and proves nothing
+ * Source lint, not a behaviour test, it reads `SettingsRepository.kt` as text and proves nothing
  */
 class NotificationContentBackupWiringTest {
 
@@ -43,7 +43,7 @@ class NotificationContentBackupWiringTest {
         private const val SETTINGS_REPOSITORY_PATH =
             "core/data/src/main/kotlin/app/sterna/core/data/settings/SettingsRepository.kt"
 
-        /** Repo root, walked up from the module's working directory — the rules read another module. */
+        /** Repo root, walked up from the module's working directory, the rules read another module. */
         val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, SETTINGS_REPOSITORY_PATH).isFile }

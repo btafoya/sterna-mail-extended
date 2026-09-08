@@ -6,12 +6,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * WHAT THE GROUPED PREVIEW FETCH PUTS ON THE WIRE, and how its answer is read — the page twin of
+ * What the grouped preview FETCH puts on the wire, and how its answer is read, the page twin of
+ * [BodyPeekOnTheWireTest], whose rules this file keeps.
  */
 class PreviewPageOnTheWireTest {
 
     /**
      * A server that answers each `UID FETCH <set>` with one `FETCH` line per requested uid for
+     * which [body] gives something, carrying it as `body[1]<0>`.
      */
     private fun previewResponse(tag: String, line: String, body: (Long) -> String?): String {
         val requested = expandUidSet(line.removePrefix("UID FETCH ").substringBefore(' '))
@@ -68,7 +70,7 @@ class PreviewPageOnTheWireTest {
     }
 
     /**
-     * THE POINT OF THE WHOLE PANEL: three answers, three bodies, three rows — each under ITS OWN
+     * The point of the whole panel: three answers, three bodies, three rows, each under its own
      */
     @Test fun `each body comes back under its own uid`() {
         val bodies = mapOf(7L to "seven speaks", 9L to "nine speaks", 11L to "eleven speaks")
@@ -78,7 +80,7 @@ class PreviewPageOnTheWireTest {
     }
 
     /**
-     * One `UID FETCH` per BATCH, not per page asked for. The answer to a preview fetch carries up
+     * One `UID FETCH` per batch, not per page asked for. The answer to a preview fetch carries up
      */
     @Test fun `more messages than one batch go out as several fetches, and all of them come back`() {
         // Newest-first, the order a folder walk holds its uids in: the batches must still be
@@ -111,7 +113,10 @@ class PreviewPageOnTheWireTest {
     }
 
     /**
-     * "At most 8 KiB" must be TRUE of EVERY body, not merely requested, and not only of the
+     * "At most 8 KiB" must be TRUE of every body, not merely requested, and not only of the
+     * first: `<0.8192>` is a request, a literal is read up to 32 MiB, and the item is taken by
+     * prefix, so a server that ignores the partial would otherwise have twenty whole messages
+     * decoded and held before anything threw them away.
      */
     @Test fun `every over-long body is cut to the bound the client asked for`() {
         val huge = "A".repeat(20_000)
@@ -130,7 +135,7 @@ class PreviewPageOnTheWireTest {
         assertEquals(mapOf(7L to "hi", 9L to "there"), run.fetched)
     }
 
-    /** Nothing to ask about puts NOTHING on the wire — not an empty set, which would go out as
+    /** Nothing to ask about puts nothing on the wire, not an empty set, which would go out as
      *  `UID FETCH  (…)` and be answered BAD. */
     @Test fun `nothing to ask about sends no fetch at all`() {
         val run = page(emptyList()) { "never" }
@@ -142,7 +147,7 @@ class PreviewPageOnTheWireTest {
     }
 
     /**
-     * A message the server answers about WITHOUT a body item makes no entry — and above all not
+     * A message the server answers about without a body item makes no entry, and above all not
      */
     @Test fun `a fetch line with no body item makes no entry, and never the word UID`() {
         var fetched: Map<Long, String> = emptyMap()

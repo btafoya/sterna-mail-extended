@@ -5,7 +5,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
 
-/** A search hit projected from [EmailFtsEntity] (no rowid) — enough to render a result row. */
+/** A search hit projected from [EmailFtsEntity] (no rowid), enough to render a result row. */
 data class FtsHit(
     val emailId: String,
     val accountId: String,
@@ -73,7 +73,7 @@ interface EmailFtsDao {
 
     /** Seeds the index from the display cache for an instant coverage floor while the full crawl runs in the
      *  background. Not a cleanup: [deleteCachedRows]
-     *  only clears rows whose message is STILL cached — a row left by a gone message survives re-seeding. */
+     *  only clears rows whose message is still cached, a row left by a gone message survives re-seeding. */
     @Transaction
     suspend fun seedFromEmails(excludedRoles: Collection<String>) {
         deleteCachedRows()
@@ -81,8 +81,8 @@ interface EmailFtsDao {
     }
 
     /** Prefix FTS4 search ([match]), newest-first, capped at [limit]. Deleted mail is excluded by two independent
-     *  defenses — this hides mislabelled hits
-     * ([excludedRoles]) but does NOT catch a moved JMAP message. Empty [accountIds] filters nothing on purpose
+     *  defenses, this hides mislabelled hits
+     * ([excludedRoles]) but does not catch a moved JMAP message. Empty [accountIds] filters nothing on purpose
      * ([accountScopeCount]). */
     @Query(
         "SELECT emailId, accountId, mailboxId, threadId, subject, preview, receivedAt, " +

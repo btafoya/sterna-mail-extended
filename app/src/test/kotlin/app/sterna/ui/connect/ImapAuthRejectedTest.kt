@@ -7,7 +7,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The decision behind "Wrong email or password." on the IMAP connect screen — EXECUTED, not
+ * The decision behind "Wrong email or password." on the IMAP connect screen, executed, not
  */
 class ImapAuthRejectedTest {
 
@@ -16,7 +16,7 @@ class ImapAuthRejectedTest {
         assertTrue(imapAuthRejected("AUTHENTICATIONFAILED", "anything at all"))
     }
 
-    /** THE symptom: server down during AUTHENTICATE is not a wrong password. */
+    /** The symptom: server down during AUTHENTICATE is not a wrong password. */
     @Test
     fun `UNAVAILABLE during AUTHENTICATE is not a credentials verdict`() {
         assertFalse(imapAuthRejected("UNAVAILABLE", "AUTHENTICATE … failed: busy"))
@@ -33,7 +33,7 @@ class ImapAuthRejectedTest {
     }
 
     /** A code outside the credentials family does not become "wrong password" just because
-     *  the message carries the LOGIN verb — the code PRIMES. */
+     *  the message carries the LOGIN verb, the code primes. */
     @Test
     fun `ALERT over a LOGIN message is not a credentials verdict`() {
         assertFalse(imapAuthRejected("ALERT", "LOGIN … failed: read this alert"))
@@ -58,7 +58,9 @@ class ImapAuthRejectedTest {
 }
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * [ConnectPrimingWiringTest]: the catch of `connectImap` lives in an `AndroidViewModel` this
+ * module cannot instantiate, so the decision itself is executed above ([ImapAuthRejectedTest])
  */
 class ImapAuthRejectedWiringTest {
 
@@ -106,7 +108,7 @@ class ImapAuthRejectedWiringTest {
 
     // -- reading the file --------------------------------------------------------------------------
 
-    /** Exactly one line of the source whose TRIMMED text equals [pinned] — 0 or 2+ both fail. */
+    /** Exactly one line of the source whose trimmed text equals [pinned], 0 or 2+ both fail. */
     private fun assertPinnedLine(pinned: String, why: String) {
         val hits = source().lines().count { it.trim() == pinned }
         assertEquals(

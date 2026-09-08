@@ -13,7 +13,7 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * **v26 → v27**: `emails` gains the composite index `(accountId, mailboxId, sortKey)` — the three
+ * **v26 → v27**: `emails` gains the composite index `(accountId, mailboxId, sortKey)`, the three
  */
 class FolderOrderIndexMigrationSqlTest {
     private lateinit var db: Connection
@@ -100,7 +100,7 @@ class FolderOrderIndexMigrationSqlTest {
         return step!!
     }
 
-    /** The published v15 schema, populated — the state a real install carries before any of this. */
+    /** The published v15 schema, populated, the state a real install carries before any of this. */
     private fun seedPublishedV15() {
         db.createStatement().use { st ->
             st.executeUpdate(publishedEmailsCreate)
@@ -123,7 +123,7 @@ class FolderOrderIndexMigrationSqlTest {
             )
             st.executeUpdate("INSERT INTO `email_bodies` VALUES ('e1', 'accA', '{}', '{}', 42)")
             // The user data a destructive fallback destroys: a snooze, and above all mail written
-            // and never sent — one row waiting in the outbox, one waiting for its hour.
+            // and never sent, one row waiting in the outbox, one waiting for its hour.
             st.executeUpdate("INSERT INTO `snoozed` VALUES ('e1', 'accA', 99999)")
             st.executeUpdate(
                 "INSERT INTO `outbox` (`accountId`, `recipients`, `subject`, `textBody`, " +
@@ -148,7 +148,7 @@ class FolderOrderIndexMigrationSqlTest {
     }
 
     /**
-     * Two accounts holding the same email id in the same server-assigned mailbox id — the reason
+     * Two accounts holding the same email id in the same server-assigned mailbox id, the reason
      */
     private fun fillTheTwinRowOfASiblingAccount() {
         db.createStatement().use { st ->
@@ -167,7 +167,7 @@ class FolderOrderIndexMigrationSqlTest {
         }
     }
 
-    /** The draft that only exists on the phone — the third store a destructive fallback empties. */
+    /** The draft that only exists on the phone, the third store a destructive fallback empties. */
     private fun fillTheV24Table() {
         db.createStatement().use { st ->
             st.executeUpdate(
@@ -205,7 +205,7 @@ class FolderOrderIndexMigrationSqlTest {
         return current
     }
 
-    /** A REAL v26 database: the published v15 schema, populated, carried forward by shipped steps. */
+    /** A real v26 database: the published v15 schema, populated, carried forward by shipped steps. */
     private fun seedV26() {
         seedPublishedV15()
         assertEquals(
@@ -237,7 +237,7 @@ class FolderOrderIndexMigrationSqlTest {
         return columns
     }
 
-    /** The declared shape of each column — Room compares affinity and nullability at open time. */
+    /** The declared shape of each column, Room compares affinity and nullability at open time. */
     private fun columnShapes(table: String): Map<String, Triple<String, Int, String?>> {
         val shapes = mutableMapOf<String, Triple<String, Int, String?>>()
         db.createStatement().use { st ->
@@ -266,7 +266,8 @@ class FolderOrderIndexMigrationSqlTest {
     }
 
     /**
-     * The full SHAPE of [index], as one comparable string: `unique=<0|1> partial=<0|1>` then the
+     * The full shape of [index], as one comparable string: `unique=<0|1> partial=<0|1>` then the
+     * key columns in index order, each with its direction and collation.
      */
     private fun indexShape(index: String): String {
         var unique = "?"
@@ -294,7 +295,7 @@ class FolderOrderIndexMigrationSqlTest {
         return "unique=$unique partial=$partial " + bySeq.values.joinToString(", ")
     }
 
-    /** The indexed columns of [index] alone, **in index order** — [indexShape] without the rest. */
+    /** The indexed columns of [index] alone, **in index order**, [indexShape] without the rest. */
     private fun indexColumns(index: String): List<String> =
         indexShape(index).substringAfter(" partial=").substringAfter(" ")
             .split(", ").filter { it.isNotBlank() }.map { it.substringBefore(" ") }
@@ -324,7 +325,7 @@ class FolderOrderIndexMigrationSqlTest {
         )
     }
 
-    // --- (b) the ORDER of the columns, which is the whole point -------------------------------------
+    // --- (b) the order of the columns, which is the whole point -------------------------------------
 
     /**
      * Scope first, order last. `accountId` then `mailboxId` is the pair `folderScopeSql` binds
@@ -432,7 +433,7 @@ class FolderOrderIndexMigrationSqlTest {
     // --- (e) the step has to be REGISTERED, and the version has to follow ----------------------------
 
     /**
-     * Chains [SternaDatabase.ALL_MIGRATIONS] — the value Room is really handed — over a published
+     * Chains [SternaDatabase.ALL_MIGRATIONS] (the value Room is really handed) over a published
      */
     @Test fun theRegisteredMigrationsCarryAPublishedInstallToTheCompositeIndex() {
         seedPublishedV15()
@@ -463,7 +464,7 @@ class FolderOrderIndexMigrationSqlTest {
     }
 
     /**
-     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` is itself written from — the
+     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` is itself written from, the
      * annotation is not retained at runtime, so it cannot be read reflectively.
      */
     @Test fun theRegisteredMigrationsReachTheDeclaredSchemaVersion() {

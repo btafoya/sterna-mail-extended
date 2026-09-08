@@ -15,12 +15,12 @@ class LocalDraftUploadWorker(context: Context, params: WorkerParameters) : Corou
         val id = inputData.getString(LocalDraftUploads.KEY_ID) ?: return Result.success()
         val container = (applicationContext as android.app.Application).container
         // No credentials: the account is gone, or its store cannot be read right now. The row is
-        // LEFT ALONE — dropping it here is the one deletion this whole chantier exists to forbid,
+        // left alone, dropping it here is the one deletion this whole chantier exists to forbid,
         // and it would be one transient store failure away. A signed-out account's drafts are
         // purged by StorageRepository.purgeAccount, on the event that actually means "done with it".
         val credentials = container.accountStore.credentials(accountId) ?: return Result.success()
-        // Every re-booking decision — including the one taken when this worker is STOPPED
-        // mid-upload, where nothing suspending can run any more — is `uploadLocalDraftRebooking`'s,
+        // Every re-booking decision, including the one taken when this worker is stopped
+        // mid-upload, where nothing suspending can run any more, is `uploadLocalDraftRebooking`'s,
         // executed by a JVM test. What is left here is the store, the queue, and a clock.
         uploadLocalDraftRebooking(
             now = { System.currentTimeMillis() },

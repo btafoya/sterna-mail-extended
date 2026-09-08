@@ -63,7 +63,7 @@ class FolderDeleteWorker(context: Context, params: WorkerParameters) : Coroutine
 
         // The account is part of the name: mailbox ids can collide between same-server accounts
         // (e.g. Stalwart, issue #31), and a colliding name would let one account's folder delete
-        // REPLACE or cancel the other's pending one.
+        // replace or cancel the other's pending one.
         private fun workName(accountId: String, mailboxId: String) = "folder-delete-$accountId-$mailboxId"
     }
 }

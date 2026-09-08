@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads two source files as text, same instrument and same
+ * Source lint, not a behaviour test, it reads two source files as text, same instrument and same
  */
 class QuoteOnScreenSilencesPrepareWiringTest {
 
@@ -141,9 +141,9 @@ class QuoteOnScreenSilencesPrepareWiringTest {
         val all = lines(COMPOSE_SCREEN)
         val landed = all.indexOf("quoteLanded = true")
         val baseline = all.indexOf("initialBody = quote")
-        // The BRANCH OPENER, not the toast call inside it. Bounding by
+        // The branch opener, not the toast call inside it. Bounding by
         // `viewModel.noticeQuoteNotAdded()` left a hole a mutation walked straight through on
-        // 2026-08-25: posted on the FIRST line of the toast branch, the flag still sat above the
+        // 2026-08-25: posted on the first line of the toast branch, the flag still sat above the
         // toast call, both bounds held, and the whole suite stayed green.
         val toastBranch = all.indexOf("} else if (applied) {")
         assertTrue(
@@ -278,7 +278,7 @@ class QuoteOnScreenSilencesPrepareWiringTest {
 
     // -- reading the sources --------------------------------------------------------------------
 
-    /** Exactly one line of [file] whose TRIMMED code text equals [pinned] — 0 or 2+ both fail. */
+    /** Exactly one line of [file] whose trimmed code text equals [pinned], 0 or 2+ both fail. */
     private fun assertPinnedLine(file: File, pinned: String, why: String) {
         val hits = lines(file).count { it == pinned }
         assertEquals(
@@ -290,13 +290,13 @@ class QuoteOnScreenSilencesPrepareWiringTest {
         )
     }
 
-    /** [file]'s code as trimmed WHOLE lines, comments cut. Rules compare with equality, never
-     *  contains: a mutation that lengthens a line must change the line. Comments MUST be cut: the
+    /** [file]'s code as trimmed whole lines, comments cut. Rules compare with equality, never
+     *  contains: a mutation that lengthens a line must change the line. Comments must be cut: the
      *  KDoc of `prepare` documents `quoteAlreadyOnScreen` in prose, and prose must never be able to
      *  satisfy a rule. */
     private fun lines(file: File): List<String> = code(file).lines().map { it.trim() }
 
-    /** [file]'s code as one string, comments cut — same reader as [ReplyQuoteConsumedWiringTest]. */
+    /** [file]'s code as one string, comments cut, same reader as [ReplyQuoteConsumedWiringTest]. */
     private fun code(file: File): String = file.readLines().mapNotNull { line ->
         val trimmed = line.trimStart()
         if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) null
@@ -325,7 +325,7 @@ class QuoteOnScreenSilencesPrepareWiringTest {
         private const val COMPOSE_SCREEN_PATH =
             "app/src/main/kotlin/app/sterna/ui/compose/ComposeScreen.kt"
 
-        /** Repo root, walked up from the module's working directory — as the other source lints do. */
+        /** Repo root, walked up from the module's working directory, as the other source lints do. */
         private val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, COMPOSE_VIEW_MODEL_PATH).isFile }

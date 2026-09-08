@@ -67,7 +67,7 @@ class SavedDraftRowCopiesTest {
     }
 
     /**
-     * MORE THAN ONE PERSON IN COPY, and all of them stored, in the order they were typed.
+     * More than one person in COPY, and all of them stored, in the order they were typed.
      */
     @Test fun aDraftKeepsEveryCopiedParty() {
         val entity = row(cc = listOf(carol, erin, frank), bcc = listOf(dave, gina))
@@ -101,7 +101,7 @@ class SavedDraftRowCopiesTest {
     // --- the two argument hops, pinned against the shipped source ------------------------------------
 
     /**
-     * SOURCE LINT. The executed tests above prove the mapping; they cannot prove the caller hands
+     * Source lint. The executed tests above prove the mapping; they cannot prove the caller hands
      */
     @Test fun `the upload hands the trimmed copies to the cache write`() {
         // Moved by #95: the two protocol branches live in `uploadDraft`, which `saveDraft` runs
@@ -130,7 +130,7 @@ class SavedDraftRowCopiesTest {
             ),
             body.drop(at).take(7),
         )
-        // …and WHAT those two names hold, which the block above cannot say. `val ccTrimmed =
+        // …and what those two names hold, which the block above cannot say. `val ccTrimmed =
         // emptyList<String>()` leaves every argument line above untouched, and the Cc then never
         // even reaches the server: the call site is pinned, so pin the definitions too, whole
         // lines, selected by name so a rename fails here rather than silently matching nothing.

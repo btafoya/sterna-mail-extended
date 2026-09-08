@@ -11,7 +11,9 @@ import androidx.work.workDataOf
 import java.util.concurrent.TimeUnit
 
 /**
- * Books the WorkManager job that puts ONE draft kept on the phone (#95) onto the server. Modelled on
+ * Books the WorkManager job that puts one draft kept on the phone (#95) onto the server. Modelled on
+ * `Outbox`, which solves the same problem for sends: a network constraint defers the job until
+ * connectivity is back, so a draft saved in a lift leaves on its own when the phone comes out.
  */
 object LocalDraftUploads {
     const val KEY_ACCOUNT = "local_draft_account"

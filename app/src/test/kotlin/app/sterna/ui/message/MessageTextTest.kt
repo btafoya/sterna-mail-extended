@@ -45,7 +45,7 @@ class MessageTextTest {
     }
 
     @Test fun zwjSequenceAndSkinToneStayInOneSpan() {
-        // A family is ONE glyph: splitting it into spans would break it into separate people.
+        // A family is one glyph: splitting it into spans would break it into separate people.
         val family = "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67"
         val wave = "\uD83D\uDC4B\uD83C\uDFFD"
         assertEquals("<span class=\"s-emo\">$family</span>", wrapEmoji(family))
@@ -62,7 +62,7 @@ class MessageTextTest {
     }
 
     @Test fun variationSelectorAfterANonEmojiBaseIsIgnored() {
-        // A stray VS16 right after a character reference must NOT make the `;` an emoji base:
+        // A stray VS16 right after a character reference must not make the `;` an emoji base:
         // wrapping there would split the entity, so `&hearts;` would render as literal text and
         // the numeric tree reference would show a stray semicolon. Same for any plain ASCII.
         assertEquals("&hearts;\ufe0f", wrapEmoji("&hearts;\ufe0f"))

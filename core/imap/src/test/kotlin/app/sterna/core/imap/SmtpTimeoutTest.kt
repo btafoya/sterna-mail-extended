@@ -9,22 +9,24 @@ import java.net.SocketTimeoutException
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * A submission against a server that ACCEPTS and then makes the client wait.
+ * A submission against a server that accepts and then makes the client wait.
  */
 class SmtpTimeoutTest {
 
     /**
      * How long a bounded send is given to come back: ten times the bound handed to the client, a
+     * sixth of the 20 s connect default and of the 30 s command default.
      */
     private val waitMs = 5_000L
 
     /**
-     * Short bound on the COMMANDS only; the connect keeps its shipped default and is never passed.
+     * Short bound on the commands only; the connect keeps its shipped default and is never passed.
      */
     private val commandTimeoutMs = 500
 
     /**
      * Run [block] on a daemon thread and give it [millis] to return; the throwable it ended with,
+     * or null when it returned normally.
      */
     private fun sendWithin(millis: Long, block: () -> Unit): Throwable? {
         val outcome = AtomicReference<Result<Unit>>()
@@ -42,7 +44,7 @@ class SmtpTimeoutTest {
         SmtpClient().send(server.config, outgoingFixture(subject), commandTimeoutMs = commandTimeoutMs)
     }
 
-    /** B-J5 — the connection is accepted and the greeting never comes. The first read of all. */
+    /** B-J5, the connection is accepted and the greeting never comes. The first read of all. */
     @Test
     fun `a server that accepts and never greets fails inside the command timeout`() {
         FakeSmtpServer(greeting = { null }).use { server ->
@@ -53,14 +55,14 @@ class SmtpTimeoutTest {
                 error is SocketTimeoutException,
             )
             // Nothing was written at a server that never said hello: EHLO waits on the 220. Behind
-            // awaitDone like its neighbour below — a list still being written by the serving thread
+            // awaitDone like its neighbour below, a list still being written by the serving thread
             // can be empty for a moment for reasons that have nothing to do with the claim.
             server.awaitDone()
             assertEquals(emptyList<String>(), server.issued())
         }
     }
 
-    /** B-J6 — the server goes quiet in the MIDDLE of the dialogue, connection still open. */
+    /** B-J6, the server goes quiet in the middle of the dialogue, connection still open. */
     @Test
     fun `a server that goes silent after MAIL FROM fails inside the command timeout`() {
         FakeSmtpServer(
@@ -81,7 +83,8 @@ class SmtpTimeoutTest {
     }
 
     /**
-     * B-J8 — the acknowledgement of the BODY takes far longer than the command timeout, and the
+     * B-J8, the acknowledgement of the body takes far longer than the command timeout, and the
+     * send must succeed anyway.
      */
     @Test
     fun `a slow acknowledgement of the body is waited for, past the command timeout`() {
@@ -112,7 +115,7 @@ class SmtpTimeoutTest {
     }
 
     /**
-     * B-J9 — a send that FAILS closes its connection.
+     * B-J9, a send that fails closes its connection.
      */
     @Test
     fun `a rejected recipient still closes the connection`() {
@@ -152,12 +155,12 @@ class SmtpTimeoutTest {
 }
 
 /**
- * SOURCE LINT, and it is a lint and not a measurement: `FakeSmtpServer` speaks no TLS, so
+ * Source lint, and it is a lint and not a measurement: `FakeSmtpServer` speaks no TLS, so
  */
 class SmtpTimeoutLintTest {
 
     /**
-     * The STATEMENTS of `send()`. Comment lines are dropped, and only they: what is asserted below
+     * The statements of `send()`. Comment lines are dropped, and only they: what is asserted below
      */
     private val body = ImapSource.functionBody("SmtpClient", "send")
         .filterNot { Regex("""^(//|/?\*)""").containsMatchIn(it) }
@@ -170,7 +173,7 @@ class SmtpTimeoutLintTest {
 
     @Test
     fun `the shipped bounds are the JMAP submission ones, and they are the defaults`() {
-        // core/jmap JmapClient.defaultHttpClient(): connectTimeout(20, SECONDS) / readTimeout(30, SECONDS).
+        // core/jmap JmapClient.defaultHttpClient(): connectTimeout(20, seconds) / readTimeout(30, seconds).
         assertEquals(20_000, SMTP_CONNECT_TIMEOUT_MS)
         assertEquals(30_000, SMTP_COMMAND_TIMEOUT_MS)
         // 0 is the socket's own default and means "no deadline of ours".
@@ -250,7 +253,7 @@ class SmtpTimeoutLintTest {
     }
 
     /**
-     * Every read bound `send()` sets, in order, whole line — what is armed AND what is disarmed.
+     * Every read bound `send()` sets, in order, whole line, what is armed and what is disarmed.
      */
     @Test
     fun `every read bound is armed and put back, on every socket that was armed`() {
@@ -266,7 +269,7 @@ class SmtpTimeoutLintTest {
             body.filter { "soTimeout" in it },
         )
         // The line moved from `expect("250", "message body")` to a dedicated reader, because a
-        // reply CUT after its first line is an accepted message here (SmtpCutConnectionTest J2).
+        // reply cut after its first line is an accepted message here (SmtpCutConnectionTest J2).
         // The claim below is unchanged: whatever reads the body's acknowledgement, there is one of
         // it and it comes straight after the two statements that unbound the socket.
         val ack = onlyIndexOf("val ack = readBodyAck()")

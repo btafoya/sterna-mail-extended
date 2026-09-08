@@ -61,16 +61,16 @@ import app.sterna.util.MailDates
 import kotlinx.coroutines.delay
 
 /**
- * The background a message row is painted with — one place, three states, in this order.
+ * The background a message row is painted with, one place, three states, in this order.
  *
- * Selection comes first and beats everything: the row's own colour is the ONLY sign that a row is
+ * Selection comes first and beats everything: the row's own colour is the only sign that a row is
  * selected, and selection is what arms the destructive actions. Then [current], the row the reading
  * pane is showing (#103), ahead of the unread tint since the open message is marked read a moment
- * later anyway. Then an unread row's [ColorScheme.surfaceContainerHighest] — bold text alone was
- * too faint in the dark scheme (#141) — against a read row's plain surface.
+ * later anyway. Then an unread row's [ColorScheme.surfaceContainerHighest], bold text alone was
+ * too faint in the dark scheme (#141), against a read row's plain surface.
  *
  * [unreadTint] is the reader's answer to that last state; off, this gives back exactly what it gave
- * before #141. It governs the BACKGROUND only, so a reader who finds it loud still sees which mail
+ * before #141. It governs the background only, so a reader who finds it loud still sees which mail
  * is unread. [flash] tints whichever base was retained rather than branching, so it cannot erase
  * the selected or unread state while it plays.
  */
@@ -93,12 +93,12 @@ internal fun rowBackground(
 
 /**
  * The fill behind the small rounded chips a row carries. Decided once per row, because the chips
- * are painted ON the row and have to know what they sit on.
+ * are painted on the row and have to know what they sit on.
  *
  * Until [rowBackground] grew a state (#141) every chip was surfaceVariant over plain surface. An
  * unread row now carries surfaceContainerHighest, and in the light scheme those two roles are one
  * step out of 255 per channel apart: the chips did not fade, they disappeared and left their labels
- * floating. surfaceContainerLowest is what an unread row's chips take instead — opaque, in every
+ * floating. surfaceContainerLowest is what an unread row's chips take instead, opaque, in every
  * Material You scheme, clear of the unread background in both themes, and carrying the chips' own
  * onSurfaceVariant ink at 6.5:1 in light.
  *
@@ -106,10 +106,10 @@ internal fun rowBackground(
  * direction is what made the light theme swallow them. [unreadTint] has to be the same answer
  * [rowBackground] got, or a pale chip lands on a pale row.
  *
- * Two rows this does NOT rescue, both as surface left them before #141 and both filed rather than
- * fixed: a SELECTED row, where a surfaceVariant chip reads by hue and vanishes under a monochrome
- * palette; and the RETURN FLASH, which passes within ~5/255 of surfaceVariant at its peak. [flash]
- * is deliberately not a parameter — a chip changing colour mid-animation is a bigger change than
+ * Two rows this does not rescue, both as surface left them before #141 and both filed rather than
+ * fixed: a selected row, where a surfaceVariant chip reads by hue and vanishes under a monochrome
+ * palette; and the return flash, which passes within ~5/255 of surfaceVariant at its peak. [flash]
+ * is deliberately not a parameter, a chip changing colour mid-animation is a bigger change than
  * the defect.
  */
 internal fun chipFill(
@@ -122,8 +122,8 @@ internal fun chipFill(
 /**
  * One row in a message list: monogram, sender, subject, preview, time + state.
  *
- * [originLabel] is the one chip that says WHERE this row comes from: the owning ACCOUNT in the
- * unified inbox and in search, the row's own FOLDER in the unread view. One slot, and the two
+ * [originLabel] is the one chip that says where this row comes from: the owning account in the
+ * unified inbox and in search, the row's own folder in the unread view. One slot, and the two
  * never coexist. Null draws no chip at all.
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -140,7 +140,7 @@ fun EmailListItem(
     current: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     // In conversation view: the thread's unread state and how many of its messages are in the
-    // viewed folder(s) — the pill shows this in-view count.
+    // viewed folder(s), the pill shows this in-view count.
     unread: Boolean = !email.isSeen,
     threadCount: Int = 1,
     // Whether the row is a conversation at all (2+ cached messages account-wide). Keeps the pill
@@ -153,7 +153,7 @@ fun EmailListItem(
     // Brief emphasis flash when returning to the list from this message.
     highlighted: Boolean = false,
     onHighlightShown: () -> Unit = {},
-    // In Sent/Drafts the sender is yourself, so the row shows who the mail went TO instead (#59).
+    // In Sent/Drafts the sender is yourself, so the row shows who the mail went to instead (#59).
     // Falls back to the sender while a cached row carries no recipients.
     showRecipients: Boolean = false,
     // Whether to mark the row "(Draft)". The `$draft` keyword is in memory only, so it is gone
@@ -181,7 +181,7 @@ fun EmailListItem(
         ListDensity.SPACED -> 16.dp
     }
     val previewLines = LocalPreviewLines.current.lines
-    // Today → the time, this year → day and month, any other year → a short numeric date, so a
+    // Today gives the time, this year the day and month, any other year a short numeric date, so a
     // 2019 row and a 2026 one cannot read the same. Numeric on that last step to keep the stamp
     // narrow: it shares this line with the sender's name.
     val receivedLabel = remember(email.receivedAt) { MailDates.formatListDate(email.receivedAt) }
@@ -236,7 +236,7 @@ fun EmailListItem(
             .padding(start = 16.dp, end = 4.dp, top = rowPadding, bottom = rowPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // The initials are the reader's to remove (#144). The Spacer is INSIDE the guard: left
+        // The initials are the reader's to remove (#144). The Spacer is inside the guard: left
         // outside, its 12 dp would add to the Row's own start padding and leave a dead band at the
         // start of every row. Read here rather than passed in, so all three call sites follow it.
         if (LocalListMonogram.current) {
@@ -288,7 +288,7 @@ fun EmailListItem(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                // Conversation pill — only when 2+ of the thread's messages are in this view.
+                // Conversation pill, only when 2+ of the thread's messages are in this view.
                 // Gated on both [threadExpandable] and [threadCount] > 1: without the count guard
                 // a thread whose other messages sit in Trash would show a bogus "(1)" pill (#75).
                 // Tappable when a handler is given, otherwise a static count badge.
@@ -349,7 +349,7 @@ fun EmailListItem(
             val favLabel = stringResource(
                 if (email.isFlagged) R.string.a11y_unfavourite else R.string.a11y_favourite,
             )
-            // Micro-pop: favouriting springs the star and pops it to coral — the one place vivid
+            // Micro-pop: favouriting springs the star and pops it to coral, the one place vivid
             // coral is earned.
             val pop = remember { Animatable(1f) }
             var firstPass by remember { mutableStateOf(true) }
@@ -397,7 +397,7 @@ private fun ThreadPill(
     onToggleExpand: (() -> Unit)?,
     fill: Color,
 ) {
-    // Belt-and-suspenders: never render a "(1)" (or empty) pill — a conversation is 2+ messages.
+    // Belt-and-suspenders: never render a "(1)" (or empty) pill, a conversation is 2+ messages.
     if (count <= 1) return
     val motionOn = rememberMotionEnabled()
     val rotation by animateFloatAsState(

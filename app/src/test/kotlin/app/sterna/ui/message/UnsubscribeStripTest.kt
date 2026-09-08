@@ -11,6 +11,7 @@ import java.io.File
 
 /**
  * The shape the unsubscribe strip takes, and the one property that matters beyond looks: the
+ * three ordinary shapes are the same height.
  */
 class UnsubscribeStripTest {
 
@@ -30,7 +31,7 @@ class UnsubscribeStripTest {
     }
 
     @Test fun `a request in flight keeps the button and takes the tap away`() {
-        // The spinner goes where the icon was, INSIDE the button: a spinner that replaces the
+        // The spinner goes where the icon was, inside the button: a spinner that replaces the
         // whole button is a strip of another height, and another height is a reload of the body.
         val body = unsubscribeStripBody(UnsubscribeState.Sending)
         assertEquals(UnsubscribeStripBody.SENDING, body)
@@ -69,7 +70,7 @@ class UnsubscribeStripTest {
     }
 
     /**
-     * SOURCE LINT, NOT A MEASUREMENT. Compose is not run here; these rules read the strip as text
+     * Source lint, not a measurement. Compose is not run here; these rules read the strip as text
      */
     @Test fun `the strip is a button with a height floor, and no sentence at rest`() {
         val strip = stripSource()
@@ -117,7 +118,7 @@ class UnsubscribeStripTest {
         // Written after watching its mutation survive the whole campaign: swap the failure's
         // colour for onSurfaceVariant and everything above still passes. The failure is the one
         // shape allowed to take more room and to say more, and the colour is what tells it apart
-        // from the terminal line — which is drawn in onSurfaceVariant three lines away.
+        // from the terminal line, which is drawn in onSurfaceVariant three lines away.
         assertTrue(
             "a failure must be drawn in the error colour: it is the only thing distinguishing " +
                 "'the sender's server refused' from 'the request went out', and the two sit in " +
@@ -128,8 +129,8 @@ class UnsubscribeStripTest {
 
     @Test fun `nothing else in the reader was moved`() {
         // The lot's scope, held by a rule rather than by good intentions: the overflow entry, the
-        // confirmation dialog (decision D7) and the strip's place in the header — last, so it
-        // never pushes a crypto verdict or a meeting invitation below the fold — are all
+        // confirmation dialog (decision D7) and the strip's place in the header, last, so it
+        // never pushes a crypto verdict or a meeting invitation below the fold, are all
         // deliberate and none of them is this correction's business.
         val screen = SOURCE.readText()
         assertTrue(

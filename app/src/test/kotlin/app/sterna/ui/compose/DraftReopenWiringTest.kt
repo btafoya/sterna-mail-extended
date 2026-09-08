@@ -6,14 +6,14 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `ComposeViewModel.kt` and `ComposeScreen.kt` as text
+ * Source lint, not a behaviour test, it reads `ComposeViewModel.kt` and `ComposeScreen.kt` as text
  */
 class DraftReopenWiringTest {
 
     // -- the ViewModel: when the flag goes up, and when it comes back down ----------------------
 
     /**
-     * THE FLAG IS RAISED BEFORE THE COROUTINE, not on its first line. The composer's first frame
+     * The flag is raised before the coroutine, not on its first line. The composer's first frame
      */
     @Test fun `the wait is declared before the coroutine that does the fetching`() {
         val branch = draftBranch()
@@ -30,7 +30,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * EVERY WAY OUT LOWERS IT — hence a `finally` and not a line at the end of the `try`. The
+     * Every way out lowers it, hence a `finally` and not a line at the end of the `try`.
      */
     @Test fun `the wait is lowered from a finally, so no exit can leave it up`() {
         val fin = draftFinallyBlock()
@@ -42,7 +42,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * BOTH WRITES TO THE FLAG, WHOLE LINES, AND ONLY THOSE TWO. Pinned as a list so a third
+     * Both writes to the flag, whole lines, and only those two. Pinned as a list so a third
      */
     @Test fun `the wait flag is written exactly twice, up then down`() {
         val branch = draftBranch()
@@ -54,7 +54,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * EVERY LINE OF THE FILE THAT NAMES THE FLAG, DECLARATION INCLUDED. The rule above reads the
+     * Every line of the file that names the flag, declaration included.
      */
     @Test fun `every line that names the wait flag, declaration included`() {
         assertEquals(
@@ -82,7 +82,7 @@ class DraftReopenWiringTest {
     // -- the ViewModel: the one place a reopened draft is prefilled from --------------------------
 
     /**
-     * EVERY LINE OF THE BRANCH THAT NAMES THE PREFILL — ONE. [ComposeViewModelWiringTest] pins
+     * Every line of the branch that names the prefill, one. [ComposeViewModelWiringTest] pins
      */
     @Test fun `every line of the draft branch that names the prefill`() {
         val branch = draftBranch()
@@ -99,7 +99,7 @@ class DraftReopenWiringTest {
     // -- the ViewModel: what a failure records ---------------------------------------------------
 
     /**
-     * THE VERDICT IS THE APP'S ONE OFFLINE VERDICT, WITH ITS ARGUMENTS. The whole line, because
+     * The verdict is the app's one offline verdict, with its arguments. The whole line, because
      */
     @Test fun `a draft that could not be read records which of the two sentences to show`() {
         val branch = draftBranch()
@@ -115,7 +115,10 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * AND EVERY LINE OF THE FILE THAT NAMES IT, DECLARATION INCLUDED — the symmetric rule to the
+     * And every line of the file that names it, declaration included, the symmetric rule to the
+     * wait flag's. The rule above says those two writes are in the branch, which this one cannot
+     * say; this one says there is no third write anywhere, and that the flow is born null, which
+     * that one cannot say. Both are needed, neither replaces the other.
      */
     @Test fun `every line that names the failure notice, declaration included`() {
         assertEquals(
@@ -144,7 +147,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * ONE STRING, ONE MEANING. `compose_prefill_failed` says "the quoted original of a reply is
+     * One string, one meaning.
      */
     @Test fun `the reply prefill's sentence stays on the reply path and nowhere else`() {
         val branch = draftBranch()
@@ -164,7 +167,7 @@ class DraftReopenWiringTest {
     // -- the screen: where the decision comes from ------------------------------------------------
 
     /**
-     * THE CALL SITE, WHOLE, WITH ITS THREE ARGUMENTS NAMED. Everything else in this class checks
+     * The call site, whole, with its three arguments named. Everything else in this class checks
      */
     @Test fun `the decision is taken from the two flows and the prefill flag`() {
         val lines = codeLines(COMPOSE_SCREEN).map { it.trim() }
@@ -178,7 +181,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * AND THE TWO FLOWS IT READS, WHOLE LINES. `by … collectAsStateWithLifecycle()` is what makes
+     * And the two flows it reads, whole lines. `by … collectAsStateWithLifecycle()` is what makes
      */
     @Test fun `both flows are collected with the lifecycle, not sampled once`() {
         val lines = codeLines(COMPOSE_SCREEN).map { it.trim() }
@@ -196,7 +199,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * THE FLAG IT READS IS THE SAVED ONE. `applied` is the whole point of the third argument: it
+     * The flag it reads is the saved one.
      */
     @Test fun `the flag the decision reads is the one that survives process death`() {
         val lines = codeLines(COMPOSE_SCREEN).map { it.trim() }
@@ -211,7 +214,9 @@ class DraftReopenWiringTest {
     // -- the screen: it obeys the decision -------------------------------------------------------
 
     /**
-     * THE WHOLE ACTION BAR IS GATED, IN ONE PLACE. Not each button disabled on its own: Save,
+     * The whole action bar is gated, in one place. Not each button disabled on its own: Save,
+     * Send, Schedule, Delete, the padlock, the paperclip and the overflow all act on fields that
+     * hold nothing while the draft is being read, or that will never hold anything once it failed.
      */
     @Test fun `no action is offered until the draft has actually been read`() {
         val lines = codeLines(COMPOSE_SCREEN).map { it.trim() }
@@ -227,7 +232,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * THREE SCREENS, AND THE EDITOR IS ONE OF THEM — it is not drawn behind a spinner, it is not
+     * Three screens, and the editor is one of them, it is not drawn behind a spinner, it is not
      */
     @Test fun `the body draws one of the three screens the decision names`() {
         val block = blockAfter(codeLines(COMPOSE_SCREEN).joinToString("\n"), "when (reopen) {")
@@ -246,7 +251,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * The dead end shows the sentence the DECISION handed it, and does not pick one of its own.
+     * The dead end shows the sentence the decision handed it, and does not pick one of its own.
      */
     @Test fun `the dead end shows the sentence it was handed`() {
         val block = blockAfter(codeLines(COMPOSE_SCREEN).joinToString("\n"), "when (reopen) {")
@@ -268,7 +273,7 @@ class DraftReopenWiringTest {
     }
 
     /**
-     * The arm of `prepare` that reopens a draft the SERVER holds, braces balanced.
+     * The arm of `prepare` that reopens a draft the server holds, braces balanced.
      */
     private fun draftBranch(): String = blockAfter(prepareBody(), "DraftOpenRoute.SERVER -> {")
 

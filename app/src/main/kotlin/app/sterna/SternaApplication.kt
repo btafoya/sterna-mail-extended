@@ -73,21 +73,21 @@ class AppContainer(context: Context) {
         UnifiedPushStateStore(context.applicationContext),
     )
 
-    /** App-lifetime scope for work that must outlive a screen — the Undo-send hold-back, or putting
+    /** App-lifetime scope for work that must outlive a screen, the Undo-send hold-back, or putting
      *  a queued message back in the outbox as its composer is popped (#70). */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val sendOutbox: SendOutbox = SendOutbox(appScope)
 
-    /** The startup recovery of the outbox — parking every row left EDITING by a process death, then
-     *  re-arming the unfinished sends — as a Job a rebuilt composer `join()`s before taking its row
-     * back, that row being parked FAILED otherwise. A Job to join, never a `runBlocking` in
+    /** The startup recovery of the outbox, parking every row left editing by a process death, then
+     *  re-arming the unfinished sends, as a Job a rebuilt composer `join()`s before taking its row
+     * back, that row being parked failed otherwise. A Job to join, never a `runBlocking` in
      *  `onCreate`: this touches Room, and blocking the main thread on a migration is an ANR. */
     val outboxRecovery: Job
 
     /** Drives the Outlook OAuth device flow app-scoped, so it survives the browser round-trip. */
     val outlookSignIn: OutlookSignIn = OutlookSignIn(mailRepository, appScope, context.applicationContext)
 
-    /** Drives the authorization-code grant app-scoped: that flow LEAVES the app for a browser and
+    /** Drives the authorization-code grant app-scoped: that flow leaves the app for a browser and
      *  comes back through MainActivity, long after a screen-scoped owner would be gone (#55). */
     val oauthCodeSignIn: OAuthCodeSignIn =
         OAuthCodeSignIn(mailRepository, appScope, context.applicationContext)
@@ -110,7 +110,7 @@ class AppContainer(context: Context) {
             LocalDraftUploads.enqueue(appContext, accountId, id, delay)
         }
         // A linked sub-account pruned on reconcile (#31) drops its notification baselines too,
-        // exactly like a sign-out — the data layer cannot reach them.
+        // exactly like a sign-out, the data layer cannot reach them.
         mailRepository.onAccountPruned = { app.sterna.push.NewMailNotifier.clear(appContext, it) }
         // A folder the server renumbered (#99): every id in it is new, so its baseline describes
         // messages that no longer exist. Cleared here, the next pass seeds it silently.
@@ -118,13 +118,13 @@ class AppContainer(context: Context) {
             app.sterna.push.NewMailNotifier.clear(appContext, accountId, mailboxId)
         }
         // Catch-up sweep of cached mail belonging to accounts that no longer exist (#121). The
-        // account list is handed over as a READER, so an account created while the database was
+        // account list is handed over as a reader, so an account created while the database was
         // opening (#31) cannot be mistaken for an orphan; an empty list sweeps nothing.
         appScope.launch {
             runCatching { storageRepository.purgeOrphanedAccounts { accountStore.accounts().map { it.id } } }
                 .onFailure { android.util.Log.w("Sterna", "orphaned-cache sweep failed; retried next start", it) }
         }
-        // One-shot on crossing a version THRESHOLD, never on every update: drop the cached bodies.
+        // One-shot on crossing a version threshold, never on every update: drop the cached bodies.
         // A body serialised by an older build is short of whatever field the new one learned to
         // read, and openMessage serves the cache first. Bodies only, and they refill on the next open.
         appScope.launch {
@@ -135,10 +135,10 @@ class AppContainer(context: Context) {
             }.onFailure { android.util.Log.w("Sterna", "body-cache upgrade purge failed; retried next start", it) }
         }
         // Re-arm any send left mid-flight. `keepExisting = true`: WorkManager may already have
-        // restored the job mid-delivery, and a REPLACE would cancel a healthy send — after which
+        // restored the job mid-delivery, and a replace would cancel a healthy send, after which
         // every cold start reads "interrupted, may already have been sent".
         outboxRecovery = appScope.launch {
-            // First park any row stranded in EDITING by a process death (#70): FAILED, visible and
+            // First park any row stranded in editing by a process death (#70): failed, visible and
             // reopenable, so only a gesture makes it leave. Requeued here it would go out at 0
             // while the restored composer holds the same text, twice.
             mailRepository.parkInterruptedOutboxEdits()
@@ -150,14 +150,14 @@ class AppContainer(context: Context) {
         // The same safety net for a draft the phone kept because the server could not be reached
         // (#95): a reboot can leave one waiting on nothing, and nothing else asks about it.
         //
-        // What the rescue picks up is TWO states and no more: a row left UPLOADING by a process
+        // What the rescue picks up is two states and no more: a row left UPLOADING by a process
         // that died mid-attempt, and one left STAGING mid file-copy, which comes back flagged
         // `bodyIsLossy` so it cannot destroy the server original it names.
         //
-        // And NOT an EDITING row — do not "repair" that back in. This runs before the killed
-        // composer has read its row back, so flipping it to PENDING hands the text being typed to
+        // And not an editing row, do not "repair" that back in. This runs before the killed
+        // composer has read its row back, so flipping it to pending hands the text being typed to
         // the upload worker, which deletes the row on success: two drafts on the server and the edit
-        // lost. Measured, on IMAP and on JMAP. Per account, and the rescue BEFORE the scheduling.
+        // lost. Measured, on IMAP and on JMAP. Per account, and the rescue before the scheduling.
         appScope.launch {
             runCatching {
                 mailRepository.accountsWithLocalDrafts().forEach { accountId ->
@@ -170,17 +170,17 @@ class AppContainer(context: Context) {
                 }
             }.onFailure { Log.w("Sterna", "local-draft re-arm failed; retried next start", it) }
         }
-        // And the same for a message the user asked to send LATER. Of the three durable queues this
-        // one waits the longest, so it is the likeliest to outlive its job — and it is the only copy
-        // of the message. An overdue row is re-armed at a delay of zero: it leaves LATE, not never.
+        // And the same for a message the user asked to send later. Of the three durable queues this
+        // one waits the longest, so it is the likeliest to outlive its job, and it is the only copy
+        // of the message. An overdue row is re-armed at a delay of zero: it leaves late, not never.
         //
-        // NOT a restore: `allowBackup` is false and `sterna.db` is excluded from backup. What is
+        // Not a restore: `allowBackup` is false and `sterna.db` is excluded from backup. What is
         // readable here is that the table and WorkManager's jobs are two different files, and that
         // `scheduleSend` writes the row and books its job as two operations. It also gives
         // `ScheduledSendWorker`'s departure check a caller it did not have.
         //
-        // `keepExisting = true`, one notch worse here: the worker deposits the message and THEN
-        // deletes the row, not in one transaction, so a REPLACE between them sends it twice.
+        // `keepExisting = true`, one notch worse here: the worker deposits the message and then
+        // deletes the row, not in one transaction, so a replace between them sends it twice.
         appScope.launch {
             runCatching {
                 scheduledSendJobs(mailRepository.scheduledSends(), System.currentTimeMillis())
@@ -188,11 +188,11 @@ class AppContainer(context: Context) {
             }.onFailure { Log.w("Sterna", "scheduled-send re-arm failed; retried next start", it) }
         }
         // The home-screen widget's number, pushed as the mail moves (#112). The widget polls
-        // nothing, so without this it sits on a stale figure while the drawer decrements. ONE
+        // nothing, so without this it sits on a stale figure while the drawer decrements. One
         // collection covers every write, live push and foreground refresh; wiring those call sites
         // one by one is a list that goes out of date the first time a gesture is added.
         //
-        // Gated on a widget being PLACED: collecting the unified total for the life of every
+        // Gated on a widget being placed: collecting the unified total for the life of every
         // process subscribes two global Room aggregates on behalf of the majority who never place
         //
         appScope.launch {
@@ -204,7 +204,7 @@ class AppContainer(context: Context) {
                     .onFailure { Log.w("Sterna", "unread widget not redrawn; the cell keeps its number", it) }
             }
         }
-        // The SECOND widget's rows, pushed the same way and for the same defect: a message marked
+        // The second widget's rows, pushed the same way and for the same defect: a message marked
         // read in the app left its row on the home screen carrying an unread dot, the data being
         // right and the trigger missing.
         //

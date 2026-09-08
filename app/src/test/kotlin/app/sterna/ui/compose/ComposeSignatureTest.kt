@@ -151,7 +151,7 @@ class ComposeSignatureTest {
     }
 
     @Test fun onlyTheSignatureBlockIsSwapped_notAQuotedCopyOfIt() {
-        // A reply quoting a previous message that ended with the same signature: the LAST block
+        // A reply quoting a previous message that ended with the same signature: the last block
         // (the live one, at the bottom) is the one swapped; the quoted copy above stays as quoted.
         val body = "Hi\n\n> \n> -- \n> Alex Rivera\n> Acme" + bodyWithSignature("", sig, delimiter = true)
         val swapped = replaceSignatureBlock(body, sig, "Alex (work)", delimiter = true)!!
@@ -228,7 +228,7 @@ class ComposeSignatureTest {
     // --- Send time: the styling (#131) meets the HTML signature ---------------------------------
     // The text alternative is the body's text; the html alternative carries the styling. The
     // imported HTML signature is still substituted for its block, but a range the user laid over
-    // that block — even one character of it — IS an edit: their text wins, escaped and styled.
+    // that block (even one character of it) IS an edit: their text wins, escaped and styled.
 
     @Test fun theStylingReachesTheHtmlAlternativeAndTheTextAroundItIsStillEscaped() {
         val body = RichBody("1 < 2 & bold", mapOf(Inline.BOLD to listOf(Span(8, 12))))
@@ -249,7 +249,7 @@ class ComposeSignatureTest {
 
     @Test fun aRangeReachingOneCharacterIntoTheBlockIsAnEdit_noSubstitution() {
         // "Hi Bob," is 7 characters; the block starts at 7 with its blank line. A range ending at
-        // 8 covers the comma AND the first character of the block: the block is no longer intact,
+        // 8 covers the comma and the first character of the block: the block is no longer intact,
         // so the user's text leaves escaped and styled, and the stored HTML stays out.
         val text = "Hi Bob," + bodyWithSignature("", sig, delimiter = true)
         val body = RichBody(text, mapOf(Inline.BOLD to listOf(Span(6, 8))))
@@ -260,7 +260,7 @@ class ComposeSignatureTest {
     }
 
     @Test fun aRangeInsideTheBlockIsAnEditToo_whateverTheFamily() {
-        // "Hi Bob,\n\n-- \n" is 13 characters: "Alex" sits at [13, 17). Italic, not bold — every
+        // "Hi Bob,\n\n-- \n" is 13 characters: "Alex" sits at [13, 17). Italic, not bold, every
         // family counts.
         val text = "Hi Bob," + bodyWithSignature("", sig, delimiter = true)
         val body = RichBody(text, mapOf(Inline.ITALIC to listOf(Span(13, 17))))
@@ -271,7 +271,7 @@ class ComposeSignatureTest {
     }
 
     @Test fun aLinkInsideTheBlockIsAnEditToo_noSubstitution() {
-        // A link is the one kind of styling the substitution would DESTROY rather than merely
+        // A link is the one kind of styling the substitution would destroy rather than merely
         // ignore: the stored HTML replaces those characters wholesale, so the address would not be
         // in the message at all while the words stayed on screen. "Hi Bob,\n\n-- \n" is 13
         // characters, so "Alex" sits at [13, 17).
@@ -302,7 +302,7 @@ class ComposeSignatureTest {
         )
     }
 
-    // --- One body, a list AND a link, through the two halves the send is made of (#131) ---------
+    // --- One body, a list and a link, through the two halves the send is made of (#131) ---------
 
     /**
      * `bodiesForSend` is a private method of an `AndroidViewModel` and cannot be run here; the two
@@ -344,10 +344,10 @@ class ComposeSignatureTest {
         assertEquals(1, Regex("-- ").findAll(saved).count())
     }
 
-    // --- The delimiter switched OFF (#90) --------------------------------------------------------
-    // The point of the setting: the signature field then holds EXACTLY what goes into the message,
+    // --- The delimiter switched off (#90) --------------------------------------------------------
+    // The point of the setting: the signature field then holds exactly what goes into the message,
     // so whoever wants "__", a rule of dashes, or no separator at all types it there. Nothing else
-    // about the signature changes — the blank line that detaches it from the message above stays.
+    // about the signature changes, the blank line that detaches it from the message above stays.
 
     @Test fun withoutTheDelimiterTheBlockIsTheBlankLineAndTheSignatureAlone() {
         assertEquals("\n\nAlex Rivera\nAcme", signatureBlock(sig, delimiter = false))
@@ -439,7 +439,7 @@ class ComposeSignatureTest {
             "Hi Bob,\n\nAlex (work)",
             replaceSignatureBlock(written, sig, "Alex (work)", delimiter = false),
         )
-        // The html alternative mirrors the BODY, not the setting: the two alternatives of one
+        // The html alternative mirrors the body, not the setting: the two alternatives of one
         // message have to say the same thing, and this body still carries its "-- " line.
         assertEquals(
             "Hi Bob,<br><br>-- <br><b>Alex</b>",
@@ -460,8 +460,8 @@ class ComposeSignatureTest {
     }
 
     @Test fun theSettingsOwnShapeWinsWhenABodyCouldBeReadEitherWay() {
-        // A body holding BOTH shapes: the live block is the one the composer would write today, so
-        // that is the one swapped — the other stays as the user's text.
+        // A body holding both shapes: the live block is the one the composer would write today, so
+        // that is the one swapped, the other stays as the user's text.
         val both = "Hi\n\nAlex Rivera\nAcme" + bodyWithSignature("", sig, delimiter = true)
         assertEquals(
             "Hi\n\nAlex Rivera\nAcme\n\n-- \nAlex (work)",

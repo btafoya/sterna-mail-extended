@@ -6,7 +6,11 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE AND RESOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source and resource lint, not a behaviour test, same instrument and same disclaimer as
+ * [app.sterna.ui.inbox.ConversationScopeWiringTest]: it reads files as text, proves nothing about
+ * what is drawn, and would still pass if the screen were broken inside. Compose rendering is not
+ * testable in this module (no Robolectric, no instrumented tests), so reading the source is what
+ * is left to hold a rule about what the screen says.
  */
 class SettingsScreenHonestyTest {
 
@@ -29,8 +33,8 @@ class SettingsScreenHonestyTest {
     }
 
     @Test fun `the conversation section is not wrapped in a condition either`() {
-        // The rule above reads INSIDE the section, and a condition can grow back just above it:
-        // `if (…) { SettingsSection(...) }` shows or hides the whole thing — the same coupling,
+        // The rule above reads inside the section, and a condition can grow back just above it:
+        // `if (…) { SettingsSection(...) }` shows or hides the whole thing, the same coupling,
         // one line out of reach. The line that opens the block the section sits in is the place
         // that can do it, so that is the line read here.
         val enclosing = enclosingLine()
@@ -68,7 +72,7 @@ class SettingsScreenHonestyTest {
 
     @Test fun `every language says where the thread comes from on each protocol`() {
         val files = stringFiles()
-        // A FLOOR, not a count: the rule is "every locale shipped", and pinning the exact number
+        // A floor, not a count: the rule is "every locale shipped", and pinning the exact number
         // made a tenth translation fail a test that talks about conversations.
         assertTrue(
             "only ${files.size} locale string files found; the app ships at least nine, so this " +
@@ -115,7 +119,7 @@ class SettingsScreenHonestyTest {
     }
 
     /**
-     * The line that opens the block the section sits in — the nearest preceding code line indented
+     * The line that opens the block the section sits in, the nearest preceding code line indented
      */
     private fun enclosingLine(): String {
         val lines = codeLines(SETTINGS_SCREEN)
@@ -137,7 +141,7 @@ class SettingsScreenHonestyTest {
     }
 
     /** As in the sibling source lints: a line whose first non-blank character opens a comment is
-     *  dropped whole, trailing comments are left in — a false match is a false failure, not a
+     *  dropped whole, trailing comments are left in, a false match is a false failure, not a
      *  false pass. */
     private fun codeLines(file: File): List<String> = file.readLines().filterNot {
         val code = it.trimStart()

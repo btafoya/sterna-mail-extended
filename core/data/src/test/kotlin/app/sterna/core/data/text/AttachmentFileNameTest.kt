@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Executes [attachmentFileName] against pairs written by hand — never by re-running the rule.
+ * Executes [attachmentFileName] against pairs written by hand, never by re-running the rule.
  */
 class AttachmentFileNameTest {
 
@@ -14,13 +14,15 @@ class AttachmentFileNameTest {
 
     /**
      * The reason this function exists. 100 letters and `.pdf`: the trunk alone pays the cap and
+     * the extension survives. Handed to `safeFileName` whole, the answer is 80 letters and nothing
+     * else.
      */
     @Test fun `a long name is cut, and keeps its extension`() {
         assertEquals("a".repeat(80) + ".pdf", attachmentFileName("a".repeat(100) + ".pdf"))
     }
 
-    /** The nastier half of the same defect: the cap landing INSIDE the extension, so `.pdf`
-     *  becomes `.pd` — a file type that does not exist, on a document that looks named. */
+    /** The nastier half of the same defect: the cap landing inside the extension, so `.pdf`
+     *  becomes `.pd`, a file type that does not exist, on a document that looks named. */
     @Test fun `a name whose cap would fall inside the extension keeps it whole`() {
         assertEquals("a".repeat(77) + ".pdf", attachmentFileName("a".repeat(77) + ".pdf"))
     }
@@ -31,7 +33,7 @@ class AttachmentFileNameTest {
 
     @Test fun `the LAST dot is the one that counts`() {
         assertEquals("archive.tar.gz", attachmentFileName("archive.tar.gz"))
-        // Split at the FIRST dot instead and the extension kept here would be `tar.gz`; the only
+        // Split at the first dot instead and the extension kept here would be `tar.gz`; the only
         // way to see the difference is a name long enough for the trunk to be cut.
         assertEquals("a".repeat(80) + ".gz", attachmentFileName("a".repeat(100) + ".tar.gz"))
     }

@@ -11,14 +11,22 @@ import java.util.Collections
 
 /**
  * A one-connection, scripted IMAP server on loopback, so the folder walk can be driven end to
+ * end on the JVM: what SELECT/SEARCH/FETCH commands actually leave the client, in what order,
+ * and how many of them. [responder] is handed the tag and the command line (tag stripped) and
+ * returns the complete raw response, tagged line included.
  */
 internal class FakeImapServer(
     /**
-     * Write these lines and then **stop answering, for good** — the IMAP twin of
+     * Write these lines and then **stop answering, for good**, the IMAP twin of
+     * [FakeSmtpServer]'s hook of the same name, and the one thing [responder] cannot express: a
+     * responder always answers the line it was given and goes back to waiting for the next one.
      */
     private val cutAfter: (String) -> List<String>? = { null },
     /**
      * The silence between the last line [cutAfter] writes and the half-close: the server that
+     * answers `+ idling`, says nothing for a while, and only then goes away. Without it the EOF
+     * treads on the heels of the continuation and the client is never actually parked in a read,
+     * which is the state the IDLE defect lives in.
      */
     private val cutDelayMs: Long = 0,
     /**
@@ -26,7 +34,7 @@ internal class FakeImapServer(
      */
     private val afterLiteral: (tag: String, line: String, literal: ByteArray) -> String = { tag, _, _ -> ok(tag) },
     /**
-     * LAST on purpose, and it must stay last: every existing call site writes
+     * Last on purpose, and it must stay last: every existing call site writes
      */
     private val responder: (tag: String, line: String) -> String,
 ) : Closeable {
@@ -37,7 +45,9 @@ internal class FakeImapServer(
     val commands: MutableList<String> = Collections.synchronizedList(mutableListOf<String>())
 
     /**
-     * Every literal received, in order, BYTE FOR BYTE: what the client put on the wire after the
+     * Every literal received, in order, byte for byte: what the client put on the wire after the
+     * server's `+`, exactly [literalSize] octets of it, before any decoding. The one place a
+     * test can see whether an 8-bit byte left the client as itself or as something re-encoded.
      */
     val literals: MutableList<ByteArray> = Collections.synchronizedList(mutableListOf<ByteArray>())
 
@@ -50,7 +60,7 @@ internal class FakeImapServer(
     )
 
     /**
-     * The accepted connection, so [close] can end it. Interrupting the serving thread does NOT
+     * The accepted connection, so [close] can end it. Interrupting the serving thread does not
      * unblock a socket read, and a cut session spends its last seconds in one.
      */
     @Volatile
@@ -62,13 +72,12 @@ internal class FakeImapServer(
         runCatching {
             server.accept().use { socket ->
                 accepted = socket
-                // Asymmetric on purpose. READING is UTF-8 because that is what the client writes
-                // (a `UID SEARCH CHARSET UTF-8 SUBJECT "école"` really does go out as UTF-8, and
+                // Asymmetric on purpose.
                 //
                 // The reading side is a byte stream with a line reader of its own rather than a
                 // BufferedReader: a literal (`APPEND … {N}` followed by N octets) has to be taken
-                // off the SAME stream as raw bytes, and a Reader would have decoded them — and
-                // read ahead past them — before a test could look at them.
+                // off the same stream as raw bytes, and a Reader would have decoded them, and
+                // read ahead past them, before a test could look at them.
                 val input = BufferedInputStream(socket.inputStream)
                 val writer = OutputStreamWriter(socket.outputStream, Charsets.ISO_8859_1)
 
@@ -100,6 +109,9 @@ internal class FakeImapServer(
 
                 /**
                  * Honour [cutAfter] for [trigger]: write the partial response, go quiet for
+                 * [cutDelayMs], half-close, then keep recording whatever the client still writes
+                 * until it goes quiet ([QUIET_MS]) or closes. True when the session was cut and
+                 * the serve loop must end.
                  */
                 fun cut(trigger: String): Boolean {
                     val partial = cutAfter(trigger) ?: return false
@@ -163,7 +175,7 @@ internal class FakeImapServer(
 
     override fun close() {
         runCatching { server.close() }
-        // The accepted socket too: closing the LISTENING socket leaves an established connection
+        // The accepted socket too: closing the listening socket leaves an established connection
         // untouched, and a cut session's serving thread is parked on a read of it.
         runCatching { accepted?.close() }
         thread.interrupt()
@@ -190,7 +202,7 @@ internal fun ok(tag: String) = "$tag OK done\r\n"
 
 /**
  * A canned SELECT response for a folder holding [exists] messages, announcing [uidValidity] as
- * its numbering — the value a renumbering test moves (Codeberg #99).
+ * its numbering, the value a renumbering test moves (Codeberg #99).
  */
 internal fun selectResponse(tag: String, exists: Int = 10, uidValidity: Long = 1L): String =
     "* $exists EXISTS\r\n* OK [UIDVALIDITY $uidValidity] ok\r\n* OK [UIDNEXT ${exists + 1}] ok\r\n" +
@@ -202,6 +214,8 @@ internal fun searchResponse(tag: String, uids: List<Long>): String =
 
 /**
  * A canned `UID FETCH` result: one envelope per requested uid, with an attachment part in the
+ * BODYSTRUCTURE when [withAttachment] says so, that is exactly what the local attachment
+ * filter reads. [flags] gives the FLAGS list of each uid, `\Seen` unless a test says otherwise.
  */
 internal fun fetchResponse(
     tag: String,
@@ -218,7 +232,7 @@ internal fun fetchResponse(
         } else {
             """("text" "plain" ("charset" "utf-8") NIL NIL "7bit" 12 1)"""
         }
-        // DISTINCT addresses in five of the envelope's six address slots — from (2), sender (3),
+        // Distinct addresses in five of the envelope's six address slots, from (2), sender (3),
         // reply-to (4), to (5) and cc (6); only bcc (7) stays NIL, as a server sends it. They used
         "* $uid FETCH (UID $uid FLAGS ($flagList) INTERNALDATE \"01-Jun-2026 10:00:00 +0000\" " +
             "ENVELOPE (\"Mon, 1 Jun 2026 10:00:0${uid % 10} +0000\" \"Message $uid\" " +

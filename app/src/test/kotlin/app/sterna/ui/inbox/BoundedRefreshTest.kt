@@ -16,7 +16,7 @@ import org.junit.Test
 import java.io.IOException
 
 /**
- * [refreshWithin]: the fourth end of a refresh — the one that never comes back (#130).
+ * [refreshWithin]: the fourth end of a refresh, the one that never comes back (#130).
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class BoundedRefreshTest {
@@ -32,7 +32,8 @@ class BoundedRefreshTest {
     }
 
     /**
-     * The bound the app actually ships with — the default, spelled nowhere else (the call site in
+     * The bound the app actually ships with, the default, spelled nowhere else (the call site in
+     * `InboxViewModel.refresh()` passes no argument, which `BoundedRefreshWiringLintTest` holds).
      */
     @Test
     fun `the shipped budget is three minutes, and it is what a bare call spends`() = runTest {

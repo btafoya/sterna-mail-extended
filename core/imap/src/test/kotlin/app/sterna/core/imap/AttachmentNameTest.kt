@@ -5,6 +5,7 @@ import org.junit.Test
 
 /**
  * Attachment filenames that are not ASCII (Codeberg #101, the reporter's second sentence: "the
+ * same situation with attachments in letters").
  */
 class AttachmentNameTest {
 
@@ -57,7 +58,7 @@ class AttachmentNameTest {
         )
     }
 
-    /** Not legal in a parameter, but very common in the wild — and the reason we reuse the
+    /** Not legal in a parameter, but very common in the wild, and the reason we reuse the
      *  encoded-word decoder rather than writing a second one. */
     @Test fun `an RFC 2047 word in a filename is decoded`() {
         assertEquals("Отчёт.pdf", nameOf("attachment; filename=\"=?UTF-8?B?0J7RgtGH0ZHRgi5wZGY=?=\""))
@@ -69,7 +70,7 @@ class AttachmentNameTest {
         assertEquals("report.pdf", nameOf("attachment; filename=\"report.pdf\""))
     }
 
-    /** `filename` CONTAINS `name`: the old regex answered the Content-Type's `name` parameter
+    /** `filename` contains `name`: the old regex answered the Content-Type's `name` parameter
      *  when asked for the disposition's, and vice versa. */
     @Test fun `the name parameter is not found inside filename`() {
         assertEquals(

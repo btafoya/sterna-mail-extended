@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The frozen numbering on its way THROUGH THE QUEUE (#99, V2): the composer freezes it, the outbox
+ * The frozen numbering on its way through the queue (#99, V2): the composer freezes it, the outbox
  */
 class DraftNumberingCarriedWiringTest {
 
@@ -38,7 +38,7 @@ class DraftNumberingCarriedWiringTest {
 
     @Test fun `a row queued before the column existed reopens with nothing frozen`() {
         // The witness against a mapping that answers a constant: `null` must come back as `null`,
-        // and null destroys nothing — the deliberate cost of not backfilling (MIGRATION_22_23).
+        // and null destroys nothing, the deliberate cost of not backfilling (MIGRATION_22_23).
         assertEquals(null, outboxDraftOf(queued(draftUidValidity = null), emptyList()).draftUidValidity)
     }
 
@@ -53,7 +53,7 @@ class DraftNumberingCarriedWiringTest {
         assertEquals("Six o'clock", draft.subject)
     }
 
-    // --- the delivery destroys under the number the ROW carries ---------------------------------
+    // --- the delivery destroys under the number the row carries ---------------------------------
 
     @Test fun `the send destroys the draft under the numbering its row carried, not a fresh one`() {
         val body = bodyOf("performSend")
@@ -146,7 +146,7 @@ class DraftNumberingCarriedWiringTest {
         return code.substring(open, matchingParen(code, open) + 1)
     }
 
-    /** The code lines of [body] naming [needle], comments cut, trimmed — compared WHOLE. */
+    /** The code lines of [body] naming [needle], comments cut, trimmed, compared whole. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         codeOf(body).lines().map { it.trim() }.filter { needle in it }
 
@@ -221,6 +221,8 @@ class DraftNumberingCarriedWiringTest {
 
     /**
      * [source] with every comment removed, string literals untouched. The comments in this
+     * repository name the very arguments these rules pin, so prose must not be able to answer for
+     * the code, nor to break a rule the code still satisfies.
      */
     private fun codeOf(source: String): String {
         val out = StringBuilder()

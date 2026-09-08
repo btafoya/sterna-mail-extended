@@ -27,7 +27,7 @@ object FetchAndNotify {
         includeExtras: Boolean = true,
         resetBaselines: Boolean = false,
     ) {
-        // Outside the `try` because the catch below needs the store to say WHY the account was gone.
+        // Outside the `try` because the catch below needs the store to say why the account was gone.
         val container = (context.applicationContext as Application).container
         val store = container.accountStore
         try {
@@ -37,7 +37,7 @@ object FetchAndNotify {
                 extraFolderIds = extras,
                 includeInbox = includeInbox,
                 onMissing = { staleId ->
-                    // Deleted/renamed server-side: the watch intent is gone — prune quietly.
+                    // Deleted/renamed server-side: the watch intent is gone, prune quietly.
                     store.setFolderWatched(credentials.id, staleId, watched = false)
                     NewMailNotifier.clear(context, credentials.id, staleId)
                 },
@@ -46,21 +46,21 @@ object FetchAndNotify {
             val inboxId = if (includeInbox) refreshes.firstOrNull()?.mailboxId else null
             if (inboxId != null) NewMailNotifier.migrateLegacyBaseline(context, credentials.id, inboxId)
             val unarchiveOnReply = container.settingsRepository.unarchiveOnReply.first()
-            // ONE budget for this ACCOUNT's whole pass, built here and not inside the loop: the
+            // One budget for this account's whole pass, built here and not inside the loop: the
             // diff runs once per folder, so a per-folder budget would give an account watching
             // three extras four times the reads on one radio wake-up.
             val previewBudget = NotificationPreviews.PreviewBudget(System::currentTimeMillis)
             refreshes.forEach { folder ->
-                // FIRST, and it leaves the folder entirely alone: null is the refresh saying its
+                // First, and it leaves the folder entirely alone: null is the refresh saying its
                 // page cannot state what this folder holds, and the only thing this iteration would
                 val baselineIds = folder.baselineIds ?: return@forEach
                 val isInbox = folder.mailboxId == inboxId
                 val folderName = if (isInbox) null else folder.name
                 val hasBaseline = NewMailNotifier.hasBaseline(context, credentials.id, folder.mailboxId)
-                // #50 (opt-out, on by default): BEFORE this pass advances or reseeds the inbox
+                // #50 (opt-out, on by default): before this pass advances or reseeds the inbox
                 // baseline, pull the archived members of threads that just received genuinely-new
                 //
-                // Best-effort, but NOT for a sign-out: the guards inside
+                // Best-effort, but not for a sign-out: the guards inside
                 // `unarchiveThreadsOnReply` throw a CancellationException `runCatching` would catch
                 // like any failure, and this pass would then write a baseline under the removed id.
                 val returned = if (isInbox && hasBaseline && unarchiveOnReply) {
@@ -73,7 +73,7 @@ object FetchAndNotify {
                 } else {
                     emptyList()
                 }
-                // What the folder REMEMBERS: everything the pass read, plus the members just
+                // What the folder remembers: everything the pass read, plus the members just
                 // re-filed. The two sets are different sizes on purpose.
                 val remembered = baselineIds + returned.map { it.id }
                 if (seedsSilently(resetBaselines, isInbox, hasBaseline)) {
@@ -82,7 +82,7 @@ object FetchAndNotify {
                 } else {
                     // The folder's departures ride along, so a message deleted from another client
                     // loses its banner (#134); its preview sources ride along too, the opening line
-                    // having to be READ on IMAP. Both empty on the paths that have neither.
+                    // having to be read on IMAP. Both empty on the paths that have neither.
                     NewMailNotifier.notifyDiff(
                         context, credentials, folder.mailboxId, folderName, folder.emails + returned, remembered,
                         folder.departedIds,
@@ -95,9 +95,9 @@ object FetchAndNotify {
             // The refusal MailRepository's guards throw when the account this pass writes for was
             // signed out mid-flight. It arrives as a cancellation, and every caller turns whatever
             // comes out of this call into a Log.w/Log.e with a stack, so every sign-out would print
-            // an error for a gesture that SUCCEEDED (#130).
+            // an error for a gesture that succeeded (#130).
             //
-            // It must stay the FIRST arm: AccountGoneException IS a CancellationException, so any
+            // It must stay the first arm: AccountGoneException IS a CancellationException, so any
             // arm above naming that type makes this one unreachable. What the line claims is
             // [accountGoneCause]'s to decide, an unreadable blob also making `accounts()` answer
             // empty.
@@ -107,13 +107,13 @@ object FetchAndNotify {
                 gone,
             )
         }
-        // The home-screen widget, redrawn once the pass is over (#112) — the case the app-scoped
-        // collection cannot cover: a process the DELIVERY woke.
+        // The home-screen widget, redrawn once the pass is over (#112), the case the app-scoped
+        // collection cannot cover: a process the delivery woke.
         //
         // Outside the try on purpose: the arm above claims a CancellationException is a sign-out,
         // so a cancelled redraw would be logged as one nobody asked for. `rethrowIfCancelled` is not
-        // decoration — `runCatching` would turn the pass being cancelled into a normal return. With
-        // no widget placed it costs ONE binder call.
+        // decoration, `runCatching` would turn the pass being cancelled into a normal return. With
+        // no widget placed it costs one binder call.
         runCatching { UnreadWidgetDraw.refresh(context) }
             .rethrowIfCancelled()
             .onFailure { android.util.Log.w("FetchAndNotify", "unread widget not redrawn after the pass", it) }
@@ -132,7 +132,7 @@ object FetchAndNotify {
         val container = (context.applicationContext as Application).container
         if (!container.settingsRepository.unarchiveOnReply.first()) return
         NewMailNotifier.migrateLegacyBaseline(context, credentials.id, inboxMailboxId)
-        // The same bounded read the push pass gets: this hook writes the SAME baseline, so the two
+        // The same bounded read the push pass gets: this hook writes the same baseline, so the two
         // must read and remember the same way.
         val read = container.mailRepository.notifyRead(credentials.id, inboxMailboxId)
         val emails = read.emails
@@ -143,7 +143,7 @@ object FetchAndNotify {
         val threads = NewMailNotifier.newSince(context, credentials.id, inboxMailboxId, emails)
             .mapNotNull { it.threadId }
             .toSet()
-        // The try opens HERE because this is where a refusal can come from, and closes on everything
+        // The try opens here because this is where a refusal can come from, and closes on everything
         // the re-file feeds: `notifyDiff` and `seed` both write the shared baseline.
         try {
             // Same best-effort wrapper as the background pass, and the same exception: a move the
@@ -158,8 +158,8 @@ object FetchAndNotify {
                 NewMailNotifier.seed(context, credentials.id, inboxMailboxId, remembered)
             }
         } catch (gone: AccountGoneException) {
-            // Caught HERE for what it STOPS: `InboxViewModel` already wraps both of its calls, so
-            // a refusal let out would change nothing for it. What matters is that `notifyDiff` and
+            // Caught here for what it stops: `InboxViewModel` already wraps both of its calls, so
+            // a refusal let out would change nothing for it.
             android.util.Log.i(
                 "FetchAndNotify",
                 "foreground inbox: ${accountGoneCause(credentials.id, container.accountStore.accountsUnreadable(), passKind = "refresh")}, dropped",

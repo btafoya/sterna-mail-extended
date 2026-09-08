@@ -99,7 +99,7 @@ class StoredAccountDefaultIdentityTest {
 
     @Test fun linkedSubAccount_ignoresTheLoginAddress() {
         // A shared mailbox's username IS the login's address (#31), so it must not be read as
-        // "the account's own address" — that would pre-select the login as the sender.
+        // "the account's own address", that would pre-select the login as the sender.
         val ownAddress = identity("shared", "team@example.test")
         val loginAddress = identity("login", "user@example.test")
         val acc = StoredAccount(

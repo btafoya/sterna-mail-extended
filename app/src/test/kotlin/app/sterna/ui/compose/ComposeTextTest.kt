@@ -109,7 +109,7 @@ class ComposeTextTest {
     }
 
     @Test fun carriedCidNormalisesAngleBrackets() {
-        // The original src has no brackets; carriedCids supplied them — they must still match.
+        // The original src has no brackets; carriedCids supplied them, they must still match.
         val cleaned = cleanForwardedHtml(sampleHtml, carriedCids = setOf("<logo123@mail>"))
         assertTrue("img kept despite bracket mismatch", cleaned.contains("cid:logo123@mail"))
         assertFalse("no placeholder", cleaned.contains("[image]"))
@@ -198,7 +198,7 @@ class ComposeTextTest {
         // A draft saved by another client may be HTML-only; the plain-text editor gets it
         // flattened with paragraphs preserved, not raw markup on one line. Still true after
         // #131: `<p>` is not a tag this app's parser reads, so the html is refused and the
-        // flattening is what the editor gets — the styled case is two tests below.
+        // flattening is what the editor gets, the styled case is two tests below.
         val draft = Email(
             id = "d2",
             subject = "Html draft",
@@ -212,8 +212,8 @@ class ComposeTextTest {
     }
 
     @Test fun draftFieldsReadTheStylingOfATwoPartDraftOfOurs() {
-        // #131, and the trap it walks past: a draft this app saved has BOTH parts, and
-        // `bodySource` takes `textBody[0]` whenever it is non-blank — so read that way the styling
+        // #131, and the trap it walks past: a draft this app saved has both parts, and
+        // `bodySource` takes `textBody[0]` whenever it is non-blank, so read that way the styling
         // is dropped every single time, in silence, with the letters all still on screen.
         val draft = Email(
             id = "d5",
@@ -237,7 +237,7 @@ class ComposeTextTest {
 
     @Test fun draftFieldsTakeTheBodyAndTheSpansOutOfTheSamePart() {
         // The witness the test above cannot be: there both parts say the same words, so
-        // `body = originalPlainText(o)` — the text part — passes it. Here they DIFFER, which two
+        // `body = originalPlainText(o)` (the text part) passes it. Here they differ, which two
         // parts of one draft are free to do (another client rewrote one, a save was interrupted).
         // The spans are measured on the HTML; laid over the text part they would cover other
         // letters, and the re-save would then destroy the original in favour of that.
@@ -263,9 +263,9 @@ class ComposeTextTest {
     }
 
     @Test fun draftFieldsCarryTheListsOfTheHtmlPart() {
-        // #131 lists. The `<ul>` is in the html part only, and it must be read FIRST: read
+        // #131 lists. The `<ul>` is in the html part only, and it must be read first: read
         // text-first, whatever the text part holds would show as typed text and the next save
-        // would store it INSIDE the body. The dashes here are the worst case on purpose — and
+        // would store it inside the body. The dashes here are the worst case on purpose, and
         // since the links (#131) that IS what a draft's text column holds: the save writes
         // `toPlainText(body)`, the one plain-text answer the send uses too, so the markers and the
         // addresses are spelled out in both. The html part is read first, so the reopen is exact;
@@ -292,7 +292,7 @@ class ComposeTextTest {
     }
 
     /**
-     * ROUTE 1 OF 4 — the SERVER draft (JMAP and IMAP alike land on `draftFieldsOf`).
+     * Route 1 of 4, the server draft (JMAP and IMAP alike land on `draftFieldsOf`).
      *
      * Why this one is not decoration. Since the parser accepts an anchor, this draft is judged
      * REPRODUCIBLE (`draftHtmlIsLossy`), so the next save destroys the server original and puts
@@ -320,7 +320,7 @@ class ComposeTextTest {
         )
     }
 
-    /** ROUTE 1 OF 4, a list AND a link on one body: the two answers come back together. */
+    /** Route 1 of 4, a list and a link on one body: the two answers come back together. */
     @Test fun draftFieldsOfADraftWithAListAndALinkCarryBoth() {
         val draft = Email(
             id = "d11",
@@ -431,15 +431,15 @@ class ComposeTextTest {
 
     @Test fun draftFieldsFallBackOnTheCachedRowForAFieldTheServerReturnedEmpty() {
         // Measured on the bench: a server can refuse an address it judges invalid and hand the
-        // field back empty. The typed string then survives in exactly one place — the row this app
-        // cached, the one the Drafts list draws — so that is what the field reopens with.
+        // field back empty. The typed string then survives in exactly one place, the row this app
+        // cached, the one the Drafts list draws, so that is what the field reopens with.
         val draft = Email(id = "d8", to = emptyList())
         val cached = Email(id = "d8", to = listOf(EmailAddress(name = "aa", email = "")))
         assertEquals("aa", draftFieldsOf(draft, cached).to)
     }
 
     @Test fun draftFieldsNeverOverwriteAFieldTheServerFilled() {
-        // The whole freshness rule, and the reason it is "the server returned NOTHING" and not
+        // The whole freshness rule, and the reason it is "the server returned nothing" and not
         // "the cache holds more": another client may have deliberately removed a recipient, and
         // our row is then simply stale. Putting it back would re-address the message behind the
         // user's back, which is worse than leaving a partial loss uncorrected.
@@ -453,7 +453,7 @@ class ComposeTextTest {
 
     @Test fun draftFieldsFallBackFieldByFieldAndTheCcBccRowFollows() {
         // Per field, not per draft: a To the server kept is kept, while a Cc it dropped comes back
-        // from the cache — and the reveal is computed from the recovered field, or the recipient
+        // from the cache, and the reveal is computed from the recovered field, or the recipient
         // would be restored into a row folded shut.
         val draft = Email(id = "d10", to = listOf(EmailAddress(email = "a@example.com")))
         val cached = Email(
@@ -468,8 +468,8 @@ class ComposeTextTest {
     }
 
     @Test fun draftFieldsRecoveredFromTheCacheStayInTheirOwnField() {
-        // Each field falls back on the SAME field of the cached row, and the other two stay empty.
-        // Feed a recovered To to the Bcc — one token, `cached?.to` where `cached?.bcc` belongs —
+        // Each field falls back on the same field of the cached row, and the other two stay empty.
+        // Feed a recovered To to the Bcc (one token, `cached?.to` where `cached?.bcc` belongs)
         // and the recipient reopens in blind copy: the mail then leaves addressed to them twice,
         // one of the copies hidden. The cache holds no Cc/Bcc today, so the field it is read from
         // has to be pinned here, in the one test that names all three, or nothing sees the swap.
@@ -547,7 +547,7 @@ class ComposeTextTest {
         assertEquals(ComposeFocus.BODY, focusOf(linkTo = "foo@example.com", linkSubject = "Hello"))
     }
 
-    // A link that also carries a body changes nothing — the subject is what decides, so a link
+    // A link that also carries a body changes nothing, the subject is what decides, so a link
     // with a body but NO subject still stops at the subject, the first field it left empty.
     @Test fun mailtoWithABodyButNoSubjectOpensOnTheSubject() {
         assertEquals(ComposeFocus.SUBJECT, focusOf(linkTo = "foo@example.com", linkSubject = ""))
@@ -557,7 +557,7 @@ class ComposeTextTest {
         assertEquals(ComposeFocus.RECIPIENTS, focusOf(linkTo = "", linkSubject = "Hello"))
     }
 
-    // A system "Share" reuses the mailto: path with an empty To — it must keep landing on the
+    // A system "Share" reuses the mailto: path with an empty To, it must keep landing on the
     // recipients, which is exactly what it is still missing.
     @Test fun sharedTextOpensOnTheRecipients() {
         assertEquals(ComposeFocus.RECIPIENTS, focusOf(linkTo = null, linkSubject = "Photo"))
@@ -607,7 +607,7 @@ class ComposeTextTest {
         )
     }
 
-    // mailto:foo@example.com?subject=Hello&body=Hello%20world! — one writes AFTER the text the link
+    // mailto:foo@example.com?subject=Hello&body=Hello%20world!, one writes after the text the link
     // supplied, so the caret sits at its end, which is also just above the appended signature (#83).
     @Test fun mailtoBodyResumesAfterTheTextTheLinkSupplied() {
         val link = "Hello world!"
@@ -702,8 +702,8 @@ class ComposeTextTest {
     // --- Tapping a recipient chip to edit the address again (#94) ---
     //
     // The field is one comma-joined string: "a@x.com, b@x.com, " is two committed addresses and an
-    // empty input. Tapping a chip moves that address to the trailing token — where the field puts
-    // the caret at the end — and leaves the others committed, in order.
+    // empty input. Tapping a chip moves that address to the trailing token, where the field puts
+    // the caret at the end, and leaves the others committed, in order.
 
     private val three = "alex@x.com, jordan@y.com, mia@z.com, "
 
@@ -811,7 +811,7 @@ class ComposeTextTest {
     }
 
     @Test fun replyAllToYourOwnAliasStillAnswersTheSender() {
-        // The original came FROM one of your aliases: it drops out of the recipients too.
+        // The original came from one of your aliases: it drops out of the recipients too.
         val o = Email(
             id = "m3",
             from = listOf(EmailAddress(email = "alias@example.com")),
@@ -825,10 +825,10 @@ class ComposeTextTest {
 
     // --- Reply-To: the sender named another mailbox for answers, and it wins over the From ---
     //
-    // Every expectation below is a literal, and the two functions are EXECUTED: inverting the
+    // Every expectation below is a literal, and the two functions are executed: inverting the
     // shipped priority (From first, Reply-To second) or re-adding the From beside the Reply-To
     // turns these red. The harm they hold: a reply that looks sent, addressed to the very mailbox
-    // the sender set aside — a `no-reply@`, a list's posting alias behind a bounce address.
+    // the sender set aside, a `no-reply@`, a list's posting alias behind a bounce address.
 
     /** The same original, with the sender pointing answers at a support address. */
     private val originalWithReplyTo = originalToReply.copy(
@@ -895,7 +895,7 @@ class ComposeTextTest {
     }
 
     @Test fun replyAllUsesTheReplyToAndDropsTheSender() {
-        // alice@example.com — the From — must NOT be here: the sender displaced it.
+        // alice@example.com (the From) must not be here: the sender displaced it.
         assertEquals(
             "support@example.com, bob@example.com, carol@example.com",
             replyAllRecipients(originalWithReplyTo, setOf("me@example.com")),
@@ -938,7 +938,7 @@ class ComposeTextTest {
     }
 
     @Test fun replyAllDropsAReplyToThatIsOneOfYourOwnAddresses() {
-        // Your own alias named as the Reply-To is filtered like any other self address (B5) — and
+        // Your own alias named as the Reply-To is filtered like any other self address (B5), and
         // the From does not come back to fill the hole.
         val o = originalToReply.copy(replyTo = listOf(EmailAddress(email = "Alias@Example.com")))
         assertEquals(
@@ -1026,7 +1026,7 @@ class ComposeTextTest {
     }
 
     @Test fun replyNeverSwitchesToAnotherAccountsIdentity() {
-        // The mail was addressed to an identity of a DIFFERENT account: replying stays on its own.
+        // The mail was addressed to an identity of a different account: replying stays on its own.
         val options = aliasOptions + FromOption("other", identity("work@example.com"))
         val o = originalToReply.copy(to = listOf(EmailAddress(email = "work@example.com")), cc = emptyList())
         assertEquals(null, receivingFromOption(options, "acc", o))
@@ -1037,8 +1037,8 @@ class ComposeTextTest {
     }
 
     @Test fun replyPreselectsForADelegatedSubAccount() {
-        // A shared mailbox: its options are the addresses the store resolves FOR it (its own here),
-        // under the sub-account's own id — the login's identity must not be picked instead.
+        // A shared mailbox: its options are the addresses the store resolves for it (its own here),
+        // under the sub-account's own id, the login's identity must not be picked instead.
         val options = listOf(
             FromOption("login", identity("me@example.com")),
             FromOption("sub", identity("shared@example.com")),
@@ -1052,7 +1052,7 @@ class ComposeTextTest {
 
     @Test fun replyAllStillExcludesEveryAliasIncludingTheOneNowSending() {
         // The B5 guarantee, with #81 on top: the mail came in on alias@, so the reply goes out from
-        // alias@ — and NONE of the account's addresses (alias@ included) may land in the recipients.
+        // alias@, and none of the account's addresses (alias@ included) may land in the recipients.
         val o = originalToReply.copy(
             to = listOf(EmailAddress(email = "alias@example.com"), EmailAddress(email = "bob@example.com")),
             cc = listOf(EmailAddress(email = "me@example.com")),

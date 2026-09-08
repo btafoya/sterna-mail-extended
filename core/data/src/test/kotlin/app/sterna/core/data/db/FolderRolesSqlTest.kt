@@ -44,7 +44,7 @@ class FolderRolesSqlTest {
         }
 
     /** The shipped `observeRoles` statement, run for [accountIds] and mapped exactly as the
-     *  repository maps it — [folderRoleMap], the projection the ViewModel receives. */
+     *  repository maps it, [folderRoleMap], the projection the ViewModel receives. */
     private fun roles(accountIds: List<String>): Map<Pair<String, String>, String> {
         val sql = DaoQuerySource.daoQuery("MailboxDao", "observeRoles")
         val (positional, order) = DaoQuerySource.bindOrder(sql, mapOf("accountIds" to accountIds.size))
@@ -64,7 +64,7 @@ class FolderRolesSqlTest {
 
     @Test fun `the inbox is in the map, with the role that sends a row to its sender`() {
         // The mutation this is here for: excluding 'inbox' from the query is one clause, and it is
-        // the whole of #115 — your own message echoed back into the Inbox goes back to reading
+        // the whole of #115, your own message echoed back into the Inbox goes back to reading
         // "To: …" as a child row while the reader it opens says the sender.
         folder("acc", "f1", "inbox")
         folder("acc", "f2", "sent")
@@ -76,7 +76,7 @@ class FolderRolesSqlTest {
     }
 
     @Test fun `a folder with no role is left out, and that is not the same as unknown`() {
-        // A user folder answers nothing about incoming or outgoing, so it is absent — and a caller
+        // A user folder answers nothing about incoming or outgoing, so it is absent, and a caller
         // that finds no entry must fall back, not conclude. Keeping such a row with an empty role
         // would turn "I don't know" into "not outgoing" for every message in it.
         folder("acc", "f1", "inbox")
@@ -87,7 +87,7 @@ class FolderRolesSqlTest {
 
     @Test fun `a folder that claimed the trash and lost it is left out too`() {
         // `~trash` is the mark a second trash is stored with (a personal Trash plus a shared
-        // Shared/…/Trash) so search skips it. The statement CANNOT drop it — it keeps every
+        // Shared/…/Trash) so search skips it. The statement cannot drop it, it keeps every
         folder("acc", "f1", "inbox")
         folder("acc", "f2", "~trash")
         folder("acc", "f3", "~junk")
@@ -120,7 +120,7 @@ class FolderRolesSqlTest {
     @Test fun `two accounts numbering their folders alike stay apart`() {
         // Servers number mailboxes per account (#121/#31): Stalwart hands two accounts the same
         // "f1". Keyed on the folder id alone, one account's Sent would make the other's Inbox read
-        // as outgoing — every message in it showing its recipients instead of its sender.
+        // as outgoing, every message in it showing its recipients instead of its sender.
         folder("acc", "f1", "inbox")
         folder("other", "f1", "sent")
 
@@ -132,7 +132,7 @@ class FolderRolesSqlTest {
 
     @Test fun `an account that has never opened its inbox still has its folders judged`() {
         // The scoping half (FolderRolesScopeTest) makes sure such an account is asked about at all;
-        // this is the other end of it — nothing in the statement requires an inbox to exist.
+        // this is the other end of it, nothing in the statement requires an inbox to exist.
         folder("fresh", "f9", "archive")
 
         assertEquals(mapOf(("fresh" to "f9") to "archive"), roles(listOf("fresh")))

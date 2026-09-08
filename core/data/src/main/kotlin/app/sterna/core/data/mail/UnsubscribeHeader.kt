@@ -1,6 +1,6 @@
 package app.sterna.core.data.mail
 
-/** `subject` and `body` are null when absent OR blank: the caller's default beats an empty one. */
+/** `subject` and `body` are null when absent or blank: the caller's default beats an empty one. */
 data class MailtoUnsubscribe(
     val address: String,
     val subject: String? = null,
@@ -8,7 +8,7 @@ data class MailtoUnsubscribe(
 )
 
 /**
- * Three DIFFERENT gestures, not copies of one address: [oneClickUrl] is a POST that loads nothing,
+ * Three different gestures, not copies of one address: [oneClickUrl] is a POST that loads nothing,
  * [pageUrl] a browser page load with everything that implies. The two are mutually exclusive.
  */
 data class UnsubscribeOptions(
@@ -17,7 +17,7 @@ data class UnsubscribeOptions(
     val mailto: MailtoUnsubscribe? = null,
 )
 
-/** A bare POST, a mail through the outbox, or a page handed to a browser — announced as such. */
+/** A bare POST, a mail through the outbox, or a page handed to a browser, announced as such. */
 enum class UnsubscribeAction {
     ONE_CLICK,
 
@@ -35,7 +35,7 @@ fun UnsubscribeOptions.preferredAction(): UnsubscribeAction? = when {
 }
 
 /**
- * Not the same shape per gesture: ONE_CLICK names the HOST, who receives the POST being the whole
+ * Not the same shape per gesture: ONE_CLICK names the host, who receives the POST being the whole
  */
 fun UnsubscribeOptions.confirmationTarget(action: UnsubscribeAction): String? = when (action) {
     UnsubscribeAction.ONE_CLICK -> oneClickUrl?.let { UnsubscribeHeader.hostOf(it) }
@@ -51,7 +51,7 @@ object UnsubscribeHeader {
 
     private val WHITESPACE = Regex("[ \\t\\r\\n]")
 
-    /** NOT "every blank": a `mailto:` may carry `?body=please remove me`. Unfolding may not rewrite. */
+    /** Not "every blank": a `mailto:` may carry `?body=please remove me`. Unfolding may not rewrite. */
     private val FOLDING = Regex("[ \\t]*[\\r\\n\\t]+[ \\t]*")
 
     /**
@@ -64,7 +64,7 @@ object UnsubscribeHeader {
         var mailto: MailtoUnsubscribe? = null
         for (uri in splitUris(listUnsubscribe)) {
             when {
-                // Kept only with a HOST: a destination the confirmation cannot name is not offered.
+                // Kept only with a host: a destination the confirmation cannot name is not offered.
                 uri.startsWith("https://", ignoreCase = true) && hostOf(uri) != null ->
                     if (httpsUrl == null) httpsUrl = uri
                 uri.startsWith("mailto:", ignoreCase = true) ->
@@ -130,12 +130,12 @@ object UnsubscribeHeader {
         return MailtoUnsubscribe(address, subject, body)
     }
 
-    /** `+` is left ALONE: RFC 6068 spells a space `%20`, and `+` is literal in an `a+news@` id. */
+    /** `+` is left alone: RFC 6068 spells a space `%20`, and `+` is literal in an `a+news@` id. */
     private fun decode(value: String): String = runCatching {
         java.net.URLDecoder.decode(value.replace("+", "%2B"), "UTF-8")
     }.getOrDefault(value)
 
-    /** Userinfo (`user:pass@`) is dropped, the port kept — it is part of the address. */
+    /** Userinfo (`user:pass@`) is dropped, the port kept, it is part of the address. */
     fun hostOf(url: String): String? {
         val afterScheme = url.substringAfter("://", "")
         if (afterScheme.isEmpty()) return null

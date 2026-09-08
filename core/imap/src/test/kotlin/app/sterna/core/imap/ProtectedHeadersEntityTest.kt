@@ -145,7 +145,7 @@ class ProtectedHeadersEntityTest {
     }
 
     @Test fun mixedRelatedMarksTheOuterContentTypeAndLeavesTheNestedOneAlone() {
-        // The nested multipart/related is a SUB-PART. Marked, it would claim a second protected
+        // The nested multipart/related is a sub-part. Marked, it would claim a second protected
         // header block inside the first, and the entity would describe two.
         assertEquals(
             "Subject: Quarterly report\r\n" +
@@ -156,7 +156,7 @@ class ProtectedHeadersEntityTest {
     }
 
     @Test fun exactlyOneContentTypeIsMarkedInEveryBranch() {
-        // Counts, so it catches the parameter appended by a shared helper to every part — which
+        // Counts, so it catches the parameter appended by a shared helper to every part, which
         // the whole-entity expectations above catch too, but only for these fixtures' part lists.
         for (m in listOf(plain, html(listOf(file)), html(listOf(image)), html(listOf(image, file)))) {
             val entity = OutgoingMime.buildBodyEntity(m, topic)
@@ -191,7 +191,7 @@ class ProtectedHeadersEntityTest {
     @Test fun aSubjectCarryingCrlfCannotSplitTheHeaderBlock() {
         // The subject reaching here is the composer's own, but it is the same sink as the
         // envelope's and it answers the same way: encoded whole, so the injected field never
-        // begins a line — and the header block still ends at the ONE blank line below.
+        // begins a line, and the header block still ends at the one blank line below.
         val entity = OutgoingMime.buildBodyEntity(plain, "Real subject\r\nX-Injected: victim@evil.com")
         assertFalse("the smuggled field must not exist at all", entity.contains("X-Injected"))
         assertEquals(
@@ -205,7 +205,7 @@ class ProtectedHeadersEntityTest {
 
     @Test fun ourOwnParserReadsTheProtectedSubjectBackDecoded() {
         // The entity a recipient decrypts is exactly this string. `MimeParser.decodedHeaderOf` is
-        // the door the reader uses on a decrypted entity, and it stops at the first blank line —
+        // the door the reader uses on a decrypted entity, and it stops at the first blank line,
         // so this fails outright if the Subject: field is written anywhere below the Content-Type.
         val entity = OutgoingMime.buildBodyEntity(html(listOf(image, file)), "Betreff mit Ümläut — тема")
         assertEquals(
@@ -215,7 +215,7 @@ class ProtectedHeadersEntityTest {
     }
 
     @Test fun theEnvelopeSubjectIsUntouchedWhileTheEntityCarriesItsOwn() {
-        // The feature is INTEGRITY, not masking. `build` writes the real subject in the clear
+        // The feature is integrity, not masking. `build` writes the real subject in the clear
         // exactly as before; nothing here is allowed to remove or rewrite it.
         val mime = OutgoingMime.build(plain)
         assertEquals(
@@ -228,8 +228,8 @@ class ProtectedHeadersEntityTest {
     // --- the base64 separator guard still holds with a header block above it ----------------------
 
     @Test fun aLongBodyUnderAProtectedSubjectStillHasNoBareCr() {
-        // 2 kB, far past the 57-byte input where the MIME encoder starts wrapping — a `\r\r\n`
-        // separator is invisible below that, and on an ENCRYPTED-and-signed message those bytes
+        // 2 kB, far past the 57-byte input where the MIME encoder starts wrapping, a `\r\r\n`
+        // separator is invisible below that, and on an encrypted-and-signed message those bytes
         // are the signed bytes.
         val long = "The quick brown fox jumps over the lazy dog. ".repeat(50)
         assertTrue("the body really is past the wrap threshold", long.toByteArray(Charsets.UTF_8).size >= 2048)

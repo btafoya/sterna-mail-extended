@@ -6,14 +6,14 @@ import org.junit.Test
 import java.io.File
 
 /**
- * A message removed FROM SterNA must take its own notification banner with it.
+ * A message removed from SterNA must take its own notification banner with it.
  */
 class LocalRemovalDropsItsBannerTest {
 
     // -- the decision, executed --------------------------------------------------------------
 
     /**
-     * The id is the one CAPTURED AT THE GESTURE, i.e. `UndoEntry.emailId` — not the source folder,
+     * The id is the one captured at the gesture, i.e.
      */
     @Test fun `the key carries the id the gesture was performed with`() {
         val entry = UndoEntry("imap:accA:INBOX:12", "accA", "imap:accA:INBOX", "imap:accA:Trash")
@@ -21,7 +21,7 @@ class LocalRemovalDropsItsBannerTest {
     }
 
     /**
-     * And the account of THAT entry. A thread swipe or a selection spans accounts; each entry's
+     * And the account of that entry. A thread swipe or a selection spans accounts; each entry's
      */
     @Test fun `each entry keeps its own account`() {
         val entries = listOf(
@@ -40,7 +40,7 @@ class LocalRemovalDropsItsBannerTest {
     }
 
     /**
-     * A null account is NOT an account to invent. `UndoEntry.accountId` is nullable and the
+     * A null account is not an account to invent.
      */
     @Test fun `a null account stays null`() {
         assertEquals(listOf(EmailKey(null, "m1")), undoBannerKeys(listOf(UndoEntry("m1", null, "mbA"))))
@@ -53,7 +53,8 @@ class LocalRemovalDropsItsBannerTest {
     // -- where the deadline is posted, read as text -------------------------------------------
 
     /**
-     * The three sites are exactly the three that offer an Undo, and the deadline is posted THERE,
+     * The three sites are exactly the three that offer an Undo, and the deadline is posted there,
+     * on the line right after the offer, so the pair is pinned whole, in order.
      */
     @Test fun `the swipe posts its deadline in the success arm, right after the Undo it belongs to`() {
         val body = bodyAt(INBOX_VIEW_MODEL, "private fun swipeRemove(")
@@ -109,7 +110,7 @@ class LocalRemovalDropsItsBannerTest {
     }
 
     /**
-     * The deadline is a `viewModelScope` coroutine, and its body is pinned as a SEQUENCE — every
+     * The deadline is a `viewModelScope` coroutine, and its body is pinned as a sequence, every
      */
     @Test fun `the deadline waits, closes its own window, then dismisses — in that order`() {
         val body = bodyAt(INBOX_VIEW_MODEL, "private fun scheduleUndoneDeparture()")
@@ -134,7 +135,7 @@ class LocalRemovalDropsItsBannerTest {
     }
 
     /**
-     * And the window has a VALUE, not just a name. `UNDO_BANNER_DISMISS_MS = 0L` is one character
+     * And the window has a value, not just a name. `UNDO_BANNER_DISMISS_MS = 0L` is one character
      */
     @Test fun `the window is a real value, not just a name`() {
         assertEquals(
@@ -146,7 +147,7 @@ class LocalRemovalDropsItsBannerTest {
     }
 
     /**
-     * ONE clock, and it is the ViewModel's.
+     * One clock, and it is the ViewModel's.
      */
     @Test fun `the Undo bar does not run a clock of its own`() {
         val body = bodyAt(INBOX_SCREEN, "LaunchedEffect(undo) {")
@@ -171,6 +172,8 @@ class LocalRemovalDropsItsBannerTest {
 
     /**
      * Undo cancels the deadline, and nothing else does. Without this, the user presses Undo, the
+     * message comes back into the folder, and its banner is taken down a second later anyway, so a
+     * message that IS there is announced nowhere.
      */
     @Test fun `Undo cancels the deadline`() {
         val body = bodyAt(INBOX_VIEW_MODEL, "fun undo()")
@@ -208,7 +211,7 @@ class LocalRemovalDropsItsBannerTest {
     /** The deadline call, spelled once so the three sites cannot drift apart. */
     private val DEADLINE = "scheduleUndoneDeparture()"
 
-    /** [DEADLINE]'s line and the one directly above it, whitespace-normalised, in order. */
+    /** [deadline]'s line and the one directly above it, whitespace-normalised, in order. */
     private fun deadlineWithItsNeighbour(body: String): List<String> {
         val lines = normalised(body)
         val at = lines.indexOfFirst { it == DEADLINE }
@@ -252,7 +255,9 @@ class LocalRemovalDropsItsBannerTest {
     }
 
     /**
-     * The declaration [declaration] in [file] and its body, as text. Matched on the DECLARATION and
+     * The declaration [declaration] in [file] and its body, as text. Matched on the declaration and
+     * not on a bare name: `InboxViewModel.kt` declares `val undo: StateFlow<UndoAction?>` before
+     * `fun undo()`, and a name-based reader silently hands back the flow.
      */
     private fun bodyAt(file: File, declaration: String): String {
         val lines = codeLines(file)

@@ -10,6 +10,7 @@ import java.time.ZoneOffset
 
 /**
  * The `UID SEARCH` key list is the whole IMAP advanced search: a wrong space, a missing quote or
+ * a locale-dependent month name and the server answers BAD (or, worse, answers something else).
  */
 class ImapSearchCommandTest {
 
@@ -38,7 +39,7 @@ class ImapSearchCommandTest {
         assertEquals("""SUBJECT "facture"""", keys(ImapSearchCriteria(subject = "facture")))
     }
 
-    /** OR is prefix notation and binds exactly two keys: `OR <key> <key>`, then the AND chain. */
+    /** Or is prefix notation and binds exactly two keys: `or <key> <key>`, then the and chain. */
     @Test
     fun `recipient becomes a prefixed OR over TO and CC`() {
         assertEquals(
@@ -48,7 +49,7 @@ class ImapSearchCommandTest {
     }
 
     /**
-     * `FLAGGED` is a standard `SEARCH` key (RFC 3501 §6.4.4) taking no argument: the SERVER
+     * `FLAGGED` is a standard `SEARCH` key (RFC 3501 §6.4.4) taking no argument: the server
      */
     @Test
     fun `flagged alone becomes a bare FLAGGED key`() {
@@ -85,21 +86,21 @@ class ImapSearchCommandTest {
         assertEquals("SINCE 1-Jun-2026", keys(ImapSearchCriteria(afterMillis = dayMillis(2026, 6, 1))))
     }
 
-    /** BEFORE is exclusive, so the picked day itself must stay in range: the day after is sent. */
+    /** Before is exclusive, so the picked day itself must stay in range: the day after is sent. */
     @Test
     fun `before is rendered as the day after the requested one`() {
         assertEquals("BEFORE 16-Jun-2026", keys(ImapSearchCriteria(beforeMillis = endOfDayMillis(2026, 6, 15))))
     }
 
-    // ---- no HEADER key comes out of here, whatever is asked for (#95) ----
+    // ---- no header key comes out of here, whatever is asked for (#95) ----
 
     /**
-     * The witness for the key this builder no longer has. A `HEADER "Message-ID"` key was how a
+     * The witness for the key this builder no longer has.
      */
     @Test
     fun `no combination of criteria emits a HEADER key`() {
         // Every field the class still has, at once; the exact key list this builds is pinned by
-        // `a full query combines every key, free text last`. Here: not one HEADER among them.
+        // `a full query combines every key, free text last`. Here: not one header among them.
         val everything = keys(
             ImapSearchCriteria(
                 text = "invoice",
@@ -118,7 +119,7 @@ class ImapSearchCommandTest {
 
     @Test
     fun `blank free text emits no TEXT key at all`() {
-        // `TEXT ""` matches EVERY message: that is how filters-only searches used to hand back
+        // `text ""` matches every message: that is how filters-only searches used to hand back
         // the whole inbox dressed up as a result set.
         val command = keys(ImapSearchCriteria(text = "   ", from = "alex@masto.top"))
         assertEquals("""FROM "alex@masto.top"""", command)
@@ -127,7 +128,7 @@ class ImapSearchCommandTest {
 
     @Test
     fun `an attachment-only search still sends a valid key list`() {
-        // Nothing is expressible server-side; ALL keeps the command legal and the local
+        // Nothing is expressible server-side; all keeps the command legal and the local
         // BODYSTRUCTURE filter narrows it down.
         assertEquals("ALL", keys(ImapSearchCriteria()))
     }

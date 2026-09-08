@@ -14,7 +14,8 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * The fill behind a row's small rounded chips — the account chip, the [ThreadPill], the
+ * The fill behind a row's small rounded chips, the account chip, the [ThreadPill], the
+ * [DraftLabel], once the row itself stopped being plain `surface` (#141).
  */
 class ChipFillTest {
 
@@ -56,7 +57,7 @@ class ChipFillTest {
 
     /**
      * A selected row is painted secondaryContainer, which the unread tint never reaches, so its
-     * chips keep the plain surfaceVariant — the unread branch must not leak through selection.
+     * chips keep the plain surfaceVariant, the unread branch must not leak through selection.
      */
     @Test fun `a selected row keeps the surface variant even when unread`() {
         assertEquals(
@@ -131,7 +132,7 @@ class ChipFillTest {
         assertEquals(surfaceVariant, chipFill(scheme, selected = false, unread = false, unreadTint = false))
     }
 
-    /** With the tint off a read and an unread row's chips are indistinguishable — the point of it. */
+    /** With the tint off a read and an unread row's chips are indistinguishable, the point of it. */
     @Test fun `with the tint off read and unread chips no longer differ`() {
         assertEquals(
             chipFill(scheme, selected = false, unread = false, unreadTint = false),

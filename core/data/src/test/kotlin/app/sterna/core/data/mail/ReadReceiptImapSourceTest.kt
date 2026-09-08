@@ -5,7 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The IMAP half of the read-receipt header, read off a real message source — the same source
+ * The IMAP half of the read-receipt header, read off a real message source, the same source
  */
 class ReadReceiptImapSourceTest {
 
@@ -37,7 +37,7 @@ class ReadReceiptImapSourceTest {
         assertEquals("ann@example.org", readReceiptHeaderOf(raw))
     }
 
-    /** A folded address list is ONE value; read unfolded, it would hand the parser half a list. */
+    /** A folded address list is one value; read unfolded, it would hand the parser half a list. */
     @Test fun `a folded header comes back whole and names both addresses`() {
         val raw = message(
             """
@@ -67,7 +67,7 @@ class ReadReceiptImapSourceTest {
     }
 
     /**
-     * The pre-standard spellings are NOT read. RFC 8098 §2.1 defines one field name; the two
+     * The pre-standard spellings are not read. RFC 8098 §2.1 defines one field name; the two
      */
     @Test fun `the pre-standard spellings are not this header`() {
         val raw = message(
@@ -84,7 +84,7 @@ class ReadReceiptImapSourceTest {
     // ---- the decision the draft save runs on this source, executed --------------------------
 
     /**
-     * THE case that costs data. `ImapClient.fetchSource` answers an EMPTY STRING when the FETCH
+     * The case that costs data. `ImapClient.fetchSource` answers an empty string when the FETCH
      */
     @Test fun `an empty source is an unknown, never the absence of a request`() {
         assertNull(receiptRequestedInSource(""))

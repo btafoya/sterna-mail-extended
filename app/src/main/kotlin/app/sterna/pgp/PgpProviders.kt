@@ -3,10 +3,9 @@ package app.sterna.pgp
 import android.content.Context
 import org.openintents.openpgp.util.OpenPgpProviderUtil
 
-/** Which OpenPGP provider Sterna talks to — pure functions over package names, and NOT in the
- *  engine, which needs a Context and a live binder. The engine used to carry a two-entry literal
- *  list of OpenKeychain packages, so a device whose only provider was something else had every PGP
- *  feature silently dead. */
+/** Which OpenPGP provider Sterna talks to, pure functions over package names, and not in the
+ *  engine, which needs a Context and a live binder. No literal list of OpenKeychain packages: a
+ *  device whose only provider is something else would have every PGP feature silently dead. */
 object PgpProviders {
 
     /** OpenKeychain, the provider Sterna shipped against and the one already-set-up users have. */
@@ -22,7 +21,7 @@ object PgpProviders {
         packages.filter { OpenPgpProviderUtil.isProviderAllowed(it) }.distinct().sorted()
 
     /** The provider to use when the user has expressed no preference, or `null`. OpenKeychain
-     *  FIRST, not the first in the sort: every existing user with PGP set up uses it, and
+     *  first, not the first in the sort: every existing user with PGP set up uses it, and
      *  `com.pgpony.android` sorts before it, so a bare alphabetical pick would move those users onto
      *  a provider their keys are not in. The `.debug` variant is a fallback for the same reason. */
     fun preferredDefault(installed: List<String>): String? = when {
@@ -32,9 +31,9 @@ object PgpProviders {
     }
 
     /** The provider to bind, given what is [installed] and what the user [chosen]. A choice is
-     *  honoured ONLY while its package is still installed: returning an uninstalled one would leave
+     *  honoured only while its package is still installed: returning an uninstalled one would leave
      * PGP dead while another provider sits right there, the very defect #151 reports. The choice
-     *  comes FIRST, or the picker is decorative. */
+     *  comes first, or the picker is decorative. */
     fun resolve(installed: List<String>, chosen: String?): String? =
         chosen?.takeIf { installed.contains(it) } ?: preferredDefault(installed)
 
@@ -45,12 +44,12 @@ object PgpProviders {
         inUse != null && inUse != picked
 
     /**
-     * The package to write down as the chosen provider. It exists for the user who has exactly ONE
+     * The package to write down as the chosen provider. It exists for the user who has exactly one
      */
     fun providerToPin(stored: String?, resolved: String?): String? =
         if (stored == null) resolved else null
 
-    /** Whether a connection bound to [boundTo] may serve a call aimed at [target] — only the same
+    /** Whether a connection bound to [boundTo] may serve a call aimed at [target], only the same
      *  package. The engine keeps its binding for the process lifetime, so without this a provider
      *  switched in Settings changes nothing until the app is killed. */
     fun bindingReusable(boundTo: String?, target: String): Boolean =

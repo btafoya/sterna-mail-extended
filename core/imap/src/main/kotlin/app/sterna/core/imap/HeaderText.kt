@@ -33,7 +33,7 @@ internal fun decodeWords(text: String?): String? {
 /** RFC 5322 linear whitespace: a space, a tab, or the CRLF of a folded header line. */
 private fun isLinearWhitespace(c: Char): Boolean = c == ' ' || c == '\t' || c == '\r' || c == '\n'
 
-/** One matched encoded-word as text — or, if it will not decode, exactly as it was sent. */
+/** One matched encoded-word as text, or, if it will not decode, exactly as it was sent. */
 private fun decodeWord(m: MatchResult): String {
     val cs = charsetOrUtf8(m.groupValues[1].substringBefore('*'))
     val enc = m.groupValues[2].uppercase()
@@ -54,7 +54,7 @@ private fun decodeWord(m: MatchResult): String {
 internal fun decodeHeaderBytes(text: String): String {
     if (text.none { it.code >= 0x80 }) return text
     // A string holding real text rather than octets (chars past U+00FF) is not a byte container
-    // and has nothing to reinterpret — never round-trip it, ISO-8859-1 would write '?' over it.
+    // and has nothing to reinterpret, never round-trip it, ISO-8859-1 would write '?' over it.
     if (text.any { it.code > 0xFF }) return text
     val decoder = Charsets.UTF_8.newDecoder()
         .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
@@ -66,6 +66,8 @@ internal fun decodeHeaderBytes(text: String): String {
 
     /**
      * Remove control characters and Unicode bidi overrides from a decoded header before it is shown: a
+     * is shown. A crafted display name can otherwise embed RTL/LTR overrides (e.g. to make
+     * "moc.knab@troppus" read as a bank address) or control chars for spoofing/UI confusion.
      */
 internal fun stripBidiAndControls(s: String): String = s.filterNot { c ->
     val code = c.code
@@ -98,7 +100,8 @@ private const val MAX_PARAM_CHARS = 1024
 private const val MAX_PARAM_SECTIONS = 64
 
     /**
-     * The value of MIME parameter [name] in [headerValue], decoded and safe to display — the
+     * The value of MIME parameter [name] in [headerValue], decoded and safe to display, the
+     * decoded and safe to display, the "Отчёт.pdf" an attachment is really called (Codeberg #101).
      */
 internal fun mimeParamValue(headerValue: String, name: String): String? {
     if (headerValue.isBlank()) return null
@@ -131,7 +134,8 @@ internal fun mimeParamValue(headerValue: String, name: String): String? {
 }
 
     /**
-     * Reassemble RFC 2231 continuations. Only the FIRST section carries `charset'lang'`. Sections are
+     * Reassemble RFC 2231 continuations. Only the first section carries `charset'lang'`. Sections are
+     * extended sections are percent-encoded in that same charset, and plain ones are literal text.
      */
 private fun joinSections(sections: Map<Int, Pair<String, Boolean>>): String? {
     var cs = Charsets.UTF_8
@@ -161,7 +165,7 @@ private fun decodeExtended(value: String): String {
     return String(percentDecode(parts[2]), charsetOrUtf8(parts[0]))
 }
 
-/** A named charset, or UTF-8 — an unknown one must not cost us the value (see [decodeWords]). */
+/** A named charset, or UTF-8, an unknown one must not cost us the value (see [decodeWords]). */
 private fun charsetOrUtf8(name: String): java.nio.charset.Charset =
     runCatching { charset(name) }.getOrDefault(Charsets.UTF_8)
 

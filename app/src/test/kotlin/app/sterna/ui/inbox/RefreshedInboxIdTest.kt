@@ -5,7 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * [refreshedInboxId] RUN: which mailbox the "unread" view's refresh may fire the unarchive-on-reply
+ * [refreshedInboxId] run: which mailbox the "unread" view's refresh may fire the unarchive-on-reply
  */
 class RefreshedInboxIdTest {
 
@@ -18,7 +18,7 @@ class RefreshedInboxIdTest {
     }
 
     /**
-     * THE one. Taking the first refresh trusts a position produced in another module: here the
+     * The one.
      */
     @Test fun `a first folder that is not the inbox is not mistaken for it`() {
         assertNull(refreshedInboxId(listOf("Archive", "Projets"), "INBOX"))

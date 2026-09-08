@@ -10,7 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * EXECUTES the guard's decision, call by call, the way a recomposition sequence would.
+ * Executes the guard's decision, call by call, the way a recomposition sequence would.
  */
 class RowsGuardTest {
 
@@ -103,7 +103,7 @@ class RowsGuardTest {
         g = advanceRowsGuard(g, archive, "12|accA|e77", refreshLoading = false, gaveUp = false, foreign = false)
         assertFalse("disarmed by the new page", g.stale)
 
-        // Pull-to-refresh, or mail arriving, on the SAME selection.
+        // Pull-to-refresh, or mail arriving, on the same selection.
         g = advanceRowsGuard(g, archive, "12|accA|e77", refreshLoading = true, gaveUp = false, foreign = false)
         assertFalse(
             "A refresh on an unchanged selection must NOT re-arm the guard: the list would blank " +
@@ -145,7 +145,7 @@ class RowsGuardTest {
 
     @Test
     fun `rowsSignature separates two accounts' first rows that share an id`() {
-        // Servers number mailboxes and messages PER ACCOUNT, so id "e1" exists in both accounts.
+        // Servers number mailboxes and messages per account, so id "e1" exists in both accounts.
         // A signature blind to the account would call an account switch "nothing moved".
         val a = rowsSignature(20, InboxRow(Email(id = "e1", accountId = "accA"), threadCount = 1, unread = false))
         val b = rowsSignature(20, InboxRow(Email(id = "e1", accountId = "accB"), threadCount = 1, unread = false))
@@ -159,8 +159,8 @@ class RowsGuardTest {
 
     @Test
     fun `the give-up valve is long enough to outlast the pager being built`() {
-        // Nothing else in the suite reads this constant's VALUE — the wiring lint only pins its
-        // name — so shortening it is a silent way to undo the whole guard.
+        // Nothing else in the suite reads this constant's value, the wiring lint only pins its
+        // name, so shortening it is a silent way to undo the whole guard.
         assertTrue(
             "⛔ ROWS_GUARD_GIVE_UP_MS must stay at or above ROWS_GUARD_GIVE_UP_FLOOR_MS. The valve " +
                 "only ever fires while NOTHING is loading, and a new pager takes a moment to even " +
@@ -173,14 +173,14 @@ class RowsGuardTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────────────────
-    // Belonging, not movement. The bench pass of 2026-08-29 (emulator, debug) still saw the
+    // Belonging, not movement.
 
     /** A presented row, account-and-folder qualified the way the pager's SQL guarantees. */
     private fun row(accountId: String, mailboxId: String, id: String = "e1") =
         InboxRow(Email(id = id, accountId = accountId, mailboxId = mailboxId), threadCount = 1, unread = false)
 
     /**
-     * One recomposition, wired like `InboxScreen`: the SAME presented snapshot feeds the signature
+     * One recomposition, wired like `InboxScreen`: the same presented snapshot feeds the signature
      */
     private fun step(
         prev: RowsGuard,
@@ -200,19 +200,19 @@ class RowsGuardTest {
 
     @Test
     fun `the previous folder's rows coming back re-arm a guard an empty snapshot had disarmed`() {
-        // The bench sequence, replayed: blank for 0.6-2.3 s, THEN the new folder's header over
-        // the OLD folder's rows, THEN the right rows. The blank is the guard doing its job; the
+        // The bench sequence, replayed: blank for 0.6-2.3 s, then the new folder's header over
+        // the old folder's rows, then the right rows. The blank is the guard doing its job; the
         // second frame is the defect, and it is reached through the guard's own disarming.
         val rowsOfA = row("accA", "mb-inbox")
         var g = step(settled(inbox, rowsSignature(20, rowsOfA)), archive, 20, listOf(rowsOfA), refreshLoading = true, gaveUp = false)
         assertTrue("armed by the switch", g.stale)
 
-        // Paging invalidates: for a beat the OLD generation presents nothing. That is "something
-        // other than the baseline", so rule 4 disarms — correctly, on the evidence it has.
+        // Paging invalidates: for a beat the old generation presents nothing. That is "something
+        // other than the baseline", so rule 4 disarms, correctly, on the evidence it has.
         g = step(g, archive, 0, emptyList(), refreshLoading = false, gaveUp = false)
         assertFalse("the empty snapshot disarms: nothing presented proves nothing", g.stale)
 
-        // …and the old folder's rows come BACK, because the new PagingData has still not inserted
+        // …and the old folder's rows come back, because the new PagingData has still not inserted
         // its first page. THIS is the frame the user photographs.
         g = step(g, archive, 20, listOf(rowsOfA), refreshLoading = false, gaveUp = false)
         assertTrue(
@@ -229,8 +229,8 @@ class RowsGuardTest {
         var g = step(settled(inbox, rowsSignature(20, rowsOfA)), archive, 20, listOf(rowsOfA), refreshLoading = true, gaveUp = false)
         assertTrue("armed by the switch, with a refresh already running", g.stale)
 
-        // The refresh that ends here is the OLD generation's: `refreshLoading` is the load state of
-        // the PagingData being PRESENTED, so a whole cycle can run without the new one existing.
+        // The refresh that ends here is the old generation's: `refreshLoading` is the load state of
+        // the PagingData being presented, so a whole cycle can run without the new one existing.
         g = step(g, archive, 20, listOf(rowsOfA), refreshLoading = false, gaveUp = false)
         assertTrue(
             "⛔ A loading cycle that belongs to the PREVIOUS selection must not hand the screen " +
@@ -256,7 +256,7 @@ class RowsGuardTest {
 
     @Test
     fun `pull-to-refresh on an unchanged selection still never re-arms`() {
-        // The belonging rule sits in FRONT of the sticky rule, so this is the thing it could break:
+        // The belonging rule sits in front of the sticky rule, so this is the thing it could break:
         // #63 and bench gesture G4, both green. The rows belong to the selection, so it must not
         // even be consulted.
         val rowsOfA = row("accA", "mb-inbox")
@@ -340,10 +340,10 @@ class RowsGuardTest {
 
     @Test
     fun `a local draft on top does not vouch for the inbox rows behind it`() {
-        // THE DRAFTS WITNESS. pagedListRows is combine(pagedEmails, localDraftRows) and
-        // withLocalDrafts PREFIXES rows built with the SELECTED folder's id. On Inbox → Drafts the
+        // The DRAFTS witness. pagedListRows is combine(pagedEmails, localDraftRows) and
+        // withLocalDrafts PREFIXES rows built with the selected folder's id. On Inbox → Drafts the
         // Room query behind localDraftRows lands before pagedEmails' DataStore read, so the
-        // combine emits the new local rows over the OLD PagingData.
+        // combine emits the new local rows over the old PagingData.
         val drafts = ListKey("accA", "mb-drafts", unified = false, unreadView = false)
         val inboxRows = List(20) { row("accA", "mb-inbox", "e$it") }
 

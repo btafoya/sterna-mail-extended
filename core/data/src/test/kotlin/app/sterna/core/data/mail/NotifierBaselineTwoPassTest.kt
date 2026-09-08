@@ -12,7 +12,7 @@ import java.sql.DriverManager
 import java.time.Instant
 
 /**
- * TWO PASSES, because one pass cannot see this failure.
+ * Two passes, because one pass cannot see this failure.
  */
 class NotifierBaselineTwoPassTest {
     private lateinit var db: Connection
@@ -23,7 +23,9 @@ class NotifierBaselineTwoPassTest {
         const val NOW = 1_800_000_000_000L
 
         /**
-         * Rows in the burst, comfortably over the shipped cap of 500 — and inside the age floor,
+         * Rows in the burst, comfortably over the shipped cap of 500, and inside the age floor,
+         * which is what makes them announceable. A folder taking 600 messages in a night is a
+         * mailing list, a newsletter dump, or the first sync after a server-side migration.
          */
         const val BURST = 600
 
@@ -64,7 +66,7 @@ class NotifierBaselineTwoPassTest {
         }
     }
 
-    /** One cached row aged [ageMs] under [NOW], mapped by the shipped mapper (sortKey included). */
+    /** One cached row aged [ageMs] under [now], mapped by the shipped mapper (sortKey included). */
     private fun row(id: String, ageMs: Long): EmailEntity =
         Email(id = id, receivedAt = Instant.ofEpochMilli(NOW - ageMs).toString()).toEntity("acc", "inbox")
 
@@ -101,10 +103,10 @@ class NotifierBaselineTwoPassTest {
         }
     }
 
-    /** The hydrated rows one pass hands the diff, at [atMs] — capped. */
+    /** The hydrated rows one pass hands the diff, at [atMs], capped. */
     private fun candidates(atMs: Long): List<String> = exec(statementFor("emails"), atMs)
 
-    /** The ids one pass writes into the folder's baseline, at [atMs] — time floor only, no cap. */
+    /** The ids one pass writes into the folder's baseline, at [atMs], time floor only, no cap. */
     private fun baselineIds(atMs: Long): List<String> = exec(statementFor("baselineIds"), atMs)
 
     /** The shipped diff, minus the parts this file does not own (selfMoved, thread collapse). */
@@ -118,8 +120,8 @@ class NotifierBaselineTwoPassTest {
         val burst = (1..BURST).map { row("m%04d".format(it), ageMs = HOUR + it * MINUTE) }
         burst.forEach(::insert)
 
-        // PASS 1 — the notifier is handed the candidates and writes the baseline. Every id here
-        // existed before this pass; none of it may EVER announce afterwards.
+        // PASS 1, the notifier is handed the candidates and writes the baseline. Every id here
+        // existed before this pass; none of it may ever announce afterwards.
         val seenAtPassOne = burst.map { it.id }.toSet()
         val known = baselineIds(NOW).toSet()
 
@@ -127,7 +129,7 @@ class NotifierBaselineTwoPassTest {
         // a delete, the ghost sweep dropping what the server no longer has.
         candidates(NOW).take(LEAVING).forEach(::delete)
 
-        // PASS 2 — a few minutes later. The previous pass is what the age floor is measured from.
+        // PASS 2, a few minutes later. The previous pass is what the age floor is measured from.
         val later = NOW + 5 * MINUTE
         val announced = announced(candidates(later), known, lastPassMs = NOW)
 

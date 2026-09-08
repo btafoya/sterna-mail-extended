@@ -5,7 +5,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The rule that decides WHAT an "Empty trash" may destroy (Codeberg #99), checked without a
+ * The rule that decides what an "Empty trash" may destroy (Codeberg #99), checked without a
+ * device: the set is whatever the Trash held when the user confirmed, nothing more.
  */
 class TrashPurgeSnapshotTest {
 
@@ -22,7 +23,7 @@ class TrashPurgeSnapshotTest {
         val trashNow = listOf("m1", "m2", "m3")
 
         // The purge destroys the snapshot, not the folder: m3 survives. Re-reading the folder
-        // (the old behaviour) would have destroyed it — that is the bug.
+        // (the old behaviour) would have destroyed it, that is the bug.
         assertEquals(listOf("m1", "m2"), snapshot.map { it.emailId })
         assertTrue("m3" in trashNow)
         assertTrue("m3" !in snapshot.map { it.emailId })

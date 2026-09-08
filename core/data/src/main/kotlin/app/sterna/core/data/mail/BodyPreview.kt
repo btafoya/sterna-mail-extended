@@ -17,11 +17,11 @@ object BodyPreview {
         return readable.takeIf { it.isNotBlank() }
     }
 
-    /** U+FFFD, what a decoder puts where a byte sequence it could not read used to be. */
+    /** U+FFFD, what a decoder puts in place of a byte sequence it could not read. */
     private const val REPLACEMENT = '�'
 
     /**
-     * The fragment was cut at an octet count that knows nothing of encoded units. A base64 cut off a
+     * The fragment was cut at an octet count that knows nothing of encoded units.
      */
     private fun decodable(raw: String, encoding: String?): String = when {
         encoding.equals("base64", ignoreCase = true) -> {
@@ -36,7 +36,7 @@ object BodyPreview {
     }
 
     /**
-     * Damage [htmlToText] cannot undo: it drops `<style>`/`<script>`/`<head>` by matching a PAIR of
+     * Damage [htmlToText] cannot undo: it drops `<style>`/`<script>`/`<head>` by matching a pair of
      * tags, so a block cut before its closing tag is read as text, and a halved `<div` survives.
      */
     private fun closedHtml(html: String): String {

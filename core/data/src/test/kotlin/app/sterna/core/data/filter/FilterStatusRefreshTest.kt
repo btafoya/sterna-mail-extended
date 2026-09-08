@@ -8,7 +8,10 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The decisions the filters and responder screens make ON TOP of [filterScriptWarning]: what a
+ * The decisions the filters and responder screens make on top of [filterScriptWarning]: what a
+ * status read that failed does to what is on screen ([refreshedFilterWarning]), which red line
+ * goes above the Save button when saving would switch another script off ([foreignScriptNotice]),
+ * and whether the empty rule list is worth a sentence of its own ([showsNoRulesNote]).
  */
 class FilterStatusRefreshTest {
 
@@ -120,7 +123,7 @@ class FilterStatusRefreshTest {
     @Test
     fun `the status is read fact by fact, under its own name`() {
         // Three booleans and a count go into the decision, so a swapped pair compiles and the
-        // decision is then right about the wrong facts. Each case below moves ONE fact.
+        // decision is then right about the wrong facts. Each case below moves one fact.
         val running = FilterScriptStatus(
             scriptExists = true,
             scriptActive = true,
@@ -241,7 +244,7 @@ class FilterStatusRefreshTest {
     }
 
     /**
-     * THE E1 WITNESS. The line used to be chosen on the mere EXISTENCE of a `vacation` script,
+     * The E1 WITNESS.
      */
     @Test
     fun `an idle vacation script beside another active one accuses nobody`() {
@@ -257,7 +260,7 @@ class FilterStatusRefreshTest {
     }
 
     /**
-     * THE E2 CASE. The refusal to write can come from our own `sterna` script being
+     * The E2 case. The refusal to write can come from our own `sterna` script being
      */
     @Test
     fun `an unreadable script of our own is named before anything else`() {
@@ -295,7 +298,7 @@ class FilterStatusRefreshTest {
     // ---- vacationFilterLine: the responder screen does not send for the remedy mid-holiday ----
 
     /**
-     * THE E3 CASE. While the user is away, RULES_NOT_RUNNING is true BECAUSE the responder is
+     * The E3 case.
      */
     @Test
     fun `the remedy is not offered while the responder is on`() {
@@ -318,8 +321,7 @@ class FilterStatusRefreshTest {
 
     @Test
     fun `the prediction is the same sentence whatever the switch says`() {
-        // Both switch positions are REACHED on screen, contrary to what this test used to claim.
-        // The warning is only ever PRODUCED with the responder off (filterScriptWarning refuses to
+        // Both switch positions are reached on screen, contrary to what this test used to claim.
         for (enabled in listOf(true, false)) {
             assertEquals(
                 VacationFilterLine.RESPONDER_WILL_SUSPEND_RULES,
@@ -344,7 +346,7 @@ class FilterStatusRefreshTest {
     // ---- showsNoRulesNote: an empty list is not always "no rules yet" ------------------------
 
     /**
-     * THE CONTRADICTION. Over an unreadable `sterna` script the rule list is empty *because
+     * The contradiction. Over an unreadable `sterna` script the rule list is empty *because
      */
     @Test
     fun `an unreadable script does not also claim there are no rules`() {
@@ -375,7 +377,7 @@ class FilterStatusRefreshTest {
         }
     }
 
-    // ---- the read itself, out of the shipped source: a LAST RESORT, not the proof ----
+    // ---- the read itself, out of the shipped source: a last resort, not the proof ----
 
     /**
      * Everything above executes the decision; this one cannot. `MailRepository` opens shared
@@ -390,8 +392,8 @@ class FilterStatusRefreshTest {
             listOf("val foreign = scripts.any { it.isActive && it.name != SieveCodec.SCRIPT_NAME }"),
             declarationsOf(body, "foreign"),
         )
-        // Measured, not supposed: `val vacation = false` here left the ENTIRE suite green while
-        // deleting both sentences this lot is about — the red line above Save and the prediction
+        // Measured, not supposed: `val vacation = false` here left the entire suite green while
+        // deleting both sentences this lot is about, the red line above Save and the prediction
         // on the responder screen. Every executed test is handed booleans; not one travels
         // through this line.
         assertEquals(
@@ -441,12 +443,12 @@ class FilterStatusRefreshTest {
     }
 
     /**
-     * Every WHOLE line of [body] declaring `val [name]`, trimmed, comments dropped.
+     * Every whole line of [body] declaring `val [name]`, trimmed, comments dropped.
      */
     private fun declarationsOf(body: String, name: String): List<String> =
         codeLines(body).filter { it.substringBefore(" =") == "val $name" }
 
-    /** Every WHOLE line of [body] that passes something as the named argument [name]. */
+    /** Every whole line of [body] that passes something as the named argument [name]. */
     private fun assignmentsOf(body: String, name: String): List<String> =
         codeLines(body).filter { it.substringBefore(" =") == name }
 

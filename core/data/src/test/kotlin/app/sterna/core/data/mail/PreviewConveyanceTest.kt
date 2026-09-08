@@ -6,7 +6,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The CONVEYANCE: the section the server named in the BODYSTRUCTURE that came with the envelope,
+ * The conveyance: the section the server named in the BODYSTRUCTURE that came with the envelope,
+ * carried from the sync page to the notification layer, never asked for a second time.
  */
 class PreviewConveyanceTest {
 
@@ -30,7 +31,7 @@ class PreviewConveyanceTest {
     )
 
     /**
-     * Keyed by the SAME cache id the page's rows get, so the notifier can look one up for a message
+     * Keyed by the same cache id the page's rows get, so the notifier can look one up for a message
      */
     @Test fun `each message's section is carried out under that message's cache id`() {
         assertEquals(
@@ -47,7 +48,7 @@ class PreviewConveyanceTest {
     }
 
     /**
-     * A message with no `text/…` part at all is ABSENT, not present-and-null. It has no opening
+     * A message with no `text/…` part at all is absent, not present-and-null. It has no opening
      */
     @Test fun `a message with no readable text is not in the map at all`() {
         assertEquals(
@@ -65,7 +66,7 @@ class PreviewConveyanceTest {
     }
 
     /**
-     * THE WHOLE POINT: the page is carried, never re-fetched. These are every server call the
+     * The whole point: the page is carried, never re-fetched.
      */
     @Test fun `the watched-folder load asks the server for nothing new`() {
         val body = DaoQuerySource.mailFunctionBody("ImapMailService", "loadWatchedFolders")
@@ -97,13 +98,15 @@ class PreviewConveyanceTest {
         )
     }
 
-    // "READS no preview" is the whole of what that line says, and it must not be read as "writes
+    // "reads no preview" is the whole of what that line says, and it must not be read as "writes
     // none": `@Upsert` replaces the whole row, so the `null` above wipes whatever opening line the
-    // cache holds for these rows unless the WRITE carries it over. That is one layer up, in
+    // cache holds for these rows unless the write carries it over. That is one layer up, in
     // `MailRepository`, and it is stated and executed in `PushPassKeepsCachedPreviewsTest`.
 
     /**
      * And it reaches the notifier's own carrier. IMAP fills it from the load; JMAP states that it
+     * has nothing to convey, because its rows already carry `preview`, filling it there would buy
+     * a round trip for a string the notifier is holding.
      */
     @Test fun `the refresh carries the sources on IMAP and states there are none on JMAP`() {
         assertEquals(
@@ -117,6 +120,8 @@ class PreviewConveyanceTest {
 
     /**
      * The read the notification layer is offered is the bounded one, and its deadline is a
+     * parameter with no default at both ends: the block behind it is blocking, holds the account's
+     * mutex and has no suspension point, so nothing outside it can cut it short.
      */
     @Test fun `the notification read is a passthrough that cannot lose its deadline`() {
         val source = DaoQuerySource.mailSource("MailRepository")
@@ -150,7 +155,7 @@ class PreviewConveyanceTest {
     private val html = ImapTextPart("1.1", "text/html", "7bit", "utf-8")
     private val second = ImapTextPart("2", "text/plain", "7bit", "utf-8")
 
-    /** A [previewsForPage] `fetch` that RECORDS what it was asked for and answers [bodies]. */
+    /** A [previewsForPage] `fetch` that records what it was asked for and answers [bodies]. */
     private class Recorder(private val bodies: Map<Long, String> = emptyMap()) {
         val asked = mutableListOf<Pair<String, List<Long>>>()
         fun fetch(section: String, uids: List<Long>): Map<Long, String> {
@@ -162,7 +167,7 @@ class PreviewConveyanceTest {
     private fun page(vararg uids: Long, part: ImapTextPart) = uids.map { message(it, part) }
 
     /**
-     * ONLY WHAT IS MISSING IS ASKED FOR. This is what makes the openings of a folder cost one
+     * Only what is missing is asked for. This is what makes the openings of a folder cost one
      */
     @Test fun `only the rows with no cached opening are asked for`() {
         val recorder = Recorder(mapOf(2L to "two", 3L to "three", 5L to "five"))
@@ -183,7 +188,7 @@ class PreviewConveyanceTest {
     }
 
     /**
-     * ONE REQUEST PER SECTION, never one per message. A round trip per message would be up to two
+     * One request per section, never one per message. A round trip per message would be up to two
      */
     @Test fun `the page is asked for one section at a time, not one message at a time`() {
         val recorder = Recorder()
@@ -204,7 +209,9 @@ class PreviewConveyanceTest {
     }
 
     /**
-     * EACH BODY UNDER ITS OWN MESSAGE'S CACHE ID. The grouped answer comes back keyed by UID for
+     * Each body under its own message's cache ID. The grouped answer comes back keyed by UID for
+     * exactly this reason; anything that pairs it by position instead puts one correspondent's
+     * words under another correspondent's name, in the list, silently.
      */
     @Test fun `each body comes back under its own message's cache id`() {
         val previews = previewsForPage(
@@ -225,7 +232,7 @@ class PreviewConveyanceTest {
         )
     }
 
-    /** A message the server said nothing about is simply absent — not an empty opening line. */
+    /** A message the server said nothing about is simply absent, not an empty opening line. */
     @Test fun `a message the answer skipped gets no entry`() {
         val previews = previewsForPage(
             "acct-1",
@@ -239,7 +246,7 @@ class PreviewConveyanceTest {
     }
 
     /**
-     * NOTHING TO ASK MEANS NO COMMAND AT ALL — not an empty one. A page whose rows are all filled
+     * Nothing to ask means NO command at all, not an empty one. A page whose rows are all filled
      */
     @Test fun `a page with nothing to read touches the server not at all`() {
         val allFilled = Recorder()
@@ -290,7 +297,8 @@ class PreviewConveyanceTest {
     }
 
     /**
-     * A body that decodes to nothing readable is an ORDINARY answer and does not become a key —
+     * A body that decodes to nothing readable is an ordinary answer and does not become a key,
+     * the same rule [BodyPreview.fromPart] states for the notification.
      */
     @Test fun `a body that decodes to blank is not a key`() {
         val previews = previewsForPage(
@@ -304,7 +312,7 @@ class PreviewConveyanceTest {
         assertEquals(mapOf("imap:acct-1:INBOX:11" to "real text"), previews)
     }
 
-    /** The code lines of [body] naming [needle], comments dropped — whole lines, never a search. */
+    /** The code lines of [body] naming [needle], comments dropped, whole lines, never a search. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }

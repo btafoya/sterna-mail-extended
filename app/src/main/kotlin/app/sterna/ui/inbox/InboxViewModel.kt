@@ -69,7 +69,7 @@ import kotlinx.coroutines.launch
 data class MailUi(
     /** The current account, whatever view is on screen; the unified inbox spans every account and
      * still has one. Null while no account is configured. Mailbox ids are numbered per account
-     *  (#31/#121): compare to the ROW's account before trusting a lookup in [mailboxes]. */
+     *  (#31/#121): compare to the row's account before trusting a lookup in [mailboxes]. */
     val accountId: String? = null,
     val accountName: String,
     val mailboxName: String,
@@ -77,7 +77,7 @@ data class MailUi(
     val selectedMailboxId: String?,
     /** True when showing the cross-account unified inbox (no single folder selected). */
     val unified: Boolean,
-    /** True when showing THIS account's unread mail across its folders ([Sel.Unread]) — no single
+    /** True when showing THIS account's unread mail across its folders ([Sel.Unread]), no single
      *  folder selected either, so nothing else on screen can tell that view from the unified one. */
     val unreadView: Boolean = false,
     /** For the drawer entry that leads to the view above: the same aggregate the folder rows are
@@ -94,13 +94,13 @@ data class MailUi(
     val searchComplete: Boolean = true,
     val mailboxes: List<Mailbox>,
     /** The same list minus what the account's "subscribed folders only" setting hides (#174,
-     * [visibleFolders]) — what the drawer draws, and nothing else. A second field, never a
+     * [visibleFolders]), what the drawer draws, and nothing else. A second field, never a
      *  replacement for [mailboxes], which is read for subfolder deletes ([InboxViewModel.subfolderIdsOf]),
      *  to tell a deleted folder from a hidden one (#89), and to name a row's folder and role. */
     val visibleMailboxes: List<Mailbox> = emptyList(),
     val refreshing: Boolean,
     val error: String?,
-    /** Whether the refresh indicator is drawn — never a synonym of [refreshing], which is the truth
+    /** Whether the refresh indicator is drawn, never a synonym of [refreshing], which is the truth
      *  ("a reconcile is running") and also empties the centre of the screen so the empty-folder
      *  scene cannot lie while the first fetch is out (#63). This field is the drawing decision
      *  alone, held back by [REFRESH_INDICATOR_GRACE_MS] and [REFRESH_INDICATOR_MIN_SHOW_MS] (#178). */
@@ -143,7 +143,7 @@ private data class SearchUi(
     val query: String = "",
     val results: List<Email>? = null,
     val loading: Boolean = false,
-    /** False when the server leg stopped short — its cap, or an account that failed and was
+    /** False when the server leg stopped short, its cap, or an account that failed and was
      *  dropped. The count then says "at least N" (see [app.sterna.core.data.mail.MailSearchResult]). */
     val complete: Boolean = true,
 )
@@ -163,7 +163,7 @@ private const val SERVER_SEARCH_LIMIT = 200
 private const val UNDO_BANNER_DISMISS_MS = 6_000L
 
 /**
- * How many recent messages the "unread" view's pull-to-refresh looks at PER FOLDER
+ * How many recent messages the "unread" view's pull-to-refresh looks at per folder
  * ([InboxViewModel.refreshUnreadScope]). Not the account's sync window, and the difference is the
  * heap: that refresh syncs N folders in one pass and its IMAP branch holds every folder's envelopes
  * until the loop ends. The cost: in a folder never opened, only the 50 newest are looked at.
@@ -179,7 +179,7 @@ data class SwipeConfig(val right: SwipeAction, val left: SwipeAction)
 internal val SWIPE_CONFIG_UNLOADED = SwipeConfig(SwipeAction.NONE, SwipeAction.NONE)
 
 /** One message that can be moved back to its original mailbox by an Undo. [mailboxId] is the
- *  SOURCE folder to restore to; [destMailboxId] is where the forward action put it (Trash /
+ *  source folder to restore to; [destMailboxId] is where the forward action put it (Trash /
  *  Archive / target), so the undo can reverse the drawer-count nudge (null = it was destroyed). */
 data class UndoEntry(
     val emailId: String,
@@ -268,14 +268,14 @@ class InboxViewModel(
     private val _undo = MutableStateFlow<UndoAction?>(null)
     val undo: StateFlow<UndoAction?> = _undo.asStateFlow()
 
-    /** The deadline that takes the CURRENT Undo action's banners down, cancelled by [undo]. */
+    /** The deadline that takes the current Undo action's banners down, cancelled by [undo]. */
     private var undoDepartureJob: Job? = null
 
     /** Non-null label while an "empty trash" purge is held back and can still be undone. */
     private val _pendingPurge = MutableStateFlow<String?>(null)
     val pendingPurge: StateFlow<String?> = _pendingPurge.asStateFlow()
     private var purgeJob: Job? = null
-    /** The (accountId, Trash) whose purge is currently held back — the account keys the unique
+    /** The (accountId, Trash) whose purge is currently held back, the account keys the unique
      *  work, since same-server accounts can share a mailbox id. */
     private var pendingPurgeTarget: Pair<String, String>? = null
 
@@ -284,17 +284,17 @@ class InboxViewModel(
     val pendingDelete: StateFlow<String?> = _pendingDelete.asStateFlow()
     private var pendingDeleteJob: Job? = null
     /** The messages whose permanent destroy is held back: account, email id, and the folder the
-     *  message was in at confirmation — the destroy re-checks that against the server (#122). */
+     *  message was in at confirmation, the destroy re-checks that against the server (#122). */
     private var pendingDeleteTargets: List<Triple<AccountCredentials, String, String>> = emptyList()
 
-    /** The IMAP numbering (UIDVALIDITY) each of those MESSAGES was read under, keyed by (accountId,
-     *  emailId) — the stamp its cached row carries, not the folder's current record (#99). Null or
+    /** The IMAP numbering (UIDVALIDITY) each of those messages was read under, keyed by (accountId,
+     *  emailId), the stamp its cached row carries, not the folder's current record (#99). Null or
      * missing means "nothing to oppose", which destroys nothing. Per message: the folder's record
      *  is realigned by any background pass that meets a renumbering, so opposed to itself it reads
-     *  SAME. Keyed by account too — an email id is unique only inside its account (#31). */
+     *  same. Keyed by account too, an email id is unique only inside its account (#31). */
     private var pendingDeleteNumbering: Map<Pair<String, String>, Long?> = emptyMap()
 
-    /** The held-back messages themselves — kept so [undoDelete] can re-complete their threads,
+    /** The held-back messages themselves, kept so [undoDelete] can re-complete their threads,
      *  and so [completeThreadsAfterAction] never re-caches a row whose destroy is pending. */
     private var pendingDeleteEmails: List<Email> = emptyList()
 
@@ -344,14 +344,14 @@ class InboxViewModel(
 
     /**
      * A tap on a row, on a wide window: the message opens in the pane instead of on a route. The
-     * flash staged by [onEmailOpened] is dropped — the list never leaves the screen here.
+     * flash staged by [onEmailOpened] is dropped, the list never leaves the screen here.
      */
     fun openInPane(anchor: MessageAnchor) {
         setReadingPane(ReadingPaneRule.open(_readingPane.value, anchor))
         pendingHighlightId = null
     }
 
-    /** The message a tapped notification posts in the pane — parked as well as opened. A
+    /** The message a tapped notification posts in the pane, parked as well as opened. A
      *  notification for another account switches account first, and [onAccountChanged] empties the
      *  pane; the park puts this one message back, so the order of the host's effects stops mattering. */
     fun openFromNotification(anchor: MessageAnchor) {
@@ -359,7 +359,7 @@ class InboxViewModel(
         openInPane(anchor)
     }
 
-    /** The pane's pager settled on a page: the anchor — and the row painted current — follow it. */
+    /** The pane's pager settled on a page: the anchor, and the row painted current, follow it. */
     fun followPage(emailId: String, accountId: String?, index: Int) {
         setReadingPane(ReadingPaneRule.follow(_readingPane.value, emailId, accountId, index))
     }
@@ -382,8 +382,8 @@ class InboxViewModel(
 
     /**
      * A switch of scope empties the pane: what was open belongs to the list it was opened in.
-     * Not from a collector on [selection] — the restored selection is emitted at start-up and
-     * would erase the restored anchor — and not on the folder a notification came from.
+     * Not from a collector on [selection], the restored selection is emitted at start-up and
+     * would erase the restored anchor, and not on the folder a notification came from.
      */
     private fun paneOnViewChanged() {
         setReadingPane(ReadingPaneRule.onViewChanged(_readingPane.value))
@@ -418,30 +418,30 @@ class InboxViewModel(
     }
 
     /**
-     * Rows whose dismissing swipe was played to the edge and whose server write then failed —
+     * Rows whose dismissing swipe was played to the edge and whose server write then failed:
      * account-qualified keys, never bare ids (#92). The row is gone from the screen but the list key
-     * is stable, so [refresh] re-emits it into the SAME composition, still parked off screen; it
+     * is stable, so [refresh] re-emits it into the same composition, still parked off screen; it
      * clears its own key through [swipeRewound]. Also fed by [swipeRemove] for the reader's own
      * move/archive/delete (#73), where no row ever flew, so every value put back must be idempotent.
      */
     private val _swipeRewind = MutableStateFlow<Set<EmailKey>>(emptySet())
     val swipeRewind: StateFlow<Set<EmailKey>> = _swipeRewind.asStateFlow()
 
-    /** The row [key] is back at rest — forget it, or it rewinds again on every recomposition. */
+    /** The row [key] is back at rest, forget it, or it rewinds again on every recomposition. */
     fun swipeRewound(key: EmailKey) {
         _swipeRewind.value = _swipeRewind.value - key
     }
 
     // ---- inline conversation expansion ----
 
-    /** The conversations currently unfolded inline, as (account, thread) keys — see [ThreadKey]: in
+    /** The conversations currently unfolded inline, as (account, thread) keys, see [ThreadKey]: in
      *  the unified inbox two accounts can carry the same thread id. Kept here, not in the paged
      *  list, so a Paging snapshot swap doesn't reset what's open. */
     private val _expandedThreads = MutableStateFlow<Set<ThreadKey>>(emptySet())
     val expandedThreads: StateFlow<Set<ThreadKey>> = _expandedThreads.asStateFlow()
 
     /**
-     * The whole membership of each expanded thread — the thread's messages in the viewed folder(s)
+     * The whole membership of each expanded thread, the thread's messages in the viewed folder(s)
      * plus its Sent replies, newest-first: what the row's chip counts. Folder-scoped by design: a
      * member deleted to Trash leaves THIS conversation. A live reading of the local cache, kept in
      * step by [observeThreadMembers], never a snapshot taken at the tap. No network on this path.
@@ -449,31 +449,31 @@ class InboxViewModel(
     private val _threadMembers = MutableStateFlow<Map<ThreadKey, List<Email>>>(emptyMap())
     val threadMembers: StateFlow<Map<ThreadKey, List<Email>>> = _threadMembers.asStateFlow()
 
-    /** Thread keys already completed from the server this session — fetched at most once each. */
+    /** Thread keys already completed from the server this session, fetched at most once each. */
     private val completedThreads = mutableSetOf<ThreadKey>()
 
     /**
-     * The conversation a message was opened FROM, as the reading view's swipe context: the messages
+     * The conversation a message was opened from, as the reading view's swipe context: the messages
      * the unfolded row showed at the tap, in that order. Recorded by [recordThreadOrder], never
-     * rebuilt from a representative remembered since the unfold — the row re-picks it on every write.
+     * rebuilt from a representative remembered since the unfold, the row re-picks it on every write.
      */
     private val threadOrder = ThreadOrders()
 
     /**
-     * Record what the unfolded [key] row is showing — [representative] on the row, [members]
-     * beneath it — as the swipe context of a message opened from it, and answer with that order.
+     * Record what the unfolded [key] row is showing, [representative] on the row, [members]
+     * beneath it, as the swipe context of a message opened from it, and answer with that order.
      */
     fun recordThreadOrder(key: ThreadKey, representative: Email, members: List<Email>): List<Pair<String, String?>> =
         threadOrder.record(key, representative, members)
 
     /**
-     * The conversation a message was opened from. Empty when the thread is unknown — the reader
+     * The conversation a message was opened from. Empty when the thread is unknown, the reader
      * then falls back to showing the single message it was given.
      */
     fun threadEntries(key: ThreadKey): List<Pair<String, String?>> = threadOrder.entries(key)
 
     /** The conversation an email belongs to: its account plus its threadId (or its own id when
-     *  thread-less). Account-qualified — see [ThreadKey]. */
+     *  thread-less). Account-qualified, see [ThreadKey]. */
     fun threadKeyOf(email: Email): ThreadKey =
         ConversationExpansion.threadKey(email.accountId, email.threadId, email.id)
 
@@ -492,7 +492,7 @@ class InboxViewModel(
 
     /**
      * The server completion of a freshly unfolded conversation. JMAP only (IMAP has no Thread/get),
-     * once per thread. It fetches for its PERSISTENCE: members outside the folder's short sync
+     * once per thread. It fetches for its persistence: members outside the folder's short sync
      * window are written into the cache and the observed query picks them up.
      */
     private suspend fun expandThread(rep: Email, key: ThreadKey) {
@@ -503,11 +503,11 @@ class InboxViewModel(
         // was built with.
         val fetched = runCatching { repo.fetchThreadMembers(credentials, threadId, listScope.value.viewedMailboxIds) }
             .getOrDefault(emptyList())
-        if (fetched.isEmpty()) return // offline/failed — not completed, so a later expand retries
+        if (fetched.isEmpty()) return // offline/failed, not completed, so a later expand retries
         completedThreads += key
     }
 
-    /** Keep [_threadMembers] equal to what the cache says the unfolded conversations hold — live, on
+    /** Keep [_threadMembers] equal to what the cache says the unfolded conversations hold, live, on
      *  the same folders and write the chips are counted from ([ThreadMemberStream]). Started once,
      *  for the ViewModel's life: idle while nothing is unfolded. */
     private fun observeThreadMembers() {
@@ -515,7 +515,7 @@ class InboxViewModel(
             ThreadMemberStream.members(
                 expanded = _expandedThreads,
                 scope = listScope,
-                // The snooze table, observed — not asked once per emission: the members are read
+                // The snooze table, observed, not asked once per emission: the members are read
                 // from `emails` alone, so nothing there notices a snooze starting or lapsing.
                 snoozed = repo.observeActiveSnoozed(),
                 fallbackAccountId = { store.load()?.id },
@@ -544,7 +544,7 @@ class InboxViewModel(
     private val maskedMembers = ThreadMemberMask()
 
     /**
-     * Take [keys] off the unfolded rows for the length of [op] — the window in which the gesture has
+     * Take [keys] off the unfolded rows for the length of [op], the window in which the gesture has
      * already flown the row away while its cache row would put it straight back.
      *
      * Taking the mask down is not a redraw: a member is listed again only on the next write to the
@@ -585,7 +585,7 @@ class InboxViewModel(
 
     /** Optimistically rewrite the seen keyword on any expanded-conversation members among [keys].
      *  The cache is written only on the server's ack, so every read/unread mutation must be written
-     *  here — and into the search-results snapshot — or those rows keep a stale state. */
+     *  here, and into the search-results snapshot, or those rows keep a stale state. */
     private fun patchThreadMembersSeen(keys: Set<EmailKey>, seen: Boolean) {
         patchSearchResults(keys) { m ->
             m.copy(
@@ -646,8 +646,8 @@ class InboxViewModel(
     }
 
     /** Re-sync the expanded conversations' members with the cache. The live reading keeps the copy
-     *  already drawn, so a change made OUTSIDE this ViewModel — chiefly the reader marking a child
-     *  read — needs saying explicitly, or the unfolded row keeps a stale unread dot. */
+     *  already drawn, so a change made outside this ViewModel, chiefly the reader marking a child
+     *  read, needs saying explicitly, or the unfolded row keeps a stale unread dot. */
     fun refreshThreadMembers() {
         val snapshot = _threadMembers.value
         if (snapshot.isEmpty()) return
@@ -672,24 +672,24 @@ class InboxViewModel(
     private val currentAccountId = MutableStateFlow(store.currentId())
     private val unifiedInboxScopes = MutableStateFlow(store.allInboxScopes())
 
-    /** Whether the CURRENT account hides the folders it is not subscribed to (#174). Off until one
-     *  ticks the box. Hung off `accountsFlow` — the single point every account write is published
-     *  from — so ticking the box redraws the drawer without a restart. */
+    /** Whether the current account hides the folders it is not subscribed to (#174). Off until one
+     *  ticks the box. Hung off `accountsFlow`, the single point every account write is published
+     *  from, so ticking the box redraws the drawer without a restart. */
     private val showOnlySubscribed: StateFlow<Boolean> =
         combine(store.accountsFlow, currentAccountId) { accounts, id -> showOnlySubscribedFor(id, accounts) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /**
-     * The last folder list [mailboxes] delivered, WITH the account it belonged to — raw, unfiltered.
-     * [mailboxes] carries side effects (#91, #89) and must be collected ONCE, so the setting
-     * cannot be combined into it. The account travels WITH the list: re-reading
+     * The last folder list [mailboxes] delivered, with the account it belonged to, raw, unfiltered.
+     * [mailboxes] carries side effects (#91, #89) and must be collected once, so the setting
+     * cannot be combined into it. The account travels with the list: re-reading
      * `currentAccountId.value` at derivation time pairs the new account with the old ids (#121/#31).
      */
     private val folderSnapshot = MutableStateFlow<Pair<String?, List<Mailbox>>>(null to emptyList())
 
     /**
-     * The folders the "unread" view ([Sel.Unread]) pages — the current account's VISIBLE ones,
-     * minus Trash, Junk/Spam, Sent and Drafts ([visibleFolders], [unreadViewScopes]). Starts EMPTY:
+     * The folders the "unread" view ([Sel.Unread]) pages, the current account's visible ones,
+     * minus Trash, Junk/Spam, Sent and Drafts ([visibleFolders], [unreadViewScopes]). Starts empty:
      * the store knows the account, not its folder list, and an empty scope list is what
      * [MailRepository.pagedMailbox] answers `PagingData.empty()` to.
      */
@@ -699,9 +699,9 @@ class InboxViewModel(
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /**
-     * Back to the Inbox when the folder ON SCREEN stops being reachable — DELETED (#89), or hidden
+     * Back to the Inbox when the folder on screen stops being reachable, DELETED (#89), or hidden
      * by "show only subscribed folders" (#174). The decision is [selectionIsUnreachable]'s, and it
-     * needs the WHOLE list plus the flag to tell a folder taken away from one nobody has loaded yet.
+     * needs the whole list plus the flag to tell a folder taken away from one nobody has loaded yet.
      * Derived from [folderSnapshot], never a second collection of [mailboxes], whose side effects
      * (#91) a second collector would replay on every tick of the box.
      */
@@ -712,8 +712,8 @@ class InboxViewModel(
             .launchIn(viewModelScope)
 
     /**
-     * The header the list opens on, for the view [selection] was RESTORED to ([restoredMeta]).
-     * Reads `selection.value`, so it must stay declared AFTER [selection]: it is a plain
+     * The header the list opens on, for the view [selection] was restored to ([restoredMeta]).
+     * Reads `selection.value`, so it must stay declared after [selection]: it is a plain
      * initialiser and the order is the whole guarantee it is not null here.
      */
     private val meta = MutableStateFlow(
@@ -738,7 +738,7 @@ class InboxViewModel(
      */
     private val clock: () -> Long = SystemClock::elapsedRealtime
 
-    /** The stretch of refreshing currently on the screen's mind — see [RefreshRun]. */
+    /** The stretch of refreshing currently on the screen's mind, see [RefreshRun]. */
     private val refreshRun = MutableStateFlow<RefreshRun?>(null)
 
     /** Set by [refreshRequested] and consumed by the very next [refresh], so the reader's own pull
@@ -750,7 +750,7 @@ class InboxViewModel(
      * A folder a tapped notification asked the list to show, as (accountId, mailboxId, emailId),
      * waiting for that account's folder list. [applyNotificationFolder] consumes it either way, so
      * it can never resurface and yank the user out of a folder they picked. The message id is what
-     * [ReadingPaneRule.onFolderFromNotification] judges the pane against (#103) — read from here,
+     * [ReadingPaneRule.onFolderFromNotification] judges the pane against (#103), read from here,
      * not from [notificationAnchor], which the account switch spends.
      */
     private var notificationFolder: Triple<String, String, String>? = null
@@ -758,27 +758,27 @@ class InboxViewModel(
     /**
      * The message a tapped notification posted in the reading pane, kept so the account switch that
      * same notification asks for can put it back ([openFromNotification], [onAccountChanged]).
-     * A park for ONE switch that nothing reads as a flag: it is spent by the time the folder list
+     * A park for one switch that nothing reads as a flag: it is spent by the time the folder list
      * arrives, and [applyNotificationFolder] judges the pane against its own message id (#103).
      */
     private var notificationAnchor: MessageAnchor? = null
 
-    /** The RESTORED folder whose name [restoredMeta] left blank, waiting for a folder list to name
-     *  it — the cache's list, so this lands in airplane mode too. Consumed by [applyRestoredMeta],
+    /** The restored folder whose name [restoredMeta] left blank, waiting for a folder list to name
+     *  it, the cache's list, so this lands in airplane mode too. Consumed by [applyRestoredMeta],
      *  so it can never resurface and retitle a folder the reader chose herself. */
     private var restoredFolder: String? =
         (selection.value as? Sel.Folder)?.id?.takeIf { it != store.inboxMailboxId() }
 
-    // The drawer shows the CURRENT account's folders, so the flow re-scopes on an account switch.
-    // SIDE EFFECTS, collected exactly once — a second collector replays them. Everything here is
-    // judged when a folder LIST ARRIVES, which is why the Inbox fallback hangs off [inboxFallback].
+    // The drawer shows the current account's folders, so the flow re-scopes on an account switch.
+    // Side effects, collected exactly once, a second collector replays them. Everything here is
+    // judged when a folder LIST arrives, which is why the Inbox fallback hangs off [inboxFallback].
     private val mailboxes = currentAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(emptyList()) else repo.observeMailboxes(accountId)
     }.onEach { folders ->
         // #91: a notification for a message in another folder parks its request until the folder
-        // list it is judged against exists. Handed the WHOLE list ([notificationFolderToShow]).
+        // list it is judged against exists. Handed the whole list ([notificationFolderToShow]).
         applyNotificationFolder(folders)
-        // The restored view's missing folder name, from this cached list. AFTER the line above:
+        // The restored view's missing folder name, from this cached list. After the line above:
         // a tapped notification already wrote the header, and [restoredFolderMeta] lets it win.
         applyRestoredMeta(folders)
         // Recorded for what derives from it: [unreadScopes] and [inboxFallback].
@@ -786,7 +786,7 @@ class InboxViewModel(
     }
 
     /**
-     * (account, folder) → role, for EVERY configured account — what the rows of an unfolded
+     * (account, folder) → role, for every configured account, what the rows of an unfolded
      * conversation are judged by (#115). Those rows span the viewed folder(s) plus Sent and, in the
      * unified list, other accounts, so neither [mailboxes] nor the selected folder's role answers.
      *
@@ -811,17 +811,17 @@ class InboxViewModel(
 
     /** Multi-select mode: which messages are selected (empty + inactive = off). Account-qualified
      *  keys, not bare ids: the unified inbox can show two accounts' same-id rows, and a bare-id
-     *  selection would silently cover — and act on — both (issue #31). */
+     *  selection would silently cover, and act on, both (issue #31). */
     private val _selectedKeys = MutableStateFlow<Set<EmailKey>>(emptySet())
     val selectedKeys: StateFlow<Set<EmailKey>> = _selectedKeys.asStateFlow()
     private val _selectionActive = MutableStateFlow(false)
     val selectionActive: StateFlow<Boolean> = _selectionActive.asStateFlow()
 
     /**
-     * The IMAP numbering the row of each selected key carried AT THE MOMENT OF THE TICK (#99): an
+     * The IMAP numbering the row of each selected key carried at the moment of the tick (#99): an
      * IMAP key does not say which numbering it belongs to, so a renumbering server makes the next
      * walk upsert that key with another message's envelope, on screen already ticked. Written from
-     * ONE place, the collector on `_selectedKeys`. Null and absent both mean "no numbering to
+     * one place, the collector on `_selectedKeys`. Null and absent both mean "no numbering to
      * offer" and neither is evidence of a swap, so the upstream split refuses none; the cross-account
      * move wraps the value in `FrozenNumbering.Frozen(...)`, refused at both ends (#189).
      */
@@ -829,25 +829,25 @@ class InboxViewModel(
 
     /** The same field, as the rest of this class writes and reads it. A property over
      *  [tickedUnderFlow], not a plain `var`: the selection gestures run in another coroutine from
-     *  the collector that fills it, so they must WAIT for a write instead of sampling. */
+     *  the collector that fills it, so they must wait for a write instead of sampling. */
     private var tickedUnder: Map<EmailKey, Long?>
         get() = tickedUnderFlow.value
         set(value) { tickedUnderFlow.value = value }
 
-    /** True when every selected message is already read — drives the read/unread toggle's icon. */
+    /** True when every selected message is already read, drives the read/unread toggle's icon. */
     private val _selectionAllRead = MutableStateFlow(false)
     val selectionAllRead: StateFlow<Boolean> = _selectionAllRead.asStateFlow()
 
     /**
      * The account the current selection belongs to: a single account, or null when empty or spanning
-     * accounts. The move-to-folder picker offers THIS account's folders — mailbox ids collide across
+     * accounts. The move-to-folder picker offers THIS account's folders, mailbox ids collide across
      * same-server accounts, so the active account's id would move the message nowhere (#73).
      */
     private val selectionAccountId: StateFlow<String?> = _selectedKeys
         .map(::selectionAccount)
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    /** The account the selection's move-to-folder picker BELONGS to — the selection's, falling back
+    /** The account the selection's move-to-folder picker belongs to, the selection's, falling back
      *  to the active account's. Its folders are the ones listed unless another account is chosen on
      *  the picker's account row (#189). */
     val moveOwnerAccountId: StateFlow<String?> =
@@ -861,7 +861,7 @@ class InboxViewModel(
     private val _moveAccountId = MutableStateFlow<String?>(null)
 
     /** The choice as the picker and the gesture must see it: neutralised on a selection that spans
-     *  accounts. The ONE place it is neutralised, so what the picker lists and where the tap goes
+     *  accounts. The one place it is neutralised, so what the picker lists and where the tap goes
      *  cannot answer differently from the account row. */
     val moveAccountId: StateFlow<String?> =
         combine(_moveAccountId, _selectedKeys) { chosen, keys -> selectionMoveAccount(chosen, keys) }
@@ -876,7 +876,7 @@ class InboxViewModel(
         combine(moveAccountId, moveOwnerAccountId) { chosen, owner -> pickerAccount(chosen, owner) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    /** Folders the move-to-folder picker offers: ONE account's — [movePickerAccountId]'s — never a
+    /** Folders the move-to-folder picker offers: one account's, [movePickerAccountId]'s, never a
      *  mix, because mailbox ids collide between accounts of the same server (#92). */
     val selectionMailboxes: StateFlow<List<Mailbox>> =
         movePickerAccountId.flatMapLatest { accountId ->
@@ -884,7 +884,7 @@ class InboxViewModel(
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /**
-     * Whether the picker above must hide unsubscribed folders — the setting of the SAME account
+     * Whether the picker above must hide unsubscribed folders, the setting of the same account
      * [selectionMailboxes] is scoped to, never [showOnlySubscribed] (#92, #174, #189). Beside the
      * list rather than folded into it: [moveTargets] filters only the targets, and resolves the
      * parent paths shown under them against the whole list (#109).
@@ -934,7 +934,7 @@ class InboxViewModel(
                 Sel.Unread -> {
                     // The unread filter is [listUnreadOnly]'s answer, not the key's raw toggle:
                     // this scope forces it on (WYSIWYG). All three branches and [selectAll] ask the
-                    // SAME function — a filter decided twice is the destructive half of #126.
+                    // same function, a filter decided twice is the destructive half of #126.
                     sentScopes(key, listOfNotNull(key.accountId)).flatMapLatest { sent ->
                         repo.pagedMailbox(key.unreadScopes, key.sort, listUnreadOnly(key.sel, key.unreadOnly), key.conversationView, sent)
                     }
@@ -943,12 +943,12 @@ class InboxViewModel(
         }.cachedIn(viewModelScope)
 
     /**
-     * What `local_drafts` contributes to the list on screen — empty everywhere but this account's
+     * What `local_drafts` contributes to the list on screen, empty everywhere but this account's
      * Drafts folder (#95). The role comes from [folderRoles], not [mailboxes] and its `onEach`
-     * side effects. A `StateFlow` because [selectAll] READS IT AT THE TAP: a bulk action counting
+     * side effects. A `StateFlow` because [selectAll] reads it at the tap: a bulk action counting
      * the hidden server rows would delete a message never on screen (#126).
      *
-     * NEVER add `replayExpirationMillis = 0`: the cache would drop back to an empty
+     * Never add `replayExpirationMillis = 0`: the cache would drop back to an empty
      * [LocalDraftRows], and a [selectAll] in the re-subscription window subtracts nothing.
      */
     private val localDraftRows: StateFlow<LocalDraftRows> =
@@ -969,7 +969,7 @@ class InboxViewModel(
     val pagedListRows: Flow<PagingData<InboxRow>> =
         combine(pagedEmails, localDraftRows) { paged, local -> withLocalDrafts(paged, local) }
 
-    /** The accounts' Sent folders backing the chip's "plus Sent replies" scope — live from the
+    /** The accounts' Sent folders backing the chip's "plus Sent replies" scope, live from the
      *  folder cache in conversation mode, none in flat mode. Kept in [listScope] with the folder(s)
      *  [key] pages: unfolding a row must reuse what that row's chip counted. The viewed folders come
      *  from the paging key, never from the selection. */
@@ -977,7 +977,7 @@ class InboxViewModel(
         (if (key.conversationView) repo.observeSentMailboxes(accountIds) else flowOf(emptyList<Pair<String, String>>()))
             .onEach { listScope.value = ListScope(viewedMailboxIds(key), it) }
 
-    /** The folder(s) [key] pages — one folder, or every account's inbox when unified. Bare ids
+    /** The folder(s) [key] pages, one folder, or every account's inbox when unified. Bare ids
      *  here on purpose: this feeds the unfold's folder set ([ConversationScope.folders]), which
      *  is account-pinned by its own caller; the LIST's scope keeps the account (see [PageKey]). */
     private fun viewedMailboxIds(key: PageKey): List<String> = when (val sel = key.sel) {
@@ -987,19 +987,19 @@ class InboxViewModel(
     }
 
     /**
-     * The scope the list on screen was built with — the folders it pages and the Sent pairs its
+     * The scope the list on screen was built with, the folders it pages and the Sent pairs its
      * chips counted over. Recorded by [sentScopes], read back by [observeThreadMembers], so the
      * unfold and the chip describe one conversation. A StateFlow: "the resolution changed while a
      * row was open" is the case a snapshot could not answer.
      */
     private val listScope = MutableStateFlow(ListScope())
 
-    // "All inboxes (N)" sums the SAME live per-inbox aggregates the folder badges read, so the two
+    // "All inboxes (N)" sums the same live per-inbox aggregates the folder badges read, so the two
     // drawer numbers agree for JMAP; IMAP inboxes keep contributing their stored server counter.
     private val unifiedUnread = repo.observeUnifiedInboxUnread()
 
-    /** #65: the offline empty state promises a resync, so watch the network — the transports *and*
-     *  the route this app is given, so a VPN tunnel coming back counts — and re-run the current
+    /** #65: the offline empty state promises a resync, so watch the network, the transports *and*
+     *  the route this app is given, so a VPN tunnel coming back counts, and re-run the current
      *  view's refresh once connectivity returns. Declared before [state]. */
     private val connectivity = ConnectivityWatcher(application) { onReconnected() }
     private var reconnectJob: Job? = null
@@ -1011,7 +1011,7 @@ class InboxViewModel(
             unified = sel is Sel.Unified,
             unreadView = sel is Sel.Unread,
             // The rule lives in [isAtInbox] and is not restated here: atInbox true means the
-            // system Back gesture LEAVES THE APP.
+            // system Back gesture leaves the app.
             atInbox = isAtInbox(sel) { store.inboxMailboxId() },
             accountName = meta.accountName,
             mailboxName = meta.mailboxName,
@@ -1023,9 +1023,9 @@ class InboxViewModel(
 
     /**
      * The drawer's unread badge, folded into [baseState] rather than combined into [state] (the
-     * typed `combine` stops at five flows). The folder list comes back out of [Base] and is NOT
-     * collected again — [mailboxes] carries side effects (#91, #89) — which is also why the
-     * subscription filter (#174) applies here, into a SECOND field: the drawer draws
+     * typed `combine` stops at five flows). The folder list comes back out of [Base] and is not
+     * collected again ([mailboxes] carries side effects, #91, #89), which is also why the
+     * subscription filter (#174) applies here, into a second field: the drawer draws
      * [MailUi.visibleMailboxes], everything else the whole [MailUi.mailboxes]. Not "the number of
      * rows you will see": a thread unread in two folders is summed twice and drawn once.
      */
@@ -1069,14 +1069,14 @@ class InboxViewModel(
             unreadCount = meta.value.unread,
             selectedMailboxId = (selection.value as? Sel.Folder)?.id,
             unified = selection.value is Sel.Unified,
-            // NOT the field's default: this placeholder is a SECOND SITE of every rule the combine
-            // above states. Left out, a RESTORED unread view starts on `unreadView = false`.
+            // Not the field's default: this placeholder is a second site of every rule the combine
+            // above states. Left out, a restored unread view starts on `unreadView = false`.
             unreadView = selection.value is Sel.Unread,
             atInbox = isAtInbox(selection.value) { store.inboxMailboxId() },
             mailboxes = emptyList(),
             refreshing = true,
-            // Spelled out, not left to the field's default. `refreshing = true` above is the TRUTH
-            // (#63); this is the DISPLAY, which must not light before the grace passed (#178).
+            // Spelled out, not left to the field's default. `refreshing = true` above is the truth
+            // (#63); this is the display, which must not light before the grace passed (#178).
             showRefreshIndicator = false,
             error = null,
             offline = !connectivity.online.value,
@@ -1091,7 +1091,7 @@ class InboxViewModel(
         viewModelScope.launch {
             _selectedKeys.collect { refreshSelectionReadState(it) }
         }
-        // Remember, for every key AS IT IS TICKED, the numbering its row carries — the fact a
+        // Remember, for every key as it is ticked, the numbering its row carries, the fact a
         // destruction opposes later to what the row carries then (#99). Here and nowhere else.
         viewModelScope.launch {
             _selectedKeys.collect { rememberTickedNumbering(it) }
@@ -1101,13 +1101,13 @@ class InboxViewModel(
         viewModelScope.launch {
             selection.collect { PushController.unifiedInboxVisible = it is Sel.Unified }
         }
-        // Remember the view so a cold start reopens on it. The account is read HERE, at the write:
-        // switchAccount() calls setCurrent(id) BEFORE onAccountChanged(). That leaves a window
-        // where a refreshFolder() stores a stale pair — never one crossed between accounts.
+        // Remember the view so a cold start reopens on it. The account is read here, at the write:
+        // switchAccount() calls setCurrent(id) before onAccountChanged(). That leaves a window
+        // where a refreshFolder() stores a stale pair, never one crossed between accounts.
         viewModelScope.launch {
             selection.collect { store.setStoredView(encodeSelection(store.currentId(), it)) }
         }
-        // The END of an indicator stretch is DERIVED from the truth, in one place, not written into
+        // The end of an indicator stretch is derived from the truth, in one place, not written into
         // the three arms of refresh()'s `when`. Every path that stops a refresh goes through `status`.
         viewModelScope.launch {
             status.map { it.refreshing }.distinctUntilChanged().collect { busy ->
@@ -1124,10 +1124,10 @@ class InboxViewModel(
     }
 
     /**
-     * Refresh a beat after the network came back — settled, so a flapping connection coalesces into
+     * Refresh a beat after the network came back, settled, so a flapping connection coalesces into
      * a single reconcile, then retried a few times on a widening gap ([ReconnectRefresh]). An error
-     * left over from a refresh that failed *during* the outage is stale — [refreshNotice] would show
-     * it as a technical failure — so it is dropped right away; the attempts below put a real one
+     * left over from a refresh that failed *during* the outage is stale, [refreshNotice] would show
+     * it as a technical failure, so it is dropped right away; the attempts below put a real one
      * back if the server is genuinely unreachable.
      */
     private fun onReconnected() {
@@ -1142,7 +1142,7 @@ class InboxViewModel(
                 val mine = refreshJob
                 mine?.join()
                 // Someone refreshed on top of us (a pull, an account switch): that result is the
-                // one the user is looking at — leave it alone and stop retrying behind their back.
+                // one the user is looking at, leave it alone and stop retrying behind their back.
                 if (refreshJob !== mine) return@launch
                 val error = status.value.error ?: return@launch
                 status.value = status.value.copy(
@@ -1162,12 +1162,12 @@ class InboxViewModel(
      *  instead of lingering on the previous account's, then a refresh runs. */
     fun onAccountChanged() {
         collapseThreads()
-        // The pane empties with the account, by the SAME door as the other switches of scope (#103).
+        // The pane empties with the account, by the same door as the other switches of scope (#103).
         // Never "keep it when the anchor is already the arriving account's": a row of B opened
         // while A is current would survive into B's list, with A's paging index still on it.
         paneOnViewChanged()
         // The exception: the message a tapped notification parked. Put back only onto the account it
-        // belongs to, and dropped WHATEVER the verdict — a kept park replays elsewhere (#92).
+        // belongs to, and dropped whatever the verdict, a kept park replays elsewhere (#92).
         ReadingPaneRule.replayOnAccountChange(notificationAnchor, store.currentId())?.let { openInPane(it) }
         notificationAnchor = null
         currentAccountId.value = store.currentId()
@@ -1175,7 +1175,7 @@ class InboxViewModel(
         unifiedInboxScopes.value = store.allInboxScopes()
         // Cleared, not recomputed: the folder list in hand is the PREVIOUS account's, and pairs built
         // from it under the new account's id would page a sibling account's folders (#121). The
-        // RECORD is cleared, not the scope derived from it, which the next derivation rewrites.
+        // record is cleared, not the scope derived from it, which the next derivation rewrites.
         folderSnapshot.value = null to emptyList()
         meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount())
         refreshWatchedFolders()
@@ -1189,10 +1189,10 @@ class InboxViewModel(
     private var refreshJob: Job? = null
 
     /**
-     * The refresh the READER asked for: the pull gesture and the two Retry buttons. Its indicator is
+     * The refresh the reader asked for: the pull gesture and the two Retry buttons. Its indicator is
      * drawn at once, with none of the grace that keeps the tern off a folder tap's fetch (#178).
-     * The flag is raised BEFORE the call: `viewModelScope` is `Main.immediate`, so refresh()'s
-     * `launch` body has already begun by the time refresh() returns — there is no safe "after".
+     * The flag is raised before the call: `viewModelScope` is `Main.immediate`, so refresh()'s
+     * `launch` body has already begun by the time refresh() returns, there is no safe "after".
      */
     fun refreshRequested() {
         refreshAnswersAGesture = true
@@ -1204,8 +1204,8 @@ class InboxViewModel(
      * register is persisted and the decision is [isFresh]'s.
      *
      * Only for the reconciles that accompany a change of view. Never in front of [onReconnected]
-     * — the only thing that clears a FAILED reachability (#65) — nor [refreshRequested], nor
-     * [forceRefresh], nor a reconcile that follows a write. The stale error is dropped FIRST: a
+     * (the only thing that clears a failed reachability, #65), nor [refreshRequested], nor
+     * [forceRefresh], nor a reconcile that follows a write. The stale error is dropped first: a
      * change of view never inherits the failure of the view before it.
      */
     private fun refreshUnlessFresh() {
@@ -1215,7 +1215,7 @@ class InboxViewModel(
     }
 
     /** Stamp [scopes] as reconciled now, pruning whatever fell out of the window ([recordFresh]).
-     *  Called from ONE place: the Delivered arm of [refresh]. A failed or abandoned refresh brought
+     *  Called from one place: the Delivered arm of [refresh]. A failed or abandoned refresh brought
      *  nothing back, and stamping it would hold a stale list on screen for 30 s. */
     private fun rememberReconciled(scopes: List<Pair<String, String>>) {
         val register = recordFresh(decodeFreshness(store.refreshFreshness()), scopes, clock())
@@ -1229,11 +1229,11 @@ class InboxViewModel(
         refreshRun.value = startRefreshRun(refreshRun.value, clock(), instant)
         status.value = Status(refreshing = true, error = null)
         refreshJob = viewModelScope.launch {
-            // Read HERE, not in the Delivered arm: the selection can move while this refresh is in
+            // Read here, not in the Delivered arm: the selection can move while this refresh is in
             // flight, and stamping a folder it never read is how a stale list passes for fresh.
             val reconciled = currentScopes()
             try {
-            // #130: the fourth end of a refresh — never coming back. The bound and its reason live
+            // #130: the fourth end of a refresh, never coming back. The bound and its reason live
             // in [REFRESH_BUDGET_MS]; nothing is passed here, so the budget has exactly one home.
                 val outcome = refreshWithin {
                     when (val sel = selection.value) {
@@ -1248,7 +1248,7 @@ class InboxViewModel(
                         // #65: every refresh doubles as the connectivity probe. A killswitch VPN is
                         // invisible to the framework; only what the requests live can correct it.
                         connectivity.reportSuccess()
-                        // #178: only a refresh that LANDED answers for its view. The scopes are
+                        // #178: only a refresh that landed answers for its view. The scopes are
                         // the ones read when this refresh started.
                         rememberReconciled(reconciled)
                     }
@@ -1266,7 +1266,7 @@ class InboxViewModel(
                     }
                 }
             } catch (c: CancellationException) {
-                throw c // a superseding refresh cancelled us — don't stomp its status
+                throw c // a superseding refresh cancelled us, don't stomp its status
             } catch (t: Throwable) {
                 status.value = Status(refreshing = false, error = t.message ?: t.javaClass.simpleName)
                 connectivity.reportFailure(t)
@@ -1284,7 +1284,7 @@ class InboxViewModel(
         if (updated.mailboxId == store.inboxMailboxId() || mailboxId == null) {
             // Keep the cached inbox metadata fresh for offline display.
             store.saveInboxMeta(updated.mailboxId, updated.mailboxName, updated.accountName, updated.unreadCount)
-            // Codeberg #50: a reply landed by THIS refresh must trigger unarchive-on-reply too —
+            // Codeberg #50: a reply landed by this refresh must trigger unarchive-on-reply too, since
             // in the foreground this is the path new mail arrives by. No-op unless the toggle is on.
             runCatching { FetchAndNotify.onInboxRefreshed(getApplication(), credentials, updated.mailboxId) }
         }
@@ -1293,16 +1293,16 @@ class InboxViewModel(
     }
 
     /**
-     * Pull-to-refresh in the "unread" view: the account's inbox AND every other folder the view
-     * pages, in one pass — `refreshAccountFolders`, which covers both protocols. The `limit` is
+     * Pull-to-refresh in the "unread" view: the account's inbox and every other folder the view
+     * pages, in one pass, `refreshAccountFolders`, which covers both protocols. The `limit` is
      * [UNREAD_SCOPE_FOLDER_LIMIT], not the account's sync window (reason on the constant). It
-     * writes neither [selection] nor [meta] — that is why it is not [refreshFolder], whose last line
-     * would drop the reader into the Inbox. `onMissing` stays a no-op: WATCHED is a user intent.
+     * writes neither [selection] nor [meta], that is why it is not [refreshFolder], whose last line
+     * would drop the reader into the Inbox. `onMissing` stays a no-op: watched is a user intent.
      */
     private suspend fun refreshUnreadScope() {
         val credentials = store.load() ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
-        // [refreshAccountFolders] opens on `rekeyWatchedFolders`, which PERSISTS a re-key of the
-        // watched set that EXISTS: it can rename an entry, never add a watch this view invented.
+        // [refreshAccountFolders] opens on `rekeyWatchedFolders`, which persists a re-key of the
+        // watched set that exists: it can rename an entry, never add a watch this view invented.
         val refreshes = repo.refreshAccountFolders(
             credentials,
             extraFolderIds = unreadRefreshTargets(credentials.id, unreadScopes.value, store.inboxMailboxId()),
@@ -1310,7 +1310,7 @@ class InboxViewModel(
             limit = UNREAD_SCOPE_FOLDER_LIMIT,
         )
         // #50: a reply landed by THIS refresh must trigger unarchive-on-reply too. The inbox is
-        // CHOSEN out of what came back ([refreshedInboxId]), not taken as the first refresh: a wrong
+        // chosen out of what came back ([refreshedInboxId]), not taken as the first refresh: a wrong
         // aim advances another folder's notification baseline. No-op unless the toggle is on.
         val refreshedInbox = refreshedInboxId(refreshes.map { it.mailboxId }, store.inboxMailboxId())
         if (refreshedInbox != null) {
@@ -1348,10 +1348,10 @@ class InboxViewModel(
     }
 
     /**
-     * Switch to this account's unread mail across its folders ([Sel.Unread]). [meta] is REWRITTEN
+     * Switch to this account's unread mail across its folders ([Sel.Unread]). [meta] is rewritten
      * for the account label: `meta.accountName` still holds the literal `UNIFIED_LABEL` when the
      * unified inbox was last shown, so the subtitle would read "All inboxes", in English. The
-     * scope is NOT recomputed here — it is written in one place, the [mailboxes] `onEach` (#121).
+     * scope is not recomputed here, it is written in one place, the [mailboxes] `onEach` (#121).
      */
     fun selectUnread() {
         if (selection.value is Sel.Unread) return
@@ -1366,7 +1366,7 @@ class InboxViewModel(
         select(mailbox, emptyPane = true)
     }
 
-    /** [emptyPane] is false on ONE path: the folder a tapped notification came from (#91,
+    /** [emptyPane] is false on one path: the folder a tapped notification came from (#91,
      *  [applyNotificationFolder]). It lands after the anchor that notification posted in the pane,
      *  and emptying there would take the very message the tap asked for off the right (#103). */
     private fun select(mailbox: Mailbox, emptyPane: Boolean) {
@@ -1384,7 +1384,7 @@ class InboxViewModel(
      * [app.sterna.ui.NotificationAccountSwitch]. The verdict is
      * [app.sterna.ui.NotificationFolderSwitch]'s and needs the folder list, which may not be loaded
      * (empty means "not known yet"): the request is parked, judged on the first loaded list, and
-     * consumed on that first verdict whatever it is — never kept to fire later.
+     * consumed on that first verdict whatever it is, never kept to fire later.
      */
     fun showFolderFromNotification(accountId: String, mailboxId: String, emailId: String) {
         notificationFolder = Triple(accountId, mailboxId, emailId)
@@ -1394,7 +1394,7 @@ class InboxViewModel(
     /** Judge a parked [notificationFolder] against a freshly loaded [folders] list. */
     private fun applyNotificationFolder(folders: List<Mailbox>) {
         val (accountId, mailboxId, emailId) = notificationFolder ?: return
-        // An empty list is "not known yet" — same conservative reading as [selectionIsGone].
+        // An empty list is "not known yet", same conservative reading as [selectionIsGone].
         // Keep waiting rather than deciding on nothing.
         if (folders.isEmpty()) return
         notificationFolder = null
@@ -1405,19 +1405,19 @@ class InboxViewModel(
             unifiedView = selection.value is Sel.Unified,
             knownMailboxIds = folders.map { it.id },
         )
-        // [NotificationFolderSwitch.resolve] gets the WHOLE list: a hidden folder is not an
-        // unknown one, whose branch means deleted. Its RESULT is judged ([notificationFolderToShow]).
+        // [NotificationFolderSwitch.resolve] gets the whole list: a hidden folder is not an
+        // unknown one, whose branch means deleted. Its result is judged ([notificationFolderToShow]).
         val show = notificationFolderToShow(target, folders, showOnlySubscribed.value) ?: return
-        // Not a flat `emptyPane = false`, nor "was a message parked?" — that park is spent by the
-        // ACCOUNT SWITCH. The order-proof question: is what the pane holds MY message?
+        // Not a flat `emptyPane = false`, nor "was a message parked?", that park is spent by the
+        // account switch. The order-proof question: is what the pane holds my message?
         setReadingPane(ReadingPaneRule.onFolderFromNotification(_readingPane.value, emailId, accountId))
         folders.firstOrNull { it.id == show }?.let { select(it, emptyPane = false) }
     }
 
     /**
-     * Name the RESTORED folder from a freshly loaded [folders] list ([restoredFolderMeta]).
+     * Name the restored folder from a freshly loaded [folders] list ([restoredFolderMeta]).
      * Known and deliberately unguarded: if Room's FIRST [mailboxes] emission lands after a
-     * successful [refreshFolder], this overwrites that header's count — both come out of the same
+     * successful [refreshFolder], this overwrites that header's count, both come out of the same
      * database, and the count is drawn nowhere today. No guard for it (rules 5, 6).
      */
     private fun applyRestoredMeta(folders: List<Mailbox>) {
@@ -1427,7 +1427,7 @@ class InboxViewModel(
         step.meta?.let { meta.value = it }
     }
 
-    /** Return to the account's Inbox — Back from any other folder lands here. */
+    /** Return to the account's Inbox, Back from any other folder lands here. */
     fun showInbox() {
         val inboxId = store.inboxMailboxId()
         if (selection.value == Sel.Folder(inboxId)) return
@@ -1438,7 +1438,7 @@ class InboxViewModel(
         refreshUnlessFresh()
     }
 
-    /** Drop all inline-expansion state — e.g. when the list's contents change underneath it. */
+    /** Drop all inline-expansion state, e.g. when the list's contents change underneath it. */
     private fun collapseThreads() {
         _expandedThreads.value = emptySet()
         _threadMembers.value = emptyMap()
@@ -1478,13 +1478,13 @@ class InboxViewModel(
      * Permanently destroy [emails], but hold the destroy back behind the Undo window: evict the rows
      * now, fire the destroy when the window elapses, and let [undoDelete] cancel it (#23). A new
      * held-back delete supersedes a pending one, destroying the earlier set at once. The destroy is
-     * PERSISTED WorkManager work with an initial delay, so it survives the process; the inner
+     * persisted WorkManager work with an initial delay, so it survives the process; the inner
      * coroutine only times the snackbar. Batched per account (#29).
      */
     private suspend fun heldBackDestroy(emails: List<Email>, label: String) {
         val targets = emails.mapNotNull { e -> credentialsFor(e)?.let { Triple(it, e.id, e.mailboxId.orEmpty()) } }
         if (targets.isEmpty()) return
-        // Frozen HERE, with the confirmation, and carried by the work: an IMAP UID means something
+        // Frozen here, with the confirmation, and carried by the work: an IMAP UID means something
         // only inside one numbering, and the destroy fires minutes later (#99).
         val numbering = recordedNumbering(targets)
         flushPendingDestroy()
@@ -1517,7 +1517,7 @@ class InboxViewModel(
 
     /**
      * One account's held-back rows, split into the requests the worker will fire: by the folder each
-     * message was in when the user confirmed (#122) AND by the numbering it was READ under, which an
+     * message was in when the user confirmed (#122) and by the numbering it was read under, which an
      * IMAP destroy opposes to the server (#99). An empty folder key destroys nothing, the safe end.
      * The split is [UidValidity.imapDestroyRoutes]: two rows of one folder read under two
      * numberings become two requests. On JMAP every numbering is null.
@@ -1531,7 +1531,7 @@ class InboxViewModel(
         return routes.map { MessageDestroyWorker.FolderDestroy(it.mailboxId, it.emailIds, it.uidValidity) }
     }
 
-    /** The IMAP numbering every message in [targets] was READ under — the stamp on its own cached
+    /** The IMAP numbering every message in [targets] was read under, the stamp on its own cached
      * row, read at the confirmation, the only moment this may be read. Not the folder's record,
      *  already realigned by a background pass: opposing it to itself licenses the expunge (#99). */
     private suspend fun recordedNumbering(
@@ -1549,7 +1549,7 @@ class InboxViewModel(
         pendingDeleteJob = null
         val targets = pendingDeleteTargets
         // Not a suspending function, and it must not become one: what it replays is the destroy
-        // the user confirmed EARLIER, so it re-enqueues the numbering captured then (#99).
+        // the user confirmed earlier, so it re-enqueues the numbering captured then (#99).
         val numbering = pendingDeleteNumbering
         pendingDeleteTargets = emptyList()
         pendingDeleteNumbering = emptyMap()
@@ -1576,12 +1576,12 @@ class InboxViewModel(
         // A full re-query, not an incremental refresh: the messages were only evicted locally and
         // are still in Trash on the server, so queryChanges reports no change (the view stays empty).
         forceRefresh()
-        // The re-query brings back representatives only — complete the restored conversations.
+        // The re-query brings back representatives only, complete the restored conversations.
         completeThreadsAfterAction(restored)
     }
 
     /** Re-query the current folder from scratch (drops sync cursors first) so locally-evicted but
-     *  server-present messages reappear — an incremental refresh alone re-fetches nothing. */
+     *  server-present messages reappear, an incremental refresh alone re-fetches nothing. */
     private fun forceRefresh() {
         repo.resetSyncState()
         refresh()
@@ -1593,9 +1593,9 @@ class InboxViewModel(
     /** Swipe action when already inside Archive: move the message back to the Inbox. */
     fun unarchive(email: Email, inboxId: String) = swipeRemove(email, getApplication<Application>().getString(R.string.status_message_unarchived)) { c, id -> repo.moveToMailbox(c, id, inboxId) }
 
-    /** Move ONE message to [targetMailboxId] — the reader's move-to-folder (#73). The same
+    /** Move one message to [targetMailboxId], the reader's move-to-folder (#73). The same
      *  [swipeRemove] path archive and delete take: count nudge, row leaving on the server's ack, and
-     *  the Undo. [email] carries its own account, so a unified-inbox row moves inside ITS one (#92). */
+     *  the Undo. [email] carries its own account, so a unified-inbox row moves inside its one (#92). */
     fun moveTo(email: Email, targetMailboxId: String, targetAccountId: String? = null) {
         // Into another account's folder (#189): a different path entirely, with no Undo.
         if (isCrossAccountMove(targetAccountId, email.accountId)) {
@@ -1608,11 +1608,11 @@ class InboxViewModel(
     }
 
     /**
-     * Move ONE message into a folder of ANOTHER account (#189): the copy is confirmed on B, then the
+     * Move one message into a folder of another account (#189): the copy is confirmed on B, then the
      * original goes to A's bin ([MailRepository.moveToAccount]); nothing is ever destroyed.
      *
      * No Undo: taking it back would be a second two-sided operation. `_undo` is never written
-     * here — ONE banner says what happened. [CrossAccountMove.CopiedNotRemoved] means the copy
+     * here, one banner says what happened. [CrossAccountMove.CopiedNotRemoved] means the copy
      * exists and A's original stayed, a duplicate the user can see and never a loss. The verdict's
      * reason goes to logcat, not to the banner.
      */
@@ -1628,8 +1628,8 @@ class InboxViewModel(
             val key = email.emailKey()
             dropSearchResults(setOf(key))
             val result = hidingThreadMembers(setOf(key)) {
-                // NOTHING FROZEN, said out loud IN THE TYPE. This gesture starts on the OPEN
-                // message: no tick, so no earlier numbering to oppose. NOT `Frozen(null)`, which
+                // Nothing frozen, said out loud in the type. This gesture starts on the open
+                // message: no tick, so no earlier numbering to oppose. Not `Frozen(null)`, which
                 // means "a tick froze nothing at all" and is refused downstream.
                 runCatching { repo.moveToAccount(source, email, target, targetMailboxId, FrozenNumbering.NothingFrozen) }
                     .getOrElseUnlessCancelled { CrossAccountMove.Failed(it.toString()) }
@@ -1649,7 +1649,7 @@ class InboxViewModel(
                     android.util.Log.w("SternaInbox", "move to account failed: ${result.reason}")
                     _message.value = app.getString(words)
                     restoreSearchResults(listOf(key))
-                    // As swipeRemove's failure leg, minus the rewind: no row flew off — reconcile.
+                    // As swipeRemove's failure leg, minus the rewind: no row flew off, reconcile.
                     refresh()
                 }
             }
@@ -1704,7 +1704,7 @@ class InboxViewModel(
 
     /**
      * Delete a whole conversation: members whose delete would destroy them go through the held-back
-     * destroy — a cancelable Undo window, never an inline destroy — and the rest take move-to-Trash.
+     * destroy (a cancelable Undo window, never an inline destroy) and the rest take move-to-Trash.
      * A stale folder cache routes a move into that destroy, which erases when the window elapses.
      */
     fun deleteThread(rep: Email) {
@@ -1725,7 +1725,7 @@ class InboxViewModel(
                 heldBackDestroy(destroy, getApplication<Application>().getString(R.string.status_message_deleted_forever))
             }
             if (move.isNotEmpty()) {
-                // Mixed destroy+move: only the held-back destroy offers Undo — two snackbars would
+                // Mixed destroy+move: only the held-back destroy offers Undo, two snackbars would
                 // queue on one host while the destroy clock runs (a pure move keeps its own).
                 threadSwipeRemove(rep, R.string.status_conversation_deleted, members = move, offerUndo = destroy.isEmpty()) { c, id -> repo.delete(c, id) }
             }
@@ -1735,7 +1735,7 @@ class InboxViewModel(
     fun unarchiveThread(rep: Email, inboxId: String) =
         threadSwipeRemove(rep, R.string.status_conversation_unarchived) { c, id -> repo.moveToMailbox(c, id, inboxId) }
 
-    /** Drop a thread's inline-expansion state — its conversation is leaving the list. */
+    /** Drop a thread's inline-expansion state, its conversation is leaving the list. */
     private fun dropThreadExpansion(key: ThreadKey) {
         _expandedThreads.value = _expandedThreads.value - key
         _threadMembers.value = _threadMembers.value - key
@@ -1746,7 +1746,7 @@ class InboxViewModel(
     /**
      * Best-effort follow-up to an action that moved or restored whole conversations: drop the stale
      * expansion snapshot and re-fetch the full membership so every member is re-cached under its
-     * REAL current folder. Waits out any in-flight [refresh] first, skips threads with a held-back
+     * real current folder. Waits out any in-flight [refresh] first, skips threads with a held-back
      * destroy pending (re-caching would resurrect the evicted rows), and caps the fan-out.
      */
     private fun completeThreadsAfterAction(emails: List<Email>) {
@@ -1795,22 +1795,22 @@ class InboxViewModel(
             }
             if (failed) {
                 _message.value = getApplication<Application>().getString(R.string.status_action_failed)
-                refresh() // failed rows were never dropped locally — just reconcile the list
+                refresh() // failed rows were never dropped locally, just reconcile the list
             }
             // Re-cache the moved conversation's members under their new folder.
             completeThreadsAfterAction(acting)
         }
     }
 
-    /** Remove [email] optimistically (so the row leaves instantly — never stuck mid-swipe), run the
+    /** Remove [email] optimistically (so the row leaves instantly, never stuck mid-swipe), run the
      *  server [op], then either offer Undo on success or restore the row and report the error. */
     private fun swipeRemove(email: Email, label: String, op: suspend (AccountCredentials, String) -> String?) {
         val credentials = credentialsFor(email) ?: return
         viewModelScope.launch {
-            // No pre-evict: the repo op is network-first — it drops the row AND nudges the drawer
+            // No pre-evict: the repo op is network-first, it drops the row and nudges the drawer
             // counts once the server acknowledged. It returns the destination, for the Undo.
             dropSearchResults(setOf(email.emailKey()))
-            // The UI row may not carry its source folder (e.g. a server-fetched thread member) —
+            // The UI row may not carry its source folder (e.g. a server-fetched thread member), so
             // fall back to the cached row, captured before the op drops it, so Undo still works.
             val source = email.mailboxId ?: repo.cachedEmail(credentials.id, email.id)?.mailboxId
             hidingThreadMembers(setOf(email.emailKey())) { runCatching { op(credentials, email.id) } }
@@ -1826,10 +1826,10 @@ class InboxViewModel(
                     android.util.Log.w("SternaInbox", "swipe action failed", it)
                     _message.value = app.getString(actionFailureMessage(it, online = hasUsableNetwork(app)))
                     restoreSearchResults(listOf(email.emailKey()))
-                    // The browse list's row was never removed: it FLEW OFF, and the flight is not
+                    // The browse list's row was never removed: it flew off, and the flight is not
                     // undone by re-emitting it. Say the swipe did not take; the row rewinds.
                     _swipeRewind.value = _swipeRewind.value + email.emailKey()
-                    refresh() // the failed row was never dropped locally — just reconcile the list
+                    refresh() // the failed row was never dropped locally, just reconcile the list
                 }
         }
     }
@@ -1839,7 +1839,7 @@ class InboxViewModel(
         val action = _undo.value ?: return
         _undo.value = null
         // The gesture is being reversed, so its banners must stay: kill the deadline before the
-        // restore, not after — the restore suspends, and the window is measured in seconds.
+        // restore, not after, the restore suspends, and the window is measured in seconds.
         undoDepartureJob?.cancel()
         restoreSearchResults(action.entries.map { EmailKey(it.accountId, it.emailId) })
         viewModelScope.launch {
@@ -1847,8 +1847,8 @@ class InboxViewModel(
             var unrestored = 0
             action.entries.groupBy { it.accountId }.forEach { (accountId, entries) ->
                 val credentials = accountId?.let { store.credentials(it) } ?: store.load() ?: return@forEach
-                // Optimistic restore that STICKS: restoreAll re-tags the rows, marks them
-                // recently-mutated and reverses the count nudge. No refresh — it would race it.
+                // Optimistic restore that sticks: restoreAll re-tags the rows, marks them
+                // recently-mutated and reverses the count nudge. No refresh, it would race it.
                 runCatching {
                     repo.restoreAll(
                         credentials,
@@ -1860,7 +1860,7 @@ class InboxViewModel(
                         unrestored += entries.size
                         val app = getApplication<Application>()
                         // As the swipe, plus one thing: this banner must never be null. A null error
-                        // is RefreshNotice.NONE, a banner saying nothing (OFFLINE beats ERROR, #65).
+                        // is RefreshNotice.None, a banner saying nothing (offline beats error, #65).
                         android.util.Log.w("SternaInbox", "undo restore failed", it)
                         status.value = Status(refreshing = false, error = app.getString(actionFailureMessage(it, online = hasUsableNetwork(app))))
                     }
@@ -1868,7 +1868,7 @@ class InboxViewModel(
             if (unrestored > 0) {
                 _message.value = getApplication<Application>().getString(R.string.status_restore_failed)
             }
-            // restoreAll re-cached only the restored rows — complete their conversations (no refresh).
+            // restoreAll re-cached only the restored rows, complete their conversations (no refresh).
             completeThreadsAfterAction(repo.cachedEmailsByIds(action.entries.mapTo(mutableSetOf()) { EmailKey(it.accountId, it.emailId) }))
         }
     }
@@ -1881,16 +1881,16 @@ class InboxViewModel(
      * Take the banners of the Undo action just offered down once its window closes unused.
      * `departedIds` may not be fed from here (see `Notifications.departuresToCancel`).
      * In `viewModelScope`, not an effect of the screen: a `LaunchedEffect` cancelled with the
-     * composition runs NEITHER branch and leaves the banner up for good. The PREVIOUS gesture's
-     * deadline is not cancelled here — that message did depart. Only [undo] cancels its own.
+     * composition runs neither branch and leaves the banner up for good. The PREVIOUS gesture's
+     * deadline is not cancelled here, that message did depart. Only [undo] cancels its own.
      */
     private fun scheduleUndoneDeparture() {
         val action = _undo.value ?: return
         val keys = undoBannerKeys(action.entries)
         undoDepartureJob = viewModelScope.launch {
             delay(UNDO_BANNER_DISMISS_MS)
-            // The window closes HERE, not on screen: the bar is Indefinite, so clearing `_undo` takes
-            // it down with the banners — one clock. Identity check: a second gesture may own it now.
+            // The window closes here, not on screen: the bar is Indefinite, so clearing `_undo` takes
+            // it down with the banners, one clock. Identity check: a second gesture may own it now.
             if (_undo.value === action) _undo.value = null
             dismissBanners(keys)
         }
@@ -1898,17 +1898,17 @@ class InboxViewModel(
 
     /**
      * Empty the current Trash folder. The view clears at once, but the permanent delete is held back
-     * for a few seconds so it can be undone: PERSISTED WorkManager work with an initial delay; the
-     * coroutine below only times the snackbar. What gets destroyed is decided HERE, not when the
-     * work runs (#99) — the ids are snapshotted at confirmation, BEFORE evicting the cached rows the
+     * for a few seconds so it can be undone: persisted WorkManager work with an initial delay; the
+     * coroutine below only times the snackbar. What gets destroyed is decided here, not when the
+     * work runs (#99), the ids are snapshotted at confirmation, before evicting the cached rows the
      * IMAP path reads. Scoped to `credentials.id`, never a sibling's folder (#31).
      */
     fun emptyTrash() {
         val trashId = (selection.value as? Sel.Folder)?.id ?: return
         val credentials = store.load() ?: return
         val target = credentials.id to trashId
-        // Tapping Empty again on a Trash ALREADY being emptied changes NOTHING (#99). A second tap
-        // would freeze an EMPTY list and move the snackbar's dismissal past the destroy, offering an
+        // Tapping Empty again on a Trash already being emptied changes nothing (#99). A second tap
+        // would freeze an empty list and move the snackbar's dismissal past the destroy, offering an
         // Undo on mail already destroyed. Doing nothing keeps the two clocks aligned.
         if (pendingPurgeTarget == target) return
         _pendingPurge.value = getApplication<Application>().getString(R.string.status_trash_emptied)
@@ -1916,9 +1916,9 @@ class InboxViewModel(
         purgeJob?.cancel()
         purgeJob = viewModelScope.launch {
             val purge = runCatching { repo.snapshotTrashPurge(credentials, trashId) }.getOrElseUnlessCancelled {
-                // A cancellation is NOT a snapshot failure: this job is cancelled by an Undo or by a
+                // A cancellation is not a snapshot failure: this job is cancelled by an Undo or by a
                 // confirmation on another folder, and the teardown would clear a pending purge that
-                // is no longer its own. Nothing recorded, nothing scheduled — drop the snackbar.
+                // is no longer its own. Nothing recorded, nothing scheduled, drop the snackbar.
                 if (pendingPurgeTarget == target) {
                     pendingPurgeTarget = null
                     _pendingPurge.value = null
@@ -2007,8 +2007,8 @@ class InboxViewModel(
         Sel.Unread -> unreadScopes.value.map { it.second }.distinct()
     }
 
-    /** (account id, mailbox id) scopes backing the current view. Bulk cache reads must carry BOTH
-     *  ids — same-server accounts can share a mailbox id (Stalwart numbers them per-account), and a
+    /** (account id, mailbox id) scopes backing the current view. Bulk cache reads must carry both
+     *  ids, same-server accounts can share a mailbox id (Stalwart numbers them per-account), and a
      *  mailbox-only read would sweep a sibling account's messages into the operation. */
     private fun currentScopes(): List<Pair<String, String>> = when (val sel = selection.value) {
         is Sel.Folder -> {
@@ -2016,9 +2016,9 @@ class InboxViewModel(
             if (accountId != null && sel.id != null) listOf(accountId to sel.id) else emptyList()
         }
         Sel.Unified -> store.allInboxScopes()
-        // The LIVE value, which can differ from what the pager on screen was built with. Accepted
+        // The live value, which can differ from what the pager on screen was built with. Accepted
         // only because [listUnreadOnly] forces the filter on for this scope, so the window can add
-        // only UNREAD mail of a folder this view covers. [listScope] is not safer.
+        // only unread mail of a folder this view covers. [listScope] is not safer.
         Sel.Unread -> unreadScopes.value
     }
 
@@ -2036,7 +2036,7 @@ class InboxViewModel(
     fun markAllRead() {
         viewModelScope.launch {
             val scopes = currentScopes()
-            // The unread keys, resolved by the statement — not a whole folder read then filtered.
+            // The unread keys, resolved by the statement, not a whole folder read then filtered.
             val cachedUnread = repo.cachedUnreadKeys(scopes)
             patchThreadMembersSeen(cachedUnread.toSet(), true)
             var allMarked = true
@@ -2051,7 +2051,7 @@ class InboxViewModel(
             // Clear the notifications only if everything was actually marked: offline, setReadAll
             // fails and nothing was read, so dropping them would hide mail that is still unread.
             if (allMarked) dismissReadNotifications(cachedUnread)
-            // Reconcile: rows marked beyond the cache don't nudge the badge — converge now.
+            // Reconcile: rows marked beyond the cache don't nudge the badge, converge now.
             refresh()
         }
     }
@@ -2089,7 +2089,7 @@ class InboxViewModel(
         }
     }
 
-    /** Toggle a collapsed conversation row in/out of the selection — all members at once. */
+    /** Toggle a collapsed conversation row in/out of the selection, all members at once. */
     fun toggleSelectThread(rep: Email) {
         viewModelScope.launch {
             val keys = threadMessages(rep).mapTo(mutableSetOf()) { it.emailKey() } + rep.emailKey()
@@ -2101,17 +2101,17 @@ class InboxViewModel(
     }
 
     /**
-     * Select everything the list on screen is showing — the search results when they are what is
+     * Select everything the list on screen is showing, the search results when they are what is
      * drawn, the folder otherwise (#126). The choice is [selectAllKeys]. Outside a search the folder
-     * is read through [MailRepository.selectableIds], which pages the list's OWN WHERE clause.
+     * is read through [MailRepository.selectableIds], which pages the list's own where clause.
      * A server draft a local one stands in for is out of the list but still filed in `emails`, so
      * [selectableKeysMinusHidden] subtracts it (#95): "Delete" must not reach an unshown row.
      */
     fun selectAll() {
         _selectionActive.value = true
         val search = searchState.value
-        // The SAME decision the pager was built with ([listUnreadOnly]), never the raw toggle:
-        // otherwise "Delete" reaches mail never on screen — the destructive half of #126.
+        // The same decision the pager was built with ([listUnreadOnly]), never the raw toggle:
+        // otherwise "Delete" reaches mail never on screen, the destructive half of #126.
         val filtered = listUnreadOnly(selection.value, unreadOnly.value)
         val hidden = localDraftRows.value.replacedServerIds
         viewModelScope.launch {
@@ -2133,10 +2133,10 @@ class InboxViewModel(
 
     /**
      * Keep [tickedUnder] in step with [keys]: drop what is no longer ticked, and read the numbering
-     * of the rows that have just been (#99). Only the NEW keys are read — a re-read would answer
-     * what the row carries now. One read per ACCOUNT, never one per message.
+     * of the rows that have just been (#99). Only the new keys are read, a re-read would answer
+     * what the row carries now. One read per account, never one per message.
      *
-     * The read suspends, so only keys STILL ticked are written back; a key ticked and confirmed
+     * The read suspends, so only keys still ticked are written back; a key ticked and confirmed
      * inside that window keeps no stamp and travels as `FrozenNumbering.Frozen(null)`, refused there.
      */
     private suspend fun rememberTickedNumbering(keys: Set<EmailKey>) {
@@ -2153,10 +2153,10 @@ class InboxViewModel(
     }
 
     /**
-     * THE ONE BARRIER, and both selection gestures go through it (#99, #189).
-     * [rememberTickedNumbering] SUSPENDS; a "Select all" over a large folder publishes the stamps a
-     * dozen queries later, so a gesture that sampled the field got a half-full map. A WAIT, NEVER
-     * A RE-READ: reading the rows again hands the guard the realigned number. ONE function.
+     * The one barrier, and both selection gestures go through it (#99, #189).
+     * [rememberTickedNumbering] suspends; a "Select all" over a large folder publishes the stamps a
+     * dozen queries later, so a gesture that sampled the field got a half-full map. A wait, never
+     * A re-read: reading the rows again hands the guard the realigned number. One function.
      */
     private suspend fun awaitTickedNumbering(keys: Set<EmailKey>): Map<EmailKey, Long?> =
         tickedNumberingWhenCovered(keys, tickedUnderFlow)
@@ -2165,7 +2165,7 @@ class InboxViewModel(
      * Apply a bulk action to the selected messages; exits selection mode unless [clearAfter] is false.
      * Every selected key is resolved first ([resolveSelectionTargets]), rows drawn by a search
      * included. This path's op is the snooze, so a message with no local row cannot be snoozed:
-     * [planSelectionSnooze] refuses it, and it counts as an attempt AND a failure.
+     * [planSelectionSnooze] refuses it, and it counts as an attempt and a failure.
      */
     private fun bulk(
         clearAfter: Boolean = true,
@@ -2181,9 +2181,9 @@ class InboxViewModel(
                 displayed = searchState.value.results,
             )
             // A message with no local row cannot be snoozed: SnoozeWorker looks it up in that table
-            // at the due date. Refused rather than half-written — see [planSelectionSnooze].
+            // at the due date. Refused rather than half-written, see [planSelectionSnooze].
             val plan = planSelectionSnooze(resolved.targets)
-            // A key nothing resolves, and a row the plan refused, are attempts that failed — or a
+            // A key nothing resolves, and a row the plan refused, are attempts that failed, or a
             // selection nothing could be written for lands on "nothing failed" and says nothing.
             var failed = resolved.unresolved.size + plan.refused.size
             // For a reversible bulk op, capture each message the op wrote so the whole batch can be
@@ -2223,8 +2223,8 @@ class InboxViewModel(
 
     /**
      * Batched bulk action: group the selection by account, then hand each account's ids to a single
-     * repo call that itself batches per source folder — one `UID MOVE <set>` or one `Email/set`
-     * instead of one command per message (#29). The batches receive the WHOLE selection
+     * repo call that itself batches per source folder, one `UID MOVE <set>` or one `Email/set`
+     * instead of one command per message (#29). The batches receive the whole selection
      * ([resolveSelectionTargets]), rows drawn by a search included. [attemptedBefore] and
      * [failedBefore] are what a delegating caller handled or lost before getting here, counted
      * separately: 100 attempts with 1 failure is not a total failure.
@@ -2250,11 +2250,11 @@ class InboxViewModel(
             dropSearchResults(targets.mapTo(mutableSetOf()) { it.email.emailKey() })
             val failedKeys = mutableSetOf<EmailKey>()
             val undoCandidates = mutableListOf<UndoCandidate>()
-            // The FIRST throwable a batch lets escape, kept for the message at the end. Null is the
-            // ordinary case — a refusal or an unconfirmed numbering is `BulkResult.failed`.
+            // The first throwable a batch lets escape, kept for the message at the end. Null is the
+            // ordinary case, a refusal or an unconfirmed numbering is `BulkResult.failed`.
             var batchFailure: Throwable? = null
             hidingThreadMembers(targetKeys) {
-                // AccountCredentials is a data class: each batch receives exactly ITS ids.
+                // AccountCredentials is a data class: each batch receives exactly its ids.
                 targets.groupBy { credentialsFor(it.email) }.forEach { (credentials, group) ->
                     if (credentials == null) { failedKeys += group.map { it.email.emailKey() }; return@forEach }
                     val result = runCatching { batchOp(credentials, group.map { it.email.id }) }
@@ -2279,7 +2279,7 @@ class InboxViewModel(
             // Whether an Undo may be offered is [selectionUndoEntries]' decision: a source folder
             // read off a row that only exists on screen sends the message somewhere it never was.
             val undoEntries = selectionUndoEntries(undoCandidates)
-            // What the banner says is [selectionBanner]'s decision too, and it counts the CANDIDATES:
+            // What the banner says is [selectionBanner]'s decision too, and it counts the candidates:
             // a batch that wrote ten messages of which only four can be put back still deleted ten.
             selectionBanner(undoLabelRes, undoCandidates, undoEntries)?.let { banner ->
                 val resources = getApplication<Application>().resources
@@ -2288,11 +2288,11 @@ class InboxViewModel(
                 _undo.value = UndoAction(undoEntries, label)
                 scheduleUndoneDeparture()
             }
-            // Partial and total are not the same news, counted over the WHOLE selection: a key
+            // Partial and total are not the same news, counted over the whole selection: a key
             // nothing resolved for was attempted and failed.
             val failed = failedKeys.size + resolved.unresolved.size + failedBefore
-            // Which sentence a TOTAL failure gets is the swipe's decision: the throwable plus live
-            // connectivity. Only here — PARTIAL cannot be an outage, and a count says nothing.
+            // Which sentence a total failure gets is the swipe's decision: the throwable plus live
+            // connectivity. Only here, partial cannot be an outage, and a count says nothing.
             val app = getApplication<Application>()
             val failure = batchFailure
             when (bulkOutcome(attempted = targetKeys.size + attemptedBefore, failed = failed)) {
@@ -2304,10 +2304,10 @@ class InboxViewModel(
     }
 
     /**
-     * The IMAP numbering of every source folder [keys] name, as recorded RIGHT NOW — at the gesture,
+     * The IMAP numbering of every source folder [keys] name, as recorded right now, at the gesture,
      * the only moment this may be read. Account first, then folder: the same mailbox id in two
      * accounts is two different folders. The folder comes from the ID, exactly as `MailRepository`
-     * groups its batches — not from the cached row's `mailboxId`, which can disagree. Empty for a
+     * groups its batches, not from the cached row's `mailboxId`, which can disagree. Empty for a
      * JMAP account. Twin of [recordedNumbering], keyed by the id's folder rather than the row's.
      */
     private suspend fun selectionNumbering(keys: Collection<EmailKey>): Map<String, Map<String, Long?>> {
@@ -2330,11 +2330,11 @@ class InboxViewModel(
     fun deleteSelected() {
         val keys = _selectedKeys.value
         viewModelScope.launch {
-            // The numbering each ticked row carried WHEN IT WAS TICKED — AWAITED, not sampled, and
-            // FIRST INSIDE THE LAUNCH (#99, #189): everything below suspends or clears the
+            // The numbering each ticked row carried when it was ticked, awaited, not sampled, and
+            // first inside the launch (#99, #189): everything below suspends or clears the
             // selection. Never a re-read: a re-read IS the realigned number, agreeing with itself.
             val ticked = awaitTickedNumbering(keys)
-            // Frozen AT THE GESTURE and carried into the batch: an IMAP UID means something only
+            // Frozen at the gesture and carried into the batch: an IMAP UID means something only
             // inside one numbering, and a bulk delete is a MOVE that runs after resolution (#99).
             val numbering = selectionNumbering(keys)
             val resolved = resolveSelectionTargets(
@@ -2347,8 +2347,8 @@ class InboxViewModel(
                 hasTrash = { email -> credentialsFor(email)?.let { c -> runCatching { repo.accountHasTrash(c) }.getOrDefault(false) } ?: false },
                 wouldDestroy = { email -> credentialsFor(email)?.let { c -> runCatching { repo.deleteWouldDestroy(c, email) }.getOrDefault(false) } ?: false },
             )
-            // THE UPSTREAM HALF OF #99, the only half that can see a row SWAPPED UNDER A TICK.
-            // `recordedNumbering` answers what each row carries NOW; opposed to the stamp of the
+            // The upstream half of #99, the only half that can see a row swapped under a tick.
+            // `recordedNumbering` answers what each row carries now; opposed to the stamp of the
             // tick, a disagreement means another message wears the same UID text.
             val destroyTargets = plan.destroy.mapNotNull { e -> credentialsFor(e)?.let { Triple(it, e.id, e.mailboxId.orEmpty()) } }
             val now = recordedNumbering(destroyTargets)
@@ -2359,14 +2359,14 @@ class InboxViewModel(
             )
             clearSelection()
             val lostBefore = resolved.unresolved.size + plan.untreated.size
-            // The rows the split refused were ATTEMPTED and failed: only the failures side grows.
+            // The rows the split refused were attempted and failed: only the failures side grows.
             val lost = lostBefore + split.drifted.size
             if (split.kept.isNotEmpty()) {
                 heldBackDestroy(split.kept, getApplication<Application>().getString(R.string.status_message_deleted_forever))
             }
             if (plan.move.isNotEmpty()) {
                 // Mixed destroy+move: only the held-back destroy offers Undo (see deleteThread).
-                // The question is whether a destroy is actually PENDING (`split.kept`), not whether
+                // The question is whether a destroy is actually pending (`split.kept`), not whether
                 // one was planned: `plan.destroy` withholds the move's Undo for an unseen snackbar.
                 bulkBatched(
                     undoLabelRes = R.plurals.status_selection_deleted.takeIf { split.kept.isEmpty() },
@@ -2383,12 +2383,12 @@ class InboxViewModel(
                     BulkOutcome.PARTIAL -> _message.value = getApplication<Application>().getString(R.string.status_action_partly_failed)
                 }
             }
-            // LAST, after the branch above: `bulkBatched` calls clearSelection() synchronously, so
+            // Last, after the branch above: `bulkBatched` calls clearSelection() synchronously, so
             // a re-selection written earlier would be wiped. What was refused goes back, still ticked.
             if (split.drifted.isNotEmpty()) {
-                // THE STAMPS GO BACK FIRST, and they are the stamps OF THE TICK. The collector
-                // only reads keys it does not know, so keys handed back bare are read AS THEY ARE
-                // NOW and the second tap destroys what this refusal saved. Nothing suspends here.
+                // The stamps go back first, and they are the stamps of the tick. The collector
+                // only reads keys it does not know, so keys handed back bare are read as they are
+                // now and the second tap destroys what this refusal saved. Nothing suspends here.
                 tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }
                 _selectionActive.value = true
                 _selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }
@@ -2396,8 +2396,8 @@ class InboxViewModel(
         }
     }
     /** Archive the selection. A block, not an expression body: freezing the numbering is a
-     * suspending read that has to happen HERE, at the tap (#99). The selection is cleared
-     *  SYNCHRONOUSLY first — else a second tap fires the whole batch again. */
+     * suspending read that has to happen here, at the tap (#99). The selection is cleared
+     *  SYNCHRONOUSLY first, else a second tap fires the whole batch again. */
     fun archiveSelected() {
         val keys = _selectedKeys.value
         clearSelection()
@@ -2417,13 +2417,13 @@ class InboxViewModel(
     fun moveSelectedTo(targetMailboxId: String, targetAccountId: String? = null) {
         val keys = _selectedKeys.value
         viewModelScope.launch {
-            // AWAITED, not sampled, and FIRST INSIDE THE LAUNCH — [deleteSelected]'s rule (#99,
+            // Awaited, not sampled, and first inside the launch, [deleteSelected]'s rule (#99,
             // #189). [moveSelectedToAccount] calls clearSelection() at its head, which empties the
-            // field. The KEYS stay captured outside the launch: they say WHICH selection is awaited.
+            // field. The keys stay captured outside the launch: they say which selection is awaited.
             val ticked = awaitTickedNumbering(keys)
-            // The picker offered the SELECTION's account folders, so the move targets that account
+            // The picker offered the selection's account folders, so the move targets that account
             // (#73). Only that account's messages move; any from another are left untouched and
-            // reported — the same target id in a sibling account is a different folder.
+            // reported, the same target id in a sibling account is a different folder.
             val moveAccountId = selectionAccount(keys) ?: store.currentId()
             // Into another account's folder (#189): its own path, one message after the other.
             if (isCrossAccountMove(targetAccountId, moveAccountId)) {
@@ -2433,11 +2433,11 @@ class InboxViewModel(
             val (movable, skipped) = keys.partition { it.accountId == moveAccountId }
             clearSelection()
             if (movable.isNotEmpty()) {
-                // Frozen at the gesture, for the movable subset only — the other account's
+                // Frozen at the gesture, for the movable subset only, the other account's
                 // messages are not moved and have no folder here to oppose (#99).
                 val numbering = selectionNumbering(movable)
                 // Undoable like archive and delete (#73). The set-aside messages travel with the
-                // delegation, so ONE message counts the whole selection.
+                // delegation, so one message counts the whole selection.
                 bulkBatched(
                     undoLabelRes = R.plurals.status_selection_moved,
                     keys = movable.toMutableSet(),
@@ -2446,19 +2446,19 @@ class InboxViewModel(
                 ) { c, batch -> repo.moveAllToMailbox(c, batch, targetMailboxId, numbering[c.id].orEmpty()) }
             } else if (skipped.isNotEmpty()) {
                 // Nothing movable: an empty batch would drop the sync cursors and re-query the whole
-                // folder. Say it here, and say the specific sentence — here it is exactly true.
+                // folder. Say it here, and say the specific sentence, here it is exactly true.
                 _message.value = getApplication<Application>().getString(R.string.status_move_other_account)
             }
         }
     }
 
     /**
-     * The selection into a folder of ANOTHER account (#189), one message after the other through
+     * The selection into a folder of another account (#189), one message after the other through
      * [MailRepository.moveToAccount]. The partition is [moveSelectedTo]'s. No Undo (see
-     * [moveToAccount]). ONE banner at the end, chosen by [crossAccountBanner].
+     * [moveToAccount]). One banner at the end, chosen by [crossAccountBanner].
      *
-     * Whatever wrote NOTHING on account B comes back ticked, stamps first ([crossAccountGiveBack])
-     * — every outcome that is neither `Moved` nor `CopiedNotRemoved`, because there is no Undo here.
+     * Whatever wrote nothing on account B comes back ticked, stamps first ([crossAccountGiveBack])
+     * that is, every outcome that is neither `Moved` nor `CopiedNotRemoved`, because there is no Undo here.
      * Not "whatever did not leave A": a `CopiedNotRemoved` did not leave A either, and handing it
      * back would put a second copy on B at the next tap.
      */
@@ -2470,7 +2470,7 @@ class InboxViewModel(
         ticked: Map<EmailKey, Long?>,
     ) {
         val (movable, skipped) = keys.partition { it.accountId == ownerAccountId }
-        // THE TARGET IS READ, AND REFUSED, BEFORE THE SELECTION IS TOUCHED. Account B can be
+        // The target is read, and refused, before the selection is touched. Account B can be
         // signed out between the tap that opened the picker and the tap that chose the folder;
         // `store.credentials` then answers null and this returns with nothing sent. Below
         // `clearSelection()` that return would drop the whole selection in silence.
@@ -2482,9 +2482,9 @@ class InboxViewModel(
         }
         clearSelection()
         val emails = repo.cachedEmailsByIds(movable).associateBy { it.emailKey() }
-        // THE HALF THAT CAN SEE A ROW SWAPPED UNDER A TICK (#99). `recordedNumbering` answers what
-        // each row about to leave carries NOW; opposed to the stamp of the tick, a disagreement means
-        // the line was replaced since the user pointed at it — and this move would copy it to B with
+        // The half that can see a row swapped under a tick (#99). `recordedNumbering` answers what
+        // each row about to leave carries now; opposed to the stamp of the tick, a disagreement means
+        // the line was replaced since the user pointed at it, and this move would copy it to B with
         // no Undo. Not the folder's own record, which a background pass has already realigned.
         val crossAccountTargets = emails.values.mapNotNull { e -> credentialsFor(e)?.let { Triple(it, e.id, e.mailboxId.orEmpty()) } }
         val now = recordedNumbering(crossAccountTargets)
@@ -2494,9 +2494,9 @@ class InboxViewModel(
             readUnderNow = { email -> credentialsFor(email)?.let { now[it.id to email.id] } },
         )
         val refused = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }
-        // KEYED, AND FILLED AT EVERY EXIT OF THIS LOOP. `CrossAccountMove.Failed` carries a log
-        // string and nothing else, so a bare list of verdicts answers HOW MANY did not move and
-        // never WHICH. The give-back needs the WHICH, and `results[i]` matching `movable[i]` is a
+        // Keyed, and filled at every exit of this loop. `CrossAccountMove.Failed` carries a log
+        // string and nothing else, so a bare list of verdicts answers how many did not move and
+        // never which. The give-back needs the which, and `results[i]` matching `movable[i]` is a
         // positional invariant nobody wrote down.
         val outcomes = LinkedHashMap<EmailKey, CrossAccountMove>(movable.size)
         for (key in movable) {
@@ -2506,7 +2506,7 @@ class InboxViewModel(
                 outcomes[key] = CrossAccountMove.Failed("no cached row for ${key.emailId}")
                 continue
             }
-            // NOT ATTEMPTED: no copy on B, no Trash on A, and no search-result surgery — the row on
+            // Not attempted: no copy on B, no Trash on A, and no search-result surgery, the row on
             // screen is not the row that was ticked. It counts as a failure, and crossAccountBanner
             // turns that verdict into an existing line either way.
             if (key in refused) {
@@ -2515,12 +2515,12 @@ class InboxViewModel(
             }
             dropSearchResults(setOf(key))
             val result = hidingThreadMembers(setOf(key)) {
-                // AND THE STAMP GOES DOWN THE WIRE, so a folder renumbered WHILE the loop runs is
+                // And the stamp goes down the wire, so a folder renumbered while the loop runs is
                 // refused by the server in the SELECT the read and the bin go out under. Without it
                 // both fall back on the folder's record, which the first iteration that met the
                 // renumbering has already realigned. `ticked[key]`, never a re-read.
-                // AND IT IS WRAPPED IN `Frozen`, absent value included: a tick DID freeze here, so
-                // a null means "frozen, and there was nothing" — refused downstream at both ends.
+                // And it is wrapped in `Frozen`, absent value included: a tick did freeze here, so
+                // a null means "frozen, and there was nothing", refused downstream at both ends.
                 runCatching { repo.moveToAccount(source, email, target, targetMailboxId, FrozenNumbering.Frozen(ticked[key])) }
                     .getOrElseUnlessCancelled { CrossAccountMove.Failed(it.toString()) }
             }
@@ -2550,17 +2550,17 @@ class InboxViewModel(
                 _message.value = app.getString(checkNotNull(crossAccountSelectionFailedRes(outcome)))
         }
         if (results.any { it is CrossAccountMove.Failed }) refresh()
-        // LAST, after the banner and never before it: clearSelection() runs at the head of this
+        // Last, after the banner and never before it: clearSelection() runs at the head of this
         // body, so a re-selection written earlier would be wiped by the gesture it belongs to. What
-        // did not move goes back under the user's eyes, still ticked — this path has no Undo.
-        // AND IT IS INDEXED ON THE OUTCOME, not on a class of refusal ([crossAccountGiveBack]):
-        // keyed on `split.drifted` it was empty by construction for the refusal raised at the READ.
+        // did not move goes back under the user's eyes, still ticked, this path has no Undo.
+        // And it is indexed on the outcome, not on a class of refusal ([crossAccountGiveBack]):
+        // keyed on `split.drifted` it was empty by construction for the refusal raised at the read.
         val givenBack = crossAccountGiveBack(outcomes, emails.keys)
         if (givenBack.isNotEmpty()) {
-            // THE STAMPS GO BACK FIRST, and they are the stamps OF THE TICK. The collector on
+            // The stamps go back first, and they are the stamps of the tick. The collector on
             // _selectedKeys only reads keys it does not already know, so keys handed back without
-            // their stamps get read AS THEY ARE NOW and the second tap sends what this refusal just
-            // saved. The entry is written EVEN WHEN THE STAMP IS null: it is the PRESENCE of the
+            // their stamps get read as they are now and the second tap sends what this refusal just
+            // saved. The entry is written even when the stamp is null: it is the presence of the
             // key that stops the collector re-reading, not its value.
             tickedUnder = givenBack.associateWith { ticked[it] }
             _selectionActive.value = true
@@ -2569,7 +2569,7 @@ class InboxViewModel(
     }
 
     /**
-     * Report the selection as spam / take it back out of Junk — both MOVES on IMAP, so both need the
+     * Report the selection as spam / take it back out of Junk, both MOVES on IMAP, so both need the
      * numbering freeze: with nothing frozen the batch refuses every id while
      * `markReadOnMoveOutOfInbox` has already flagged them `\Seen` on the server (#99).
      *
@@ -2608,14 +2608,14 @@ class InboxViewModel(
         // IMAP ids are paths: the repo re-keyed the watch flags; follow with the baseline.
         if (newId != mailboxId) NewMailNotifier.rename(getApplication(), c.id, mailboxId, newId)
         // The fold registry IS re-read here, because the repo re-keys it exactly like the watch
-        // flags (IMAP ids are paths). Without it the flow holds the OLD key, the renamed folder
+        // flags (IMAP ids are paths). Without it the flow holds the old key, the renamed folder
         // reads as "nobody decided" and the default folds it on the spot (#185).
         refreshWatchedFolders()
         refreshCollapsedFolders()
     }
 
     /**
-     * Subfolders (recursive) of a folder, from the cached drawer list — JMAP `parentId`
+     * Subfolders (recursive) of a folder, from the cached drawer list, JMAP `parentId`
      * or the IMAP path prefix, mirroring the drawer's own tree building.
      */
     fun subfolderIdsOf(mailboxId: String): List<String> {
@@ -2650,7 +2650,7 @@ class InboxViewModel(
 
     /**
      * Delete a folder (and its subfolders) with an undo window: the folder leaves the drawer
-     * immediately, and the server delete is PERSISTED WorkManager work with an initial delay, so a
+     * immediately, and the server delete is persisted WorkManager work with an initial delay, so a
      * confirmed delete cannot be silently dropped. The coroutine below only times the snackbar.
      */
     fun deleteFolder(mailboxId: String, folderName: String) {
@@ -2684,7 +2684,7 @@ class InboxViewModel(
 
     // ---- folder watch (multi-folder push, issue #16) ----
 
-    // Initialised inline, NOT from the init block: init runs before this declaration's
+    // Initialised inline, not from the init block: init runs before this declaration's
     // initialiser, so touching the flow there would NPE during ViewModel construction.
     private val _watchedFolders =
         MutableStateFlow(store.currentId()?.let { store.watchedFolders(it) } ?: emptySet())
@@ -2704,34 +2704,34 @@ class InboxViewModel(
         MutableStateFlow(store.currentId()?.let { store.collapsedFolders(it) } ?: emptyMap())
 
     /**
-     * The current account's EXPLICIT fold/unfold choice per drawer folder; a folder with no key is
+     * The current account's explicit fold/unfold choice per drawer folder; a folder with no key is
      * one nobody decided anything about. Per account and re-read on every account switch: IMAP ids
      * are paths, so a namesake folder on the neighbouring account would be drawn folded (#92/#121).
      */
     val collapsedFolders: StateFlow<Map<String, Boolean>> = _collapsedFolders
 
     // Initialised inline for the same reason as [_collapsedFolders] above.
-    // `false` with no current account, and that is the SAFE side: it means "fold nothing by
+    // `false` with no current account, and that is the safe side: it means "fold nothing by
     // itself", where `true` hides mail behind a row that may have no badge. `AccountStore.accounts()`
-    // answers an EMPTY list when the stored blob failed to decode too, so this is reachable.
+    // answers an empty list when the stored blob failed to decode too, so this is reachable.
     private val _folderRowsBadgeUnread =
         MutableStateFlow(store.currentId()?.let { repo.folderRowsBadgeUnread(it) } ?: false)
 
     /**
      * Whether the current account's drawer folder rows can carry an unread count at all
-     * ([MailRepository.folderRowsBadgeUnread]) — false on IMAP, whose rows hold a hard 0.
+     * ([MailRepository.folderRowsBadgeUnread]), false on IMAP, whose rows hold a hard 0.
      *
-     * The DEFAULT fold rests on that badge: a folder folded on the first run is honest only while
+     * The default fold rests on that badge: a folder folded on the first run is honest only while
      * the folded row says how much mail it is hiding. Per account, re-read on every switch (#185).
      */
     val folderRowsBadgeUnread: StateFlow<Boolean> = _folderRowsBadgeUnread
 
     /**
-     * Re-read everything the fold decision needs FOR THE CURRENT ACCOUNT: the explicit registry and
+     * Re-read everything the fold decision needs for the current account: the explicit registry and
      * whether this account's rows can badge unread at all. One function, because both must move
      * together on a switch.
      *
-     * The account id is read ONCE: every `store.` call decodes the whole account blob afresh, and
+     * The account id is read once: every `store.` call decodes the whole account blob afresh, and
      * this runs on the main thread at every tap of a chevron.
      */
     private fun refreshCollapsedFolders() {
@@ -2742,7 +2742,7 @@ class InboxViewModel(
 
     /**
      * Store the drawer's fold/unfold choice for one folder, then re-read it. Nothing else is
-     * armed: this is display state. [collapsed] is written both ways — writing false is a CHOICE.
+     * armed: this is display state. [collapsed] is written both ways, writing false is a choice.
      */
     fun setFolderCollapsed(mailboxId: String, collapsed: Boolean) {
         val accountId = store.currentId() ?: return
@@ -2769,11 +2769,11 @@ class InboxViewModel(
     }
 
     /**
-     * Toggle read/unread for the selection — marks read if any are unread, else marks unread — and
+     * Toggle read/unread for the selection (marks read if any are unread, else marks unread) and
      * keeps the selection.
      *
      * Every selected key is resolved first ([resolveSelectionTargets]), rows drawn by a search
-     * included: walking the cache's ANSWER dropped every hit with no local row, so the toggle acted
+     * included: walking the cache's answer dropped every hit with no local row, so the toggle acted
      * on some of the selection and let the untouched rows vote on the direction. Nothing here reads
      * the row's own `mailboxId`, so a drawn row is as good as a cached one.
      */
@@ -2801,7 +2801,7 @@ class InboxViewModel(
             if (targetSeen) dismissReadNotifications(emails.map { it.emailKey() })
             // Reflect the new state immediately so the toggle icon flips without re-selecting.
             _selectionAllRead.value = targetSeen
-            // Partial and total are not the same news, counted over the WHOLE selection, unresolved
+            // Partial and total are not the same news, counted over the whole selection, unresolved
             // keys included.
             when (bulkOutcome(attempted = keys.size, failed = failed)) {
                 BulkOutcome.NONE -> Unit
@@ -2812,7 +2812,7 @@ class InboxViewModel(
     }
 
     /**
-     * Which way the toggle's icon points, over the same resolution the action uses — otherwise the
+     * Which way the toggle's icon points, over the same resolution the action uses, otherwise the
      * icon speaks for the cached subset of a selection the action will act on whole. "All read"
      * needs at least one target: `emptyList().all { }` is `true`.
      */
@@ -2832,13 +2832,13 @@ class InboxViewModel(
         searchRemoved.clear()
         searchState.value = if (active) SearchUi(active = true) else SearchUi()
         if (!active) {
-            // Deliberately DON'T cancel the crawl: on a large mailbox it needs to run to completion,
+            // Deliberately don'T cancel the crawl: on a large mailbox it needs to run to completion,
             // and it is throttled + idempotent. Only the live query stops here.
             return
         }
         // Instant coverage floor from the cache (the first query awaits this), then crawl the whole
         // mailbox's headers into the index in the background. The crawl walks newest→oldest and
-        // merges after EACH page; merges only ever ADD, so nothing flickers away.
+        // merges after each page; merges only ever add, so nothing flickers away.
         indexJob = viewModelScope.launch { runCatching { repo.seedIndexFromCache() } }
         // Guard against a second concurrent crawl if search is reopened while one is still running.
         if (crawlJob?.isActive == true) return
@@ -2885,7 +2885,7 @@ class InboxViewModel(
                 complete = localComplete,
             )
             // 2) Server full-text after a short typing pause: the server's index sees message bodies
-            //    and the whole archive. UNION only — server hits can add to what's shown, never
+            //    and the whole archive. Union only, server hits can add to what's shown, never
             //    remove it; cancellation plus the current-query check discard stale responses.
             delay(SERVER_SEARCH_DEBOUNCE_MS)
             // A failed server leg (or one that dropped an unreachable account) must not pass for
@@ -2900,7 +2900,7 @@ class InboxViewModel(
                 searchState.value = searchState.value.copy(
                     results = mergeHits(searchState.value.results.orEmpty(), server.emails),
                     loading = false,
-                    // BOTH legs must have run to the end for this to be a total; a good server
+                    // Both legs must have run to the end for this to be a total; a good server
                     // answer doesn't undo a local index that fell over.
                     complete = searchComplete(local = localComplete, server = server.complete),
                 )
@@ -2908,10 +2908,10 @@ class InboxViewModel(
         }
     }
 
-    /** The accounts the current view searches over (unified inbox → all, single folder → current). */
+    /** The accounts the current view searches over: all of them in the unified inbox, the current one in a single folder. */
     private fun searchAccounts(): List<AccountCredentials> = when (selection.value) {
         Sel.Unified -> store.allCredentials()
-        // One account's folders, so one account's search — same answer as a single folder.
+        // One account's folders, so one account's search, same answer as a single folder.
         Sel.Unread -> listOfNotNull(store.load())
         is Sel.Folder -> listOfNotNull(store.load())
     }
@@ -2930,7 +2930,7 @@ class InboxViewModel(
         const val MILLIS_PER_DAY = 24L * 60 * 60 * 1000
         const val PURGE_HOLD_BACK_MS = 5_000L
 
-        /** Most threads re-completed per action — bounds the Thread/get fan-out on a select-all. */
+        /** Most threads re-completed per action, bounds the Thread/get fan-out on a select-all. */
         const val MAX_THREAD_COMPLETIONS = 10
     }
 }
@@ -2939,9 +2939,9 @@ class InboxViewModel(
  * The banners a just-performed local removal must take down: one key per Undo entry.
  *
  * Two things it must not get wrong, both silent: the id is [UndoEntry.emailId], the id the message
- * wore AT THE GESTURE (an IMAP id IS `imap:account:folder:uid`, so the move rewrites it, and the
+ * wore at the gesture (an IMAP id IS `imap:account:folder:uid`, so the move rewrites it, and the
  * banner only answers to the one that was live when it was posted); and the key carries the entry's
- * OWN [UndoEntry.accountId], a null one staying null — two accounts on one server share message
+ * own [UndoEntry.accountId], a null one staying null, two accounts on one server share message
  * ids, so an unqualified id cancels the neighbour's banner (#92), and null resolves downstream.
  */
 internal fun undoBannerKeys(entries: List<UndoEntry>): List<EmailKey> =
@@ -2956,19 +2956,19 @@ internal fun selectionAccount(keys: Set<EmailKey>): String? =
     keys.map { it.accountId }.distinct().singleOrNull()
 
 /**
- * Whether the LIST's move picker may name an account other than the one the gesture will act on —
- * true only while the selection resolves to ONE account ([selectionAccount]).
+ * Whether the list's move picker may name an account other than the one the gesture will act on:
+ * true only while the selection resolves to one account ([selectionAccount]).
  *
  * On a selection spanning accounts the move takes the retained account's messages and counts the
  * others as skipped, while [moveOwnerAccountId] has no selection account and falls back to the
- * ACTIVE one. Handed that fallback as its owner, the picker would offer every account and announce
+ * active one. Handed that fallback as its owner, the picker would offer every account and announce
  * a move half the selection never makes.
  */
 internal fun selectionAllowsAnotherAccount(keys: Set<EmailKey>): Boolean = selectionAccount(keys) != null
 
 /**
- * The accounts the LIST's move picker may offer, given what is selected: all of them while the
- * selection allows another account, none at all otherwise. An empty list is enough to draw nothing —
+ * The accounts the list's move picker may offer, given what is selected: all of them while the
+ * selection allows another account, none at all otherwise. An empty list is enough to draw nothing,
  * [MoveAccountRow] returns straight away below two entries.
  */
 internal fun selectionPickerAccounts(
@@ -2977,11 +2977,11 @@ internal fun selectionPickerAccounts(
 ): List<StoredAccount> = if (selectionAllowsAnotherAccount(keys)) accounts else emptyList()
 
 /**
- * The account choice the LIST's picker is allowed to ACT on: the chosen one while the selection
- * allows another account, null otherwise — back to the owner's own folders.
+ * The account choice the LIST's picker is allowed to act on: the chosen one while the selection
+ * allows another account, null otherwise, back to the owner's own folders.
  *
  * Hiding the account row is not enough: the choice is held by the ViewModel so it survives a
- * rotation, and a sheet closed another way leaves the next opening, on a DIFFERENT selection,
+ * rotation, and a sheet closed another way leaves the next opening, on a different selection,
  * listing the chosen account's folders and still sending the gesture there, with no row on screen
  * to say so (#189).
  */
@@ -2989,22 +2989,22 @@ internal fun selectionMoveAccount(chosen: String?, keys: Set<EmailKey>): String?
     chosen.takeIf { selectionAllowsAnotherAccount(keys) }
 
 /**
- * What "Select all" ([selectAllKeys]) is allowed to take: the list that is ON SCREEN.
+ * What "Select all" ([selectAllKeys]) is allowed to take: the list that is on screen.
  *
  * Two branches, because the two lists are not the same kind of thing. The search results are held
  * whole in the ViewModel, so "everything shown" is a value we have; the navigation list is a
  * `LazyPagingItems`, which does not expose the pages it has not loaded, so outside a search the
- * folder's cached ids stay the answer. The predicate is the SCREEN's ([searchDisplay]): two
+ * folder's cached ids stay the answer. The predicate is the screen's ([searchDisplay]): two
  * predicates for one question drift apart, and the user selects one list and deletes another.
  */
 /**
- * The roles map of [InboxViewModel.folderRoles], as a flow of its own so the RE-SCOPING can be run
+ * The roles map of [InboxViewModel.folderRoles], as a flow of its own so the re-scoping can be run
  * by a test (#115). [accounts] is the account list as a live value; [roles] opens the (account,
  * folder) → role map for a set of account ids.
  *
- * It hangs off the account list and not off `unifiedInboxScopes`: those are (account, inbox) PAIRS,
+ * It hangs off the account list and not off `unifiedInboxScopes`: those are (account, inbox) pairs,
  * an account has no inbox id until its first folder sync, and a StateFlow does not re-emit an equal
- * value — so adding an account moved nothing at all. [distinctUntilChanged] on the id set keeps the
+ * value, so adding an account moved nothing at all. [distinctUntilChanged] on the id set keeps the
  * store's other writes from re-subscribing to Room for nothing.
  */
 internal fun folderRolesFlow(
@@ -3036,8 +3036,8 @@ internal fun selectAllKeys(
  * The exception's own text never reaches the screen: `it.message` on a transport failure is the
  * platform resolver's string, in English whatever the app's language. It is logged instead.
  *
- * "offline" is a claim about the DEVICE ([app.sterna.net.isOfflineFailure]), so it is only made
- * when the transport died AND the connectivity check confirms there is no usable network. A server
+ * "offline" is a claim about the device ([app.sterna.net.isOfflineFailure]), so it is only made
+ * when the transport died and the connectivity check confirms there is no usable network. A server
  * that is down, a rejected password, a VPN killswitch on a live Wi-Fi keep the generic wording (#65).
  */
 @StringRes

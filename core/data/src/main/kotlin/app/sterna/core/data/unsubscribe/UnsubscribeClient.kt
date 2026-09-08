@@ -14,16 +14,19 @@ import java.util.concurrent.TimeUnit
 /** Why a one-click unsubscribe did not go through; each maps to its own sentence on screen. */
 enum class UnsubscribeFailure {
     /**
-     * The server answered 3xx. Refused rather than followed: OkHttp turns a POST into a GET on
+     * The server answered 3xx. Refused rather than followed: OkHttp turns a POST into a get on
      * 301/302/303, so following it would become exactly the page fetch this feature avoids (D3).
      */
     REDIRECT,
 
-    /** The request never left the device (no route, no DNS, timed out) — and the device agrees. */
+    /** The request never left the device (no route, no DNS, timed out), and the device agrees. */
     OFFLINE,
 
     /**
-     * The transport died while the device is online: the host named by the SENDER is unreachable,
+     * The transport died while the device is online: the host named by the sender is unreachable,
+     * is unreachable, not the reader's connection. Dead unsubscribe endpoints (abandoned
+     * newsletter, expired domain, discontinued service) make this the likeliest failure of the
+     * whole feature, and telling that reader "no network" sends them to toggle a working Wi-Fi.
      */
     UNREACHABLE,
 
@@ -63,7 +66,8 @@ internal fun oneClickOutcome(code: Int): UnsubscribeResult = when {
 }
 
 /**
- * What a thrown failure means for the reader. Matched on the exception TYPE, never on its text —
+ * What a thrown failure means for the reader. Matched on the exception type, never on its text,
+ * which is the server's to write.
  */
 internal fun oneClickFailure(t: Throwable, online: Boolean): UnsubscribeResult {
     var error: Throwable? = t
@@ -80,7 +84,7 @@ internal fun oneClickFailure(t: Throwable, online: Boolean): UnsubscribeResult {
 }
 
 /**
- * The HTTP client for unsubscribe POSTs, built here and NOT shared with the JMAP one:
+ * The HTTP client for unsubscribe POSTs, built here and not shared with the JMAP one:
  */
 internal fun defaultUnsubscribeHttpClient(): OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(15, TimeUnit.SECONDS)
@@ -106,7 +110,7 @@ class UnsubscribeClient(
         }
 
     /**
-     * The POST itself, without the scheme gate — so the wire behaviour (headers, body, and above
+     * The POST itself, without the scheme gate, so the wire behaviour (headers, body, and above
      */
     internal suspend fun post(url: String, isOnline: () -> Boolean): UnsubscribeResult =
         withContext(Dispatchers.IO) {

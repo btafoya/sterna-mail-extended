@@ -6,7 +6,7 @@ import android.content.pm.PackageManager
 import android.provider.ContactsContract.CommonDataKinds.Email
 import androidx.core.content.ContextCompat
 
-/** Reads email addresses from the device's contacts — only when the user has granted the permission. */
+/** Reads email addresses from the device's contacts, only when the user has granted the permission. */
 object AndroidContacts {
     fun hasPermission(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) ==

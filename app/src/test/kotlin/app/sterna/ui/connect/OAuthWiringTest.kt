@@ -6,12 +6,17 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * [ConnectPrimingWiringTest]: it reads a file as text and proves nothing about what runs.
  */
 class OAuthWiringTest {
 
     /**
      * The mutation this exists to kill: `connect_oauth_denied` back in `pollForToken`, which is
+     * the exact line that made every refusal, `invalid_client`, `invalid_grant`, `http_400`, a
+     * dead network, read as "you cancelled". It is a legitimate sentence; it is not this file's
+     * to choose. The only place allowed to reach for it is the fallback arm of `oauthFailureSpec`,
+     * where it applies to a failure that named nothing at all.
      */
     @Test fun `the screen never picks the declined sentence itself`() {
         val offenders = source().lines().withIndex()
@@ -51,7 +56,11 @@ class OAuthWiringTest {
     }
 
     /**
-     * A wait that ran out has two endings — the code expired under polls that were being answered,
+     * A wait that ran out has two endings, the code expired under polls that were being answered,
+     * or nothing was ever reached, and which sentence that is belongs to `oauthRanOutMessage`,
+     * executed in [OAuthErrorMessagesTest]. Written as an `if` in this arm it was held by nothing at
+     * all: the two resources could be swapped and the suite stayed green, putting "The sign-in
+     * request expired. Try again." back in front of someone who never reached a server.
      */
     @Test fun `the deadline's sentence is not this screen's to choose`() {
         val body = functionBody("pollForToken")
@@ -74,7 +83,9 @@ class OAuthWiringTest {
     }
 
     /**
-     * Discovery's two failures are different facts — no OAuth at all, versus OAuth without a
+     * Discovery's two failures are different facts, no OAuth at all, versus OAuth without a
+     * device-authorization endpoint, and telling them apart is `oauthDiscoveryFailure`'s job. The
+     * screen asking for a string by name is how they became one sentence in the first place.
      */
     @Test fun `discovery chooses its own sentence`() {
         val body = functionBody("connectOAuth")
@@ -100,6 +111,8 @@ class OAuthWiringTest {
 
     /**
      * The lines of the `is DevicePollVerdict.Refused ->` arm of `pollForToken`, trimmed: from the
+     * arm itself to the line that closes it, by counting braces, the same raw counting as
+     * [ConnectPrimingWiringTest], sound only while the file's string literals carry no braces.
      */
     private fun failedBranch(): List<String> {
         val lines = functionBody("pollForToken").lines()

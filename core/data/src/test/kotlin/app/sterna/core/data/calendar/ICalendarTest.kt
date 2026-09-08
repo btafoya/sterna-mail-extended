@@ -95,7 +95,7 @@ class ICalendarTest {
     }
 
     @Test fun foldedLinesAndAttendees() {
-        // A folded SUMMARY (continuation lines start with a space) and three ATTENDEEs.
+        // A folded summary (continuation lines start with a space) and three ATTENDEEs.
         val raw = listOf(
             "BEGIN:VCALENDAR",
             "BEGIN:VEVENT",

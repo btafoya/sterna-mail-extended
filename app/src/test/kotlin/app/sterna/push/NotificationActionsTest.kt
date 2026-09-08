@@ -37,7 +37,7 @@ class NotificationActionsTest {
     }
 
     /**
-     * And the decision this position had to settle: a preview of the body does NOT name the message.
+     * And the decision this position had to settle: a preview of the body does not name the message.
      */
     @Test fun `a preview does not name the message`() {
         assertEquals(

@@ -1,7 +1,7 @@
 package app.sterna.core.data.account
 
-/** WHICH ACCOUNT IS ALREADY THERE — the one comparison, so every route CALLS it instead of
- * re-deriving its own. [authType] is NOT part of the key; nothing here is persisted. */
+/** Which account is already there, the one comparison, so every route calls it instead of
+ * re-deriving its own. [authType] is not part of the key; nothing here is persisted. */
 
 /** The identity an account is recognised by: protocol + normalised endpoint + normalised username. */
 data class AccountKey(
@@ -10,7 +10,7 @@ data class AccountKey(
     val username: String,
 )
 
-/** Endpoint reduced to scheme+trailing-`/`-free, trimmed, lower-cased. A PATH IS KEPT:
+/** Endpoint reduced to scheme+trailing-`/`-free, trimmed, lower-cased. A path is kept:
  *  stripping it would merge two different JMAP servers under one name, overwriting a secret (rule 1). */
 fun normalizeEndpoint(raw: String): String =
     raw.trim()
@@ -24,7 +24,7 @@ fun normalizeEndpoint(raw: String): String =
 fun accountEndpointOf(protocol: MailProtocol, server: String, imapHost: String): String =
     if (protocol == MailProtocol.IMAP) imapHost else server
 
-/** The key these fields would be recognised by, or null if either half is blank — no guard,
+/** The key these fields would be recognised by, or null if either half is blank, no guard,
  *  rather than one that could collide two half-filled accounts. */
 fun accountKeyOf(
     protocol: MailProtocol,
@@ -48,12 +48,12 @@ fun resolveExisting(accounts: List<StoredAccount>, key: AccountKey?): StoredAcco
     return accounts.firstOrNull { accountKeyOf(it) == key }
 }
 
-/** The stored LOGIN recognised by [key]. A linked sub-account BORROWS its login's secret,
+/** The stored LOGIN recognised by [key]. A linked sub-account borrows its login's secret,
  *  so an add onto it would file the new token where nothing reads it. */
 fun resolveExistingLogin(accounts: List<StoredAccount>, key: AccountKey?): StoredAccount? =
     resolveExisting(accounts.filter { it.loginId == null }, key)
 
-/** First login recognised by one of [keys], in order — a route may offer an EXTRA key.
+/** First login recognised by one of [keys], in order, a route may offer an EXTRA key.
  * Not folded into [accountKeyOf] (one key per account); fixes #55's own duplicate, order matters. */
 fun resolveExistingLoginAmong(accounts: List<StoredAccount>, keys: List<AccountKey?>): StoredAccount? =
     keys.firstNotNullOfOrNull { resolveExistingLogin(accounts, it) }

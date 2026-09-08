@@ -6,7 +6,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
     /**
-     * The advanced-search criteria an IMAP `SEARCH` can express server-side (RFC 3501 §6.4.4). The
+     * The advanced-search criteria an IMAP `SEARCH` can express server-side (RFC 3501 §6.4.4).
      */
 data class ImapSearchCriteria(
     val text: String = "",
@@ -19,7 +19,7 @@ data class ImapSearchCriteria(
 )
 
     /** A built `SEARCH` argument list: the search keys, plus whether any value carries a non-ASCII
-     *  character and therefore needs a `CHARSET UTF-8` declaration. */
+     *  character and therefore needs a `charset UTF-8` declaration. */
 data class ImapSearchCommand(val keys: String, val needsUtf8: Boolean) {
     /** The arguments as they go on the wire, after `UID SEARCH `. */
     fun arguments(declareUtf8: Boolean = needsUtf8): String =
@@ -30,7 +30,8 @@ data class ImapSearchCommand(val keys: String, val needsUtf8: Boolean) {
 private val IMAP_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("d-MMM-uuuu", Locale.ENGLISH)
 
     /**
-     * Build the `UID SEARCH` key list for [criteria] — pure, so the exact bytes we put on the wire are
+     * Build the `UID SEARCH` key list for [criteria], pure, so the exact bytes we put on the wire are
+     * are unit-testable (there is no IMAP server in the test bench).
      */
 fun buildImapSearch(criteria: ImapSearchCriteria): ImapSearchCommand {
     val keys = mutableListOf<String>()
@@ -57,7 +58,7 @@ private fun imapDay(millis: Long, plusDays: Long = 0): String =
     Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().plusDays(plusDays).format(IMAP_DATE)
 
     /**
-     * One folder's matches. [mailbox] is the folder the UIDs belong to — UIDs mean nothing without it.
+     * One folder's matches. [mailbox] is the folder the UIDs belong to, UIDs mean nothing without it.
      */
 data class ImapFolderHits(
     val mailbox: String,
@@ -113,7 +114,7 @@ fun ImapSession.searchFolders(
 /** One folder's scan: what it kept, and whether it stopped looking with candidates left over. */
 private class FolderScan(val messages: List<ImapMessage>, val truncated: Boolean)
 
-/** Search the ALREADY SELECTed folder and fetch up to [limit] matching envelopes, newest first. */
+/** Search the already SELECTed folder and fetch up to [limit] matching envelopes, newest first. */
 private fun ImapSession.searchOneFolder(
     command: ImapSearchCommand,
     requireAttachment: Boolean,
@@ -133,7 +134,7 @@ private fun ImapSession.searchOneFolder(
         examined += chunk.size
         kept += fetchUids(chunk).sortedByDescending { it.uid }.filter { it.hasAttachment }
     }
-    // Stopping with candidates left AND the cap unfilled means the scan cap cut the walk short:
+    // Stopping with candidates left and the cap unfilled means the scan cap cut the walk short:
     // the folder may hold matches nobody looked at, so the answer is not a total.
     return FolderScan(kept.take(limit), truncated = examined < uids.size && kept.size < limit)
 }

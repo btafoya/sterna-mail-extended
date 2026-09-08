@@ -11,7 +11,7 @@ import org.junit.Assert.fail
 import org.junit.Test
 
 /**
- * What the notification pre-pass DOES, executed — not read.
+ * What the notification pre-pass DOES, executed, not read.
  */
 class NotificationPreviewGatheringTest {
 
@@ -51,6 +51,8 @@ class NotificationPreviewGatheringTest {
 
     /**
      * A message with no readable text at all (one PDF, a calendar invitation) costs no round trip,
+     * so it must not eat one of the six either, otherwise a folder of attachments would spend the
+     * whole allowance on messages that have nothing to show.
      */
     @Test fun `a message with no readable text does not consume one of the six`() = runBlocking {
         val ids = ids(20)
@@ -63,7 +65,7 @@ class NotificationPreviewGatheringTest {
     }
 
     /**
-     * And a pass where NOTHING has readable text touches nothing at all — the numbering included.
+     * And a pass where nothing has readable text touches nothing at all, the numbering included.
      */
     @Test fun `a pass with nothing to read touches nothing`() = runBlocking {
         val server = FakeServer(previews = { "opening" })
@@ -76,7 +78,9 @@ class NotificationPreviewGatheringTest {
     // ---- the pre-pass: the clock ---------------------------------------------------------
 
     /**
-     * FOUR SECONDS FOR THE WHOLE PRE-PASS, not for each message: each read is given what is
+     * Four seconds for the whole pre-PASS, not for each message: each read is given what is
+     * left, and when nothing is left the pass posts with what it has. Mail that has already
+     * arrived is waiting behind this.
      */
     @Test fun `the four seconds are the whole pre-pass, and each read gets what is left`() = runBlocking {
         val server = FakeServer(previews = { "opening" }, costMs = 1_500)
@@ -89,7 +93,7 @@ class NotificationPreviewGatheringTest {
     }
 
     /**
-     * And never a budget of zero: `budgetMs = 0` is `ImapBudget.NO_BUDGET`, i.e. `soTimeout = 0`,
+     * And never a budget of zero: `budgetMs = 0` is `ImapBudget.NO_BUDGET`, i.e.
      */
     @Test fun `an exhausted budget stops the pass instead of being handed on`() = runBlocking {
         val server = FakeServer(previews = { "opening" }, costMs = 4_000)
@@ -98,7 +102,7 @@ class NotificationPreviewGatheringTest {
         assertTrue("no read may be given a budget of 0 or less", server.budgets.all { it > 0 })
     }
 
-    /** A clock that jumps FORWARD between two reads cannot hand the next one more than the budget. */
+    /** A clock that jumps forward between two reads cannot hand the next one more than the budget. */
     @Test fun `a clock that jumps cannot widen the budget`() = runBlocking {
         val server = FakeServer(previews = { "opening" }, costMs = -60_000)
         server.gather(NotificationContent.BODY_PREVIEW, ids(3))
@@ -106,7 +110,7 @@ class NotificationPreviewGatheringTest {
     }
 
     /**
-     * The four seconds start at the FIRST READ, not when the budget is made. A delivery pass
+     * The four seconds start at the first read, not when the budget is made. A delivery pass
      */
     @Test fun `the four seconds start at the first read, not when the budget is made`() = runBlocking {
         val server = FakeServer(previews = { "opening" })
@@ -118,7 +122,7 @@ class NotificationPreviewGatheringTest {
     // ---- the pre-pass: one account, several folders ---------------------------------------
 
     /**
-     * THE SIX ARE THE ACCOUNT'S, NOT EACH FOLDER'S. A delivery pass diffs the inbox AND every
+     * The six are the account's, not each folder's. A delivery pass diffs the inbox and every
      */
     @Test fun `the six reads are shared by the folders of one account pass`() = runBlocking {
         val server = FakeServer(previews = { "opening" })
@@ -144,7 +148,7 @@ class NotificationPreviewGatheringTest {
         assertEquals(listOf(1L, 2L, 11L), server.fetched)
     }
 
-    /** A folder reached with nothing left reads nothing at all — and asks the server nothing. */
+    /** A folder reached with nothing left reads nothing at all, and asks the server nothing. */
     @Test fun `a folder reached with the budget spent reads nothing`() = runBlocking {
         val server = FakeServer(previews = { "opening" })
         server.gather(NotificationContent.BODY_PREVIEW, ids(6))
@@ -156,7 +160,7 @@ class NotificationPreviewGatheringTest {
     // ---- the pre-pass: failure --------------------------------------------------------
 
     /**
-     * A failed read costs its own preview and nothing else — not the pass, not the other
+     * A failed read costs its own preview and nothing else, not the pass, not the other
      * previews, and above all not the exception that would skip the caller's baseline.
      */
     @Test fun `a read that blows up costs its own preview and no other`() = runBlocking {
@@ -167,7 +171,7 @@ class NotificationPreviewGatheringTest {
         )
     }
 
-    /** A cancellation is not a failure — the pass itself is gone — and must go through. */
+    /** A cancellation is not a failure (the pass itself is gone) and must go through. */
     @Test fun `a cancelled pass is not swallowed`() {
         val server = FakeServer(previews = { throw CancellationException("push service stopping") })
         try {
@@ -179,7 +183,7 @@ class NotificationPreviewGatheringTest {
     }
 
     /**
-     * THE WHOLE pre-pass stops at the first renumbering, not just the message that hit it.
+     * The whole pre-pass stops at the first renumbering, not just the message that hit it.
      */
     @Test fun `a renumbered folder stops the pre-pass entirely`() = runBlocking {
         val server = FakeServer(previews = { null })
@@ -198,7 +202,7 @@ class NotificationPreviewGatheringTest {
     }
 
     /**
-     * And a numbering that cannot be read FROM THE VERY FIRST READ stops it before a single
+     * And a numbering that cannot be read from the very first read stops it before a single
      */
     @Test fun `a numbering unreadable from the very first read reads nothing`() = runBlocking {
         val server = FakeServer(previews = { "opening" })
@@ -209,7 +213,7 @@ class NotificationPreviewGatheringTest {
     }
 
     /**
-     * And the folder whose numbering the SERVER never states (no UIDVALIDITY at the SELECT):
+     * And the folder whose numbering the server never states (no UIDVALIDITY at the SELECT):
      */
     @Test fun `a folder whose numbering the server never states reads nothing`() = runBlocking {
         val server = FakeServer(previews = { "opening" })
@@ -222,7 +226,8 @@ class NotificationPreviewGatheringTest {
     // ---- the order: gather first, post second ------------------------------------------
 
     /**
-     * THE ONE THAT CAN LOSE MAIL. Every opening is gathered BEFORE the first notification is
+     * The one that can lose mail. Every opening is gathered before the first notification is
+     * posted, in one pre-pass, never a round trip between two posts.
      */
     @Test fun `every opening is gathered before the first notification is posted`() = runBlocking {
         val trace = mutableListOf<String>()
@@ -279,10 +284,11 @@ class NotificationPreviewGatheringTest {
 
     /**
      * A server that answers previews, a clock that only moves when a read is paid for, and a
+     * folder numbering that can change under the pass, the three things [NotificationPreviews]
      */
     private inner class FakeServer(
         val previews: (PreviewSource) -> String?,
-        /** How long each read takes; negative moves the clock BACKWARDS (a clock correction). */
+        /** How long each read takes; negative moves the clock backwards (a clock correction). */
         val costMs: Long = 0,
     ) {
         val fetched = mutableListOf<Long>()
@@ -296,7 +302,7 @@ class NotificationPreviewGatheringTest {
         private var uidValidity = 7L
 
         /**
-         * ONE budget for the whole of this fake account's pass: every [gather] below shares it, as
+         * One budget for the whole of this fake account's pass: every [gather] below shares it, as
          * the folders of one delivery pass do.
          */
         val budget = NotificationPreviews.PreviewBudget { clock }

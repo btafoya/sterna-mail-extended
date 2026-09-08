@@ -5,7 +5,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — said first, because what it guards is the one part of the
+ * Source lint, not a behaviour test, said first, because what it guards is the one part of the
+ * chip-fill fix that nothing in this repo can execute.
  */
 class EmailListItemChipFillWiringTest {
 
@@ -19,9 +20,9 @@ class EmailListItemChipFillWiringTest {
         ")",
     )
 
-    /** Site 1 of 3: the origin chip — the account in the unified inbox, the folder in the unread
-     *  view (#169) — whose accent branch must stay untouched. The accent only ever comes from an
-     *  ACCOUNT; a folder has none and takes the fallback fill this rule guards. */
+    /** Site 1 of 3: the origin chip, the account in the unified inbox, the folder in the unread
+     *  view (#169), whose accent branch must stay untouched. The accent only ever comes from an
+     *  account; a folder has none and takes the fallback fill this rule guards. */
     private val expectedAccountChip = listOf(
         ".background(",
         "if (originColor != null) originColor.copy(alpha = 0.16f)",
@@ -70,7 +71,9 @@ class EmailListItemChipFillWiringTest {
     }
 
     /**
-     * The rule that keeps the one above honest about WHERE the decision is taken: one declaration,
+     * The rule that keeps the one above honest about where the decision is taken: one declaration,
+     * one call site. A row is one state and decides once; a second call is a chip deciding for
+     * itself, which is how the three chips drift apart again.
      */
     @Test fun `chipFill is declared once and called from exactly one place`() {
         assertEquals(
@@ -84,6 +87,8 @@ class EmailListItemChipFillWiringTest {
 
     /**
      * Site 1 of 3, and mutation 4 with it: the account chip falls back to the row-aware fill,
+     * and only in the fallback. With an account colour set the chip is that colour at 16%, the
+     * only thing that chip exists for, and this fix must not have touched that branch.
      */
     @Test fun `the account chip falls back to the row-aware fill`() {
         assertBlock(expectedAccountChip, "the account chip's background")
@@ -135,6 +140,7 @@ class EmailListItemChipFillWiringTest {
 
     /**
      * Mutation 5, plus mutation 1 for both pills at once: every background modifier in the file,
+     * whole and in source order.
      */
     @Test fun `the file paints exactly these backgrounds and no others`() {
         assertEquals(
@@ -149,7 +155,8 @@ class EmailListItemChipFillWiringTest {
     }
 
     /**
-     * The negative screen — a `contains`, deliberately, because it is looking for something that
+     * The negative screen, a `contains`, deliberately, because it is looking for something that
+     * must be absent: no composable in this file may read `surfaceVariant` off the theme any more.
      */
     @Test fun `no composable in the file reads surfaceVariant off the theme`() {
         assertEquals(
@@ -164,7 +171,7 @@ class EmailListItemChipFillWiringTest {
     // -- reading the source --------------------------------------------------------------------
 
     /**
-     * Locates [expected]'s first line — which must appear exactly once — and compares the block
+     * Locates [expected]'s first line (which must appear exactly once) and compares the block
      */
     private fun assertBlock(expected: List<String>, what: String) {
         val lines = codeLines()
@@ -186,7 +193,7 @@ class EmailListItemChipFillWiringTest {
 
     /**
      * The lines of `EmailListItem.kt`, trimmed, with comment-only lines dropped so that no rule
-     * here can be satisfied — or defeated — by prose.
+     * here can be satisfied (or defeated) by prose.
      */
     private fun codeLines(): List<String> = SOURCE.readLines().map { it.trim() }.filterNot { line ->
         line.isEmpty() || line.startsWith("//") || line.startsWith("*") || line.startsWith("/*")

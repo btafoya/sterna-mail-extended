@@ -75,7 +75,7 @@ fun TernRefreshIndicator(
             },
     ) {
         // Soft surface-coloured disc (radial fade to transparent) so the tern is cut
-        // cleanly from the list text behind it — theme-aware, not a baked white.
+        // cleanly from the list text behind it, theme-aware, not a baked white.
         val r = size.minDimension / 2f
         drawCircle(
             brush = Brush.radialGradient(
@@ -100,7 +100,7 @@ private val ternBody = PathParser().parsePathString("M49,58 L50,73 L54,63 L58,73
 private val ternLeftWing = PathParser().parsePathString("M54,49 C42,45 32,43 20,54 C32,52 43,54 50,57 Z").toPath()
 private val ternRightWing = PathParser().parsePathString("M54,49 C66,45 76,43 88,54 C76,52 65,54 58,57 Z").toPath()
 
-/** Draws the filled icon tern; [spread] 0..1 folds→opens the wings, [flap] 0..1 beats
+/** Draws the filled icon tern; [spread] 0..1 folds then opens the wings, [flap] 0..1 beats
  *  them (0.5 = level glide). Shared by the refresh + send-flight motions. */
 internal fun DrawScope.drawTern(spread: Float, flap: Float, color: Color) {
     val k = size.minDimension / 108f

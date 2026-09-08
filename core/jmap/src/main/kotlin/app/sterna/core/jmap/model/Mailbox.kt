@@ -12,7 +12,7 @@ data class Mailbox(
     val sortOrder: Int = 0,
     val totalEmails: Int = 0,
     val unreadEmails: Int = 0,
-        /** Unread count shown as the drawer badge. For JMAP accounts a LIVE local aggregate over the
+        /** Unread count shown as the drawer badge. For JMAP accounts a live local aggregate over the
          *  cached `emails` table, mode-appropriate and folder-scoped exactly like the collapsed list,
          *  so the badge equals the visible bold rows; IMAP accounts (partial cache) fall back to the
          *  stored server counter. Not a server field. Distinct from [unreadEmails]. */
@@ -22,7 +22,9 @@ data class Mailbox(
          */
     val isSubscribed: Boolean = true,
         /**
-         * Whether this folder CLAIMED a role and another folder of the account was elected to it — an
+         * Whether this folder CLAIMED a role and another folder of the account was elected to it, an
+         * IMAP account with both a `Junk` and a `Spam`, or a personal `Trash` beside a shared one
+         * (`ImapClient.assignRoles`, stored as `MailRepository.UNELECTED_ROLE_MARK`).
          */
     val lostRoleClaim: Boolean = false,
 )

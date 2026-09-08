@@ -5,11 +5,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — the same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, the same instrument and the same disclaimer as
+ * [ComposeBodyWiringTest], turned on the link dialog (#131).
  */
 class LinkDialogWiringTest {
 
-    /** (a) What the dialog OPENS with: one answer, for the live body and the live selection. */
+    /** (a) What the dialog opens with: one answer, for the live body and the live selection. */
     @Test fun `the dialog opens on the model's own answer for this body and this selection`() {
         assertPinned(
             "val opening = remember(body, selection) { linkDialogFields(body, selection) }",
@@ -35,7 +36,7 @@ class LinkDialogWiringTest {
         )
     }
 
-    /** (b) What OK does with the two boxes — the mutation that emptied the label lives here. */
+    /** (b) What OK does with the two boxes, the mutation that emptied the label lives here. */
     @Test fun `OK hands the model the live body, selection, address and label`() {
         assertPinned(
             "val applied = linkApplied(body, selection, url, text)",

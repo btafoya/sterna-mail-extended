@@ -30,7 +30,7 @@ data class EmailFtsEntity(
     val sender: String,
     /** Truncated plain-text body (empty until phase 3 populates it). */
     val body: String,
-    // notIndexed columns — carried so a hit renders without a join to `emails`:
+    // notIndexed columns, carried so a hit renders without a join to `emails`:
     val preview: String?,
     val receivedAt: String?,
     val fromName: String?,

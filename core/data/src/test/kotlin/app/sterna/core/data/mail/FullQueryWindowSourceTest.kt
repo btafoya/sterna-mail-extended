@@ -7,11 +7,11 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Dropping an account's cursors opens the full-query branch — and TWO of the four paths that can
+ * Dropping an account's cursors opens the full-query branch, and two of the four paths that can
  */
 class FullQueryWindowSourceTest {
 
-    /** What `refreshAccountFolders` and `refreshAllInboxes` pass when nobody tells them otherwise —
+    /** What `refreshAccountFolders` and `refreshAllInboxes` pass when nobody tells them otherwise,
      *  pinned as a line of the shipped source by [SyncCursorDropWiringTest]. */
     private val backgroundLimit = 50
 
@@ -35,7 +35,7 @@ class FullQueryWindowSourceTest {
     // -- the enchaînement this reprise exists for --------------------------------------------------
 
     @Test fun `a background pass arriving before the pull applies the window, not its own 50`() {
-        // 50 → 500, the cursor falls (the fix of this volet), and a push lands FIRST.
+        // 50 → 500, the cursor falls (the fix of this volet), and a push lands first.
         val folder = folderOf(size = 800)
         folder.cache = folder.onServer.take(SyncWindow.COUNT_50.limit)
         folder.cursor = "before"
@@ -62,8 +62,9 @@ class FullQueryWindowSourceTest {
         // Same 50, other caller: the unified refresh writes the same inbox as the folder refresh
         // and the last writer wins. Nothing about this is specific to push.
         //
-        // Rewritten by the volet that unbounded `ALL`, and for one reason only: a folder of
-        // `ALL.limit + 200` cannot be built any more — the addition overflows and `(1..size)` is
+        // Rewritten by the volet that unbounded `all`, and for one reason only: a folder of
+        // `all.limit + 200` cannot be built any more, the addition overflows and `(1..size)` is
+        // empty, so a bounded window stands in.
         val bounded = folderOf(size = SyncWindow.COUNT_500.limit + 200)
         bounded.cursor = null
         bounded.fullQuery(fullQueryWindowTarget(SyncWindow.COUNT_500.limit, backgroundLimit))
@@ -117,7 +118,7 @@ class FullQueryWindowSourceTest {
 
     @Test fun `with no account to read, the caller's number stands`() {
         // The account row is gone (removed mid-refresh): the branch still has to size itself, and
-        // the caller's number is the only one left. Never zero — that would replace the folder
+        // the caller's number is the only one left. Never zero, that would replace the folder
         // with an empty page.
         assertEquals(50, fullQueryWindowTarget(accountWindow = null, requestedByCaller = 50))
     }
@@ -131,8 +132,7 @@ class FullQueryWindowSourceTest {
     // -- the whole sizing of the branch, not only its target ---------------------------------------
 
     @Test fun `a background pass asks the SERVER's page size, not its own fifty`() {
-        // The second half of the same defect. The target was read off the account and the PAGE
-        // was not, so a push or unified pass carrying 50 asked for fifty messages per request on a
+        // The second half of the same defect.
         val sizing = fullQuerySizing(
             accountWindow = SyncWindow.ALL.limit,
             requestedByCaller = backgroundLimit,
@@ -145,7 +145,7 @@ class FullQueryWindowSourceTest {
 
     @Test fun `the server still has the last word on one request`() {
         // The account's window feeds `requestPageSize`; it does not bypass it. A server admitting
-        // 120 gets 120, whatever the user set — asking for more is refused whole (RFC 8620 §5.1),
+        // 120 gets 120, whatever the user set, asking for more is refused whole (RFC 8620 §5.1),
         // which is the failure that made "All" stop syncing folders in 1.4.7.
         val sizing = fullQuerySizing(accountWindow = 500, requestedByCaller = 50, serverCapacity = 120)
         assertEquals(500, sizing.windowTarget)
@@ -172,7 +172,7 @@ class FullQueryWindowSourceTest {
     @Test fun `the unified inbox must not shrink an IMAP folder to its own fifty`() {
         // The IMAP twin of the first test in this file, and it is reachable in three gestures:
         // an IMAP account set to "Everything", pull on the folder, tap "All inboxes", come back.
-        // `refreshAllInboxes` reaches `imapWriteThrough` — which ends in a reconcile — with its
+        // `refreshAllInboxes` reaches `imapWriteThrough` (which ends in a reconcile) with its
         // hard-coded 50. The reconcile DELETES every cached row it is not given.
         //
         // The decision is the shipped one, executed; that `imapWriteThrough` really asks it is
@@ -197,11 +197,11 @@ class FullQueryWindowSourceTest {
         assertEquals(50, folder.cache.size)
     }
 
-    // -- what this must NOT change -----------------------------------------------------------------
+    // -- what this must not change -----------------------------------------------------------------
 
     @Test fun `the per-request page size is still the one negotiated with the server`() {
         // Only the number of messages aimed at changes hands. The request size stays capped by
-        // maxObjectsInGet, and the retention floor stays the window and never a request size —
+        // maxObjectsInGet, and the retention floor stays the window and never a request size,
         // capping that one is Codeberg #110 reopened.
         val sizing = folderSyncSizing(windowLimit = 500, serverCapacity = 120)
         assertEquals(500, sizing.windowTarget)

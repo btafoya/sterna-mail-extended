@@ -6,6 +6,9 @@ import org.junit.Test
 
 /**
  * The unified refresh doubles as the connectivity probe (#65/#92): a VPN killswitch is invisible to
+ * the framework, so what the account requests actually live is the only signal that the link is
+ * down. The rule that decides "offline" must fire only when nothing came back, one good account
+ * proves the link works and must not flash the offline banner over a single unreachable server.
  */
 class UnifiedRefreshResultTest {
     private fun meta(id: String) = AccountInboxMeta(id, id, "inbox-$id", "Inbox", 0)

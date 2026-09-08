@@ -11,7 +11,7 @@ data class OAuthMessage(@StringRes val resId: Int, val arg: String? = null)
 
 /** The decision behind [oauthFailureMessage]. [error] is the protocol's own word for the refusal
  *  (RFC 6749 §5.2) plus `http_<status>` and `network_error` of ours: a closed vocabulary, safe to
- * show. [description] is read but never shown — free text from an untrusted server. */
+ * show. [description] is read but never shown, free text from an untrusted server. */
 fun oauthFailureSpec(
     error: String,
     description: String,
@@ -23,7 +23,7 @@ fun oauthFailureSpec(
     error == "expired_token" ->
         OAuthMessage(R.string.connect_oauth_expired)
     // Must stay gated on an AADSTS code: this sentence names Microsoft, while `description` is
-    // prose from whatever server answered — a Keycloak saying "invalid_client, contact your
+    // prose from whatever server answered, a Keycloak saying "invalid_client, contact your
     // administrator" matches `admin`. Real refusals carry a code.
     aadstsCode != null && (
         aadstsCode == "AADSTS650051" || aadstsCode == "AADSTS90094" || aadstsCode == "AADSTS65001" ||
@@ -90,7 +90,7 @@ suspend fun collectOAuthHosts(
 
 /** Which discovered host the sign-in goes to: the first that speaks the device flow, then the first
  *  that speaks the code grant, and failing both the first that answered at all. The fallback is not
- *  decoration — the bare domain is asked first and is least likely to be the mail server. */
+ *  decoration, the bare domain is asked first and is least likely to be the mail server. */
 fun chooseOAuthHost(discovered: List<Pair<String, OAuthMetadata>>): Pair<String, OAuthMetadata>? =
     discovered.firstOrNull { chooseOAuthGrant(it.second) == OAuthGrant.DEVICE_CODE }
         ?: discovered.firstOrNull { chooseOAuthGrant(it.second) == OAuthGrant.AUTHORIZATION_CODE }

@@ -23,7 +23,7 @@ class BodyTakesGestureAtDownTest {
     }
 
     @Test fun `the bench's 3px overhang leaves the gesture to the pager`() {
-        // 2026-08-12, THE DEFECT: hRange=2403 hExtent=2400 hOffset=0 → 3px of course. The table is
+        // 2026-08-12, the defect: hRange=2403 hExtent=2400 hOffset=0 → 3px of course. The table is
         // entirely visible; claiming here cost the reader both swipe directions.
         assertEquals(
             "3px of course is a border, not content: claiming it moves the body 3px and kills " +
@@ -34,7 +34,7 @@ class BodyTakesGestureAtDownTest {
     }
 
     @Test fun `a body that fits exactly leaves the gesture to the pager`() {
-        // hRange=720 hExtent=720 hOffset=0 — the overwhelming majority of mail, and the internal
+        // hRange=720 hExtent=720 hOffset=0, the overwhelming majority of mail, and the internal
         // witness of the same bench build: this one always kept its swipe.
         assertEquals(
             "no course at all: swipe-between-messages (#6) is the reading gesture here, exactly as " +
@@ -63,8 +63,8 @@ class BodyTakesGestureAtDownTest {
     }
 
     @Test fun `a course of exactly one slop keeps the gesture`() {
-        // The boundary from above, on each side in turn: the threshold is INCLUSIVE, and the two
-        // parameters are independent — a claim on one side must not need the other.
+        // The boundary from above, on each side in turn: the threshold is inclusive, and the two
+        // parameters are independent, a claim on one side must not need the other.
         assertEquals(
             "a course of exactly one slop is claimable: the body can follow the finger over the " +
                 "whole distance the gesture is judged on",
@@ -90,7 +90,7 @@ class BodyTakesGestureAtDownTest {
     }
 
     @Test fun `content hidden behind the viewport keeps the gesture`() {
-        // Mid-pan, or a dir="rtl" document at rest: the course is BEHIND, offset is large. Reading
+        // Mid-pan, or a dir="rtl" document at rest: the course is behind, offset is large. Reading
         // scrollX == 0 would get this wrong; the offset does not.
         assertEquals(
             "a course behind the viewport is content the reader must be able to bring back",
@@ -99,7 +99,7 @@ class BodyTakesGestureAtDownTest {
         )
     }
 
-    // ── bodyCanTravel: the same rule, one side at a time — this is what the ACTION_MOVE branch
+    // ── bodyCanTravel: the same rule, one side at a time, this is what the ACTION_MOVE branch
     // hands bodyDragOwner instead of raw canScrollHorizontally answers, so that a body whose 3px of
     // course only shows up after the finger landed is not killed by that second door. ──────────────
 

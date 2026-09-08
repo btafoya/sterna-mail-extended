@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
+ * Source lint, not a behaviour test, read this before trusting it.
  */
 class PrefetchStaysInTheInboxWiringTest {
 
@@ -146,19 +146,21 @@ class PrefetchStaysInTheInboxWiringTest {
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
     /**
-     * [text]'s lines as CODE: every COMPLETE block comment removed from wherever it sits on the
+     * [text]'s lines as code: every complete block comment removed from wherever it sits on the
+     * line, runs of whitespace collapsed to one, and the line dropped only when nothing is left of
+     * it.
      */
     private fun codeLines(text: String): List<String> = text.lines()
         .map { WHITESPACE.replace(BLOCK_COMMENT.replace(it, " "), " ").trim() }
         .filterNot { it.isEmpty() || it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
 
-    /** The code lines of [body] naming [needle], whole — the assertions compare them, never search
+    /** The code lines of [body] naming [needle], whole, the assertions compare them, never search
      *  inside them. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         codeLines(body).filter { needle in it }
 
     /**
-     * Every code line of [body] that BINDS the name [name] — a `val`/`var` declaration or a bare
+     * Every code line of [body] that binds the name [name], a `val`/`var` declaration or a bare
      */
     private fun bindingsOf(body: String, name: String): List<String> =
         codeLines(body).filter { Regex("""^(val\s+|var\s+)?$name\s*=(?!=)""").containsMatchIn(it) }
@@ -176,7 +178,7 @@ class PrefetchStaysInTheInboxWiringTest {
 
         const val INBOX_RESOLUTION = "val inbox = resolved.mailboxes.firstOrNull { it.role == \"inbox\" }"
 
-        /** A block comment that OPENS AND CLOSES on the same line — the only kind that can sit
+        /** A block comment that opens and closes on the same line, the only kind that can sit
          *  beside code, and therefore the only kind [codeLines] may remove rather than obey. */
         val BLOCK_COMMENT = Regex("""/\*.*?\*/""")
 

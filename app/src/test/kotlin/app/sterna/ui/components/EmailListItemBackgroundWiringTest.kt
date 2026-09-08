@@ -5,11 +5,11 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — said first, because what it guards is the one part of #141
+ * Source lint, not a behaviour test, said first, because what it guards is the one part of #141
  */
 class EmailListItemBackgroundWiringTest {
 
-    /** The call, whole, from its opening line to its closing parenthesis. Mutations 1, 2 and 3 —
+    /** The call, whole, from its opening line to its closing parenthesis. Mutations 1, 2 and 3,
      *  and, since #103, `current = current,` in its place: `current = false` there leaves the row
      *  the reading pane shows unmarked on every wide window, with [RowBackgroundTest] green. */
     private val expectedCall = listOf(
@@ -66,7 +66,9 @@ class EmailListItemBackgroundWiringTest {
     }
 
     /**
-     * The rule that keeps the one above honest about WHERE the decision is taken: one declaration,
+     * The rule that keeps the one above honest about where the decision is taken: one declaration,
+     * one call site. A second call (a row painted from a copy of the logic) would satisfy every
+     * other rule here while drawing something this file never looked at.
      */
     @Test fun `rowBackground is declared once and called from exactly one place`() {
         assertEquals(
@@ -96,7 +98,10 @@ class EmailListItemBackgroundWiringTest {
     }
 
     /**
-     * Mutation 5: what "unread" means to a caller that does not say — `SearchScreen.kt` is the
+     * Mutation 5: what "unread" means to a caller that does not say, `SearchScreen.kt` is the
+     * only one, and with the default at `false` its results lose the background and the bold
+     * weight, while the inbox, which passes the flag explicitly, keeps looking right. Nothing else
+     * would have gone red.
      */
     @Test fun `unread defaults to the message's own seen flag`() {
         assertEquals(
@@ -111,6 +116,7 @@ class EmailListItemBackgroundWiringTest {
 
     /**
      * Mutation 6: the row asks the CompositionLocal for the setting once, at the top, and by
+     * this line only.
      */
     @Test fun `the row reads the setting once, from the CompositionLocal`() {
         assertEquals(

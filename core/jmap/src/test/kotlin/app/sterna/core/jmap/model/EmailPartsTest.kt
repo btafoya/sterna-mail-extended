@@ -12,8 +12,8 @@ class EmailPartsTest {
 
     @Test
     fun plainTextInHtmlBodyIsNotTreatedAsHtml() {
-        // RFC 8621: a plain-text-only message gets its text/plain part listed in BOTH textBody
-        // and htmlBody. htmlContent() must NOT return it as HTML (issue #4: would collapse the
+        // RFC 8621: a plain-text-only message gets its text/plain part listed in both textBody
+        // and htmlBody. htmlContent() must not return it as HTML (issue #4: would collapse the
         // paragraph breaks); textContent() should still return it for the <pre> render path.
         val part = EmailBodyPart(partId = "0", type = "text/plain")
         val e = Email(

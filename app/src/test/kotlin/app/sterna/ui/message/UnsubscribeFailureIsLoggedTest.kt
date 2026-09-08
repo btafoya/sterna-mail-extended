@@ -5,19 +5,19 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE RULE, AND THE WEAKEST TEST IN THIS LOT — kept because the alternative is no check at all
+ * Source rule, and the weakest test in this lot, kept because the alternative is no check at all
  * and the rule is real.
  *
  * `MessageViewModel.unsubscribe()` catches everything its coroutine can throw and turns it into
  * one sentence on screen: "Unsubscribe failed". That sentence is the same for a refused
- * `enqueueSend`, a missing identity, a locked database and a bug — so unless the throwable is
+ * `enqueueSend`, a missing identity, a locked database and a bug, so unless the throwable is
  * written somewhere, the reason it failed exists nowhere at all: not in logcat, not in a report,
  * not in a bug the maintainer could act on. Every comparable catch in this project logs.
  *
  * And a `CancellationException` must go straight back out. It is not a failure: it is the page
  * being closed, the pager moving on, the ViewModel being cleared. Caught like the rest, it
- * paints "Unsubscribe failed" on the way out of a screen nobody is looking at any more, and —
- * worse — swallows the cancellation the coroutine machinery was in the middle of propagating.
+ * paints "Unsubscribe failed" on the way out of a screen nobody is looking at any more, and,
+ * worse, swallows the cancellation the coroutine machinery was in the middle of propagating.
  *
  * Why not a behaviour test: [MessageViewModel] is an `AndroidViewModel` that reaches for the
  * application container, and this module has neither Robolectric nor an instrumentation harness

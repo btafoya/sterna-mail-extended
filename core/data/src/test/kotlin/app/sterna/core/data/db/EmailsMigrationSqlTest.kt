@@ -12,7 +12,8 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * Runs the REAL migration objects against a real SQLite engine, starting from the schema a
+ * Runs the real migration objects against a real SQLite engine, starting from the schema a
+ * published install actually carries.
  */
 class EmailsMigrationSqlTest {
     private lateinit var db: Connection
@@ -57,11 +58,13 @@ class EmailsMigrationSqlTest {
             "`email` TEXT NOT NULL PRIMARY KEY, `name` TEXT, `lastSeen` INTEGER NOT NULL)"
 
     /**
-     * The v14 shape of the search index: the SAME columns as v15, but built with
+     * The v14 shape of the search index: the same columns as v15, but built with
+     * `remove_diacritics=2`, the tokenizer argument 1.3.11 had to abandon (#71). Only used by
+     * the chained 14 → 15 → 16 test; unsupported on old SQLite, fine on the JVM driver.
      */
     private val v14FtsCreate = EMAIL_FTS_CREATE_SQL.replace("remove_diacritics=1", "remove_diacritics=2")
 
-    /** Seed a database in the PUBLISHED v15 shape, with a row in every table. */
+    /** Seed a database in the published v15 shape, with a row in every table. */
     private fun seedV15(ftsCreateSql: String = EMAIL_FTS_CREATE_SQL) {
         db.createStatement().use { st ->
             st.executeUpdate(publishedEmailsCreate)
@@ -115,7 +118,9 @@ class EmailsMigrationSqlTest {
     // --- running the real Migration objects ----------------------------------------------------
 
     /**
-     * A [SupportSQLiteDatabase] that only knows how to `execSQL` onto the JDBC connection —
+     * A [SupportSQLiteDatabase] that only knows how to `execSQL` onto the JDBC connection,
+     * enough to run a [androidx.room.migration.Migration], and enough to fail loudly if a
+     * migration ever starts using another method.
      */
     private fun supportDb(): SupportSQLiteDatabase =
         Proxy.newProxyInstance(
@@ -195,7 +200,7 @@ class EmailsMigrationSqlTest {
         seedV15()
         migrate15to16()
 
-        // Queued and scheduled mail is unsent USER data — the whole reason this migration exists
+        // Queued and scheduled mail is unsent user data, the whole reason this migration exists
         // instead of a destructive fallback.
         assertEquals(1, count("SELECT COUNT(*) FROM `outbox` WHERE `subject` = 'Queued' AND `state` = 'QUEUED'"))
         assertEquals(1, count("SELECT COUNT(*) FROM `scheduled_sends` WHERE `subject` = 'Later' AND `sendAtMillis` = 500"))
@@ -208,7 +213,7 @@ class EmailsMigrationSqlTest {
         seedV15()
         migrate15to16()
 
-        // `email_fts` is a STANDALONE FTS4 table (no content= link to `emails`, no triggers), so
+        // `email_fts` is a standalone FTS4 table (no content= link to `emails`, no triggers), so
         // rebuilding `emails` under it must neither drop it nor empty it.
         assertEquals(1, count("SELECT COUNT(*) FROM `email_fts`"))
         assertEquals(1, count("SELECT COUNT(*) FROM `email_fts` WHERE `email_fts` MATCH 'Hell*'"))
@@ -239,7 +244,7 @@ class EmailsMigrationSqlTest {
             }
             return indexes
         }
-        // Room compares the index set at open time: a missing one — or a leftover one — throws
+        // Room compares the index set at open time: a missing one (or a leftover one) throws
         // "Migration didn't properly handle" and takes the app down on first launch.
         assertTrue("index_emails_mailboxId must exist after the rebuild", "index_emails_mailboxId" in indexesOf("emails"))
         assertTrue(
@@ -347,7 +352,7 @@ class EmailsMigrationSqlTest {
         migrate16to17()
 
         // No backfill (the addresses aren't held locally): an old row is simply NULL, which the
-        // codec turns into an empty list — exactly the pre-v17 "fall back to the sender" state.
+        // codec turns into an empty list, exactly the pre-v17 "fall back to the sender" state.
         assertEquals(2, count("SELECT COUNT(*) FROM `emails` WHERE `recipientsJson` IS NULL"))
         assertEquals(emptyList<Any>(), EmailRecipients.decode(stringOrNull("SELECT `recipientsJson` FROM `emails` WHERE `id` = 'e1'")))
     }

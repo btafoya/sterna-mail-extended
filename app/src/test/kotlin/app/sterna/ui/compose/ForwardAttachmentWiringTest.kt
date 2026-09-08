@@ -6,7 +6,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads source files as text, same instrument and
+ * Source lint, not a behaviour test, it reads source files as text, same instrument and
+ * disclaimer as [ReplyQuoteConsumedWiringTest]. `ComposeViewModel` is an AndroidViewModel and
+ * cannot be instantiated in a JVM test, so the wiring of "forward as attachment" is pinned as
+ * whole trimmed lines: a `contains` on a fragment is blind to any mutation that lengthens the line.
  */
 class ForwardAttachmentWiringTest {
 
@@ -24,7 +27,7 @@ class ForwardAttachmentWiringTest {
 
     @Test fun `the mode literals live in composeOpening and nowhere else in the composer`() {
         // The screen (focus, signature rule) and the title had their own `mode != "forward"`:
-        // three more readers that would have called a forward-as-attachment a reply — "Reply" in
+        // three more readers that would have called a forward-as-attachment a reply, "Reply" in
         // the top bar, the caret in the body instead of To. Every reader goes through the parser.
         val literals = listOf("\"forward\"", "\"replyAll\"", "\"forwardAttachment\"")
         val found = listOf(COMPOSE_TEXT, COMPOSE_SCREEN, COMPOSE_VIEW_MODEL)
@@ -72,9 +75,9 @@ class ForwardAttachmentWiringTest {
     }
 
     @Test fun `the attached-source branch hands the part to the list, and says what it is doing`() {
-        // The one line that puts the .eml on screen, pinned INSIDE the branch (attach() has the
+        // The one line that puts the .eml on screen, pinned inside the branch (attach() has the
         // same line, so the file-wide count would not tell them apart). Gone, the composer opens
-        // "Fwd:", empty body, no attachment and no word — the symptom itself. The status lines
+        // "Fwd:", empty body, no attachment and no word, the symptom itself. The status lines
         // are what keeps the wait from being silent: the composer is sendable before the part is.
         val body = attachedSourceBranch()
         for (line in listOf(
@@ -146,7 +149,7 @@ class ForwardAttachmentWiringTest {
         return all.subList(start, end)
     }
 
-    /** Exactly one line of [file] whose TRIMMED code text equals [pinned] — 0 or 2+ both fail. */
+    /** Exactly one line of [file] whose trimmed code text equals [pinned], 0 or 2+ both fail. */
     private fun assertPinnedLine(file: File, pinned: String, why: String) {
         val hits = lines(file).count { it == pinned }
         assertEquals(
@@ -158,7 +161,7 @@ class ForwardAttachmentWiringTest {
         )
     }
 
-    /** [file]'s code as trimmed WHOLE lines, comments cut, so prose can never satisfy a rule. */
+    /** [file]'s code as trimmed whole lines, comments cut, so prose can never satisfy a rule. */
     private fun lines(file: File): List<String> = code(file).lines().map { it.trim() }
 
     private fun code(file: File): String = file.readLines().mapNotNull { line ->

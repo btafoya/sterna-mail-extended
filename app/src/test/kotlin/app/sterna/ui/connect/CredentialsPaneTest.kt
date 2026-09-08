@@ -111,7 +111,7 @@ class CredentialsPaneTest {
         )
     }
 
-    // ---- credentialsExit: the way OUT of a step that asks nothing and hands over nothing ----
+    // ---- credentialsExit: the way out of a step that asks nothing and hands over nothing ----
 
     @Test fun `the invitation carries a way out to the manual form`() {
         assertEquals(
@@ -211,7 +211,7 @@ class CredentialsPaneTest {
         )
     }
 
-    // ---- backCancelsHandover: WHOSE hand-over Back is allowed to cancel ----
+    // ---- backCancelsHandover: whose hand-over Back is allowed to cancel ----
 
     private val devicePanel = ConnectState.AwaitingApproval("ABCD-EFGH", "https://example.org/device", null)
 
@@ -263,7 +263,7 @@ class CredentialsPaneTest {
 }
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as [OAuthHandoverWiringTest]:
+ * Source lint, not a behaviour test, same instrument and disclaimer as [OAuthHandoverWiringTest]:
  */
 class HandoverBackWiringTest {
 
@@ -402,8 +402,8 @@ class HandoverBackWiringTest {
                 "other block further down the column.",
             exit < label && label < manualStep,
         )
-        // ORDER IS NOT ENOUGH, and this is where the mutation went through: PASSWORD is the
-        // LAST branch label of the guard, so the whole block dropped INSIDE it still sits after
+        // Order is not enough, and this is where the mutation went through: password is the
+        // last branch label of the guard, so the whole block dropped inside it still sits after
         val depth = indent(exit)
         val guardDepth = indent(lines.indexOf("when (credentialsPane(ask, state, handedOver)) {"))
         assertEquals(
@@ -415,11 +415,11 @@ class HandoverBackWiringTest {
         )
     }
 
-    /** The leading spaces of the RAW line at [index] — trimmed lines cannot see a nesting change. */
+    /** The leading spaces of the raw line at [index], trimmed lines cannot see a nesting change. */
     private fun indent(index: Int): Int =
         source(SCREEN).lines()[index].takeWhile { it == ' ' }.length
 
-    /** The `when (credentialsPane(…))` branch labels of [SCREEN], as (label, line index). */
+    /** The `when (credentialsPane(…))` branch labels of [screen], as (label, line index). */
     private val branchLabels: List<Pair<String, Int>> by lazy {
         lines.withIndex()
             .filter { it.value.startsWith("CredentialsPane.") && it.value.contains(" -> ") }

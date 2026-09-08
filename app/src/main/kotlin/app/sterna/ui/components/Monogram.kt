@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
- * A coloured monogram avatar — initial + a colour derived from the address.
+ * A coloured monogram avatar, initial + a colour derived from the address.
  * Privacy-first: never loads a remote photo, no network leak (DESIGN.md).
  */
 @Composable
@@ -43,7 +43,7 @@ fun Monogram(seed: String, label: String, modifier: Modifier = Modifier, color: 
 internal data class ToneRamp(val container: Color, val onContainer: Color)
 
 /**
- * The tonal ranges badge colours are drawn from — one per accent family of the ACTIVE scheme.
+ * The tonal ranges badge colours are drawn from, one per accent family of the active scheme.
  */
 internal fun ColorScheme.monogramRamps(): List<ToneRamp> = listOf(
     ToneRamp(primaryContainer, onPrimaryContainer),
@@ -52,19 +52,19 @@ internal fun ColorScheme.monogramRamps(): List<ToneRamp> = listOf(
 )
 
 /**
- * Tones taken along each ramp: six, from 0.32 to 0.90 — 18 badges over the three families. Both ends
+ * Tones taken along each ramp: six, from 0.32 to 0.90, 18 badges over the three families. Both ends
  */
 private const val TONE_COUNT = 6
 private const val FIRST_TONE = 0.32f
 private const val TONE_GAP = 0.116f
 
 /**
- * A stable badge colour for [seed], expressed in the tones of the palette in use. Trade-off one,
+ * A stable badge colour for [seed], expressed in the tones of the palette in use.
  */
 internal fun monogramColor(seed: String, ramps: List<ToneRamp>): Color =
     monogramColor(monogramSlot(seed, ramps.size), ramps)
 
-/** How many accent families the palette offers a badge — [monogramRamps] returns exactly that many. */
+/** How many accent families the palette offers a badge, [monogramRamps] returns exactly that many. */
 internal const val MONOGRAM_FAMILIES = 3
 
 /**
@@ -87,7 +87,7 @@ internal fun monogramColor(slot: MonogramSlot, ramps: List<ToneRamp>): Color {
     return blend(ramp.container, ramp.onContainer, FIRST_TONE + TONE_GAP * slot.tone)
 }
 
-/** The original seed hash (djb2-style, Int overflow included) — unchanged, so are its collisions. */
+/** The original seed hash (djb2-style, Int overflow included), unchanged, so are its collisions. */
 private fun seedHash(seed: String): Int {
     var hash = 0
     for (c in seed) hash = c.code + (hash shl 5) - hash
@@ -95,7 +95,7 @@ private fun seedHash(seed: String): Int {
 }
 
 /** Spread the hash before it is cut into a dozen buckets (the lowbias32 finaliser): its low bits
- *  track the seed's last characters far too closely to be sliced this thin — over a sample of
+ *  track the seed's last characters far too closely to be sliced this thin, over a sample of
  *  ordinary addresses the raw hash filled 7 of the 12 slots and crowded five. */
 private fun scramble(hash: Int): Int {
     var x = hash
@@ -116,7 +116,7 @@ private fun blend(from: Color, to: Color, fraction: Float): Color = Color(
 
 /** The letter drawn inside a badge: the first letter or digit of the display name, of the address
  *  when there is no name, and `"?"` when neither offers one. Shared with the widget, which has no
- *  composition to call [Monogram] from — hence `internal`. */
+ *  composition to call [Monogram] from, hence `internal`. */
 internal fun initialOf(label: String, fallback: String): String {
     val source = label.ifBlank { fallback }
     return source.firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"

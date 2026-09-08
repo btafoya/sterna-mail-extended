@@ -7,6 +7,7 @@ import app.sterna.core.jmap.model.Mailbox
 
 /**
  * The folders the screens show when an account asks for its subscribed folders only (#174), in the
+ * [mailboxes] in the order they came in, never a sort, never a rebuild of the tree.
  */
 internal fun visibleFolders(mailboxes: List<Mailbox>, showOnlySubscribed: Boolean): List<Mailbox> {
     if (!showOnlySubscribed) return mailboxes
@@ -43,7 +44,7 @@ internal fun folderParentId(mailbox: Mailbox, byId: Map<String, Mailbox>): Strin
 }
 
 /** What [accountId]'s own record asks for: the setting is per account, and the pickers do not read
- * the same account as the drawer — the reader's is the open message's owner (#92). An id
+ * the same account as the drawer, the reader's is the open message's owner (#92). An id
  *  resolving to no record answers false: true would hide folders on an unidentified account. */
 internal fun showOnlySubscribedFor(accountId: String?, accounts: List<StoredAccount>): Boolean =
     showOnlySubscribedFoldersOf(accounts.firstOrNull { it.id == accountId })

@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Which folders a move-to-folder picker offers, and in which order — the rule behind both the
+ * Which folders a move-to-folder picker offers, and in which order, the rule behind both the
  * list's selection-bar picker and the reader's overflow entry (#73).
  */
 class MoveTargetsTest {
@@ -52,7 +52,7 @@ class MoveTargetsTest {
     }
 
     @Test fun `a child folder follows its parent, never a root folder that sorts between them`() {
-        // Compared segment by segment, so "Work_Notes" (a ROOT folder, and "_" sorts before "/")
+        // Compared segment by segment, so "Work_Notes" (a root folder, and "_" sorts before "/")
         // cannot slip between "Work" and its children the way a whole-path string compare would.
         val nested = listOf(
             mailbox("Xylo"),
@@ -68,12 +68,12 @@ class MoveTargetsTest {
     }
 
     @Test fun `a three-level Dovecot account keeps a grandchild under its parent`() {
-        // Three levels, because a two-level tree cannot tell a WHOLE ancestor chain from its last
+        // Three levels, because a two-level tree cannot tell a whole ancestor chain from its last
         // segment: with one ancestor, "keep only the nearest one" is the identity. On a Dovecot
         //
         // "INBOX.Zeta" is named "Alpha" on purpose: an id whose last segment is not the folder's
         // name claims no path at all (imapParentPath refuses it), so it sorts on "Alpha" and
-        // leads. Sorting on the id would put it LAST. Every other folder here is name == last
+        // leads. Sorting on the id would put it last. Every other folder here is name == last
         // segment, which is exactly what cannot tell the two apart.
         val dovecot = listOf(
             mailbox("INBOX.Clients.Acme", name = "Acme"),
@@ -88,7 +88,7 @@ class MoveTargetsTest {
     }
 
     @Test fun `a JMAP child keeps its parent's path even when the parent is the folder being left`() {
-        // Paths are resolved against the WHOLE account list, not the offered targets: dropping
+        // Paths are resolved against the whole account list, not the offered targets: dropping
         // "Work" from the list would leave its child sorting as a bare "Zebra", i.e. after "Xylo".
         val jmap = listOf(
             mailbox("p1", name = "Work"),
@@ -107,7 +107,7 @@ class MoveTargetsTest {
     }
 
     @Test fun `a Russian folder list sorts as Russian, not as code points`() {
-        // "Ёлка" is U+0401, BELOW every other Cyrillic letter in UTF-16, so a naive sort files it
+        // "Ёлка" is U+0401, below every other Cyrillic letter in UTF-16, so a naive sort files it
         // ahead of "Альфа"; Russian collation puts Ё right after Е. Latin still leads Cyrillic.
         val russian = listOf(mailbox("Ёлка"), mailbox("Zoo"), mailbox("Ежи"), mailbox("Alpha"))
         val ids = moveTargets(russian, null, collator = Collator.getInstance(Locale("ru"))).map { it.id }
@@ -115,12 +115,12 @@ class MoveTargetsTest {
     }
 
     @Test fun `the picker follows the device language, not one hard-coded locale`() {
-        // Called WITHOUT a collator: the DEFAULT is what this pins, i.e. the promise that the
+        // Called without a collator: the default is what this pins, i.e. the promise that the
         // picker sorts the way the phone's language does.
         //
-        // Swedish on purpose, and it must stay Swedish: "Ö" is a letter of its own, filed AFTER
+        // Swedish on purpose, and it must stay Swedish: "Ö" is a letter of its own, filed after
         // "Z", while US (and German) collation files it with the "O"s. German would prove
-        // nothing here — "Ü" sorts with the "U"s in US collation too, so the test would stay
+        // nothing here, "Ü" sorts with the "U"s in US collation too, so the test would stay
         // green even with the device locale ignored.
         val previous = Locale.getDefault()
         try {
@@ -144,8 +144,8 @@ class MoveTargetsTest {
 
     @Test fun `an id with an exotic delimiter sorts on its own name, and nothing blows up`() {
         // Accepted degradation: only "/" and "." are read as IMAP delimiters, so a backslash id
-        // yields no path at all and the folder sorts on its leaf name — here ahead of "Alpha",
-        // NOT under "Work".
+        // yields no path at all and the folder sorts on its leaf name, here ahead of "Alpha",
+        // not under "Work".
         val exotic = listOf(mailbox("Work"), mailbox("Work\\2026", name = "2026"), mailbox("Alpha"))
         assertEquals(
             listOf("Work\\2026", "Alpha", "Work"),
@@ -196,7 +196,7 @@ class MoveTargetsTest {
     }
 
     @Test fun `an account with a single folder offers nothing`() {
-        // The reader hides its menu entry on this — a picker with nothing to pick is a dead end.
+        // The reader hides its menu entry on this, a picker with nothing to pick is a dead end.
         assertTrue(moveTargets(listOf(mailbox("inbox-1", role = "inbox")), "inbox-1").isEmpty())
         assertTrue(moveTargets(emptyList(), "inbox-1").isEmpty())
     }

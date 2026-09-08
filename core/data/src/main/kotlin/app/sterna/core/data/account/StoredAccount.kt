@@ -19,14 +19,14 @@ data class StoredAccount(
     val syncWindow: SyncWindow = SyncWindow.DAYS_90,
     /** Whether new-mail notifications fire for this account (per-account opt-out). */
     val notificationsEnabled: Boolean = true,
-    /** Whether a sent copy is APPENDed into Sent (IMAP only) — off for a submission server that files its own. */
+    /** Whether a sent copy is APPENDed into Sent (IMAP only), off for a submission server that files its own. */
     val uploadSentCopy: Boolean = true,
     /** Whether folder lists hide unsubscribed folders (#174); defaults FALSE (rule 1: every record predates this
      *  field). */
     val showOnlySubscribedFolders: Boolean = false,
     /** Extra folders watched for new mail, by mailbox id; the Inbox is always watched and never stored here. */
     val watchedFolders: Set<String> = emptySet(),
-    /** Per-folder collapse choice; absent = undecided. A `Map`, not a set: unfolding must WRITE `false`, or it folds
+    /** Per-folder collapse choice; absent = undecided. A `Map`, not a set: unfolding must write `false`, or it folds
      *  back. */
     val collapsedFolders: Map<String, Boolean> = emptyMap(),
     /** User-chosen accent colour (ARGB); null = auto (derived from the address). */
@@ -60,7 +60,7 @@ data class StoredAccount(
     val pgpEnabled: Boolean = false,
     val pgpSignKeyId: Long = 0L,
     /** Cache of this account's OpenPGP public key for [pgpSignKeyId]; a key-id change empties it, or it'd announce the
-     *  OLD key. */
+     *  old key. */
     val pgpPublicKey: String = "",
     val pgpEncryptByDefault: Boolean = false,
 ) {
@@ -70,14 +70,14 @@ data class StoredAccount(
     /** True for a sub-account discovered under another account's login (shares its credential). */
     val isLinked: Boolean get() = loginId != null
 
-    /** True for a DELEGATED account, read from [loginId] alone — Stalwart's `isPersonal` flag separates nothing (#129).
+    /** True for a delegated account, read from [loginId] alone, Stalwart's `isPersonal` flag separates nothing (#129).
      *  */
     val isShared: Boolean get() = !loginId.isNullOrBlank()
 
     /** Best label for the account in UI. */
     fun label(): String = accountName.ifBlank { username }
 
-    /** Manual + server identities, deduped by address, manual FIRST. A linked sub-account can't fetch server identities
+    /** Manual + server identities, deduped by address, manual first. A linked sub-account can't fetch server identities
      *  (#31). */
     fun resolvedIdentities(): List<StoredIdentity> =
         (identities + serverIdentities)
@@ -99,7 +99,7 @@ data class StoredAccount(
                 }
             }
 
-    /** [defaultIdentityId] match, else this account's own identity, else the first — the username step matters (#78).
+    /** [defaultIdentityId] match, else this account's own identity, else the first, the username step matters (#78).
      *  */
     fun defaultIdentity(): StoredIdentity? {
         val resolved = resolvedIdentities()
@@ -114,7 +114,7 @@ data class StoredAccount(
     }
 
     companion object {
-        /** Every login, followed by its delegated mailboxes; an orphan delegate is emitted at the END rather than
+        /** Every login, followed by its delegated mailboxes; an orphan delegate is emitted at the end rather than
          *  dropped. */
         fun accountsScreenRows(all: List<StoredAccount>): List<AccountRowEntry> {
             val visible = all.filter { !it.importPending }
@@ -147,7 +147,7 @@ data class StoredAccount(
                 .distinctBy(::key)
         }
 
-        /** Server identities deduped by address for DISPLAY, matching [resolvedIdentities]'s own de-dup. */
+        /** Server identities deduped by address for display, matching [resolvedIdentities]'s own de-dup. */
         fun distinctServerIdentities(server: List<StoredIdentity>): List<StoredIdentity> =
             server.distinctBy { it.email.trim().lowercase() }
     }

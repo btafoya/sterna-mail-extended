@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The startup routing, EXECUTED. `RootViewModel` needs an `Application`, the account store and
+ * The startup routing, executed.
  */
 class RootRouteTest {
 
@@ -34,7 +34,7 @@ class RootRouteTest {
     }
 
     /**
-     * THE ORDER OF THE TWO TESTS, pinned by the one input pair that can tell them apart.
+     * The order of the two tests, pinned by the one input pair that can tell them apart.
      */
     @Test fun `an account that IS signed in wins over the unreadable flag`() {
         assertEquals(

@@ -9,7 +9,8 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Whether the unsubscribe is still on offer — the decision the banner, the overflow entry and the
+ * Whether the unsubscribe is still on offer, the decision the banner, the overflow entry and the
+ * action itself all take, executed here rather than restated three times in Compose.
  */
 class UnsubscribeOfferTest {
 
@@ -40,7 +41,7 @@ class UnsubscribeOfferTest {
         assertNull(offeredUnsubscribeAction(oneClick, UnsubscribeState.Sending))
     }
 
-    /** A failure IS offered again — a refused request or a dead network is a retry, not an end. */
+    /** A failure IS offered again, a refused request or a dead network is a retry, not an end. */
     @Test fun `a failure can be retried`() {
         UnsubscribeFailure.entries.forEach { reason ->
             assertEquals(
@@ -59,6 +60,8 @@ class UnsubscribeOfferTest {
 
     /**
      * The pending confirmation carries the options it was opened for, and names its target from
+     * them, so what the dialog says and what the button then does are the same thing, even if
+     * the message behind the dialog is reloaded in the meantime.
      */
     @Test fun `a pending confirmation names the target it captured`() {
         val pending = PendingUnsubscribe(UnsubscribeAction.OPEN_PAGE, page)

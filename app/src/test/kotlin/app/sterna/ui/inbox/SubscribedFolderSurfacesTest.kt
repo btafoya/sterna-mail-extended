@@ -56,10 +56,10 @@ class SubscribedFolderSurfacesTest {
     }
 
     @Test fun `the ancestors are resolved against the WHOLE list, not the offered targets`() {
-        // The trap this test exists for: filtering the list ONCE, at the call site, and handing the
-        // result to both of moveTargets' uses of it. The picker would still look right here — and a
+        // The trap this test exists for: filtering the list once, at the call site, and handing the
+        // result to both of moveTargets' uses of it. The picker would still look right here, and a
         // child whose parent is hidden would lose the parent segment of the path shown under its
-        // name (#109). So the ARGUMENT is pinned, not just the answer.
+        // name (#109). So the argument is pinned, not just the answer.
         val contexts = mutableListOf<List<String>>()
         val resolved = mutableMapOf<String, List<String>>()
         moveTargets(folders, "inbox", showOnlySubscribed = true, collator = english) { m, list ->
@@ -115,7 +115,7 @@ class SubscribedFolderSurfacesTest {
             listOf("a" to "inbox", "a" to "projets", "a" to "Old", "a" to "ProjectA", "a" to "ProjectA/Done"),
             unreadViewScopes("a", visibleFolders(counted, false)),
         )
-        // The badge is NOT filtered a second time: it sums the folders the scope names. The scope
+        // The badge is not filtered a second time: it sums the folders the scope names. The scope
         // is the only place the rule is applied, and this executes the shipped counter over it.
         assertEquals(15, unreadViewCount("a", hidden, counted))
         assertEquals(20, unreadViewCount("a", unreadViewScopes("a", visibleFolders(counted, false)), counted))

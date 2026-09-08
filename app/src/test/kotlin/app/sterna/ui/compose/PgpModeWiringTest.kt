@@ -5,7 +5,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `ComposeViewModel.kt` and `ComposeScreen.kt` as
+ * Source lint, not a behaviour test. It reads `ComposeViewModel.kt` and `ComposeScreen.kt` as
+ * text and compares whole trimmed lines. It proves nothing about what runs.
  */
 class PgpModeWiringTest {
 
@@ -29,7 +30,8 @@ class PgpModeWiringTest {
 
     @Test fun `the send reads the mode once and hands that one value to the entity builder`() {
         // Choosing the branch and choosing the signer are separated by pgp.findKeys, a suspension
-        // that round-trips to the provider — and the mode moves under it: deriveAutoMode drops an
+        // that round-trips to the provider, and the mode moves under it: deriveAutoMode drops an
+        // untouched encrypt-by-default lock to OFF as soon as a recipient turns out to have no key.
         assertEquals(
             "the send no longer captures the mode once for the whole message.",
             listOf("val mode = _pgpMode.value", "val pgpEntity = if (mode != PgpMode.OFF) {"),
@@ -73,7 +75,7 @@ class PgpModeWiringTest {
     }
 
     @Test fun `the entity builder is handed that subject, and not the default`() {
-        // The joint has TWO lines, not one. The test above pins the first (send site to
+        // The joint has two lines, not one. The test above pins the first (send site to
         // buildPgpEntity); this pins the second, and it is the more dangerous of the two because
         assertEquals(
             "the PGP entity is no longer built with the subject the send decided. Passing " +
@@ -95,8 +97,8 @@ class PgpModeWiringTest {
     }
 
     @Test fun `the short tap is still the three-stop cycle, and cannot walk into the unsigned mode`() {
-        // nextPgpMode is pure and DraftSaveAllowedTest executes it — but nothing executes the line
-        // that calls it. Rewrite this one line to hand setPgpMode ENCRYPT_UNSIGNED after SIGN and
+        // nextPgpMode is pure and DraftSaveAllowedTest executes it, but nothing executes the line
+        // that calls it.
         assertEquals(
             "the lock's short tap no longer walks nextPgpMode's cycle verbatim.",
             listOf("fun cyclePgpMode() = setPgpMode(nextPgpMode(_pgpMode.value))"),
@@ -105,8 +107,8 @@ class PgpModeWiringTest {
     }
 
     @Test fun `each mode is bound to the face it was given, and no other`() {
-        // The COMPLEMENT of PgpModeIconFacesTest, which executes pgpModeIcon and measures that the
-        // four faces it returns are four distinct drawings. That measurement is blind to WHICH mode
+        // The complement of PgpModeIconFacesTest, which executes pgpModeIcon and measures that the
+        // four faces it returns are four distinct drawings. That measurement is blind to which mode
         assertEquals(
             "pgpModeIcon changed. If two modes now draw the same icon, the composer shows the " +
                 "same padlock for a signed and an unsigned message and there is no other " +
@@ -124,8 +126,8 @@ class PgpModeWiringTest {
     }
 
     @Test fun `no key array is assembled by hand anywhere in the composer's view model`() {
-        // The absence half. The line that was here — `(recipientKeys.toList() + signKeyId)
-        // .distinct().toLongArray()` — is the one that must live in pgpEncryptArgs and nowhere
+        // The absence half. The line that was here, `(recipientKeys.toList() + signKeyId)
+        // .distinct().toLongArray()`, is the one that must live in pgpEncryptArgs and nowhere
         // else, because it is the encrypt-to-self, and a JVM test can only run it there.
         assertEquals(
             "a key array is being built inside ComposeViewModel again. Whatever it computes is " +
@@ -151,9 +153,9 @@ class PgpModeWiringTest {
 
     @Test fun `the compose screen asks whether the mode encrypts, never which mode it is`() {
         // Three sites in that file read it: the Send gate (keysReady), the per-recipient red flag
-        // (missingKeyFor) and the "the subject is not encrypted" note. Each one written as
+        // (missingKeyFor) and the "the subject is not encrypted" note.
         //
-        // This is an ABSENCE over the whole file, so it says nothing about a site that stops
+        // This is an absence over the whole file, so it says nothing about a site that stops
         // reading the mode at all. It is the cheapest guard that survives a lengthened line.
         assertEquals(
             "ComposeScreen compares against a single encrypting mode again.",
@@ -186,7 +188,7 @@ class PgpModeWiringTest {
         }
 
     /**
-     * [count] CONSECUTIVE code lines of [path] from the single one starting with [prefix]. A prefix
+     * [count] consecutive code lines of [path] from the single one starting with [prefix]. A prefix
      */
     private fun block(path: String, prefix: String, count: Int): List<String> {
         val lines = code(path)

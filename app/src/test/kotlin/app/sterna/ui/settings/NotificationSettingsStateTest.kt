@@ -14,7 +14,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The gate of the notifications screen, EXECUTED (#57): the screen may show a value only once the
+ * The gate of the notifications screen, executed (#57): the screen may show a value only once the
+ * stored one is known, because its radio rows are clickable and a tap on the wrong one writes it.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class NotificationSettingsStateTest {

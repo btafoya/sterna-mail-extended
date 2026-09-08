@@ -4,21 +4,25 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Where the preview fetch is PLUGGED IN — read from the shipped source, because `ImapMailService`
+ * Where the preview fetch is PLUGGED in, read from the shipped source, because `ImapMailService`
  */
 class PreviewFetchWiringTest {
 
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("ImapMailService", function)
 
-    /** Every CODE line of [function]'s body, in order, trimmed — comments and blank lines dropped.
+    /** Every code line of [function]'s body, in order, trimmed, comments and blank lines dropped.
      *  Unlike [codeLinesNaming] this keeps the lines nobody thought to name. */
     private fun codeLinesOf(function: String): List<String> =
         bodyOf(function).lines().map { it.trim() }
             .filterNot { it.isEmpty() || it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
 
     /**
-     * The CODE lines of the `{ … }` block that opens at or after [anchor] in `ImapMailService.kt`,
+     * The code lines of the `{ … }` block that opens at or after [anchor] in `ImapMailService.kt`,
+     * braces included, trimmed, comments and blank lines dropped, for a block [bodyOf] cannot
+     * reach: a lambda nested inside a function, and a function written with an expression body
+     * (`DaoQuerySource` refuses those on purpose, so that a lookup never hands back a lambda's
+     * braces where a function body was asked for).
      */
     private fun blockLinesAfter(anchor: String): List<String> {
         val source = DaoQuerySource.mailSource("ImapMailService")
@@ -41,7 +45,7 @@ class PreviewFetchWiringTest {
             .filterNot { it.isEmpty() || it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
     }
 
-    /** The code lines of [body] naming [needle] — comments dropped. Whole lines: the assertions
+    /** The code lines of [body] naming [needle], comments dropped. Whole lines: the assertions
      *  compare them, never search inside them. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }
@@ -49,13 +53,13 @@ class PreviewFetchWiringTest {
             .filter { needle in it }
 
     /**
-     * THE WHOLE BODY, LINE FOR LINE, IN ORDER — the only assertion here that can see a line
+     * The whole body, line for line, in order, the only assertion here that can see a line
      */
     @Test fun `the preview path is exactly these lines, and no others`() {
         val lines = codeLinesOf("fetchPreview")
 
         // The lookup itself fails loudly (mailFunctionBody errors when the function is gone), and
-        // a body that is not a block would leave nothing to compare — say so rather than pass.
+        // a body that is not a block would leave nothing to compare, say so rather than pass.
         assertEquals("the body must be a block, or this test is comparing nothing", "{", lines.firstOrNull())
         assertEquals(
             "no line may be added to the preview path without being written down here — an extra " +
@@ -80,7 +84,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * The read is BOUNDED, and the bound is a parameter with no default.
+     * The read is bounded, and the bound is a parameter with no default.
      */
     @Test fun `the preview read carries a deadline, and cannot be called without one`() {
         assertEquals(
@@ -120,7 +124,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * The bounded, peeked read, with the section the SERVER named — and no other fetch. Reaching
+     * The bounded, peeked read, with the section the server named, and no other fetch. Reaching
      */
     @Test fun `the preview reads one bounded section, and nothing else`() {
         val body = bodyOf("fetchPreview")
@@ -141,7 +145,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * No text part means no round trip AT ALL. A message that is one PDF has no opening line;
+     * No text part means no round trip at all. A message that is one PDF has no opening line;
      */
     @Test fun `a message with no text part is answered without touching the server`() {
         assertEquals(
@@ -170,7 +174,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * THE ONE THING THAT MUST NOT HAPPEN, and it has not changed: A HALF-TRUE LIST. Writing the
+     * The one thing that must not happen, and it has not changed: A half-TRUE LIST.
      */
     @Test fun `the cached preview covers the whole page, never the notified messages alone`() {
         val source = DaoQuerySource.mailSource("ImapMailService")
@@ -213,7 +217,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * THE WHOLE BODY OF THE LIST-PREVIEW READ, LINE FOR LINE, IN ORDER — the same last resort
+     * The whole body of the LIST-preview read, line for line, in order, the same last resort
      */
     @Test fun `the list preview path is exactly these lines, and no others`() {
         val lines = codeLinesOf("pagePreviews")
@@ -249,7 +253,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * THE WALK'S PAGE BLOCK, LINE FOR LINE, IN ORDER — the third and last of the additive
+     * The walk's page block, line for line, in order, the third and last of the additive
      */
     @Test fun `the folder walk's page block is exactly these lines, and no others`() {
         val lines = blockLinesAfter("session.walkFolder(status, limit, IMAP_FOLDER_PAGE) {")
@@ -278,7 +282,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * THE PAGER'S READ, LINE FOR LINE, IN ORDER — the same guard, at the other read site.
+     * The pager's read, line for line, in order, the same guard, at the other read site.
      */
     @Test fun `the older-page read is exactly these lines, and no others`() {
         val lines = blockLinesAfter("suspend fun fetchOlderPage(")
@@ -302,7 +306,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * NOTHING ESCAPES THIS READ. It runs inside the folder walk, and the walk is what fills the
+     * Nothing escapes this read.
      */
     @Test fun `a failed body read costs the unread previews, and a cancellation still propagates`() {
         val body = bodyOf("pagePreviews")
@@ -322,7 +326,7 @@ class PreviewFetchWiringTest {
     }
 
     /**
-     * It reads on the session the WALK already has selected, and takes none of its own. A
+     * It reads on the session the walk already has selected, and takes none of its own.
      */
     @Test fun `the list preview is read on the walk's own session, never on one of its own`() {
         val body = bodyOf("pagePreviews")

@@ -5,7 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Which folder a draft's destroy is opposed to — the decision RUN, with its arguments pinned.
+ * Which folder a draft's destroy is opposed to, the decision run, with its arguments pinned.
  */
 class DraftDestroyFolderTest {
 

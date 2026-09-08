@@ -2,7 +2,7 @@ package app.sterna.core.jmap.model
 
 import kotlinx.serialization.Serializable
 
-/** A JMAP Identity — a "from" address the user may send as (RFC 8621 §6). */
+/** A JMAP Identity, a "from" address the user may send as (RFC 8621 §6). */
 @Serializable
 data class Identity(
     val id: String,

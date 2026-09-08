@@ -5,6 +5,7 @@ import org.junit.Test
 
 /**
  * The guard on the orphaned-cache sweep (Codeberg #121), and the one place in this fix where a
+ * mistake costs mail rather than tidiness.
  */
 class OrphanedAccountCacheTest {
 
@@ -22,7 +23,7 @@ class OrphanedAccountCacheTest {
 
     @Test fun `an account the app no longer has is an orphan`() {
         // The witness for the case above: with a known account present, the sweep does select the
-        // one that is gone — so "purges nothing" is the guard talking, not a function that never
+        // one that is gone, so "purges nothing" is the guard talking, not a function that never
         // returns anything.
         assertEquals(
             listOf("gone"),

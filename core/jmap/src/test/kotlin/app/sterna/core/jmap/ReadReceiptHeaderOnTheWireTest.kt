@@ -15,7 +15,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * READING `Disposition-Notification-To:` off a JMAP server — the request bytes, which fetches
+ * Reading `Disposition-Notification-To:` off a JMAP server, the request bytes, which fetches
  */
 class ReadReceiptHeaderOnTheWireTest {
 
@@ -68,7 +68,7 @@ class ReadReceiptHeaderOnTheWireTest {
         assertTrue(body, body.contains(receiptProperty))
     }
 
-    /** Asked for AND decoded — without the `@SerialName` the value is dropped in silence. */
+    /** Asked for and decoded, without the `@SerialName` the value is dropped in silence. */
     @Test fun `the returned header reaches the model`() = runBlocking {
         server.enqueue(emailResponse(""","header:Disposition-Notification-To:asText":"Ann <ann@example.org>""""))
 
@@ -84,7 +84,7 @@ class ReadReceiptHeaderOnTheWireTest {
         assertEquals(null, client.getEmail(session(), "acc1", "m1", auth).dispositionNotificationTo)
     }
 
-    // --- 2. THE witnesses: the five fetches that must NOT pay for it ----------------------------
+    // --- 2. The witnesses: the five fetches that must not pay for it ----------------------------
 
     /**
      * A folder page, a delta sync, a thread and the two search paths fetch dozens of rows every
@@ -167,7 +167,7 @@ class ReadReceiptHeaderOnTheWireTest {
         bodies.forEach { assertFalse("$why — $it", it.contains("Disposition-Notification")) }
     }
 
-    // --- 3. the two fallbacks, INDEPENDENTLY ---------------------------------------------------
+    // --- 3. the two fallbacks, independently ---------------------------------------------------
 
     /**
      * A server that answers `invalidArguments` to whichever of the two optional property groups
@@ -175,8 +175,8 @@ class ReadReceiptHeaderOnTheWireTest {
     private fun serverRefusing(vararg refuses: String, with: MockResponse = invalidArguments()) {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
-                // peek, not readUtf8: reading the buffer here EMPTIES it, and every assertion
-                // below would then be made against an empty string — vacuously true, which is
+                // peek, not readUtf8: reading the buffer here empties it, and every assertion
+                // below would then be made against an empty string, vacuously true, which is
                 // how this test first passed while proving nothing.
                 val body = request.body.peek().readUtf8()
                 return if (refuses.any { it in body }) with else emailResponse()
@@ -196,7 +196,9 @@ class ReadReceiptHeaderOnTheWireTest {
             .toList()
 
     /**
-     * HALF ONE of the invariant. A server that will not hear of the receipt property keeps its
+     * Half one of the invariant. A server that will not hear of the receipt property keeps its
+     * unsubscribe banner. One guard covering both groups would drop all three properties here and
+     * the banner would be gone for that account for the life of the process.
      */
     @Test fun `a server refusing the receipt property keeps its unsubscribe headers`() = runBlocking {
         serverRefusing("Disposition-Notification")
@@ -210,7 +212,7 @@ class ReadReceiptHeaderOnTheWireTest {
         assertFalse("the refused property must be gone: $served", "Disposition-Notification" in served)
         assertTrue("…and the unsubscribe headers must NOT have been dropped with it: $served", "header:List-Unsubscribe:asText" in served)
 
-        // Learned, and learned about the right property: the next open costs ONE request and
+        // Learned, and learned about the right property: the next open costs one request and
         // still asks for the unsubscribe headers. (The dispatcher above serves it too.)
         client.getEmail(session(), "acc1", "m2", auth)
         val next = requestBodies().single()
@@ -219,7 +221,9 @@ class ReadReceiptHeaderOnTheWireTest {
     }
 
     /**
-     * HALF TWO, and the one a nested guard gets wrong by default: a server that refuses the
+     * Half two, and the one a nested guard gets wrong by default: a server that refuses the
+     * unsubscribe headers keeps the receipt reading. The inner guard is the unsubscribe one, so
+     * this case must still cost the two requests it cost before this property existed.
      */
     @Test fun `a server refusing the unsubscribe headers keeps the receipt property`() = runBlocking {
         serverRefusing("List-Unsubscribe")
@@ -256,6 +260,9 @@ class ReadReceiptHeaderOnTheWireTest {
 
     /**
      * A server may refuse a property it does not know in words RFC 8620 never wrote down: an
+     * invented method-level error, or a plain 500 from a validator that fell over on it. Those
+     * are not `isPropertyRejection`, and without a replay the message would simply stop opening
+     * on that account, a mailbox that worked before this property was ever asked for.
      */
     @Test fun `a property refused in words the RFC never wrote is still recovered from`() = runBlocking {
         serverRefusing(
@@ -281,7 +288,7 @@ class ReadReceiptHeaderOnTheWireTest {
      * And the price of that width, paid where it must be: when the replay fails too, the reader
      */
     @Test fun `a failure that survives the replay reaches the reader unchanged`() = runBlocking {
-        // The two attempts fail DIFFERENTLY on purpose: rethrowing the replay's own exception
+        // The two attempts fail differently on purpose: rethrowing the replay's own exception
         // would hand the reader "HTTP 500" for a mailbox whose real problem is a bad password.
         var seen = 0
         server.dispatcher = object : Dispatcher() {
@@ -304,6 +311,9 @@ class ReadReceiptHeaderOnTheWireTest {
 
     /**
      * [JmapClient.getEmailsWithBody] carries the same nesting inside its batching, and it is
+     * the path that fills the body cache, a message opened from the cache would otherwise be
+     * poorer than the same message opened live. Proving the two guards apart on `getEmail` alone
+     * says nothing about it: it is a different call site, written out separately.
      */
     @Test fun `the prefetch keeps its unsubscribe headers when the receipt property is refused`() = runBlocking {
         serverRefusing("Disposition-Notification")
@@ -327,7 +337,7 @@ class ReadReceiptHeaderOnTheWireTest {
     }
 
     /**
-     * The verdict is written down only when dropping the property is what MADE the call work.
+     * The verdict is written down only when dropping the property is what made the call work.
      */
     @Test fun `a failure that is nobody's property leaves no verdict behind`() = runBlocking {
         serverRefusing("replyTo")
@@ -339,7 +349,7 @@ class ReadReceiptHeaderOnTheWireTest {
     }
 
     /**
-     * What the draft save reads. A server that refuses the property answers null for EVERY
+     * What the draft save reads. A server that refuses the property answers null for every
      */
     @Test fun `a refusing server is reported as such, so a null answer is not read as a no`() = runBlocking {
         assertFalse("nothing is known before the first request", client.refusesReceiptHeader(session()))
@@ -351,7 +361,7 @@ class ReadReceiptHeaderOnTheWireTest {
         assertTrue("…and that null must be readable as unknown", client.refusesReceiptHeader(session()))
     }
 
-    /** …and a server that simply has no such header on the message is NOT reported as refusing. */
+    /** …and a server that simply has no such header on the message is not reported as refusing. */
     @Test fun `a server that answers normally is never marked as refusing`() = runBlocking {
         server.enqueue(emailResponse())
 

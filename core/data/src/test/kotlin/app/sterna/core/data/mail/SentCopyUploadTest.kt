@@ -5,7 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The decision behind "Upload sent messages", EXECUTED — not read as text.
+ * The decision behind "Upload sent messages", executed, not read as text.
  */
 class SentCopyUploadTest {
 

@@ -1,7 +1,7 @@
 package app.sterna.core.imap
 
     /**
-     * Where a message's readable text is, as the SERVER described it in the BODYSTRUCTURE that came
+     * Where a message's readable text is, as the server described it in the BODYSTRUCTURE that came
      */
 data class ImapTextPart(
     val section: String,
@@ -20,7 +20,9 @@ private const val MAX_STRUCTURE_DEPTH = 24
 private const val MAX_STRUCTURE_PARTS = 1024
 
     /**
-     * The FIRST part of a parsed BODYSTRUCTURE that is this message's BODY, depth first — or null,
+     * The first part of a parsed BODYSTRUCTURE that is this message's body, depth first, or null,
+     * it has none, which is a normal answer and not an error: a message that is one PDF has no opening
+     * line to show, and there is then nothing to preview.
      */
 fun firstTextPart(bodystructure: Any?): ImapTextPart? = textPartIn(bodystructure, prefix = "", depth = 0)
 
@@ -44,7 +46,7 @@ private fun textPartIn(node: Any?, prefix: String, depth: Int): ImapTextPart? {
     if (subtype !in BODY_SUBTYPES) return null
     if (isFilePart(fields)) return null
     return ImapTextPart(
-        // A message that is not a multipart at all is section "1" — the same numbering
+        // A message that is not a multipart at all is section "1", the same numbering
         // `MimeParser.walk` gives it (`prefix.ifEmpty { "1" }`), so both sides address one part.
         section = prefix.ifEmpty { "1" },
         mime = "text/$subtype",
@@ -59,14 +61,14 @@ private fun textPartIn(node: Any?, prefix: String, depth: Int): ImapTextPart? {
 private val BODY_SUBTYPES = setOf("plain", "html")
 
     /** Index of `body-fld-dsp` in a `text/…` part's BODYSTRUCTURE (RFC 3501 §7.4.2). A text part
-     *  carries one field the others do not — `body-fld-lines` at 7 — so its extension data starts one
+     *  carries one field the others do not (`body-fld-lines` at 7), so its extension data starts one
      *  late. Only ever read for a `text/…` part, which is what makes the constant correct. */
 private const val TEXT_DISPOSITION = 9
 
-    /** Whether this part is a FILE rather than the message, by the rule [MimeParser.walk] already
+    /** Whether this part is a file rather than the message, by the rule [MimeParser.walk] already
      *  applies to the same message: an `attachment` disposition, or a filename (on the disposition or
      *  as the content type's `name` parameter). An `inline` disposition with NO filename is not a file
-     *  — that is what a sender writes on the body itself. */
+     *  but what a sender writes on the body itself. */
 private fun isFilePart(fields: List<Any?>): Boolean {
     val disposition = fields.getOrNull(TEXT_DISPOSITION) as? List<Any?>
     if ((disposition?.firstOrNull() as? String).equals("attachment", ignoreCase = true)) return true
@@ -75,7 +77,7 @@ private fun isFilePart(fields: List<Any?>): Boolean {
     return !filename.isNullOrBlank()
 }
 
-/** One parameter of a BODYSTRUCTURE parameter list — `("charset" "utf-8" "format" "flowed")`. */
+/** One parameter of a BODYSTRUCTURE parameter list, `("charset" "utf-8" "format" "flowed")`. */
 private fun structureParameter(parameters: Any?, name: String): String? {
     val list = parameters as? List<Any?> ?: return null
     var i = 0

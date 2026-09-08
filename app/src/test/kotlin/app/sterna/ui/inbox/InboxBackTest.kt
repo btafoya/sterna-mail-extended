@@ -5,6 +5,8 @@ import org.junit.Test
 
 /**
  * The list screen's Back rule (Codeberg #86, then #103). Back is global: the two failure modes are
+ * leaving the app while a mode is still open, and trapping the user on a screen Back can
+ * no longer leave, so both ends of the rule are pinned here.
  */
 class InboxBackTest {
 
@@ -44,7 +46,7 @@ class InboxBackTest {
     }
 
     @Test fun `a plain inbox still leaves the app`() {
-        // The list is the start destination: with no mode open, Back must NOT be swallowed,
+        // The list is the start destination: with no mode open, Back must not be swallowed,
         // or the user is trapped in the app.
         assertEquals(
             InboxBackAction.LEAVE_APP,

@@ -5,12 +5,17 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, same instrument and the same disclaimer as
+ * [app.sterna.ui.inbox.UnifiedUnreadWiringLintTest] and [UnreadWidgetDeclarationTest]. The decision
+ * itself is executed, next door, by [UnreadWidgetPushTest]: it runs `UnreadWidgetPush.redraws` and
+ * pins when the count is asked for. This file holds the one thing that test cannot see, where the
+ * shipped app actually plugs it in, and what it plugs in.
  */
 class UnreadWidgetPushWiringLintTest {
 
     /**
-     * The case the app-scoped collection cannot cover: a process the DELIVERY woke. Mail lands, the
+     * The case the app-scoped collection cannot cover: a process the delivery woke. Mail lands, the
+     * banner goes up, nobody opens the app, and the widget keeps the number it was last drawn with.
      */
     @Test fun `the delivery pass redraws BOTH widgets, last, and outside its sign-out arm`() {
         assertEquals(
@@ -34,7 +39,9 @@ class UnreadWidgetPushWiringLintTest {
     }
 
     /**
-     * The other half: everything that moves while the process LIVES — a message read, a swipe, a
+     * The other half: everything that moves while the process lives, a message read, a swipe, a
+     * delete, a multi-select, a push arriving with the app open. One collection instead of the
+     * fifteen-odd write sites in `MailRepository` that would each have to be wired by hand.
      */
     @Test fun `AppContainer collects the push, gated on a widget being placed`() {
         assertEquals(
@@ -62,7 +69,7 @@ class UnreadWidgetPushWiringLintTest {
     }
 
     /**
-     * THE GATE'S THREE WRITERS, whole lines, because two of them are `override fun`s the system
+     * The gate's three writers, whole lines, because two of them are `override fun`s the system
      */
     @Test fun `the provider opens and closes the gate, and the seed reads it the right way round`() {
         assertEquals(
@@ -101,10 +108,10 @@ class UnreadWidgetPushWiringLintTest {
         )
     }
 
-    // The third rule that lived here — "nothing in the widget package sets a PendingIntent yet" —
+    // The third rule that lived here, "nothing in the widget package sets a PendingIntent yet",
     // was a temporary guard, explicitly held only until the pane that adds a tap arrived. It has:
     // its replacement is [UnreadWidgetTapWiringLintTest], which pins what the shipped PendingIntent
-    // must BE (its own action, the guards it enters, the call it ends in) rather than its absence.
+    // must be (its own action, the guards it enters, the call it ends in) rather than its absence.
 
     /**
      * The lines of [file], comments dropped whole and trailing `//` cut, blanks removed. Without
@@ -134,6 +141,8 @@ class UnreadWidgetPushWiringLintTest {
 
     /**
      * The code lines of the function opening with [signature], its own closing brace excluded, so a
+     * rule can pin what the function ends with. Fails loudly when the signature is gone: a rename
+     * must redden the rule rather than satisfy it against an empty list.
      */
     private fun functionBody(file: File, signature: String): List<String> {
         val lines = codeLines(file)
@@ -154,7 +163,7 @@ class UnreadWidgetPushWiringLintTest {
     }
 
     /**
-     * The whole brace-balanced block that opens with [opener] and contains [marker] — the launch
+     * The whole brace-balanced block that opens with [opener] and contains [marker], the launch
      */
     private fun blockContaining(file: File, marker: String, opener: String): List<String> {
         val lines = codeLines(file)

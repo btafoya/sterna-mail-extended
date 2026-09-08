@@ -3,7 +3,7 @@ package app.sterna.core.jmap
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
-/** What a push log line says instead of a URL it could not parse — never the URL itself. */
+/** What a push log line says instead of a URL it could not parse, never the URL itself. */
 internal const val UNPARSEABLE_EVENT_SOURCE_URL = "<unparseable url>"
 
     /**

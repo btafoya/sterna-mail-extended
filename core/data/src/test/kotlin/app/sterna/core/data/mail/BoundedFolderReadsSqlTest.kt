@@ -55,7 +55,7 @@ class BoundedFolderReadsSqlTest {
     }
 
     /**
-     * Run one shipped DAO statement, binding its named parameters from [args] BY TYPE — a bound
+     * Run one shipped DAO statement, binding its named parameters from [args] by type, a bound
      */
     internal fun <T> query(function: String, args: Map<String, Any>, read: (ResultSet) -> T): List<T> {
         val (sql, order) = DaoQuerySource.bindOrder(DaoQuerySource.emailDaoQuery(function))
@@ -106,9 +106,9 @@ class BoundedFolderReadsSqlTest {
     // -- B3: the body prefetch reads the newest few, not the folder ------------------------------
 
     @Test fun `the newest ids stop at the limit, and the rest of the folder is never read`() {
-        // 60 rows for a bound of 20. The old code returned the same twenty — after selecting all
+        // 60 rows for a bound of 20. The old code returned the same twenty, after selecting all
         // sixty entities. Executing the shipped statement is what tells the two apart: strip the
-        // LIMIT and this hands back sixty ids.
+        // limit and this hands back sixty ids.
         (1..60).forEach { insert("m$it", sortKey = it.toLong()) }
         val ids = newestIds(20)
         assertEquals(20, ids.size)
@@ -137,10 +137,10 @@ class BoundedFolderReadsSqlTest {
     // -- B4/B5: unread is resolved by the statement ----------------------------------------------
 
     @Test fun `the unread rows are found even when they all sit past the bound`() {
-        // The bench that tells a SQL `seen = 0` from a Kotlin filter: the six NEWEST rows are read,
+        // The bench that tells a SQL `seen = 0` from a Kotlin filter: the six newest rows are read,
         // the four unread ones are the oldest in the folder. A statement that bounds first and
-        // filters afterwards ("SELECT * … LIMIT 3", then drop the read ones in Kotlin) returns
-        // NOTHING here, and "mark all read" would quietly stop marking anything.
+        // filters afterwards ("SELECT * … limit 3", then drop the read ones in Kotlin) returns
+        // nothing here, and "mark all read" would quietly stop marking anything.
         (1..6).forEach { insert("read$it", sortKey = (100 + it).toLong(), seen = 1) }
         (1..4).forEach { insert("unread$it", sortKey = it.toLong(), seen = 0) }
         assertEquals(
@@ -164,7 +164,7 @@ class BoundedFolderReadsSqlTest {
 
     @Test fun `each unread row carries the account it belongs to`() {
         // The unified view asks over several accounts at once and two same-server accounts can
-        // mint the SAME email id (#31): a bare id would send the mark-read and the notification
+        // mint the same email id (#31): a bare id would send the mark-read and the notification
         // dismissal to whichever account answered first.
         insert("e1", sortKey = 5, seen = 0, accountId = "acc")
         insert("e1", sortKey = 5, seen = 0, accountId = "other")
@@ -192,8 +192,8 @@ class BoundedFolderReadsSqlTest {
 
     @Test fun `the candidate read stops at its cap, newest first`() {
         // Literals on both sides. Written as `assertEquals(NOTIFY_CANDIDATE_MAX, ids.size)` over a
-        // bench sized `NOTIFY_CANDIDATE_MAX + 25`, this passes for EVERY value of the constant,
-        // mutated ones included — an expectation recomputed from the decision it is judging.
+        // bench sized `NOTIFY_CANDIDATE_MAX + 25`, this passes for every value of the constant,
+        // mutated ones included, an expectation recomputed from the decision it is judging.
         (1..525).forEach { insert("m%04d".format(it), sortKey = 1_000L + it) }
         val ids = receivedSince(since = 0, limit = 500)
         assertEquals(500, ids.size)
@@ -227,8 +227,8 @@ class BoundedFolderReadsSqlTest {
     // -- ties at the frontier -----------------------------------------------------------------------
 
     @Test fun `equal sortKeys are broken by id, so the frontier is a function of the rows`() {
-        // Three rows share a sortKey and the LIMIT cuts through them. Without `, id DESC` SQLite
-        // answers from the physical order — and this table is rewritten at every sync, so the row
+        // Three rows share a sortKey and the limit cuts through them. Without `, id DESC` SQLite
+        // answers from the physical order, and this table is rewritten at every sync, so the row
         listOf("c", "a", "b").forEach { insert("tie-$it", sortKey = 500) }
         insert("newer", sortKey = 900)
         assertEquals(listOf("newer", "tie-c", "tie-b"), newestIds(3))
@@ -314,7 +314,7 @@ class BoundedFolderReadsSqlTest {
 
     @Test fun `one notification pass reads its candidates and its baseline at ONE floor`() {
         // One `since`, bound into both statements. Two calls to the clock would let the id read
-        // start a hair later than the hydrated one and miss a row it had just offered — a row
+        // start a hair later than the hydrated one and miss a row it had just offered, a row
         // that is then announced on the next pass.
         assertLine("notifyRead", "val since = notifyCandidateFloor(System.currentTimeMillis())")
         assertLine(
@@ -337,8 +337,9 @@ class BoundedFolderReadsSqlTest {
     }
 
     @Test fun `the memory nets stay the size of memory nets`() {
-        // Order of magnitude, not the exact figure: these two are the ONLY thing standing between
+        // Order of magnitude, not the exact figure: these two are the only thing standing between
         // a deep folder and an OutOfMemoryError once the sync window is unpinned, and both are
+        // reachable by editing one digit of a private constant no call-site rule can see.
         val prefetch = Regex("""private const val PREFETCH_COUNT = (\d[\d_]*)""")
             .find(DaoQuerySource.mailSource("MailRepository"))
             ?.groupValues?.get(1)?.replace("_", "")?.toInt()
@@ -351,7 +352,7 @@ class BoundedFolderReadsSqlTest {
         // The replaced statement is deleted rather than left dead beside its replacements: a
         // folder-wide `SELECT *` is the shortest thing to reach for, and this file's whole subject
         // is that the short thing was the bug. (EmailDao.deleteNotIn / deleteNotInSparing are the
-        // standing example of what a dead unbounded statement costs — see #29.)
+        // standing example of what a dead unbounded statement costs, see #29.)
         assertEquals(null, DaoQuerySource.queryOrNull("EmailDao", "getByMailbox"))
     }
 }

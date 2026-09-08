@@ -7,7 +7,7 @@ import org.junit.Test
 
 /**
  * When the list must fall back to the Inbox because the folder on screen no longer exists
- * (Codeberg #89) — and, just as importantly, when it must NOT.
+ * (Codeberg #89), and, just as importantly, when it must not.
  */
 class FolderSelectionTest {
 

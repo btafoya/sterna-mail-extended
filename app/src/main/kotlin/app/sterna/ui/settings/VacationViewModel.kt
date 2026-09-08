@@ -41,7 +41,7 @@ data class VacationUiState(
      *  say. Never part of [edits]: it describes the server, not the form. */
     val filterWarning: FilterScriptWarning? = null,
 ) {
-    /** The fields a Save actually writes — what "changed" is measured on. */
+    /** The fields a Save actually writes, what "changed" is measured on. */
     internal fun edits(): List<Any?> = listOf(enabled, subject, message, fromDate, toDate)
 }
 
@@ -158,6 +158,7 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
             }
             // Outside the try, and after the state that lets a "save then leave" go: that exit
             // cancels this read, and inside the catch above a cancellation would be painted as a
+            // failed save over a write the server has already taken.
             if (written) {
                 val status = repo.loadFilterScriptStatus(credentials)
                 _state.update {

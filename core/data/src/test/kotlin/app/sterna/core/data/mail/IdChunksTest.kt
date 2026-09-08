@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [byIdsChunked] — the read side of the SQLite bound-variable limit. A `SELECT … WHERE id IN (:ids)`
+ * [byIdsChunked], the read side of the SQLite bound-variable limit. A `SELECT … where id in (:ids)`
  */
 class IdChunksTest {
 

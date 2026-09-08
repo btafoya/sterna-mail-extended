@@ -48,6 +48,8 @@ class MonogramRampsTest {
 
     /**
      * [MONOGRAM_FAMILIES] is not documentation: [monogramSlot] indexes into the ramps with it, and the
+     * widget stores the resulting family number. If the constant and the list ever disagree, a badge
+     * lands outside the palette, so the number is pinned against a real scheme, not against itself.
      */
     @Test fun `the announced number of families is the number of ramps`() {
         assertEquals(MONOGRAM_FAMILIES, scheme.monogramRamps().size)

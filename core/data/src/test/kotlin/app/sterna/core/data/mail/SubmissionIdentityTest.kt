@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * [SubmissionIdentity.choose] — the rule EXECUTED, with its arguments pinned.
+ * [SubmissionIdentity.choose], the rule executed, with its arguments pinned.
  */
 class SubmissionIdentityTest {
 
@@ -26,7 +26,7 @@ class SubmissionIdentityTest {
     }
 
     /**
-     * THE defect. The typed address has no server identity: the submission still goes out under
+     * The defect. The typed address has no server identity: the submission still goes out under
      */
     @Test fun `a chosen address the server does not know names it in the envelope`() {
         val choice = SubmissionIdentity.choose(
@@ -40,7 +40,7 @@ class SubmissionIdentityTest {
     }
 
     /**
-     * A delegated sub-account (issue #31) is the case where From and envelope DIFFER on purpose,
+     * A delegated sub-account (issue #31) is the case where From and envelope differ on purpose,
      * verified against Stalwart. An envelope here would break a send that works today.
      */
     @Test fun `a delegated send never names an envelope`() {
@@ -97,7 +97,7 @@ class SubmissionIdentityTest {
         assertNull(choice.envelopeMailFrom)
     }
 
-    /** The chosen address reaches the envelope trimmed — a `MAIL FROM:< a@b >` is not an address. */
+    /** The chosen address reaches the envelope trimmed, a `mail from:< a@b >` is not an address. */
     @Test fun `the envelope address is trimmed`() {
         val choice = SubmissionIdentity.choose(
             fromEmail = "  theo@mydomain.com  ",

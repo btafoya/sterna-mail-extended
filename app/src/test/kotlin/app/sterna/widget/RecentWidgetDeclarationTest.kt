@@ -8,12 +8,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — the latest-messages widget's half of what
+ * Source lint, not a behaviour test, the latest-messages widget's half of what
  */
 class RecentWidgetDeclarationTest {
 
     /**
-     * THE MOST IMPORTANT LINE OF THE WHOLE WIDGET.
+     * The most important line of the whole widget.
      */
     @Test fun `the row factory can be bound by the widget host and by nobody else`() {
         assertEquals(
@@ -32,7 +32,10 @@ class RecentWidgetDeclarationTest {
     }
 
     /**
-     * The picker's entry name goes through a build placeholder of its OWN, never a literal and
+     * The picker's entry name goes through a build placeholder of its own, never a literal and
+     * never the counter's. The test app installs beside production (`app.sterna.test`); with a
+     * literal here, or with one placeholder for two widgets, the picker offers entries a bench pass
+     * cannot tell apart, the one failure mode where the maintainer's real mail is a tap away.
      */
     @Test fun `the picker entry is its own placeholder, resolved to a string in production and to a distinct label under -PtestApp`() {
         assertEquals(
@@ -51,7 +54,7 @@ class RecentWidgetDeclarationTest {
     }
 
     /**
-     * AND THE TEST LABEL IS INSIDE `if (testApp)` — WHICH THE RULE ABOVE CANNOT SEE. Move the
+     * And the test label is inside `if (testApp)`, which the rule above cannot see.
      */
     @Test fun `the test app's label lives INSIDE the testApp gate, not merely somewhere in the build`() {
         assertEquals(
@@ -71,7 +74,7 @@ class RecentWidgetDeclarationTest {
     }
 
     /**
-     * Both layouts must carry text, and they must carry DIFFERENT text.
+     * Both layouts must carry text, and they must carry different text.
      */
     @Test fun `the picker preview advertises the widget, and the runtime layout claims nothing about mail`() {
         assertEquals(
@@ -112,7 +115,7 @@ class RecentWidgetDeclarationTest {
     }
 
     /**
-     * THE ROW HAS ONE UNREAD MARK, AND IT IS THE WEIGHT.
+     * The row has one unread mark, and it is the weight.
      */
     @Test fun `the unread dot is gone from both layouts, and the preview shows the weight instead`() {
         assertEquals(
@@ -170,7 +173,7 @@ class RecentWidgetDeclarationTest {
     }
 
     /**
-     * THE SERVED ROW'S BADGE, PINNED WHOLE — the element and not one of its attributes.
+     * The served row's badge, pinned whole, the element and not one of its attributes.
      */
     @Test fun `the served row's badge keeps its own square of the column, and never names itself`() {
         assertEquals(
@@ -213,7 +216,7 @@ class RecentWidgetDeclarationTest {
         /** The served row's badge, addressed by the id the factory posts its bitmap to. */
         const val MONOGRAM_ID = "android:id=\"@+id/widget_recent_row_monogram\""
 
-        /** Last attribute of its element, hence the `/>` — see the rule that compares it. */
+        /** Last attribute of its element, hence the `/>`, see the rule that compares it. */
         const val MONOGRAM_SRC = "android:src=\"@drawable/widget_recent_monogram_badge\" />"
 
         const val DOT_INVISIBLE = "android:visibility=\"invisible\" />"

@@ -5,7 +5,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * every source lint in this tree: it reads the source as text and proves nothing about behaviour.
  */
 class UnifiedUnreadWiringLintTest {
 

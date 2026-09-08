@@ -5,7 +5,8 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The rule behind "opening a notification shows the folder the message lives in" (issue #91) —
+ * The rule behind "opening a notification shows the folder the message lives in" (issue #91),
+ * the folder half of [NotificationAccountSwitchTest]'s account rule.
  */
 class NotificationFolderSwitchTest {
 
@@ -51,12 +52,12 @@ class NotificationFolderSwitchTest {
 
     @Test fun `a folder that no longer exists is not switched to`() {
         // Deleted from another client between the notification and the tap: falling back to the
-        // Inbox is fix-polish-navigation's job, switching INTO the ghost would undo it.
+        // Inbox is fix-polish-navigation's job, switching into the ghost would undo it.
         assertNull(resolve(notification = "deleted-since", selected = INBOX))
     }
 
     @Test fun `a folder list that is not loaded yet is no verdict`() {
-        // An empty list means "not known yet", never "the folder is gone" — same conservative
+        // An empty list means "not known yet", never "the folder is gone", same conservative
         // reading as selectionIsGone. The caller parks the request instead of asking, but the
         // rule must not answer "switch" on nothing either.
         assertNull(resolve(notification = ARCHIVE, selected = INBOX, folders = emptyList()))
@@ -64,7 +65,7 @@ class NotificationFolderSwitchTest {
 
     @Test fun `the unified inbox is left alone`() {
         // "All inboxes" is a mode the user chose, not a folder: leaving it drops them into one
-        // account's folder they must then re-leave. Deliberate — see NotificationFolderSwitch.
+        // account's folder they must then re-leave. Deliberate, see NotificationFolderSwitch.
         assertNull(resolve(notification = ARCHIVE, selected = null, unified = true))
     }
 

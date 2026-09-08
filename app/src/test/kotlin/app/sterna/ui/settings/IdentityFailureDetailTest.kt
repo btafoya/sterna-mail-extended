@@ -4,7 +4,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The decision is EXECUTED here — [failureDetail] is a file-level function in
+ * The decision is executed here, [failureDetail] is a file-level function in
+ * `AccountsViewModel.kt`, plain Kotlin over a String, so it runs in the JVM although the view model
+ * around it (Application container, Keystore-backed store) never could.
  */
 class IdentityFailureDetailTest {
 

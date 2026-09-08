@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Two halves of one sentence — the "Use OpenPGP" subtitle, which with a single provider installed
+ * Two halves of one sentence, the "Use OpenPGP" subtitle, which with a single provider installed
  */
 class PgpSubtitleNameTest {
 
@@ -17,7 +17,7 @@ class PgpSubtitleNameTest {
     }
 
     /**
-     * THE FALLBACK THE READER ACTUALLY MEETS, and the one mutation that used to pass unseen:
+     * The fallback the reader actually meets, and the one mutation that used to pass unseen:
      */
     @Test fun `an app that declares no name is called by its package, never by another app's name`() {
         assertEquals(
@@ -47,7 +47,7 @@ class PgpSubtitleNameTest {
     }
 
     /**
-     * A STATE PRODUCTION DOES NOT PRODUCE, and this test says so rather than pretending to guard
+     * A state production does not produce, and this test says so rather than pretending to guard
      */
     @Test fun `with nothing resolved at all the sentence names the standard, never an app`() {
         assertEquals(
@@ -61,7 +61,7 @@ class PgpSubtitleNameTest {
     @Test fun `the readable name is remembered on the package, not read on every frame`() {
         // Reading a provider's own name is a package-manager query plus the loading of a third
         // party APK's resources. Bare in the subtitle it runs on the main thread on every
-        // recomposition — the very thing PgpProviderChoiceWiringTest keeps off it in the view model.
+        // recomposition, the very thing PgpProviderChoiceWiringTest keeps off it in the view model.
         assertEquals(
             "the provider's name is no longer remembered on the package in use: a package-manager " +
                 "query and a third-party resource load are back on the main thread, once per " +
@@ -110,7 +110,7 @@ class PgpSubtitleNameTest {
         )
     }
 
-    /** [count] consecutive CODE lines of `SettingsScreen.kt` from the single one starting with
+    /** [count] consecutive code lines of `SettingsScreen.kt` from the single one starting with
      *  [prefix], trimmed, comments and blanks dropped. A prefix matching anything other than
      *  exactly one line returns a message, so an assertion can never pass by matching nothing. */
     private fun block(prefix: String, count: Int): List<String> {

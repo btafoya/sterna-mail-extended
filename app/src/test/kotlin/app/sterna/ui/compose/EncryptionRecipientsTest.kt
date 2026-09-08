@@ -114,7 +114,7 @@ class EncryptionRecipientsTest {
     @Test fun aShorterPlausibleAddressOnTheWayIsItsOwnAnswer() {
         // The bounded limit of the rule: `bob@x.co` IS an address, so typing towards `bob@x.com`
         // passes through a state that is evaluated on its own. Two evaluations for the whole word
-        // instead of one per keystroke — and both of them about something the user did write.
+        // instead of one per keystroke, and both of them about something the user did write.
         assertEquals(
             listOf(emptyList(), listOf("bob@x.co"), listOf("bob@x.com")),
             recomputations(typed("bob@x.com")),

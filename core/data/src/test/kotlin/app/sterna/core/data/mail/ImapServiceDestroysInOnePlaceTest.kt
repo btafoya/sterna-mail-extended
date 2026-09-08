@@ -4,11 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Every destroy written with the word `delete` in `ImapMailService` is the ONE guarded expunge of
+ * Every destroy written with the word `delete` in `ImapMailService` is the one guarded expunge of
+ * `deleteBatch`, and no other.
  */
 class ImapServiceDestroysInOnePlaceTest {
 
-    /** The code lines of [source] matching [needle] — comments dropped. Whole lines: the assertion
+    /** The code lines of [source] matching [needle], comments dropped. Whole lines: the assertion
      *  compares them, never searches inside them. */
     private fun codeLinesNaming(source: String, needle: Regex): List<String> =
         source.lines().map { it.trim() }
@@ -19,7 +20,9 @@ class ImapServiceDestroysInOnePlaceTest {
         codeLinesNaming(source, Regex(Regex.escape(needle)))
 
     /**
-     * The needle is the WORD, not the call. `delete(` — a name glued to a parenthesis — is a
+     * The needle is the word, not the call. `delete(` (a name glued to a parenthesis) is a
+     * filter on one spelling of one syntax, and the shortest way round it is the overload
+     * `core/imap` deliberately keeps (`ImapClient.delete(uid: Long)`, `ImapClient.kt`):
      */
     @Test fun `every delete the service writes is the one guarded expunge`() {
         val source = DaoQuerySource.mailSource("ImapMailService")

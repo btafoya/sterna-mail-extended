@@ -13,7 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * `cc` and `bcc` (RFC 8621 §4.1.2) must be ASKED FOR by every fetch whose rows are cached.
+ * `cc` and `bcc` (RFC 8621 §4.1.2) must be asked for by every fetch whose rows are cached.
  */
 class CopiesOnTheWireTest {
 
@@ -149,7 +149,7 @@ class CopiesOnTheWireTest {
     }
 
     /**
-     * Asked for AND decoded, order and display names included: these lists are what a reopened
+     * Asked for and decoded, order and display names included: these lists are what a reopened
      */
     @Test fun `the returned copies reach the model in their own fields`() {
         val server = MockWebServer()

@@ -7,7 +7,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [buildPrintDocument] EXECUTED, and the document it emits read as text. The print document is
+ * [buildPrintDocument] executed, and the document it emits read as text. The print document is
+ * a separate document from the reader's: always light, no `vh` bands, no page invert, and it
+ * carries the header the screen paints in Compose, which the reader's document never had to.
  */
 class PrintDocumentTest {
 
@@ -25,7 +27,7 @@ class PrintDocumentTest {
     private val plain = ReaderBody("<pre class=\"plain\">BODY-SENTINEL</pre>", richHtml = false, derived = false)
 
     /**
-     * Paper goes out WHOLE. The reader folds the trailing quoted history behind a `<details>`
+     * Paper goes out whole. The reader folds the trailing quoted history behind a `<details>`
      */
     @Test fun `the print document never folds the quoted history away`() {
         val quoted = ReaderBody(

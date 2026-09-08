@@ -182,7 +182,7 @@ fun SettingsScreen(
     // The system "Remove animations" setting switches these slides off (#100). Captured here
     // because rememberMotionEnabled() is @Composable and the transition lambdas are not.
     val motionEnabled = rememberMotionEnabled()
-    // Deep-link from the drawer's account row (#34): the inner graph starts ON the account detail
+    // Deep-link from the drawer's account row (#34): the inner graph starts on the account detail
     // so the hub never renders, and Back falls through to the caller rather than popping it.
     // The slides are opaque and cover the viewport at every frame, so a fast double-back cannot
     // expose a blank window-background frame. No fade here; ≤ 250 ms cap in DESIGN.md (#100).
@@ -255,7 +255,7 @@ fun SettingsScreen(
                     accountsViewModel.refresh()
                     onAccountsChanged()
                     // unguarded: this is not a tap. It fires from ConnectScreen's LaunchedEffect
-                    // when the sign-in state flips — on a coroutine, on the app's schedule, which
+                    // when the sign-in state flips, on a coroutine, on the app's schedule, which
                     // may well be while the app is backgrounded. An entry's lifecycle is capped by
                     // the host's, so NO entry is RESUMED then and the guard would silently swallow
                     // the pop, stranding the user on a Connect form for an account that has already
@@ -958,7 +958,7 @@ private fun PrivacySecurityScreen(viewModel: SettingsViewModel, onBack: () -> Un
                 )
             }
             // Next to the remote content it belongs with: both are "what does this message get to
-            // learn about me?". One switch, and it asks — no third position that sends on its own.
+            // learn about me?". One switch, and it asks, no third position that sends on its own.
             SettingsSection(stringResource(R.string.settings_read_receipt_section)) {
                 SettingSwitch(
                     title = stringResource(R.string.settings_read_receipt_title),
@@ -1209,7 +1209,7 @@ private fun syncWindowLabel(context: Context, window: SyncWindow): String = when
     SyncWindow.COUNT_50 -> context.getString(R.string.settings_sync_50_messages)
     SyncWindow.COUNT_200 -> context.getString(R.string.settings_sync_200_messages)
     SyncWindow.COUNT_500 -> context.getString(R.string.settings_sync_500_messages)
-    // WYSIWYG: "Everything" caches 10 000 messages and no more, so it is labelled as such —
+    // WYSIWYG: "Everything" caches 10 000 messages and no more, so it is labelled as such,
     // otherwise an account left on this window promises a whole mailbox offline.
     SyncWindow.ALL -> context.getString(R.string.settings_sync_10000_messages)
 }
@@ -1550,8 +1550,8 @@ private fun AccountDetailScreen(
             }
             SettingsSection(stringResource(R.string.settings_account_notifications_section)) {
                 // An account neither current nor covered by "Push for all accounts" is watched by
-                // nothing. The note appears only where it is exact — this account's own flag on,
-                // push-all the single thing missing — else it promises one action for two.
+                // nothing. The note appears only where it is exact, this account's own flag on,
+                // push-all the single thing missing, else it promises one action for two.
                 SettingSwitch(
                     title = stringResource(R.string.settings_account_notifications_title),
                     subtitle = stringResource(R.string.settings_account_notifications_subtitle),
@@ -1571,7 +1571,7 @@ private fun AccountDetailScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                 }
-                // Read-only delivery status (#17) — transparency, never a control.
+                // Read-only delivery status (#17), transparency, never a control.
                 if (notificationsEnabled) {
                     val appContext = LocalContext.current
                     // Off the tick: a binder call through the connector. Re-read on resume, since
@@ -1990,7 +1990,7 @@ private fun AccountDetailScreen(
                                 }) {
                                     Text(stringResource(R.string.settings_import_html))
                                 }
-                                // Remove is gated so one identity remains across BOTH groups.
+                                // Remove is gated so one identity remains across both groups.
                                 if (totalIdentities > 1) {
                                     Spacer(Modifier.weight(1f))
                                     TextButton(onClick = {
@@ -2480,7 +2480,7 @@ private fun pgpProviderLabel(context: Context, packageName: String): String =
 internal fun pgpProviderDisplayName(declaredName: String?, packageName: String): String =
     declaredName ?: packageName
 
-/** What the "Use OpenPGP" subtitle says mail is signed, encrypted and read with — with a single
+/** What the "Use OpenPGP" subtitle says mail is signed, encrypted and read with, with a single
  * installed app, the only place on screen that names the app in use (#151). [label] is never
  *  null in production; the fallback readers actually meet is [pgpProviderDisplayName]'s. */
 internal fun pgpSubtitleProviderName(label: String?): String = label ?: "OpenPGP"

@@ -13,7 +13,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * A composer rebuilt after a process death taking its queued row back — [resumeOutboxRow] EXECUTED
+ * A composer rebuilt after a process death taking its queued row back, [resumeOutboxRow] executed
  */
 class OutboxResumeTest {
 
@@ -22,7 +22,7 @@ class OutboxResumeTest {
     private class Bench(initial: Map<Long, State>) {
         val rows = initial.toMutableMap()
         val rearmed = mutableListOf<Long>()
-        /** Every call, in the order it ran — the ORDER is the verdict. */
+        /** Every call, in the order it ran, the order is the verdict. */
         val calls = mutableListOf<String>()
 
         fun sweep() {

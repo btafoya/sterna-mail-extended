@@ -8,7 +8,8 @@ import org.junit.Test
 import java.nio.charset.Charset
 
 /**
- * A fetched fragment of a body, turned into the line a notification may show — executed, on the
+ * A fetched fragment of a body, turned into the line a notification may show, executed, on the
+ * bytes a server really sends.
  */
 class BodyPreviewTest {
 
@@ -64,7 +65,7 @@ class BodyPreviewTest {
     }
 
     /**
-     * THE OTHER CUT THAT ALWAYS HAPPENS, and the commonest encoding of accented mail. The QP
+     * The other cut that always happens, and the commonest encoding of accented mail. The QP
      */
     @Test fun `a quoted-printable escape cut in half does not reach the screen`() {
         assertEquals("Café et th", preview("Caf=C3=A9 et th=C", encoding = "quoted-printable"))
@@ -72,7 +73,7 @@ class BodyPreviewTest {
         assertEquals("Bonjour", preview("Bonjour=\r", encoding = "quoted-printable"))
     }
 
-    /** THE INVERSE WITNESS: a COMPLETE escape or soft break at the very end still decodes — "drop
+    /** The inverse witness: a complete escape or soft break at the very end still decodes, "drop
      *  the tail" must not become "drop a character of every message". */
     @Test fun `a complete escape at the end of the fragment survives`() {
         assertEquals("2 = 2", preview("2 =3D 2", encoding = "quoted-printable"))
@@ -86,7 +87,7 @@ class BodyPreviewTest {
     }
 
     /**
-     * THE CUT THAT ALWAYS HAPPENS. base64 carries three octets per four characters, so a
+     * The cut that always happens.
      */
     @Test fun `a base64 body cut mid-quantum still decodes to text, never to base64`() {
         val text = "The quick brown fox jumps over the lazy dog. "
@@ -125,6 +126,8 @@ class BodyPreviewTest {
 
     /**
      * The first 8 KB of a newsletter is very often its stylesheet. `htmlToText` removes a
+     * `<style>` block by matching a pair of tags, so one whose closing tag is past the cut is not
+     * removed at all and its CSS is read as text.
      */
     @Test fun `an HTML fragment cut inside a style block shows nothing, never the CSS`() {
         val cut = "<html><head><style>body{font-family:Helvetica;color:#333;background:#fff"
@@ -159,7 +162,7 @@ class BodyPreviewTest {
         )
     }
 
-    /** A plain-text part is NOT flattened: an angle-bracketed URL is content, and htmlToText
+    /** A plain-text part is not flattened: an angle-bracketed URL is content, and htmlToText
      *  would delete it as a tag. */
     @Test fun `a plain-text part keeps what would look like markup`() {
         assertEquals(
@@ -180,7 +183,7 @@ class BodyPreviewTest {
     // ---- the shaping belongs to the notification, not here ---------------------------------------
 
     /**
-     * THE LAYERING, pinned. `MailNotificationText.shapePreview` flattens the blanks and caps at
+     * The layering, pinned.
      */
     @Test fun `nothing is capped, flattened or elided here`() {
         val long = "x".repeat(1000)

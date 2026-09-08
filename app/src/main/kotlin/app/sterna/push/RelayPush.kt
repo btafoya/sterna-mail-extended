@@ -11,14 +11,14 @@ object RelayPush {
 
     /** In-flight window for VERIFYING. 5 min 33 is the only verification latency ever observed on
      *  this server, which is what makes 2 minutes too short; 10 is a choice, and it does not cover
-     *  the failing account (14 min 35 between two creations, no verification) — the cap below does. */
+     *  the failing account (14 min 35 between two creations, no verification), the cap below does. */
     const val VERIFYING_GRACE_MS = 10 * 60 * 1000L
 
-    /** Creations for one endpoint before giving up. FAILED stops the hammering and is nameable on
+    /** Creations for one endpoint before giving up. Failed stops the hammering and is nameable on
      *  screen: it makes `unifiedPushMissing` true, which qualifies the direct-connection line. */
     const val MAX_CREATE_ATTEMPTS = 3
 
-    /** Cooldown before a FAILED account may re-register (worker cycles retry for us). */
+    /** Cooldown before a failed account may re-register (worker cycles retry for us). */
     const val FAILED_RETRY_MS = 15 * 60 * 1000L
 
     /** May this account register right now? Never registered, a stale pending state, or a failure past its cooldown. */
@@ -42,7 +42,7 @@ object RelayPush {
         protocol == MailProtocol.JMAP || relayRequested
 
     /** Should this account be riding UnifiedPush right now, and is not? [pending] keeps a healthy
-     *  bring-up silent (#53), [mayUsePush] an account that never asked, PUBLISHED a live address. */
+     *  bring-up silent (#53), [mayUsePush] an account that never asked, published a live address. */
     fun unifiedPushMissing(
         protocol: MailProtocol?,
         relayRequested: Boolean,
@@ -66,17 +66,17 @@ object RelayPush {
     fun createBudgetSpent(prev: UpAccountState, url: String): Boolean =
         prev.endpoint == url && prev.createAttempts >= MAX_CREATE_ATTEMPTS
 
-    /** The user tapped "Get an address": what to persist before registering, status back to NONE. */
+    /** The user tapped "Get an address": what to persist before registering, status back to none. */
     fun onRelayRequested(prev: UpAccountState, now: Long): UpAccountState =
         prev.copy(relayRequested = true, status = UpStatus.NONE, statusSinceMillis = now)
 
     /** A distributor picked in person: what to persist, or null when nothing is due. The explicit
-     *  gesture clears FAILED and the spent create budget; `relayRequested` never, it asks no address. */
+     *  gesture clears failed and the spent create budget; `relayRequested` never, it asks no address. */
     fun onDistributorChosen(prev: UpAccountState, now: Long): UpAccountState? =
         if (prev.status != UpStatus.FAILED) null
         else prev.copy(status = UpStatus.NONE, statusSinceMillis = now, createAttempts = 0)
 
-    /** The address this account may SHOW, or null. `markFailed` and `onUnregistered` both keep the
+    /** The address this account may show, or null. `markFailed` and `onUnregistered` both keep the
      *  stored endpoint, so returning it whatever the status shows a dead address as a live one. */
     fun publishedAddress(state: UpAccountState?): String? {
         if (state == null || !state.relayRequested) return null
@@ -84,7 +84,7 @@ object RelayPush {
         return state.endpoint
     }
 
-    /** What the distributor's endpoint delivery means. The connector redelivers it on EVERY
+    /** What the distributor's endpoint delivery means. The connector redelivers it on every
      *  register, so the no-change case must be recognised or an armed account is knocked back. */
     fun endpointOutcome(
         protocol: MailProtocol,
@@ -96,12 +96,12 @@ object RelayPush {
             // Nobody asked for this address any more: the endpoint arrives on its own schedule, so
             // a withdrawal can lose the race to a delivery already in flight.
             if (!prev.relayRequested) return EndpointOutcome.Ignore
-            // Same address, already published or armed: a write drags an ACTIVE relay to PUBLISHED.
+            // Same address, already published or armed: a write drags an active relay to published.
             if (prev.endpoint == url && (prev.status == UpStatus.PUBLISHED || prev.status == UpStatus.ACTIVE)) {
                 return EndpointOutcome.Ignore
             }
             // Rotation: the address pasted into the relay just died, so the wake it earned dies
-            // with it — a carried lastDeliveryMillis dates a delivery to an address nobody posts to.
+            // with it, a carried lastDeliveryMillis dates a delivery to an address nobody posts to.
             return EndpointOutcome.Relay(
                 prev.copy(
                     endpoint = url,
@@ -142,12 +142,12 @@ object RelayPush {
 }
 
 /** What [RelayPush.onDelivery] tells the manager to write. [armed] is true on the one delivery that
- *  took the account from PUBLISHED to ACTIVE, the only one that is a transport change. */
+ *  took the account from published to active, the only one that is a transport change. */
 data class DeliveryUpdate(val state: UpAccountState, val armed: Boolean)
 
 sealed interface EndpointOutcome {
 
-    /** Same endpoint, account already covered by it — do nothing at all. */
+    /** Same endpoint, account already covered by it, do nothing at all. */
     data object Ignore : EndpointOutcome
 
     /** Relay account: persist [state] and stop. No server call follows this. */

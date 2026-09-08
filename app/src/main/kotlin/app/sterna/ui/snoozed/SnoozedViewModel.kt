@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Backs the "Snoozed" screen (Codeberg #82): the messages currently hidden by a snooze, with
+ * their deadline, so a snooze can be undone or moved instead of being a hidden state.
  */
 class SnoozedViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = application.container.mailRepository
@@ -26,7 +27,7 @@ class SnoozedViewModel(application: Application) : AndroidViewModel(application)
         )
 
     /**
-     * Cancel a snooze: drop the row so the message re-appears in its list at once, AND cancel
+     * Cancel a snooze: drop the row so the message re-appears in its list at once, and cancel
      */
     fun cancel(accountId: String, emailId: String) {
         Snoozes.cancel(getApplication(), accountId, emailId)
@@ -44,7 +45,7 @@ class SnoozedViewModel(application: Application) : AndroidViewModel(application)
 
 /**
  * What the screen lists: only snoozes still pending at [now] (a lapsed row is a message already
- * back in its list — the same `until > now` predicate the list SQL uses), soonest first.
+ * back in its list, the same `until > now` predicate the list SQL uses), soonest first.
  */
 internal fun pendingSnoozes(rows: List<SnoozedListRow>, now: Long): List<SnoozedListRow> =
     rows.filter { it.until > now }.sortedBy { it.until }

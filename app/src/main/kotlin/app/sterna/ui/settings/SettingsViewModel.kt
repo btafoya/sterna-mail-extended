@@ -192,8 +192,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { settings.setImageAllowed(sender, allowed) }
     }
 
-    /** Everything the notifications screen shows — delivery mode (#17), notification content (#25)
-     * and quiet hours — as one value, null until DataStore has answered for all five. Not five
+    /** Everything the notifications screen shows, delivery mode (#17), notification content (#25)
+     * and quiet hours, as one value, null until DataStore has answered for all five. Not five
      *  `stateIn`s seeded with defaults: a tap landing in that first frame writes the default over
      *  the stored choice (#57). */
     val notificationSettings: StateFlow<NotificationSettingsState?> = notificationSettingsState(

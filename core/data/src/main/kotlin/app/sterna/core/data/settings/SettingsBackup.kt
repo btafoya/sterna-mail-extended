@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * A portable snapshot of the app's preferences — everything in the settings
+ * A portable snapshot of the app's preferences, everything in the settings
  */
 @Serializable
 data class SettingsBackup(
@@ -21,7 +21,7 @@ data class SettingsBackup(
     val stripTracking: Boolean? = null,
     val confirmLinks: Boolean? = null,
     /**
-     * Whether an opened message may ASK the reader to answer a sender's read-receipt request
+     * Whether an opened message may ask the reader to answer a sender's read-receipt request
      * (#148). Never "send receipts": this backs up permission to be asked.
      */
     val askReadReceipt: Boolean? = null,
@@ -59,13 +59,13 @@ data class SettingsBackup(
     val deliveryMode: String? = null,
     val notificationContent: String? = null,
     /**
-     * Account configuration WITHOUT any secret. The password/refresh-token slot is never exported;
+     * Account configuration without any secret. The password/refresh-token slot is never exported;
      * [StoredAccount.oauthAccessToken] and device/sync state are cleared before export.
      */
     val accounts: List<StoredAccount>? = null,
 ) {
     /**
-     * True when this decoded to something that looks like a Sterna backup — at least one known
+     * True when this decoded to something that looks like a Sterna backup, at least one known
      */
     fun isPlausible(): Boolean =
         themeMode != null || dynamicColor != null || listDensity != null || previewLines != null ||

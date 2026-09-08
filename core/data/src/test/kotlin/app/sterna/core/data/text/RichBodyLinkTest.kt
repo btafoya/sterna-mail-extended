@@ -221,7 +221,7 @@ class RichBodyLinkTest {
         assertEquals(body("hello world", BOLD to listOf(sp(0, 11))), removeLink(b, sp(6, 11)))
     }
 
-    // --- remapAfterEdit: a link is NOT sticky -----------------------------------------------------
+    // --- remapAfterEdit: a link is not sticky -----------------------------------------------------
 
     private fun edit(old: RichBody, newText: String, cursorBefore: Int, cursorAfter: Int) =
         remapAfterEdit(old, newText, cursor(cursorBefore), cursor(cursorAfter), null)
@@ -304,8 +304,8 @@ class RichBodyLinkTest {
     }
 
     @Test fun `a line break in the URL leaves as an entity, never raw in the attribute`() {
-        // THE OUTPUT, not the round trip: OUR parser reads a raw newline inside `href="…"`
-        // without blinking, so the round trip cannot see this at all — it is the RECIPIENT's client
+        // The output, not the round trip: our parser reads a raw newline inside `href="…"`
+        // without blinking, so the round trip cannot see this at all, it is the recipient's client
         // that is handed an attribute broken across two lines, and what it makes of it is its own
         // business. The escaping is therefore pinned on the text that leaves.
         val b = linked("saut", link(0, 4, "https://e.org/a\nb\rc"))
@@ -353,11 +353,11 @@ class RichBodyLinkTest {
             """<a class="c" href="x">t</a>""",
             """<a href="x" target="_blank">t</a>""",
             """<a  href="x">t</a>""",
-            // ABSOLUTE urls, on purpose. With a RELATIVE href the URL guard refuses first
+            // Absolute urls, on purpose. With a relative href the URL guard refuses first
             // and the guard each of these lines names is never reached: three of them sat here
             // proving nothing, and the mutation below went unmeasured.
             """<a href="https://x"><a href="https://y">t</a></a>""",
-            // The measured one: without `open.any { it.url != null }` this PARSES, the second
+            // The measured one: without `open.any { it.url != null }` this parses, the second
             // link is dropped by normalisation, `draftHtmlIsLossy` answers false, and the server
             // original is destroyed for a copy that has lost an address.
             """<a href="https://x">a<a href="https://y">b</a>c</a>""",
@@ -375,7 +375,7 @@ class RichBodyLinkTest {
     }
 
     @Test fun `a relative href is refused — the parser never invents a scheme`() {
-        // THE DESTROY LICENCE. `draftHtmlIsLossy` is what lets a re-save EXPUNGE the server
+        // The destroy licence. `draftHtmlIsLossy` is what lets a re-save EXPUNGE the server
         // original. Before the links existed every `<a>` was refused, so a foreign draft carrying
         for (html in listOf(
             """<a href="x">t</a>""",
@@ -404,7 +404,7 @@ class RichBodyLinkTest {
         )) {
             assertNull("`$raw` must never become a link on the way IN", linkUrlFromHref(raw))
         }
-        // …while the DIALOG's border still does what the user means by typing a bare host.
+        // …while the dialog's border still does what the user means by typing a bare host.
         assertEquals(
             "the two borders are NOT the same function: only the dialog may add a scheme",
             "https://example.org", normalizeLinkUrl("example.org"),
@@ -419,7 +419,7 @@ class RichBodyLinkTest {
             linked("abcd", link(0, 2, "https://x"), link(2, 4, "https://x")),
             linked("x", link(0, 1, "https://e.org/?a=1&b=2<3>4\"q\"'s' z")),
             // The two line breaks: unescaped in the attribute they break the tag open, and the
-            // body comes back as markup — or not at all. Kept INSIDE the URL, since the guard
+            // body comes back as markup, or not at all. Kept inside the URL, since the guard
             // trims its ends.
             linked("saut", link(0, 4, "https://e.org/a\nb\rc")),
             linked("é€😀x", link(0, 4, "https://e.org/é")),
@@ -537,8 +537,8 @@ class RichBodyLinkTest {
 
     @Test fun `inserting a linked label inside a list carries the blocks the remap answered`() {
         val two = listed("un\ndeux", listOf(blk(BULLET, 0, 1)))
-        // A pasted label with a break in it makes a THIRD item, and only [remapAfterEdit] knows
-        // that: the body's OWN blocks still say two, and handing those back drops an item.
+        // A pasted label with a break in it makes a third item, and only [remapAfterEdit] knows
+        // that: the body's own blocks still say two, and handing those back drops an item.
         assertEquals(
             RichBody(
                 "unX\nY\ndeux",
@@ -586,7 +586,7 @@ class RichBodyLinkTest {
         for (html in listOf(
             // an `<a>` outside an `<li>`: inside a list every character and every tag is in an item
             """<ul><a href="https://x">t</a><li>u</li></ul>""",
-            // a list opened inside an anchor — `open.isNotEmpty()`, which now sees anchors too
+            // a list opened inside an anchor, `open.isNotEmpty()`, which now sees anchors too
             """a<br><a href="https://x"><ul><li>b</li></ul></a>""",
             // an anchor still open at `</li>`
             """<ul><li><a href="https://x">t</li></ul>""",

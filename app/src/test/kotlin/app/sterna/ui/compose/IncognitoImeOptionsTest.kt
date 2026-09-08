@@ -5,7 +5,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The one decision the incognito-keyboard fix makes, EXECUTED (#120): which bit is added to the
+ * The one decision the incognito-keyboard fix makes, executed (#120): which bit is added to the
+ * `EditorInfo.imeOptions` a composer field just filled in, and how.
  */
 class IncognitoImeOptionsTest {
 

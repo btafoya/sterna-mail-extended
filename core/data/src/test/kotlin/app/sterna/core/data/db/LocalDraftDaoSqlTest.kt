@@ -9,7 +9,7 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * [LocalDraftDao]'s statements, read out of the shipped DAO and RUN against the table
+ * [LocalDraftDao]'s statements, read out of the shipped DAO and run against the table
  */
 class LocalDraftDaoSqlTest {
     private lateinit var db: Connection
@@ -49,7 +49,7 @@ class LocalDraftDaoSqlTest {
         }
     }
 
-    /** `attemptCount` and `notBeforeMillis` as SQLite holds them — the row's history of failures. */
+    /** `attemptCount` and `notBeforeMillis` as SQLite holds them, the row's history of failures. */
     private fun historyOf(accountId: String, id: String): Pair<Int, Long> =
         db.prepareStatement(
             "SELECT attemptCount, notBeforeMillis FROM local_drafts WHERE accountId = ? AND id = ?",
@@ -81,7 +81,7 @@ class LocalDraftDaoSqlTest {
     }
 
     /**
-     * The name the startup sweep's first statement ships under — read in one place so the two
+     * The name the startup sweep's first statement ships under, read in one place so the two
      * helpers below cannot drift apart.
      */
     private val sweep = "revertUploadingToPending"
@@ -89,7 +89,7 @@ class LocalDraftDaoSqlTest {
     /** That statement, executed for one account, exactly as `revertUnfinishedLocalDrafts` runs it. */
     private fun sweepUploading(accountId: String): Int = run(sweep, mapOf("accountId" to accountId))
 
-    /** What that statement BINDS — the executed form of "no composer's id reaches this UPDATE". */
+    /** What that statement binds, the executed form of "no composer's id reaches this update". */
     private fun sweepBindOrder(): List<String> =
         DaoQuerySource.bindOrder(DaoQuerySource.daoQuery("LocalDraftDao", sweep)).second
 
@@ -106,7 +106,7 @@ class LocalDraftDaoSqlTest {
             ps.executeQuery().use { it.next(); it.getString(1) }
         }
 
-    /** `bodyIsLossy` as SQLite holds it — what `draftReplacementIsFaithful` reads off the row. */
+    /** `bodyIsLossy` as SQLite holds it, what `draftReplacementIsFaithful` reads off the row. */
     private fun lossyOf(accountId: String, id: String): Int =
         db.prepareStatement("SELECT bodyIsLossy FROM local_drafts WHERE accountId = ? AND id = ?").use { ps ->
             ps.setString(1, accountId); ps.setString(2, id)
@@ -155,7 +155,7 @@ class LocalDraftDaoSqlTest {
         insert("accB", "local-draft:elsewhere", state = LocalDraftState.PENDING)
 
         // UPLOADING is in: it is what a process killed mid-upload leaves behind, and leaving it out
-        // would strand exactly the draft whose fate is least certain. EDITING is out: the composer
+        // would strand exactly the draft whose fate is least certain. Editing is out: the composer
         assertEquals(
             listOf("local-draft:interrupted", "local-draft:waiting"),
             read("pending", mapOf("accountId" to "accA", "nowMillis" to 1_000L)).sorted(),
@@ -163,7 +163,7 @@ class LocalDraftDaoSqlTest {
     }
 
     @Test fun `a draft whose backoff has not elapsed is not handed to the upload yet`() {
-        // The backoff is WRITTEN by recordAttempt and has to be HONOURED here, or every failure is
+        // The backoff is written by recordAttempt and has to be honoured here, or every failure is
         // retried immediately: `notBeforeMillis` would be a column nobody reads, and a draft whose
         // server keeps refusing it would be re-uploaded as fast as the worker can loop.
         insert("accA", "local-draft:ready", createdAtMillis = 50, notBeforeMillis = 100)
@@ -177,7 +177,7 @@ class LocalDraftDaoSqlTest {
 
     @Test fun `a startup can ask for every waiting row, backed off or not`() {
         // How `MailRepository.localDraftsAwaitingUpload` reads the queue: at an instant no backoff
-        // can be past. A startup re-arm is the safety net for the work items a reboot lost, so it
+        // can be past.
         insert("accA", "local-draft:ready", notBeforeMillis = 100)
         insert("accA", "local-draft:backed-off", notBeforeMillis = 4_000_000_000_000)
         insert("accA", "local-draft:being-typed", state = LocalDraftState.EDITING, notBeforeMillis = 0)
@@ -190,7 +190,7 @@ class LocalDraftDaoSqlTest {
     }
 
     @Test fun `the queue comes out in the order the drafts may next be tried`() {
-        // And the instant comes from the CALLER: a query that reads the clock itself cannot be
+        // And the instant comes from the caller: a query that reads the clock itself cannot be
         // tested, and this one is bound with a fixed 1000 above and below.
         insert("accA", "local-draft:soonest", createdAtMillis = 900, notBeforeMillis = 10)
         insert("accA", "local-draft:later", createdAtMillis = 100, notBeforeMillis = 20)
@@ -202,7 +202,7 @@ class LocalDraftDaoSqlTest {
     }
 
     @Test fun `the sweep rescues what died mid-upload, and only in the account it was asked about`() {
-        // A sweep of account A must not touch account B's rows at all. B's EDITING row is a
+        // A sweep of account A must not touch account B's rows at all. B's editing row is a
         // composer the user has open; B's UPLOADING row belongs to B's own worker, which may be
         insert(
             "accA", "local-draft:interrupted", state = LocalDraftState.UPLOADING,
@@ -219,7 +219,7 @@ class LocalDraftDaoSqlTest {
         assertEquals("PENDING", stateOf("accA", "local-draft:interrupted"))
         assertEquals("UPLOADING", stateOf("accB", "local-draft:elsewhere-interrupted"))
         assertEquals("EDITING", stateOf("accB", "local-draft:being-typed"))
-        // And it comes back WHOLE: an UPLOADING row already carries the descriptors of its staged
+        // And it comes back whole: an UPLOADING row already carries the descriptors of its staged
         // files, so it may replace the server draft it names. Marking it lossy would leave the user
         // a duplicate to delete on every process death, for nothing.
         assertEquals("a row re-armed mid-upload is faithful, and must stay so", 0, lossyOf("accA", "local-draft:interrupted"))
@@ -231,11 +231,11 @@ class LocalDraftDaoSqlTest {
     }
 
     @Test fun `an EDITING row of the swept account is left EDITING, whatever its id`() {
-        // THE defect. This UPDATE runs from `appScope` at every start, and Android restores the
+        // The defect. This update runs from `appScope` at every start, and Android restores the
         // back stack: the composer killed with a draft open comes back and reads its row a moment
         //
         // There is no id to spare and no parameter that could carry one: a cold start cannot know
-        // whether a composer is about to be restored, so it lets EDITING alone. EDITING is written
+        // whether a composer is about to be restored, so it lets editing alone. Editing is written
         // by the composer and given back by the composer (`giveLocalDraftEditBack`), by nobody else.
         insert("accA", "local-draft:being-typed", state = LocalDraftState.EDITING)
         insert("accA", "local-draft:another-open", state = LocalDraftState.EDITING)
@@ -249,7 +249,7 @@ class LocalDraftDaoSqlTest {
         // it (`localDraftMayBeTakenForEdit` refuses it), so left alone it is frozen for ever.
         assertEquals("PENDING", stateOf("accA", "local-draft:interrupted"))
         assertEquals("one row swept, the two open ones untouched", 1, swept)
-        // And the statement binds the account and NOTHING else: no lease, no id, no exception.
+        // And the statement binds the account and nothing else: no lease, no id, no exception.
         assertEquals(listOf("accountId"), sweepBindOrder())
     }
 
@@ -257,25 +257,27 @@ class LocalDraftDaoSqlTest {
         // The defect: a process killed between the two upserts of `saveDraftLocalFirst` leaves the
         // row in STAGING. `LocalDraftDao.pending` skips it (above, and it must keep skipping it), so
         //
-        // It comes back as PENDING WITHOUT its attachments: such a row is always a FIRST save (a
+        // It comes back as pending without its attachments: such a row is always a first save (a
         // re-save copies `existing.state`), so it carries `attachmentsJson` "[]", and the
-        // descriptors of what was attached only ever lived in the composer's memory — no column
+        // descriptors of what was attached only ever lived in the composer's memory, no column
         // holds them.
         //
-        // AND IT COMES BACK LOSSY, which is the half that keeps this from destroying mail. When
-        // the row names a `replacesEmailId`, the attachments are NOT gone: they are on the SERVER,
+        // And it comes back lossy, which is the half that keeps this from destroying mail. When
+        // the row names a `replacesEmailId`, the attachments are not gone: they are on the server,
+        // in the draft being replaced. Uploaded as-is, "[]" carries 0 parts, so
+        // `draftReplacementIsFaithful` reads 0 == 0 and says faithful, and `finishDraftSave`
         insert("accA", "local-draft:mid-copy", state = LocalDraftState.STAGING, replacesEmailId = "imap:Drafts:7")
         insert("accA", "local-draft:open", state = LocalDraftState.EDITING)
         insert("accA", "local-draft:interrupted", state = LocalDraftState.UPLOADING)
         insert("accB", "local-draft:elsewhere-mid-copy", state = LocalDraftState.STAGING)
 
         // Both halves of the re-arm, in the order `MailRepository.revertUnfinishedLocalDrafts` runs
-        // them — and they are two statements precisely so that only one of them sets the flag.
+        // them, and they are two statements precisely so that only one of them sets the flag.
         assertEquals(1, sweepUploading("accA"))
         assertEquals(1, run("revertStagedToPendingLossy", mapOf("accountId" to "accA")))
 
         assertEquals("PENDING", stateOf("accA", "local-draft:mid-copy"))
-        // The composer's row is NOT part of the rescue: it is the one row of the four a restored
+        // The composer's row is not part of the rescue: it is the one row of the four a restored
         // screen can still be holding.
         assertEquals("EDITING", stateOf("accA", "local-draft:open"))
         assertEquals("PENDING", stateOf("accA", "local-draft:interrupted"))
@@ -283,8 +285,8 @@ class LocalDraftDaoSqlTest {
             "⛔ a re-armed staging row must refuse to be called a faithful replacement",
             1, lossyOf("accA", "local-draft:mid-copy"),
         )
-        // Scope: the other account's staging row is a save that may be running RIGHT NOW in its
-        // own process. The re-arm of one account never reaches it — neither its state nor its flag.
+        // Scope: the other account's staging row is a save that may be running right now in its
+        // own process. The re-arm of one account never reaches it, neither its state nor its flag.
         assertEquals("STAGING", stateOf("accB", "local-draft:elsewhere-mid-copy"))
         assertEquals(0, lossyOf("accB", "local-draft:elsewhere-mid-copy"))
         // Nothing was deleted on the way: a stranded draft is requeued, never dropped.
@@ -292,7 +294,7 @@ class LocalDraftDaoSqlTest {
     }
 
     @Test fun `a startup finds the account whose only draft is stranded mid-staging`() {
-        // The enumeration is the FIRST link of the re-arm: `SternaApplication` walks
+        // The enumeration is the first link of the re-arm: `SternaApplication` walks
         // `accountsWithDrafts` and calls the revert for each. An account whose only row is STAGING
         insert("accA", "local-draft:only-mid-copy", state = LocalDraftState.STAGING)
         insert("accB", "local-draft:waiting", state = LocalDraftState.PENDING)
@@ -331,8 +333,8 @@ class LocalDraftDaoSqlTest {
             assertEquals(1, ps.executeUpdate())
         }
 
-        // Nine failures and the draft is still PENDING, still there, still whole. There is no
-        // attempt cap in this store and no state to be parked in — see [LocalDraftState].
+        // Nine failures and the draft is still pending, still there, still whole. There is no
+        // attempt cap in this store and no state to be parked in, see [LocalDraftState].
         db.createStatement().use { st ->
             st.executeQuery(
                 "SELECT state, attemptCount, lastError, notBeforeMillis, textBody FROM local_drafts " +

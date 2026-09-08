@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as [OAuthWiringTest].
+ * Source lint, not a behaviour test, same instrument and disclaimer as [OAuthWiringTest].
  */
 class OAuthCodeWiringTest {
 
@@ -35,7 +35,7 @@ class OAuthCodeWiringTest {
     }
 
     /**
-     * A new sign-in REPLACES the one in flight. An abandoned request (browser opened, Back pressed)
+     * A new sign-in replaces the one in flight. An abandoned request (browser opened, Back pressed)
      */
     @Test fun `a new sign-in replaces the request in flight`() {
         val body = functionBody(SIGN_IN, "start")
@@ -52,7 +52,7 @@ class OAuthCodeWiringTest {
     }
 
     /**
-     * A failure is said out loud, like a success. This driver is app-scoped precisely because the
+     * A failure is said out loud, like a success.
      */
     @Test fun `a failure nobody is watching is still said`() {
         val body = functionBody(SIGN_IN, "fail")
@@ -95,7 +95,7 @@ class OAuthCodeWiringTest {
     }
 
     /**
-     * A redirect is a one-shot payload, and it must be handed over from BOTH doors: `onNewIntent`
+     * A redirect is a one-shot payload, and it must be handed over from both doors: `onNewIntent`
      */
     @Test fun `both doors hand the redirect over, and it is dropped once taken`() {
         listOf("onCreate", "onNewIntent").forEach { door ->
@@ -115,7 +115,7 @@ class OAuthCodeWiringTest {
     }
 
     /**
-     * WHAT THESE TWO SAY WHEN THE ADD IS OVER. Both are app-scoped drivers whose toast is the only
+     * What these two say when the add is over. Both are app-scoped drivers whose toast is the only
      */
     @Test fun `both app-scoped sign-ins let the shared choice pick the sentence`() {
         listOf(
@@ -188,7 +188,11 @@ class OAuthCodeWiringTest {
 
         const val HANDS_OVER = "if (chooseOAuthGrant(found) == OAuthGrant.AUTHORIZATION_CODE) {"
         /**
-         * The search is now the FALLBACK arm: the address step already asked, under its budget,
+         * The search is now the fallback arm: the address step already asked, under its budget,
+         * and `reusableOAuth` hands its answer over rather than probing a second time (pinned in
+         * [OAuthHandoverWiringTest]). What must not change is that when there IS no answer to
+         * reuse (the manual button, a process death) the same shared search runs, with the same
+         * candidates and the same credentials-free probe.
          */
         const val PROBES =
             "?: collectOAuthHosts(candidates) { container.mailRepository.discoverOAuth(it, addressDomain) }"

@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads two source files as text and proves nothing about
+ * Source lint, not a behaviour test, it reads two source files as text and proves nothing about
  */
 class NotificationsGateWiringTest {
 
@@ -32,7 +32,7 @@ class NotificationsGateWiringTest {
         )
     }
 
-    /** The negative screen — a `contains`, deliberately: it looks for what must be absent. */
+    /** The negative screen, a `contains`, deliberately: it looks for what must be absent. */
     @Test fun `none of the five is published on its own any more`() {
         val offenders = codeLines(SETTINGS_VIEW_MODEL).filter { line ->
             FIVE.any { line.startsWith("val $it ") || line.startsWith("val $it:") }
@@ -92,7 +92,7 @@ class NotificationsGateWiringTest {
         )
     }
 
-    /** The negative screen — a `contains`, deliberately. */
+    /** The negative screen, a `contains`, deliberately. */
     @Test fun `the screen has no second way to read the five settings`() {
         val offenders = notificationsScreen().filter { line ->
             FIVE.any { "viewModel.$it" in line }

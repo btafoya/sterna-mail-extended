@@ -14,7 +14,7 @@ class CcBccEnvelopeTest {
     private fun wire(text: String, charset: Charset): String =
         String(text.toByteArray(charset), Charsets.ISO_8859_1)
 
-    /** An IMAP literal — the only shape RFC 3501 leaves a server for a non-ASCII envelope value. */
+    /** An IMAP literal, the only shape RFC 3501 leaves a server for a non-ASCII envelope value. */
     private fun literal(value: String): String = "{${value.length}}\r\n$value"
 
     /**
@@ -70,7 +70,7 @@ class CcBccEnvelopeTest {
     }
 
     /**
-     * THE SLOT, not merely "an address". `to` is the envelope field immediately below cc, and it
+     * The slot, not merely "an address".
      */
     @Test
     fun `the to addresses are not mistaken for the cc`() {
@@ -105,7 +105,7 @@ class CcBccEnvelopeTest {
     }
 
     /**
-     * No `Cc` and no `Bcc` — the common case, and the one that MUST be an empty list rather than
+     * No `Cc` and no `Bcc`, the common case, and the one that must be an empty list rather than
      */
     @Test
     fun `a message without cc or bcc has empty lists, not borrowed addresses`() {

@@ -6,20 +6,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Where the origin header (#160) is READ and where the body is CACHED — the two halves of the
+ * Where the origin header (#160) is read and where the body is cached, the two halves of the
+ * feature that no unit test could otherwise see.
  */
 class OriginalSenderWiringTest {
 
     // --- 1. executed: what may be written to the body cache -------------------------------------
 
     /**
-     * The row that costs the feature: a JMAP read that FAILED must not be cached. `openMessage`
+     * The row that costs the feature: a JMAP read that failed must not be cached. `openMessage`
      */
     @Test fun `a failed JMAP origin read is never written to the cache`() {
         assertEquals(false, cachesBodyAfterOriginRead(MailProtocol.JMAP, originReadSucceeded = false))
     }
 
-    /** A JMAP read that happened is cached, whatever it found — including "no such header". */
+    /** A JMAP read that happened is cached, whatever it found, including "no such header". */
     @Test fun `a JMAP read that happened is cached`() {
         assertEquals(true, cachesBodyAfterOriginRead(MailProtocol.JMAP, originReadSucceeded = true))
     }
@@ -39,7 +40,7 @@ class OriginalSenderWiringTest {
      */
     @Test fun `the IMAP open poses the origin header off the source it already holds`() {
         // The `rawHeaders` call moved onto its own line when the Autocrypt import started reading
-        // the SAME list, so both lines are pinned: what feeds the reader has to stay `rawHeaders`,
+        // the same list, so both lines are pinned: what feeds the reader has to stay `rawHeaders`,
         // never `headerOf`, and `headers` has to be the list this very source produced.
         assertEquals(
             "openEmailImap must set originalSender from the raw source it already has. Found:",
@@ -53,7 +54,7 @@ class OriginalSenderWiringTest {
     }
 
     /**
-     * And `openEmail` must NOT read it. Three callers reach it (`openMessage`, `rawHeaders`,
+     * And `openEmail` must not read it.
      */
     @Test fun `the plain message fetch does not pay for the origin header`() {
         assertEquals(
@@ -93,7 +94,7 @@ class OriginalSenderWiringTest {
     }
 
     /**
-     * The prefetch: ONE grouped read for the window, and nothing persisted at all when it fails.
+     * The prefetch: one grouped read for the window, and nothing persisted at all when it fails.
      */
     @Test fun `the prefetch reads the whole window at once and abandons it on failure`() {
         val body = codeLines(bodyOf("prefetchInboxBodies"))

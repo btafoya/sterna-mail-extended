@@ -13,15 +13,15 @@ import org.junit.Test
  */
 class SearchFilterEveryCriterionTest {
 
-    /** 2026-06-01T00:00:00Z — the start bound the picker hands over. */
+    /** 2026-06-01T00:00:00Z, the start bound the picker hands over. */
     private val june1 = 1_780_272_000_000L
 
-    /** 2026-06-15T23:59:59Z — the end bound (end of the picked day). */
+    /** 2026-06-15T23:59:59Z, the end bound (end of the picked day). */
     private val june15End = 1_781_567_999_000L
 
     private fun filter(query: SearchQuery) = searchFilter(query).toString()
 
-    /** The conditions of an AND/OR filter; a single-condition filter has none of its own. */
+    /** The conditions of an and/or filter; a single-condition filter has none of its own. */
     private fun conditions(query: SearchQuery): List<JsonObject> =
         (searchFilter(query)["conditions"] as? JsonArray)?.map { it as JsonObject } ?: emptyList()
 
@@ -39,7 +39,7 @@ class SearchFilterEveryCriterionTest {
         assertEquals("""{"subject":"facture"}""", filter(SearchQuery(subject = "facture")))
     }
 
-    /** The one criterion that is TWO header tests: an address in copy was received all the same. */
+    /** The one criterion that is two header tests: an address in copy was received all the same. */
     @Test fun `a recipient alone becomes an OR over to and cc`() {
         assertEquals(
             """{"operator":"OR","conditions":[{"to":"team@masto.top"},{"cc":"team@masto.top"}]}""",
@@ -66,7 +66,7 @@ class SearchFilterEveryCriterionTest {
     // ---- the witness: a criterion left alone contributes nothing ----
 
     /**
-     * THE witness for all seven at once. Without it every assertion above passes just as well on a
+     * The witness for all seven at once.
      */
     @Test fun `criteria left at their default put no condition in the filter`() {
         val onlyText = filter(SearchQuery(text = "invoice"))
@@ -78,7 +78,7 @@ class SearchFilterEveryCriterionTest {
             }
     }
 
-    /** Dropping one box must cost exactly one condition — not zero (inert), not two (coupled). */
+    /** Dropping one box must cost exactly one condition, not zero (inert), not two (coupled). */
     @Test fun `each criterion is worth exactly one condition of the AND`() {
         val full = SearchQuery(
             text = "invoice",
@@ -105,7 +105,7 @@ class SearchFilterEveryCriterionTest {
     // ---- crossed criteria ----
 
     /**
-     * The crossing the flagged filter had never been through: starred AND from Alex AND since June.
+     * The crossing the flagged filter had never been through: starred and from Alex and since June.
      */
     @Test fun `flagged crossed with a date and a sender narrows the query rather than widening it`() {
         val crossed = SearchQuery(from = "alex@masto.top", flagged = true, afterMillis = june1)
@@ -139,8 +139,8 @@ class SearchFilterEveryCriterionTest {
     }
 
     /**
-     * Only the recipient nests an OR. Any other criterion growing one would widen the search
-     * silently — the filter still parses, the server still answers, and the answer is wrong.
+     * Only the recipient nests an or. Any other criterion growing one would widen the search
+     * silently, the filter still parses, the server still answers, and the answer is wrong.
      */
     @Test fun `the recipient is the only criterion that nests an OR`() {
         val withoutRecipient = SearchQuery(

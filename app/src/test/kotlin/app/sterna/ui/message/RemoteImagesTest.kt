@@ -7,7 +7,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The two questions the "images are blocked" strip turns on, RUN rather than re-stated, plus the
+ * The two questions the "images are blocked" strip turns on, run rather than re-stated, plus the
+ * source rules a JVM test cannot measure.
  */
 class RemoteImagesTest {
 
@@ -82,7 +83,7 @@ class RemoteImagesTest {
     @Test fun `a lazy-loading placeholder is not a load`() {
         // Written after watching a mutation survive: dropping the whitespace the attribute regex
         // requires makes `data-src` match, and nothing else in this class could tell. The WebView
-        // runs no script, so a data-src is never fetched — announcing it is announcing a block
+        // runs no script, so a data-src is never fetched, announcing it is announcing a block
         // that did not happen, and the button then unblocks nothing.
         assertFalse(hasRemoteRefs("""<img data-src="https://t.example.com/px.gif" src="cid:a@b">"""))
     }
@@ -105,7 +106,7 @@ class RemoteImagesTest {
     }
 
     /**
-     * The state → label correspondence, RUN. The strip now draws one single shape whose only
+     * The state → label correspondence, run. The strip now draws one single shape whose only
      */
     @Test fun `the held-back state wears the show-images label`() {
         assertEquals(
@@ -208,7 +209,10 @@ class RemoteImagesTest {
     }
 
     /**
-     * SOURCE LINT, NOT A MEASUREMENT — Compose is not run here, so these rules would still pass on
+     * Source lint, not a measurement, Compose is not run here, so these rules would still pass on
+     * a strip that laid out wrong. What they hold is the one property no reviewer can see in a
+     * diff: the strip draws one shape in both states, so its height cannot diverge between them,
+     * and its presence cannot change either.
      */
     @Test fun `the strip is one shape, wearing one label or the other`() {
         val strip = stripLines()
@@ -286,7 +290,7 @@ class RemoteImagesTest {
     }
 
     /**
-     * The rule that keeps the two states ONE shape — the defect that was measured, stated the only
+     * The rule that keeps the two states one shape, the defect that was measured, stated the only
      */
     @Test fun `the strip draws one thing and nothing beside it`() {
         val strip = stripLines()
@@ -310,14 +314,14 @@ class RemoteImagesTest {
     }
 
     /**
-     * The rules above protect the lines they ENUMERATE. They cannot protect the file from a line
+     * The rules above protect the lines they enumerate. They cannot protect the file from a line
      */
     @Test fun `no geometry is added to the strip, ever`() {
         val strip = stripLines()
         val offenders = strip
             // Prose carries no layout: the strip's own comments talk about padding and height.
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
-            // The two known lines, matched WHOLE (the height rule above pins their exact text).
+            // The two known lines, matched whole (the height rule above pins their exact text).
             .filterNot { it.removeSuffix(",") in ALLOWED_GEOMETRY }
             .filter { line -> GEOMETRY_WORDS.any { it in line.lowercase() } }
         assertEquals(
@@ -337,6 +341,8 @@ class RemoteImagesTest {
 
     /**
      * The call site, which no other rule in this class reads: [stripLines] is the body of
+     * `ImagesStrip`, [headerSource] the body of `MessageHeader`, and the call lives in
+     * `ConversationBody`, in neither.
      */
     @Test fun `the header is handed the live blocking state, not its opposite`() {
         val call = headerCallLines()
@@ -368,7 +374,8 @@ class RemoteImagesTest {
     }
 
     /**
-     * The hop ABOVE the one pinned just here, which nothing else in this class or in
+     * The hop above the one pinned just here, which nothing else in this class or in
+     * [ReaderBodyTest] reads: `MessageContent` is where the two answers are handed down.
      */
     @Test fun `the body is handed the reading-mode answer and the blocking state, not their twins`() {
         val call = bodyCallLines()
@@ -395,7 +402,8 @@ class RemoteImagesTest {
     }
 
     /**
-     * The THIRD door the same blocking answer has to go through, and the one nothing here was
+     * The third door the same blocking answer has to go through, and the one nothing here was
+     * watching: the printer. `ReaderBodyTest` pins how `showRemote` is decided, `HEADER_WIRING`
      */
     @Test fun `the printer is handed the same blocking state as the screen`() {
         val lines = block("private fun MessageContent(").lines().map { it.trim() }
@@ -427,7 +435,8 @@ class RemoteImagesTest {
     }
 
     /**
-     * WHETHER the row is drawn at all — the condition no other rule in this class reads, and the
+     * Whether the row is drawn at all, the condition no other rule in this class reads, and the
+     * cheapest way left to bring the whole defect back.
      */
     @Test fun `the row is drawn on presence alone, never on the live blocking state`() {
         val header = headerSource().lines().map { it.trim() }
@@ -496,6 +505,8 @@ class RemoteImagesTest {
 
     /**
      * Whole-line match. The only slack is the trailing comma Kotlin puts on the last element of an
+     * argument or modifier chain; anything else added to the line fails the rule, which is the
+     * whole point of not using `contains`.
      */
     private fun hasLine(lines: List<String>, exact: String) =
         lines.any { it == exact || it == "$exact," }
@@ -507,7 +518,7 @@ class RemoteImagesTest {
     private fun headerSource(): String = block("private fun MessageHeader(")
 
     /**
-     * The `MessageHeader(...)` call inside `ConversationBody` — the arguments only, not the whole
+     * The `MessageHeader(...)` call inside `ConversationBody`, the arguments only, not the whole
      */
     private fun headerCallLines(): List<String> =
         block("private fun ConversationBody(").lines().map { it.trim() }
@@ -515,7 +526,7 @@ class RemoteImagesTest {
             .takeWhile { it != ")" }
 
     /**
-     * The `ConversationBody(...)` call inside `MessageContent` — the arguments only, on the same
+     * The `ConversationBody(...)` call inside `MessageContent`, the arguments only, on the same
      */
     private fun bodyCallLines(): List<String> =
         block("private fun MessageContent(").lines().map { it.trim() }
@@ -548,7 +559,7 @@ class RemoteImagesTest {
             "enabled = body.acts",
         )
 
-        /** Its label: the enum's string, and the guarantee that it stays on ONE line. */
+        /** Its label: the enum's string, and the guarantee that it stays on one line. */
         val LABEL_LINES = listOf(
             "stringResource(body.label)",
             "maxLines = 1",
@@ -560,7 +571,7 @@ class RemoteImagesTest {
             "disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant"
 
         /**
-         * Every composable the strip is allowed to draw, by its OPENING line, in order. A fourth
+         * Every composable the strip is allowed to draw, by its opening line, in order. A fourth
          */
         val ALLOWED_DRAWS = listOf("Row(", "TextButton(", "Text(")
 

@@ -26,6 +26,7 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
 
     /**
      * The rows whose cancellation is still running, so a second tap on the same X cannot start a
+     * second one (#170).
      */
     private val inFlight: MutableSet<Long> = ConcurrentHashMap.newKeySet()
 
@@ -35,7 +36,8 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
     fun clearMessage() { _message.value = null }
 
     /**
-     * Cancel a scheduled send: file the message back in Drafts, then drop its row and then its job —
+     * Cancel a scheduled send: file the message back in Drafts, then drop its row and then its job,
+     * in that order, so that no step can lose the only copy.
      */
     fun cancel(id: Long) {
         val app = getApplication<Application>()
@@ -48,7 +50,7 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                     credentials = { app.container.accountStore.credentials(it) },
                     // A `null` from `credentials` is not proof: the store answers null for an
                     // unreadable secret too, and an unreadable blob makes `accounts()` empty. Both
-                    // verdicts are read here; what they MEAN is decided in one executable place.
+                    // verdicts are read here; what they mean is decided in one executable place.
                     accountIsGone = {
                         accountDepartureIsProven(
                             accountsUnreadable = app.container.accountStore.accountsUnreadable(),
@@ -69,7 +71,7 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                             inReplyTo = d.inReplyTo,
                             references = d.references,
                             // Nothing to replace, said out loud: naming the server draft this
-                            // message was edited from would let the save DESTROY it, and the
+                            // message was edited from would let the save destroy it, and the
                             // deposit flattens the HTML body. A duplicate in Drafts is
                             // recoverable, a destroyed original is not (#63).
                             replacesEmailId = null,
@@ -80,7 +82,7 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                             // deposited whole. Explicit because the parameter has no default, and
                             // `true` here would silently refuse a genuinely empty body.
                             composerBodyWasLost = false,
-                            // Only ever READ when `composerBodyWasLost` is true, which this route
+                            // Only ever read when `composerBodyWasLost` is true, which this route
                             // never is: it is answered from the text being deposited, the only text
                             // this route has ever had.
                             typedBodyIsBlank = d.body.isBlank(),

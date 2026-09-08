@@ -29,7 +29,7 @@ class ComposeDirtyTest {
     )
 
     @Test fun anUntouchedReopenedMessageIsNotDirty() {
-        // Reopened from the outbox with everything pre-filled — nothing changed since.
+        // Reopened from the outbox with everything pre-filled, nothing changed since.
         assertFalse(
             dirty(
                 to = "jordan@example.org, ", initialTo = "jordan@example.org, ",
@@ -85,7 +85,7 @@ class ComposeDirtyTest {
     }
 
     @Test fun turningTwoLinesIntoAListWithoutChangingTheTextIsDirty() {
-        // #131 lists. The markers are DRAWN, never typed, so the text is byte for byte what it was:
+        // #131 lists. The markers are drawn, never typed, so the text is byte for byte what it was:
         // if the blocks were not compared, tapping "bulleted list" and leaving would discard the
         // list without a word, on a screen that showed it a second earlier.
         assertTrue(
@@ -118,7 +118,7 @@ class ComposeDirtyTest {
 
     // --- the read-receipt box, both senses ------------------------------------------------------
     //
-    // The grave one is CLEARING it. On a message reopened from the outbox the leave path is
+    // The grave one is clearing it. On a message reopened from the outbox the leave path is
     // `cancel()`, which hands the queued row back exactly as it was: an unseen clear means the
     // message goes out still asking for a receipt while the screen had just said it would not.
 
@@ -141,7 +141,7 @@ class ComposeDirtyTest {
 
     @Test fun aReadReceiptBoxThatOpenedTickedIsNotAnEdit() {
         // The witness (#70 BLOCKER 3): a reopened outbox message opens with the box already ticked.
-        // Counting its mere PRESENCE would fire the discard dialogue on a reopen-and-close where
+        // Counting its mere presence would fire the discard dialogue on a reopen-and-close where
         // nothing was touched, which is the very mistake this file exists to prevent.
         assertFalse(dirty(requestReceipt = true, initialRequestReceipt = true))
         assertFalse(dirty(requestReceipt = false, initialRequestReceipt = false))

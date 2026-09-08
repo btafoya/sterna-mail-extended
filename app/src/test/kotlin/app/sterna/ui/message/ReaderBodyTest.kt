@@ -10,7 +10,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The reading-mode decision (#149), EXECUTED. The reader's composables cannot be instantiated in a
+ * The reading-mode decision (#149), executed.
  */
 class ReaderBodyTest {
 
@@ -18,7 +18,10 @@ class ReaderBodyTest {
     private val notice = "NOTICE"
 
     /**
-     * What the reader says when there is no body, standing in for the localised string — and
+     * What the reader says when there is no body, standing in for the localised string, and
+     * deliberately not the shipped English text. Asserting "(no content)" would pass just as well
+     * against a literal left hard-coded in [readerBody], i.e. against a reader that says it in
+     * English to the eight users out of nine who read the app in another language.
      */
     private val noContent = "NO-CONTENT-SENTINEL"
 
@@ -40,7 +43,7 @@ class ReaderBodyTest {
     @Test
     fun `a textBody the server typed text_html is refused, and the HTML is flattened instead`() {
         // RFC 8621 §4.1.4: with no text/plain part a JMAP server fills textBody with the text/html
-        // one. Escaping THAT into a <pre> would show the reader the markup as if it were the mail.
+        // one. Escaping that into a <pre> would show the reader the markup as if it were the mail.
         val email = email(text = part("t", "text/html") to "<p>Hello <b>world</b></p>")
 
         val body = readerBody(email, plainText = true, derivedNotice = notice, noContent = noContent)
@@ -125,12 +128,16 @@ class ReaderBodyTest {
         assertFalse(readerBody(email, true, notice, noContent).derived)
     }
 
-    // -- a body part that is PRESENT and BLANK (#corps-vide) --------------------------------------
+    // -- a body part that is present and blank (#corps-vide) --------------------------------------
     //
     // `Email.htmlContent()` / `Email.textContent()` filter nothing: a part that exists with an empty
     // value hands back "", which is not null, so each step of the cascade claimed the body and
+    // skipped the fallback that alone knows what to say when there is nothing. HTML mode rendered a
+    // white screen while plain-text mode said "no content", the two modes contradicting each other
+    // on the same message. The preview fallback had the same defect one level down: it tested null,
+    // and the server computes the preview from the body, so an empty body gives "" and `<p></p>`.
     //
-    // The string is passed IN, and every expectation below pins the SENTINEL that was passed, not
+    // The string is passed in, and every expectation below pins the SENTINEL that was passed, not
     // the shipped English text: an assertion on "(no content)" would be satisfied by a literal left
     // hard-coded in the function, and nothing would show that the reader speaks only English there.
 
@@ -178,7 +185,7 @@ class ReaderBodyTest {
     @Test
     fun `a preview that is present and blank is not a preview`() {
         // The third site, and the one that gets forgotten: the server computes the preview from
-        // the body, so a message with no body at all can carry preview = "" — not null. Testing
+        // the body, so a message with no body at all can carry preview = "", not null. Testing
         // null there put `<p></p>` on the screen, which is the very white screen being fixed.
         val email = Email(id = "1", preview = "")
 
@@ -231,7 +238,7 @@ class ReaderBodyTest {
     // would be a copy of the decision: the shipped condition could be inverted and this file would
     // follow it down. Both functions are executed; nothing reads their source.
 
-    // The two halves of the loading window, and they answer differently ON PURPOSE — so they are
+    // The two halves of the loading window, and they answer differently on purpose, so they are
     // two test methods. In one, the first assertion to fail hides the second, and the two failures
     // are not the same defect: one is a flash of text on every swipe, the other is a pixel fired.
 
@@ -306,7 +313,7 @@ class ReaderBodyTest {
     // -- is the reading-mode entry worth offering at all? (#149, volet B) -------------------------
     //
     // The entry is a promise that the screen will change. On a mailing-list post or a git
-    // notification — mail with no text/html part at all, i.e. the mail of the very people who turn
+    // notification, mail with no text/html part at all, i.e. the mail of the very people who turn
 
     @Test
     fun `a message carrying both a text part and an HTML part is worth switching`() {
@@ -345,7 +352,7 @@ class ReaderBodyTest {
     fun `a textBody the server typed text_html IS worth switching, though htmlContent is null`() {
         // The case that kills the naive predicate "the message has a text/html part". Over JMAP
         // (RFC 8621 §4.1.4) a server with no text/plain part fills textBody with the text/html one:
-        // htmlBody is empty, htmlContent() is null, and yet the two modes differ sharply — HTML
+        // htmlBody is empty, htmlContent() is null, and yet the two modes differ sharply, HTML
         // mode escapes the markup into a <pre>, text mode refuses the type and flattens it.
         val email = email(text = part("t", "text/html") to "<p>Hello <b>world</b></p>")
 
@@ -358,7 +365,7 @@ class ReaderBodyTest {
 
     @Test
     fun `a message with no body at all is NOT worth switching`() {
-        // Both modes show the same preview; only the element WE wrap it in differs, and a wrapper
+        // Both modes show the same preview; only the element we wrap it in differs, and a wrapper
         // we chose is not a change the reader asked for.
         assertFalse(readingModesDiffer(Email(id = "1", preview = "a < b"), notice, noContent))
         assertFalse(readingModesDiffer(Email(id = "1"), notice, noContent))
@@ -429,7 +436,7 @@ class ReaderBodyTest {
     }
 
     // buildHtmlDocument defangs the message's own `prefers-color-scheme: dark` and inlines its cid:
-    // images. Both undo MARKUP, and HTML-escaping touches neither ':' nor '-', so applied to a body
+    // images. Both undo markup, and HTML-escaping touches neither ':' nor '-', so applied to a body
     private val light = EmailTheme(background = "#ffffff", text = "#111111", link = "#0b5fff", dark = false)
     private val images = mapOf("logo" to "data:image/png;base64,AAAA")
 
@@ -444,7 +451,7 @@ class ReaderBodyTest {
         assertTrue("the reader's own text was rewritten: $asText", css in asText)
         assertFalse("max-width:0px" in asText)
 
-        // The same declaration inside the MESSAGE's <style> is still defanged: that document does
+        // The same declaration inside the message's <style> is still defanged: that document does
         // carry markup, and on a dark device the WebView would otherwise pick the email's dark
         // variant and our invert would turn it light again.
         val asHtml = buildHtmlDocument(
@@ -472,7 +479,7 @@ class ReaderBodyTest {
     }
 
     /**
-     * SOURCE CHECK, and the weakest thing in this file. The reader decides the remote-image
+     * Source CHECK, and the weakest thing in this file. The reader decides the remote-image
      */
     @Test
     fun `both remote-image sites hand the same three terms to the same decision`() {
@@ -483,9 +490,9 @@ class ReaderBodyTest {
             RegexOption.MULTILINE,
         ).findAll(source).count()
         assertEquals("the two showRemote sites must both call showRemoteImages(imageMode, manualShow, senderAllowed)", 2, calls)
-        // `imageMode` is the reading mode taken for the IMAGE question, and it is not the one the
+        // `imageMode` is the reading mode taken for the image question, and it is not the one the
         // body is rendered with while the setting is still being read. Handing `plainText` here
-        // compiles and is right nine frames out of ten — the tenth is the tracking pixel. The
+        // compiles and is right nine frames out of ten, the tenth is the tracking pixel. The
         // whole-line rule that pins `imageMode`'s own definition is in UnloadedSettingDefaultsTest.
         assertFalse(
             "a site decides the image question against the RENDERED mode instead of the image one",
@@ -498,7 +505,7 @@ class ReaderBodyTest {
     }
 
     /**
-     * SOURCE CHECKS, and the weakest things in this file after the one above: both guards are `if`s
+     * Source checks, and the weakest things in this file after the one above: both guards are `if`s
      */
     @Test
     fun `the menu offers the reading-mode entry only where the two modes differ`() {
@@ -526,7 +533,7 @@ class ReaderBodyTest {
     }
 
     /**
-     * SOURCE CHECK, same weakness as the two above, for the string this branch adds. Both
+     * Source CHECK, same weakness as the two above, for the string this branch adds. Both
      */
     @Test
     fun `both Composable sites resolve the no-content string and hand it to the document`() {

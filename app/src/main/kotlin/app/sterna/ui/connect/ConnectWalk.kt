@@ -6,7 +6,7 @@ import app.sterna.core.jmap.OAuthMetadata
 // The add-account walk's decisions, beyond what ConnectStep and its transitions
 // (stepAfterAddress, stepToRender, stepBack in ConnectPreset.kt) say.
 
-/** A discovery verdict and the address it is a verdict about — a bare `MailAutoconfigResult` would
+/** A discovery verdict and the address it is a verdict about, a bare `MailAutoconfigResult` would
  *  answer for a domain it never probed, after a rotation or a walk back to another address. */
 internal data class DiscoveryVerdict(val email: String, val result: MailAutoconfigResult)
 
@@ -76,7 +76,7 @@ internal fun awaitedAnswer(awaiting: Boolean, advance: AddressAdvance): AwaitedA
     else -> AwaitedAnswer.Wait
 }
 
-/** Whether the address step may offer "Set up manually" — only after a probe for this address came
+/** Whether the address step may offer "Set up manually", only after a probe for this address came
  *  back with nothing. A drivable OAuth answer counts as one that worked; the door moves to
  *  [CredentialsPane.SIGN_IN_OFFER] rather than disappearing. */
 internal fun offersManualSetup(
@@ -150,7 +150,7 @@ internal fun shouldTryDiscoveredImap(
  *  advertises, `chosen == null` when nothing answered. The address is in it as in [DiscoveryVerdict]. */
 internal data class OAuthDiscovery(val email: String, val chosen: Pair<String, OAuthMetadata>?)
 
-/** What the credentials step asks for — the server's answer, never the user's choice. */
+/** What the credentials step asks for, the server's answer, never the user's choice. */
 internal sealed interface CredentialsAsk {
     /** No OAuth answer for this address at all. Not reachable at the credentials step, where it
      *  draws a bare wheel for an address that can never be probed again; what keeps it out is that
@@ -175,7 +175,7 @@ internal fun credentialsAsk(discovery: OAuthDiscovery?, email: String): Credenti
     }
 }
 
-/** Whether the OAuth answer in hand is one this walk can drive for [email] — the one spelling of
+/** Whether the OAuth answer in hand is one this walk can drive for [email], the one spelling of
  *  "usable OAuth", so the address step, the manual door and the credentials step cannot disagree.
  *  Not `chosen != null`: a host with no drivable grant yields [CredentialsAsk.Password]. */
 internal fun oauthOpensCredentials(discovery: OAuthDiscovery?, email: String): Boolean =
@@ -195,7 +195,7 @@ internal fun shouldStartOAuthSignIn(
 internal fun handoverStarted(startedFor: String, email: String): Boolean =
     startedFor != NO_HANDOVER && startedFor == email.trim()
 
-/** No hand-over started yet — the initial value of the screen's "started for" address. */
+/** No hand-over started yet, the initial value of the screen's "started for" address. */
 internal const val NO_HANDOVER = ""
 
 /** What the credentials step draws under the server's answer. */
@@ -256,7 +256,7 @@ internal fun reusableOAuth(
  *  it is also what a scroll has to aim at: drawn from one reading of [ConnectState] and scrolled
  *  from another, the two spellings drift in silence. */
 internal sealed interface StatusLine {
-    /** A wheel, not a sentence — see [statusMustBeRead]. */
+    /** A wheel, not a sentence, see [statusMustBeRead]. */
     data object Working : StatusLine
 
     data object ServerNotFound : StatusLine
@@ -287,7 +287,7 @@ internal fun statusLine(
     else -> null
 }
 
-/** Whether [line] must be brought into view — i.e. whether it is a sentence. Offline at the address
+/** Whether [line] must be brought into view, i.e. whether it is a sentence. Offline at the address
  *  step the whole answer is one line at the foot of a scrolling column, and the IME covers it. Not
  *  the wheel: it is drawn on every attempt, and scrolling to it pulls the form away. */
 internal fun statusMustBeRead(line: StatusLine?): Boolean = when (line) {

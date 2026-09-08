@@ -30,6 +30,9 @@ class MoveRefusalIsNotOfflineTest {
 
     /**
      * The structural half of the same claim, and the reason the one above cannot be got round from
+     * a distance: `isNetworkFailure` walks the cause chain, so a refusal carrying a dead socket
+     * underneath would be read as an outage without this type being named anywhere. It cannot,
+     * because `ImapNumberingUnconfirmed` has no constructor that takes one.
      */
     @Test fun `no constructor lets the refusal carry a cause for the walk to find`() {
         val carriers = ImapNumberingUnconfirmed::class.java.constructors.filter { constructor ->

@@ -8,7 +8,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Who signs, and who can read — the only thing the "encrypt without signing" mode changes in the
+ * Who signs, and who can read, the only thing the "encrypt without signing" mode changes in the
+ * send path ([pgpEncryptArgs]).
  */
 class PgpEncryptArgsTest {
 
@@ -109,7 +110,7 @@ class PgpEncryptArgsTest {
 
     @Test fun aModeThatDoesNotEncryptIsRefused() {
         // Not defensive noise: the send site branches on the mode, then suspends in the provider,
-        // then asks for the signer. If the mode moves to OFF under that suspension, answering
+        // then asks for the signer. If the mode moves to off under that suspension, answering
         for (mode in listOf(PgpMode.OFF, PgpMode.SIGN)) {
             assertThrows(IllegalArgumentException::class.java) {
                 pgpEncryptArgs(mode, self, listOf(bob))

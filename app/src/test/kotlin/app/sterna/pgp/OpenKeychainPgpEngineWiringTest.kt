@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHAT THIS FILE IS WORTH. It proves the SHAPE of `OpenKeychainPgpEngine.kt` and of the one
+ * What this file is worth. It proves the shape of `OpenKeychainPgpEngine.kt` and of the one
  */
 class OpenKeychainPgpEngineWiringTest {
 
@@ -19,9 +19,9 @@ class OpenKeychainPgpEngineWiringTest {
     }
 
     @Test fun `the two package-manager probes are gone, so there is one discovery path`() {
-        // They were TWO probes over one literal list, and isAvailable() called one while service()
+        // They were two probes over one literal list, and isAvailable() called one while service()
         // bound through the other. Fixing one alone leaves isAvailable() answering false while the
-        // bind would have succeeded — the defect reappears as "PGP is off" on a working provider.
+        // bind would have succeeded, the defect reappears as "PGP is off" on a working provider.
         assertEquals(
             "providerInstalled/installedProvider are back in the engine: a second discovery path " +
                 "that can disagree with the one service() binds through.",
@@ -33,11 +33,12 @@ class OpenKeychainPgpEngineWiringTest {
     }
 
     @Test fun `the head of service() picks a package and binds it, with nothing in between`() {
-        // A CONTIGUOUS block, and it starts at the signature: the defect's second discovery path
+        // A contiguous block, and it starts at the signature: the defect's second discovery path
         // came back as a single new statement carrying none of the words the absence tests look for
+        //, `if (PgpProviders.installed(appContext).none { it == PgpProviders.OPENKEYCHAIN })
         //
-        // Since the provider became selectable, this block also carries the ORDER the whole
-        // selector depends on. The stored choice must be read and resolved BEFORE the cached
+        // Since the provider became selectable, this block also carries the order the whole
+        // selector depends on. The stored choice must be read and resolved before the cached
         assertEquals(
             "the head of service() changed shape. Either it no longer resolves the package from " +
                 "PgpProviders + the stored choice, or the cached connection is consulted before " +
@@ -105,7 +106,7 @@ class OpenKeychainPgpEngineWiringTest {
     }
 
     @Test fun `both Autocrypt calls hand their arguments to the pure requests`() {
-        // What each of these two lines is holding up is now EXECUTED next door
+        // What each of these two lines is holding up is now executed next door
         // ([PgpApiRequestTest]): the minimize pair and the absent armor for the key read, the peer
         assertEquals(
             "getPublicKey no longer builds its intent from publicKeyRequest with the key id AND " +
@@ -127,8 +128,8 @@ class OpenKeychainPgpEngineWiringTest {
 
     @Test fun `the one place a pure request becomes an Intent puts every extra it can carry`() {
         // The translation half. It cannot be executed here (Intent is a stub in this source set),
-        // and dropping ONE branch is invisible everywhere else: the extra is simply never put, and
-        // the provider answers as if it had never been asked — a full keyring export, or an
+        // and dropping one branch is invisible everywhere else: the extra is simply never put, and
+        // the provider answers as if it had never been asked, a full keyring export, or an
         // Autocrypt peer filed with no key at all.
         assertEquals(
             "intentFor changed shape. A missing type branch silently drops an extra; a value that " +
@@ -172,7 +173,7 @@ class OpenKeychainPgpEngineWiringTest {
     private fun engineCode(): List<String> = code(ENGINE)
 
     /**
-     * [count] CONSECUTIVE code lines of [path] from the single one starting with [prefix]. A prefix
+     * [count] consecutive code lines of [path] from the single one starting with [prefix]. A prefix
      */
     private fun block(path: String, prefix: String, count: Int): List<String> {
         val lines = code(path)

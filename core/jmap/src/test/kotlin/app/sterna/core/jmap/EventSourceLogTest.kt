@@ -42,11 +42,11 @@ class EventSourceLogTest {
             "?types={types}&closeafter={closeafter}&ping={ping}&access_token=$QUERY_SECRET",
     )
 
-    /** What [eventSourceOrigin] must reduce the mock server's URL to — spelled out, not derived. */
+    /** What [eventSourceOrigin] must reduce the mock server's URL to, spelled out, not derived. */
     private fun origin() = "http://${server.hostName}:${server.port}"
 
     /**
-     * The two lines of a connection that opens and ends cleanly, pinned as WHOLE sentences. The
+     * The two lines of a connection that opens and ends cleanly, pinned as whole sentences.
      */
     @Test fun `opening and closing the event source are logged, with the host and nothing else`() {
         server.enqueue(
@@ -101,7 +101,8 @@ class EventSourceLogTest {
     }
 
     /**
-     * The likeliest field failure of all — an expired credential answering 401 on the SSE endpoint —
+     * The likeliest field failure of all, an expired credential answering 401 on the SSE endpoint,
+     * arrives with no throwable, only the response. The status code and nothing else.
      */
     @Test fun `a refused event source names the status it was refused with`() {
         server.enqueue(MockResponse().setResponseCode(401).setBody("token expired for alex@example.com"))
@@ -151,7 +152,9 @@ class EventSourceLogTest {
     }
 
     /**
-     * Nothing logged may carry the credential, the query, or the path of the connection — and that
+     * Nothing logged may carry the credential, the query, or the path of the connection, and that
+     * includes the THROWABLE, which is printed with its whole cause chain by the app's sink and is
+     * the one channel this module does not write itself.
      */
     private fun assertNoSecretsLeaked() {
         captured.forEach { (message, error) ->

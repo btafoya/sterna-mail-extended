@@ -27,7 +27,7 @@ fun draftSaveConsumesTheQueuedRow(outcome: DraftSaveOutcome): Boolean =
 
 /**
  * The state a surviving edited outbox row is parked in, or null when the save consumed it. Not
- * EDITING (filtered off screen and badge alike) nor FAILED (a banner nothing left can clear).
+ * editing (filtered off screen and badge alike) nor failed (a banner nothing left can clear).
  */
 fun draftSaveParksTheQueuedRowAs(outcome: DraftSaveOutcome): OutboxState? =
     if (draftSaveConsumesTheQueuedRow(outcome)) null else OutboxState.KEPT_AS_DRAFT
@@ -97,7 +97,7 @@ internal fun draftAddressingIsCarried(original: Set<String>?, replacement: Set<S
 }
 
 /**
- * The addressing a replacement offers as proof: Cc and Bcc, since `BlindCopies.WRITTEN` writes a
+ * The addressing a replacement offers as proof: Cc and Bcc, since `BlindCopies.Written` writes a
  * real `Bcc:` into the APPENDed copy. An empty [bcc] fails the check above, sparing the server copy.
  */
 internal fun draftReplacementAddressing(cc: List<String>, bcc: List<String>): Set<String> =
@@ -148,7 +148,7 @@ internal suspend fun draftReceiptRequestIsCarried(
 
 /**
  * `null` when an entry is present but yields no address: unreadable is an unknown, never an entry
- * left out — filtering shrinks the set the destroy decision reads, to empty if it was the only Cc.
+ * left out, filtering shrinks the set the destroy decision reads, to empty if it was the only Cc.
  */
 internal fun copiedAddressesOrNull(entries: List<ImapAddress>): Set<String>? {
     val addresses = entries.map { it.email?.trim().orEmpty() }

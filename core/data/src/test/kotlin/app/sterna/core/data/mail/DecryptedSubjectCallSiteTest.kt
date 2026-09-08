@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * [ProtectedSubjectTest] executes the decision; this pins WHAT IT IS CALLED WITH, in the one place
+ * [ProtectedSubjectTest] executes the decision; this pins what it is called with, in the one place
  */
 class DecryptedSubjectCallSiteTest {
 
@@ -33,7 +33,7 @@ class DecryptedSubjectCallSiteTest {
         return source.substring(start, end)
     }
 
-    /** [relative] resolved from the test's working directory, walking up — as [DaoQuerySource] does. */
+    /** [relative] resolved from the test's working directory, walking up, as [DaoQuerySource] does. */
     private fun locate(relative: String): File {
         val fromModule = relative.substringAfter("core/data/")
         var dir: File? = File(System.getProperty("user.dir")).absoluteFile

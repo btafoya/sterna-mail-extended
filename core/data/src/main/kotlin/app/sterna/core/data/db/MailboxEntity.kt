@@ -6,7 +6,7 @@ import androidx.room.Entity
  *  mailboxes per-account, so two accounts can share a bare id without colliding. */
 @Entity(tableName = "mailboxes", primaryKeys = ["accountId", "id"])
 data class MailboxEntity(
-    /** Local StoredAccount id owning this folder (NOT the JMAP accountId). */
+    /** Local StoredAccount id owning this folder (not the JMAP accountId). */
     val accountId: String,
     val id: String,
     val name: String,
@@ -16,7 +16,7 @@ data class MailboxEntity(
     val sortOrder: Int,
     val totalEmails: Int,
     val unreadEmails: Int,
-    /** Whether the SERVER reports this folder subscribed (IMAP `LSUB`, JMAP `isSubscribed`,
+    /** Whether the server reports this folder subscribed (IMAP `LSUB`, JMAP `isSubscribed`,
      *  #174). Defaults `true`: unknown must never hide a folder ([MIGRATION_25_26] backfills
      *  pre-v26 rows the same way). */
     val isSubscribed: Boolean = true,

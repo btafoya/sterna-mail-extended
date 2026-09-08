@@ -4,13 +4,13 @@ import app.sterna.core.data.text.htmlEscape
 import app.sterna.core.jmap.model.EmailAddress
 
 /**
- * The header lines of the message to print, ALREADY formatted by the caller: the subject resolved
+ * The header lines of the message to print, already formatted by the caller: the subject resolved
  */
 internal data class PrintHeader(
     val subject: String,
     val from: String,
     val to: String,
-    /** "" when nobody is in Cc — the line is then left out of the document entirely. */
+    /** "" when nobody is in Cc, the line is then left out of the document entirely. */
     val cc: String,
     val date: String,
 )
@@ -19,7 +19,7 @@ internal data class PrintHeader(
 internal data class PrintLabels(val from: String, val to: String, val cc: String, val date: String)
 
 /**
- * The complete HTML document to hand to Android's print service — distinct from the reader's
+ * The complete HTML document to hand to Android's print service, distinct from the reader's
  */
 internal fun buildPrintDocument(
     header: PrintHeader,
@@ -28,7 +28,7 @@ internal fun buildPrintDocument(
     inlineImages: Map<String, String> = emptyMap(),
 ): String {
     // The same two rewrites the reader's document makes on a rich body, and only on one: the
-    // message's own dark-mode styles are defanged here too — paper is white, and a marketing email
+    // message's own dark-mode styles are defanged here too, paper is white, and a marketing email
     // must not print its dark variant because the device happens to be in dark theme.
     val inner = if (body.richHtml) {
         neutraliseDarkModeStyles(embedInlineImages(body.fragment, inlineImages))
@@ -72,7 +72,9 @@ internal fun buildPrintDocument(
 }
 
 /**
- * Replace every `cid:` reference in [html] by its data URI — the message's own inline images,
+ * Replace every `cid:` reference in [html] by its data URI, the message's own inline images,
+ * which no WebView could fetch by itself. Shared by the reader's document and the print one so the
+ * two cannot drift: both spellings, `cid:x` then `cid:<x>`, in that order.
  */
 internal fun embedInlineImages(html: String, inlineImages: Map<String, String>): String {
     var out = html
@@ -84,6 +86,8 @@ internal fun embedInlineImages(html: String, inlineImages: Map<String, String>):
 
 /**
  * The name the print job carries in the system's print queue and in the PDF it may save: the
+ * message's subject, trimmed, and the app's name when there is none, a blank job name is what
+ * Android shows as an empty row.
  */
 internal fun printJobName(subject: String, appName: String): String = subject.trim().ifBlank { appName }
 
@@ -96,7 +100,7 @@ internal fun neutraliseDarkModeStyles(html: String): String = html.replace(
 )
 
 /**
- * A participant as paper wants it: `Name <address>`, or the bare address — unlike the screen's
+ * A participant as paper wants it: `Name <address>`, or the bare address, unlike the screen's
  */
 internal fun printAddress(address: EmailAddress): String {
     val name = address.name?.trim().orEmpty()

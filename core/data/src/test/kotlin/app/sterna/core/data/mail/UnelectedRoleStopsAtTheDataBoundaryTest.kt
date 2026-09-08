@@ -10,7 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Where the `~trash` mark STOPS — [MailboxEntity.toMailbox], EXECUTED.
+ * Where the `~trash` mark stops, [MailboxEntity.toMailbox], executed.
  */
 class UnelectedRoleStopsAtTheDataBoundaryTest {
 
@@ -33,7 +33,7 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
         assertNull(row("~junk").toMailbox().role)
     }
 
-    /** The witness: the folder that WON the role still crosses as the trash, or the erasure would
+    /** The witness: the folder that won the role still crosses as the trash, or the erasure would
      *  be taking the icon and the delete destination off the real one. */
     @Test fun theElectedTrashKeepsItsRoleAcross() {
         assertEquals("trash", row("trash").toMailbox().role)
@@ -47,7 +47,7 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
     }
 
     /**
-     * The gesture this buys back. `InboxScreen` shows New subfolder / Rename / Delete only when
+     * The gesture this buys back.
      */
     @Test fun theFolderMenuStillOffersSubfolderRenameAndDeleteOnALosingSharedTrash() {
         val onScreen = row("~trash").toMailbox()
@@ -63,7 +63,7 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
         assertTrue(row("trash").toMailbox().role != null)
     }
 
-    /** The erasure touches the ROLE and nothing else: same id, name, parent, rank and counters, so
+    /** The erasure touches the role and nothing else: same id, name, parent, rank and counters, so
      *  the drawer row is character for character the one `main` drew. */
     @Test fun everyOtherFieldCrossesUntouched() {
         val marked = row("~trash").toMailbox()
@@ -78,7 +78,10 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
     }
 
     /**
-     * The ONE field that now differs from the role-less row this used to be equal to, and why it
+     * The one field that now differs from the role-less row this used to be equal to, and why it
+     * had to: the drawer is the only way back into a folder that lost its claim (it is out of search
+     * by an older, deliberate decision), and "subscribed folders only" (#174) hides a folder that is
+     * unsubscribed, role-less and no routing target, which is precisely this one.
      */
     @Test fun theLostClaimIsTheSINGLEDifferenceFromTheRoleLessRow() {
         val marked = row("~trash").toMailbox()
@@ -107,7 +110,7 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
     }
 
     /**
-     * The erasure is not a hole in the search fix: what excludes a losing trash reads the STORED
+     * The erasure is not a hole in the search fix: what excludes a losing trash reads the stored
      * role, never this model. Both filters still answer on the marked row.
      */
     @Test fun theSearchFiltersStillSeeTheMarkOnTheStoredRow() {

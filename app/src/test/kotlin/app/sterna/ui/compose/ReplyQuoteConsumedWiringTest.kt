@@ -6,7 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads source files as text, same instrument and
+ * Source lint, not a behaviour test, it reads source files as text, same instrument and
+ * disclaimer as every source lint in this tree: it proves nothing about behaviour.
  */
 class ReplyQuoteConsumedWiringTest {
 
@@ -28,7 +29,7 @@ class ReplyQuoteConsumedWiringTest {
     }
 
     @Test fun `nothing else in the ViewModel may so much as NAME the quote flow`() {
-        // Every line NAMING the backing flow, not only `.value =`: an `update { }`, a `tryEmit()`
+        // Every line naming the backing flow, not only `.value =`: an `update { }`, a `tryEmit()`
         // or an alias would be writes this rule must see too. Same instrument as
         // DialogFlagsSurviveRotationTest, which caught a reset hidden in prepare().
         val writers = lines(COMPOSE_VIEW_MODEL).filter { "_replyQuote" in it }
@@ -158,7 +159,7 @@ class ReplyQuoteConsumedWiringTest {
 
     // -- reading the sources --------------------------------------------------------------------
 
-    /** Exactly one line of [file] whose TRIMMED code text equals [pinned] — 0 or 2+ both fail. */
+    /** Exactly one line of [file] whose trimmed code text equals [pinned], 0 or 2+ both fail. */
     private fun assertPinnedLine(file: File, pinned: String, why: String) {
         val hits = lines(file).count { it == pinned }
         assertEquals(
@@ -170,13 +171,13 @@ class ReplyQuoteConsumedWiringTest {
         )
     }
 
-    /** [file]'s code as trimmed WHOLE lines, comments cut. Rules compare with equality, never
-     *  contains: a mutation that lengthens a line must change the line. Comments MUST be cut here:
+    /** [file]'s code as trimmed whole lines, comments cut. Rules compare with equality, never
+     *  contains: a mutation that lengthens a line must change the line. Comments must be cut here:
      *  the KDoc this fix adds names `consumeReplyQuote` and `_replyQuote.value = null` in prose,
      *  and prose must never be able to satisfy a rule. */
     private fun lines(file: File): List<String> = code(file).lines().map { it.trim() }
 
-    /** [file]'s code as one string, comments cut — same reader as [OutgoingDateWiringTest]. */
+    /** [file]'s code as one string, comments cut, same reader as [OutgoingDateWiringTest]. */
     private fun code(file: File): String = file.readLines().mapNotNull { line ->
         val trimmed = line.trimStart()
         if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) null
@@ -205,7 +206,7 @@ class ReplyQuoteConsumedWiringTest {
         private const val COMPOSE_SCREEN_PATH =
             "app/src/main/kotlin/app/sterna/ui/compose/ComposeScreen.kt"
 
-        /** Repo root, walked up from the module's working directory — as the other source lints do. */
+        /** Repo root, walked up from the module's working directory, as the other source lints do. */
         private val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, COMPOSE_VIEW_MODEL_PATH).isFile }

@@ -77,7 +77,7 @@ class SendOutboxTest {
         assertSame(d, outbox.restored.value)
     }
 
-    // ---- the fidelity verdict of an edited draft travels WITH its id ---------------------------
+    // ---- the fidelity verdict of an edited draft travels with its id ---------------------------
 
     /**
      * The undo round trip must hand the verdict back exactly as it went in, both senses: a lossy
@@ -105,8 +105,8 @@ class SendOutboxTest {
         )
 
     @Test fun `a queued message this app styled reopens with its styling`() {
-        // Re-editing a queued message enqueues a NEW row from the composer's state: styling
-        // dropped in this hand-over is not merely absent from the screen, it is REMOVED from the
+        // Re-editing a queued message enqueues a new row from the composer's state: styling
+        // dropped in this hand-over is not merely absent from the screen, it is removed from the
         // message that finally goes out.
         val reopened = composeDraftOf(queued(htmlBody = "<b>see</b> you there"))
 
@@ -116,7 +116,7 @@ class SendOutboxTest {
 
     @Test fun `a queued message hands over the body and the spans of ONE part`() {
         // The witness the test above cannot be: there the row's two columns say the same words,
-        // so `body = draft.body` — the text column — passes it. Here they DIFFER, which a row is
+        // so `body = draft.body` (the text column) passes it.
         val reopened = composeDraftOf(queued(htmlBody = "<b>see</b> you there", body = "ok"))
 
         assertEquals(
@@ -128,8 +128,8 @@ class SendOutboxTest {
     }
 
     @Test fun `a queued message that held a list reopens with it`() {
-        // Re-editing enqueues a NEW row from the composer's state: a list dropped in this
-        // hand-over is not merely missing from the screen, it is REMOVED from what finally goes out.
+        // Re-editing enqueues a new row from the composer's state: a list dropped in this
+        // hand-over is not merely missing from the screen, it is removed from what finally goes out.
         val reopened = composeDraftOf(
             queued(htmlBody = "<ul><li>see</li><li>you there</li></ul>", body = "- see\n- you there"),
         )
@@ -139,7 +139,7 @@ class SendOutboxTest {
     }
 
     /**
-     * ROUTE 2 OF 4 — the QUEUED outbox row, reopened by Outbox → Edit.
+     * Route 2 of 4, the queued outbox row, reopened by Outbox → Edit.
      */
     @Test fun `a queued message this app linked reopens with its link`() {
         val reopened = composeDraftOf(queued(htmlBody = """see <a href="https://x">you</a> there"""))
@@ -148,7 +148,7 @@ class SendOutboxTest {
         assertEquals(listOf(Link(Span(4, 7), "https://x")), reopened.bodyLinks)
     }
 
-    /** ROUTE 2 OF 4, a list AND a link on one row: both halves survive the hand-over. */
+    /** Route 2 of 4, a list and a link on one row: both halves survive the hand-over. */
     @Test fun `a queued message holding a list and a link reopens with both`() {
         val reopened = composeDraftOf(
             queued(
@@ -173,7 +173,7 @@ class SendOutboxTest {
 
     @Test fun `a queued forward reopens on its text, not on markup`() {
         // The html of a forward carries the original appended below, so it does not read back:
-        // the row's plain text is what comes back — which is what happened before #131.
+        // the row's plain text is what comes back, which is what happened before #131.
         val reopened = composeDraftOf(
             queued(htmlBody = "see you there<br><br><div>-------- Forwarded --------</div>"),
         )
@@ -183,7 +183,7 @@ class SendOutboxTest {
     }
 
     /**
-     * A message reopened from a PERSISTED outbox row reopens as lossy: the row has no column
+     * A message reopened from a persisted outbox row reopens as lossy: the row has no column
      */
     @Test fun `a message reopened from a persisted outbox row comes back with an unknown, lossy, verdict`() {
         val reopened = composeDraftOf(

@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Holds the app's lock state. When app lock is enabled the UI is hidden behind a
+ * [LockScreen] until the user re-authenticates with the device biometric / pin.
  */
 class AppLock(private val store: AccountStore) {
     private val _locked = MutableStateFlow(store.appLockEnabled())

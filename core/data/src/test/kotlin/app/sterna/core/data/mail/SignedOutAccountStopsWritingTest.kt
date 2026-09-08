@@ -10,7 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Signing an account out while it syncs must stop what writes in its name — EXECUTED, decision
+ * Signing an account out while it syncs must stop what writes in its name, executed, decision
  */
 class SignedOutAccountStopsWritingTest {
 
@@ -76,7 +76,7 @@ class SignedOutAccountStopsWritingTest {
     }
 
     /**
-     * One full-query walk of [ACCOUNT], written through the shipped order, with the account list
+     * One full-query walk of [account], written through the shipped order, with the account list
      */
     private fun walkWhile(
         configured: MutableList<String>,
@@ -107,8 +107,8 @@ class SignedOutAccountStopsWritingTest {
     // -- the walk of a signed-out account ---------------------------------------------------------
 
     @Test fun `a sign-out mid-walk stops the walk and leaves nothing new under the removed id`() {
-        // THE test of this volet. The account goes after two pages. What must hold:
-        //  - the walk STOPPED (three pages offered out of five, the third being the one refused);
+        // The test of this volet. The account goes after two pages. What must hold:
+        //  - the walk stopped (three pages offered out of five, the third being the one refused);
         val configured = mutableListOf(ACCOUNT, SIBLING)
         val folder = Folder(cached = listOf("older"))
 
@@ -150,7 +150,7 @@ class SignedOutAccountStopsWritingTest {
     }
 
     @Test fun `signing ANOTHER account out does not touch this walk`() {
-        // The mutation this is written against: a guard that asks "has ANY account been removed"
+        // The mutation this is written against: a guard that asks "has any account been removed"
         // (or checks the wrong id) stops a healthy account's sync every time a sibling is deleted.
         val configured = mutableListOf(ACCOUNT, SIBLING)
         val folder = Folder()
@@ -190,7 +190,7 @@ class SignedOutAccountStopsWritingTest {
     }
 
     @Test fun `the refusal is a cancellation, which is what keeps it off the screen and off the delete path`() {
-        // Three things ride on the TYPE, none of them visible from the assertion above:
+        // Three things ride on the type, none of them visible from the assertion above:
         // `fullQueryWriteThrough` runs no reconcile on it, `ImapMailService.runWithRetry` does not
         // replay the walk, and `InboxViewModel.refresh` does not turn it into an error banner for a
         // gesture that succeeded. A plain IllegalStateException would compile and break all three.
@@ -206,7 +206,7 @@ class SignedOutAccountStopsWritingTest {
 
     @Test fun `an empty account list refuses, it does not wave everything through`() {
         // The opposite of OrphanedAccountCache.orphans, deliberately. There an empty inventory
-        // must sweep NOTHING, because sweeping deletes; here an empty list must refuse, because
+        // must sweep nothing, because sweeping deletes; here an empty list must refuse, because
         // refusing only stops a write. Both fail on the side that cannot destroy data.
         assertThrows(AccountGoneException::class.java) {
             checkAccountStillConfigured(ACCOUNT, emptyList())
@@ -231,7 +231,7 @@ class SignedOutAccountStopsWritingTest {
 
     @Test fun `membership is exact, never a prefix`() {
         // `configuredIds.any { it.startsWith(id) }` would compile and pass every test above. Ids
-        // are UUIDs today, so this is not reachable — it is here because the neighbouring cursor
+        // are UUIDs today, so this is not reachable, it is here because the neighbouring cursor
         // rule (`cursorKeysOfAccount`) DOES read ids as prefixes, and the two must not be confused.
         assertThrows(AccountGoneException::class.java) {
             checkAccountStillConfigured("acc", listOf("acc-1", "acc-2"))

@@ -9,11 +9,13 @@ import java.sql.DriverManager
 
 /**
  * Verifies, against in-memory SQLite, the member-selection semantics of
+ * [app.sterna.core.data.db.EmailDao.threadMembersInMailbox], the query that picks which
+ * cached messages the opt-in unarchive-on-reply (Codeberg #50) moves back to the Inbox:
  */
 class UnarchiveMembersSqlTest {
     private lateinit var db: Connection
 
-    // Two thread ids in the IN-list, matching how the DAO expands `threadId IN (:threadIds)`.
+    // Two thread ids in the in-list, matching how the DAO expands `threadId in (:threadIds)`.
     private val sql =
         "SELECT id FROM emails WHERE accountId = ? AND mailboxId = ? AND threadId IN (?, ?)"
 
@@ -57,8 +59,8 @@ class UnarchiveMembersSqlTest {
     @Test fun selectsOnlyArchivedMembersOfTheRepliedThreads() {
         insert("a1", threadId = "T1", mailbox = "archive")
         insert("a2", threadId = "T1", mailbox = "archive")
-        insert("i1", threadId = "T1", mailbox = "inbox") // the new reply — already home
-        insert("o1", threadId = "T9", mailbox = "archive") // other thread, no reply — stays archived
+        insert("i1", threadId = "T1", mailbox = "inbox") // the new reply, already home
+        insert("o1", threadId = "T9", mailbox = "archive") // other thread, no reply, stays archived
         assertEquals(setOf("a1", "a2"), members("acc", "archive", "T1", "T2"))
     }
 
@@ -70,14 +72,14 @@ class UnarchiveMembersSqlTest {
     }
 
     @Test fun threadlessArchivedMailNeverMatches() {
-        // threadId IS NULL never satisfies IN (...) — a thread-less message can't have
+        // threadId IS NULL never satisfies in (...), a thread-less message can't have
         // received a reply, so it must stay archived.
         insert("n1", threadId = null, mailbox = "archive")
         assertEquals(emptySet<String>(), members("acc", "archive", "T1", "T2"))
     }
 
     @Test fun scopedToTheActingAccount() {
-        // Same-server accounts can share bare mailbox and thread ids — a sibling
+        // Same-server accounts can share bare mailbox and thread ids, a sibling
         // account's archive must not be raided.
         insert("a1", threadId = "T1", mailbox = "archive", accountId = "acc")
         insert("b1", threadId = "T1", mailbox = "archive", accountId = "other")

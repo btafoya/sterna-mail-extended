@@ -4,7 +4,7 @@ import app.sterna.core.data.mail.isRoutingTargetByName
 import app.sterna.core.jmap.model.Mailbox
 
 /**
- * What a folder nobody has touched does — the default half of the fold decision (#185).
+ * What a folder nobody has touched does, the default half of the fold decision (#185).
  * calls it its parent. [mailboxes] must be the list the drawer draws. */
 internal fun defaultCollapsedFolderIds(mailboxes: List<Mailbox>, rowsBadgeUnread: Boolean): Set<String> {
     if (!rowsBadgeUnread) return emptySet()
@@ -29,7 +29,7 @@ internal fun collapsedFolderIds(
 }
 
 /** The number the drawer badges one folder row with: its own unread when open, plus every
- * descendant's when folded — what is hidden, not the whole subtree. [mailboxes] must be the list
+ * descendant's when folded, what is hidden, not the whole subtree. [mailboxes] must be the list
  * the drawer draws. Over-counts in conversation view; on IMAP `unreadForList` is a hard 0. */
 internal fun drawerUnreadCount(mailbox: Mailbox, mailboxes: List<Mailbox>, collapsed: Set<String>): Int {
     if (mailbox.id !in collapsed) return mailbox.unreadForList

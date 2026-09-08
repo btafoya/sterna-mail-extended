@@ -5,13 +5,13 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * What the confirmation dialog NAMES, executed rather than read.
+ * What the confirmation dialog names, executed rather than read.
  */
 class UnsubscribeConfirmationTargetTest {
 
     private val oneClick = "List-Unsubscribe=One-Click"
 
-    /** A POST names the HOST: one fixed body leaves, and who receives it is the disclosure. */
+    /** A POST names the host: one fixed body leaves, and who receives it is the disclosure. */
     @Test fun `a one-click post names the host it will be sent to`() {
         val options = UnsubscribeHeader.parse("<https://l.example.com/u/abc?token=xyz>", oneClick)!!
 
@@ -19,7 +19,7 @@ class UnsubscribeConfirmationTargetTest {
     }
 
     /**
-     * A page load names the WHOLE URL — path and query included, exactly like the reader's
+     * A page load names the whole URL, path and query included, exactly like the reader's
      */
     @Test fun `opening a page names the whole url, not just the host`() {
         val options = UnsubscribeHeader.parse("<https://l.example.com/u/abc?token=xyz>", null)!!
@@ -37,7 +37,9 @@ class UnsubscribeConfirmationTargetTest {
     }
 
     /**
-     * The witness that the three are read from three DIFFERENT fields. A version that named the
+     * The witness that the three are read from three different fields. A version that named the
+     * one-click URL's host for every action would pass the first test and lie on the other two,
+     * which is the shape the defect actually had.
      */
     @Test fun `each gesture names its own target, never a neighbour's`() {
         val options = UnsubscribeHeader.parse(
@@ -54,7 +56,7 @@ class UnsubscribeConfirmationTargetTest {
     }
 
     /**
-     * Every gesture the parser is willing to offer can be named. This is the guarantee behind the
+     * Every gesture the parser is willing to offer can be named.
      */
     @Test fun `anything the parser offers has a target that can be named`() {
         listOf(

@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Emptying a draft opened straight off the SERVER (#69 × #63), as the decision RUNS — not as a lint
+ * Emptying a draft opened straight off the server (#69 × #63), as the decision runs, not as a lint
  */
 class EmptiedServerDraftTest {
 
@@ -62,7 +62,7 @@ class EmptiedServerDraftTest {
     }
 
     @Test fun `a lossy body keeps the copy whatever the addressing says`() {
-        // This is what licenses the call site to SKIP the server read when the body is lossy:
+        // This is what licenses the call site to skip the server read when the body is lossy:
         // the answer is the same for both values, so the read cannot change the outcome and the
         // `false` handed over in its place ("not proven", because nothing was asked) is safe.
         assertEquals(
@@ -79,7 +79,7 @@ class EmptiedServerDraftTest {
     }
 
     @Test fun `the four cases are four, and only one of them destroys`() {
-        // Every combination EXECUTED, against a literal table: no case can be collapsed into
+        // Every combination executed, against a literal table: no case can be collapsed into
         // another, and a constant fails three of the four rows at once.
         assertEquals(
             "⛔ the whole decision, as a table. The one destroying row is a body this composer " +

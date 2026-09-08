@@ -106,7 +106,7 @@ class RowBackgroundTest {
     // -- the switch off: exactly the list as it was before the branch (#141 follow-up) -----------
 
     /**
-     * The reader who turns the tint off gets the OLD list back, not a third look: an unread row
+     * The reader who turns the tint off gets the old list back, not a third look: an unread row
      */
     @Test fun `with the tint off an unread row is painted like a read one`() {
         assertEquals(

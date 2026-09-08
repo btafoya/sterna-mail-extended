@@ -13,7 +13,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHEN the browse list's pager is rebuilt.
+ * When the browse list's pager is rebuilt.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PageKeyFlowTest {
@@ -31,11 +31,11 @@ class PageKeyFlowTest {
             check(flow.tryEmit(initial)) { "buffer full" }
         }
 
-        /** Re-publish the value already held — what DataStore does to every preference on a write. */
+        /** Re-publish the value already held, what DataStore does to every preference on a write. */
         fun again() = check(flow.tryEmit(value)) { "buffer full" }
     }
 
-    // Fixed inputs — literals, never derived from the function under test.
+    // Fixed inputs, literals, never derived from the function under test.
     private val selection = Input<Sel>(Sel.Folder("inbox-a"))
     private val scopes = Input(listOf("a" to "inbox-a", "b" to "inbox-b"))
     private val unreadScopes = Input(listOf("a" to "inbox-a", "a" to "archive-a"))
@@ -125,9 +125,9 @@ class PageKeyFlowTest {
 
     // -- the other direction: each of the seven members must still rebuild the pager -------------
     //
-    // One test per member, each moving a value that differs in that member ALONE. A guard that
+    // One test per member, each moving a value that differs in that member alone. A guard that
     // stopped reading one of them, or a PageKey member that lost its value equality, reddens exactly
-    // one of these — which is what names the mistake.
+    // one of these, which is what names the mistake.
 
     @Test
     fun `changing the selected folder rebuilds`() {
@@ -139,7 +139,7 @@ class PageKeyFlowTest {
     @Test
     fun `switching between a folder and the unified inbox rebuilds`() {
         // Sel's two variants are a data class and a data object: both compare by value, and the
-        // unified inbox is not "some folder" — it pages a different query entirely.
+        // unified inbox is not "some folder", it pages a different query entirely.
         val seen = keys { selection.value = Sel.Unified }
         assertEquals("Folder to Unified must be paged afresh: $seen", 2, seen.size)
         assertEquals(listOf<Sel>(Sel.Folder("inbox-a"), Sel.Unified), seen.map { it.sel })
@@ -159,7 +159,7 @@ class PageKeyFlowTest {
 
     @Test
     fun `switching to the unread scope rebuilds`() {
-        // The third variant is a data object like Sel.Unified, so it compares by value — and it
+        // The third variant is a data object like Sel.Unified, so it compares by value, and it
         // pages a different query from either of the other two.
         val seen = keys { selection.value = Sel.Unread }
         assertEquals("Folder to Unread must be paged afresh: $seen", 2, seen.size)
@@ -170,7 +170,7 @@ class PageKeyFlowTest {
     fun `a folder appearing in the unread scope rebuilds`() {
         // The unread view's folder set is not fixed: a folder created, deleted, or given a role by
         // the server changes what it pages, and that change reaches the pager only through this
-        // member. A key built without reading it — the stage dropped from the chain — leaves the
+        // member. A key built without reading it (the stage dropped from the chain) leaves the
         // list showing the folders the view had when it opened, for good.
         val seen = keys { unreadScopes.value = listOf("a" to "inbox-a", "a" to "archive-a", "a" to "projets") }
         assertEquals("the unread view's folder set is part of the query: $seen", 2, seen.size)
@@ -197,7 +197,7 @@ class PageKeyFlowTest {
     fun `the unread scope and the unified scope are separate members`() {
         // Two lists of pairs of the same type, adjacent in the key and interchangeable to the
         // compiler: the one mistake worth pinning is the two flows folded into one member. Moving
-        // ONLY the unified list must leave the unread one where it was, and the reverse.
+        // only the unified list must leave the unread one where it was, and the reverse.
         val seen = keys {
             scopes.value = listOf("a" to "inbox-a")
             runCurrent()
@@ -225,7 +225,7 @@ class PageKeyFlowTest {
     @Test
     fun `the same accounts in a different order rebuild`() {
         // Two scopes equal as sets and unequal as lists. The pager's SQL takes them in order, so this
-        // is a real change — and it is the one a comparison flattened to a set would swallow.
+        // is a real change, and it is the one a comparison flattened to a set would swallow.
         val seen = keys { scopes.value = listOf("b" to "inbox-b", "a" to "inbox-a") }
         assertEquals("the scope list's order is part of the key: $seen", 2, seen.size)
     }

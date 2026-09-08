@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxScreen.kt` as text and proves nothing about what
+ * Source lint, not a behaviour test. It reads `InboxScreen.kt` as text and proves nothing about what
  */
 class RowFolderRoleWiringLintTest {
 
@@ -27,7 +27,7 @@ class RowFolderRoleWiringLintTest {
 
     /**
      * Every code line of `InboxScreen.kt` that decides a per-row affordance from a role, comments
-     * stripped and whitespace collapsed. Declarations are left out — this is about call sites.
+     * stripped and whitespace collapsed. Declarations are left out, this is about call sites.
      */
     private fun gestureLines(): List<String> =
         codeLines(INBOX_SCREEN)
@@ -92,32 +92,33 @@ class RowFolderRoleWiringLintTest {
         )
 
         /**
-         * The lines, whole. Most are the row's own decision; three keep the VIEW's role and are
+         * The lines, whole. Most are the row's own decision; three keep the view's role and are
+         * listed with their reason:
          */
         private val EXPECTED_LINES = listOf(
-            // The selection bar: many rows at once, so the view's role — see above.
+            // The selection bar: many rows at once, so the view's role, see above.
             "val trash = isTrashContext(visibleFolderRole(ui))",
             // Not this volet's: which folder decides "To: …" is #115's rule, unchanged.
             "role = visibleFolderRole(ui),",
-            // rowFolderRole itself: the search refusal FIRST, then the lookup with its fallback.
+            // rowFolderRole itself: the search refusal first, then the lookup with its fallback.
             // Both whole, because the refusal is one deleted line away from a lost message.
             "if (!folderTrusted) return visibleFolderRole(ui)",
             "return messageFolderRole(email.accountId, email.mailboxId, roles) ?: visibleFolderRole(ui)",
-            // The browse/search row, decided ONCE and reused by the four sites under it. The trust
+            // The browse/search row, decided once and reused by the four sites under it. The trust
             // flag is the search guard and is not optional.
             "val rowRole = rowFolderRole(email, ui, folderRoles, folderTrusted = !fromSearch)",
             "unarchiveContext = isUnarchiveContext(rowRole),",
             "trashContext = isTrashContext(rowRole),",
             "if (expandable) performThreadSwipe(action, email, viewModel, ui, rowRole)",
             "else performSwipe(action, email, viewModel, ui, rowRole)",
-            // The tap hands rowTapAction the row's role, LAST; rowRole's fallback is the search guard.
+            // The tap hands rowTapAction the row's role, last; rowRole's fallback is the search guard.
             "when (rowTapAction(isLocalDraftRow(email.id), selectionActive, expandable, fromSearch, rowRole)) {",
-            // The unfolded children: each one judged by ITS OWN folder, never the representative's.
-            // Trusted because a child comes from the cache — search results never unfold.
+            // The unfolded children: each one judged by its own folder, never the representative's.
+            // Trusted because a child comes from the cache, search results never unfold.
             "unarchiveContextFor = { child -> isUnarchiveContext(rowFolderRole(child, ui, folderRoles, folderTrusted = true)) },",
             "trashContextFor = { child -> isTrashContext(rowFolderRole(child, ui, folderRoles, folderTrusted = true)) },",
             "performSwipe(action, child, viewModel, ui, rowFolderRole(child, ui, folderRoles, folderTrusted = true))",
-            // The child tap asks the child's OWN folder, like its swipe; `rowRole` here is the defect.
+            // The child tap asks the child's own folder, like its swipe; `rowRole` here is the defect.
             "when (childTapAction(rowFolderRole(child, ui, folderRoles, folderTrusted = true))) {",
             // The two dispatchers read the role they were handed; the branch itself is behaviour.
             "if (isUnarchiveContext(rowRole)) {",

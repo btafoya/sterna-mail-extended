@@ -3,8 +3,8 @@ package app.sterna.core.data.mail
 import app.sterna.core.jmap.model.Mailbox
 
 /**
- * The names SERVERS carry, never the app's own labels. It may never grow into a folder the user
- * reads — a name that also denotes an inbox, archive or spam turns "delete" into "move elsewhere".
+ * The names servers carry, never the app's own labels. It may never grow into a folder the user
+ * reads, a name that also denotes an inbox, archive or spam turns "delete" into "move elsewhere".
  */
 val TRASH_FOLDER_NAMES = listOf(
     "trash", "deleted", "deleted items", "deleted messages", "bin", // en (+ en-GB)
@@ -21,7 +21,7 @@ val TRASH_FOLDER_NAMES = listOf(
 
 /**
  * Top-level preferred; null lets the caller create a bin rather than move deleted mail into a folder
- * the user reads. JMAP only. [mailboxes] must be THE ACCOUNT'S OWN folders, never the global cache:
+ * the user reads. JMAP only. [mailboxes] must be the account's own folders, never the global cache:
  * a delete would otherwise aim at a folder id another account has no row for, and no-op (#31).
  */
 fun trashFolderByName(mailboxes: List<Mailbox>): String? =

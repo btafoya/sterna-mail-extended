@@ -6,7 +6,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * every source lint in this tree: it reads the source as text and proves nothing about behaviour.
  */
 class ConnectPrimingWiringTest {
 
@@ -14,7 +15,7 @@ class ConnectPrimingWiringTest {
     private val addPaths = listOf("finishJmapConnect", "finishTokenConnect", "connectImap")
 
     /**
-     * The identity each add path must ask about, spelled out whole. The ARGUMENTS are the rule: an
+     * The identity each add path must ask about, spelled out whole.
      */
     private val addGuards = mapOf(
         "finishTokenConnect" to
@@ -26,7 +27,7 @@ class ConnectPrimingWiringTest {
     )
 
     /**
-     * Every path that has to SAY which of the two happened — the three add paths plus the device
+     * Every path that has to say which of the two happened, the three add paths plus the device
      */
     private val sayingPaths = addPaths + "pollForToken"
 
@@ -34,7 +35,7 @@ class ConnectPrimingWiringTest {
     private val discoveryPaths = listOf("connectAuto", "connectToken")
 
     /**
-     * Every route the "Connect" button can take, all six of them. Offline — airplane mode, Wi-Fi
+     * Every route the "Connect" button can take, all six of them. Offline, airplane mode, Wi-Fi
      */
     private val offlineGuarded = listOf(
         "connect", "connectAuto", "connectToken", "connectOAuth", "connectOutlookOAuth", "connectImap",
@@ -42,6 +43,8 @@ class ConnectPrimingWiringTest {
 
     /**
      * And the two sign-ins the import flow puts on this same screen. They answer through the
+     * per-account row (`updateSelected`) instead of the screen's state, so they carry the guard in a
+     * second shape, see [IMPORT_OFFLINE_GUARD].
      */
     private val offlineGuardedImports = listOf("submitImportPassword", "startImportOAuth")
 
@@ -51,7 +54,7 @@ class ConnectPrimingWiringTest {
     private val requestHandoffs = listOf("viewModelScope.launch", "container.")
 
     /**
-     * Every call in THIS FILE that brings an account into existence. It is a vocabulary, not a
+     * Every call in this file that brings an account into existence.
      */
     private val accountCreation = listOf(
         "container.accountStore.add(",
@@ -60,7 +63,7 @@ class ConnectPrimingWiringTest {
     )
 
     /**
-     * The functions of this file that create an account WITHOUT going through the decision, and why
+     * The functions of this file that create an account without going through the decision, and why
      */
     private val creatorsOutsideTheDecision = listOf("pollForToken", "restoreImportAccount")
 
@@ -104,7 +107,7 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * The rule the previous one does NOT hold: it proves each path reaches the decision, nothing
+     * The rule the previous one does not hold: it proves each path reaches the decision, nothing
      */
     @Test fun `every add path primes with the credentials the decision stamped`() {
         val offenders = addPaths.filterNot { PRIME_LAMBDA in functionBody(it) }
@@ -118,7 +121,8 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * Priming must be the LAST step, so nothing exists in the store before the credentials are
+     * Priming must be the last step, so nothing exists in the store before the credentials are
+     * proven. Creating the account first and then calling the helper passes every other rule here:
      */
     @Test fun `no add path writes to the account store before the decision runs`() {
         val offenders = addPaths.mapNotNull { path ->
@@ -140,7 +144,8 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * WHAT THIS PROMISES, EXACTLY — and it is narrower than "the account-creating functions of
+     * What this promises, exactly, and it is narrower than "the account-creating functions of
+     * the view model are primed": only the calls this lint names are checked.
      */
     @Test fun `every account-creating call this lint names sits in a function it has judged`() {
         val creators = source().lines().withIndex()
@@ -174,6 +179,8 @@ class ConnectPrimingWiringTest {
 
     /**
      * Cancellation is not a sign-in failure: leaving the screen while the inbox loads cancels this
+     * coroutine, and a `catch (Throwable)` that maps it to [ConnectState.Error] both lies to a
+     * screen that is gone and hides a real cancellation from the machinery above.
      */
     @Test fun `every add path lets cancellation through instead of showing it`() {
         val offenders = addPaths.filterNot { "catch (cancelled: CancellationException)" in functionBody(it) }
@@ -205,6 +212,9 @@ class ConnectPrimingWiringTest {
 
     /**
      * Offline, nothing typed on this screen can reach a server, and every route used to find that
+     * out the long way: a DNS lookup that never resolves, then the connect timeout, then the read
+     * timeout, per candidate host. The guard is three lines and there is no decision to extract
+     * from it, [app.sterna.net.hasUsableNetwork] IS the decision.
      */
     @Test fun `every add route refuses to start a request while offline`() {
         val offenders = offlineGuarded.filterNot { OFFLINE_GUARD.containsMatchIn(functionBody(it)) }
@@ -223,7 +233,7 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * And it must come FIRST. A guard is not a guard once the request is in flight: placed after
+     * And it must come first. A guard is not a guard once the request is in flight: placed after
      */
     @Test fun `the offline guard runs before anything is launched`() {
         val offenders = offlineGuarded.mapNotNull { route ->
@@ -262,6 +272,8 @@ class ConnectPrimingWiringTest {
 
     /**
      * The vocabulary must be alive, for the same reason `container.accountStore.addOAuth(` had to
+     * go: a route name that matches nothing restricts nothing, and the rules above would report
+     * six guarded routes while reading five. A rename must land here, in red.
      */
     @Test fun `every route this lint guards still exists in the file`() {
         val dead = (offlineGuarded + offlineGuardedImports)
@@ -297,7 +309,7 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * REWRITTEN. This test used to read two fragments of the token path's hand-written re-add
+     * Rewritten. This test used to read two fragments of the token path's hand-written re-add
      */
     @Test fun `the token path leaves the re-add to the store instead of writing it by hand`() {
         val body = functionBody("finishTokenConnect")
@@ -315,7 +327,7 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * WHICH ACCOUNT IS ALREADY THERE is one shared decision (`resolveExistingLogin` +
+     * Which account is already there is one shared decision (`resolveExistingLogin` +
      */
     @Test fun `each add path asks the shared identity whether the account is already there`() {
         val offenders = addGuards.filterNot { (path, required) ->
@@ -332,7 +344,9 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * And the answer must be USED. `created = true` written into `AddedAccount` is the state the
+     * And the answer must be used. `created = true` written into `AddedAccount` is the state the
+     * whole change removes: it says "this add created the account" on every add, including the
+     * ones that refreshed one.
      */
     @Test fun `no add path declares itself the creator regardless of what it found`() {
         val offenders = addPaths.flatMap { path ->
@@ -348,8 +362,8 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * And it must be SAID. The sentence itself is chosen by `accountAddedToast`, executed in
-     * [AccountAddedToastTest] — these routes only call it.
+     * And it must be said. The sentence itself is chosen by `accountAddedToast`, executed in
+     * [AccountAddedToastTest], these routes only call it.
      */
     @Test fun `each add path says which of the two happened`() {
         val offenders = sayingPaths.filterNot { path ->
@@ -366,6 +380,8 @@ class ConnectPrimingWiringTest {
 
     /**
      * Sub-account reconciliation runs on a CREATION only, and this is the rule that keeps it
+     * there. A re-add now lands on the login that was already there, with whatever shared
+     * sub-accounts it carries, and it may have just moved that login from OAuth onto a password.
      */
     @Test fun `sub-account reconciliation only runs when the add created the account`() {
         val gated = "if (created) container.mailRepository.reconcileLinkedAccountsAfterAdd(added.id)"
@@ -419,7 +435,7 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * SOURCE LINT — an account that was just added must have its inbox baseline WRITTEN by the add
+     * Source lint, an account that was just added must have its inbox baseline written by the add
      */
     @Test fun `priming an added account seeds its inbox baseline, last`() {
         assertEquals(
@@ -442,7 +458,7 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * SOURCE LINT, NEGATIVE SPACE — this screen writes ONE baseline, and there is no second.
+     * Source lint, negative space, this screen writes one baseline, and there is no second.
      */
     @Test fun `this screen writes exactly one baseline, through the seeding helper`() {
         assertEquals(
@@ -456,7 +472,7 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * SOURCE LINT — and the seed goes through the decision, which is the part
+     * Source lint, and the seed goes through the decision, which is the part
      */
     @Test fun `the seeding helper asks the decision, and a null answer writes nothing`() {
         assertEquals(
@@ -508,7 +524,7 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * The name of the function whose declaration is the nearest one at or above [line] — how a rule
+     * The name of the function whose declaration is the nearest one at or above [line], how a rule
      */
     private fun enclosingFunction(line: Int): String {
         val lines = source().lines()
@@ -519,14 +535,14 @@ class ConnectPrimingWiringTest {
     }
 
     /**
-     * The file's CODE, comments cut — the same helper [app.sterna.push.NotifyCandidatesWiringTest]
+     * The file's code, comments cut, the same helper [app.sterna.push.NotifyCandidatesWiringTest]
      */
     private fun code(): String = codeOf(source())
 
     /** [text]'s code lines, trimmed, comments and blank lines cut. */
     private fun codeLines(text: String): List<String> = codeOf(text).lines().map { it.trim() }
 
-    /** The code lines of [source] naming [needle] — WHOLE lines, never a `contains`, which is
+    /** The code lines of [source] naming [needle], whole lines, never a `contains`, which is
      *  blind to anything a mutation lengthens. */
     private fun codeLinesNaming(source: String, needle: String): List<String> =
         source.lines().map { it.trim() }.filter { needle in it }
@@ -575,7 +591,7 @@ class ConnectPrimingWiringTest {
         val DISCOVERY_RUN_CATCHING = Regex("""runCatching\s*\{[^}]*discoverJmapServer""")
 
         /**
-         * The cancellation catch WITH its body. Pinning the header alone leaves
+         * The cancellation catch with its body. Pinning the header alone leaves
          */
         val RETHROWS_CANCELLATION = Regex(
             """catch \(cancelled: CancellationException\) \{[^}]*throw cancelled""",
@@ -587,6 +603,7 @@ class ConnectPrimingWiringTest {
 
         /**
          * The offline guard, as a whole: every one of its four lines pinned end to end, so that
+         * anything added to the condition (`&& false`), any other string shown, or a `return`
          */
         val OFFLINE_GUARD = guardPattern(
             """_state\.value = ConnectState\.Error\(string\(R\.string\.connect_offline\)\)""",
@@ -609,18 +626,18 @@ class ConnectPrimingWiringTest {
             RegexOption.MULTILINE,
         )
 
-        /** The one thing an add path may prime with — see the test that reads it. */
+        /** The one thing an add path may prime with, see the test that reads it. */
         const val PRIME_LAMBDA = "prime = { primeInbox(it) }"
 
         /** How an add path says which of the two happened. Whole line, arguments included. */
         const val SAYS_IT = "accountAddedToast(created, null)?.let { toast(it) }"
 
-        /** Forbidden tokens: a substring search is sound here — a longer line still carries them. */
+        /** Forbidden tokens: a substring search is sound here, a longer line still carries them. */
         val CREATED_TRUE = Regex("""created = true""")
         val REFRESHED_SENTENCE = Regex("""\bR\.string\.connect_account_refreshed\b""")
         val UPDATE_PASSWORD = Regex("""container\.accountStore\.(updatePassword|setCurrent)\(""")
 
-        /** Any call of the #129 reconcile, gated or not — the test compares the WHOLE line. */
+        /** Any call of the #129 reconcile, gated or not, the test compares the whole line. */
         val RECONCILE = Regex("""reconcileLinkedAccountsAfterAdd\(""")
     }
 }

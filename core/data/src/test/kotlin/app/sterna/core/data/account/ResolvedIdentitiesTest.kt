@@ -55,13 +55,13 @@ class ResolvedIdentitiesTest {
     }
 
     @Test fun savePersistsOnlyManual_serverAliasesNotFrozen() {
-        // Simulate the editor's save: write back ONLY the manual list. Server identities must be
+        // Simulate the editor's save: write back only the manual list. Server identities must be
         // untouched, and a later server-side removal must self-correct (the fold-on-save bug fix).
         val serverAlias = id("srv-alias", "alias@example.test")
         val manual = id("mine", "me@example.test")
         val before = account(manual = listOf(manual), server = listOf(serverAlias))
 
-        // What SettingsScreen.save() does: setIdentities(manualOnly) — never the merged list.
+        // What SettingsScreen.save() does: setIdentities(manualOnly), never the merged list.
         val manualOnly = before.resolvedIdentities().filter { r -> r.id == "mine" }
         val afterSave = before.copy(identities = manualOnly)
 
@@ -215,7 +215,7 @@ class ResolvedIdentitiesTest {
     // --- issue #31: a linked sub-account's From ---
     //
     // A linked sub-account's [StoredAccount.username] is its LOGIN's address (the one that
-    // authenticates), so the standalone fallback identity would be a silently wrong From. The
+    // authenticates), so the standalone fallback identity would be a silently wrong From.
 
     private fun standalone() = StoredAccount(
         id = "login-uuid",
@@ -228,7 +228,7 @@ class ResolvedIdentitiesTest {
     private fun linked(accountName: String) = StoredAccount(
         id = "sub-uuid",
         server = "https://mail.example.org",
-        username = "alex@example.org", // the login's address, NOT the sub-account's
+        username = "alex@example.org", // the login's address, not the sub-account's
         accountName = accountName,
         loginId = "login-uuid",
         jmapAccountId = "u",

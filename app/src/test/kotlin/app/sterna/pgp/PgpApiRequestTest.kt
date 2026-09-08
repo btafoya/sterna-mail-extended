@@ -5,7 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 
 /**
- * The arguments Sterna hands the OpenPGP provider, EXECUTED — not read as text.
+ * The arguments Sterna hands the OpenPGP provider, executed, not read as text.
  */
 class PgpApiRequestTest {
 
@@ -29,8 +29,8 @@ class PgpApiRequestTest {
     }
 
     @Test fun `no ASCII armor is requested — the header carries base64 of the binary key`() {
-        // THE mutation that used to survive the whole suite. `ascii_armor` is optional and absent
-        // means binary; asking for it yields base64 of an armored block — ~40 % bigger, folded, and
+        // The mutation that used to survive the whole suite. `ascii_armor` is optional and absent
+        // means binary; asking for it yields base64 of an armored block, ~40 % bigger, folded, and
         // unimportable by the client that receives it, with nothing malformed to give it away.
         assertFalse(
             "ASCII armor is being asked for: what goes out is base64 of an armor block, which no " +

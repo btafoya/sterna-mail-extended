@@ -11,7 +11,8 @@ import java.util.concurrent.TimeUnit
 
 object ScheduledSends {
     /**
-     * One unique work item per scheduled-send id, so everything here books under ONE name and the
+     * One unique work item per scheduled-send id, so everything here books under one name and the
+     * policy decides what happens to whatever was booked before.
      */
     fun enqueue(
         context: Context,

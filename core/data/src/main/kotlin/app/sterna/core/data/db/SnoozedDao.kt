@@ -10,7 +10,7 @@ interface SnoozedDao {
     @Upsert
     suspend fun upsert(entity: SnoozedEntity)
 
-    // Keyed (accountId, emailId): a snooze must never match — or clear — another account's
+    // Keyed (accountId, emailId): a snooze must never match, or clear, another account's
     // same-id message (issue #31).
     @Query("SELECT * FROM snoozed WHERE accountId = :accountId AND emailId = :emailId")
     suspend fun byId(accountId: String, emailId: String): SnoozedEntity?
@@ -26,7 +26,7 @@ interface SnoozedDao {
     suspend fun deleteForAccount(accountId: String)
 
     /**
-     * The snoozed messages with the headers the "Snoozed" screen shows. A LEFT JOIN, so a row
+     * The snoozed messages with the headers the "Snoozed" screen shows. A left join, so a row
      */
     @Query(
         """

@@ -19,7 +19,7 @@ import org.junit.Test
 class MoveNeedsTheNumberingStatedNowTest {
 
     // ---- the wire, with nothing frozen to oppose ----------------------------------------------
-    // The shape EVERY call site had before this change: four arguments, no numbering carried. It
+    // The shape every call site had before this change: four arguments, no numbering carried. It
     // is not a corner case, it is `MailRepository.delete` as shipped.
 
     @Test fun `a server that stops stating its numbering gets no move`() {
@@ -106,7 +106,7 @@ class MoveNeedsTheNumberingStatedNowTest {
     }
 
     /**
-     * And a move that opposes nothing is refused even on a PERFECTLY HEALTHY server — the case
+     * And a move that opposes nothing is refused even on a perfectly healthy server, the case
      */
     @Test fun `a move that opposes nothing is refused, on a perfectly healthy server`() {
         val store = RememberedNumbering()
@@ -140,6 +140,8 @@ class MoveNeedsTheNumberingStatedNowTest {
 
     /**
      * What the call sites do now: they carry the number the folder was last seen under. The
+     * refusal then names it, which is what a caller (and a log line) needs to tell "the server
+     * went quiet" from "this path forgot to freeze anything".
      */
     @Test fun `a frozen numbering the server no longer states refuses the move and names it`() {
         val store = RememberedNumbering()
@@ -174,6 +176,8 @@ class MoveNeedsTheNumberingStatedNowTest {
 
     /**
      * The inverse witness. Without it "refuse always" satisfies every case above, and that is a
+     * total regression rather than a guard: no IMAP archive, no move to a folder, no delete to the
+     * Trash would ever go through again, the app would stop being a mail client.
      */
     @Test fun `a server still stating the same numbering moves exactly as before`() {
         val store = RememberedNumbering()
@@ -206,7 +210,7 @@ class MoveNeedsTheNumberingStatedNowTest {
     // ---- the guard must not fire at a healthy server -------------------------------------------
 
     /**
-     * THE COST OF GETTING THIS WRONG, and it was wrong: a folder the user has never OPENED, met
+     * The cost of getting this wrong, and it was wrong: a folder the user has never opened, met
      */
     @Test fun `a search records the numbering of the folder it looked in, so a hit can be moved`() {
         val store = RememberedNumbering()
@@ -232,7 +236,7 @@ class MoveNeedsTheNumberingStatedNowTest {
                     service.recordedUidValidity(ACCOUNT, ARCHIVE),
                 )
 
-                // The user acts on the hit, freezing what was just recorded — as MailRepository does.
+                // The user acts on the hit, freezing what was just recorded, as MailRepository does.
                 moved = service.move(credentials, ARCHIVE, 7L, TRASH, service.recordedUidValidity(ACCOUNT, ARCHIVE))
             }
 
@@ -246,10 +250,11 @@ class MoveNeedsTheNumberingStatedNowTest {
         assertEquals(100L, moved.uids[7L])
     }
 
-    // ---- what the refusal must COST ------------------------------------------------------------
+    // ---- what the refusal must cost ------------------------------------------------------------
 
     /**
-     * WHERE THE REFUSAL IS RAISED, read as the only thing that can show it: the number of
+     * Where the refusal is raised, read as the only thing that can show it: the number of
+     * sockets the whole scenario opened.
      */
     private fun assertOneConnection(server: ScriptedImapServer) = assertEquals(
         "the refusal must have cost exactly ONE connection. A second means the throw moved " +
@@ -262,7 +267,8 @@ class MoveNeedsTheNumberingStatedNowTest {
     // ---- fixtures -----------------------------------------------------------------------------
 
     /**
-     * A server whose Nth SELECT announces [announce] `(n)` — null meaning NO `UIDVALIDITY` line at
+     * A server whose Nth SELECT announces [announce] `(n)`, null meaning NO `UIDVALIDITY` line at
+     * all, which is exactly what a server that stops stating its numbering sends. The `exists`
      */
     private fun scripted(announce: (Int) -> Long?): (String, String) -> String {
         var selects = 0
@@ -282,7 +288,7 @@ class MoveNeedsTheNumberingStatedNowTest {
     }
 
     /** A server whose ARCHIVE folder can be SEARCHed, states 42, and holds one matching message.
-     *  The `UID FETCH` envelope is the one `SearchHitOpensFromTheServerTest` uses — the search
+     *  The `UID FETCH` envelope is the one `SearchHitOpensFromTheServerTest` uses, the search
      *  walk drops a folder whose fetch parses no message, and a dropped folder reports no
      *  numbering, which would make the test pass for the wrong reason. */
     private fun searchable(): (String, String) -> String = { tag, line ->
@@ -353,7 +359,7 @@ class MoveNeedsTheNumberingStatedNowTest {
         const val ARCHIVE = "Archive"
         val UIDS = listOf(7L, 8L, 9L)
 
-        /** See [DestroyNeedsTheNumberingStatedNowTest]'s twin — `ImapMailService` requires an
+        /** See [DestroyNeedsTheNumberingStatedNowTest]'s twin, `ImapMailService` requires an
          *  `OAuthTokenRefresher`, which requires an Android `Context`, and a password account
          *  never reads a field of it. */
         fun unusedTokenRefresher(): OAuthTokenRefresher {

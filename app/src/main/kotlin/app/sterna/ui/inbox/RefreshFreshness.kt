@@ -52,7 +52,7 @@ internal fun encodeFreshness(entries: List<FreshScope>): String? {
 }
 
 /** Whether a refresh over [scopes] can be skipped at [now]: every scope must have been reconciled
- * inside the window — one stale account in the unified inbox is a stale unified inbox. An empty
+ * inside the window, one stale account in the unified inbox is a stale unified inbox. An empty
  *  [scopes] is never fresh: it is an account that never synced, and skipping freezes an empty list. */
 internal fun isFresh(entries: List<FreshScope>, scopes: List<Pair<String, String>>, now: Long): Boolean {
     if (scopes.isEmpty()) return false
@@ -74,7 +74,7 @@ internal fun recordFresh(
     return kept + recorded.map { (accountId, mailboxId) -> FreshScope(accountId, mailboxId, now) }
 }
 
-/** The register once [removedIds] have been signed out, or `null` when nothing is left — the same
+/** The register once [removedIds] have been signed out, or `null` when nothing is left, the same
  *  promise as [prunedView]'s (`PRIVACY.md`), folder ids being IMAP paths the reader named herself.
  * A filter, never a wipe, and the `accountId` decides, not the `mailboxId`. */
 internal fun prunedFreshness(stored: String?, removedIds: Set<String>): String? =

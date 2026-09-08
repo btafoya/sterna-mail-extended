@@ -5,7 +5,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * THE DECISION, RUN — not a source read. [revealIconOffered] is the whole of "is there an eye on
+ * The decision, run, not a source read. [revealIconOffered] is the whole of "is there an eye on
+ * this field", extracted out of `SettingTextField` so that something in this module can execute it:
  */
 class RevealIconOfferedTest {
 

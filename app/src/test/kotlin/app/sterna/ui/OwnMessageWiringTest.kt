@@ -6,7 +6,9 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, same instrument and the same disclaimer as
+ * `OutboxCountWiringTest`: it reads source files as text and proves nothing about what appears on
+ * screen.
  */
 class OwnMessageWiringTest {
 
@@ -53,7 +55,7 @@ class OwnMessageWiringTest {
     }
 
     @Test fun `the rows of an unfolded conversation are judged by their own folder`() {
-        // The THIRD surface. It carried the pre-#115 rule under its own name, which made the list
+        // The third surface. It carried the pre-#115 rule under its own name, which made the list
         // contradict the reader one level down: your own message echoed into the Inbox read
         val screen = code(INBOX_SCREEN)
         assertEquals(
@@ -90,7 +92,7 @@ class OwnMessageWiringTest {
 
     @Test fun `the in-thread rule answers through the shared decision, not beside it`() {
         // showsRecipientsInThread is a behaviour-tested function (ShowsRecipientsTest), but what
-        // stops it drifting from its two neighbours is that it CALLS them. A body that re-decided
+        // stops it drifting from its two neighbours is that it calls them. A body that re-decided
         // for itself would pass its own tests and disagree with the reader again.
         val body = body(FOLDER_ACTIONS, "showsRecipientsInThread").replace(Regex("""\s+"""), " ")
         assertTrue(
@@ -177,8 +179,12 @@ class OwnMessageWiringTest {
     }
 
     @Test fun `the swipeable row hands the answer on to the row it draws`() {
-        // The link nothing else holds: EmailListItem's parameter DEFAULTS to the keyword, so
+        // The link nothing else holds: EmailListItem's parameter defaults to the keyword, so
         // deleting this one line compiles, leaves every behaviour test green (the pure function is
+        // still right) and every other rule here green (none of them reads this body), while
+        // undoing the whole fix, top-level rows and unfolded children at once. On screen that is
+        // the report exactly as filed: no '(Draft)' in the Drafts folder after the app is killed,
+        // and none ever on an IMAP account.
         assertEquals(
             "SwipeableEmailRow must pass 'showDraftBadge = showDraftBadge,' on to EmailListItem, " +
                 "on one line and exactly once. Without it EmailListItem falls back to its default " +
@@ -282,7 +288,7 @@ class OwnMessageWiringTest {
         return out.map { it.replace(Regex("""\s+"""), " ").trim() }.filter { it.isNotEmpty() }
     }
 
-    /** The lines of [file] that are code, with comments taken off — load-bearing here, since the
+    /** The lines of [file] that are code, with comments taken off, load-bearing here, since the
      *  comments beside both call sites name the very rules the assertions forbid. */
     private fun codeLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val code = line.trimStart()
@@ -311,6 +317,9 @@ class OwnMessageWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text: everything up to the
+     * first line indented no deeper than the declaration, once the declaration's own brackets have
+     * closed. Fails loudly when the declaration is not found, a rename must break these rules
+     * rather than satisfy them silently against an empty string.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)

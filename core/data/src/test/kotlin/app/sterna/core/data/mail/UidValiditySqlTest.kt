@@ -18,6 +18,8 @@ import java.sql.DriverManager
 
 /**
  * The storage side of the UIDVALIDITY record (Codeberg #99), against real in-memory SQLite and
+ * built from the very constants the 18→19 migration executes, not a hand-copied lookalike that
+ * would keep passing after the migration changed.
  */
 class UidValiditySqlTest {
     private lateinit var db: Connection

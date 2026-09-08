@@ -33,7 +33,7 @@ import app.sterna.ui.components.EmptyArt
 import app.sterna.ui.components.EmptyState
 
 /**
- * First-launch privacy welcome. Communicates Sterna's posture (no ads, no tracking,
+ * First-launch privacy welcome.
  */
 @Composable
 fun WelcomeScreen(onDone: () -> Unit) {
@@ -94,7 +94,7 @@ fun WelcomeScreen(onDone: () -> Unit) {
     }
 }
 
-/** A small row of page-position dots. Decorative — the controls carry the labels. */
+/** A small row of page-position dots. Decorative, the controls carry the labels. */
 @Composable
 private fun PageDots(current: Int, count: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

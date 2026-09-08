@@ -120,8 +120,8 @@ class RichBodyTest {
         val two = body("hello world", BOLD to listOf(sp(6, 11)), ITALIC to listOf(sp(0, 11)))
         val r2 = remapAfterEdit(two, "hello W", sp(6, 11), cursor(7), null)
         assertEquals(body("hello W", BOLD to listOf(sp(6, 7)), ITALIC to listOf(sp(0, 7))), r2)
-        // REVERSED: pending used to take priority over the inherited style. It is now IGNORED on
-        // a replacement — the inherited style wins — because an IME commits a word as one
+        // Reversed: pending used to take priority over the inherited style. It is now IGNORED on
+        // a replacement (the inherited style wins) because an IME commits a word as one
         // replacement, and a style armed after the word was typed must not reach back over it.
         val r3 = remapAfterEdit(worldBold, "hello W", sp(6, 11), cursor(7), setOf(ITALIC))
         assertEquals(body("hello W", BOLD to listOf(sp(6, 7))), r3)
@@ -130,8 +130,8 @@ class RichBodyTest {
     // --- pending applies to a pure insertion only ----------------------------------------------
     //
     // Gboard replaces `helo` + space by `lo ` in one batch: the edit is [3, 4) → "lo ". With Bold
-    // armed AFTER `helo` was typed, the inserted "lo" must NOT become bold: those are letters typed
-    // before the button. The caller keeps pending armed, so the NEXT pure keystroke receives it.
+    // armed after `helo` was typed, the inserted "lo" must not become bold: those are letters typed
+    // before the button. The caller keeps pending armed, so the next pure keystroke receives it.
 
     @Test fun pendingIsIgnoredByAnImeReplacementAndReceivedByTheNextPureInsertion() {
         val helo = RichBody.plain("helo")
@@ -170,11 +170,11 @@ class RichBodyTest {
     }
 
     @Test fun emptyPendingAtEndOfBoldGivesRomanAndDoesNotStretchTheRange() {
-        // Cursor at the end of a bold word, Bold switched off, then typing: an EMPTY set is an
+        // Cursor at the end of a bold word, Bold switched off, then typing: an empty set is an
         // instruction ("no style"), unlike null.
         val r = edit(helloBold, "helloXY world", 7, pending = emptySet())
         assertEquals(body("helloXY world", BOLD to listOf(sp(0, 5))), r)
-        // REVERSED: it used to override what a replaced selection inherited. A replacement now
+        // Reversed: it used to override what a replaced selection inherited. A replacement now
         // ignores pending, empty or not: the inserted letter keeps the bold it replaced.
         val r2 = remapAfterEdit(worldBold, "hello W", sp(6, 11), cursor(7), emptySet())
         assertEquals(body("hello W", BOLD to listOf(sp(6, 7))), r2)
@@ -331,7 +331,7 @@ class RichBodyTest {
     @Test fun crossingFamiliesCloseAndReopenToKeepTheOrder() {
         val b = body("abcdefghi", BOLD to listOf(sp(0, 6)), ITALIC to listOf(sp(3, 9)))
         assertEquals("<b>abc<i>def</i></b><i>ghi</i>", toHtml(b))
-        // The mirror: italic first, then bold — the inner one still closes before the outer opens.
+        // The mirror: italic first, then bold, the inner one still closes before the outer opens.
         val c = body("abcdefghi", ITALIC to listOf(sp(0, 6)), BOLD to listOf(sp(3, 9)))
         assertEquals("<i>abc</i><b><i>def</i>ghi</b>", toHtml(c))
     }
@@ -428,11 +428,11 @@ class RichBodyTest {
                 listOf(blk(BULLET, 0, 0), blk(NUMBER, 1, 2)),
                 ITALIC to listOf(sp(4, 9)),
             ),
-            // …and the links (#131), which nest OUTSIDE the four families.
+            // …and the links (#131), which nest outside the four families.
             link("un lien", Link(sp(0, 7), "https://example.org")),
             RichBody("un lien fort", mapOf(BOLD to listOf(sp(3, 7))), links = listOf(Link(sp(3, 7), "https://x"))),
             RichBody("abcdefghij", mapOf(BOLD to listOf(sp(1, 9))), links = listOf(Link(sp(3, 6), "https://x"))),
-            // Two touching links under ONE url: merged, they would come back as a single anchor.
+            // Two touching links under one url: merged, they would come back as a single anchor.
             link("abcd", Link(sp(0, 2), "https://x"), Link(sp(2, 4), "https://x")),
             link("x", Link(sp(0, 1), "https://e.org/?a=1&b=2<3>4\"q\"'s' z")),
             link("é€😀x", Link(sp(0, 4), "mailto:iris@example.org")),
@@ -462,7 +462,7 @@ class RichBodyTest {
         val b = listBody(
             "a\nb\nc\nd",
             listOf(
-                blk(NUMBER, 7, 9),      // wholly past the end: gone, NOT clamped onto the last line
+                blk(NUMBER, 7, 9),      // wholly past the end: gone, not clamped onto the last line
                 blk(BULLET, 2, 2),
                 blk(BULLET, 0, 0),
                 blk(BULLET, -3, 1),     // clamped at the start
@@ -520,7 +520,7 @@ class RichBodyTest {
     }
 
     @Test fun aSelectionStoppingAtALineStartDoesNotReachIntoThatLine() {
-        // "un\n" — the selection ends exactly where line 1 begins, and takes nothing of it. Read
+        // "un\n", the selection ends exactly where line 1 begins, and takes nothing of it. Read
         // with `end` instead of `end - 1`, a line the user never selected becomes a bullet.
         val b = RichBody.plain("un\ndeux\ntrois")
         assertEquals(listOf(Block(BULLET, 0..0)), toggleBlock(b, sp(0, 3), BULLET).blocks)
@@ -554,7 +554,7 @@ class RichBodyTest {
 
     @Test fun togglingAnInlineStyleLeavesTheListsAlone() {
         // `toggle` and `clear` rebuild the body: dropping its blocks there makes one tap on Bold
-        // — or on "clear formatting" — erase every list in the message, in silence.
+        // (or on "clear formatting") erase every list in the message, in silence.
         val listed = listBody("a\nb", listOf(blk(BULLET, 0, 1)))
         assertEquals(listed.blocks, toggle(listed, sp(0, 1), BOLD).blocks)
         assertEquals(listed.blocks, toggle(toggle(listed, sp(0, 1), BOLD), sp(0, 1), BOLD).blocks)
@@ -562,16 +562,16 @@ class RichBodyTest {
     }
 
     @Test fun anInlineStyleIsStillRemovableAcrossTwoItemsOfAList() {
-        // The break `</li><li>` stands for carries no character, so no span may cover it — which
-        // means a selection running over two items is never inside ONE span. Read as "not covered",
-        // the button goes dark on two bold items and the tap APPLIES bold instead of removing it:
+        // The break `</li><li>` stands for carries no character, so no span may cover it, which
+        // means a selection running over two items is never inside one span. Read as "not covered",
+        // the button goes dark on two bold items and the tap applies bold instead of removing it:
         // bold becomes impossible to take off inside a list, with no way back but "clear
         // formatting".
         val two = listBody("a\nb", listOf(blk(BULLET, 0, 1)), BOLD to listOf(sp(0, 3)))
         assertEquals(listOf(sp(0, 1), sp(2, 3)), two.ranges[BOLD])
         assertEquals(setOf(BOLD), stylesAt(two, sp(0, 3)))
         assertTrue("the tap must REMOVE it", toggle(two, sp(0, 3), BOLD).ranges[BOLD] == null)
-        // …and a selection where one of the two items is NOT styled still applies, as before.
+        // …and a selection where one of the two items is not styled still applies, as before.
         val half = listBody("a\nb", listOf(blk(BULLET, 0, 1)), BOLD to listOf(sp(0, 1)))
         assertEquals(emptySet<Inline>(), stylesAt(half, sp(0, 3)))
         assertEquals(listOf(sp(0, 1), sp(2, 3)), toggle(half, sp(0, 3), BOLD).ranges[BOLD])
@@ -600,10 +600,10 @@ class RichBodyTest {
     }
 
     @Test fun pastingOverASelectionKeepsTheKindOfTheLineItLandsOn() {
-        // A REPLACEMENT, not an insertion: `removed > 0 && n > 0` is its own branch of the
+        // A replacement, not an insertion: `removed > 0 && n > 0` is its own branch of the
         // remap, and it is the one a paste over a selection and an IME autocorrect both take.
         // Select "a\nb" in a body whose first line is a bullet and paste "X\nY" over it: both
-        // pasted lines land where line 0 was, so both are bullets. Mapped back to the END of the
+        // pasted lines land where line 0 was, so both are bullets. Mapped back to the end of the
         // replaced segment instead of its start, the list disappears under the paste in silence.
         val b = listBody("a\nb\nc", listOf(blk(BULLET, 0, 0)))
         val r = remapAfterEdit(b, "X\nY\nc", sp(0, 3), cursor(3), null)
@@ -613,7 +613,7 @@ class RichBodyTest {
 
     @Test fun enterOnAnEmptyItemLeavesTheList() {
         // Gmail's rule. Gmail also removes the blank line; remapAfterEdit may not change the
-        // text, so ours stays — assumed debt, already arbitrated.
+        // text, so ours stays, assumed debt, already arbitrated.
         val b = listBody("a\n", listOf(blk(BULLET, 0, 1)))
         val r = edit(b, "a\n\n", 3)
         assertEquals(listOf(Block(BULLET, 0..0)), r.blocks)
@@ -685,7 +685,7 @@ class RichBodyTest {
             "<ul><li>a<li>b</li></ul>",                 // an item left open
             "</ul>",                                    // a list closed but never opened
             // A list stands on lines of its own. Read otherwise, these three glue two lines
-            // into one AND come back as a body this editor claims to reproduce faithfully —
+            // into one and come back as a body this editor claims to reproduce faithfully,
             // which is the licence that lets the next save destroy the original draft.
             "a<ul><li>b</li></ul>",                     // text running straight into a list
             "<ul><li>a</li></ul>x",                     // …and straight out of one

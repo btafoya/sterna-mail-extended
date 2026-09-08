@@ -44,7 +44,7 @@ class EmailIndexEntityAndMigrationAgreeTest {
     // --- (a) the entity's declaration, pinned whole -------------------------------------------------
 
     /**
-     * Equality on the whole line. It fails if the composite index disappears (the defect this
+     * Equality on the whole line.
      */
     @Test fun theEntityDeclaresTheMailboxIndexAndTheCompositeOne() {
         assertEquals(
@@ -61,6 +61,8 @@ class EmailIndexEntityAndMigrationAgreeTest {
 
     /**
      * The executed half: the registered 26→27 step runs against a real SQLite, and the index it
+     * leaves behind is read back (name and column order) then compared with what the entity line
+     * above declares. Nothing here re-states the decision; both sides are read from what ships.
      */
     @Test fun theMigrationCreatesExactlyWhatTheEntityDeclares() {
         val declared = compositeColumnsDeclaredByTheEntity()
@@ -155,7 +157,8 @@ class EmailIndexEntityAndMigrationAgreeTest {
     }
 
     /**
-     * The full SHAPE of [index]: `unique=<0|1> partial=<0|1>` then its key columns in index order,
+     * The full shape of [index]: `unique=<0|1> partial=<0|1>` then its key columns in index order,
+     * each with direction and collation.
      */
     private fun indexShape(index: String): String {
         var unique = "?"
@@ -183,7 +186,7 @@ class EmailIndexEntityAndMigrationAgreeTest {
         return "unique=$unique partial=$partial " + bySeq.values.joinToString(", ")
     }
 
-    /** The indexed columns of [index] alone, in index order — [indexShape] without the rest. */
+    /** The indexed columns of [index] alone, in index order, [indexShape] without the rest. */
     private fun indexColumns(index: String): List<String> =
         indexShape(index).substringAfter(" partial=").substringAfter(" ")
             .split(", ").filter { it.isNotBlank() }.map { it.substringBefore(" ") }

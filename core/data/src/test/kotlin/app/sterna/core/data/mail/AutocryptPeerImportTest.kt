@@ -14,16 +14,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The receiving half of Autocrypt, EXECUTED: [autocryptPeerImportOf] decides, [importAutocryptPeer]
+ * The receiving half of Autocrypt, executed: [autocryptPeerImportOf] decides, [importAutocryptPeer]
  */
 class AutocryptPeerImportTest {
 
     private val received = "2026-09-02T10:15:00Z"
     private val receivedMillis = 1_788_344_100_000L
 
-    // A FIXED literal, never `System.currentTimeMillis()`: the clock this file runs on decides
+    // A fixed literal, never `System.currentTimeMillis()`: the clock this file runs on decides
     // nothing, so a case cannot drift into or out of the tolerance with the day it is replayed.
-    // 2026-09-03T01:46:40Z — some fifteen hours after [received], so the ordinary cases below are
+    // 2026-09-03T01:46:40Z, some fifteen hours after [received], so the ordinary cases below are
     // all in the past and the tolerance has no say in them.
     private val now = 1_788_400_000_000L
     private val keyBytes: ByteArray = Base64.getDecoder().decode(AutocryptTestKey.RSA_4096)
@@ -42,8 +42,8 @@ class AutocryptPeerImportTest {
     }
 
     @Test fun `a keydata folded the way IMAP unfolds it gives the same bytes`() {
-        // What `MimeParser.rawHeaders` hands over: every continuation line joined with ONE space,
-        // so the base64 comes back with spaces INSIDE it.
+        // What `MimeParser.rawHeaders` hands over: every continuation line joined with one space,
+        // so the base64 comes back with spaces inside it.
         val folded = AutocryptTestKey.RSA_4096.chunked(76).joinToString(" ")
         assertTrue("the fixture must actually be broken up", folded.contains(' '))
         val decided = decide(header("addr=alice@example.test; keydata=$folded")) ?: error("refused")
@@ -60,7 +60,7 @@ class AutocryptPeerImportTest {
     }
 
     @Test fun `two Autocrypt headers make the message worth nothing`() {
-        // THE guard. A second header slipped in by anyone on the path would otherwise file THEIR
+        // The guard. A second header slipped in by anyone on the path would otherwise file their
         // key under the correspondent's address, and everything written to that address afterwards
         // is encrypted to them.
         val two = listOf(
@@ -110,8 +110,7 @@ class AutocryptPeerImportTest {
     }
 
     @Test fun `the string the IMAP path builds from INTERNALDATE is read back to the same millis`() {
-        // The seam between the two halves of the IMAP fix, EXECUTED: `MailRepository`
-        // (`autocryptInternalDate`) turns the server's INTERNALDATE into a String with
+        // The seam between the two halves of the IMAP fix, executed: `MailRepository`
         val stamp = java.time.Instant.ofEpochMilli(1_780_308_000_000L).toString()
         assertEquals("2026-06-01T10:00:00Z", stamp)
         val decided = autocryptPeerImportOf(
@@ -124,9 +123,9 @@ class AutocryptPeerImportTest {
     }
 
     @Test fun `a date that cannot be read is refused`() {
-        // Arbitration (rule 1, the irreversible first): the provider files a peer's key AGAINST a
+        // Arbitration (rule 1, the irreversible first): the provider files a peer's key against a
         // date, and a made-up "now" on an old message can make a stale key win over the current one
-        // inside OpenKeychain — where this app cannot undo it. No date, no import; the message opens
+        // inside OpenKeychain, where this app cannot undo it. No date, no import; the message opens
         // exactly as before.
         val h = header("addr=alice@example.test; keydata=${AutocryptTestKey.RSA_4096}")
         assertNull(autocryptPeerImportOf(h, "alice@example.test", null, now))
@@ -134,10 +133,10 @@ class AutocryptPeerImportTest {
     }
 
     @Test fun `a date beyond the tolerance is refused, and the same header dated sanely is not`() {
-        // The PAIR: one header, one key, one address, and the only difference between the two
+        // The pair: one header, one key, one address, and the only difference between the two
         // calls is the date. INTERNALDATE cannot be forged, but nothing bounds it, and on JMAP the
         // server's `receivedAt` is not bounded either. A key filed at 2100 wins over every
-        // authentic key for the next 74 years INSIDE OpenKeychain, where this app cannot undo it.
+        // authentic key for the next 74 years inside OpenKeychain, where this app cannot undo it.
         val h = header("addr=alice@example.test; keydata=${AutocryptTestKey.RSA_4096}")
         assertNull(autocryptPeerImportOf(h, "alice@example.test", "2100-01-01T00:00:00Z", now))
         val sane = autocryptPeerImportOf(h, "alice@example.test", received, now)
@@ -159,7 +158,7 @@ class AutocryptPeerImportTest {
 
     @Test fun `an old date is still taken - only the future is bounded`() {
         // Nothing closes on the past side here, and bounding it too would drop keys off
-        // perfectly ordinary mail — an old date already loses to a newer key inside the provider.
+        // perfectly ordinary mail, an old date already loses to a newer key inside the provider.
         val h = header("addr=alice@example.test; keydata=${AutocryptTestKey.RSA_4096}")
         val old = autocryptPeerImportOf(h, "alice@example.test", "1971-03-04T05:06:07Z", now)
             ?: error("a date in the past must still import")
@@ -231,8 +230,8 @@ class AutocryptPeerImportTest {
     }
 
     @Test fun `the edge of the tolerance is the edge at the provider too`() {
-        // The two tests around this one drive `autocryptPeerImportOf` DIRECTLY, and the
-        // provider-level one below sits 74 years past the edge — so nothing observed what
+        // The two tests around this one drive `autocryptPeerImportOf` directly, and the
+        // provider-level one below sits 74 years past the edge, so nothing observed what
         val h = header("addr=alice@example.test; keydata=${AutocryptTestKey.RSA_4096}")
         val taken = RecordingEngine()
         val done = runBlocking {

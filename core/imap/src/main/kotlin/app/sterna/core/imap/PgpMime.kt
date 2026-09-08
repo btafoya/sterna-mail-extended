@@ -1,20 +1,20 @@
 package app.sterna.core.imap
 
 /**
- * PGP/MIME (RFC 3156) wrappers. Pure string/MIME assembly — the actual
+ * PGP/MIME (RFC 3156) wrappers. Pure string/MIME assembly, the actual
  * signing/encryption bytes come from the app's OpenPGP provider.
  */
 object PgpMime {
 
         /**
-         * RFC 3156 §5: the signature is computed over the signed entity in canonical form — CRLF line
+         * RFC 3156 §5: the signature is computed over the signed entity in canonical form, CRLF line
          */
     fun canonicalize(entity: String): String =
         entity.replace("\r\n", "\n").replace("\n", "\r\n")
 
-        /** The exact bytes to hand the signer for a multipart/signed: canonical CRLF form WITHOUT a
-         *  trailing CRLF — per RFC 2046 §5.1.1 the CRLF preceding the boundary belongs to the boundary,
-         *  so verifiers extract the part content without it. Pass the SAME string to [wrapSigned]. */
+        /** The exact bytes to hand the signer for a multipart/signed: canonical CRLF form without a
+         *  trailing CRLF, per RFC 2046 §5.1.1 the CRLF preceding the boundary belongs to the boundary,
+         *  so verifiers extract the part content without it. Pass the same string to [wrapSigned]. */
     fun signablePayload(entity: String): String =
         canonicalize(entity).removeSuffix("\r\n")
 

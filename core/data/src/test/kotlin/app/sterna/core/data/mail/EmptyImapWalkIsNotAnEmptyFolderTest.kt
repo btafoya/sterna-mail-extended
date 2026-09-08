@@ -7,7 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The IMAP twin of [EmptyWindowIsNotAnEmptyFolderTest]: a walk that read NOTHING is not a walk
+ * The IMAP twin of [EmptyWindowIsNotAnEmptyFolderTest]: a walk that read nothing is not a walk
  */
 class EmptyImapWalkIsNotAnEmptyFolderTest {
 
@@ -23,7 +23,7 @@ class EmptyImapWalkIsNotAnEmptyFolderTest {
 
     @Test fun `a walk with no UID whose SELECT never stated a count is a REFUSAL, not an empty folder`() {
         // The case, and the value under test is the one the walk could not vouch for: the field is
-        // named false here because that is what `walkFolder` builds from a SELECT without EXISTS.
+        // named false here because that is what `walkFolder` builds from a SELECT without exists.
         assertNull(
             reconcilableIds(load(ImapFolderWalk(uids = emptyList(), moved = false, folderStatedEmpty = false)), account),
         )
@@ -89,7 +89,7 @@ class EmptyImapWalkIsNotAnEmptyFolderTest {
     @Test fun `a refresh that read nothing leaves the cached folder exactly as it was`() {
         // End to end, with the shipped keepIds: nothing was read, so nothing may be deleted. This
         // is the 300 lines the user still has after pulling to refresh on a server that answered a
-        // SELECT without EXISTS.
+        // SELECT without exists.
         val folder = Folder(cached = listOf(id(9), id(8), id(7)))
 
         writeThrough(folder, ImapFolderWalk(uids = emptyList(), moved = false))

@@ -16,7 +16,7 @@ internal const val DRAWER_EDGE_BAND_DP = 20
  *  reserves it and reports a non-zero system-gesture inset, which is how the two are told apart. */
 internal fun edgeIsFree(systemGestureInsetPx: Int): Boolean = systemGestureInsetPx <= 0
 
-/** Effective width of the strip: [bandPx] where the edge is free, 0 otherwise — and 0 where there
+/** Effective width of the strip: [bandPx] where the edge is free, 0 otherwise, and 0 where there
  *  is no drawer to slide ([drawerCanOpen] false, from 1 200 dp), or it would hand the action swipe
  *  of every row begun near the edge to a drawer that cannot move. */
 internal fun drawerBandPx(systemGestureInsetPx: Int, bandPx: Float, drawerCanOpen: Boolean): Float =

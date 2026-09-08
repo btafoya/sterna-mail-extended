@@ -38,7 +38,7 @@ class SettingsBackupPlainTextTest {
 
     @Test fun itIsCarriedAsTrueWhenExplicitlyOn() {
         // The direction that matters: the default is false, so "on" is the answer a backup has to
-        // carry. The VALUE, not the key — the codec writes with encodeDefaults, so an unset field is
+        // carry. The value, not the key, the codec writes with encodeDefaults, so an unset field is
         // exported as `"plainText": null` and contains("plainText") is true of every export ever
         // written, including one that lost the setting entirely.
         val encoded = SettingsBackupCodec.encode(SettingsBackup(plainText = true))
@@ -49,7 +49,7 @@ class SettingsBackupPlainTextTest {
 
     @Test fun messagesOpenAsTheirHtmlUntilSomebodyAsksOtherwise() {
         // The default, run rather than described: the decision is executed on Preferences where the
-        // key is ABSENT, which is the state of every existing install on the update that ships this.
+        // key is absent, which is the state of every existing install on the update that ships this.
         // Flipping the elvis in plainTextFrom flattens every message for every user who has never
         // opened Settings, and nothing else in this repo would notice.
         assertFalse(
@@ -72,6 +72,6 @@ class SettingsBackupPlainTextTest {
         assertFalse(plainTextFrom(preferencesOf(booleanPreferencesKey("reply_bar") to true)))
     }
 
-    /** The persisted key, spelled as the store spells it — see the test above. */
+    /** The persisted key, spelled as the store spells it, see the test above. */
     private val storedKey = booleanPreferencesKey("plain_text")
 }

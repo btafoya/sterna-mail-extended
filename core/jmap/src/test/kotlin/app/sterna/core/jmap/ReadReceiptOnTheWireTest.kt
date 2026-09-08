@@ -18,7 +18,8 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * The read receipt (RFC 8098's `Disposition-Notification-To:`) on the JMAP wire — the OCTETS that
+ * The read receipt (RFC 8098's `Disposition-Notification-To:`) on the JMAP wire, the octets that
+ * leave, read back from a mock server, never the source that produced them.
  */
 class ReadReceiptOnTheWireTest {
 
@@ -57,6 +58,8 @@ class ReadReceiptOnTheWireTest {
 
     /**
      * The second request every JMAP send now makes: it reads back what the server did with the
+     * submission it just created (#183). Nothing is refused here, so the send goes through, but the
+     * response must be queued, or the call sits on the read timeout.
      */
     private val submissionGetResponse =
         """{"methodResponses":[
@@ -179,7 +182,7 @@ class ReadReceiptOnTheWireTest {
             listOf("support@example.org"),
             draft[RECEIPT_PROPERTY]!!.jsonArray.map { it.jsonObject["email"]!!.jsonPrimitive.content },
         )
-        // The same object the `from` array carries — one address, not two versions of it.
+        // The same object the `from` array carries, one address, not two versions of it.
         assertEquals(draft["from"]!!.jsonArray.toString(), draft[RECEIPT_PROPERTY]!!.jsonArray.toString())
     }
 
@@ -202,7 +205,7 @@ class ReadReceiptOnTheWireTest {
     // --- 3. the PGP/MIME route, which never sees Email-set ------------------------------------
 
     @Test fun `the imported raw message reaches the server byte for byte, header included`() {
-        // A signed or encrypted send goes this way and NOT through Email/set: the receipt is in the
+        // A signed or encrypted send goes this way and not through Email/set: the receipt is in the
         // bytes, so this method must not rebuild or re-encode them. Anything else and the header
         // (and the signature with it) would be lost with nothing to show for it.
         val raw = (
@@ -230,7 +233,7 @@ class ReadReceiptOnTheWireTest {
         }
 
         assertEquals("e999", id)
-        // What the client actually PUT on the wire, read once and kept. It has to be THIS and never
+        // What the client actually put on the wire, read once and kept. It has to be THIS and never
         // `String(raw)`: `raw` is the test's own literal, so an assertion against it is true by
         // construction and crosses no line of production code.
         val uploaded = server.takeRequest().body.readUtf8()

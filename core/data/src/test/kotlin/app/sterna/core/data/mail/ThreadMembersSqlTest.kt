@@ -9,6 +9,10 @@ import java.sql.DriverManager
 
 /**
  * Verifies, against in-memory SQLite, the selection semantics of
+ * [app.sterna.core.data.db.EmailDao.cachedThreadEmails], the query that lists a thread's
+ * cached members when a conversation row is unfolded inline. Checks that query's where /
+ * order by (account scope, thread grouping by COALESCE(threadId, id), newest-first) so the
+ * data-layer contract is checked without an Android device.
  */
 class ThreadMembersSqlTest {
     private lateinit var db: Connection
@@ -46,7 +50,9 @@ class ThreadMembersSqlTest {
     }
 
     /**
-     * The shipped `cachedThreadEmails`, run over [mailboxes] — Room expands `mailboxId IN
+     * The shipped `cachedThreadEmails`, run over [mailboxes], Room expands `mailboxId in
+     * (:mailboxIds)` into one `?` per element, and [DaoQuerySource.bindOrder] hands back the order
+     * the placeholders must be filled in, which is the statement's order and not the signature's.
      */
     private fun cachedThreadEmails(accountId: String, mailboxes: List<String>, threadKey: String): List<String> {
         val (sql, order) = DaoQuerySource.bindOrder(
@@ -70,12 +76,12 @@ class ThreadMembersSqlTest {
         }
     }
 
-    /** A single mailbox in the IN-list: the folder-scoped binding used by whole-thread swipe. */
+    /** A single mailbox in the in-list: the folder-scoped binding used by whole-thread swipe. */
     private fun members(accountId: String, mailbox: String, threadKey: String): List<String> =
         cachedThreadEmails(accountId, listOf(mailbox), threadKey)
 
     /**
-     * The binding that populates an unfolded conversation: the viewed folder PLUS the account's
+     * The binding that populates an unfolded conversation: the viewed folder plus the account's
      */
     private fun membersViewPlusSent(accountId: String, mailbox: String, sent: String, threadKey: String): List<String> =
         cachedThreadEmails(accountId, listOf(mailbox, sent), threadKey)

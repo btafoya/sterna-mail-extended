@@ -3,7 +3,7 @@ package app.sterna.ui.inbox
 import app.sterna.core.data.mail.InboxRow
 
 /** How long the list waits, after the selection changed, before handing the screen back to the
- *  rows Paging is presenting. Safety valve only — rule 6 of [advanceRowsGuard] spends it. */
+ *  rows Paging is presenting. Safety valve only, rule 6 of [advanceRowsGuard] spends it. */
 internal const val ROWS_GUARD_GIVE_UP_MS = 800L
 
 /** A floor under [ROWS_GUARD_GIVE_UP_MS], pinned by `RowsGuardTest`: shortened to a few
@@ -21,7 +21,7 @@ internal data class ListKey(
     val unreadView: Boolean,
 )
 
-/** The cheap identity of the rows Paging is presenting: how many, and which row is first — keyed by
+/** The cheap identity of the rows Paging is presenting: how many, and which row is first, keyed by
  *  account and id, never the id alone, or an account switch reads as "nothing moved". O(1) on
  *  purpose: it runs on every recomposition. */
 internal fun rowsSignature(itemCount: Int, first: InboxRow?): String =

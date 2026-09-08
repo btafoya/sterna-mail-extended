@@ -15,7 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Adding an account primed its cache BEFORE the account existed (#121).
+ * Adding an account primed its cache before the account existed (#121).
  */
 class AccountAddPrimingTest {
 

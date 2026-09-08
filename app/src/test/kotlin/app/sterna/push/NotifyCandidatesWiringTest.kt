@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads source files as text.
+ * Source lint, not a behaviour test, it reads source files as text.
  */
 class NotifyCandidatesWiringTest {
 
@@ -27,8 +27,8 @@ class NotifyCandidatesWiringTest {
     }
 
     @Test fun `every seed writes the baseline ids, never only the announced messages`() {
-        // The defect the core/data two-pass test caught: seeding from what was ANNOUNCED means the
-        // baseline is capped, a capped baseline forgets rows, and a later pass announces them —
+        // The defect the core/data two-pass test caught: seeding from what was announced means the
+        // baseline is capped, a capped baseline forgets rows, and a later pass announces them,
         // and unarchives their threads, server-side. There are three seed points across the two
         // passes and each has to remember the whole read.
         val lines = code(FETCH_AND_NOTIFY).lines().map { it.trim() }
@@ -55,7 +55,8 @@ class NotifyCandidatesWiringTest {
     }
 
     /**
-     * SOURCE LINT, NEGATIVE SPACE — these are ALL the places this file seeds a baseline, and
+     * Source lint, negative space, these are all the places this file seeds a baseline, and
+     * there is no other.
      */
     @Test fun `these three are every baseline this file writes, and there is no fourth`() {
         assertEquals(
@@ -73,7 +74,7 @@ class NotifyCandidatesWiringTest {
     }
 
     /**
-     * SOURCE LINT — a refresh that says "I cannot tell you what this folder holds"
+     * Source lint, a refresh that says "I cannot tell you what this folder holds"
      */
     @Test fun `a folder whose page could not say what it holds is skipped, never remembered as empty`() {
         val lines = code(FETCH_AND_NOTIFY).lines().map { it.trim() }
@@ -136,8 +137,8 @@ class NotifyCandidatesWiringTest {
     }
 
     @Test fun `mark-all-read asks for the unread keys, not for every cached row`() {
-        // The read it replaced was per SCOPE, so in the unified view it was one whole folder per
-        // account — for a list of ids and a notification dismissal.
+        // The read it replaced was per scope, so in the unified view it was one whole folder per
+        // account, for a list of ids and a notification dismissal.
         val source = code(INBOX_VIEW_MODEL)
         assertTrue(
             "InboxViewModel.markAllRead must read repo.cachedUnreadKeys(scopes). Its line is now:\n" +
@@ -152,12 +153,12 @@ class NotifyCandidatesWiringTest {
 
     // -- reading the sources --------------------------------------------------------------------
 
-    /** The code lines of [source] naming [needle] — whole lines, and [code] has already cut the
+    /** The code lines of [source] naming [needle], whole lines, and [code] has already cut the
      *  comments. Whole lines, never a search: `in` is blind to anything a mutation LENGTHENS. */
     private fun codeLinesNaming(source: String, needle: String): List<String> =
         source.lines().map { it.trim() }.filter { needle in it }
 
-    /** [file]'s code as one string, comments cut — the comments beside these call sites name the
+    /** [file]'s code as one string, comments cut, the comments beside these call sites name the
      *  very expressions the rules forbid. */
     private fun code(file: File): String = file.readLines().mapNotNull { line ->
         val trimmed = line.trimStart()

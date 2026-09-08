@@ -14,7 +14,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Hides messages snoozed into the future — the list's own predicate
+ * Hides messages snoozed into the future, the list's own predicate
  */
 const val NOT_SNOOZED_EMAILS_SQL: String =
     "NOT EXISTS (SELECT 1 FROM snoozed WHERE snoozed.emailId = emails.id " +
@@ -22,7 +22,7 @@ const val NOT_SNOOZED_EMAILS_SQL: String =
         "(CAST(strftime('%s','now') AS INTEGER) * 1000))"
 
 /**
- * Which cached rows the per-sender screen speaks for — the one clause behind both
+ * Which cached rows the per-sender screen speaks for, the one clause behind both
  */
 const val SENDER_VOLUME_SCOPE_SQL: String =
     "accountId = :accountId AND fromEmail IS NOT NULL AND fromEmail != '' " +
@@ -31,7 +31,7 @@ const val SENDER_VOLUME_SCOPE_SQL: String =
         "AND " + NOT_SNOOZED_EMAILS_SQL
 
 /**
- * Cached mail per sender, grouped on `LOWER(fromEmail)`: the address is authoritative, the display
+ * Cached mail per sender, grouped on `lower(fromEmail)`: the address is authoritative, the display
  */
 const val SENDER_VOLUMES_SQL: String =
     "SELECT fromEmail AS email, fromName AS name, COUNT(*) AS total, " +
@@ -39,7 +39,7 @@ const val SENDER_VOLUMES_SQL: String =
         "FROM emails WHERE " + SENDER_VOLUME_SCOPE_SQL +
         " GROUP BY LOWER(fromEmail) ORDER BY total DESC, latest DESC"
 
-/** The ids behind one line of [SENDER_VOLUMES_SQL] — same rows, same clause text. */
+/** The ids behind one line of [SENDER_VOLUMES_SQL], same rows, same clause text. */
 const val SENDER_MESSAGE_IDS_SQL: String =
     "SELECT id FROM emails WHERE " + SENDER_VOLUME_SCOPE_SQL + " AND LOWER(fromEmail) = LOWER(:email)"
 
@@ -48,7 +48,7 @@ interface EmailDao {
 
     /**
      * Paged source for the list; the query is built dynamically (MailRepository.pagingQuery)
-     * because the ORDER BY and mailbox-id set vary per view.
+     * because the order by and mailbox-id set vary per view.
      */
     @RawQuery(observedEntities = [EmailEntity::class, SnoozedEntity::class])
     fun pagingSource(query: SupportSQLiteQuery): PagingSource<Int, EmailEntity>
@@ -93,7 +93,7 @@ interface EmailDao {
     // The four per-folder reads below are scoped by accountId as well as mailboxId: servers
     // (e.g. Stalwart) number mailboxes per account, so two accounts' inboxes can share an id
 
-    /** The newest [limit] ids in one folder — the bound is the statement's, not the caller's. */
+    /** The newest [limit] ids in one folder, the bound is the statement's, not the caller's. */
     @Query(
         "SELECT id FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId " +
             "ORDER BY sortKey DESC, id DESC LIMIT :limit",
@@ -110,7 +110,7 @@ interface EmailDao {
     suspend fun unreadKeys(accountId: String, mailboxId: String, limit: Int): List<EmailKeyRow>
 
     /**
-     * A folder's rows received at or after [since], newest first, at most [limit] — the candidates
+     * A folder's rows received at or after [since], newest first, at most [limit], the candidates
      */
     @Query(
         "SELECT * FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId " +
@@ -119,7 +119,7 @@ interface EmailDao {
     suspend fun receivedSince(accountId: String, mailboxId: String, since: Long, limit: Int): List<EmailEntity>
 
     /**
-     * The ids [receivedSince] selects from, without its row cap — what a notification pass writes
+     * The ids [receivedSince] selects from, without its row cap, what a notification pass writes
      */
     @Query(
         "SELECT id FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId " +
@@ -129,14 +129,14 @@ interface EmailDao {
 
     // The id-keyed reads/writes below are scoped by accountId as well: with the composite
     // (accountId, id) key (#31) an email id is not unique across accounts, and an unscoped
-    // UPDATE/DELETE would hit a same-server sibling account's row.
+    // update/DELETE would hit a same-server sibling account's row.
 
     /** The cached mailbox an email lives in (used to advance that mailbox's sync cursor). */
     @Query("SELECT mailboxId FROM emails WHERE accountId = :accountId AND id = :id LIMIT 1")
     suspend fun mailboxOf(accountId: String, id: String): String?
 
     /**
-     * The opening lines this account already holds for [ids] under the numbering [uidValidity] — id
+     * The opening lines this account already holds for [ids] under the numbering [uidValidity], id
      */
     @Query(
         "SELECT id, preview FROM emails WHERE accountId = :accountId AND id IN (:ids) " +
@@ -151,13 +151,13 @@ interface EmailDao {
     suspend fun upsertAll(emails: List<EmailEntity>)
 
     /**
-     * Prune a mailbox's cached page down to [keepIds] — window eviction, not removal: the messages
+     * Prune a mailbox's cached page down to [keepIds], window eviction, not removal: the messages
      */
     @Query("DELETE FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId AND id NOT IN (:keepIds)")
     suspend fun deleteNotIn(accountId: String, mailboxId: String, keepIds: List<String>)
 
     /**
-     * Like [deleteNotIn] but never touches [spareIds] — ids just mutated locally, protected until
+     * Like [deleteNotIn] but never touches [spareIds], ids just mutated locally, protected until
      * the server reflects the change, so a stale re-query page cannot clobber an optimistic Undo.
      */
     @Query(
@@ -167,7 +167,7 @@ interface EmailDao {
     suspend fun deleteNotInSparing(accountId: String, mailboxId: String, keepIds: List<String>, spareIds: List<String>)
 
     /**
-     * Evict [ids] from the display cache and leave their index rows alone — [deleteNotIn]'s by-id
+     * Evict [ids] from the display cache and leave their index rows alone, [deleteNotIn]'s by-id
      */
     suspend fun evictFromCacheKeepingIndex(accountId: String, ids: List<String>) {
         if (ids.isEmpty()) return
@@ -197,7 +197,7 @@ interface EmailDao {
         }
     }
 
-    /** [deleteById]'s two halves as one all-or-nothing statement pair — see its comment for why
+    /** [deleteById]'s two halves as one all-or-nothing statement pair, see its comment for why
      *  nothing is caught in here. */
     @Transaction
     suspend fun deleteRowAndIndexById(accountId: String, id: String) {
@@ -224,14 +224,14 @@ interface EmailDao {
         }
     }
 
-    /** [deleteByIds]' two halves as one all-or-nothing statement pair — see [deleteById]. */
+    /** [deleteByIds]' two halves as one all-or-nothing statement pair, see [deleteById]. */
     @Transaction
     suspend fun deleteRowsAndIndexByIds(accountId: String, ids: List<String>) {
         deleteRowsByIds(accountId, ids)
         unindexByIds(accountId, ids)
     }
 
-    // The two halves of [deleteRowAndIndexById] / [deleteRowsAndIndexByIds] — and, for the cache
+    // The two halves of [deleteRowAndIndexById] / [deleteRowsAndIndexByIds], and, for the cache
     // half alone, [evictFromCacheKeepingIndex]. Call those, not these.
     @Query("DELETE FROM emails WHERE accountId = :accountId AND id = :id")
     suspend fun deleteRowById(accountId: String, id: String)
@@ -268,14 +268,14 @@ interface EmailDao {
     )
     suspend fun representativeCountForMailbox(accountId: String, mailboxId: String): Int
 
-    /** All cached ids in one account's mailbox, for cache eviction. NOT what "Select all" reads:
-     *  the list on screen is filtered, and an unfiltered read of the folder is #126 — see
+    /** All cached ids in one account's mailbox, for cache eviction. Not what "Select all" reads:
+     *  the list on screen is filtered, and an unfiltered read of the folder is #126, see
      *  [keysForSelection]. */
     @Query("SELECT id FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId")
     suspend fun idsForMailbox(accountId: String, mailboxId: String): List<String>
 
     /** The (account, id) keys "Select all" may take, built by MailRepository.selectionIdsQuery
-     *  from the same WHERE clause the flat list pages with. */
+     *  from the same where clause the flat list pages with. */
     @RawQuery
     suspend fun keysForSelection(query: SupportSQLiteQuery): List<EmailKeyRow>
 
@@ -290,6 +290,7 @@ interface EmailDao {
 
     /**
      * The IMAP numbering each of [ids] was read under, for a caller that freezes it and opposes it
+     * to the server's at the moment of a write.
      */
     @Query("SELECT id, uidValidity FROM emails WHERE accountId = :accountId AND id IN (:ids)")
     suspend fun numberingOfRows(accountId: String, ids: List<String>): List<RowNumbering>
@@ -301,6 +302,7 @@ interface EmailDao {
 
     /**
      * All cached messages of one thread, newest first, scoped to one account and [mailboxIds] (the
+     * current view's mailboxes, plus the account's Sent folder when listing an unfolded conversation).
      */
     @Query(
         "SELECT * FROM emails WHERE accountId = :accountId AND mailboxId IN (:mailboxIds) " +
@@ -309,7 +311,7 @@ interface EmailDao {
     fun cachedThreadEmails(accountId: String, mailboxIds: List<String>, threadKey: String): Flow<List<EmailEntity>>
 
     /**
-     * Per-folder count of unread THREADS (the conversation-mode drawer badge). Mirrors the
+     * Per-folder count of unread threads (the conversation-mode drawer badge).
      */
     @Query(
         "SELECT accountId, mailboxId, COUNT(*) AS count FROM (" +
@@ -323,7 +325,7 @@ interface EmailDao {
     fun observeThreadUnreadCounts(): Flow<List<MailboxUnread>>
 
     /**
-     * Per-folder count of unread MESSAGES (the flat-mode drawer badge), with the flat list's
+     * Per-folder count of unread messages (the flat-mode drawer badge), with the flat list's
      * not-snoozed filter. Reactive, as [observeThreadUnreadCounts].
      */
     @Query(
@@ -349,7 +351,7 @@ interface EmailDao {
     suspend fun deleteForAccount(accountId: String)
 
     /**
-     * Age (and id) of every cached row in one account's mailbox — the input the retention prune
+     * Age (and id) of every cached row in one account's mailbox, the input the retention prune
      */
     @Query("SELECT id, sortKey FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId")
     suspend fun retentionRows(accountId: String, mailboxId: String): List<EmailRetentionRow>
@@ -383,7 +385,8 @@ interface EmailDao {
     }
 
     /**
-     * The reconcile itself — read the folder, decide the complement once against the whole [keepIds],
+     * The reconcile itself, read the folder, decide the complement once against the whole [keepIds],
+     * [keepIds], evict by batches.
      */
     suspend fun reconcileMailboxRows(
         accountId: String,
@@ -402,7 +405,7 @@ interface EmailDao {
 
 /**
  * Projection for [EmailDao.retentionRows]. [sortKey] is epoch millis, and 0 on a message whose date
- * could not be parsed — undated, not ancient, and never evicted on age.
+ * could not be parsed, undated, not ancient, and never evicted on age.
  */
 data class EmailRetentionRow(
     val id: String,
@@ -411,7 +414,7 @@ data class EmailRetentionRow(
 
 /**
  * Projection for [EmailDao.numberingOfRows]. [uidValidity] is null for a row cached before schema
- * v25 and for every JMAP row — "nothing to oppose", which destroys nothing.
+ * v25 and for every JMAP row, "nothing to oppose", which destroys nothing.
  */
 data class RowNumbering(
     val id: String,

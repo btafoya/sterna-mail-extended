@@ -131,11 +131,11 @@ fun ConnectScreen(
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
 
-    // Survives process death; the verdict it needs does not — what is drawn is [stepToRender]'s.
+    // Survives process death; the verdict it needs does not, what is drawn is [stepToRender]'s.
     var rememberedStep by rememberSaveable(stateSaver = ConnectStepSaver) {
         mutableStateOf(ConnectStep.ADDRESS)
     }
-    // Tapped while the probe was out: leave when it answers — deciding early means "manual".
+    // Tapped while the probe was out: leave when it answers, deciding early means "manual".
     var awaitingVerdict by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(state) {
@@ -197,7 +197,7 @@ fun ConnectScreen(
             )
         }
     }
-    // K-9 / Thunderbird `.k9s` export: parsed (not by extension — the files carry no MIME type),
+    // K-9 / Thunderbird `.k9s` export: parsed (not by extension, the files carry no MIME type),
     // its accounts imported inert, then the "accounts to sign in" list appears.
     val importK9Launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -273,7 +273,7 @@ fun ConnectScreen(
         preset = presetForAddress(preset, verdict, username, walkStep)
         viewModel.discoverImapSettings(walkStep, route, preset, username)
     }
-    // Keyed on the STEP as well as the route: arriving at a step is as much a reason to probe as
+    // Keyed on the step as well as the route: arriving at a step is as much a reason to probe as
     // changing protocol, and a route-only key would never fire again once the walk moved.
     LaunchedEffect(route, walkStep) {
         if (walkStep == ConnectStep.ADDRESS || route == ConnectRoute.IMAP_PASSWORD) probeAddress()
@@ -286,7 +286,7 @@ fun ConnectScreen(
             viewModel.consumeImapDiscovery()
         }
     }
-    // The step this seam has already cleared for, null while it has cleared nothing — what tells a
+    // The step this seam has already cleared for, null while it has cleared nothing, what tells a
     // rotation from an arrival. Null is not spelled ADDRESS: an arriving screen must still clear.
     var clearedFor by rememberSaveable(stateSaver = ClearedStepSaver) {
         mutableStateOf<ConnectStep?>(null)
@@ -486,7 +486,7 @@ fun ConnectScreen(
                             onClick = {
                                 when (val advance = viewModel.advanceFromAddress(username)) {
                                     is AddressAdvance.Go -> rememberedStep = advance.step
-                                    // Nothing to wait for, so say so and stay put — Waiting would
+                                    // Nothing to wait for, so say so and stay put, Waiting would
                                     // spin for ever. The scroll is explicit: reportOffline writes
                                     // an equal Error, so a second tap emits nothing at all.
                                     AddressAdvance.Offline -> {
@@ -625,7 +625,7 @@ fun ConnectScreen(
                         }
                     }
                 }
-                // ---- 3. The manual fallback — reached only when discovery came back empty -----
+                // ---- 3. The manual fallback, reached only when discovery came back empty -----
                 ConnectStep.MANUAL -> {
                     Text(stringResource(R.string.connect_protocol), style = MaterialTheme.typography.labelLarge)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -670,8 +670,8 @@ fun ConnectScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        // Fastmail's JMAP endpoint refuses password (Basic) auth — API tokens only
-                        // (#54) — so steer its users to the token option before they hit the 401.
+                        // Fastmail's JMAP endpoint refuses password (Basic) auth, API tokens only
+                        // (#54), so steer its users to the token option before they hit the 401.
                         if (!useApiToken && isFastmailTarget(username, server)) {
                             Surface(
                                 shape = MaterialTheme.shapes.small,
@@ -808,7 +808,7 @@ fun ConnectScreen(
                                 modifier = Modifier.fillMaxWidth(),
                             ) { Text(stringResource(R.string.connect_oauth_button)) }
                         }
-                        // Outlook has no separate button — its provider chip launches the OAuth flow.
+                        // Outlook has no separate button, its provider chip launches the OAuth flow.
                     }
                 }
             }
@@ -845,7 +845,7 @@ fun ConnectScreen(
 
 /** What the walk's own sign-in passes where the manual form passes its "Advanced" server field.
  *  Not `server`: that is a `rememberSaveable` nothing ever blanks, not on screen at step 2, and it
- *  decides which host is asked — carried to another address it reports OAuth unsupported, falsely. */
+ *  decides which host is asked, carried to another address it reports OAuth unsupported, falsely. */
 private const val NO_TYPED_SERVER = ""
 
 /** Coordinates scrolling the credential block above the keyboard: one requester for the whole
@@ -901,7 +901,7 @@ private fun AccountNameField(value: String, onValue: (String) -> Unit, reveal: C
     )
 }
 
-/** The address field — one implementation for the address step and the manual form, so the warning
+/** The address field, one implementation for the address step and the manual form, so the warning
  *  and the discovery trigger cannot drift. [onFocusLost] fires on the falling edge of focus. */
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -981,15 +981,15 @@ private fun SecretField(
 @Composable
 private fun DeviceApprovalPanel(state: ConnectState.AwaitingApproval, onCancel: () -> Unit) {
     Spacer(Modifier.height(8.dp))
-    // state.loginHint, and NOT the composable's own username field: this panel is shown for the
-    // generic JMAP flow AND for the app-scoped Outlook one, and only the state tells them apart.
+    // state.loginHint, and not the composable's own username field: this panel is shown for the
+    // generic JMAP flow and for the app-scoped Outlook one, and only the state tells them apart.
     DeviceApprovalContent(
         state.userCode, state.verificationUri, state.verificationUriComplete, state.loginHint, onCancel,
     )
 }
 
 /** Authorization-code panel (#55): open the sign-in page, then wait for the browser to come back.
- *  Nothing to show or copy — the exchange travels in the URL — plus an image for no browser. */
+ *  Nothing to show or copy, the exchange travels in the URL, plus an image for no browser. */
 @Composable
 private fun BrowserAuthorizationPanel(state: ConnectState.AwaitingBrowser, onCancel: () -> Unit) {
     val context = LocalContext.current
@@ -1055,7 +1055,7 @@ private fun DeviceApprovalContent(
         stringResource(R.string.connect_oauth_step1),
         style = MaterialTheme.typography.bodyMedium,
     )
-    // Tap the code (or the icon) to copy it — typing it on the Microsoft page is a pain.
+    // Tap the code (or the icon) to copy it, typing it on the Microsoft page is a pain.
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1073,7 +1073,7 @@ private fun DeviceApprovalContent(
     Button(
         onClick = {
             val approval = verificationUriComplete ?: verificationUri
-            // Computed outside the guard on purpose — the hand-off stays inside it, which is what
+            // Computed outside the guard on purpose, the hand-off stays inside it, which is what
             // NavHostSourceRulesTest holds. A hint the server wrote wins: see withLoginHint.
             val target = if (loginHint.isNullOrBlank()) approval else withLoginHint(approval, loginHint)
             leaveOnce {
@@ -1259,7 +1259,7 @@ private fun ImportSignInPanel(target: ConnectViewModel.SignInTarget, viewModel: 
     }
 }
 
-/** Keeps the step the walk reached across a rotation and a process death — by name, so a reordered
+/** Keeps the step the walk reached across a rotation and a process death, by name, so a reordered
  *  enum cannot resurrect a different step from an old bundle. Not enough on its own: the verdict
  *  step 2 needs does not survive ([stepToRender]). */
 private val ConnectStepSaver = listSaver<ConnectStep, String>(
@@ -1267,7 +1267,7 @@ private val ConnectStepSaver = listSaver<ConnectStep, String>(
     restore = { ConnectStep.valueOf(it[0]) },
 )
 
-/** No step has been cleared for yet — what an ARRIVING screen holds, and a rotation never does. */
+/** No step has been cleared for yet, what an arriving screen holds, and a rotation never does. */
 private const val NOTHING_CLEARED = ""
 
 private val ClearedStepSaver = listSaver<ConnectStep?, String>(

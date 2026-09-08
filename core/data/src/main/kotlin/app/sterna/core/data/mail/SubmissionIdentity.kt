@@ -3,12 +3,12 @@ package app.sterna.core.data.mail
 import app.sterna.core.jmap.model.Identity
 
 /** Which server identity a JMAP submission is created under, and whether it must carry an explicit
- *  `envelope` (RFC 8621 §7.5) so the SMTP `MAIL FROM` matches the `From:` the reader sees. An
+ *  `envelope` (RFC 8621 §7.5) so the SMTP `mail from` matches the `From:` the reader sees. An
  *  identity typed by hand exists only on the phone, and the envelope the server would derive from
  *  the fallback identity leaves the message with a mismatch DMARC fails (#172). */
 object SubmissionIdentity {
 
-    /** The identity to submit under, and the envelope's `mailFrom` — null when the server derives it. */
+    /** The identity to submit under, and the envelope's `mailFrom`, null when the server derives it. */
     data class Choice(val identity: Identity, val envelopeMailFrom: String?)
 
     /** Null when the account has no server identity at all. [onBehalf] never gets an envelope: on

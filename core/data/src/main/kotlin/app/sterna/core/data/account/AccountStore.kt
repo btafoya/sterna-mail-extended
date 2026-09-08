@@ -22,6 +22,7 @@ data class MailEndpoint(
 
 /**
  * How an account authenticates. API_TOKEN is a server-generated Bearer token, stored encrypted in
+ * (e.g. a Fastmail API token), stored encrypted in the password slot; JMAP-only.
  */
 enum class AuthType { BASIC, OAUTH, API_TOKEN }
 
@@ -104,13 +105,13 @@ fun diffLinkedAccounts(
     probes: Map<String, Result<*>>,
 ): LinkedAccountsDiff {
     val primary = discovered.firstOrNull() ?: return LinkedAccountsDiff()
-    // Eviction reads the RAW list, admission the probe-filtered one — never the other way round.
+    // Eviction reads the raw list, admission the probe-filtered one, never the other way round.
     val subs = discovered.drop(1)
     val admissible = retainReachableMailAccounts(discovered, probes).drop(1)
     val trackedJmapIds = existingLinked.mapNotNull { it.jmapAccountId }.toSet()
     val liveSubIds = subs.map { it.jmapAccountId }.toSet()
     // Self-healing: two linked records tracking the same server account under one login are
-    // duplicates (a leftover of the pre-lock reconcile write race) — keep the oldest (records are
+    // duplicates (a leftover of the pre-lock reconcile write race), keep the oldest (records are
     // appended, so list order is age order) and prune the rest like a revocation.
     val duplicateIds = existingLinked
         .filter { it.jmapAccountId != null }
@@ -130,7 +131,7 @@ fun diffLinkedAccounts(
 }
 
 /**
- * Codeberg #129: which of a session's [discovered] mail accounts may become accounts at all. A
+ * Codeberg #129: which of a session's [discovered] mail accounts may become accounts at all.
  */
 internal fun retainReachableMailAccounts(
     discovered: List<DiscoveredMailAccount>,
@@ -143,6 +144,8 @@ internal fun retainReachableMailAccounts(
 
 /**
  * The account list as an observable value, behind [AccountStore.accountsFlow]. Split out of the
+ * store, which needs Android's SharedPreferences and Keystore, so the emission rule itself can
+ * be unit-tested on the JVM.
  */
 internal class AccountsState(initial: List<StoredAccount>) {
     private val state = MutableStateFlow(initial)
@@ -171,7 +174,7 @@ class AccountStore(context: Context) {
     )
 
     // Seeded from storage at construction (which also runs the legacy single-account migration),
-    // then kept current by [saveAccounts] — the single choke point every list mutator goes through.
+    // then kept current by [saveAccounts], the single choke point every list mutator goes through.
     private val live = AccountsState(accounts())
 
     // ---- accounts ----
@@ -182,7 +185,8 @@ class AccountStore(context: Context) {
     val accountsFlow: StateFlow<List<StoredAccount>> get() = live.flow
 
     /**
-     * The stored accounts, or an empty list — including when the blob could not be decoded. The
+     * The stored accounts, or an empty list, including when the blob could not be decoded. The
+     * this is called from the constructor and from 62 sites that all handle a list and nothing else.
      */
     fun accounts(): List<StoredAccount> {
         migrateIfNeeded()
@@ -192,7 +196,9 @@ class AccountStore(context: Context) {
     fun hasAccount(): Boolean = accounts().isNotEmpty()
 
     /**
-     * Whether the stored account list could not be read — the one thing [accounts] cannot say,
+     * Whether the stored account list could not be read, the one thing [accounts] cannot say,
+     * since it answers both cases with an empty list. Public because the startup routing lives in
+     * the `app` module, and the gate is `internal` to this one.
      */
     fun accountsUnreadable(): Boolean {
         accounts()
@@ -216,7 +222,7 @@ class AccountStore(context: Context) {
     }
 
     /** Add an account (encrypting its password, or an API token, identically) and make it current.
-     *  Returns its id — the id of the account ALREADY stored under the same identity when there is
+     *  Returns its id, the id of the account already stored under the same identity when there is
      *  one ([addOrRefresh]), so adding the same mailbox twice refreshes one row. */
     @Synchronized
     fun add(
@@ -294,14 +300,14 @@ class AccountStore(context: Context) {
         )
         // The other key THIS route has filed this address under: 1.5.0/1.5.1 stored the host the
         // OAuth document came from, this version the host it resolves. Under the current key alone
-        // such an account would take a SECOND line at the first re-authentication — the fix for #55
+        // such an account would take a second line at the first re-authentication, the fix for #55
         // manufacturing the duplicate of #55.
         val inherited = if (documentHost.isBlank()) null else accountKeyOf(protocol, documentHost, imapHost, username)
         return addOrRefresh(account, refreshToken, alsoRecognisedBy = listOfNotNull(inherited))
     }
 
     /**
-     * Store [proven] as a new login, or refresh the login already carrying the same identity, and
+     * Store [proven] as a new login, or refresh the login already carrying the same identity.
      */
     private fun addOrRefresh(
         proven: StoredAccount,
@@ -433,6 +439,7 @@ class AccountStore(context: Context) {
 
     /**
      * The identity pre-selected when composing for [accountId]: the stored [defaultIdentityId],
+     * or the account's own address when none is stored.
      */
     fun defaultIdentity(accountId: String?): StoredIdentity? =
         (accountId?.let { account(it) } ?: currentAccount())?.defaultIdentity()
@@ -472,7 +479,7 @@ class AccountStore(context: Context) {
 
     /**
      * Whether this account's folder lists hide the folders it is not subscribed to on the server
-     * (#174). Defaults to false, including for an unknown id — see [showOnlySubscribedFoldersOf].
+     * (#174). Defaults to false, including for an unknown id, see [showOnlySubscribedFoldersOf].
      */
     fun showOnlySubscribedFolders(id: String): Boolean = showOnlySubscribedFoldersOf(account(id))
 
@@ -514,7 +521,11 @@ class AccountStore(context: Context) {
     }
 
     /**
-     * Re-key a FOLDED folder after an IMAP rename (ids are folder paths there), the twin of
+     * Re-key a folded folder after an IMAP rename (ids are folder paths there), the twin of
+     * [replaceWatchedFolder] and called beside it: the entry for [oldId] and everything under
+     * `oldId + delimiter` move onto [newId], values carried across. Without it the user's explicit
+     * "unfolded" stays behind under the old path and the drawer's default folds the renamed folder
+     * on the spot. No-op for JMAP ids, which are stable across renames.
      */
     @Synchronized
     fun replaceCollapsedFolder(id: String, oldId: String, newId: String, delimiter: String = "/") {
@@ -575,6 +586,8 @@ class AccountStore(context: Context) {
 
     /**
      * Write the public key read back for [signKeyId] into that account's cache, and only while the
+     * account still carries that key id: see [withCachedPgpPublicKey] for why the guard is the
+     * point. No-op if the id is unknown or the key changed under the read.
      */
     @Synchronized
     fun setPgpPublicKey(id: String, signKeyId: Long, publicKey: String) {
@@ -582,7 +595,7 @@ class AccountStore(context: Context) {
     }
 
     /**
-     * Drop the stored OpenPGP signing key of EVERY account, keeping their other PGP settings.
+     * Drop the stored OpenPGP signing key of every account, keeping their other PGP settings.
      * Called when the user switches OpenPGP app; see [withoutPgpSignKeys].
      */
     @Synchronized
@@ -593,8 +606,8 @@ class AccountStore(context: Context) {
     /** Remove an account; if it was current, fall back to another (or none). */
     @Synchronized
     fun remove(id: String) {
-        // Read BEFORE destroying anything. On an unreadable blob the list reads empty, so a stored
-        // id looks unknown — and the encrypted password is the account's only copy of its secret,
+        // Read before destroying anything. On an unreadable blob the list reads empty, so a stored
+        // id looks unknown, and the encrypted password is the account's only copy of its secret,
         // which no later write-refusal can bring back.
         val list = accounts()
         if (list.none { it.id == id }) return
@@ -715,7 +728,7 @@ class AccountStore(context: Context) {
         val target = account(id) ?: return emptyList()
         val ids = (listOf(id) + if (target.isLinked) emptyList() else linkedAccounts(id).map { it.id }).distinct()
         prefs.edit().apply { ids.forEach { remove(passwordKey(it)) } }.apply()
-        // Read the removed records BEFORE the list is filtered: `remaining` holds what SURVIVES and
+        // Read the removed records before the list is filtered: `remaining` holds what survives and
         // can never name what is going away. Deleting an account IS the user's decision, and the
         // memory must not resurrect its settings on a later re-grant.
         val before = accounts()
@@ -843,7 +856,7 @@ class AccountStore(context: Context) {
         )
     }
 
-    // [accountName] is the server-derived name; deliberately NOT written back here so a user-chosen
+    // [accountName] is the server-derived name; deliberately not written back here so a user-chosen
     // display name is never clobbered by a sync. A blank name falls back to the address via label().
     @Synchronized
     fun saveInboxMeta(mailboxId: String, mailboxName: String, @Suppress("UNUSED_PARAMETER") accountName: String, unread: Int) {
@@ -869,7 +882,7 @@ class AccountStore(context: Context) {
 
     // ---- unified inbox (all accounts) ----
 
-    /** (account id, inbox id) pairs across every account — for reads that must stay account-scoped
+    /** (account id, inbox id) pairs across every account, for reads that must stay account-scoped
      *  even when same-server accounts' mailbox ids collide. The rule itself is [UnifiedInbox.scopes].
      * No bare-id twin exists any more (it was #121 waiting for a caller). */
     fun allInboxScopes(): List<Pair<String, String>> = UnifiedInbox.scopes(accounts())
@@ -923,7 +936,8 @@ class AccountStore(context: Context) {
     // ---- last drawer view ----
 
     /**
-     * The view the mail list was last showing, as an OPAQUE string this store never interprets: its
+     * The view the mail list was last showing, as an opaque string this store never interprets: its
+     * shape belongs to the :app module, which :core:data cannot see.
      */
     fun storedView(): String? = prefs.getString(KEY_VIEW, null)
 
@@ -932,7 +946,8 @@ class AccountStore(context: Context) {
     // ---- refresh freshness (#178) ----
 
     /**
-     * When each (account, folder) pair was last reconciled successfully, as an OPAQUE string —
+     * When each (account, folder) pair was last reconciled successfully, as an opaque string this
+     * store never interprets.
      */
     fun refreshFreshness(): String? = prefs.getString(KEY_FRESHNESS, null)
 
@@ -960,7 +975,7 @@ class AccountStore(context: Context) {
     }.getOrDefault(emptyMap())
 
     /**
-     * Store the memory under its own key and deliberately NOT through [AccountBlobGate]: routing
+     * Store the memory under its own key and deliberately not through [AccountBlobGate]: routing
      */
     private fun saveLinkedMemory(memory: Map<String, List<StoredAccount>>) {
         runCatching {
@@ -1037,11 +1052,11 @@ class AccountStore(context: Context) {
         const val KEY_ACCOUNTS = "accounts"
         const val KEY_CURRENT = "current"
 
-        // The drawer view the list was last showing, as an OPAQUE string: `Sel` lives in the :app
+        // The drawer view the list was last showing, as an opaque string: `Sel` lives in the :app
         // module, which :core:data does not see. Written and parsed by SelectionMemory.
         const val KEY_VIEW = "current_view"
 
-        // When each (account, folder) pair was last reconciled successfully, as an OPAQUE string,
+        // When each (account, folder) pair was last reconciled successfully, as an opaque string,
         // exactly like KEY_VIEW: written and parsed by RefreshFreshness in the :app module.
         const val KEY_FRESHNESS = "refresh_freshness"
 

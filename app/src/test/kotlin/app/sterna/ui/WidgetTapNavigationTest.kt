@@ -4,12 +4,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The back-stack half of a widget tap, RUN — not read as source, not recomputed here. Every
+ * The back-stack half of a widget tap, run, not read as source, not recomputed here. Every
  */
 class WidgetTapNavigationTest {
 
     /**
      * The defect (#112): `selectUnified()` moves the LIST, which is a destination underneath, so a
+     * tap taken while reading a message changed nothing the user could see. "the counter should
+     * open All Inboxes" is what was published; a list that is not on screen is not opened.
      */
     @Test fun `a message on screen is popped, so the unified list is what gets shown`() {
         assertEquals(
@@ -32,7 +34,7 @@ class WidgetTapNavigationTest {
     }
 
     /**
-     * THE TEST THIS FILE EXISTS FOR — a data-loss rule, not an ergonomic one.
+     * The test this file exists for, a data-loss rule, not an ergonomic one.
      */
     @Test fun `the composer is NEVER popped, because that would take a live draft off the screen`() {
         assertEquals(
@@ -45,7 +47,7 @@ class WidgetTapNavigationTest {
     }
 
     /**
-     * THE SAME DRAFT, LOST THROUGH THE BACK DOOR — the composer BURIED under a reader.
+     * The same DRAFT, lost through the back door, the composer BURIED under a reader.
      */
     @Test fun `a composer BURIED under a reader is not popped either, draft and all`() {
         assertEquals(
@@ -59,7 +61,7 @@ class WidgetTapNavigationTest {
     }
 
     /**
-     * Search under a reader — no data lost, but a screenful of work is: the `search` entry and its
+     * Search under a reader, no data lost, but a screenful of work is: the `search` entry and its
      * ViewModel go with the pop, and the user comes back to an empty search instead of results.
      */
     @Test fun `search under a reader is not popped, so the results survive`() {
@@ -102,7 +104,7 @@ class WidgetTapNavigationTest {
     }
 
     /**
-     * No entries at all — the composition that receives a COLD-start tap, before the NavHost has
+     * No entries at all, the composition that receives a cold-start tap, before the NavHost has
      */
     @Test fun `an empty stack is left alone`() {
         assertEquals(
@@ -126,7 +128,9 @@ class WidgetTapNavigationTest {
     }
 
     /**
-     * An entry the rule does not recognise, ABOVE the list, must not be popped past. A null is
+     * An entry the rule does not recognise, above the list, must not be popped past. A null is
+     * the shape a nested graph's entry would take if one were ever added, and "unknown" is the only
+     * honest reading of it.
      */
     @Test fun `an unknown entry above the list stops the unwind`() {
         assertEquals(
@@ -156,7 +160,7 @@ class WidgetTapNavigationTest {
          */
         val GRAPH: String? = null
 
-        // Copied verbatim from SternaApp.kt's NavHost — the `composable(route = …)` declarations.
+        // Copied verbatim from SternaApp.kt's NavHost, the `composable(route = …)` declarations.
         const val INBOX = "inbox"
         const val MESSAGE = "message/{emailId}?accountId={accountId}&index={index}&src={src}&thread={thread}"
         const val COMPOSE = "compose?replyTo={replyTo}&mode={mode}&accountId={accountId}&restore={restore}" +

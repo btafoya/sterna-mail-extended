@@ -4,7 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The decision behind Codeberg #122, RUN rather than restated: given what the server says about a
+ * The decision behind Codeberg #122, run rather than restated: given what the server says about a
+ * wave's ids, which of them may still be destroyed.
  */
 class DestroyableIdsTest {
 
@@ -78,8 +79,8 @@ class DestroyableIdsTest {
     }
 
     @Test fun theSurvivorsKeepTheWavesOwnOrderAndNothingIsAdded() {
-        // The result feeds an Email/set destroy: it may only ever be a SUBSET of what was asked,
-        // in the same order — never an id the server volunteered.
+        // The result feeds an Email/set destroy: it may only ever be a subset of what was asked,
+        // in the same order, never an id the server volunteered.
         val located = mapOf(
             "m1" to setOf(trash),
             "m2" to setOf("mbInbox"),

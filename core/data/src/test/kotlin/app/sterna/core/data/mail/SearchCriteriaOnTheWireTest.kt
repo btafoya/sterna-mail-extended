@@ -10,7 +10,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 
 /**
- * Every criterion of the search panel, from the object the SCREEN owns down to the `UID SEARCH`
+ * Every criterion of the search panel, from the object the screen owns down to the `UID SEARCH`
  */
 class SearchCriteriaOnTheWireTest {
 
@@ -64,7 +64,9 @@ class SearchCriteriaOnTheWireTest {
     // ---- the witness: an untouched criterion sends no key ----
 
     /**
-     * THE witness for all seven at once. Without it every assertion above passes on a build that
+     * The witness for all seven at once. Without it every assertion above passes on a build that
+     * appends its key unconditionally, and a search would then be permanently filtered by a
+     * criterion the user never set, quietly returning a fraction of what matches.
      */
     @Test fun `criteria left at their default send no key of their own`() {
         val onlyText = keys(SearchQuery(text = "invoice"))
@@ -96,7 +98,7 @@ class SearchCriteriaOnTheWireTest {
     // ---- the crossing the flagged switch had never been through ----
 
     /**
-     * Starred AND from Alex AND since June. Three keys separated by spaces is an implicit AND in
+     * Starred and from Alex and since June.
      */
     @Test fun `the star crossed with a date and a sender narrows the search rather than widening it`() {
         val crossed = keys(SearchQuery(from = "alex@masto.top", flagged = true, afterMillis = june1))
@@ -120,10 +122,13 @@ class SearchCriteriaOnTheWireTest {
         )
     }
 
-    // ---- the attachment filter must NOT swallow the rest of the query ----
+    // ---- the attachment filter must not swallow the rest of the query ----
 
     /**
-     * The cost argument for the local scan rests entirely on this: with an attachment tick AND
+     * The cost argument for the local scan rests entirely on this: with an attachment tick and
+     * other criteria, the other criteria still go to the server. The scan then walks what the
+     * server already narrowed (a handful of starred June messages from Alex) instead of standing
+     * in for the query and fetching envelopes across the whole folder.
      */
     @Test fun `an attachment search still sends the other criteria to the server`() {
         val mixed = SearchQuery(
@@ -139,7 +144,7 @@ class SearchCriteriaOnTheWireTest {
     }
 
     /**
-     * And the attachment is the ONLY criterion that buys the scan. Widening the decision (say to
+     * And the attachment is the only criterion that buys the scan.
      */
     @Test fun `no criterion other than the attachment asks for a client-side scan`() {
         listOf(

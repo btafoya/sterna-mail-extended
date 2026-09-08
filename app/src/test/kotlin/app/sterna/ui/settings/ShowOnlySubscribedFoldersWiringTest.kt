@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as [UploadSentCopyWiringTest].
+ * Source lint, not a behaviour test, same instrument and disclaimer as [UploadSentCopyWiringTest].
  */
 class ShowOnlySubscribedFoldersWiringTest {
 
@@ -62,7 +62,7 @@ class ShowOnlySubscribedFoldersWiringTest {
     }
 
     /**
-     * The store write, then the folder sync that ON owes — and the SCOPE that sync runs on (#174).
+     * The store write, then the folder sync that on owes, and the scope that sync runs on (#174).
      */
     @Test fun `the view model stores the value, then syncs the folders on a scope the back gesture cannot kill`() {
         assertEquals(
@@ -97,14 +97,14 @@ class ShowOnlySubscribedFoldersWiringTest {
 
     // ── instrument (copied from [UploadSentCopyWiringTest]) ──────────────────────────────────────
 
-    /** [count] consecutive code lines from the ONE line starting with [prefix]. */
+    /** [count] consecutive code lines from the one line starting with [prefix]. */
     private fun block(file: File, prefix: String, count: Int): List<String> {
         val lines = codeLines(file)
         val at = only(lines, prefix, exact = false)
         return lines.subList(at, minOf(at + count, lines.size))
     }
 
-    /** [count] code lines starting [before] lines above the ONE line equal to [anchor]. */
+    /** [count] code lines starting [before] lines above the one line equal to [anchor]. */
     private fun blockEndingAt(file: File, anchor: String, before: Int, count: Int): List<String> {
         val lines = codeLines(file)
         val at = only(lines, anchor)

@@ -15,12 +15,16 @@ data class EmailPage(
     /** Total messages matching the query (when the server calculated it), for paging end-detection. */
     val total: Int? = null,
         /**
-         * How many ids the `Email/query` half returned — which can EXCEED `emails.size` when the
+         * How many ids the `Email/query` half returned, which can exceed `emails.size` when the
+         * back-referenced `Email/get` omits some (a message destroyed between the two calls). It is
+         * what a multi-page walk must page on: a short get is not an exhausted folder, and stopping
+         * on `emails.size` would abandon everything behind it. No default on purpose, a caller
+         * building a page has to say what the query saw, and `0` means "the folder is exhausted"
          */
     val queryCount: Int,
 )
 
-/** Ids-only page of an `Email/query` (no `Email/get`) — for resolving bulk-action targets. */
+/** Ids-only page of an `Email/query` (no `Email/get`), for resolving bulk-action targets. */
 data class EmailIdPage(
     val ids: List<String>,
     /** Total messages matching the query (when the server calculated it), for paging end-detection. */
@@ -36,7 +40,7 @@ data class CrawlPage(
 )
 
     /**
-     * One page of a search: the messages fetched, and [matchedIds] — how many ids `Email/query` matched
+     * One page of a search: the messages fetched, and [matchedIds], how many ids `Email/query` matched
      */
 data class SearchPage(
     val emails: List<Email>,

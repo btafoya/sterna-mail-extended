@@ -5,7 +5,8 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * WHAT `fetchInternalDate` PUTS ON THE WIRE, and what it makes of the answer — driven against a
+ * What `fetchInternalDate` puts on the wire, and what it makes of the answer, driven against a
+ * scripted server, not asserted from the source.
  */
 class InternalDateOnTheWireTest {
 
@@ -83,7 +84,7 @@ class InternalDateOnTheWireTest {
 
     @Test fun `an INTERNALDATE that is not a date-time is null`() {
         // Refusing costs a key we never had. Defaulting to "now" would date an unknown key with
-        // today, and the provider keeps the newest — see [InternalDateTest].
+        // today, and the provider keeps the newest, see [InternalDateTest].
         val (_, read) = conversation { tag ->
             "* 1 FETCH (UID 7 INTERNALDATE \"whenever\")\r\n$tag OK fetched\r\n"
         }

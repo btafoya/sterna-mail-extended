@@ -6,7 +6,9 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, same instrument and the same disclaimer as
+ * [BulkSelectionWiringTest]: it reads the ViewModels as text and proves nothing about what happens
+ * on screen.
  */
 class MoveNumberingAtTheGestureTest {
 
@@ -103,7 +105,7 @@ class MoveNumberingAtTheGestureTest {
         }
     }
 
-    /** The same synchronous clear on the archive, for the same reason — it is the gesture that
+    /** The same synchronous clear on the archive, for the same reason, it is the gesture that
      *  stopped being synchronous when the freeze was added to it. */
     @Test fun `the archive clears the selection at the tap, not a suspension later`() {
         val body = body(INBOX_VIEW_MODEL, "archiveSelected")
@@ -129,7 +131,7 @@ class MoveNumberingAtTheGestureTest {
     // -- the shared read -----------------------------------------------------------------------
 
     /**
-     * The helper itself. It must ask the REPOSITORY (which answers null on JMAP, where an id
+     * The helper itself. It must ask the repository (which answers null on JMAP, where an id
      */
     @Test fun `the numbering is read per source folder, from the repository, off the id`() {
         val body = body(INBOX_VIEW_MODEL, "selectionNumbering")
@@ -154,7 +156,7 @@ class MoveNumberingAtTheGestureTest {
     }
 
     /** And nowhere else. A second call, inside `bulkBatched` or inside a batch lambda, is a
-     *  read at execution — see this class's header. */
+     *  read at execution, see this class's header. */
     @Test fun `the numbering is read at the five gestures and nowhere else`() {
         assertEquals(
             "selectionNumbering is declared once and called from exactly the five bulk gestures " +
@@ -176,6 +178,8 @@ class MoveNumberingAtTheGestureTest {
 
     /**
      * "Delete every message from this sender" is the only bulk path in the app that goes through a
+     * confirmation, so it is the one where the gap between reading the ids and moving them is
+     * widest, the dialog stays up for as long as the user looks at it.
      */
     @Test fun `the sender delete freezes the numbering where it reads the ids`() {
         val body = body(SENDER_VIEW_MODEL, "askDelete")
@@ -199,7 +203,7 @@ class MoveNumberingAtTheGestureTest {
         )
     }
 
-    /** And the confirmation must READ NOTHING: it takes what was frozen, exactly as it takes
+    /** And the confirmation must read nothing: it takes what was frozen, exactly as it takes
      *  the ids. A `?:` fallback here "for a confirmation opened before the field existed" is the
      *  defect back, in the shape that reads as harmless. */
     @Test fun `the sender confirmation opposes what was frozen and reads no numbering itself`() {
@@ -221,7 +225,7 @@ class MoveNumberingAtTheGestureTest {
     // -- the closed list of callers ------------------------------------------------------------
 
     /**
-     * THE BLIND SPOT that got the first delivery rejected: every rule above looks at a gesture
+     * The blind spot that got the first delivery rejected: every rule above looks at a gesture
      */
     @Test fun `every caller of a bulk mover in the app hands over a frozen numbering`() {
         val calls = appSources().flatMap { file ->
@@ -251,7 +255,7 @@ class MoveNumberingAtTheGestureTest {
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         codeLinesOf(body).filter { needle in it }
 
-    /** The same, for a needle that has to catch SYNONYMS: a rule pinned to one spelling is a rule
+    /** The same, for a needle that has to catch synonyms: a rule pinned to one spelling is a rule
      *  a rename walks past. Used where the forbidden thing is "a numbering read, under any name". */
     private fun codeLinesNaming(body: String, needle: Regex): List<String> =
         codeLinesOf(body).filter { needle.containsMatchIn(it) }
@@ -260,7 +264,7 @@ class MoveNumberingAtTheGestureTest {
         body.lines().map { it.replace(Regex("""\s+"""), " ").trim() }
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
 
-    /** Every Kotlin source of the app module — what a closed list of CALLERS has to be read over:
+    /** Every Kotlin source of the app module, what a closed list of callers has to be read over:
      *  a rule that looks only at the files it already knows about cannot see a new caller. */
     private fun appSources(): List<File> =
         File(root, APP_SOURCES).walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
@@ -289,7 +293,7 @@ class MoveNumberingAtTheGestureTest {
     }
 
     /** The declaration of `fun`/`val` [name] in [file] and its body, as text. Fails loudly when the
-     *  declaration is not found — a rename must break these rules rather than satisfy them. */
+     *  declaration is not found, a rename must break these rules rather than satisfy them. */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)
         val declaration = Regex("""\b(fun|val|var)\s+$name\b""")

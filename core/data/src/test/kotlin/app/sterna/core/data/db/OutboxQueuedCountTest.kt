@@ -28,7 +28,7 @@ class OutboxQueuedCountTest {
     private val window = 5_000L
 
     /**
-     * "Now", read once from the real clock — every deadline below is expressed against it, so that a
+     * "Now", read once from the real clock, every deadline below is expressed against it, so that a
      * clock consulted inside the count cannot be hidden by fixtures from 1970. See the class KDoc.
      */
     private val anchor = System.currentTimeMillis()
@@ -59,7 +59,7 @@ class OutboxQueuedCountTest {
     }
 
     /**
-     * THE REPORTER'S CASE, on real timestamps. He is offline, the send is queued, its undo window
+     * The reporter's case, on real timestamps. He is offline, the send is queued, its undo window
      */
     @Test fun theReportersCaseWithRealTimestamps() {
         val queuedRightNow = listOf(justQueued())
@@ -90,7 +90,7 @@ class OutboxQueuedCountTest {
             }
     }
 
-    /** Nothing queued, nothing announced — the entry carries no badge at all. */
+    /** Nothing queued, nothing announced, the entry carries no badge at all. */
     @Test fun anEmptyOutboxIsCountedAsZero() {
         assertEquals(0, OutboxLogic.queuedCount(emptyList()))
     }
@@ -108,7 +108,7 @@ class OutboxQueuedCountTest {
 
     /**
      * The count is a photograph, not a countdown: the same rows give the same number an hour later.
-     * (The dot's count does move on its own — that is [OutboxLogic.activeCount]'s job, not this one.)
+     * (The dot's count does move on its own, that is [OutboxLogic.activeCount]'s job, not this one.)
      */
     @Test fun theCountNeverChangesOnItsOwnHoweverLongTheMessageWaits() {
         val rows = listOf(justQueued())
@@ -156,12 +156,14 @@ class OutboxQueuedCountTest {
 
     /**
      * Guard on the grace itself rather than on one scenario: over the first half-minute of a send,
+     * the dot's count and the menu's count must genuinely disagree. A grace quietly reduced to zero
+     * (or a count that grew one) would make them agree everywhere, and that is what fails here.
      */
     @Test fun theTwoCountsDisagreeForTheWholeLengthOfTheGrace() {
         val rows = listOf(queuedWithNoWindow())
         assertTrue("the dot's grace is what buys the silence; it must not be zero", grace > 0)
 
-        // Sampled across the grace, not just at its ends — on the real timeline, counted from the
+        // Sampled across the grace, not just at its ends, on the real timeline, counted from the
         // instant the row was queued.
         listOf(0L, 1L, grace / 2, grace - 1).forEach { elapsed ->
             val now = anchor + elapsed
@@ -217,6 +219,8 @@ class OutboxQueuedCountTest {
 
     /**
      * The contract of this fix: the number on the menu entry is, at every instant, exactly the
+     * number of lines the Outbox screen will show. Tapping the entry must not open a list with a
+     * different number of messages in it than the badge just announced.
      */
     @Test fun theMenuCountIsExactlyTheNumberOfRowsTheOutboxScreenLists() {
         insert(OutboxState.HELD, notBefore = anchor + window, createdAt = anchor + 1)
@@ -246,6 +250,8 @@ class OutboxQueuedCountTest {
 
     /**
      * The invariant again, on the state that breaks it if anything does: the row taken out for
+     * editing must vanish from the count at the same moment it vanishes from the list, and come
+     * back to both when the composer gives it up (`releaseOutboxEdit` only flips the state).
      */
     @Test fun theRowOpenInTheComposerLeavesBothTheListAndTheCountTogether() {
         insert(OutboxState.QUEUED, notBefore = anchor, createdAt = anchor + 1)
@@ -263,7 +269,7 @@ class OutboxQueuedCountTest {
         assertEquals("given back to the queue: on both again", 2, countThroughBothPaths())
     }
 
-    /** The states `observeAll` — the Outbox screen's own query — hands back, in its own order. */
+    /** The states `observeAll` (the Outbox screen's own query) hands back, in its own order. */
     private fun listedStates(): List<OutboxState> {
         val listed = mutableListOf<OutboxState>()
         db.createStatement().use { st ->
@@ -274,7 +280,7 @@ class OutboxQueuedCountTest {
         return listed
     }
 
-    /** The rows `observeBadgeItems` — the count's own query — hands back. */
+    /** The rows `observeBadgeItems` (the count's own query) hands back. */
     private fun badgeItems(): List<OutboxBadgeItem> {
         val items = mutableListOf<OutboxBadgeItem>()
         db.createStatement().use { st ->

@@ -9,7 +9,10 @@ import org.junit.Test
 import java.io.IOException
 
 /**
- * **The `Message-ID` names the VERSION, not the draft** (#95), executed end to end over the
+ * **The `Message-ID` names the version, not the draft** (#95), executed end to end over the
+ * shipped decisions, [localDraftTarget], [localDraftMessageId], [localDraftRow],
+ * [saveDraftLocalFirst], [uploadLocalDraftOnce] and [appendDraftUnlessAlreadyThere], with a phone
+ * that is a map and a Drafts folder that is another.
  */
 class LocalDraftVersionIsNamedTest {
 
@@ -27,7 +30,7 @@ class LocalDraftVersionIsNamedTest {
     @Test fun `a second version reaches the server instead of being taken for the first`() {
         // 1. v1 goes out and the answer is lost: the copy is there, the phone does not know.
         save(body = V1, deliver = { row -> drafts[row.messageId] = row.textBody; throw IOException("Connection reset by peer") })
-        // 2. the user re-opens the SAME server draft, edits, saves with no network at all.
+        // 2. the user re-opens the same server draft, edits, saves with no network at all.
         save(body = V2, deliver = { throw IOException("Network is unreachable") })
 
         val result = worker()
@@ -64,9 +67,9 @@ class LocalDraftVersionIsNamedTest {
 
     @Test fun `the worker's own retries keep asking under the name the save wrote`() {
         // The other half of the rule, and the half that makes the search worth running at all: the
-        // worker never rebuilds the row, so every attempt at ONE save asks about the same name. A
+        // worker never rebuilds the row, so every attempt at one save asks about the same name. A
         // name re-minted here would search for something that has never been on a wire, find
-        // nothing, and append a copy per retry — the duplicate this volet exists to stop.
+        // nothing, and append a copy per retry, the duplicate this volet exists to stop.
         save(body = V1, deliver = { throw IOException("Network is unreachable") })
         val name = phone.values.single().messageId
 
@@ -80,7 +83,7 @@ class LocalDraftVersionIsNamedTest {
 
     // ---- the harness: the shipped functions, a map for the phone and a map for the folder ----------
 
-    /** One save gesture by the user, on the SAME server draft every time. */
+    /** One save gesture by the user, on the same server draft every time. */
     private fun save(body: String, deliver: (LocalDraftEntity) -> Unit) = runBlocking {
         val target = localDraftTarget(
             SERVER_DRAFT,
@@ -126,7 +129,7 @@ class LocalDraftVersionIsNamedTest {
         }
     }
 
-    /** The same, against a server that cannot be reached at all — so the row survives it. */
+    /** The same, against a server that cannot be reached at all, so the row survives it. */
     private fun workerFailingToAppend(at: Long): LocalDraftUploadResult = runBlocking {
         attempt(at) { row ->
             appendDraftUnlessAlreadyThere(

@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * What a folder NOBODY has decided anything about does on the first run, EXECUTED
+ * What a folder nobody has decided anything about does on the first run, executed
  */
 class DefaultCollapsedFoldersTest {
 
@@ -59,6 +59,7 @@ class DefaultCollapsedFoldersTest {
 
     /**
      * The child that carries the role, which no other case here has: the rule reads the role of
+     * the folder being folded, never of its children.
      */
     @Test fun `a user folder whose only child carries a role still starts folded`() {
         val folders = listOf(
@@ -76,7 +77,7 @@ class DefaultCollapsedFoldersTest {
     }
 
     /**
-     * Stalwart's `Archive`, MEASURED on the bench on 2026-08-25 and written into
+     * Stalwart's `Archive`, measured on the bench on 2026-08-25 and written into
      */
     @Test fun `an archive the server left roleless is not folded — the app files mail into it`() {
         val folders = listOf(
@@ -96,7 +97,8 @@ class DefaultCollapsedFoldersTest {
     }
 
     /**
-     * The loser of an IMAP role election (`ImapClient.assignRoles`): the server DID advertise a
+     * The loser of an IMAP role election (`ImapClient.assignRoles`): the server did advertise a
+     * role on it, `MailboxMapper.toMailbox` erases it to null and keeps [Mailbox.lostRoleClaim].
      */
     @Test fun `a folder that claimed a role and lost the election is not folded either`() {
         val folders = listOf(
@@ -116,7 +118,7 @@ class DefaultCollapsedFoldersTest {
     }
 
     /**
-     * The IMAP shape the whole guard is built around: ids that ARE paths, everything hanging
+     * The IMAP shape the whole guard is built around: ids that are paths, everything hanging
      * under the Inbox. Folding the Inbox would leave the drawer showing one single line.
      */
     @Test fun `an IMAP tree under the Inbox leaves the Inbox open, both delimiters`() {
@@ -159,6 +161,9 @@ class DefaultCollapsedFoldersTest {
 
     /**
      * The grandchild, pinned to what [folderParentId] actually answers rather than to what the
+     * shape suggests: with the middle folder missing from the list, the path branch resolves a
+     * parent the list does not hold and gives up, so the drawer draws both at the top level and
+     * `Perso` hides nothing.
      */
     @Test fun `a folder whose only descendant skips a level is nobody's parent`() {
         val folders = listOf(
@@ -187,7 +192,7 @@ class DefaultCollapsedFoldersTest {
     }
 
     /**
-     * V5, and the ONLY thing it changes here: an account whose drawer rows carry no unread count
+     * V5, and the only thing it changes here: an account whose drawer rows carry no unread count
      */
     @Test fun `rows that cannot badge unread fold nothing by default, and the flag changes nothing else`() {
         val folders = listOf(
@@ -217,6 +222,8 @@ class DefaultCollapsedFoldersTest {
 
     /**
      * The role guard is not what V5 touches, seen from the other side: with no badge available the
+     * answer is empty whatever the roles say, so a mutation that swapped the role guard for a
+     * [folderRank] test cannot hide behind this argument.
      */
     @Test fun `a badge-less account folds nothing even where the role guard would have allowed it`() {
         val folders = listOf(mailbox("Travail"), mailbox("Travail/Client A"))

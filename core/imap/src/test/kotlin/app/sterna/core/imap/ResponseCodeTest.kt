@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The RFC 5530 response code — the ONE typed thing a failing IMAP server says — as it is read
+ * The RFC 5530 response code (the one typed thing a failing IMAP server says) as it is read
  */
 class ResponseCodeTest {
 
@@ -64,7 +64,7 @@ class ResponseCodeTest {
             val imap = thrown as? ImapException
                 ?: throw AssertionError("expected an ImapException, got $thrown")
             assertEquals("AUTHENTICATIONFAILED", imap.responseCode)
-            // The MESSAGE is untouched: still the redacted template, body included — that text
+            // The message is untouched: still the redacted template, body included, that text
             // is for the log, and the redaction is what keeps the password out of it.
             assertTrue(
                 "message should keep the redacted template, got <${imap.message}>",
@@ -85,8 +85,8 @@ class ResponseCodeTest {
         }
     }
 
-    /** The OTHER throw site — [ImapSession.authenticateXoauth2] — and THE symptom's case:
-     *  a server that is DOWN while authenticating must not look like a bad token/password. */
+    /** The other throw site ([ImapSession.authenticateXoauth2]) and the symptom's case:
+     *  a server that is down while authenticating must not look like a bad token/password. */
     @Test
     fun `an AUTHENTICATE failure carries the server's code, here UNAVAILABLE`() {
         FakeImapServer { tag, line ->

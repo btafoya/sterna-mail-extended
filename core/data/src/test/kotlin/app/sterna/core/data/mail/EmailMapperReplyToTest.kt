@@ -35,7 +35,7 @@ class EmailMapperReplyToTest {
         assertNotNull("the row must carry Reply-To, not just From", entity.replyToJson)
         assertEquals(listOf(support), entity.toEmail().replyTo)
         assertEquals("support@example.org", entity.toEmail().replyTo.single().email)
-        // …and it is NOT the From the sender set aside.
+        // …and it is not the From the sender set aside.
         assertEquals("no-reply@example.org", entity.toEmail().from.single().email)
     }
 

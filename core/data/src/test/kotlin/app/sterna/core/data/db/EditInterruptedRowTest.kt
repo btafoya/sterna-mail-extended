@@ -9,7 +9,8 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * The row an INTERRUPTED EDIT leaves behind, run against a REAL SQLite engine through the
+ * The row an interrupted edit leaves behind, run against a real SQLite engine through the
+ * statement the app ships, the twin of [KeptAsDraftRowTest], for the close instead of the save.
  */
 class EditInterruptedRowTest {
 
@@ -45,7 +46,9 @@ class EditInterruptedRowTest {
     }
 
     /**
-     * The sentinel is STORED, in every user's database, from the first version that ships it. It
+     * The sentinel is stored, in every user's database, from the first version that ships it. It
+     * is pinned as a literal so that renaming the constant is seen for what it is: every row already
+     * parked would stop being translated and print "Failed: edit-interrupted" in nine languages.
      */
     @Test fun `the sentinel is a fixed token, never a translated sentence`() {
         assertEquals("edit-interrupted", OutboxLogic.EDIT_INTERRUPTED)
@@ -53,8 +56,8 @@ class EditInterruptedRowTest {
 
     @Test fun `a row the composer no longer owns is left exactly as it is`() {
         // The same guard as releaseOutboxEdit / parkOutboxEdit, in the statement itself: only an
-        // EDITING row belongs to the composer. A QUEUED row under the same id is one a startup
-        // sweep or a Retry has already claimed, and writing FAILED over it would park a message
+        // editing row belongs to the composer. A queued row under the same id is one a startup
+        // sweep or a Retry has already claimed, and writing failed over it would park a message
         // somebody else has just put back on its way.
         val queued = insert(OutboxState.QUEUED, attemptCount = 1, lastError = "550 refused")
 
@@ -68,7 +71,7 @@ class EditInterruptedRowTest {
     }
 
     @Test fun `only the row named is parked, not every row mid-edit`() {
-        // A second composer's row — or one a process death stranded — is not this close's to park:
+        // A second composer's row (or one a process death stranded) is not this close's to park:
         // the startup sweep (parkInterruptedOutboxEdits) decides those, and this statement must name its id.
         val held = insert(OutboxState.EDITING, attemptCount = 0)
         val other = insert(OutboxState.EDITING, attemptCount = 2)
@@ -119,8 +122,8 @@ class EditInterruptedRowTest {
     }
 
     @Test fun `the sweep touches no row in any other state`() {
-        // One row of EVERY state but EDITING, each with a count and a reason of its own, so a
-        // statement that forgot its WHERE — or one that named a second state — is seen on the
+        // One row of every state but editing, each with a count and a reason of its own, so a
+        // statement that forgot its where (or one that named a second state) is seen on the
         // column it clobbered, not only on the state.
         val untouched = OutboxState.entries.filter { it != OutboxState.EDITING }.mapIndexed { i, state ->
             insert(state, attemptCount = i + 1, lastError = "reason ${state.name}") to Row(state, i + 1, "reason ${state.name}")
@@ -167,7 +170,7 @@ class EditInterruptedRowTest {
     }
 
     /**
-     * THE ORDER OF THE TWO STATEMENTS is what keeps an exhausted row's own reason (the SQLite
+     * The order of the two statements is what keeps an exhausted row's own reason (the SQLite
      */
     @Test fun `the repository issues the exhausted statement first, then parks the rest`() {
         assertEquals(
@@ -186,7 +189,7 @@ class EditInterruptedRowTest {
     }
 
     /**
-     * The close-time door, line by line. `MailRepository` cannot be instantiated here, so the ONE
+     * The close-time door, line by line. `MailRepository` cannot be instantiated here, so the one
      */
     @Test fun `the close-time park writes the cap on a row still under it, and the state alone on one already there`() {
         assertEquals(
@@ -207,8 +210,8 @@ class EditInterruptedRowTest {
         )
     }
 
-    /** Every CODE line of [text] — comments and blanks dropped, trailing comments cut, whitespace
-     *  normalised — compared WHOLE, never by `contains`. */
+    /** Every code line of [text], comments and blanks dropped, trailing comments cut, whitespace
+     *  normalised, compared whole, never by `contains`. */
     private fun codeLines(text: String): List<String> =
         text.lines()
             .filterNot { it.trim().startsWith("//") || it.trim().startsWith("*") || it.trim().startsWith("/*") }
@@ -225,7 +228,7 @@ class EditInterruptedRowTest {
 
     /**
      * The startup sweep as `MailRepository.parkInterruptedOutboxEdits` issues it: the exhausted
-     * rows first, then every row still EDITING — each statement bound as the repository binds it.
+     * rows first, then every row still editing, each statement bound as the repository binds it.
      */
     private fun startupSweep() {
         execute("revertEditingExhaustedToFailed", mapOf("maxAttempts" to OutboxLogic.MAX_ATTEMPTS))

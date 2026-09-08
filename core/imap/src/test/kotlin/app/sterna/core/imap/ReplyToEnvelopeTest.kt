@@ -14,7 +14,7 @@ class ReplyToEnvelopeTest {
     private fun wire(text: String, charset: Charset): String =
         String(text.toByteArray(charset), Charsets.ISO_8859_1)
 
-    /** An IMAP literal — the only shape RFC 3501 leaves a server for a non-ASCII envelope value. */
+    /** An IMAP literal, the only shape RFC 3501 leaves a server for a non-ASCII envelope value. */
     private fun literal(value: String): String = "{${value.length}}\r\n$value"
 
     /**
@@ -24,9 +24,9 @@ class ReplyToEnvelopeTest {
     private fun fetched(
         replyTo: String = "((\"Support\" NIL \"support\" \"masto.top\"))",
         from: String = "((\"Alex Rivera\" NIL \"alex.rivera\" \"masto.top\"))",
-        // Slot 3, `sender`, is the neighbour BELOW reply-to, and it is the dangerous one: mailing
+        // Slot 3, `sender`, is the neighbour below reply-to, and it is the dangerous one: mailing
         // lists are exactly where it is filled (a bounce address) and where Reply-To may be
-        // absent. Left NIL — as every fixture in this module had it — a reader that fell back to
+        // absent. Left NIL (as every fixture in this module had it) a reader that fell back to
         // slot 3 would look identical to a correct one.
         sender: String = "((\"Bounces\" NIL \"bounces\" \"masto.top\"))",
         to: String = "((\"Team\" NIL \"team\" \"masto.top\"))",
@@ -64,7 +64,9 @@ class ReplyToEnvelopeTest {
     }
 
     /**
-     * THE SLOT, not merely "an address". `cc` is the very next envelope field and carries an
+     * The slot, not merely "an address". `cc` is the very next envelope field and carries an
+     * address that has not asked for anything: a reply sent there goes to a bystander while the
+     * one the sender designated gets nothing. This test is what an off-by-one dies on.
      */
     @Test
     fun `the cc addresses are not mistaken for the reply-to`() {
@@ -85,7 +87,7 @@ class ReplyToEnvelopeTest {
     }
 
     /**
-     * No `Reply-To` at all — the common case, and the pre-existing behaviour: an empty list.
+     * No `Reply-To` at all, the common case, and the pre-existing behaviour: an empty list.
      */
     @Test
     fun `a message without reply-to has an empty list, not a borrowed address`() {
@@ -112,7 +114,7 @@ class ReplyToEnvelopeTest {
     }
 
     /**
-     * The address is not displayed and forgotten, it is REPLIED TO. An internationalised address
+     * The address is not displayed and forgotten, it is replied to. An internationalised address
      */
     @Test
     fun `an EAI reply-to address is decoded, not left as octets`() {

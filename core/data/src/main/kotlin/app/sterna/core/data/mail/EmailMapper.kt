@@ -12,7 +12,7 @@ import java.time.OffsetDateTime
 import java.util.Collections
 
 /**
- * The `$draft` keyword of cached list rows, kept in memory only — the `emails` table stores just
+ * The `$draft` keyword of cached list rows, kept in memory only, the `emails` table stores just
  */
 private const val RECENT_DRAFTS_MAX = 2000
 private val recentDrafts: MutableSet<String> = Collections.synchronizedSet(
@@ -45,7 +45,7 @@ internal fun ConversationRow.toInboxRow(): InboxRow =
 
 internal fun Email.toEntity(accountId: String, mailboxId: String): EmailEntity {
     val sender = from.firstOrNull()
-    // The draft flag still doesn't fit the row schema — remember it aside for [toEmail].
+    // The draft flag still doesn't fit the row schema, remember it aside for [toEmail].
     recordDraft(accountId, id, isDraft)
     return EmailEntity(
         id = id,
@@ -62,7 +62,7 @@ internal fun Email.toEntity(accountId: String, mailboxId: String): EmailEntity {
         hasAttachment = hasAttachment,
         sortKey = epochMillis(receivedAt),
         // Persisted since v17: every fetch path that caches a row asks the server for `to`, so
-        // what lands here is the message's real recipient set — empty included (a draft with no
+        // what lands here is the message's real recipient set, empty included (a draft with no
         // addressee yet), which is exactly what the row should then show.
         recipientsJson = EmailRecipients.encode(to),
         // Persisted since v20: where the sender says an answer must go when that is not the From
@@ -92,9 +92,9 @@ internal fun EmailEntity.toEmail(): Email = Email(
     },
     to = EmailRecipients.decode(recipientsJson),
     // Persisted since v20: a row cached before the column existed, or a message with no
-    // Reply-To at all, is NULL and decodes to an empty list — "no instruction, answer the sender".
+    // Reply-To at all, is NULL and decodes to an empty list, "no instruction, answer the sender".
     replyTo = EmailRecipients.decode(replyToJson),
-    // Persisted since v21: each copy field comes back from its OWN column. Reading the blind
+    // Persisted since v21: each copy field comes back from its own column. Reading the blind
     // copies into `cc` would put an address the sender hid into the composer's visible Cc, and
     // the next reply-all would mail it to everyone.
     cc = EmailRecipients.decode(ccJson),

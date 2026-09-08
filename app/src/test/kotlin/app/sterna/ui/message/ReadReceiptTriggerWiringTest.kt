@@ -6,14 +6,16 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — the same instrument, and the same disclaimer, as
+ * Source lint, not a behaviour test, the same instrument, and the same disclaimer, as
+ * [ReaderStateResetOnLoadTest]: [MessageViewModel] is an `AndroidViewModel` reaching into the
+ * application container, `MessageScreen` and `SettingsScreen` are Compose, and `MailRepository`
  */
 class ReadReceiptTriggerWiringTest {
 
     // -- 1. the setting: stored, shown, switched, and carried in a backup ---------------------------
 
     /**
-     * The unloaded state is a THIRD value, not `false`, and the flow is started EAGERLY.
+     * The unloaded state is a third value, not `false`, and the flow is started eagerly.
      */
     @Test fun `the setting is read as three values, and starts eagerly`() {
         assertBlock(
@@ -32,7 +34,7 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * The stored side of the same setting: the flow hands the WHOLE `Preferences` to the pure
+     * The stored side of the same setting: the flow hands the whole `Preferences` to the pure
      */
     @Test fun `the stored setting is read through the lookup that holds its default`() {
         assertBlock(
@@ -43,7 +45,7 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * THE SWITCH IS WIRED TO ITS OWN SETTING.
+     * The switch is wired to its own setting.
      */
     @Test fun `the switch shows and writes the read-receipt setting`() {
         assertSoleLine(
@@ -78,7 +80,7 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * AND IT TRAVELS. `AndroidManifest.xml` + `res/xml/backup_rules.xml` exclude `datastore/`
+     * And it travels. `AndroidManifest.xml` + `res/xml/backup_rules.xml` exclude `datastore/`
      */
     @Test fun `the setting is exported and restored like every other preference`() {
         val repository = codeLines(SETTINGS_REPOSITORY)
@@ -101,7 +103,8 @@ class ReadReceiptTriggerWiringTest {
     // -- 2. the single trigger --------------------------------------------------------------------
 
     /**
-     * WHAT "SETTLED" MEANS, pinned in the one line that defines it — and it is an IDENTITY,
+     * What "settled" means, pinned in the one line that defines it, and it is an identity,
+     * never a page number.
      */
     @Test fun `active means the message the reader stopped on, not a page number`() {
         assertSoleLine(
@@ -114,6 +117,8 @@ class ReadReceiptTriggerWiringTest {
 
     /**
      * The settle, whole: the `active` guard, the once-only guard, the transition read off the
+     * message's own `$seen`, and the call. This is the only place in the app where a marking is
+     * recorded, so it is pinned line by line rather than looked for.
      */
     @Test fun `the marking is recorded by the reader's settle and nowhere else`() {
         assertBlock(
@@ -148,7 +153,7 @@ class ReadReceiptTriggerWiringTest {
         )
     }
 
-    /** The decision's call site for PUTTING the question, whole — arguments included. */
+    /** The decision's call site for putting the question, whole, arguments included. */
     @Test fun `the question is put by running the decision on the state as it stands`() {
         assertBlock(
             MESSAGE_VIEW_MODEL,
@@ -176,7 +181,7 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * The question is put again whenever something that feeds the decision changes — and the two
+     * The question is put again whenever something that feeds the decision changes, and the two
      */
     @Test fun `the question is put again when the body arrives, when the switch moves, and after a failure`() {
         assertBlock(
@@ -199,8 +204,9 @@ class ReadReceiptTriggerWiringTest {
             ),
             "the setting watcher",
         )
-        // WIDENED BY ONE NAMED PLACE when the strip was written: a send that FAILED puts the
-        // question back, because nothing left the device and the reader's yes bought her nothing —
+        // Widened by one named place when the strip was written: a send that failed puts the
+        // question back, because nothing left the device and the reader's yes bought her nothing,
+        // so the strip must offer it again.
         assertBlock(
             MESSAGE_VIEW_MODEL,
             listOf(
@@ -228,7 +234,7 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * THE COUNTER-WITNESS. Every file in the app that marks mail read, and the fact that not one
+     * The counter-WITNESS. Every file in the app that marks mail read, and the fact that not one
      */
     @Test fun `no other file that marks mail read can reach the decision`() {
         val markers = mainSources().filter { file ->
@@ -271,7 +277,7 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * AND THE SEND ITSELF. The question can be guarded perfectly and the door still stand open
+     * And the send itself. The question can be guarded perfectly and the door still stand open
      */
     @Test fun `only the reader asks the repository to queue a receipt`() {
         val naming = mainSources().filter { file ->
@@ -291,7 +297,7 @@ class ReadReceiptTriggerWiringTest {
     // -- 3. the hand-over to the repository --------------------------------------------------------
 
     /**
-     * The tap re-runs the DECISION rather than trusting that a banner is on screen, and the send
+     * The tap re-runs the decision rather than trusting that a banner is on screen, and the send
      */
     @Test fun `the tap re-reads the setting, and the send is handed the captured request`() {
         assertBlock(
@@ -327,7 +333,8 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * Saying no sends nothing, and it is REMEMBERED for this page — otherwise the decision, which
+     * Saying no sends nothing, and it is remembered for this page, otherwise the decision, which
+     * is replayed on every change of the setting, would put the refused question straight back.
      */
     @Test fun `saying no sends nothing, and is not asked again`() {
         assertBlock(
@@ -343,7 +350,8 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * The per-message state is CLEARED when the pager repoints this page at another message —
+     * The per-message state is cleared when the pager repoints this page at another message,
+     * the question, the state and the answer alike.
      */
     @Test fun `a new message in the pager clears the question, the state and the answer`() {
         val prologue = loadPrologue()
@@ -364,6 +372,7 @@ class ReadReceiptTriggerWiringTest {
 
     /**
      * The preview is relayed and nothing else is: the state is built from what came back, so the
+     * banner cannot name one text while another leaves. [ReadReceiptOfferTest] executes that relay;
      */
     @Test fun `the reader is told what was queued, not what this file would rebuild`() {
         val lines = codeLines(MESSAGE_VIEW_MODEL)
@@ -394,7 +403,7 @@ class ReadReceiptTriggerWiringTest {
     }
 
     /**
-     * Pins one WHOLE line that must appear in [file] EXACTLY ONCE. [near] names the neighbourhood
+     * Pins one whole line that must appear in [file] exactly once. [near] names the neighbourhood
      * printed on failure, so the message says which of "absent" and "duplicated" happened.
      */
     private fun assertSoleLine(file: File, expected: String, what: String, near: String) {
@@ -449,7 +458,7 @@ class ReadReceiptTriggerWiringTest {
 
     private companion object {
         /**
-         * The names that make up the trigger — the question and its decision. Every one of them is
+         * The names that make up the trigger, the question and its decision.
          */
         val TRIGGER_SYMBOLS = listOf(
             "offeredReadReceipt",

@@ -146,7 +146,7 @@ class SwipeDeleteProbeWiringTest {
         return line.trimEnd()
     }
 
-    /** The declaration of `fun`/`val` [name] in [file] and its body, as text — a name that is gone
+    /** The declaration of `fun`/`val` [name] in [file] and its body, as text, a name that is gone
      *  fails loudly, where a rule pinning nothing would stay green. */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)

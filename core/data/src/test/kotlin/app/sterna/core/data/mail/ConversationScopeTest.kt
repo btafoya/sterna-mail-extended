@@ -11,7 +11,7 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * The chip and the unfold ask ONE question about the same conversation.
+ * The chip and the unfold ask one question about the same conversation.
  */
 class ConversationScopeTest {
     private lateinit var db: Connection
@@ -53,7 +53,7 @@ class ConversationScopeTest {
      */
     private fun chip(viewed: List<String>, resolution: List<Pair<String, String>>, accountId: String?): Pair<String, Int> {
         val sent = ConversationScope.sentFolders(resolution, accountId)
-        // The viewed folders as (account, folder) scope pairs — the shape the list binds since
+        // The viewed folders as (account, folder) scope pairs, the shape the list binds since
         // Codeberg #121. A null [accountId] (unified) is the fixture's own accounts.
         val scopes = (accountId?.let { listOf(it) } ?: resolution.map { it.first }.distinct())
             .flatMap { acc -> viewed.map { acc to it } }
@@ -76,7 +76,9 @@ class ConversationScopeTest {
     }
 
     /**
-     * The messages the row unfolds into, REPRESENTATIVE INCLUDED — the row itself draws it, and
+     * The messages the row unfolds into, representative included, the row itself draws it, and
+     * `ConversationExpansion.membersBelow` only keeps it out of the list drawn beneath. So the chip
+     * equals the size of this, not one less.
      */
     private fun unfold(viewed: List<String>, resolution: List<Pair<String, String>>, accountId: String, threadKey: String = "T1"): List<String> {
         val folders = ConversationScope.folders(viewed, resolution, accountId).toList()
@@ -117,13 +119,13 @@ class ConversationScopeTest {
         val (row, count) = chip(listOf("inbox"), resolution, accountId = "accA")
         val listed = unfold(listOf("inbox"), resolution, accountId = "accA")
 
-        assertEquals("in2", row) // newest IN-VIEW member; the Sent reply is newer and does not lead
+        assertEquals("in2", row) // newest in-view member; the Sent reply is newer and does not lead
         assertEquals(3, count)
         assertEquals(count, listed.size)
         assertEquals(setOf("in1", "in2", "se1"), listed.toSet())
 
         // The witness: the Sent reply is genuinely what makes it three. Drop it from the
-        // resolution and the answer changes — this is not a fixture where Sent plays no part.
+        // resolution and the answer changes, this is not a fixture where Sent plays no part.
         assertEquals(2, chip(listOf("inbox"), emptyList(), accountId = "accA").second)
     }
 
@@ -140,12 +142,12 @@ class ConversationScopeTest {
         assertEquals(2, count)
         assertEquals(setOf("in1", "in2"), listed.toSet())
 
-        // The witness: the same fixture, resolved, says three on BOTH sides. The agreement above
-        // is not the fixture being small — it is the two sides moving together.
+        // The witness: the same fixture, resolved, says three on both sides. The agreement above
+        // is not the fixture being small, it is the two sides moving together.
         val resolved = listOf("accA" to "sentbox")
         assertEquals(3, chip(listOf("inbox"), resolved, accountId = "accA").second)
         assertEquals(3, unfold(listOf("inbox"), resolved, accountId = "accA").size)
-        // And the divergence the reader saw — a chip of 3 over an unfold of 2 — needs the two
+        // And the divergence the reader saw (a chip of 3 over an unfold of 2) needs the two
         // sides to be given different resolutions, which no longer happens.
         assertNotEquals(
             chip(listOf("inbox"), resolved, accountId = "accA").second,
@@ -155,7 +157,7 @@ class ConversationScopeTest {
 
     @Test fun `a sibling account's Sent folder widens neither the chip nor the unfold`() {
         // Same-server accounts carry colliding folder ids: here account B's Sent folder has the id
-        // that account A uses for an ordinary folder. A's conversation must ignore it — and both
+        // that account A uses for an ordinary folder. A's conversation must ignore it, and both
         // sides must ignore it, or the chip counts a folder the unfold refuses to list.
         anAnsweredThread()
         val siblings = listOf("accB" to "sentbox")
@@ -166,8 +168,8 @@ class ConversationScopeTest {
         assertEquals(count, listed.size)
         assertEquals(2, count)
 
-        // The witness: the very same pair, pinned to A instead, does widen both to three — so the
-        // pairs are reaching the queries, and it is the ACCOUNT that keeps them out.
+        // The witness: the very same pair, pinned to A instead, does widen both to three, so the
+        // pairs are reaching the queries, and it is the account that keeps them out.
         val own = listOf("accA" to "sentbox")
         assertEquals(3, chip(listOf("inbox"), own, accountId = "accA").second)
         assertEquals(3, unfold(listOf("inbox"), own, accountId = "accA").size)
@@ -176,7 +178,7 @@ class ConversationScopeTest {
     @Test fun `a thread answered from another account keeps its own Sent folder in the unified list`() {
         // The unified list shows both accounts' conversations, each answered into its own Sent
         // folder. Account B's row must be scoped to B's Sent folder even while account A is the
-        // one on screen — the unfold takes the REPRESENTATIVE's account, not the current one.
+        // one on screen, the unfold takes the representative's account, not the current one.
         insert("a1", sortKey = 100, mailbox = "inbox", accountId = "accA")
         insert("aSent", sortKey = 110, mailbox = "sentA", accountId = "accA")
         insert("b1", sortKey = 200, mailbox = "inbox", accountId = "accB")
@@ -194,7 +196,7 @@ class ConversationScopeTest {
         }
 
         // The witness: the two accounts' Sent folders are different folders, so scoping B's row to
-        // A's would be visible — it would list one message, not two.
+        // A's would be visible, it would list one message, not two.
         assertEquals(setOf("b1"), unfold(listOf("inbox"), listOf("accA" to "sentA"), accountId = "accB").toSet())
     }
 
@@ -217,7 +219,7 @@ class ConversationScopeTest {
     }
 
     @Test fun `a colliding Sent id does not pull a sibling account's reply into the conversation`() {
-        // Both accounts' Sent folder carries the id "sentbox" and both threads the id "T1" — what
+        // Both accounts' Sent folder carries the id "sentbox" and both threads the id "T1", what
         // a server numbering its objects per account routinely produces. The scope is a folder id
         // for the chip's SQL and for the unfold alike, so the account has to hold on both sides.
         anAnsweredThread()

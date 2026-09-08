@@ -14,6 +14,9 @@ import org.junit.Test
 
 /**
  * Quick setup used to be four pieces of screen state that could disagree: the Outlook chip armed a
+ * flag with no way to disarm it, so the server fields vanished for good, and the flag survived a
+ * switch to JMAP and sent that form to the Microsoft sign-in (#105). These cover the decision that
+ * replaced them, chip taps, protocol changes, and where Connect ends up.
  */
 class ConnectPresetTest {
 
@@ -315,7 +318,7 @@ class ConnectPresetTest {
     }
 
     @Test fun theCredentialsStepDoesNotComeBackWithoutItsVerdict() {
-        // Process death: the step index is rememberSaveable and comes back CREDENTIALS; the
+        // Process death: the step index is rememberSaveable and comes back credentials; the
         // ViewModel that held the verdict has no SavedStateHandle and comes back empty.
         assertEquals(
             "a password field for a server nobody discovered is a state that is not true, and " +
@@ -326,7 +329,7 @@ class ConnectPresetTest {
     }
 
     @Test fun theCredentialsStepHoldsWhileItsVerdictIsThere() {
-        // The verdict is in hand (after a rotation, once the ViewModel keeps a durable copy —
+        // The verdict is in hand (after a rotation, once the ViewModel keeps a durable copy,
         // today's one-shot flow is nulled on consumption, see the function's KDoc).
         assertEquals(
             "a verdict in hand is not process death; sending this case back to the address step " +
@@ -361,7 +364,7 @@ class ConnectPresetTest {
     // --- The table itself ------------------------------------------------------------------------
 
     @Test fun yandexAndMailRuAreAppPasswordImapPresets() {
-        // Both are plain IMAP with an app-specific password: the chip must fill the servers AND
+        // Both are plain IMAP with an app-specific password: the chip must fill the servers and
         // offer the page where that password is created, or the user hits a login failure they
         // cannot diagnose. Values are the providers' own documented ones.
         assertEquals("imap.yandex.com", yandex.imapHost)

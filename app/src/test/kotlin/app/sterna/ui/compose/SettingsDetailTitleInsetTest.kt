@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `SettingsScreen.kt` as text and proves NOTHING about
+ * Source lint, not a behaviour test, it reads `SettingsScreen.kt` as text and proves nothing about
  */
 class SettingsDetailTitleInsetTest {
 
@@ -80,7 +80,7 @@ class SettingsDetailTitleInsetTest {
         return slot
     }
 
-    /** The arguments of the one `Text(…)` of the title slot — the loud localisation of both rules. */
+    /** The arguments of the one `Text(…)` of the title slot, the loud localisation of both rules. */
     private fun titleText(): String {
         val slot = titleSlot()
         val texts = callArguments(slot, "Text")
@@ -155,6 +155,8 @@ class SettingsDetailTitleInsetTest {
 
         /**
          * The whole body of the title slot, normalised (trimmed, trailing comma dropped, blank and
+         * comment lines cut). Pinned as a LIST, so a line added beside the inset, the chained
+         * `.offset`, and a line changed, the truncated argument, both fail.
          */
         private val TITLE_SLOT = listOf(
             "Text(",

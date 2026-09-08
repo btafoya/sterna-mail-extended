@@ -2,7 +2,7 @@ package app.sterna.core.data.db
 
 import androidx.room.Entity
 
-/** Lifecycle of a draft written on the phone and not yet on the server. No terminal state — [attemptCount] only spaces
+/** Lifecycle of a draft written on the phone and not yet on the server. No terminal state, [attemptCount] only spaces
  *  retries. */
 enum class LocalDraftState {
     /** Attachment bytes still being copied; excluded from [LocalDraftDao.pending] (#70); re-armed lossy by
@@ -24,16 +24,16 @@ enum class LocalDraftState {
 @Entity(tableName = "local_drafts", primaryKeys = ["accountId", "id"])
 data class LocalDraftEntity(
     val accountId: String,
-    /** Local id, minted by [newLocalDraftId]; must not collide with a cached server id — see [LOCAL_DRAFT_ID_PREFIX].
+    /** Local id, minted by [newLocalDraftId]; must not collide with a cached server id, see [LOCAL_DRAFT_ID_PREFIX].
      *  */
     val id: String,
-    /** RFC 5322 `Message-ID`, minted ONCE and frozen so an IMAP upload can dedupe (`draftIsAlreadyThere`). */
+    /** RFC 5322 `Message-ID`, minted once and frozen so an IMAP upload can dedupe (`draftIsAlreadyThere`). */
     val messageId: String,
     val toAddresses: String,
     val cc: String? = null,
     val bcc: String? = null,
     val subject: String,
-    /** NOT NULL: the text the user typed has no "unknown" state — an empty draft is "", not null. */
+    /** Not NULL: the text the user typed has no "unknown" state, an empty draft is "", not null. */
     val textBody: String,
     val htmlBody: String? = null,
     val fromName: String? = null,
@@ -53,9 +53,9 @@ data class LocalDraftEntity(
     val requestReceipt: Boolean = false,
     val createdAtMillis: Long,
     val updatedAtMillis: Long,
-    /** Don't attempt an upload before this instant — the backoff, computed from [attemptCount]. */
+    /** Don't attempt an upload before this instant, the backoff, computed from [attemptCount]. */
     val notBeforeMillis: Long,
-    /** Failed upload attempts. A COUNTER, not a cap — see [LocalDraftState]; nothing here gives up. */
+    /** Failed upload attempts. A counter, not a cap, see [LocalDraftState]; nothing here gives up. */
     val attemptCount: Int = 0,
     val lastError: String? = null,
     val lastAttemptMillis: Long? = null,
@@ -65,5 +65,5 @@ data class LocalDraftEntity(
 /** Prefix avoiding collision with `imap:` ids and JMAP ids (`A-Za-z0-9_-` only, RFC 8620 §1.2). */
 const val LOCAL_DRAFT_ID_PREFIX: String = "local-draft:"
 
-/** A fresh local draft id — [LOCAL_DRAFT_ID_PREFIX] plus a UUID, unique without asking anyone. */
+/** A fresh local draft id, [LOCAL_DRAFT_ID_PREFIX] plus a UUID, unique without asking anyone. */
 fun newLocalDraftId(): String = LOCAL_DRAFT_ID_PREFIX + java.util.UUID.randomUUID()

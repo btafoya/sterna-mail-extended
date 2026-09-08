@@ -6,13 +6,14 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `ComposeScreen.kt` as text, proves nothing about
+ * Source lint, not a behaviour test, it reads `ComposeScreen.kt` as text, proves nothing about
  */
 class DiscardDialogWiringTest {
 
     @Test fun `the dialog is handed the two live values it decides on`() {
         // The auditors' two one-line mutations, both green until this rule existed:
-        //  - `editingDraft = false` at the call site annuls #35 outright — the pure function is
+        //  - `editingDraft = false` at the call site annuls #35 outright, the pure function is
+        // untouched, every behaviour test passes, and the reporter's screenshot comes back;
         val block = discardBlock().replace(Regex("""\s+"""), " ")
         assertTrue(
             "the dialog must take its Save-draft rule from draftSaveAllowed(pgpMode) — the same " +
@@ -132,7 +133,7 @@ class DiscardDialogWiringTest {
         return code.substring(start, (i - 1).coerceAtLeast(start))
     }
 
-    /** The lines of [file] that are code, with comments taken off — load-bearing here: the comments
+    /** The lines of [file] that are code, with comments taken off, load-bearing here: the comments
      *  inside this block name the very resources and calls the rules above forbid. */
     private fun codeLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val code = line.trimStart()

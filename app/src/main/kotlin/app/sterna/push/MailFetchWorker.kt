@@ -24,9 +24,9 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
         val store = container.accountStore
         val watched = if (store.pushAllAccounts()) store.allCredentials() else listOfNotNull(store.load())
         val accounts = watched.filter { store.notificationsEnabled(it.id) }
-        // Coverage matrix (#16/#17): a JMAP EventSource open FOR THIS ACCOUNT covers its whole
+        // Coverage matrix (#16/#17): a JMAP EventSource open for this account covers its whole
         // watched set, IMAP IDLE only the INBOX. A UnifiedPush-active account gets the same safety
-        // poll, its endpoint being able to die silently with the status still ACTIVE.
+        // poll, its endpoint being able to die silently with the status still active.
         val up = container.unifiedPushManager
         up.reconcileDistributorPresence()
         // Until this line the cycle ended on the same SUCCESS as one that fetched everything. Four
@@ -44,7 +44,7 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
             return Result.success()
         }
         for (credentials in accounts) {
-            // FAILED registrations retry on this cadence (cooldown inside the manager).
+            // Failed registrations retry on this cadence (cooldown inside the manager).
             runCatching { up.ensureRegistered(credentials) }
                 .onFailure { Log.w(TAG, "UnifiedPush register check failed for ${credentials.id}", it) }
             runCatching { up.renewIfNeeded(credentials) }
@@ -57,9 +57,9 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
             // A linked sub-account gets no live push of its own (#31): the server only delivers
             // StateChanges for the login's member accounts, so its EventSource does not cover it.
             val linked = store.account(credentials.id)?.isLinked == true
-            // Asked per ACCOUNT, never "is the service up": the service outlives the failure of
+            // Asked per account, never "is the service up": the service outlives the failure of
             // every connection it holds (#61). False when it is down or the account is unknown, so
-            // the default is to poll — a wasted delta costs a request, a wrong skip costs mail.
+            // the default is to poll, a wasted delta costs a request, a wrong skip costs mail.
             val connected = PushService.isConnected(credentials.id)
             val pollInbox = shouldPollInbox(connected, linked)
             // Read once, so the count the line reports is the one the decision was taken on.
@@ -69,7 +69,7 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
                 watchedFolders = watchedFolders,
             )
             // The widest of the silent exits: on JMAP [hasExtrasToPoll] is false by construction,
-            // so an account we hold a handle for is skipped WHOLE.
+            // so an account we hold a handle for is skipped whole.
             if (!pollInbox && !pollExtras) {
                 Log.i(TAG, PushController.pollSkippedLine(credentials.id, credentials.protocol, watchedFolders.size))
                 continue

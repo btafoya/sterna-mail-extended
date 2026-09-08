@@ -6,6 +6,7 @@ import org.junit.Test
 
 /**
  * `Email.replyTo` (RFC 5322 §3.6.2 / RFC 8621 §4.1.2) exists on the model and costs nothing to a
+ * response that does not carry it.
  */
 class EmailReplyToTest {
     private val json = JmapClient.DefaultJson

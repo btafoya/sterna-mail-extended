@@ -145,9 +145,9 @@ class RelayPushTest {
 
     // ── endpointOutcome ─────────────────────────────────────────────────────────────────
 
-    // The mounting carries a subscriptionId ON PURPOSE. Without one the `assertNull` below is
+    // The mounting carries a subscriptionId on purpose. Without one the `assertNull` below is
     // satisfied by the input rather than by the rule, and dropping `subscriptionId = null` from the
-    // published copy() stays green — which is exactly what it did.
+    // published copy() stays green, which is exactly what it did.
     @Test fun `an IMAP endpoint is published locally and talks to no server`() {
         val outcome = RelayPush.endpointOutcome(
             MailProtocol.IMAP,
@@ -207,7 +207,7 @@ class RelayPushTest {
     }
 
     @Test fun `an endpoint that lands after the address was withdrawn is dropped`() {
-        // The withdrawal writes NONE and relayRequested = false; a delivery already in flight then
+        // The withdrawal writes none and relayRequested = false; a delivery already in flight then
         // arrives with a fresh URL. Publishing it would hand back the address the user just removed.
         assertEquals(
             EndpointOutcome.Ignore,
@@ -542,7 +542,7 @@ class RelayPushTest {
     // ── onRelayRequested: a tap is not an automatic loop ─────────────────────────────────
 
     @Test fun `asking for an address in person clears the failure that would have muzzled it`() {
-        // Remove address → unregister → onUnregistered writes FAILED, stamped now. Tapping
+        // Remove address → unregister → onUnregistered writes failed, stamped now. Tapping
         // "Get an address" a second later used to land inside the 15-minute cooldown and do
         // nothing at all, in silence.
         val justFailed = state(UpStatus.FAILED, endpoint = url, since = now, relayRequested = true)
@@ -745,7 +745,7 @@ class RelayPushTest {
     }
 
     @Test fun `an address the distributor no longer serves is not shown`() {
-        // markFailed and onUnregistered both KEEP the endpoint field; showing it would put a dead
+        // markFailed and onUnregistered both keep the endpoint field; showing it would put a dead
         // address on screen as a live one, ready to be pasted into a relay that posts into a void.
         listOf(UpStatus.NONE, UpStatus.REGISTERING, UpStatus.VERIFYING, UpStatus.FAILED).forEach { status ->
             assertNull(

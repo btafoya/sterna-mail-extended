@@ -1,7 +1,7 @@
 package app.sterna.core.data.account
 
 /** Distinguishes "no accounts" from "the stored blob failed to decode", refusing every write
- *  while the second is true. [encode] is called from HERE, not [AccountStore.saveAccounts],
+ *  while the second is true. [encode] is called from here, not [AccountStore.saveAccounts],
  *  so a refactor can't skip this gate silently. */
 internal class AccountBlobGate(
     private val decode: (String) -> List<StoredAccount>,
@@ -11,7 +11,7 @@ internal class AccountBlobGate(
     @Volatile
     private var unreadable = false
 
-    /** Whether the last [read] failed to decode. Diagnostics only — [writeGuarded] decides. */
+    /** Whether the last [read] failed to decode. Diagnostics only, [writeGuarded] decides. */
     val blobUnreadable: Boolean get() = unreadable
 
     /** Decodes the stored blob. Never throws: runs from [AccountStore]'s constructor. */

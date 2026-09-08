@@ -12,6 +12,9 @@ import org.junit.Test
 
 /**
  * The quoted-dates-in-UTC switch (#120): its default, its stored key, and its trip through a
+ * settings backup. Same five checks and the same reasons as [SettingsBackupPlainTextTest], a
+ * setting that silently fails to restore is worse than one that does not exist, and a default that
+ * can be flipped with the suite green is worse still.
  */
 class SettingsBackupQuotedDatesUtcTest {
 
@@ -38,7 +41,7 @@ class SettingsBackupQuotedDatesUtcTest {
 
     @Test fun itIsCarriedAsTrueWhenExplicitlyOn() {
         // The direction that matters: the default is false, so "on" is the answer a backup has to
-        // carry. The VALUE, not the key — the codec writes with encodeDefaults, so an unset field
+        // carry. The value, not the key, the codec writes with encodeDefaults, so an unset field
         // is exported as `"quotedDatesUtc": null` and contains("quotedDatesUtc") is true of every
         // export ever written, including one that lost the setting entirely.
         val encoded = SettingsBackupCodec.encode(SettingsBackup(quotedDatesUtc = true))
@@ -49,7 +52,7 @@ class SettingsBackupQuotedDatesUtcTest {
 
     @Test fun outgoingDatesStayLocalUntilSomebodyAsksOtherwise() {
         // The default, run rather than described: the decision is executed on Preferences where the
-        // key is ABSENT, which is the state of every existing install on the update that ships
+        // key is absent, which is the state of every existing install on the update that ships
         // this. Flipping the elvis in quotedDatesUtcFrom rewrites the quoted dates of every user
         // who has never opened Settings, and nothing else in this repo would notice.
         assertFalse(
@@ -72,6 +75,6 @@ class SettingsBackupQuotedDatesUtcTest {
         assertFalse(quotedDatesUtcFrom(preferencesOf(booleanPreferencesKey("plain_text") to true)))
     }
 
-    /** The persisted key, spelled as the store spells it — see the test above. */
+    /** The persisted key, spelled as the store spells it, see the test above. */
     private val storedKey = booleanPreferencesKey("quoted_dates_utc")
 }

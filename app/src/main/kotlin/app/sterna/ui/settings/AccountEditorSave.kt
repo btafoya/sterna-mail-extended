@@ -8,7 +8,7 @@ import app.sterna.core.data.account.StoredIdentity
 
 /** The identity-side fields a Save writes back, derived from the editor's live rows. */
 internal data class AccountSaveFields(
-    /** The MANUAL list to persist: blank rows dropped, old-fold pollution healed. */
+    /** The manual list to persist: blank rows dropped, old-fold pollution healed. */
     val identities: List<StoredIdentity>,
     /** The default sender, or null when it no longer points at anything. */
     val defaultIdentityId: String?,
@@ -16,7 +16,7 @@ internal data class AccountSaveFields(
     val signature: String,
 )
 
-/** Persist only the manual list — server identities re-merge live on every read — dropping rows left
+/** Persist only the manual list (server identities re-merge live on every read), dropping rows left
  *  without an address. The default sender is kept only while it still points at a surviving manual
  *  row or a server identity, so it degrades to "the first one" rather than dangling. */
 internal fun accountSaveFields(

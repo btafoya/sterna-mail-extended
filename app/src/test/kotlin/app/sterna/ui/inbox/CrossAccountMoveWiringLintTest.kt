@@ -6,12 +6,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — the call sites of the decisions [CrossAccountPickerTest]
+ * Source lint, not a behaviour test, the call sites of the decisions [CrossAccountPickerTest]
  */
 class CrossAccountMoveWiringLintTest {
 
     /**
-     * THE FIFTH ARGUMENT IS THE VOLET. Each site is pinned WITH the numbering it hands down, and
+     * The fifth argument is the volet. Each site is pinned with the numbering it hands down, and
+     * the two are deliberately different:
      */
     @Test fun `the move between accounts has no Undo and never calls the same-account move`() {
         val handedDown = mapOf(
@@ -59,19 +60,19 @@ class CrossAccountMoveWiringLintTest {
     }
 
     /**
-     * THE NUMBERING GUARD OF #99, CARRIED TO THE MOVE BETWEEN ACCOUNTS.
+     * The numbering guard of #99, carried to the MOVE between accounts.
      *
      * An IMAP key is `imap:<account>:<folder>:<uid>` and carries nothing that says which numbering
      * that UID belongs to. A server that renumbers the shifting way makes the next background pass
-     * `@Upsert` ANOTHER message's envelope under the exact text of a key that is already ticked:
+     * `@Upsert` another message's envelope under the exact text of a key that is already ticked:
      * the tick does not move, the new message is on screen already selected without a gesture, and
-     * a tap on Move copies THAT message to account B and puts the original in A's Trash. There is
+     * a tap on Move copies that message to account B and puts the original in A's Trash. There is
      * no Undo on this path (A3), so the user loses the gesture entirely: mail she never pointed at
      * is now in another account, and a message she may have wanted is in a bin she has to find.
      *
      * Source lint, and only because `InboxViewModel` needs an `Application` and Room. The
-     * decision itself is EXECUTED elsewhere — `UidValidity.destroyableUnderTheNumberingItWasTickedUnder`
-     * is run by `DestroyOnlyWhatWasTickedTest`. What can only be read as text is the WIRING: where
+     * decision itself is executed elsewhere, `UidValidity.destroyableUnderTheNumberingItWasTickedUnder`
+     * is run by `DestroyOnlyWhatWasTickedTest`. What can only be read as text is the wiring: where
      * the stamp is captured, which rows the "now" side is built from, and what is done with the
      * half the split refuses.
      */
@@ -86,22 +87,22 @@ class CrossAccountMoveWiringLintTest {
             listOf("val ticked = awaitTickedNumbering(keys)"),
             codeLinesNaming(one, "val ticked ="),
         )
-        // AND IT IS THE FIRST LINE OF THE LAUNCH, which is what replaces the old rule ("capture
-        // OUTSIDE the launch"). The wait suspends, so it has to be inside; and it has to be first,
+        // And it is the first line of the launch, which is what replaces the old rule ("capture
+        // outside the launch"). The wait suspends, so it has to be inside;
         val gestureLines = one.lines().map { it.trim() }.filter { it.isNotEmpty() }
         assertEquals(
             "…and it must be the FIRST statement inside viewModelScope.launch. Body was:\n$one",
             "val ticked = awaitTickedNumbering(keys)",
             gestureLines[gestureLines.indexOfFirst { it == "viewModelScope.launch {" } + 1],
         )
-        // And the KEYS are still captured outside it: they are what says WHICH selection the
+        // And the keys are still captured outside it: they are what says which selection the
         // stamps are awaited for, and reading them a suspension later would await the wrong set.
         assertLineOrder(
             "the keys must still be captured before the launch — they say WHICH selection the " +
                 "stamps are awaited for. Body was:\n$one",
             gestureLines, "val keys = _selectedKeys.value", "viewModelScope.launch {",
         )
-        // AND THE CAPTURE MUST BE HANDED ON. The capture above and the guard below are two
+        // And the capture must be handed on. The capture above and the guard below are two
         // halves that only meet on THIS line, and nothing else in the repository reads it: pass
         assertEquals(
             "moveSelectedTo() must hand the STAMPS IT JUST CAPTURED down to the cross-account " +
@@ -134,7 +135,7 @@ class CrossAccountMoveWiringLintTest {
             ),
             lines.subList(call + 1, call + 5),
         )
-        // What is lost if this becomes `repo.recordedUidValidity(...)`: the FOLDER's record is
+        // What is lost if this becomes `repo.recordedUidValidity(...)`: the folder's record is
         // what a background pass realigns the moment it meets a renumbering, so the guard would
         // oppose the new number to itself, agree, and licence the move it exists to refuse.
         assertEquals(
@@ -142,8 +143,7 @@ class CrossAccountMoveWiringLintTest {
             listOf("val now = recordedNumbering(crossAccountTargets)"),
             codeLinesNaming(many, "recordedNumbering("),
         )
-        // AND THE ROWS IT READS ARE THE ROWS ABOUT TO MOVE. This line is one identifier away
-        // from reading some other list: `now` would then hold no entry for any row being moved,
+        // And the rows it reads are the rows about to MOVE.
         assertEquals(
             "the 'now' read must be built from the cached rows of the movable selection. " +
                 "Body was:\n$many",
@@ -153,7 +153,7 @@ class CrossAccountMoveWiringLintTest {
             ),
             codeLinesNaming(many, "crossAccountTargets ="),
         )
-        // What is lost if the refused rows are attempted anyway: nothing at all is guarded — this
+        // What is lost if the refused rows are attempted anyway: nothing at all is guarded, this
         // is the one line that turns the split into a refusal. `repo.moveToAccount(` is already
         // pinned to its single call site by the first test of this class, so the refusal cannot
         // be routed around by a second call.
@@ -166,8 +166,8 @@ class CrossAccountMoveWiringLintTest {
             ),
             codeLinesNaming(many, "refused"),
         )
-        // AND THE WHOLE BODY OF THAT REFUSAL, `continue` INCLUDED. The two lines above say a
-        // Failed is recorded; they say nothing about what happens next. Drop the `continue` and
+        // And the whole body of that refusal, `continue` included. The two lines above say a
+        // Failed is recorded; they say nothing about what happens next.
         assertEquals(
             "the refusal must RETURN: a Failed and then `continue`, never a Failed followed by " +
                 "the move it was supposed to prevent.",
@@ -182,13 +182,13 @@ class CrossAccountMoveWiringLintTest {
     }
 
     /**
-     * What did NOT move goes BACK under the user's eyes, still ticked, with the stamps of the tick
+     * What did not move goes back under the user's eyes, still ticked, with the stamps of the tick
      */
     @Test fun `what the cross-account move did not move goes back into the selection, stamps first`() {
         val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
         val manyLines = codeLinesOf(many)
-        // WHICH KEY GOT WHICH VERDICT, COLLECTED AT THE THREE EXITS OF THE LOOP. A bare list of
-        // outcomes answers HOW MANY failed and never WHICH: `CrossAccountMove.Failed` carries a log
+        // Which key got which verdict, collected at the three exits of the loop. A bare list of
+        // outcomes answers how many failed and never which: `CrossAccountMove.Failed` carries a log
         assertEquals(
             "every outcome must be recorded UNDER ITS KEY, at all three exits of the loop, and the " +
                 "banner's list derived from that map: a bare list cannot say WHICH line did not " +
@@ -203,16 +203,16 @@ class CrossAccountMoveWiringLintTest {
             ),
             codeLinesNaming(many, "outcomes"),
         )
-        // AND THE ARGUMENTS ARE THESE TWO. Fed some other map the rule answers about a batch
+        // And the arguments are these two. Fed some other map the rule answers about a batch
         // nobody ran; fed a `cached` set that is not the rows on screen it ticks lines the list
-        // does not show — and the call would still read as a call to the right function.
+        // does not show, and the call would still read as a call to the right function.
         assertEquals(
             "the give-back must be the pure decision, asked with the outcomes of THIS batch and " +
                 "the rows still in cache. Body was:\n$many",
             listOf("val givenBack = crossAccountGiveBack(outcomes, emails.keys)"),
             codeLinesNaming(many, "crossAccountGiveBack("),
         )
-        // AND THE STAMP ENTRY IS EXPLICIT, A NULL STAMP INCLUDED. `associateWith` writes one
+        // And the stamp entry is explicit, A NULL stamp included. `associateWith` writes one
         // entry per key whatever `ticked[it]` holds. Filtered on a non-null stamp instead, a row
         assertEquals(
             "what did not move must go back into the selection, still ticked, WITH THE STAMPS IT " +
@@ -225,7 +225,7 @@ class CrossAccountMoveWiringLintTest {
             ),
             codeLinesNaming(many, "givenBack"),
         )
-        // What is lost if the two lines swap: see above — the second tap moves what the first
+        // What is lost if the two lines swap: see above, the second tap moves what the first
         // refused, and nothing on screen ever says so.
         assertLineOrder(
             "…and the stamps BEFORE the keys: nothing suspends between the two lines, which is " +
@@ -253,7 +253,8 @@ class CrossAccountMoveWiringLintTest {
     }
 
     /**
-     * `split.drifted` is named ONCE in this body, and that once is the line that turns the
+     * `split.drifted` is named once in this body, and that once is the line that turns the
+     * numbering split into a refusal.
      */
     @Test fun `the drifted rows of the numbering split are read in one place only`() {
         val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
@@ -268,7 +269,7 @@ class CrossAccountMoveWiringLintTest {
     }
 
     /**
-     * The loop runs over `movable` ENTIRE — the partition on the selection's account is the only
+     * The loop runs over `movable` entire, the partition on the selection's account is the only
      */
     @Test fun `the cross-account move loops over the whole movable half`() {
         val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
@@ -289,7 +290,7 @@ class CrossAccountMoveWiringLintTest {
     }
 
     /**
-     * The target account is read, and refused, BEFORE the selection is touched.
+     * The target account is read, and refused, before the selection is touched.
      */
     @Test fun `the cross-account move refuses a vanished target before it clears the selection`() {
         val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
@@ -384,7 +385,7 @@ class CrossAccountMoveWiringLintTest {
     }
 
     /**
-     * The choice is neutralised ONCE, where every reader of it passes (#189). The row being hidden
+     * The choice is neutralised once, where every reader of it passes (#189). The row being hidden
      */
     @Test fun `the account choice is ignored while the selection resolves no account`() {
         assertEquals(
@@ -438,7 +439,10 @@ class CrossAccountMoveWiringLintTest {
     }
 
     /**
-     * The reader has TWO whole folder lists and they are not the same account's (#189): the
+     * The reader has two whole folder lists and they are not the same account's (#189): the
+     * picker's follows the account row, the sender rule's stays the open message's own. Crossing
+     * them writes a Sieve `fileinto` for A computed on B's folders, the very thing
+     * [mailboxFilePath] exists to prevent (#92), and no JVM test can reach it: `MessageViewModel`
      */
     @Test fun `the sender rule keeps the message's own folder list, only the picker follows the row`() {
         assertEquals(
@@ -482,6 +486,9 @@ class CrossAccountMoveWiringLintTest {
 
     /**
      * Neither banner may name a string of its own: which sentence goes with which verdict is
+     * [crossAccountMessageRes]'s and [crossAccountSelectionPlural]'s, executed by
+     * [CrossAccountPickerTest]. Announced as "moved", a copy whose original stayed hides a
+     * duplicate, and there is no Undo to take it back.
      */
     @Test fun `both banners take their words from the executed decision`() {
         val one = body(INBOX_VIEW_MODEL, "moveToAccount")
@@ -531,7 +538,7 @@ class CrossAccountMoveWiringLintTest {
     }
 
     /**
-     * THE SHARED BRANCH IS THE ONLY PLACE `ALL_FAILED` EVER REACHES THE SCREEN. Which sentence
+     * The shared branch is the only place `ALL_FAILED` ever reaches the screen. Which sentence
      */
     @Test fun `the selection's failure line is served for BOTH failure outcomes, from one branch`() {
         val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
@@ -601,7 +608,7 @@ class CrossAccountMoveWiringLintTest {
         codeLinesOf(body).filter { needle in it }
 
     /**
-     * The order of two WHOLE code lines of [lines], with BOTH required to exist.
+     * The order of two whole code lines of [lines], with both required to exist.
      */
     private fun assertLineOrder(what: String, lines: List<String>, first: String, then: String) {
         val i = lines.indexOf(first)
@@ -655,7 +662,7 @@ class CrossAccountMoveWiringLintTest {
 
     private fun String.indentWidth() = length - trimStart().length
 
-    /** [count] consecutive trimmed code lines from the ONE line starting with [prefix]. */
+    /** [count] consecutive trimmed code lines from the one line starting with [prefix]. */
     private fun block(file: File, prefix: String, count: Int): List<String> {
         val lines = codeLines(file).map { it.trim() }
         val hits = lines.indices.filter { lines[it].startsWith(prefix) }

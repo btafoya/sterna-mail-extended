@@ -5,7 +5,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * A batch IMAP move must credit — and un-index — only the messages the session can PROVE left the
+ * A batch IMAP move must credit (and un-index) only the messages the session can prove left the
+ * source folder.
  */
 class MoveCreditsOnlyWhatLeftTheSourceTest {
 
@@ -14,7 +15,7 @@ class MoveCreditsOnlyWhatLeftTheSourceTest {
     private val batch = linkedMapOf(11L to "acc|INBOX|11", 12L to "acc|INBOX|12", 13L to "acc|INBOX|13")
 
     /**
-     * The case the defect is made of. An empty `confirmedGone` is "the server proved nothing",
+     * The case the defect is made of.
      */
     @Test fun `a move that proved nothing credits nothing`() {
         val outcome = imapMoveOutcome(batch, emptySet())
@@ -40,7 +41,8 @@ class MoveCreditsOnlyWhatLeftTheSourceTest {
     }
 
     /**
-     * The mixed batch — one stale uid among live ones, which is how the defect actually reaches a
+     * The mixed batch, one stale uid among live ones, which is how the defect actually reaches a
+     * user: a selection drawn before another client moved one of its messages.
      */
     @Test fun `a partly proved move splits exactly, keeping arrival order`() {
         val wide = linkedMapOf(
@@ -63,7 +65,7 @@ class MoveCreditsOnlyWhatLeftTheSourceTest {
         assertEquals(emptyList<String>(), outcome.unproven)
     }
 
-    /** Nothing handed in, nothing answered — no uid of the proof leaks into either list. */
+    /** Nothing handed in, nothing answered, no uid of the proof leaks into either list. */
     @Test fun `an empty batch answers empty on both sides`() {
         val outcome = imapMoveOutcome(emptyMap(), setOf(11L, 12L))
 
@@ -71,7 +73,7 @@ class MoveCreditsOnlyWhatLeftTheSourceTest {
         assertEquals(emptyList<String>(), outcome.unproven)
     }
 
-    // ---- the wiring: which ids each half of the success branch is HANDED ----------------------
+    // ---- the wiring: which ids each half of the success branch is handed ----------------------
 
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
@@ -84,7 +86,7 @@ class MoveCreditsOnlyWhatLeftTheSourceTest {
         codeLinesOf(body).filter { needle in it }
 
     /**
-     * THE LINE THE WHOLE FIX IS: the un-indexing takes the PROVED ids and nothing else.
+     * The line the whole fix is: the un-indexing takes the PROVED ids and nothing else.
      */
     @Test fun `the batch move un-indexes only the ids the server proved gone`() {
         val body = bodyOf("imapMoveGroup")
@@ -110,7 +112,7 @@ class MoveCreditsOnlyWhatLeftTheSourceTest {
     }
 
     /**
-     * The split itself, and where it is READ FROM: `ImapMoved.confirmedGone`, the source-side
+     * The split itself, and where it is read from: `ImapMoved.confirmedGone`, the source-side
      */
     @Test fun `the batch move asks the pure split, and asks it what the move reported`() {
         val body = bodyOf("imapMoveGroup")
@@ -123,7 +125,7 @@ class MoveCreditsOnlyWhatLeftTheSourceTest {
     }
 
     /**
-     * And the ORDER: the verdict is computed BEFORE anything is dropped. Kotlin enforces it as
+     * And the order: the verdict is computed before anything is dropped.
      */
     @Test fun `the verdict is reached before any row is dropped`() {
         val lines = codeLinesOf(bodyOf("imapMoveGroup"))

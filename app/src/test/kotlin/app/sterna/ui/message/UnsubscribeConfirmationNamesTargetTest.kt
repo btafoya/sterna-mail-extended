@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * RESOURCE + SOURCE LINT. The rule it guards is the whole promise of the confirmation dialog:
+ * Resource + source lint. The rule it guards is the whole promise of the confirmation dialog:
  */
 class UnsubscribeConfirmationNamesTargetTest {
 

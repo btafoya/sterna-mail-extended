@@ -10,7 +10,7 @@ import org.junit.Test
 import java.time.Instant
 
 /**
- * The ORDER of a move between accounts, EXECUTED (#189): copy confirmed on B, then — and only
+ * The order of a move between accounts, executed (#189): copy confirmed on B, then, and only
  */
 class CrossAccountMoveTest {
 

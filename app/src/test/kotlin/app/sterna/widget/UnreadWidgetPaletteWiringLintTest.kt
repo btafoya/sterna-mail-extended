@@ -5,12 +5,13 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, same instrument and the same disclaimer as
+ * every source lint in this tree: it reads the source as text and proves nothing about behaviour.
  */
 class UnreadWidgetPaletteWiringLintTest {
 
     /**
-     * `setBackgroundResource`, NEVER `setBackgroundColor`.
+     * `setBackgroundResource`, never `setBackgroundColor`.
      */
     @Test fun `the drawn cell is painted from the palette, and keeps its rounded corner`() {
         assertEquals(
@@ -52,7 +53,8 @@ class UnreadWidgetPaletteWiringLintTest {
     }
 
     /**
-     * The three settings are READ, every draw, and the wallpaper scheme stays CONDITIONED on the
+     * The three settings are read, every draw, and the wallpaper scheme stays conditioned on the
+     * one that opts into it.
      */
     @Test fun `the cell's colours are read from the app's own settings, never assumed`() {
         assertEquals(
@@ -100,7 +102,8 @@ class UnreadWidgetPaletteWiringLintTest {
     }
 
     /**
-     * THE READ IS BOUNDED, AND IT MAY ANSWER "NOTHING" — the two things this reader buys, and
+     * The read is bounded, and it may answer "nothing", the two things this reader buys, and
+     * both of them are one line away from being lost to a refactor.
      */
     @Test fun `the palette read is bounded, cancels nothing, and is allowed to answer nothing`() {
         val body = body(READER, "suspend fun colours(app: Application)")
@@ -171,7 +174,7 @@ class UnreadWidgetPaletteWiringLintTest {
     }
 
     /**
-     * The draw READS the palette and HANDS it to the render — the join between the two rules above.
+     * The draw reads the palette and hands it to the render, the join between the two rules above.
      */
     @Test fun `the draw reads the palette and hands it to the render`() {
         assertEquals(
@@ -204,7 +207,7 @@ class UnreadWidgetPaletteWiringLintTest {
     }
 
     /**
-     * THE ENLARGED LAYOUT IS PAINTED FROM THE SAME PALETTE, and this pane is the only thing
+     * The enlarged layout is painted from the same palette, and this pane is the only thing
      */
     @Test fun `the enlarged cell is painted from the same palette as the small one`() {
         assertEquals(
@@ -244,8 +247,8 @@ class UnreadWidgetPaletteWiringLintTest {
     }
 
     /**
-     * The code lines of the function opening with [signature] in the file at [path], or [ABSENT]
-     * when the file is not there at all — a missing file must print as a diff, not as an exception.
+     * The code lines of the function opening with [signature] in the file at [path], or [absent]
+     * when the file is not there at all, a missing file must print as a diff, not as an exception.
      */
     private fun body(path: String, signature: String): List<String> {
         val file = File(DeclarationSource.ROOT, path)
@@ -266,7 +269,10 @@ class UnreadWidgetPaletteWiringLintTest {
         const val READER = "app/src/main/kotlin/app/sterna/widget/WidgetThemeReader.kt"
 
         /**
-         * The signature, pinned as one string because THREE things live on it and each is a
+         * The signature, pinned as one string because three things live on it and each is a
+         * separate regression: the return type is nullable (null = the read never answered, so
+         * nothing at all is known), the read is bounded, and it is bounded with
+         * `withTimeoutOrNull` rather than `withTimeout`.
          */
         const val SIGNATURE =
             "suspend fun colours(app: Application): WidgetColours? = " +
@@ -282,7 +288,7 @@ class UnreadWidgetPaletteWiringLintTest {
         const val MONOGRAM_RAMPS = "monogramRamps = widgetMonogramRamps(scheme, dark, pureBlack),"
 
         /**
-         * Pinned whole, and the MAP is why: `draw` hands the launcher two layouts for one cell, so
+         * Pinned whole, and the map is why: `draw` hands the launcher two layouts for one cell, so
          * this line is where a reader could quietly go back to painting one of them.
          */
         const val DRAW_SIGNATURE =

@@ -27,7 +27,7 @@ class OutboxViewModel(application: Application) : AndroidViewModel(application) 
     )
 
     /**
-     * The id of the item just staged for editing, so the screen can open compose on it — `null`
+     * The id of the item just staged for editing, so the screen can open compose on it, `null`
      */
     private val _readyToEdit = MutableStateFlow<Long?>(null)
     val readyToEdit: StateFlow<Long?> = _readyToEdit.asStateFlow()
@@ -56,7 +56,7 @@ class OutboxViewModel(application: Application) : AndroidViewModel(application) 
                 .onFailure { android.util.Log.w("SternaOutbox", "couldn't reopen outbox item $id for edit", it) }
                 .getOrNull() ?: return@launch
             // The mapping is a pure function ([composeDraftOf]) so a JVM test can execute it: what
-            // it drops is not missing from the screen, it is CANCELLED — re-editing enqueues a new
+            // it drops is not missing from the screen, it is cancelled, re-editing enqueues a new
             // row from the composer's state.
             sendOutbox.reopen(composeDraftOf(draft))
             _readyToEdit.value = id

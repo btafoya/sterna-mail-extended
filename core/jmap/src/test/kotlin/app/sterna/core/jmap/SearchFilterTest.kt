@@ -6,6 +6,8 @@ import org.junit.Test
 
 /**
  * The `Email/query` filter (RFC 8621 §4.4.1). The combination is what can go wrong: the
+ * recipient's or must be one condition of the outer and, never flattened into it, that would
+ * turn "from Alex and to the team" into "from Alex or to the team" and widen every search.
  */
 class SearchFilterTest {
 

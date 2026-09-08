@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. Everything it pins is EXECUTED elsewhere — the order of the
+ * Source lint, not a behaviour test.
  */
 class ImapWindowWiringTest {
 
@@ -23,15 +23,15 @@ class ImapWindowWiringTest {
     // -- the plug: the IMAP full re-query ------------------------------------------------------------
 
     @Test fun `the IMAP refresh routes through the shared write-through, with these arguments`() {
-        // Pinned as the WHOLE body: the mutations that matter here are insertions and removals —
-        // a `try` around the walk, a `return` above the reconcile, a fifth argument gone missing —
+        // Pinned as the whole body: the mutations that matter here are insertions and removals,
+        // a `try` around the walk, a `return` above the reconcile, a fifth argument gone missing,
         // and no presence check sees any of them.
         //
-        // The FIRST line is the one the unified inbox turns on. This function ends in a
+        // The first line is the one the unified inbox turns on. This function ends in a
         // reconcile, which DELETES every cached row it is not given, and `refreshAllInboxes`
         //
         // Each argument carries one property:
-        //  - folderIds: the folder as it stood BEFORE the walk, which bounds what the reconcile
+        //  - folderIds: the folder as it stood before the walk, which bounds what the reconcile
         //
         // The two `checkAccountStillConfigured` lines are the sign-out guard: this walk runs for
         // minutes on a deep folder, and nothing cancels it when the account is signed out from the
@@ -69,7 +69,7 @@ class ImapWindowWiringTest {
 
     @Test fun `the IMAP write-through catches nothing and has no finally`() {
         // The half of the red line that lives at the call site. A `runCatching` here would let the
-        // refresh carry on as if the folder had synced — and, worse, would turn a failure into a
+        // refresh carry on as if the folder had synced, and, worse, would turn a failure into a
         // walk that "finished".
         val body = lines("MailRepository", "imapWriteThrough")
         listOf("try {", "catch (", "finally", "runCatching").forEach { guard ->
@@ -90,7 +90,7 @@ class ImapWindowWiringTest {
             "val load = imapWriteThrough(credentials, mailboxId = null, limit = limit)",
         )
         // `replaceMailbox` writes a whole snapshot and deletes everything else in one call. Its
-        // return to either path would mean the window is held on one heap again — and, page by
+        // return to either path would mean the window is held on one heap again, and, page by
         // page, would delete all but the last page.
         listOf("refreshImap", "refreshAllInboxes", "imapWriteThrough").forEach { function ->
             assertEquals(
@@ -111,11 +111,15 @@ class ImapWindowWiringTest {
     // -- the plug: the account's window reaching the network -------------------------------------------
 
     @Test fun `the window the caller asked for is what the folder walk is given`() {
-        // The line the cartography found untested: `SyncWindow.ALL.limit` travels
+        // The line the cartography found untested: `SyncWindow.All.limit` travels
         // InboxViewModel → refresh → refreshImap → imapWriteThrough → loadFolder → walkFolder, and
+        // nothing on that path may substitute a number of its own. The page size is the module's
+        // constant, not the window: confusing the two would either put the whole window back in one
+        // request or shrink every window to 200. What the walk then does with an unbounded window
+        // is executed on a real socket in `core:imap`
         assertLine("ImapMailService", "loadFolder", "session.walkFolder(status, limit, IMAP_FOLDER_PAGE) { page ->")
         // And `status.uidValidity` travels with the page: the rows are stamped with the numbering
-        // of THE SELECT THAT ENUMERATED THEM (#99). Dropped here, a cached row says nothing about
+        // of the SELECT that enumerated them (#99). Dropped here, a cached row says nothing about
         assertLine("ImapMailService", "loadFolder", "val preview = previews[emailId(credentials.id, target.path, it.uid)]")
         assertLine(
             "ImapMailService",
@@ -125,21 +129,21 @@ class ImapWindowWiringTest {
     }
 
     @Test fun `the folder's size is what the SELECT said, never a verdict written here`() {
-        // THE MUTATION THIS EXISTS FOR, which the whole suite survived until it was written:
+        // The mutation this exists for, which the whole suite survived until it was written:
         //
         //     - val status = session.select(target.path)
         //     + val status = session.select(target.path).copy(existsObserved = true)
         //
         // `exists` stays 0 (the server said nothing), `existsObserved` becomes true, the walk then
-        // STATES the folder empty, `reconcilableIds` answers the empty set, and the reconcile
+        // states the folder empty, `reconcilableIds` answers the empty set, and the reconcile
         //
         // Nothing executable can see it: no JVM test runs `loadFolder` (Room, an Android `Context`,
         // a live socket), `core:imap`'s wire tests drive the session directly, and the decision
         // tests build their walk by hand. The `walkFolder` line above is unchanged to the character
         // under the mutation, so pinning it proves nothing here.
         //
-        // Two facts, and the second is the load-bearing one: the SELECT's answer is taken WHOLE, and
-        // this function does not name `existsObserved` or `copy(` at all. The verdict TRAVELS
+        // Two facts, and the second is the load-bearing one: the SELECT's answer is taken whole, and
+        // this function does not name `existsObserved` or `copy(` at all. The verdict travels
         // through `loadFolder`; it is never written in it.
         assertLine("ImapMailService", "loadFolder", "val status = session.select(target.path)")
         val body = lines("ImapMailService", "loadFolder").filterNot { it.startsWith("//") }
@@ -157,7 +161,8 @@ class ImapWindowWiringTest {
 
     @Test fun `the numbering is settled before the walk, through the function that says so`() {
         // Codeberg #99, re-opened by writing pages as they land: a row of the new numbering must
-        // not be visible while a body cached under the old one is still readable. The ORDER is
+        // not be visible while a body cached under the old one is still readable. The order is
+        // executed by [NumberingSettlesBeforePagesTest]; what is read here is that `loadFolder`
         assertLine("ImapMailService", "loadFolder", "val walk = withNumberingSettled(")
         assertLine(
             "ImapMailService", "loadFolder",
@@ -185,7 +190,9 @@ class ImapWindowWiringTest {
 
     @Test fun `the folder load guards neither the walk nor the page write`() {
         // The third place the red line can be broken, and the least visible: a `runCatching` around
-        // `onPage(...)` here would let a page fail to be WRITTEN while the walk carried on and
+        // `onPage(...)` here would let a page fail to be written while the walk carried on and
+        // finished, and the reconcile at the end would then delete every cached row that page was
+        // supposed to have re-written. The walk's own half of this is executed in `core:imap`
         val body = lines("ImapMailService", "loadFolder")
         listOf("try {", "catch (", "finally", "runCatching").forEach { guard ->
             assertEquals(
@@ -213,11 +220,12 @@ class ImapWindowWiringTest {
     @Test fun `the two refusals are read from the walk and nowhere else`() {
         // The decision, whole. It is four lines so it can be pinned entire: the mutations to fear
         // are `if (load.walk.moved) return null` losing its `!`-equivalent, the empty-walk refusal
-        // below it going missing, or either refusal turning into an empty set — which would delete
+        // below it going missing, or either refusal turning into an empty set, which would delete
         // the folder instead of sparing it.
         //
-        // The second line is the one added for a walk that read NOTHING: a SELECT that never
+        // The second line is the one added for a walk that read nothing: a SELECT that never
         // stated a count, or a page whose every FETCH was unreadable, both end with no UID and
+        // nothing thrown. Deleting on that is a 300-row folder gone to zero on one pull-to-refresh.
         assertEquals(
             "reconcilableIds is no longer, line for line, what this was written against. Null is a " +
                 "REFUSAL to reconcile; an empty set is an instruction to delete the folder.",

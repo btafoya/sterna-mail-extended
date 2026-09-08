@@ -10,7 +10,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Three settings that DRIVE AN ACTION rather than merely show a value, and the value each one
+ * Three settings that drive an action rather than merely show a value, and the value each one
  */
 class UnloadedSettingDefaultsTest {
 
@@ -42,7 +42,10 @@ class UnloadedSettingDefaultsTest {
     }
 
     /**
-     * The third one (#149), and the one that is TWO answers to one unread value: what is rendered,
+     * The third one (#149), and the one that is two answers to one unread value: what is rendered,
+     * and what the remote images are decided against. Only the second belongs here, the values are
+     * executed through the two decision functions in `ReaderBodyTest`, this pins the constant those
+     * read.
      */
     @Test fun `an unknown reading mode counts as text for the remote images`() {
         assertTrue(
@@ -89,7 +92,7 @@ class UnloadedSettingDefaultsTest {
     }
 
     /**
-     * The reading-mode setting reaches the reader UNRESOLVED — as a nullable, with `null` meaning
+     * The reading-mode setting reaches the reader unresolved, as a nullable, with `null` meaning
      */
     @Test fun `the reader takes the reading-mode setting unresolved, null and all`() {
         assertBlock(
@@ -120,7 +123,10 @@ class UnloadedSettingDefaultsTest {
     }
 
     /**
-     * Both reading sites of the pager — the fixed toolbar's menu and the page's body — resolve the
+     * Both reading sites of the pager (the fixed toolbar's menu and the page's body) resolve the
+     * pair the same way, and each keeps the two answers apart. `MessageScreen` is Compose code and
+     * nothing here can run it; what is pinned is the whole line, twice, because a site that handed
+     * `plainText` (the rendered mode) to the image call would be right until the frame that is not.
      */
     @Test fun `both reader sites resolve the setting into two separate answers`() {
         listOf(
@@ -131,7 +137,7 @@ class UnloadedSettingDefaultsTest {
     }
 
     /**
-     * The negative screen — a `contains`, deliberately: it looks for what must be absent.
+     * The negative screen, a `contains`, deliberately: it looks for what must be absent.
      */
     @Test fun `the repository's swipe defaults are not restated in the inbox view model`() {
         val offenders = codeLines(INBOX_VIEW_MODEL).filter { "SwipeAction.TOGGLE_READ" in it || "SwipeAction.DELETE" in it }
@@ -168,7 +174,7 @@ class UnloadedSettingDefaultsTest {
     // -- reading the sources ----------------------------------------------------------------------
 
     /**
-     * Pins one WHOLE line that must appear in [file] EXACTLY ONCE.
+     * Pins one whole line that must appear in [file] exactly once.
      */
     private fun assertSoleLine(file: File, expected: String, what: String, near: String) {
         val lines = codeLines(file)
@@ -186,7 +192,7 @@ class UnloadedSettingDefaultsTest {
     }
 
     /**
-     * Pins one WHOLE line that must appear in [file] exactly [times] times.
+     * Pins one whole line that must appear in [file] exactly [times] times.
      */
     private fun assertLineCount(file: File, expected: String, times: Int, what: String) {
         val lines = codeLines(file)

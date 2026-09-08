@@ -5,7 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Every rule of [UnsubscribeHeader.parse], one at a time, plus the witness for each — because
+ * Every rule of [UnsubscribeHeader.parse], one at a time, plus the witness for each, because
  */
 class UnsubscribeHeaderTest {
 
@@ -21,7 +21,7 @@ class UnsubscribeHeaderTest {
         assertEquals(UnsubscribeAction.ONE_CLICK, options?.preferredAction())
     }
 
-    /** The witness: the SAME header without the POST promise is a page, never a POST. */
+    /** The witness: the same header without the POST promise is a page, never a POST. */
     @Test fun `the same https uri without the One-Click header is only a page`() {
         val options = UnsubscribeHeader.parse("<https://list.example.com/u/abc>", null)
 
@@ -45,7 +45,7 @@ class UnsubscribeHeaderTest {
         }
     }
 
-    /** And the witness for that: a value that is NOT RFC 8058's promises nothing. */
+    /** And the witness for that: a value that is not RFC 8058's promises nothing. */
     @Test fun `a List-Unsubscribe-Post value that is not One-Click promises nothing`() {
         listOf("One-Click", "List-Unsubscribe=Yes", "", "   ").forEach { post ->
             val options = UnsubscribeHeader.parse("<https://l.example.com/u>", post)
@@ -188,10 +188,10 @@ class UnsubscribeHeaderTest {
         assertEquals("one@l.example.com", options?.mailto?.address)
     }
 
-    // ---- a target that cannot be NAMED is not offered ----
+    // ---- a target that cannot be named is not offered ----
 
     /**
-     * `<https://>` parses to a scheme and nothing else. It used to be offered like any other URL,
+     * `<https://>` parses to a scheme and nothing else.
      */
     @Test fun `an https uri with no host is not offered at all`() {
         listOf("<https://>", "<https:///u/abc>", "<https://?token=xyz>").forEach { header ->
@@ -225,7 +225,7 @@ class UnsubscribeHeaderTest {
         assertEquals("please remove me", options?.mailto?.body)
     }
 
-    /** The witness for the rule above: a header folded MID-URI is still put back together. */
+    /** The witness for the rule above: a header folded mid-URI is still put back together. */
     @Test fun `a uri folded in the middle is joined back up`() {
         val options = UnsubscribeHeader.parse(
             "<https://l.example.com/u/\r\n\tabc?token=xyz>",

@@ -39,11 +39,11 @@ object DataFactory {
         val appContext = context.applicationContext
         val database = SternaDatabase.build(appContext)
         // The IMAP service verifies each folder's UIDVALIDITY through this store, and it is the
-        // store — not the service — that says what a renumbering invalidates (Codeberg #99).
+        // store, not the service, that says what a renumbering invalidates (Codeberg #99).
         val uidValidity = MailboxUidValidityStore(
             database.mailboxUidValidityDao(), database.emailBodyDao(), database.purgeSnapshotDao(),
         )
-        // ONE tree, handed to both readers: the repository that stages a draft's bytes there and
+        // One tree, handed to both readers: the repository that stages a draft's bytes there and
         // the sign-out that has to clear them (#95). Two literals would be one rename away from a
         // purge that sweeps an empty directory and reports success.
         val localDraftFiles = java.io.File(appContext.filesDir, LOCAL_DRAFT_FILES_DIR)
@@ -73,8 +73,8 @@ object DataFactory {
                 appContext, database.emailDao(), database.emailFtsDao(), database.emailBodyDao(),
                 database.mailboxDao(), database.snoozedDao(), database.purgeSnapshotDao(),
                 database.mailboxUidValidityDao(),
-                // Signing out takes the account's unsent drafts and their staged bytes with it —
-                // user data, so it goes on THAT event and on no cache purge (#95, #121).
+                // Signing out takes the account's unsent drafts and their staged bytes with it:
+                // user data, so it goes on that event and on no cache purge (#95, #121).
                 localDraftDao = database.localDraftDao(),
                 localDraftFilesDir = localDraftFiles,
             ),

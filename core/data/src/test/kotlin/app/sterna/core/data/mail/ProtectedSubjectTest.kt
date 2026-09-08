@@ -6,6 +6,7 @@ import java.util.Base64
 
 /**
  * RFC 9788 protected headers: which subject the reader shows once a PGP/MIME message is
+ * decrypted (issue #128).
  */
 class ProtectedSubjectTest {
 
@@ -13,7 +14,7 @@ class ProtectedSubjectTest {
     private fun entity(vararg headers: String): String =
         headers.joinToString("\r\n") + "\r\n\r\nThe plaintext body.\r\n"
 
-    /** [text] as one RFC 2047 base64 encoded-word — the shape a mail client emits. */
+    /** [text] as one RFC 2047 base64 encoded-word, the shape a mail client emits. */
     private fun word(text: String): String =
         "=?utf-8?B?" + Base64.getEncoder().encodeToString(text.toByteArray(Charsets.UTF_8)) + "?="
 
@@ -68,6 +69,8 @@ class ProtectedSubjectTest {
 
     /**
      * The same anti-spoofing filter the outer envelope subject gets (`ImapClient`). A
+     * protected subject is sender-controlled content: letting it through unfiltered would open on
+     * screen exactly what the outer path closes.
      */
     @Test fun `a bidi override in the protected subject is removed`() {
         assertEquals(
@@ -84,7 +87,9 @@ class ProtectedSubjectTest {
     }
 
     /**
-     * OBSERVED behaviour, not a wish: `MimeParser.parseHeaders` (MimeParser-374) builds a
+     * Observed behaviour, not a wish: `MimeParser.parseHeaders` (MimeParser-374) builds a
+     * `Map`, so a duplicated field silently keeps the last occurrence. Pinned here because a
+     * crafted entity can carry two `Subject:` lines and this is what would reach the screen.
      */
     @Test fun `with two subject headers the LAST one is what comes out`() {
         assertEquals(

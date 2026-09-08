@@ -74,7 +74,7 @@ class OutgoingMimeTest {
 
     @Test
     fun bccIsNotWrittenByDefault() {
-        // The default is what SmtpClient.buildMime uses, and its result goes into DATA unfiltered:
+        // The default is what SmtpClient.buildMime uses, and its result goes into data unfiltered:
         // a Bcc header here is the hidden recipients handed to everyone the message names.
         val mime = OutgoingMime.build(withCopies(listOf("hidden@example.com")))
 
@@ -101,7 +101,7 @@ class OutgoingMimeTest {
             listOf("Bcc: hidden@example.com"),
             lines.filter { it.startsWith("Bcc:") },
         )
-        // Among the address headers, immediately below the Cc — the position a reader (and every
+        // Among the address headers, immediately below the Cc, the position a reader (and every
         // envelope parser) expects, not somewhere down in the body.
         val cc = lines.indexOfFirst { it.startsWith("Cc:") }
         val bcc = lines.indexOfFirst { it.startsWith("Bcc:") }
@@ -112,8 +112,8 @@ class OutgoingMimeTest {
     @Test
     fun blindCopiesWrittenWithNoBlindRecipientOmitsTheHeaderEntirely() {
         // The #69 shape, one field down. Most drafts have no Cci, and "Bcc:" with nothing after it
-        // is a malformed header — an empty "To:" is what made recipient-less drafts unsaveable,
-        // because the APPEND itself is refused. WRITTEN says "you MAY write it", not "write it".
+        // is a malformed header, an empty "To:" is what made recipient-less drafts unsaveable,
+        // because the APPEND itself is refused. Written says "you may write it", not "write it".
         val mime = OutgoingMime.build(withCopies(emptyList()), BlindCopies.WRITTEN)
 
         assertEquals(
@@ -258,7 +258,7 @@ class OutgoingMimeTest {
 
     @Test
     fun envelopeAddressStripsCrlfSoNoExtraSmtpCommandIsSmuggled() {
-        // An address with no angle brackets used to reach "MAIL FROM:<…>"/"RCPT TO:<…>" verbatim,
+        // An address with no angle brackets used to reach "mail from:<…>"/"RCPT to:<…>" verbatim,
         // so a CRLF in it appended a second envelope command (here a hidden recipient).
         val hostile = "bob@example.com\r\nRCPT TO:victim@evil.com"
 
@@ -311,7 +311,7 @@ class OutgoingMimeTest {
     @Test
     fun theReceiptFollowsTheFromItIsBuiltWith() {
         // The "on behalf" case: a delegated send is submitted by one identity and shows another in
-        // From. The receipt must go where the correspondent can see it — the From — so it is that
+        // From. The receipt must go where the correspondent can see it (the From) so it is that
         // address, not the login, that appears here.
         val mime = OutgoingMime.build(
             msg().copy(from = "team@example.org", requestReceipt = true),
@@ -370,9 +370,9 @@ class OutgoingMimeTest {
 
     @Test
     fun aPgpMimeMessageStillCarriesTheReceiptHeader() {
-        // The path a partial fix leaves mute. A signed or encrypted JMAP send does NOT go through
+        // The path a partial fix leaves mute. A signed or encrypted JMAP send does not go through
         // Email/set: MailRepository builds these very bytes and imports them. The pre-built entity
-        // replaces the BODY, so the receipt has to be written above it — if it were emitted inside
+        // replaces the body, so the receipt has to be written above it, if it were emitted inside
         // the body branch, every signed and every encrypted message would go out asking nothing.
         val entity = "Content-Type: multipart/signed; protocol=\"application/pgp-signature\"\r\n\r\nbody\r\n"
         val mime = OutgoingMime.build(msg().copy(prebuiltEntity = entity, requestReceipt = true))
@@ -392,7 +392,7 @@ class OutgoingMimeTest {
     }
 
     /**
-     * The seam is not a PGP seam. An entity carrying no PGP anywhere — RFC 8098's
+     * The seam is not a PGP seam. An entity carrying no PGP anywhere, RFC 8098's
      */
     @Test
     fun aPrebuiltEntityWithNoPgpAtAllReachesTheWireVerbatim() {
@@ -446,9 +446,9 @@ class OutgoingMimeTest {
     // `Base64.getMimeEncoder()` already separates its 76-column lines with CRLF
     // (`getMimeEncoder()` == `getMimeEncoder(76, "\r\n")`). A `.replace("\n", "\r\n")` laid over
     //
-    // The witness reads what `buildBodyEntity` PRODUCES. Never `FakeSmtpServer.delivered`: that
-    // server re-reads DATA with `readLine()` and rejoins on "\r\n"
-    // (FakeSmtpServer-179), which silently heals the defect — an assertion there is green
+    // The witness reads what `buildBodyEntity` produces. Never `FakeSmtpServer.delivered`: that
+    // server re-reads data with `readLine()` and rejoins on "\r\n"
+    // (FakeSmtpServer-179), which silently heals the defect, an assertion there is green
     // on the broken code.
 
     /** 193 bytes of plain ASCII: well past the 57-byte input that fills one 76-column line. */
@@ -496,7 +496,7 @@ class OutgoingMimeTest {
 
     @Test
     fun aWrappedAttachmentUsesCrlfWithNoBareCr() {
-        // A few kB of fabricated bytes — many wrapped lines, and it exercises the attachment path
+        // A few kB of fabricated bytes, many wrapped lines, and it exercises the attachment path
         // (appendAttachmentPart) rather than the body one.
         val blob = ByteArray(4096) { (it % 251).toByte() }
         val entity = OutgoingMime.buildBodyEntity(
@@ -512,7 +512,7 @@ class OutgoingMimeTest {
     @Test
     fun aWrappedInlineImageUsesCrlfWithNoBareCr() {
         // The fourth call site, appendRelatedParts: an inline image inside a multipart/related.
-        // The `image` fixture above is 3 bytes — `AQID`, never wrapped — so it cannot see this
+        // The `image` fixture above is 3 bytes (`AQID`, never wrapped) so it cannot see this
         // defect at all. Any message with a logo in it carries kilobytes here.
         val pixels = ByteArray(3000) { (it % 251).toByte() }
         val entity = OutgoingMime.buildBodyEntity(
@@ -535,7 +535,7 @@ class OutgoingMimeTest {
     @Test
     fun aBodyBelowTheWrapThresholdIsUnchanged() {
         // 31 bytes: under the 57-byte threshold, so the encoder emits a single unwrapped line and
-        // there is no separator to mangle. Green on both sides of the fix — this is the boundary,
+        // there is no separator to mangle. Green on both sides of the fix, this is the boundary,
         // it proves nothing about the fix and everything about not regressing short messages.
         val shortBody = "short enough to fit on one line"
         assertEquals(31, shortBody.toByteArray(Charsets.UTF_8).size)

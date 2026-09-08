@@ -6,6 +6,8 @@ import org.junit.Test
 
 /**
  * Executes the provider decision. Every expectation below is written out by hand: a test that
+ * re-derives the rule to know what to expect is a copy of the rule, and stays green when the rule
+ * is inverted.
  */
 class PgpProvidersTest {
 

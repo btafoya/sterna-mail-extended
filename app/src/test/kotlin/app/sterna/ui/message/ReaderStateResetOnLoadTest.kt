@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE RULE, NOT A BEHAVIOUR TEST — and it exists because the behaviour cannot be tested here.
+ * Source rule, not a behaviour test, and it exists because the behaviour cannot be tested here.
  */
 class ReaderStateResetOnLoadTest {
 
@@ -31,7 +31,7 @@ class ReaderStateResetOnLoadTest {
     }
 
     /**
-     * The unsubscribe state, again, in the branch that runs when the message does NOT open.
+     * The unsubscribe state, again, in the branch that runs when the message does not open.
      */
     @Test
     fun `a failed open clears the unsubscribe the reader could otherwise still press`() {
@@ -49,7 +49,7 @@ class ReaderStateResetOnLoadTest {
         }
     }
 
-    /** The text of `fun load(…)` up to `viewModelScope.launch` — everything that runs at once. */
+    /** The text of `fun load(…)` up to `viewModelScope.launch`, everything that runs at once. */
     private fun loadPrologue(source: String): String {
         val body = loadBody(source)
         val launch = body.indexOf("viewModelScope.launch")

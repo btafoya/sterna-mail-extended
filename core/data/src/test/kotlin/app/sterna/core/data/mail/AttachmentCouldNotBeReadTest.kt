@@ -6,12 +6,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [attachmentCouldNotBeRead] and [requireAttachmentBytes], EXECUTED — the verdict standing between
+ * [attachmentCouldNotBeRead] and [requireAttachmentBytes], executed, the verdict standing between
  */
 class AttachmentCouldNotBeReadTest {
 
-    /** THE case, measured on the test server: the UID vanished between opening the message and
-     *  the Save tap, `UID FETCH <uid> (BODY.PEEK[1])` answered OK with no untagged FETCH at all,
+    /** The case, measured on the test server: the UID vanished between opening the message and
+     *  the Save tap, `UID FETCH <uid> (body.PEEK[1])` answered OK with no untagged FETCH at all,
      *  `ImapClient.bodyItem()` made that "" and `MimeParser.decodeBytes("", …)` made it zero bytes
      *  without throwing. */
     @Test fun zeroBytesCouldNotBeRead() {
@@ -29,7 +29,7 @@ class AttachmentCouldNotBeReadTest {
     }
 
     /**
-     * THE case that says this is not an `isBlank` in disguise. An attachment made of nothing but
+     * The case that says this is not an `isBlank` in disguise.
      */
     @Test fun anAttachmentOfNothingButWhitespaceCanBeRead() {
         for (bytes in listOf(" ", "   ", "\r\n", "\t", " \r\n\t ")) {
@@ -52,7 +52,10 @@ class AttachmentCouldNotBeReadTest {
     }
 
     /**
-     * The twin, EXECUTED — and this is the assertion that kills "the twin was emptied of its
+     * The twin, executed, and this is the assertion that kills "the twin was emptied of its
+     * `throw`". Testing the predicate alone leaves that mutation green: the guard would answer
+     * `true` to nobody, `saveAttachment` would write zero bytes and announce the save exactly as
+     * before.
      */
     @Test fun requiringTheBytesThrowsTheUnavailableMessageOnZeroBytes() {
         assertThrows(MessageUnavailableException::class.java) {
@@ -60,7 +63,7 @@ class AttachmentCouldNotBeReadTest {
         }
     }
 
-    /** And the message names BOTH keys: a bug report has to be able to quote which part of which
+    /** And the message names both keys: a bug report has to be able to quote which part of which
      *  message the server dropped, and the reader appends this text to its failure sentence. */
     @Test fun theRefusalNamesTheMessageAndThePart() {
         val thrown = assertThrows(MessageUnavailableException::class.java) {
@@ -69,8 +72,7 @@ class AttachmentCouldNotBeReadTest {
         val message = thrown.message.orEmpty()
         assertTrue("the message must name the emailId, was \"$message\"", "email-7" in message)
         assertTrue("the message must name the partKey, was \"$message\"", "2.1" in message)
-        // And in THAT order, which is what says which key is which. Presence alone is blind to
-        // the parameters being swapped — `(partKey, emailId, bytes)` is two Strings, it compiles,
+        // And in that order, which is what says which key is which.
         assertTrue(
             "the PART must be named before the MESSAGE it belongs to — \"Attachment <part> of " +
                 "<message>\". Swapped, the sentence lies about which key is which. Was: \"$message\"",
@@ -80,6 +82,8 @@ class AttachmentCouldNotBeReadTest {
 
     /**
      * The control that forbids refusing everything: one octet passes, and whitespace passes. A
+     * twin that threw on more than zero bytes would make every attachment unsaveable in exchange
+     * for the defect above.
      */
     @Test fun requiringTheBytesLetsARealAttachmentThrough() {
         requireAttachmentBytes("email-7", "2", byteArrayOf(0))

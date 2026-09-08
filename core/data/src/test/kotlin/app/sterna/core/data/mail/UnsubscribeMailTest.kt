@@ -26,7 +26,7 @@ class UnsubscribeMailTest {
 
     /**
      * Some lists key the unsubscribe off the subject line, so the sender's own subject is used
-     * when there is one — a mail with our default subject would be silently ignored by them.
+     * when there is one, a mail with our default subject would be silently ignored by them.
      */
     @Test fun `the subject and body come from the uri when it carries them`() {
         val mail = unsubscribeMail(
@@ -56,6 +56,8 @@ class UnsubscribeMailTest {
 
     /**
      * The account's own identity travels with the mail (issue #31): a delegated sub-account is
+     * submitted through its LOGIN, so without this the list receives an unsubscribe from an
+     * address that never subscribed, and correctly ignores it.
      */
     @Test fun `the account identity is carried, so a delegated sub-account unsubscribes itself`() {
         val mail = unsubscribeMail(
@@ -68,7 +70,7 @@ class UnsubscribeMailTest {
         assertEquals("alex@masto.top", mail.fromEmail)
     }
 
-    /** No identity known: nothing is invented — the send path falls back to the account's own. */
+    /** No identity known: nothing is invented, the send path falls back to the account's own. */
     @Test fun `no identity leaves the from fields alone`() {
         val mail = unsubscribeMail(MailtoUnsubscribe("leave@list.example.com"), null, null)
 
@@ -76,10 +78,10 @@ class UnsubscribeMailTest {
         assertNull(mail.fromEmail)
     }
 
-    // ---- the hand-over to the outbox, read out of the shipped source: a LAST RESORT ----
+    // ---- the hand-over to the outbox, read out of the shipped source: a last resort ----
 
     /**
-     * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `MailRepository.kt` as text. It proves nothing
+     * Source lint, not a behaviour test. It reads `MailRepository.kt` as text. It proves nothing
      */
     @Test fun `the repository hands each field to the argument of the same name`() {
         val body = sendUnsubscribeMailBody()

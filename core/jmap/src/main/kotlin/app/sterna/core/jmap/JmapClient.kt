@@ -72,10 +72,10 @@ class JmapClient internal constructor(
          */
     private val log: (String, Throwable?) -> Unit = { _, _ -> },
 ) {
-    /** Public constructor for app code — uses a default OkHttp client. */
+    /** Public constructor for app code, uses a default OkHttp client. */
     constructor(log: (String, Throwable?) -> Unit = { _, _ -> }) : this(defaultHttpClient(), DefaultJson, log)
 
-    /** GET the Session resource and parse it (RFC 8620 §2). */
+    /** Get the Session resource and parse it (RFC 8620 §2). */
     suspend fun fetchSession(sessionUrl: String, auth: JmapAuth): JmapSession =
         withContext(Dispatchers.IO) {
             var url = sessionUrl
@@ -90,7 +90,7 @@ class JmapClient internal constructor(
                 val session = httpClient.newCall(request).execute().use { response ->
                             // OkHttp drops the Authorization header when a redirect changes origin, so an
                             // autodiscovery redirect (RFC 8620 §2.2) lands unauthenticated; retry it once,
-                            // re-authenticated. The trigger is the MECHANICAL fact that dropped the
+                            // re-authenticated. The trigger is the mechanical fact that dropped the
                             // header, never the answer: Stalwart answers 200 with an empty session (#137).
                     val landedAt = response.request.url
                     if (!retried && response.priorResponse != null &&
@@ -164,7 +164,7 @@ class JmapClient internal constructor(
         // it, instead of an absolute [position] that shifts when new mail arrives.
         anchorId: String? = null,
         anchorOffset: Int = 0,
-        // Only unread messages (notKeyword $seen) — lets "Mark all read" resolve its
+        // Only unread messages (notKeyword $seen), lets "Mark all read" resolve its
         // targets server-side instead of from the cached window.
         unseenOnly: Boolean = false,
     ): EmailPage = withContext(Dispatchers.IO) {
@@ -188,7 +188,7 @@ class JmapClient internal constructor(
                                 put("isAscending", false)
                             }
                         }
-                            // Always uncollapsed — every message, not one representative per thread:
+                            // Always uncollapsed, every message, not one representative per thread:
                             // the local cache is WYSIWYG, and a collapsed query once made "empty
                             // Trash" destroy only thread representatives.
                         put("collapseThreads", false)
@@ -213,7 +213,7 @@ class JmapClient internal constructor(
                             put("path", "/ids")
                         }
                         putJsonArray("properties") {
-                                // `replyTo`, `cc`, `bcc`: this page's rows are CACHED and the upsert
+                                // `replyTo`, `cc`, `bcc`: this page's rows are cached and the upsert
                                 // replaces the whole row, so omitting one here would wipe what another
                                 // fetch stored. See [EMAIL_BODY_PROPERTIES] and [CopiesOnTheWireTest].
                             listOf(
@@ -249,7 +249,7 @@ class JmapClient internal constructor(
     }
 
             /**
-             * Handed to [onPage] ONE REQUEST AT A TIME, so the peak is one server page and not the window:
+             * Handed to [onPage] one request at a time, so the peak is one server page and not the window:
              */
     suspend fun queryEmailsWindow(
         session: JmapSession,
@@ -264,14 +264,14 @@ class JmapClient internal constructor(
             // recovery, and a duplicate would be written and counted twice against the window.
         val ids = ArrayList<String>()
         val seen = HashSet<String>()
-            // The first response's two cursor STRINGS, not the first response: keeping the page alive
+            // The first response's two cursor strings, not the first response: keeping the page alive
             // to read two strings off it at the end pinned a whole decoded page for the walk.
-            // `sawFirst` and not a null check — the first response is allowed to carry no cursors.
+            // `sawFirst` and not a null check, the first response is allowed to carry no cursors.
         var sawFirst = false
         var firstQueryState: String? = null
         var firstEmailState: String? = null
         var seenIds = 0
-            // Whether this walk ever paged by an absolute POSITION. A property of the WHOLE walk: once
+            // Whether this walk ever paged by an absolute position. A property of the whole walk: once
             // a recovery under-shoots, the ids it missed are gone from `ids` and the caller must know.
         var resumedByPosition = false
         var limit = nextWindowPageLimit(fetched = 0, target = target, pageSize = pageSize, last = null)
@@ -285,8 +285,8 @@ class JmapClient internal constructor(
                     anchorOffset = if (anchor != null) 1 else 0,
                 )
             } catch (e: JmapException) {
-                        // Recover ONCE on an absolute position; any other failure propagates. ONE
-                        // BEHIND the count accumulated: `anchorNotFound` says the list lost a row, so
+                        // Recover once on an absolute position; any other failure propagates. One
+                        // behind the count accumulated: `anchorNotFound` says the list lost a row, so
                 if (anchor == null || e.errorType != "anchorNotFound") throw e
                 resumedByPosition = true
                 queryEmailsPage(
@@ -299,12 +299,12 @@ class JmapClient internal constructor(
                 firstQueryState = page.queryState
                 firstEmailState = page.emailState
             }
-            // `seen.add` is the de-duplication the accumulation used to get from `putIfAbsent`,
-            // and it has to happen HERE, before the hand-off: a message the recovery page repeats
+            // `seen.add` is the de-duplication `putIfAbsent` gave the accumulation,
+            // and it has to happen here, before the hand-off: a message the recovery page repeats
             // must not be written twice, and must not count twice against the window.
             val fresh = page.emails.filter { seen.add(it.id) }
             fresh.forEach { ids += it.id }
-            // Handed off NOW, while the next request has not been sent: this is the line that
+            // Handed off now, while the next request has not been sent: this is the line that
             // turns a window into a stream. Its failure propagates (see the KDoc).
             if (fresh.isNotEmpty()) onPage(fresh)
             seenIds += page.queryCount
@@ -323,15 +323,15 @@ class JmapClient internal constructor(
             ids = ids,
             queryState = firstQueryState,
             emailState = firstEmailState,
-            // Every id the walk's queries listed, so a caller can still tell a short GET from an
-            // exhausted folder. Not a single query's count — this walk is not a single query.
+            // Every id the walk's queries listed, so a caller can still tell a short get from an
+            // exhausted folder. Not a single query's count, this walk is not a single query.
             queryCount = seenIds,
             // The walk's own verdict on whether it may be reconciled against. See the catch.
             resumedByPosition = resumedByPosition,
         )
     }
 
-        /** Ids-only page of a mailbox query: a lone Email/query, no chained Email/get — for resolving
+        /** Ids-only page of a mailbox query: a lone Email/query, no chained Email/get, for resolving
          *  bulk-action targets ("Mark all read"), where fetching thousands of headers is pure waste. */
     suspend fun queryEmailIds(
         session: JmapSession,
@@ -363,7 +363,7 @@ class JmapClient internal constructor(
                                 put("isAscending", false)
                             }
                         }
-                        // Always uncollapsed — see [queryEmailsPage]: bulk targets must
+                        // Always uncollapsed, see [queryEmailsPage]: bulk targets must
                         // cover every message, never just thread representatives.
                         put("collapseThreads", false)
                         put("position", position)
@@ -402,7 +402,7 @@ class JmapClient internal constructor(
     ): List<Email> = queryEmailsPage(session, accountId, mailboxId, limit, auth).emails
 
         /** Email/queryChanges for the folder sync query. Its arguments (filter, sort, collapseThreads)
-         *  MUST mirror [queryEmailsPage]'s exactly: a queryState is only comparable against the same
+         *  Must mirror [queryEmailsPage]'s exactly: a queryState is only comparable against the same
          *  query (RFC 8620 §5.6). */
     suspend fun emailQueryChanges(
         session: JmapSession,
@@ -509,7 +509,7 @@ class JmapClient internal constructor(
                             putJsonArray("ids") { batch.forEach { add(it) } }
                             putJsonArray("properties") {
                                 // `replyTo`, `cc`, `bcc`: the delta sync writes these rows straight
-                                // into the cache, and the `@Upsert` replaces the row whole — see
+                                // into the cache, and the `@Upsert` replaces the row whole, see
                                 // [EMAIL_BODY_PROPERTIES].
                                 listOf(
                                     "id", "threadId", "subject", "preview",
@@ -527,7 +527,7 @@ class JmapClient internal constructor(
     }
 
             /**
-             * An authoritative existence check for the sync ghost sweep: ONLY ids listed in the response's
+             * An authoritative existence check for the sync ghost sweep: only ids listed in the response's
              */
     suspend fun missingEmailIds(
         session: JmapSession,
@@ -665,11 +665,11 @@ class JmapClient internal constructor(
                 throw JmapException("Search failed: HTTP ${response.code} ${response.message}")
             }
             // mailboxId is left null: the caller (core:data) resolves each hit's folder
-            // deterministically from the returned mailboxIds map — picking the map's
+            // deterministically from the returned mailboxIds map, picking the map's
             // arbitrary first key here could route a multi-mailbox hit to Trash.
             SearchPage(
                 emails = decodeList(body, "Email/get", Email.serializer()),
-                // What the QUERY matched, kept apart from what the GET returned — same reason the
+                // What the query matched, kept apart from what the get returned, same reason the
                 // crawl keeps both (see [SearchPage]). Absent `ids` stays null rather than 0.
                 matchedIds = methodResponseArgs(body, "Email/query")["ids"]?.jsonArray?.size,
             )
@@ -724,7 +724,7 @@ class JmapClient internal constructor(
                             put("path", "/ids")
                         }
                         putJsonArray("properties") {
-                            // Headers only — responses stay tiny so the crawl reaches even years-old
+                            // Headers only, responses stay tiny so the crawl reaches even years-old
                             // mail fast. Body search is served by the server's own full-text index.
                             listOf(
                                 "id", "threadId", "subject", "preview", "receivedAt",
@@ -756,7 +756,7 @@ class JmapClient internal constructor(
     }
 
             /**
-             * Its own request, deliberately NOT [getEmailsWithBody] with one id: this is the reader opening
+             * Its own request, deliberately not [getEmailsWithBody] with one id: this is the reader opening
              */
     suspend fun getEmail(
         session: JmapSession,
@@ -764,7 +764,7 @@ class JmapClient internal constructor(
         emailId: String,
         auth: JmapAuth,
     ): Email = withContext(Dispatchers.IO) {
-        // Two guards, receipt OUTSIDE and unsubscribe INSIDE — the order is load-bearing and its
+        // Two guards, receipt outside and unsubscribe inside, the order is load-bearing and its
         // reasons are in [withReceiptHeaderFallback].
         withReceiptHeaderFallback(session) { withReceiptHeader ->
             withUnsubscribeHeaderFallback(session) { withUnsubscribeHeaders ->
@@ -800,7 +800,7 @@ class JmapClient internal constructor(
                 httpClient.newCall(request).execute().use { response ->
                     val body = response.body?.string().orEmpty()
                     if (!response.isSuccessful) {
-                        // The message is unchanged word for word — it is shown to the reader.
+                        // The message is unchanged word for word, it is shown to the reader.
                         // Only the structured code is new, and only so the fallbacks above can
                         // tell a rejected property (400) from a refusal that must stand.
                         throw JmapException(
@@ -816,7 +816,7 @@ class JmapClient internal constructor(
     }
 
         /** Fetch just the raw header fields of a message, in original order with duplicates kept
-         *  (RFC 8621 §4.1.3 `headers`). No blob download, no body values — the reader's "view headers"
+         *  (RFC 8621 §4.1.3 `headers`). No blob download, no body values, the reader's "view headers"
          *  action (issue #60). Empty list if the id is not found. */
     suspend fun getEmailHeaders(
         session: JmapSession,
@@ -827,7 +827,8 @@ class JmapClient internal constructor(
         getEmailsHeaders(session, accountId, listOf(emailId), auth)[emailId] ?: emptyList()
 
             /**
-             * The same read for MANY messages, keyed by id — what the body prefetch needs to name a
+             * The same read for many messages, keyed by id, what the body prefetch needs to name a
+             * part per message.
              */
     suspend fun getEmailsHeaders(
         session: JmapSession,
@@ -910,7 +911,7 @@ class JmapClient internal constructor(
             call(ask)
         } catch (e: JmapException) {
             if (!ask || !isPropertyRejection(e)) throw e
-                // The verdict is recorded only if dropping THESE properties is what made the call
+                // The verdict is recorded only if dropping these properties is what made the call
                 // work. They are no longer the only optional thing in the payload: a server refusing
                 // the receipt property instead would otherwise be written down as refusing these, and
                 // lose the reader's banner for a header it was happy with.
@@ -921,7 +922,7 @@ class JmapClient internal constructor(
     }
 
             /**
-             * The twin for [RECEIPT_HEADER_PROPERTY], with its OWN per-URL memo: one guard over both
+             * The twin for [RECEIPT_HEADER_PROPERTY], with its own per-URL memo: one guard over both
              */
     private suspend fun <T> withReceiptHeaderFallback(
         session: JmapSession,
@@ -945,12 +946,14 @@ class JmapClient internal constructor(
 
             /**
              * Whether [session]'s server was measured to reject [RECEIPT_HEADER_PROPERTY], i.e. whether a
+             * null `dispositionNotificationTo` on a message it returned means anything at all.
              */
     fun refusesReceiptHeader(session: JmapSession): Boolean =
         session.apiUrl in serversRefusingReceiptHeader
 
             /**
-             * The THIRD per-URL memo, for [AUTOCRYPT_HEADER_PROPERTY] on [sendEmail]. At stake is not a
+             * The third per-URL memo, for [AUTOCRYPT_HEADER_PROPERTY] on [sendEmail]. At stake is not a
+             * a share of either of the other two, for the reason written above [withReceiptHeaderFallback]:
              */
     private suspend fun <T> withAutocryptHeaderFallback(
         session: JmapSession,
@@ -982,7 +985,7 @@ class JmapClient internal constructor(
         session.apiUrl in serversRefusingAutocryptHeader
 
             /**
-             * `Thread/get`, then `Email/get` on the ids it named. TWO requests, not one chained pair: a
+             * `Thread/get`, then `Email/get` on the ids it named.
              */
     suspend fun getThreadEmails(
         session: JmapSession,
@@ -1006,7 +1009,7 @@ class JmapClient internal constructor(
                             putJsonArray("properties") {
                                 listOf(
                                     // `replyTo`, `cc`, `bcc`: thread members are cached too
-                                    // ([MailRepository.fetchThreadMembers]) — see
+                                    // ([MailRepository.fetchThreadMembers]), see
                                     // [EMAIL_BODY_PROPERTIES] for why every such path must ask.
                                     "id", "threadId", "subject", "preview", "receivedAt",
                                     "from", "replyTo", "to", "cc", "bcc",
@@ -1023,7 +1026,10 @@ class JmapClient internal constructor(
     }
 
         /**
-         * The email ids a thread is made of, in the server's order (RFC 8621 §3) — the first half of
+         * The email ids a thread is made of, in the server's order (RFC 8621 §3), the first half of
+         * [getThreadEmails]. An unknown thread answers an empty list rather than throwing: a
+         * conversation whose thread the server no longer knows is not an error, and the caller then
+         * simply keeps what the cache gave it.
          */
     private suspend fun threadEmailIds(
         session: JmapSession,
@@ -1075,7 +1081,7 @@ class JmapClient internal constructor(
         }
         val result = emailSetResult(args)
         // errorType carries the per-id SetError type (RFC 8620 §5.3) so the repository can
-        // tell an authoritative `notFound` (the id no longer exists — prune the cached row)
+        // tell an authoritative `notFound` (the id no longer exists, prune the cached row)
         // from other rejections, without parsing the human-readable message.
         result.failed[emailId]?.let { throw JmapException("Server rejected the keyword change ($it)", errorType = it) }
         return result.newState
@@ -1086,7 +1092,7 @@ class JmapClient internal constructor(
         setKeyword(session, accountId, emailId, "\$seen", seen, auth)
 
             /**
-             * Split into requests of at most [JmapSession.setBatchSize] ids. THROWS on a transport
+             * Split into requests of at most [JmapSession.setBatchSize] ids. Throws on a transport
              */
     suspend fun setSeenAll(
         session: JmapSession,
@@ -1213,7 +1219,7 @@ class JmapClient internal constructor(
     }
 
             /**
-             * `Identity/set`, RFC 8621 §6.4. Sterna only ever read identities, so an alias added in
+             * `Identity/set`, RFC 8621 §6.4.
              */
     suspend fun createIdentity(
         session: JmapSession,
@@ -1545,6 +1551,7 @@ class JmapClient internal constructor(
 
         /**
          * Send a plain-text email: create a draft (Email/set) and submit it (EmailSubmission/set) in
+         * (EmailSubmission/set) in one request, moving it to Sent on success.
          */
     suspend fun sendEmail(
         session: JmapSession,
@@ -1566,11 +1573,12 @@ class JmapClient internal constructor(
         /** Ask for a read receipt: writes `Disposition-Notification-To:` naming [from] (RFC 8098). */
         requestReceipt: Boolean = false,
             /**
-             * An explicit SMTP envelope (RFC 8621 §7.5). null — the ordinary case — lets the server
+             * An explicit SMTP envelope (RFC 8621 §7.5). null, the ordinary case, lets the server
+             * derive it from [identityId]; non-null is for a [from] the server has no identity for (#172).
              */
         envelope: SubmissionEnvelope? = null,
                 /** This sender's own OpenPGP public key as the ready value of an `Autocrypt:` header
-                 *  (Autocrypt Level 1 §2.1), or null. Flat, NOT folded: the server writes the field, so
+                 *  (Autocrypt Level 1 §2.1), or null. Flat, not folded: the server writes the field, so
                  *  folding here would put literal CRLFs inside a JSON string. Whether an account may
                  *  announce its key at all is decided in core/data, never here. */
         autocryptHeader: String? = null,
@@ -1670,7 +1678,7 @@ class JmapClient internal constructor(
                 (emailArgs["notCreated"] as? JsonObject)?.get("draft")?.let {
                     throw JmapException("Could not create the message: $it")
                 }
-                    // THE POINT OF NO RETURN, here because this is the first line that knows: the
+                    // The point of NO return, here because this is the first line that knows: the
                     // create was not refused, so a message exists on the server. Everything below may
                     // throw what it likes; no replay may follow ([withAutocryptHeaderFallback]).
                 point.pass()
@@ -1680,7 +1688,7 @@ class JmapClient internal constructor(
                 }
                 createdEmailId(emailArgs) to subArgs
             }
-            // A CREATED submission is not a delivered message: a recipient refused before queueing
+            // A created submission is not a delivered message: a recipient refused before queueing
             // arrives here, never in `notCreated`, and no bounce follows it (#183). Asked outside the
             // `use` above so the first response is closed before the second request goes out.
             val (emailId, submissionArgs) = created
@@ -1697,6 +1705,7 @@ class JmapClient internal constructor(
 
             /**
              * RFC 8621 §4.8 `Email/import`: one message in [mailboxIds], carrying [keywords], received at
+             * [receivedAt] (an RFC 3339 UTC date, or null to let the server stamp now).
              */
     suspend fun importEmail(
         session: JmapSession,
@@ -1751,7 +1760,7 @@ class JmapClient internal constructor(
     }
 
             /**
-             * FAIL the send if the server refused a recipient (#183). `notCreated` is silent on the
+             * Fail the send if the server refused a recipient (#183).
              */
     private suspend fun failIfRecipientsWereRefused(
         session: JmapSession,
@@ -1767,8 +1776,8 @@ class JmapClient internal constructor(
         }.getOrDefault(emptyList())
         if (refusals.isEmpty()) return
         // Permanent: the server has ruled on this delivery. Five auto-retries would put five copies
-        // in Sent, and on a PARTIAL refusal they would deliver the message five times over to the
-        // recipient that IS valid — worse than the defect being fixed.
+        // in Sent, and on a partial refusal they would deliver the message five times over to the
+        // recipient that IS valid, worse than the defect being fixed.
         throw JmapException("Not delivered to " + refusals.joinToString("; "), permanent = true)
     }
 
@@ -1810,7 +1819,7 @@ class JmapClient internal constructor(
         }
     }
 
-            /** Raw RFC 5322 bytes built CLIENT-side (PGP/MIME: the structured Email/set body assembly
+            /** Raw RFC 5322 bytes built client-side (PGP/MIME: the structured Email/set body assembly
              *  cannot carry the protocol=/micalg= parameters). Uploads the message as a blob, then one
              *  request: Email/import into Drafts + EmailSubmission/set referencing it. */
     suspend fun importAndSendEmail(
@@ -1884,7 +1893,7 @@ class JmapClient internal constructor(
             }
             createdEmailId(importArgs) to subArgs
         }
-        // The twin of the check in [sendEmail], through the SAME helper: the PGP/MIME route submits
+        // The twin of the check in [sendEmail], through the same helper: the PGP/MIME route submits
         // the same way and was refused the same way, in silence (#183). Two copies of this test is
         // what let the `notCreated`-only check go unnoticed on both paths for so long.
         val (emailId, submissionArgs) = created
@@ -1893,7 +1902,7 @@ class JmapClient internal constructor(
     }
 
             /**
-             * Email/copy into [toAccountId]'s [mailboxId], then destroy the original (issue #31). The
+             * Email/copy into [toAccountId]'s [mailboxId], then destroy the original (issue #31).
              */
     suspend fun copyEmailToAccount(
         session: JmapSession,
@@ -1960,6 +1969,9 @@ class JmapClient internal constructor(
         textBody: String,
             /**
              * The `text/html` alternative to store beside [textBody] (#131), or null for a draft with
+             * no styling, and then the create is byte for byte what it was: one `textBody` part, one
+             * `bodyValues` entry. Both halves go out together when it is there: an `htmlBody` part
+             * whose `bodyValues` entry is missing is a create a strict server rejects outright.
              */
         htmlBody: String? = null,
         draftMailboxId: String,
@@ -1975,7 +1987,7 @@ class JmapClient internal constructor(
                 putJsonObject("draft") {
                     putJsonArray("from") { addJsonObject { addAddress(from) } }
                     // A draft may legitimately have no recipient yet (#69). Emit "to" only when
-                    // there is one — an empty "to": [] is rejected on create by strict servers
+                    // there is one, an empty "to": [] is rejected on create by strict servers
                     // (e.g. Stalwart), which is what blocked saving a recipient-less draft.
                     if (to.isNotEmpty()) putJsonArray("to") { to.forEach { addJsonObject { addAddress(it) } } }
                     if (cc.isNotEmpty()) putJsonArray("cc") { cc.forEach { addJsonObject { addAddress(it) } } }
@@ -1998,9 +2010,9 @@ class JmapClient internal constructor(
                     putJsonArray("textBody") {
                         addJsonObject { put("partId", "body"); put("type", "text/plain") }
                     }
-                        // The styling the composer stored, as the SECOND alternative and never in
+                        // The styling the composer stored, as the second alternative and never in
                         // place of the first: the same shape `sendEmail` writes. Absent, nothing is
-                        // emitted at all — a plain draft's create is unchanged (#131).
+                        // emitted at all, a plain draft's create is unchanged (#131).
                     if (htmlBody != null) {
                         putJsonArray("htmlBody") {
                             addJsonObject { put("partId", "html"); put("type", "text/html") }
@@ -2020,8 +2032,8 @@ class JmapClient internal constructor(
             ?.get("id")?.jsonPrimitive?.contentOrNull
     }
 
-            /** Refuses anything past [maxBytes]. The whole response is buffered — there is no framing to
-             *  stream against — so the announced Content-Length is checked first and the read itself stops
+            /** Refuses anything past [maxBytes]. The whole response is buffered, there is no framing to
+             *  stream against, so the announced Content-Length is checked first and the read itself stops
              *  at the ceiling for a server that announces nothing, or lies. */
     suspend fun downloadBlob(
         session: JmapSession,
@@ -2201,7 +2213,7 @@ class JmapClient internal constructor(
     }
 
         /** Push the subscription's expiry out to [expires] (UTCDate). Returns the value the server
-         *  applied, which it MAY have capped below the request (RFC 8620 §7.2). */
+         *  applied, which it may have capped below the request (RFC 8620 §7.2). */
     suspend fun updatePushSubscriptionExpires(
         session: JmapSession,
         auth: JmapAuth,
@@ -2289,7 +2301,7 @@ class JmapClient internal constructor(
             .readTimeout(PING_SECONDS + 30L, TimeUnit.SECONDS)
             .build()
             // The life of this connection is the one thing a bug report needs and the app cannot
-            // observe from outside. Only the ORIGIN of the URL: what a reporter pastes in public must
+            // observe from outside. Only the origin of the URL: what a reporter pastes in public must
             // not carry the credential the query or the userinfo can hold.
         val origin = eventSourceOrigin(url)
         // Every log call is wrapped: the sink comes from the caller, and a sink that throws must
@@ -2306,7 +2318,7 @@ class JmapClient internal constructor(
             }
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
-                    // A refused connection arrives with no throwable at all, only the response — an
+                    // A refused connection arrives with no throwable at all, only the response, an
                     // expired token answering 401 on the SSE endpoint is the likeliest. The status
                     // code, and only the status code: headers and body are never touched.
                 val status = response?.let { " (HTTP ${it.code})" } ?: ""
@@ -2343,6 +2355,7 @@ class JmapClient internal constructor(
 
             /**
              * The read-side twin of [setInBatches], here because this layer holds the session and so the
+             * server's `maxObjectsInGet`, past which RFC 8620 §5.1 has the server reject the whole call.
              */
     private suspend fun <T> getInBatches(
         session: JmapSession,
@@ -2354,7 +2367,7 @@ class JmapClient internal constructor(
     }
 
             /**
-             * Aggregates the answers into ONE [EmailSetResult], so callers keep the bookkeeping they had
+             * Aggregates the answers into one [EmailSetResult], so callers keep the bookkeeping they had
              */
     private suspend fun setInBatches(
         session: JmapSession,
@@ -2373,7 +2386,7 @@ class JmapClient internal constructor(
             } catch (e: Exception) {
                 if (e !is JmapException && e !is IOException) throw e
                 if (rethrowTransportFailure) throw e
-                // This batch AND every batch we will now not send.
+                // This batch and every batch we will now not send.
                 batches.drop(index).flatten().forEach { failed[it] = Jmap.SET_ERROR_TRANSPORT }
                 return EmailSetResult(newState, done, failed)
             }
@@ -2469,7 +2482,7 @@ class JmapClient internal constructor(
         throw JmapException("No $expectedMethod response found")
     }
 
-            /** A deserialization failure is re-thrown WITHOUT its cause and without any excerpt:
+            /** A deserialization failure is re-thrown without its cause and without any excerpt:
              *  kotlinx.serialization puts a slice of the offending JSON in its message, which for an
              *  `Email/get` is mail content, and that message ends up in logcat, on screen and persisted
              *  in the outbox error column. */
@@ -2490,14 +2503,14 @@ class JmapClient internal constructor(
     private val serversRefusingUnsubscribeHeaders: MutableSet<String> =
         java.util.concurrent.ConcurrentHashMap.newKeySet()
 
-        /** API URLs whose server rejected [RECEIPT_HEADER_PROPERTY]. Its OWN set, separate from
+        /** API URLs whose server rejected [RECEIPT_HEADER_PROPERTY]. Its own set, separate from
          *  [serversRefusingUnsubscribeHeaders] on purpose: the two refusals are independent, and one
          *  shared flag would cost a server that dislikes one of them the other as well. */
     private val serversRefusingReceiptHeader: MutableSet<String> =
         java.util.concurrent.ConcurrentHashMap.newKeySet()
 
         /** API URLs whose server rejected [AUTOCRYPT_HEADER_PROPERTY] on an `Email/set` create. Its
-         *  OWN set again — see [withAutocryptHeaderFallback]. Memory only, one entry per API URL. */
+         *  own set again, see [withAutocryptHeaderFallback]. Memory only, one entry per API URL. */
     private val serversRefusingAutocryptHeader: MutableSet<String> =
         java.util.concurrent.ConcurrentHashMap.newKeySet()
 
@@ -2524,13 +2537,13 @@ class JmapClient internal constructor(
 
                 /** RFC 8621 §4.1.3 `headers`: the id, so the answer can be keyed, and the header fields.
                  * Named once so the single-id and grouped forms cannot disagree. Nothing else belongs
-                 *  in it — this is the ONE fetch that carries `headers`, and a body property here would put
+                 *  in it, this is the one fetch that carries `headers`, and a body property here would put
                  *  whole messages on a call the prefetch makes for twenty ids at a time. */
         internal val HEADER_FIELDS_PROPERTIES = listOf("id", "headers")
 
                 /** RFC 8098, in RFC 8621 §4.1.3's header form. `asText`, not `asAddresses`: the IMAP
                  *  path can only hand over raw header text, and one parser for both protocols is worth
-                 * more. NOT the property [sendEmail] and [saveDraft] write — that one is `asAddresses`,
+                 * more. Not the property [sendEmail] and [saveDraft] write, that one is `asAddresses`,
                  *  a create needing a value the server can re-emit. */
         internal const val RECEIPT_HEADER_PROPERTY = "header:Disposition-Notification-To:asText"
 
@@ -2540,15 +2553,15 @@ class JmapClient internal constructor(
         internal const val AUTOCRYPT_HEADER_PROPERTY = "header:Autocrypt:asText"
 
                 /**
-                 * The ONE failure [withAutocryptHeaderFallback] replays, extracted so it can be run rather
+                 * The one failure [withAutocryptHeaderFallback] replays, extracted so it can be run rather
                  */
         internal fun namesAutocryptProperty(text: String?): Boolean =
             text != null && text.contains("Autocrypt", ignoreCase = true)
 
                 /** The replay decision of [withAutocryptHeaderFallback], whole, as one pure function so a
-                 *  test can EXECUTE it. [pastPointOfNoReturn] comes first: it is the only term about what
-                 *  HAPPENED rather than about what a server wrote, and any server may put "autocrypt" in
-                 *  any refusal — a recipient address is enough. */
+                 *  test can execute it. [pastPointOfNoReturn] comes first: it is the only term about what
+                 *  happened rather than about what a server wrote, and any server may put "autocrypt" in
+                 *  any refusal, a recipient address is enough. */
         internal fun mayReplayWithoutAutocryptHeader(
             asked: Boolean,
             pastPointOfNoReturn: Boolean,
@@ -2572,7 +2585,7 @@ class JmapClient internal constructor(
         private const val JMAP_ERROR_LIMIT = "urn:ietf:params:jmap:error:limit"
 
                 /**
-                 * RFC 8620 §3.6.1's `error:limit` or a plain 429 — the ONE failure
+                 * RFC 8620 §3.6.1's `error:limit` or a plain 429, the one failure
                  */
         private fun isRateLimit(e: JmapException): Boolean =
             e.errorType == JMAP_ERROR_LIMIT || e.httpCode == 429
@@ -2591,6 +2604,8 @@ class JmapClient internal constructor(
 
             /**
              * Defensively upgrade the session-advertised URLs from http:// to https:// when the
+             * session itself was fetched over an https [sessionUrl]: a TLS reverse proxy that does
+             * not honour X-Forwarded-Proto advertises http:// URLs it never serves.
              */
         internal fun upgradeSessionUrls(session: JmapSession, sessionUrl: String): JmapSession {
             if (!sessionUrl.startsWith("https://", ignoreCase = true)) return session
@@ -2624,7 +2639,7 @@ class JmapClient internal constructor(
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
                 // Discovery relies on following 3xx redirects, but never across a scheme change, in
-                // either direction. What this refuses is the REQUEST, not a header leak: OkHttp
+                // either direction. What this refuses is the request, not a header leak: OkHttp
             .followSslRedirects(false)
             .build()
     }
@@ -2650,13 +2665,13 @@ internal fun searchFilter(query: SearchQuery, excludeMailboxIds: List<String> = 
     if (query.subject.isNotBlank()) conditions.add { put("subject", query.subject.trim()) }
     if (query.hasAttachment) conditions.add { put("hasAttachment", true) }
     // RFC 8621 §4.4.1 `hasKeyword`, with the IMAP `\Flagged` flag under its JMAP name `$flagged`
-    // (RFC 8621 §4.1.1) — escaped here because Kotlin would otherwise read it as a template.
+    // (RFC 8621 §4.1.1), escaped here because Kotlin would otherwise read it as a template.
     if (query.flagged) conditions.add { put("hasKeyword", "\$flagged") }
     query.afterMillis?.let { ms -> conditions.add { put("after", jmapUtcDate(ms)) } }
     query.beforeMillis?.let { ms -> conditions.add { put("before", jmapUtcDate(ms)) } }
     // Exclude Trash/Junk exactly as the IMAP walk skips them (parity across servers): a message
-    // living ONLY in an excluded mailbox drops out, while one still filed elsewhere (Inbox and
-    // Trash) is kept via its other mailbox. `inMailboxOtherThan` is one condition of the outer AND.
+    // living only in an excluded mailbox drops out, while one still filed elsewhere (Inbox and
+    // Trash) is kept via its other mailbox. `inMailboxOtherThan` is one condition of the outer and.
     if (excludeMailboxIds.isNotEmpty()) conditions.add {
         putJsonArray("inMailboxOtherThan") { excludeMailboxIds.forEach { add(it) } }
     }
@@ -2676,7 +2691,9 @@ internal fun searchFilter(query: SearchQuery, excludeMailboxIds: List<String> = 
 private fun jmapUtcDate(millis: Long): String = java.time.Instant.ofEpochMilli(millis).toString()
 
     /**
-     * The `create` argument of the EmailSubmission/set that sends a staged message — ONE builder for
+     * The `create` argument of the EmailSubmission/set that sends a staged message, one builder for
+     * both submission paths ([JmapClient.sendEmail] and [JmapClient.importAndSendEmail]), so the
+     * structured send and the raw PGP/MIME send cannot drift apart in what they tell the server.
      */
 private fun submissionCreate(identityId: String, envelope: SubmissionEnvelope?): JsonObject =
     buildJsonObject {
@@ -2702,6 +2719,8 @@ private fun JsonObjectBuilder.addAddress(address: EmailAddress) {
 
     /**
      * Write the `attachments` array of an Email/set create from already-uploaded blobs. Shared by the
+     * the send and the draft-save paths, so a draft carries exactly the same parts the same message
+     * would carry if it were sent (#63, a re-saved draft must not silently shed its files).
      */
 private fun JsonObjectBuilder.addAttachments(attachments: List<EmailBodyPart>) {
     val blobs = attachments.filter { it.blobId != null }
@@ -2725,7 +2744,8 @@ private fun JsonObjectBuilder.addAttachments(attachments: List<EmailBodyPart>) {
 }
 
     /**
-     * How far a send got, for the ONE question [JmapClient.withAutocryptHeaderFallback] asks before it
+     * How far a send got, for the one question [JmapClient.withAutocryptHeaderFallback] asks before it
+     * replays anything: has the server created or submitted a message yet?
      */
 internal class SendPointOfNoReturn {
     /** True once the server's answer showed something exists server-side. Never goes back. */
@@ -2738,7 +2758,7 @@ internal class SendPointOfNoReturn {
 }
 
     /**
-     * The recipients an `EmailSubmission`'s [deliveryStatus] (RFC 8621 §7.5) says were REFUSED, each
+     * The recipients an `EmailSubmission`'s [deliveryStatus] (RFC 8621 §7.5) says were refused, each
      */
 internal fun deliveryRefusals(deliveryStatus: JsonObject?): List<String> {
     if (deliveryStatus == null) return emptyList()
@@ -2746,7 +2766,7 @@ internal fun deliveryRefusals(deliveryStatus: JsonObject?): List<String> {
         val entry = status as? JsonObject ?: return@mapNotNull null
         val delivered = (entry["delivered"] as? JsonPrimitive)?.contentOrNull
         if (delivered != "no") return@mapNotNull null
-            // The address and the server's own reply, and STRICTLY nothing else: this text is thrown
+            // The address and the server's own reply, and strictly nothing else: this text is thrown
             // as an exception message, persisted in the outbox row's lastError and printed on screen.
             // No subject, no body, no ids, no JSON excerpt.
         val reply = (entry["smtpReply"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }

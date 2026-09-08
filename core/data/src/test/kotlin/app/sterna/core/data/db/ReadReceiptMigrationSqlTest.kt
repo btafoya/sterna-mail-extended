@@ -12,6 +12,8 @@ import java.sql.DriverManager
 
 /**
  * **v21 → v22** ([MIGRATION_21_22]): `outbox` and `scheduled_sends` each gain `requestReceipt`, the
+ * per-message "ask for a read receipt" choice ([OutboxEntity.requestReceipt],
+ * [ScheduledSendEntity.requestReceipt]).
  */
 class ReadReceiptMigrationSqlTest {
     private lateinit var db: Connection
@@ -81,7 +83,7 @@ class ReadReceiptMigrationSqlTest {
             }
         } as SupportSQLiteDatabase
 
-    /** The published v15 schema, populated — the state a real install carries before any of this. */
+    /** The published v15 schema, populated, the state a real install carries before any of this. */
     private fun seedPublishedV15() {
         db.createStatement().use { st ->
             st.executeUpdate(publishedEmailsCreate)
@@ -109,7 +111,7 @@ class ReadReceiptMigrationSqlTest {
             )
             st.executeUpdate("INSERT INTO `email_bodies` VALUES ('e1', 'accA', '{}', '{}', 42)")
             // The user data a destructive fallback destroys: a snooze, and above all mail written
-            // and never sent — one row waiting in the outbox, one waiting for its hour.
+            // and never sent, one row waiting in the outbox, one waiting for its hour.
             st.executeUpdate("INSERT INTO `snoozed` VALUES ('e2', 'accA', 99999)")
             st.executeUpdate(
                 "INSERT INTO `outbox` (`accountId`, `recipients`, `subject`, `textBody`, " +
@@ -141,7 +143,7 @@ class ReadReceiptMigrationSqlTest {
     }
 
     /**
-     * A REAL v21 database: the published v15 schema, populated, then carried forward by the very
+     * A real v21 database: the published v15 schema, populated, then carried forward by the very
      */
     private fun seedV21() {
         seedPublishedV15()
@@ -177,7 +179,7 @@ class ReadReceiptMigrationSqlTest {
     }
 
     /**
-     * The DECLARED shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`.
+     * The declared shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`.
      */
     private fun columnShapes(table: String): Map<String, Triple<String, Int, String?>> {
         val shapes = mutableMapOf<String, Triple<String, Int, String?>>()
@@ -208,7 +210,7 @@ class ReadReceiptMigrationSqlTest {
     }
 
     @Test fun v21to22_addsTheColumnToTheScheduledSendsToo() {
-        // The slip this states on its own: a scheduled send waits in ITS table for hours and only
+        // The slip this states on its own: a scheduled send waits in its table for hours and only
         // becomes an outbox row when the worker fires. Without the column here the request is lost
         // in that hand-over, and the mail goes out asking nothing.
         seedV21()
@@ -307,8 +309,8 @@ class ReadReceiptMigrationSqlTest {
         migrate21to22()
 
         // No backfill and nothing to backfill from: a row queued under v21 never carried the
-        // choice, and 0 is what it was queued as. NOT NULL, so it reads back as a value and not as
-        // "unknown" — the delivery has no third answer to handle.
+        // choice, and 0 is what it was queued as. Not NULL, so it reads back as a value and not as
+        // "unknown", the delivery has no third answer to handle.
         assertEquals(1, intOf("SELECT COUNT(*) FROM `outbox` WHERE `requestReceipt` = 0"))
         assertEquals(1, intOf("SELECT COUNT(*) FROM `scheduled_sends` WHERE `requestReceipt` = 0"))
         assertEquals(0, intOf("SELECT COUNT(*) FROM `outbox` WHERE `requestReceipt` IS NULL"))
@@ -337,8 +339,9 @@ class ReadReceiptMigrationSqlTest {
         seedV21()
         migrate21to22()
 
-        // The entity field is a non-null Boolean, so the column must be NOT NULL; SQLite then
-        // requires a DEFAULT to add it to a populated table. Room compares defaults only when the
+        // The entity field is a non-null Boolean, so the column must be not NULL; SQLite then
+        // requires a default to add it to a populated table. Room compares defaults only when the
+        // entity declares one, a Kotlin default is not a @ColumnInfo(defaultValue = …)
         assertEquals(Triple("INTEGER", 1, "0"), columnShapes("outbox")["requestReceipt"])
         assertEquals(Triple("INTEGER", 1, "0"), columnShapes("scheduled_sends")["requestReceipt"])
         // The witness: the shape Room already expects for a non-null Int/Boolean here.
@@ -389,15 +392,15 @@ class ReadReceiptMigrationSqlTest {
     }
 
     /**
-     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
+     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from, the
      * annotation is not retained at runtime, so it cannot be read reflectively.
      */
     @Test fun theRegisteredMigrationsReachTheDeclaredSchemaVersion() {
         val reached = SternaDatabase.ALL_MIGRATIONS.filter { it.startVersion >= 15 }.maxOf { it.endVersion }
 
         // Bumping the version without registering its step is the destructive case: Room asks for a
-        // path to the declared version and, finding none, drops every table. The converse — a step
-        // registered while the version stays behind — is just as wrong: the step never runs, the
+        // path to the declared version and, finding none, drops every table. The converse, a step
+        // registered while the version stays behind, is just as wrong: the step never runs, the
         // entity declares a column the schema has not got, and validateMigration fails at open.
         assertEquals(
             "the registered chain stops at v$reached while the database declares v$SCHEMA_VERSION",

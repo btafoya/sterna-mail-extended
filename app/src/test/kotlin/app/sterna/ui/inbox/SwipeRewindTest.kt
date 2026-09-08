@@ -40,7 +40,9 @@ class SwipeRewindTest {
     }
 
     /**
-     * The pivot, run end to end rather than assumed: the key the view model REPORTS is built by
+     * The pivot, run end to end rather than assumed: the key the view model reports is built by
+     * `Email.emailKey()`, and the key the screen asks with by [needsSwipeRewind] from the row's
+     * own pair. Every other test here hands both halves the same hand-written [EmailKey].
      */
     @Test fun `the key the view model reports is the key the screen asks with`() {
         val swiped = Email(id = "M1", accountId = "a1", mailboxId = "mbA", subject = "s")

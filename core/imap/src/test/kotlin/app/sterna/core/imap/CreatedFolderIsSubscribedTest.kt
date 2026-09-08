@@ -13,7 +13,7 @@ class CreatedFolderIsSubscribedTest {
     /** Wire form of "Привет", as a server really announces it (same literal as [MailboxNameTest]). */
     private val helloWire = "&BB8EQAQ4BDIENQRC-"
 
-    /** Everything succeeds unless [refuse] claims the line — which is how a NO gets scripted. */
+    /** Everything succeeds unless [refuse] claims the line, which is how a NO gets scripted. */
     private fun server(refuse: (String) -> Boolean = { false }) = FakeImapServer { tag, line ->
         if (refuse(line)) "$tag NO refused\r\n" else ok(tag)
     }
@@ -21,12 +21,14 @@ class CreatedFolderIsSubscribedTest {
     private fun FakeImapServer.folderCommands(): List<String> =
         issued().filterNot { it.startsWith("LOGOUT") }
 
-    /** The argument [command] carried, as it left — `CREATE "x"` → `"x"`, quotes included. */
+    /** The argument [command] carried, as it left, `CREATE "x"` → `"x"`, quotes included. */
     private fun List<String>.argOf(command: String): String =
         single { it.startsWith("$command ") }.removePrefix("$command ")
 
     /**
-     * T1 — the two commands, in that order. Order is asserted because it is the useful one: a
+     * T1, the two commands, in that order. Order is asserted because it is the useful one: a
+     * SUBSCRIBE sent before the CREATE is at the mercy of a server that validates the name
+     * (RFC 3501 §6.3.6 lets it), and would then be refused on exactly the folder it is for.
      */
     @Test
     fun `creating a folder subscribes to it, in that order`() {

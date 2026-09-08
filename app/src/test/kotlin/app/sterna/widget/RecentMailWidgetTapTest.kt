@@ -11,7 +11,7 @@ import java.time.ZoneId
 import java.util.Locale
 
 /**
- * WHAT A TAPPED ROW ASKS FOR, RUN — the three identifiers, as literals, never recomputed here.
+ * What a tapped row asks for, run, the three identifiers, as literals, never recomputed here.
  */
 class RecentMailWidgetTapTest {
 
@@ -36,7 +36,7 @@ class RecentMailWidgetTapTest {
     // ---- the three identifiers ----
 
     /**
-     * ALL THREE. The message id alone opens a message; the account is what makes that id mean
+     * All three. The message id alone opens a message; the account is what makes that id mean
      */
     @Test fun `a tap carries the message, its account and its folder`() {
         assertEquals(
@@ -48,7 +48,7 @@ class RecentMailWidgetTapTest {
     }
 
     /**
-     * BLANK IS ABSENT, on both of the two that may be. `MainActivity.parseEmailOpen` already
+     * Blank is absent, on both of the two that may be. `MainActivity.parseEmailOpen` already
      */
     @Test fun `a blank folder id is carried as absent, not as a blank`() {
         assertEquals(
@@ -83,7 +83,7 @@ class RecentMailWidgetTapTest {
     // ---- the tap belongs to the row it was drawn beside ----
 
     /**
-     * EACH LINE'S OWN. The projection is where a tap and a drawn line are married, and an index
+     * Each line's own. The projection is where a tap and a drawn line are married, and an index
      */
     @Test fun `a snapshot pairs every line with its own message`() {
         val snapshot = RecentMailWidgetContent.snapshot(
@@ -129,7 +129,7 @@ class RecentMailWidgetTapTest {
     }
 
     /**
-     * AND THE LOCK DOES NOT TOUCH IT. What a tap opens is not what a cell says: the app is
+     * And the lock does not touch it.
      */
     @Test fun `the app lock silences the line, not what it opens`() {
         val snapshot = RecentMailWidgetContent.snapshot(

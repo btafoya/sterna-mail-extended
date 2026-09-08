@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, and a narrow one: nothing in this chain runs in a JVM test — the receiver needs
+ * Source lint, and a narrow one: nothing in this chain runs in a JVM test, the receiver needs
  */
 class QuickReplyWiringTest {
 
@@ -66,7 +66,7 @@ class QuickReplyWiringTest {
     }
 
     /**
-     * The end where there is nobody to act for. A signed-out account has no credentials, so none of
+     * The end where there is nobody to act for.
      */
     @Test fun `with no credentials nothing runs, so nothing may claim it did`() {
         val block = blockAfter(bodyOf(RECEIVER, "onReceive"), "if (credentials != null)")
@@ -91,7 +91,7 @@ class QuickReplyWiringTest {
     }
 
     /**
-     * The banner's Delete, whose whole job is to ask — locally — the question the screen asks over
+     * The banner's Delete, whose whole job is to ask (locally) the question the screen asks over
      */
     @Test fun `the banner's delete asks the local caches, and only the local caches`() {
         val body = bodyOf(RECEIVER, "deleteFromBanner")
@@ -219,7 +219,7 @@ class QuickReplyWiringTest {
 
     @Test fun `the fetch is abandoned on the budget, not waited for`() {
         // The leash that was not one: `withTimeoutOrNull { repo.fetchEmail(…) }` only ever regains
-        // control at a SUSPENSION point, and fetchEmail blocks its thread all the way down (IMAP
+        // control at a suspension point, and fetchEmail blocks its thread all the way down (IMAP
         val body = bodyOf(RECEIVER, "fetchWithinBudget")
         assertEquals(
             "the blocking call must run in a job of its OWN scope — a child would keep the parent " +
@@ -333,6 +333,10 @@ class QuickReplyWiringTest {
 
     /**
      * The banner of a failed send is the one notification that never asked what it was allowed to
+     * show: it put the subject in the collapsed line and in the expanded one, at IMPORTANCE_HIGH,
+     * whatever the notification-content setting said. The decision is executed next door
+     * ([MailNotificationTextTest]); pinned here is that the banner is built from that decision's
+     * result and from nothing else, the leak cannot come back through the builder.
      */
     @Test fun `the failure banner shows the decided line, never the raw subject`() {
         val body = bodyOf(NOTIFICATIONS, "notifySendFailed")
@@ -431,7 +435,7 @@ class QuickReplyWiringTest {
             .filter { needle in it }
 
     /**
-     * The braced block opened right after [header] in [body] — braces included.
+     * The braced block opened right after [header] in [body], braces included.
      */
     private fun blockAfter(body: String, header: String): String {
         val start = body.indexOf(header)
@@ -454,7 +458,7 @@ class QuickReplyWiringTest {
         error("Unbalanced braces after `$header`")
     }
 
-    /** The block body of `fun [name]` in [file] — braces included. */
+    /** The block body of `fun [name]` in [file], braces included. */
     private fun bodyOf(file: File, name: String): String {
         val source = file.readText()
         val fn = Regex("""\bfun\s+$name\s*\(""").find(source)

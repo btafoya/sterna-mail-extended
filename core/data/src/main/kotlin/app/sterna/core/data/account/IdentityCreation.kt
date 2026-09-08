@@ -1,8 +1,8 @@
 package app.sterna.core.data.account
 
-/** Which identities a Save must ALSO create on the server (`Identity/set`) — fixes #172, a
+/** Which identities a Save must also create on the server (`Identity/set`), fixes #172, a
  *  Settings-added alias with no server identity was refused at send.
- * [serverIdentities] is what the CALLER just read, or null if it failed — never substitute
+ * [serverIdentities] is what the caller just read, or null if it failed, never substitute
  *  `before.serverIdentities.isEmpty()`, stale on a fresh account (measured, S7 2026-08-31). */
 fun identitiesToCreate(
     before: StoredAccount,
@@ -23,12 +23,12 @@ fun identitiesToCreate(
         .distinctBy { it.email.trim().lowercase() }
 }
 
-/** Could this save create anything — asks [identitiesToCreate] "if the server held nothing,
+/** Could this save create anything, asks [identitiesToCreate] "if the server held nothing,
  * would anything leave?" Without it every Save would open a JMAP session, even on IMAP. */
 fun mayCreateIdentities(before: StoredAccount, edited: List<StoredIdentity>): Boolean =
     identitiesToCreate(before, edited, serverIdentities = emptyList()).isNotEmpty()
 
-/** `something@something`, with no whitespace and exactly one `@` — see [identitiesToCreate]. */
+/** `something@something`, with no whitespace and exactly one `@`, see [identitiesToCreate]. */
 private fun plausibleIdentityAddress(email: String): Boolean {
     val trimmed = email.trim()
     if (trimmed.isEmpty()) return false

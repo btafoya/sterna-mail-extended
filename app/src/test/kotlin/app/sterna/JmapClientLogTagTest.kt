@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE RULE, and a deliberate one. `core/jmap` is plain Kotlin/JVM, so it logs through a lambda
+ * Source rule, and a deliberate one. `core/jmap` is plain Kotlin/JVM, so it logs through a lambda
  */
 class JmapClientLogTagTest {
 

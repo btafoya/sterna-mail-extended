@@ -6,7 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads source files as text, same instrument and
+ * Source lint, not a behaviour test, it reads source files as text, same instrument and
+ * disclaimer as `ReplyBarWiringTest`. [OutgoingDateZoneTest] runs the decision; nothing a JVM test
+ * can execute proves the composer actually asks it: `ComposeViewModel` is an AndroidViewModel. So
+ * the call sites are pinned here, as whole lines, a `contains` on a fragment is blind to any
+ * mutation that lengthens the line (three found that way on 2026-08-04).
  */
 class OutgoingDateWiringTest {
 
@@ -97,11 +101,11 @@ class OutgoingDateWiringTest {
 
     // -- reading the sources --------------------------------------------------------------------
 
-    /** [file]'s code as trimmed WHOLE lines, comments cut. Rules compare with equality, never
+    /** [file]'s code as trimmed whole lines, comments cut. Rules compare with equality, never
      *  contains: a mutation that lengthens a line must change the line. */
     private fun lines(file: File): List<String> = code(file).lines().map { it.trim() }
 
-    /** [file]'s code as one string, comments cut — same reader as ReplyBarWiringTest. */
+    /** [file]'s code as one string, comments cut, same reader as ReplyBarWiringTest. */
     private fun code(file: File): String = file.readLines().mapNotNull { line ->
         val trimmed = line.trimStart()
         if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) null
@@ -130,7 +134,7 @@ class OutgoingDateWiringTest {
         private const val SETTINGS_REPOSITORY_PATH =
             "core/data/src/main/kotlin/app/sterna/core/data/settings/SettingsRepository.kt"
 
-        /** Repo root, walked up from the module's working directory — the rules read BOTH modules. */
+        /** Repo root, walked up from the module's working directory, the rules read both modules. */
         private val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, COMPOSE_VIEW_MODEL_PATH).isFile }

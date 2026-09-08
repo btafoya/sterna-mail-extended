@@ -2,7 +2,7 @@ package app.sterna.core.data.mail
 
 /** Which folders one conversation is counted in, and listed from: the viewed folder(s) plus the
  *  replies the account filed in Sent. The chip's SQL and the row's unfold must agree, so both take
- *  the same resolution as an argument — a second lookup on either side is how they diverge. */
+ *  the same resolution as an argument, a second lookup on either side is how they diverge. */
 object ConversationScope {
 
     /** The Sent folders of [accountId] among [sentMailboxes]; a null [accountId] keeps them all.

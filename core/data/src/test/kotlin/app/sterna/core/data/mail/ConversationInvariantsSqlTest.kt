@@ -108,7 +108,7 @@ class ConversationInvariantsSqlTest {
     }
 
     /** The flat list ([pagingSql]), bound as `pagingQuery` binds it: (account id, mailbox id)
-     *  pairs, account first — one per folder of each account in scope. */
+     *  pairs, account first, one per folder of each account in scope. */
     private fun flat(
         vararg mailboxes: String,
         accountId: String? = null,
@@ -166,7 +166,7 @@ class ConversationInvariantsSqlTest {
 
     @Test fun messagesWithoutAThreadKeyGroupNothingAtAll() {
         // The SQL is protocol-agnostic: a row with no thread key is its own conversation, a row
-        // with one groups with its siblings, and nothing else decides. A row without a key is an
+        // with one groups with its siblings, and nothing else decides.
         insert("m1", threadId = null, sortKey = 100, subject = "Re: budget")
         insert("m2", threadId = null, sortKey = 200, subject = "Re: budget")
         insert("m3", threadId = null, sortKey = 300, subject = "Re: budget")
@@ -177,8 +177,8 @@ class ConversationInvariantsSqlTest {
         // Stated the way the reader experiences it: turning conversation view on changes nothing.
         assertEquals(flat("inbox", accountId = "acc"), rows.map { it.id })
 
-        // The witness: the SAME three messages, given a thread key — the one a JMAP server
-        // supplies, or the one `imapThreadKey` rebuilds from the headers — collapse to a single
+        // The witness: the same three messages, given a thread key, the one a JMAP server
+        // supplies, or the one `imapThreadKey` rebuilds from the headers, collapse to a single
         // row of three. Nothing but the null threadId separates the two outcomes.
         exec("UPDATE emails SET threadId = 'T1'")
         val grouped = conversation("inbox", accountId = "acc")
@@ -190,7 +190,7 @@ class ConversationInvariantsSqlTest {
     // -- C2 -------------------------------------------------------------------------------
 
     @Test fun theUnifiedListCollapsesTheKeyedAccountAndLeavesTheKeylessOneFlat() {
-        // Same folder id, same view, one query — and two behaviours, decided row by row by
+        // Same folder id, same view, one query, and two behaviours, decided row by row by
         // whether a thread key is present, never by the account's protocol. Account A has a
         // three-message thread under one key; account B's three rows carry no key at all (a cache
         // from before IMAP threading, or messages with no threading header).
@@ -210,7 +210,7 @@ class ConversationInvariantsSqlTest {
         assertEquals(listOf("accB", "accB", "accB"), rows.filter { it.threadCount == 1 }.map { it.accountId })
 
         // The witness: flat mode lists all six, and account B's three rows are IDENTICAL in both
-        // modes — the collapse is not a property of the list, it is a property of the rows' keys.
+        // modes, the collapse is not a property of the list, it is a property of the rows' keys.
         val flatIds = flat("inbox", accounts = listOf("accA", "accB"))
         assertEquals(listOf("a3", "a2", "a1", "b1", "b2", "b3"), flatIds)
         assertEquals(
@@ -242,7 +242,7 @@ class ConversationInvariantsSqlTest {
         // list's own arithmetic.
         assertEquals(flatIds.size, rows.sumOf { it.threadCount })
 
-        // The witness: the collapsed rows ALONE do not cover the folder — t1 and t2 are reachable
+        // The witness: the collapsed rows alone do not cover the folder, t1 and t2 are reachable
         // only by unfolding. Without this, the equality above would hold for a broken unfold.
         assertNotEquals(flatIds, rows.map { it.id }.toSet())
         assertEquals(setOf("t1", "t2"), flatIds - rows.map { it.id }.toSet())
@@ -267,7 +267,7 @@ class ConversationInvariantsSqlTest {
         assertEquals("m2", after.id) // the representative moved down to the next in-view member
         assertEquals(2, after.threadCount)
         assertEquals(listOf("m2", "m1"), unfold("acc", "inbox", threadKey = "T1")) // chip = unfold
-        // threadTotal is unchanged: the message still exists, it is only somewhere else — which is
+        // threadTotal is unchanged: the message still exists, it is only somewhere else, which is
         // why the row stays expandable. A chip that had followed the total would still say 3.
         assertEquals(3, after.threadTotal)
 
@@ -281,7 +281,7 @@ class ConversationInvariantsSqlTest {
 
     @Test fun theDrawerBadgeCountsExactlyTheBoldRowsOfTheModeItIsShowing() {
         // A thread of three with two unread members, plus one unread loose message. In
-        // conversation view the folder shows two bold ROWS; in flat view, three bold MESSAGES.
+        // conversation view the folder shows two bold rows; in flat view, three bold messages.
         insert("t1", threadId = "T1", sortKey = 100, seen = 0)
         insert("t2", threadId = "T1", sortKey = 200, seen = 0)
         insert("t3", threadId = "T1", sortKey = 300, seen = 1)
@@ -297,13 +297,13 @@ class ConversationInvariantsSqlTest {
         assertEquals(boldMessages, messageBadge)
         assertEquals(2, boldRows)
         assertEquals(3, boldMessages)
-        // The unread-only FILTER agrees with the badge too — the third query describing the same
+        // The unread-only filter agrees with the badge too, the third query describing the same
         // set. A badge that matched the list but not the filter would still strand the reader on
         // an empty "unread" screen with a lit badge.
         assertEquals(conversationBadge, conversation("inbox", accountId = "acc", unreadOnly = true).size)
 
         // The witness: the two modes genuinely disagree here (2 vs 3), so "badge equals rows" is
-        // not being satisfied by both numbers happening to be the same. And picking the WRONG
+        // not being satisfied by both numbers happening to be the same. And picking the wrong
         // aggregate for the mode is visibly wrong, which is what the drawer chooses between.
         assertNotEquals(conversationBadge, messageBadge)
         assertNotEquals(messageBadge, boldRows)
@@ -314,7 +314,7 @@ class ConversationInvariantsSqlTest {
     @Test fun aThreadSplitAcrossInboxAndArchiveGetsAChipPerFolderMatchingItsUnfold() {
         // One conversation, four messages, three folders: two still in the Inbox, one archived,
         // one reply in Sent. The Inbox row and the Archive row are two views of the same thread
-        // and each must count what ITS unfold will show — Sent replies included, the other
+        // and each must count what its unfold will show, Sent replies included, the other
         // folder's members excluded.
         insert("in1", threadId = "T1", sortKey = 100, mailbox = "inbox")
         insert("in2", threadId = "T1", sortKey = 200, mailbox = "inbox")
@@ -323,7 +323,7 @@ class ConversationInvariantsSqlTest {
         val sent = listOf("acc" to "sent")
 
         val fromInbox = conversation("inbox", accountId = "acc", sent = sent).single()
-        assertEquals("in2", fromInbox.id) // newest IN-VIEW member, not the newer Sent reply
+        assertEquals("in2", fromInbox.id) // newest in-view member, not the newer Sent reply
         assertEquals(3, fromInbox.threadCount)
         assertEquals(
             listOf("se1", "in2", "in1"),

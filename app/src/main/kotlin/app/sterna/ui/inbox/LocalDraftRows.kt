@@ -22,17 +22,17 @@ import java.time.Instant
 /*
  * The drafts this phone holds and the server has not got, at the top of the Drafts folder (#95).
  * No state filter: a `STAGING` row is listed like any other. What a local row does not get is an
- * action — see [isLocalDraftRow].
+ * action, see [isLocalDraftRow].
  */
 
 /** The role a folder must carry for its list to show the phone's own drafts. */
 private const val DRAFTS_ROLE = "drafts"
 
-/** The two-line preview of a draft body is cut here — the row shows at most two lines anyway. */
+/** The two-line preview of a draft body is cut here, the row shows at most two lines anyway. */
 private const val PREVIEW_CHARS = 200
 
 /** What the phone's own drafts contribute: the rows to draw on top, and the server ids they stand in
- * for. The two travel together — a local row shown without hiding the draft it replaces is the
+ * for. The two travel together, a local row shown without hiding the draft it replaces is the
  *  same draft twice, and the copy the user reaches for is the one the upload is about to destroy. */
 internal data class LocalDraftRows(
     val rows: List<InboxRow> = emptyList(),
@@ -73,7 +73,7 @@ internal fun showsFavouriteStar(id: String?): Boolean = !isLocalDraftRow(id)
 internal fun selectableKeysMinusHidden(folderKeys: List<EmailKey>, replacedServerIds: Set<String>): List<EmailKey> =
     if (replacedServerIds.isEmpty()) folderKeys else folderKeys.filter { it.emailId !in replacedServerIds }
 
-/** What `local_drafts` contributes to the list currently selected — nothing outside the Drafts
+/** What `local_drafts` contributes to the list currently selected, nothing outside the Drafts
  * folder of the account those rows belong to. The scope is deduped before the store is
  *  subscribed: the role map re-emits for unrelated reasons, each re-subscribing the DAO. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -129,7 +129,7 @@ internal fun withLocalDrafts(paged: PagingData<InboxRow>, local: LocalDraftRows)
 }
 
 /** One row of `local_drafts` as the list draws it. `$draft` gets the "(Draft)" chip, `$seen` keeps
- *  the row out of bold, threadCount 1 makes it unexpandable — it is in no known conversation. */
+ *  the row out of bold, threadCount 1 makes it unexpandable, it is in no known conversation. */
 internal fun LocalDraftEntity.toInboxRow(mailboxId: String): InboxRow = InboxRow(
     email = Email(
         id = id,

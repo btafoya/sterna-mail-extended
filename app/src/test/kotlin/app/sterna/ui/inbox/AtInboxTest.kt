@@ -5,11 +5,12 @@ import org.junit.Test
 
 /**
  * [isAtInbox], the rule the list screen's Back gesture rests on: `true` means "this IS the inbox",
+ * and [inboxBackAction] then hands Back to the system, which leaves the app.
  */
 class AtInboxTest {
 
     @Test fun `the unread view is not the inbox on an account whose inbox was never synced`() {
-        // THE defect: selection restored to the unread view on a cold start, no cached inbox id,
+        // The defect: selection restored to the unread view on a cold start, no cached inbox id,
         // and the reader's first Back closes the app instead of showing her the Inbox.
         assertEquals(false, isAtInbox(Sel.Unread) { null })
     }

@@ -125,7 +125,7 @@ class ReadingPaneRuleTest {
         assertSame("nothing to empty, nothing to change", empty, ReadingPaneRule.onViewChanged(empty))
     }
 
-    // -- what a TAPPED NOTIFICATION does to the pane (#103) ---------------------------------------
+    // -- what a tapped notification does to the pane (#103) ---------------------------------------
 
     @Test fun `the folder a notification came from keeps that notification's own message`() {
         val open = ReadingPaneRule.open(empty, m1)

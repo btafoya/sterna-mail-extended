@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * What one row of the latest-mail home-screen widget is allowed to say. A widget is drawn by
+ * What one row of the latest-mail home-screen widget is allowed to say.
  */
 class MailNotificationWidgetRowTest {
 
@@ -58,7 +58,9 @@ class MailNotificationWidgetRowTest {
     }
 
     /**
-     * The two talkative positions render the SAME row, deliberately. The preview column is
+     * The two talkative positions render the same row, deliberately. The preview column is
+     * populated as a matter of course on JMAP, while on IMAP it is only pre-fetched when
+     * BODY_PREVIEW was asked for (NotificationPreviews.gather returns nothing at the other three).
      */
     @Test fun `body preview and sender and subject render the same row`() {
         assertEquals(row(NotificationContent.SENDER_AND_SUBJECT), row(NotificationContent.BODY_PREVIEW))
@@ -80,7 +82,11 @@ class MailNotificationWidgetRowTest {
     // -- the app lock ------------------------------------------------------------------------------
 
     /**
-     * Read on the lock being ENABLED (AccountStore.appLockEnabled()), not on AppLock.locked, which
+     * Read on the lock being enabled (AccountStore.appLockEnabled()), not on AppLock.locked, which
+     * is a process-scoped StateFlow that dies with the process: the widget would be talkative while
+     * the app is open and mute afterwards, with nothing on screen explaining the switch. The
+     * promise in SECURITY.md is about someone who picks up an unlocked phone, and that is exactly
+     * who reads a home screen.
      */
     @Test fun `the app lock renders what NONE renders, at every position`() {
         NotificationContent.entries.forEach { content ->
@@ -96,10 +102,10 @@ class MailNotificationWidgetRowTest {
         assertEquals(row(NotificationContent.NONE), row(NotificationContent.NONE, appLockEnabled = true))
     }
 
-    // -- does the row NAME anybody ------------------------------------------------------------------
+    // -- does the row name anybody ------------------------------------------------------------------
 
     /**
-     * THE THIRD FIELD, AND WHY IT IS NOT A CONVENIENCE. A monogram badge is the first letter of a
+     * The third field, and why it is not a convenience.
      */
     @Test fun `whether a row names its sender, position by position`() {
         val expected = mapOf(
@@ -120,7 +126,7 @@ class MailNotificationWidgetRowTest {
     }
 
     /**
-     * AND THE LOCK TAKES IT AWAY FROM THE MOST TALKATIVE POSITION. SECURITY.md promises a locked
+     * And the lock takes it away from the most talkative position. SECURITY.md promises a locked
      */
     @Test fun `under the lock the loudest position names nobody`() {
         assertEquals(
@@ -179,7 +185,7 @@ class MailNotificationWidgetRowTest {
     // -- the signature itself, because prose was guarding it --------------------------------------
 
     /**
-     * THE ABSENCE OF A `preview` PARAMETER IS THE GUARD, and until this test it was written down
+     * The absence of a `preview` parameter is the guard, and until this test it was written down
      */
     @Test fun `the widget rule takes five arguments and no preview, and none of them has a default`() {
         val overloads = MailNotificationText::class.java.methods

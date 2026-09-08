@@ -6,7 +6,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * [SettingsScreenHonestyTest]: it reads files as text and proves nothing about what is drawn.
  */
 class FilterWarningWiringTest {
 
@@ -21,8 +22,8 @@ class FilterWarningWiringTest {
     }
 
     @Test fun `the responder screen chooses that sentence against its own switch`() {
-        // E3: the remedy — Save on the filters screen — switches the auto-reply OFF, and during an
-        // absence it was offered on the screen whose switch reads ON, saying nothing of the sort.
+        // E3: the remedy (Save on the filters screen) switches the auto-reply off, and during an
+        // absence it was offered on the screen whose switch reads on, saying nothing of the sort.
         val source = text(SETTINGS_SCREEN)
         assertTrue(
             "the responder screen must ask 'vacationFilterLine(state.filterWarning, " +
@@ -94,6 +95,7 @@ class FilterWarningWiringTest {
     @Test fun `both write paths of the filters screen go through the confirmation decision`() {
         // The failure mode this closes is not "the confirmation is missing" but "the confirmation
         // is on the button only": the exit dialog's Save writes the same script, is reached by the
+        // back gesture and by the title-bar arrow, and a door hung on one of the two is no door.
         val lines = text(FILTERS_SCREEN).lines().map { it.trim() }
         assertEquals(
             "FiltersScreen must consult filtersSaveStep(scriptUnreadable = state.scriptUnreadable) " +
@@ -195,7 +197,7 @@ class FilterWarningWiringTest {
 
     @Test fun `the filters screen asks the tested rule whether to say there are no rules`() {
         // The decision is showsNoRulesNote(), executed in FilterStatusRefreshTest. Pinned here is
-        // the CONDITION, whole: written back as `state.rules.isEmpty()` the screen says "No rules
+        // the condition, whole: written back as `state.rules.isEmpty()` the screen says "No rules
         // yet. Add one…" straight under "Sterna Mail cannot read this account's filter script;
         // saving will replace it", and every executed test stays green.
         val condition = text(FILTERS_SCREEN).lines().map { it.trim() }
@@ -220,7 +222,7 @@ class FilterWarningWiringTest {
 
     @Test fun `the filters view model folds a status read into the state, at load and after a save`() {
         // Written back as `it.copy(rulesNotRunning = ...)` here, the update leaves the reach of
-        // every test again — and it is where it was wrong: two of the three facts were never
+        // every test again, and it is where it was wrong: two of the three facts were never
         // refreshed after a save, and a failed read wiped the third.
         val source = text(FILTERS_VM)
         assertEquals(
@@ -230,7 +232,7 @@ class FilterWarningWiringTest {
             Regex("filtersStateWithStatus\\(").findAll(source).count(),
         )
         // Measured, not supposed: with only "a call to loadFilterScriptStatus exists somewhere in
-        // this file" asserted, replacing the LOAD's status with `null` left the suite green — the
+        // this file" asserted, replacing the load's status with `null` left the suite green, the
         // save's own read matched the pattern and answered for it. Each of the two call sites is
         // pinned on its own.
         assertTrue(
@@ -253,8 +255,7 @@ class FilterWarningWiringTest {
                 "failed to parse, so passing false there loses the refusal that protects it",
             Regex("foreignFromRulesRead = result\\.foreignActiveScript").containsMatchIn(source),
         )
-        // WHOLE LINE, not `containsMatchIn`. Measured: `result.scriptUnreadable && false` LENGTHENS
-        // the line, so a containment check still matched it and the whole suite stayed green — with
+        // Whole line, not `containsMatchIn`.
         assertEquals(
             "…and WHICH refusal it was: the load must carry `unreadableFromRulesRead = " +
                 "result.scriptUnreadable,` and nothing else on that line. The rules read is the " +
@@ -279,7 +280,7 @@ class FilterWarningWiringTest {
 
     @Test fun `the responder view model keeps the line it has when the re-read fails`() {
         // `previous = null` here IS the bug, written back: a save whose follow-up read fails then
-        // clears the warning — over the account where the responder has just been switched off and
+        // clears the warning, over the account where the responder has just been switched off and
         // the server left no script active at all.
         val source = text(VACATION_VM)
         assertTrue(

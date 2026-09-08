@@ -39,7 +39,8 @@ internal fun settingsRouteFor(accountId: String, accounts: List<StoredAccount>):
     if (sharedAccountFor(accountId, accounts) != null) "sharedAccount/$accountId" else "account/$accountId"
 
 /**
- * Settings for a delegated (shared) account — the two it genuinely owns (#31): accent colour and
+ * Settings for a delegated (shared) account, the two it genuinely owns (#31): accent colour and
+ * notifications.
  */
 @Composable
 internal fun SharedAccountScreen(

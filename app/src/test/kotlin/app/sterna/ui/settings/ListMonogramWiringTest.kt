@@ -6,35 +6,35 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads five source files as text and proves nothing about
+ * Source lint, not a behaviour test, it reads five source files as text and proves nothing about
  * what is drawn. Same instrument and disclaimer as [UnreadTintWiringTest] and [PureBlackWiringTest].
  *
  * `SettingsBackupListMonogramTest` runs the decision (the default, the key, the backup field).
- * Nothing here can run the PLUMBING: `MainActivity`, the CompositionLocal, the view model, the
+ * Nothing here can run the plumbing: `MainActivity`, the CompositionLocal, the view model, the
  * Appearance screen and the row itself are all Compose or Android code, and this module has no
- * Robolectric, no `compose-ui-test`, no `androidTest` — adding one is a dependency decision, not a
+ * Robolectric, no `compose-ui-test`, no `androidTest`, adding one is a dependency decision, not a
  * test decision. Five silent edits this file exists to catch:
  *
  * 1. **the guard at the row itself inverted, dropped, or leaving the `Spacer` outside it.**
  *     Nothing in this repo executes `EmailListItem`, so `if (!LocalListMonogram.current)` hides the
  *     initials for everyone who asked to keep them, and a `Spacer` left outside the braces adds its
  *     12 dp to the row's own `padding(start = 16.dp)` and leaves a dead band at the start of every
- *     row when the setting is off — the one visual trap of this change;
- *  2. **the default written out as a literal.** It exists in THREE copies — the repository, the
+ *     row when the setting is off, the one visual trap of this change;
+ *  2. **the default written out as a literal.** It exists in three copies, the repository, the
  *     activity's `initial =` and the CompositionLocal's fallback. A `false` in either of the last
  *     two strips the initials off the list for the first frames after launch (or for good, under
  *     any provider-less preview) while every value test still reads `LIST_MONOGRAM_DEFAULT`;
  *  3. the setting collected in the activity and never provided: every row falls back to the
  *     CompositionLocal and the switch does nothing;
  *  4. the switch missing from the Appearance screen, greyed out, hidden behind an `if`, or wired to
- *     the wrong string keys — a row that says "Preview" and toggles the initials;
+ *     the wrong string keys, a row that says "Preview" and toggles the initials;
  *  5. the setting missing from the backup snapshot or the restore: it exports as if it did not
  *     exist, and an import silently puts the initials back for someone who had removed them.
  *
- * Every rule compares a WHOLE line (leading and trailing blanks removed, nothing else), never a
+ * Every rule compares a whole line (leading and trailing blanks removed, nothing else), never a
  * `contains` for something it expects to find: a substring check is blind to any mutation that
- * LENGTHENS the line — `initial = LIST_MONOGRAM_DEFAULT && false` contains the constant. `contains`
- * appears only where this file screens for something that must NOT be there.
+ * LENGTHENS the line, `initial = LIST_MONOGRAM_DEFAULT && false` contains the constant. `contains`
+ * appears only where this file screens for something that must not be there.
  */
 class ListMonogramWiringTest {
 
@@ -57,10 +57,10 @@ class ListMonogramWiringTest {
     }
 
     /**
-     * The block above is anchored on the `if` and compared FORWARDS only, so it says nothing about
-     * what sits just BEFORE the guard. A second `Spacer(Modifier.width(12.dp))` inserted there is
-     * invisible to it and puts 28 dp of nothing at the start of every row once the initials are off
-     * — the very dead band this file claims to catch. The row has exactly one 12 dp spacer, and it
+     * The block above is anchored on the `if` and compared forwards only, so it says nothing about
+     * what sits just before the guard. A second `Spacer(Modifier.width(12.dp))` inserted there is
+     * invisible to it and puts 28 dp of nothing at the start of every row once the initials are off,
+     * the very dead band this file claims to catch. The row has exactly one 12 dp spacer, and it
      * is inside the guard.
      */
     @Test fun `the row has exactly one twelve-dp spacer, the one inside the guard`() {
@@ -118,7 +118,7 @@ class ListMonogramWiringTest {
         )
     }
 
-    /** The negative screen — a `contains`, deliberately: it looks for what must be absent. */
+    /** The negative screen, a `contains`, deliberately: it looks for what must be absent. */
     @Test fun `neither copy of the default is spelled out as a boolean`() {
         val offenders = listOf(MAIN_ACTIVITY, LOCAL_LIST_DENSITY).flatMap { file ->
             codeLines(file)
@@ -192,8 +192,8 @@ class ListMonogramWiringTest {
                 block.joinToString("\n"),
             block.none { "enabled =" in it } && block.none { "if (" in it },
         )
-        // The block above is the switch's own six lines; a condition WRAPPING it sits outside them
-        // and would hide the row entirely on some devices with every rule here still green — the
+        // The block above is the switch's own six lines; a condition wrapping it sits outside them
+        // and would hide the row entirely on some devices with every rule here still green, the
         // defect PureBlackWiringTest was written for after the Android-12 guard swallowed a switch.
         // Same instrument as SettingsScreenHonestyTest.enclosingLine().
         val enclosing = enclosingLineOfSwitch()
@@ -221,7 +221,7 @@ class ListMonogramWiringTest {
     /**
      * The half of the setting no other test here touches: **storing** what the user chose. Nothing
      * executes `setListMonogram`, so writing a constant instead of the argument leaves the feature
-     * dead — the switch flips, then springs back on the next emission — with the suite green.
+     * dead (the switch flips, then springs back on the next emission) with the suite green.
      */
     /**
      * The single line that connects the stored key to the rest of the app, and the one every
@@ -231,7 +231,7 @@ class ListMonogramWiringTest {
      *
      * The mistake the shape of the code invites is a copy-paste: three near-identical blocks that
      * differ by one identifier, and `map(::unreadTintFrom)` compiles perfectly here. The setting is
-     * then inert AND parasitic — the reader turns the initials off, the switch springs back on the
+     * then inert and parasitic, the reader turns the initials off, the switch springs back on the
      * next emission, and turning the unread background off takes the initials away with it.
      */
     @Test fun `the flow is fed by this setting's own decision function`() {
@@ -290,9 +290,9 @@ class ListMonogramWiringTest {
     // -- reading the sources ----------------------------------------------------------------------
 
     /**
-     * The nearest enclosing line of the sender-initials switch — the first line above it indented
-     * LESS than it is. Copied from [SettingsScreenHonestyTest]'s `enclosingLine()`, indentation and
-     * all, which is why it reads the file again unTRIMMED: the rest of this class compares trimmed
+     * The nearest enclosing line of the sender-initials switch, the first line above it indented
+     * less than it is. Copied from [SettingsScreenHonestyTest]'s `enclosingLine()`, indentation and
+     * all, which is why it reads the file again untrimmed: the rest of this class compares trimmed
      * lines, and indentation is the only thing that says what wraps what.
      */
     private fun enclosingLineOfSwitch(): String {
@@ -374,7 +374,7 @@ class ListMonogramWiringTest {
         const val EXPECTED_LOCAL =
             "val LocalListMonogram = compositionLocalOf { LIST_MONOGRAM_DEFAULT }"
 
-        /** The guard, the monogram, the spacer, the closing brace — in this order, or not at all. */
+        /** The guard, the monogram, the spacer, the closing brace, in this order, or not at all. */
         val EXPECTED_ROW_BLOCK = listOf(
             "if (LocalListMonogram.current) {",
             "Monogram(",
@@ -397,7 +397,7 @@ class ListMonogramWiringTest {
         private const val SETTINGS_REPOSITORY_PATH =
             "core/data/src/main/kotlin/app/sterna/core/data/settings/SettingsRepository.kt"
 
-        /** Repo root, walked up from the module's working directory — the rules read BOTH modules. */
+        /** Repo root, walked up from the module's working directory, the rules read both modules. */
         val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, SETTINGS_REPOSITORY_PATH).isFile }
@@ -422,7 +422,7 @@ class ListMonogramWiringTest {
             File(root, "app/src/main/kotlin/app/sterna/ui/settings/SettingsScreen.kt")
         }
 
-        /** SettingsScreen.kt with its indentation intact — see `enclosingLineOfSwitch`. Comment-only
+        /** SettingsScreen.kt with its indentation intact, see `enclosingLineOfSwitch`. Comment-only
          *  lines are dropped whole, as in the sibling lints, so prose can never wrap anything. */
         val EMAIL_SETTINGS_SCREEN_RAW: List<String> by lazy {
             SETTINGS_SCREEN.readLines().filterNot {

@@ -7,6 +7,7 @@ import java.io.File
 
 /**
  * "Save" on an attachment row has no decision a JVM test can execute on the app side: the
+ * ViewModel needs an `Application` and a `ContentResolver`, the screen is a `@Composable`.
  */
 class SaveAttachmentCallSiteTest {
 
@@ -30,7 +31,7 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * And they are REFUSED when there are none of them. `MimeParser.decodeBytes("", …)` answers a
+     * And they are refused when there are none of them.
      */
     @Test fun `zero bytes are refused instead of written and announced as saved`() {
         val body = saveAttachmentBody()
@@ -57,7 +58,8 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * THE hole every trimmed-line assertion is blind to: wrapping the refusal in an
+     * The hole every trimmed-line assertion is blind to: wrapping the refusal in an
+     * `if (…) { … }` leaves it word for word where it is, one level deeper, and disarms it.
      */
     @Test fun `the refusal sits in the same block as the download and the write`() {
         val raw = saveAttachmentRawLines()
@@ -77,7 +79,7 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * And they never touch the app's cache on the way. `storage.cacheAttachment` belongs to the
+     * And they never touch the app's cache on the way.
      */
     @Test fun `saving never writes a copy into the app's cache`() {
         assertEquals(
@@ -96,7 +98,7 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * The owner guard, on TWO keys. The reader is a conversation: the row hands over `msg.id`,
+     * The owner guard, on two keys.
      */
     @Test fun `the picker's result is refused unless it names the very part it was launched for`() {
         val body = saveAttachmentBody()
@@ -126,7 +128,7 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * `CreateDocument` has the provider create the document BEFORE the callback runs. So all three
+     * `CreateDocument` has the provider create the document before the callback runs. So all three
      */
     @Test fun `every way out of a save deletes the document the picker created`() {
         assertEquals(
@@ -179,7 +181,8 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * THE mutation that pinning the NUMBER of discards cannot see, and the worst one on this
+     * The mutation that pinning the number of discards cannot see, and the worst one on this
+     * path. A FOURTH catch, slipped in just above the general one:
      */
     @Test fun `no fourth catch turns a refusal back into an announced save`() {
         val body = saveAttachmentBody()
@@ -243,7 +246,7 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * The screen's half. The picker is registered with a wildcard type, ONCE (the contract freezes
+     * The screen's half. The picker is registered with a wildcard type, once (the contract freezes
      */
     @Test fun `the row launches a wildcard picker with a sanitised name`() {
         val lines = codeLines(screen().readText())
@@ -290,7 +293,8 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * The row's own tap is untouched: the name still opens the attachment, the icon saves it —
+     * The row's own tap is untouched: the name still opens the attachment, the icon saves it,
+     * as K-9 and Gmail both put the two side by side.
      */
     @Test fun `the row still opens on its body, and saves on its icon`() {
         val lines = codeLines(screen().readText())
@@ -325,7 +329,7 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
-     * The same span, RAW — indentation intact. A sibling of [saveAttachmentBody] rather than a
+     * The same span, raw, indentation intact.
      */
     private fun saveAttachmentRawLines(): List<String> {
         val lines = viewModel().readText().lines()

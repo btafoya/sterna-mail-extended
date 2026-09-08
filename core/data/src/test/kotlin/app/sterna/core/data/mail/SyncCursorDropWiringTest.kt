@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. `MailRepository` needs Room, an Android `Context` and a live
+ * Source lint, not a behaviour test. `MailRepository` needs Room, an Android `Context` and a live
  */
 class SyncCursorDropWiringTest {
 
@@ -22,7 +22,7 @@ class SyncCursorDropWiringTest {
     }
 
     /**
-     * The function's body, WHOLE, line by line — not the presence of the lines it should contain.
+     * The function's body, whole, line by line, not the presence of the lines it should contain.
      */
     private fun assertBody(function: String, expected: String) {
         val actual = bodyLines(function).filter { it.isNotEmpty() }
@@ -38,9 +38,9 @@ class SyncCursorDropWiringTest {
     // -- the per-account drop ----------------------------------------------------------------------
 
     @Test fun `the drop is these two lines and nothing else`() {
-        // The blank-id guard (a blank prefixes every key), then the drop itself with BOTH its
+        // The blank-id guard (a blank prefixes every key), then the drop itself with both its
         // arguments: without the sibling ids the key prefix is read on its own, and swapping
-        // dropAccount for clear() would send every folder of every OTHER account into a full
+        // dropAccount for clear() would send every folder of every other account into a full
         // re-query for a setting changed on one of them.
         assertBody(
             "dropSyncCursors",
@@ -61,7 +61,7 @@ class SyncCursorDropWiringTest {
 
     @Test fun `the persisted half really enumerates the keys it holds`() {
         // Text, for want of anything better: SyncStateStore is SharedPreferences and this module has
-        // no Robolectric, so nothing here can EXECUTE it. It is pinned because a keys() that
+        // no Robolectric, so nothing here can execute it. It is pinned because a keys() that
         // answered emptySet() would leave the whole disk half of the drop doing nothing, silently,
         // and that is the half that decides what the next cold start resumes (#17).
         val lines = DaoQuerySource.mailSource("SyncStateStore").lines().map { it.trim() }
@@ -75,9 +75,9 @@ class SyncCursorDropWiringTest {
 
     @Test fun `the store's schema marker and version are the ones already on disk`() {
         // One character changed in either and the constructor's `if (… < CURSOR_VERSION) clear()`
-        // fires on the next start: EVERY account's cursors fall at once, every folder does a full
-        // re-query, and nothing anywhere says why. Bumping it is a legitimate migration — it has
-        // been used once, for the uncollapsed folder queries — but it must cost a deliberate edit.
+        // fires on the next start: every account's cursors fall at once, every folder does a full
+        // re-query, and nothing anywhere says why. Bumping it is a legitimate migration, it has
+        // been used once, for the uncollapsed folder queries, but it must cost a deliberate edit.
         val lines = DaoQuerySource.mailSource("SyncStateStore").lines().map { it.trim() }
         listOf(
             """private const val VERSION_KEY = "cursor_version"""",
@@ -102,16 +102,16 @@ class SyncCursorDropWiringTest {
     }
 
     @Test fun `the full query sizes itself on the account, not on its caller — window AND page`() {
-        // The lines that make the drop safe to open: BOTH numbers of the full query are derived
-        // from the account's window, and it is those — not the caller's `sizing` — that go on the
+        // The lines that make the drop safe to open: both numbers of the full query are derived
+        // from the account's window, and it is those (not the caller's `sizing`) that go on the
         // wire. The decision is executed by FullQueryWindowSourceTest; this is the plug, whole
         // lines.
         //
         // Why the page and not only the target. `requestPageSize(wanted, capacity)` caps what
-        // ONE request asks for by what the server admits — so a background pass carrying 50 makes
+        // one request asks for by what the server admits, so a background pass carrying 50 makes
         //
         // The client call gained an `onPage` hand-off (the streaming volet): the rest of that
-        // arrangement — write per page, reconcile once, only on a finished walk — is pinned by
+        // arrangement (write per page, reconcile once, only on a finished walk) is pinned by
         // FullQueryStreamingWiringTest and executed by FullQueryWriteThroughTest. What this test
         // still owns is the sizing reaching the wire.
         assertLine("syncMailbox", "val full = fullQuerySizing(")
@@ -126,7 +126,7 @@ class SyncCursorDropWiringTest {
 
     @Test fun `the two background callers still carry the 50 this is written against`() {
         // Not a rule, a tripwire: the push/worker pass and the unified inbox pass a number of their
-        // own into a branch that REPLACES the folder. If either default moves, re-read
+        // own into a branch that replaces the folder. If either default moves, re-read
         // FullQueryWindowSourceTest, which is written against 50.
         val source = DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }
         listOf(
@@ -143,7 +143,7 @@ class SyncCursorDropWiringTest {
 
     @Test fun `the delta branch still never mentions the window`() {
         // The delta branch never applies it and never fetches backwards. That asymmetry IS the
-        // defect this volet works around — the day it learns to fetch backwards, dropping the
+        // defect this volet works around, the day it learns to fetch backwards, dropping the
         // cursor on a window change stops being the fix and this test has to be rewritten.
         val delta = deltaBranch()
         assertEquals(

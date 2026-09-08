@@ -4,12 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The hand-over half of a widget tap, RUN — [WidgetTapRelay.step] is executed and every expectation
+ * The hand-over half of a widget tap, run, [WidgetTapRelay.step] is executed and every expectation
  */
 class WidgetTapRelayTest {
 
     /**
-     * THE TEST THIS FILE EXISTS FOR — the tap that starts the process, frame by frame.
+     * The test this file exists for, the tap that starts the process, frame by frame.
      */
     @Test fun `a tap that starts the process is kept until the list exists, then delivered`() {
         assertEquals(
@@ -65,6 +65,8 @@ class WidgetTapRelayTest {
 
     /**
      * The cold start that takes more than one frame to compose its start destination: the order is
+     * already held and the list is still missing. Keeping it is the only answer that neither loses
+     * the tap nor delivers it to a list that does not exist.
      */
     @Test fun `an order already held keeps waiting while the list is still missing`() {
         assertEquals(
@@ -76,7 +78,7 @@ class WidgetTapRelayTest {
     }
 
     /**
-     * Both flags up at once — a second tap landing while the first is still held, or the very frame
+     * Both flags up at once, a second tap landing while the first is still held, or the very frame
      * `onNewIntent` re-raises the activity's flag. With the list there, it is one delivery.
      */
     @Test fun `an order raised again over a held one is delivered once, not queued`() {

@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Executes the two decisions the provider PICKER rests on: which package a stored choice resolves
+ * Executes the two decisions the provider picker rests on: which package a stored choice resolves
  */
 class PgpProviderChoiceTest {
 
@@ -17,7 +17,7 @@ class PgpProviderChoiceTest {
     // --- resolve() --------------------------------------------------------------------------
 
     @Test fun `the stored choice wins over the default, or the picker does nothing`() {
-        // The reporter of #151 has BOTH installed and is moving off OpenKeychain. OpenKeychain
+        // The reporter of #151 has both installed and is moving off OpenKeychain. OpenKeychain
         // outranks everything in preferredDefault, so consulting the default first would leave
         // Sterna calling OpenKeychain for ever while the screen says PGPony.
         assertEquals(
@@ -87,7 +87,7 @@ class PgpProviderChoiceTest {
 
     @Test fun `an unknown provider-in-use erases nothing`() {
         // null = the caller does not know what is in use. Clearing a signing key is irreversible,
-        // so an unknown destroys nothing — this is the exact frame in which a tap used to wipe the
+        // so an unknown destroys nothing, this is the exact frame in which a tap used to wipe the
         // keys of every account for a choice that changed nothing at all.
         assertFalse(
             "a null provider-in-use is treated as a switch: a tap in the frame before the screen " +
@@ -101,7 +101,7 @@ class PgpProviderChoiceTest {
     @Test fun `the provider in use is written down when nothing was written down yet`() {
         // The single-provider device. Nothing is ever picked (no row is offered), so without this
         // the day a second OpenPGP app is installed the default ranking takes over and Sterna
-        // changes provider without a word — signing key included.
+        // changes provider without a word, signing key included.
         assertEquals(
             "a device with one OpenPGP app stores nothing, so installing a second one silently " +
                 "moves it onto the other provider.",

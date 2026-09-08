@@ -14,12 +14,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The READ half of the numbering guard, RUN against a real [ImapMailService] on a scripted socket
+ * The read half of the numbering guard, run against a real [ImapMailService] on a scripted socket
  */
 class ReadUnderTheNumberingItWasTickedUnderTest {
 
     /**
-     * NOT ONE OCTET. The refusal has to land here, on the read, because [crossAccountMove] runs
+     * Not one octet. The refusal has to land here, on the read, because [crossAccountMove] runs
      */
     @Test fun `the numbering of the tick is what is opposed, and a renumbered folder is not read`() {
         val store = RememberedNumbering()
@@ -77,8 +77,8 @@ class ReadUnderTheNumberingItWasTickedUnderTest {
     }
 
     /**
-     * THE INVERSE WITNESS. Without it, "refuse every read that carries a stamp" satisfies the
-     * case above — and every cross-account move on every healthy server would fail, for ever.
+     * The inverse witness. Without it, "refuse every read that carries a stamp" satisfies the
+     * case above, and every cross-account move on every healthy server would fail, for ever.
      */
     @Test fun `the numbering the folder still carries reads the message`() {
         val store = RememberedNumbering()
@@ -101,7 +101,8 @@ class ReadUnderTheNumberingItWasTickedUnderTest {
     }
 
     /**
-     * And a read that carries NOTHING keeps the behaviour every ordinary reader depends on: the
+     * And a read that carries nothing keeps the behaviour every ordinary reader depends on: the
+     * fallback on the folder's recorded number, inside [ImapMailService] `onMailbox`.
      */
     @Test fun `a read that freezes nothing falls back on the record, exactly as before`() {
         val store = RememberedNumbering()
@@ -121,8 +122,8 @@ class ReadUnderTheNumberingItWasTickedUnderTest {
 
     // ---- fixtures -----------------------------------------------------------------------------
 
-    /** A server whose every SELECT announces [announce], and whose only FETCH answers [SOURCE] as
-     *  a literal — the shape `ImapClient.fetchSource` reads through `bodyItem()`. */
+    /** A server whose every SELECT announces [announce], and whose only FETCH answers [source] as
+     *  a literal, the shape `ImapClient.fetchSource` reads through `bodyItem()`. */
     private fun stating(announce: Long): (String, String) -> String = { tag, line ->
         when {
             line.startsWith("LOGIN") -> "$tag OK [CAPABILITY IMAP4rev1 UIDPLUS MOVE] logged in\r\n"
@@ -170,7 +171,7 @@ class ReadUnderTheNumberingItWasTickedUnderTest {
         const val INBOX = "INBOX"
         const val SOURCE = "Subject: Quarterly figures\r\n\r\nHello.\r\n"
 
-        /** See [MoveNeedsTheNumberingStatedNowTest]'s twin — `ImapMailService` requires an
+        /** See [MoveNeedsTheNumberingStatedNowTest]'s twin, `ImapMailService` requires an
          *  `OAuthTokenRefresher`, which requires an Android `Context`, and a password account
          *  never reads a field of it. */
         fun unusedTokenRefresher(): OAuthTokenRefresher {

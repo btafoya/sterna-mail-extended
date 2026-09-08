@@ -30,7 +30,7 @@ class SearchQueryToImapTest {
         assertEquals("FLAGGED", buildImapSearch(SearchQuery(flagged = true).toImapCriteria()).keys)
     }
 
-    /** The witness: no tick, no key — otherwise the assertion above would pass on a constant. */
+    /** The witness: no tick, no key, otherwise the assertion above would pass on a constant. */
     @Test fun `an unflagged query puts no FLAGGED key on the wire`() {
         val keys = buildImapSearch(SearchQuery(subject = "facture").toImapCriteria()).keys
         assertEquals("""SUBJECT "facture"""", keys)

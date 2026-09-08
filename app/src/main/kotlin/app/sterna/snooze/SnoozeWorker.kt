@@ -17,13 +17,16 @@ class SnoozeWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         val emailId = inputData.getString(KEY_ID) ?: return Result.success()
         val accountId = inputData.getString(KEY_ACCOUNT).orEmpty()
         val container = (applicationContext as Application).container
-        // Un-snooze FIRST, then read the row: the notification now carries the folder the list
-        // must show (issue #91), and that has to be where the message comes back — its state
+        // Un-snooze first, then read the row: the notification now carries the folder the list
+        // must show (issue #91), and that has to be where the message comes back, its state
         container.mailRepository.unsnooze(accountId, emailId)
         val email = container.mailRepository.cachedEmail(accountId, emailId)
         if (email != null) {
-            // Obey the same notification settings as arriving mail (Codeberg #84): the
-            // wake-up used to post with the defaults, so it showed sender and subject on the
+            // Obey the same notification settings as arriving mail (Codeberg #84): posted with the
+            // defaults, the wake-up would show sender and subject on the lock screen even when the
+            // user had asked for neither, and ring through a quiet-hours window. No folder
+            // sub-text: nothing arrived in a folder here, the message simply returns where it
+            // already was.
             val (silent, content) = NewMailNotifier.options(applicationContext)
             Notifications.notifyNewMail(
                 applicationContext,
@@ -33,7 +36,7 @@ class SnoozeWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                 folderName = null,
                 // The reported case of #91: a message snoozed out of Archive wakes up in
                 // Archive, so opening the notification must put the list there and not in the
-                // Inbox, where it is not. Null for a row with no cached folder — the list then
+                // Inbox, where it is not. Null for a row with no cached folder, the list then
                 // stays where it is, as before.
                 mailboxId = email.mailboxId,
                 content = content,

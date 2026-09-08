@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * How tall the ventilated cell asks to be, RUN — the one decision of this fix that can be executed
+ * How tall the ventilated cell asks to be, run, the one decision of this fix that can be executed
  */
 class UnreadVentilatedHeightTest {
 
@@ -37,7 +37,7 @@ class UnreadVentilatedHeightTest {
     }
 
     /**
-     * THE SYSTEM FONT SCALE IS IN THE NUMBER, and it is not a detail: the row's text is in `sp`
+     * The system font scale is in the number, and it is not a detail: the row's text is in `sp`
      */
     @Test fun `a larger system font asks for a taller cell, because only the text grows`() {
         assertEquals(
@@ -63,7 +63,7 @@ class UnreadVentilatedHeightTest {
     }
 
     /**
-     * A SHRUNK font buys nothing back, deliberately — the same one-sided clamp
+     * A shrunk font buys nothing back, deliberately, the same one-sided clamp
      */
     @Test fun `shrinking the system font does not shrink the room asked for`() {
         assertEquals(
@@ -75,7 +75,7 @@ class UnreadVentilatedHeightTest {
     }
 
     /**
-     * THE FLOOR, and it is the reason the launcher's ordering still means anything.
+     * The floor, and it is the reason the launcher's ordering still means anything.
      */
     @Test fun `the height asked for is never at or under the small entry's own 40dp`() {
         assertEquals(
@@ -103,7 +103,7 @@ class UnreadVentilatedHeightTest {
     }
 
     /**
-     * PAST FOUR ACCOUNTS, WHICH IS WHERE THE BENCH ACTUALLY WENT (E3bis went to five, then six).
+     * Past four accounts, which is where the bench actually went (E3bis went to five, then six).
      */
     @Test fun `each further account asks for a further row's worth of room, without end`() {
         assertEquals(

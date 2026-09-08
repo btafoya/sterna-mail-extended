@@ -4,8 +4,8 @@ import app.sterna.core.imap.CryptoKind
 
 /** Pure helpers for paging between list entries in the reading view (unit-tested). */
 object MessagePaging {
-    /** The identity of one reading-view entry — (owning account, email id) — as a single string. JMAP
-     *  ids are handed out PER ACCOUNT, so an id alone let Compose treat two different messages as one
+    /** The identity of one reading-view entry, (owning account, email id), as a single string. JMAP
+     *  ids are handed out per account, so an id alone let Compose treat two different messages as one
      *  page and show the wrong account's mail (#92). The separator is NUL, so the mapping is injective. */
     fun entryKey(emailId: String, accountId: String?): String = "${accountId.orEmpty()}\u0000$emailId"
 
@@ -22,7 +22,9 @@ object MessagePaging {
     ): Boolean = settled && (failed || loadedId != emailId || loadedAccountId != accountId)
 
     /**
-     * Whether a body already in the LOCAL cache may be put on a page the finger has not reached — the
+     * Whether a body already in the local cache may be put on a page the finger has not reached, the
+     * the single decision behind `MessageViewModel.warmFromCache`, taken on values so it can be
+     * executed by a test rather than re-read.
      */
     fun warmable(
         cryptoKind: CryptoKind?,
@@ -34,7 +36,7 @@ object MessagePaging {
         !senderAllowedRemoteImages
 
     /**
-     * The entry the reader is SETTLED on: [previous] while the pager is [scrolling], [atRest]
+     * The entry the reader is settled on: [previous] while the pager is [scrolling], [atRest]
      */
     fun <T> settledEntry(previous: T?, atRest: T?, scrolling: Boolean): T? =
         if (scrolling) previous else atRest
@@ -49,7 +51,7 @@ object MessagePaging {
         return index.coerceIn(0, orderedIds.size - 1)
     }
 
-    /** Whether the reader can step back / forward from [page] in a context of [pageCount] messages —
+    /** Whether the reader can step back / forward from [page] in a context of [pageCount] messages:
      *  whether the position line's chevrons are live. The pager does not wrap and does not run past its
      *  context, so both are false at the matching end and on a single message. */
     fun hasPrevious(page: Int, pageCount: Int): Boolean = page > 0 && pageCount > 1

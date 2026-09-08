@@ -133,7 +133,7 @@ object UidValidity {
         }
     }
 
-    /** The `LIKE` pattern for one IMAP folder's cached ids, SQL wildcards escaped: a folder called
+    /** The `like` pattern for one IMAP folder's cached ids, SQL wildcards escaped: a folder called
      *  `a_b` would otherwise match `axb` and take a neighbour's bodies. Backslash first. */
     fun bodyCacheIdPrefix(accountId: String, mailboxId: String): String =
         (ImapMailService.emailId(accountId, mailboxId, 0L).dropLast(1))

@@ -21,9 +21,9 @@ class LiveBannerSurvivesItsSummaryWiringTest {
             codeLinesNaming(body, "repostSilently("),
         )
 
-        // THE pin of this file. A list of lines cannot see order, and the mutation that hurts
+        // The pin of this file. A list of lines cannot see order, and the mutation that hurts
         // most keeps every line and only moves one: re-post first, cancel second. That is the
-        // original defect again — the cascade fires last and wipes what was just put back — and
+        // original defect again (the cascade fires last and wipes what was just put back) and
         // every other assertion here stays green through it.
         val lines = codeLinesNaming(body, "")
         val cancelAt = lines.indexOfFirst { it == "manager.cancel(summaryId)" }
@@ -190,9 +190,9 @@ class LiveBannerSurvivesItsSummaryWiringTest {
     }
 
     @Test fun `no argument of the summary refresh may be forgotten in silence`() {
-        // `bodyOf` starts at the `{`, so the SIGNATURE is held by nothing above. The KDoc promises
+        // `bodyOf` starts at the `{`, so the signature is held by nothing above. The KDoc promises
         // "No default value, deliberately: a caller that forgets this argument must fail to
-        // COMPILE" — that promise is one `= emptySet()` away from being worthless, and nothing
+        // compile", that promise is one `= emptySet()` away from being worthless, and nothing
         // else in this suite would go red.
         val params = paramsOf(NOTIFICATIONS, "updateGroupSummary")
         assertEquals(
@@ -233,7 +233,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
         // The three callers together, because a guard that exists on one path only is no guard:
         // the same stale-read race is reachable from a diff pass, from a read receipt and from
         // the notification's own buttons. NewMailNotifier's own pin lives next door, in
-        // DepartedMailLosesItsBannerWiringTest — it is the caller that already had the set.
+        // DepartedMailLosesItsBannerWiringTest, it is the caller that already had the set.
         assertEquals(
             "Notifications.dismiss cancels first and refreshes second, so the shade still shows " +
                 "what it cancelled. It must subtract the hits from `active` — the read taken at " +
@@ -346,7 +346,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
     }
 
     @Test fun `the comment that let this defect live for thirteen months may not come back`() {
-        // Searched in the RAW text: `codeLinesNaming` throws comments away, which is exactly where
+        // Searched in the raw text: `codeLinesNaming` throws comments away, which is exactly where
         // this sentence lives.
         val body = bodyOf(NOTIFICATIONS, "updateGroupSummary")
         assertEquals(
@@ -367,7 +367,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
             .filterNot { it.isEmpty() || it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
             .filter { needle in it }
 
-    /** The parameter list of `fun [name]` in [file] — parentheses included, KDoc excluded. */
+    /** The parameter list of `fun [name]` in [file], parentheses included, KDoc excluded. */
     private fun paramsOf(file: File, name: String): String {
         val source = file.readText()
         val fn = Regex("""\bfun\s+$name\s*\(""").find(source)
@@ -385,7 +385,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
         error("Unbalanced parentheses in ${file.name}.$name")
     }
 
-    /** The block body of `fun [name]` in [file] — braces included. */
+    /** The block body of `fun [name]` in [file], braces included. */
     private fun bodyOf(file: File, name: String): String {
         val source = file.readText()
         val fn = Regex("""\bfun\s+$name\s*\(""").find(source)

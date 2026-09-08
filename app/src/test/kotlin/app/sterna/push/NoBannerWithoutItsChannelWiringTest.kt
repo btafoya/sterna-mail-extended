@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, and it has to be: [Notifications] is an Android object — every function here
+ * Source lint, and it has to be: [Notifications] is an Android object, every function here
  */
 class NoBannerWithoutItsChannelWiringTest {
 
@@ -23,7 +23,7 @@ class NoBannerWithoutItsChannelWiringTest {
     }
 
     /**
-     * The banner path must ensure the MAIL channel ALONE. `ensureChannels` also creates
+     * The banner path must ensure the mail channel alone. `ensureChannels` also creates
      */
     @Test fun `the mail channel is created alone, at the importance a banner needs`() {
         assertEquals(
@@ -60,13 +60,13 @@ class NoBannerWithoutItsChannelWiringTest {
 
     private data class PostingSite(val name: String, val firstCodeLine: String)
 
-    /** The code lines of `fun [name]`'s body in [NOTIFICATIONS]. */
+    /** The code lines of `fun [name]`'s body in [notifications]. */
     private fun memberBody(name: String): List<String> = membersOf(NOTIFICATIONS)
         .firstOrNull { member -> member.any { FUN_DECL.find(it)?.groupValues?.get(1) == name } }
         ?.let { bodyOf(it) }
         ?: error("Notifications.kt has no function named '$name' — did it get renamed?")
 
-    /** Every function of [NOTIFICATIONS] whose body builds a notification on [CHANNEL_MAIL]. */
+    /** Every function of [notifications] whose body builds a notification on [CHANNEL_MAIL]. */
     private fun postingSites(): List<PostingSite> = membersOf(NOTIFICATIONS).mapNotNull { member ->
         val name = FUN_DECL.find(member.firstOrNull { FUN_DECL.containsMatchIn(it) } ?: "")
             ?.groupValues?.get(1) ?: return@mapNotNull null

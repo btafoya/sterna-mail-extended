@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Codeberg #56: one arrival must announce itself once. A group where the summary AND its
+ * Codeberg #56: one arrival must announce itself once.
  */
 class GroupAlertTest {
 
@@ -84,7 +84,11 @@ class GroupAlertTest {
     // Codeberg #134, second half: the same rule read as "what may still be on screen afterwards".
     //
     // `NotificationManager.cancel` returns once the system has queued the work, and
-    // `getActiveNotifications` reads the list without draining that queue — so a pass that
+    // `getActiveNotifications` reads the list without draining that queue, so a pass that
+    // re-reads the shade to decide sees the banner it has just cancelled and puts it back. The
+    // set below is what `updateGroupSummary` must be handed instead of that read: it decides how
+    // many children there will be, and which clones may be re-posted. Both halves are asserted,
+    // because a set with the right size and the wrong members re-posts a dismissed banner.
 
     @Test fun `the last banner departing leaves nothing to count and nothing to re-post`() {
         // Summary standing over exactly one child, and that message is deleted from another
@@ -94,7 +98,7 @@ class GroupAlertTest {
         val live = Notifications.liveChildIdsAfter(setOf(gone), "acct-a", listOf("M1"), emptyList())
         assertEquals(emptySet<Int>(), live)
         assertFalse(Notifications.summaryShownFor(live.size))
-        // The half that is the whole fix: the departing id is NOT in the set, so the filter on it
+        // The half that is the whole fix: the departing id is not in the set, so the filter on it
         // cannot list, count or put that banner back.
         assertFalse(gone in live)
     }
@@ -110,7 +114,7 @@ class GroupAlertTest {
 
     @Test fun `a message posted in this very pass is expected even before the shade shows it`() {
         // `notify` is asynchronous exactly like `cancel`, so a banner posted moments ago may not
-        // be in the read either. It is in the EXPECTED set, which is what keeps the count at two
+        // be in the read either. It is in the expected set, which is what keeps the count at two
         // and stops the summary being torn down over a banner nobody would then put back.
         val standing = Notifications.childId("acct-a", "M1")
         val fresh = Notifications.childId("acct-a", "M2")
@@ -129,7 +133,11 @@ class GroupAlertTest {
     }
 
     // ------------------------------------------------------------------------------------------
-    // [Notifications.childIdsOf] — "which ids on the shade ARE this message", executed here on
+    // [Notifications.childIdsOf], "which ids on the shade are this message", executed here on
+    // pinned arguments. It answers a different question from the set above: not what must remain,
+    // but what the caller has just taken down. The summary refresh subtracts it from the shade's
+    // own answer, and everything it does not name stays on screen and is put back if the summary
+    // falls, so an id missing from it is unread mail the cascade eats for good.
 
     @Test fun `a message is both of its id shapes, the current one and the pre-#92 one`() {
         assertEquals(
@@ -140,7 +148,7 @@ class GroupAlertTest {
 
     @Test fun `only the current shape carries the account`() {
         // #92: two accounts on the same server routinely hand us the same message id, so the
-        // current shape must differ between them — and the legacy shape, which cannot, is the
+        // current shape must differ between them, and the legacy shape, which cannot, is the
         // one they share. Naming an account's id under another account would cancel, or fail to
         // put back, a banner belonging to somebody else's mailbox.
         val mine = Notifications.childIdsOf("acct-a", listOf("M1"))
@@ -163,8 +171,8 @@ class GroupAlertTest {
     }
 
     @Test fun `cancelling nothing names no id at all`() {
-        // The commonest call by far — a summary refresh that took no banner down. It must remove
-        // NOTHING from the shade's answer: every live child stays listed, counted and re-postable.
+        // The commonest call by far, a summary refresh that took no banner down. It must remove
+        // nothing from the shade's answer: every live child stays listed, counted and re-postable.
         assertEquals(emptySet<Int>(), Notifications.childIdsOf("acct-a", emptyList()))
     }
 
@@ -189,14 +197,14 @@ class GroupAlertTest {
     }
 
     // ------------------------------------------------------------------------------------------
-    // [Notifications.teardownRepairable] — "may this teardown be undone?", executed here.
+    // [Notifications.teardownRepairable], "may this teardown be undone?", executed here.
     //
-    // Cancelling the summary cascades EVERY live child of the group away
+    // Cancelling the summary cascades every live child of the group away
     // (REASON_GROUP_SUMMARY_CANCELED), and the only repair is to copy back the notification
 
     @Test fun `the banner this pass has just posted forbids the teardown`() {
         // The reported path. Two messages cleared from another client, one arriving: the arrival
-        // is all that is expected, and the shade — read before the post has landed — shows none of
+        // is all that is expected, and the shade (read before the post has landed) shows none of
         // it. Demolishing here takes the fresh banner with it and the user never hears of that
         // message again.
         val expected = Notifications.liveChildIdsAfter(
@@ -247,7 +255,7 @@ class GroupAlertTest {
         )
         assertEquals(setOf(legacy), expected)
         assertTrue(Notifications.teardownRepairable(expected, shownChildIds = setOf(legacy)))
-        // The same message under its current shape is a DIFFERENT banner: it is not on screen, so
+        // The same message under its current shape is a different banner: it is not on screen, so
         // it may not be demolished on the strength of the old one.
         assertFalse(
             Notifications.teardownRepairable(
@@ -259,7 +267,7 @@ class GroupAlertTest {
 
     @Test fun `another account's banners do not make this account's teardown repairable`() {
         // #92: two accounts on one server. B having plenty on screen says nothing about A's fresh
-        // arrival, which is still un-repostable — and the summary being torn down is A's.
+        // arrival, which is still un-repostable, and the summary being torn down is A's.
         val mine = Notifications.childId("acct-a", "M1")
         val theirs = setOf(Notifications.childId("acct-b", "M1"), Notifications.childId("acct-b", "M2"))
         assertFalse(Notifications.teardownRepairable(expectedChildIds = setOf(mine), shownChildIds = theirs))

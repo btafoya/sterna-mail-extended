@@ -8,6 +8,7 @@ import org.junit.Test
 
 /**
  * The two hops the styling of a stored message takes through this layer (#131), and neither is
+ * visible anywhere else:
  */
 class QueuedDraftKeepsItsStylingTest {
 

@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same disclaimer as [ConversationScopeWiringTest]: it reads
+ * Source lint, not a behaviour test, same disclaimer as [ConversationScopeWiringTest]: it reads
  */
 class BulkOutcomeWiringTest {
 
@@ -33,8 +33,8 @@ class BulkOutcomeWiringTest {
             "bulkBatched must ask bulkOutcome() rather than re-deciding from failedKeys itself",
             "bulkOutcome(" in body,
         )
-        // The counts it feeds it: the WHOLE selection handed in (plus whatever a delegating caller
-        // already lost), and everything that did not go through — the batch's rejects, the keys
+        // The counts it feeds it: the whole selection handed in (plus whatever a delegating caller
+        // already lost), and everything that did not go through, the batch's rejects, the keys
         assertEquals(
             "bulkOutcome must be fed the whole selection (plus the caller's losses) and every " +
                 "failure, unresolved keys included",
@@ -48,7 +48,7 @@ class BulkOutcomeWiringTest {
     }
 
     /**
-     * WHOLE BRANCHES, not the first `R.string` each names. The total-failure branch no longer
+     * Whole branches, not the first `R.string` each names. The total-failure branch no longer
      */
     @Test fun eachOutcomeReachesForItsOwnString() {
         assertEquals(

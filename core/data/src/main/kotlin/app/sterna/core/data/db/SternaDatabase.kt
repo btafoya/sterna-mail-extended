@@ -34,7 +34,10 @@ abstract class SternaDatabase : RoomDatabase() {
 
     companion object {
         /**
-         * The migrations Room is actually handed — absent here means it never runs, and
+         * The migrations Room is actually handed, absent here means it never runs, and
+         * written, tested and simply absent from here never runs. The builder below ends with
+         * [RoomDatabase.Builder.fallbackToDestructiveMigration], so a version whose step is missing
+         * from this array is not degraded, it is dropped: every table, the outbox included, i.e.
          */
         internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_9_10, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,

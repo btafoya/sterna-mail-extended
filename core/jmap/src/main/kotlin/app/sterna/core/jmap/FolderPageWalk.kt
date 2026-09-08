@@ -11,7 +11,7 @@ data class WalkedPage(
 )
 
     /**
-     * What a windowed folder walk brings back — IDS and cursors, never messages: the walk hands each
+     * What a windowed folder walk brings back, IDS and cursors, never messages: the walk hands each
      */
 data class WindowWalk(
     val ids: List<String>,
@@ -22,7 +22,7 @@ data class WindowWalk(
 )
 
     /**
-     * How big the NEXT `Email/query` of a windowed folder walk must be, or null when the walk is over.
+     * How big the next `Email/query` of a windowed folder walk must be, or null when the walk is over.
      */
 fun nextWindowPageLimit(
     fetched: Int,

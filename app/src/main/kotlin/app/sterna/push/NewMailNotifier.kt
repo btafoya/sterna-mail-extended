@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.first
 import java.util.Calendar
 
 /**
- * Notifies for newly arrived mail against a PERSISTED per-folder baseline (the ids already
+ * Notifies for newly arrived mail against a persisted per-folder baseline (the ids already
  */
 object NewMailNotifier {
     private const val PREFS = "push_baselines"
@@ -54,6 +54,7 @@ object NewMailNotifier {
 
     /**
      * Reset a folder's baseline to [baselineIds] without notifying (first sight of a folder, or when
+     * when the user is opening the app anyway, the list itself shows what arrived).
      */
     fun seed(context: Context, accountId: String, mailboxId: String, baselineIds: Collection<String>) {
         prefs(context).edit()
@@ -84,7 +85,7 @@ object NewMailNotifier {
             .apply()
     }
 
-    /** Re-key baselines after an IMAP rename (ids are folder paths there) — the folder and its
+    /** Re-key baselines after an IMAP rename (ids are folder paths there), the folder and its
      *  subfolders. A false positive re-keys to an unused key, which the next pass reseeds. */
     fun rename(context: Context, accountId: String, oldMailboxId: String, newMailboxId: String) {
         val prefs = prefs(context)
@@ -123,7 +124,7 @@ object NewMailNotifier {
     }
 
     /**
-     * Post notifications for a folder's messages not in its baseline, then advance it. [emails] is
+     * Post notifications for a folder's messages not in its baseline, then advance it.
      */
     suspend fun notifyDiff(
         context: Context,
@@ -150,24 +151,24 @@ object NewMailNotifier {
             .filter { it.isSeen && Notifications.isChildActive(active, credentials.id, it.id) }
             .map { it.id }
         // #134: a message deleted from another client is gone from this folder, yet its banner
-        // stayed on screen. The ids come from what the SERVER said left the folder, never from a
+        // stayed on screen.
         val candidates = Notifications.departuresToCancel(active, credentials.id, departedIds, emails.map { it.id })
-        // The confirmation, from the layer that talks to the server. It confirms NOTHING when it
+        // The confirmation, from the layer that talks to the server. It confirms nothing when it
         // cannot ask and does not throw: leaving a banner up is survivable, and this pass has new
         // mail to announce.
         val repository = (context.applicationContext as Application).container.mailRepository
         val departed = repository.confirmDepartures(credentials, mailboxId, candidates)
         if (newMail.isNotEmpty() || readIds.isNotEmpty() || departed.isNotEmpty()) {
             val (silent, content) = options(context)
-            // Who announces this batch, decided BEFORE anything is posted (#56). Hoisted into a
-            // `val` because the SAME set is what the summary must decide on at the bottom of this
-            // pass — recomputing it there would read a shade the cancels have not reached (#134).
+            // Who announces this batch, decided before anything is posted (#56). Hoisted into a
+            // `val` because the same set is what the summary must decide on at the bottom of this
+            // pass, recomputing it there would read a shade the cancels have not reached (#134).
             val live = Notifications.liveChildIdsAfter(active, credentials.id, readIds + departed, newMail.map { it.id })
             val summarised = Notifications.summaryShownFor(live.size)
-            // The openings are read HERE, in one pre-pass, BEFORE the first notification. A
+            // The openings are read here, in one pre-pass, before the first notification. A
             // round trip between two posts would put an exception mid-batch and skip the [seed]
             // below: the next pass would re-announce every message, and a re-announcement MOVES
-            // MAIL server-side. [NotificationPreviews] therefore throws nothing.
+            // mail server-side. [NotificationPreviews] therefore throws nothing.
             NotificationPreviews.postGatheredFirst(
                 newMail,
                 keyOf = { it.id },
@@ -188,8 +189,8 @@ object NewMailNotifier {
                     )
                 },
                 // [mailboxId] is the folder this pass is for, so the tap can put the list there
-                // (#91) — passed for the inbox too, where [folderName] is deliberately null. The
-                // gathered opening travels ON the message; `?: email.preview` leaves JMAP's own
+                // (#91), passed for the inbox too, where [folderName] is deliberately null. The
+                // gathered opening travels on the message; `?: email.preview` leaves JMAP's own
                 // preview alone.
                 post = { email, preview ->
                     Notifications.notifyNewMail(
@@ -208,14 +209,14 @@ object NewMailNotifier {
             )
             readIds.forEach { Notifications.cancelChild(context, credentials.id, it) }
             departed.forEach { Notifications.cancelChild(context, credentials.id, it) }
-            // Rebuilt from ALL active children so successive passes accumulate. It re-posts, so it
+            // Rebuilt from all active children so successive passes accumulate. It re-posts, so it
             // would ring: only when this pass actually brought new mail.
             Notifications.updateGroupSummary(
                 context,
                 credentials.id,
                 credentials.username,
                 silent = silent || newMail.isEmpty(),
-                // The set computed BEFORE anything was posted or cancelled, never recomputed here.
+                // The set computed before anything was posted or cancelled, never recomputed here.
                 expectedChildIds = live,
                 // What this pass took down, and only that. Everything else stays in `children` and
                 // is put back if the summary falls: a snooze wake-up posting into this group in the
@@ -227,7 +228,7 @@ object NewMailNotifier {
     }
 
     /** Whether [email] was received at or after [floorMs] (lenient: unknown dates pass). Shared
-     *  with the read that produces the candidates — see [app.sterna.core.data.mail.announceableAt]. */
+     *  with the read that produces the candidates, see [app.sterna.core.data.mail.announceableAt]. */
     private fun receivedAfter(email: Email, floorMs: Long): Boolean = announceableAt(email.receivedAt, floorMs)
 
     /** The user settings every posted mail notification must obey: quiet hours, and how much the
@@ -235,8 +236,8 @@ object NewMailNotifier {
     data class Options(val silent: Boolean, val content: NotificationContent)
 
     /** Reads both notification settings for the moment the notification is posted. Shared with the
-     *  snooze wake-up (#84) so the two cannot drift: it used to post with the function defaults and
-     *  ignored both quiet hours and the content setting. */
+     *  snooze wake-up (#84) so the two cannot drift: posted with the function defaults, it would
+     *  ignore both quiet hours and the content setting. */
     suspend fun options(context: Context): Options {
         val settings = (context.applicationContext as Application).container.settingsRepository
         return Options(quietHoursActive(context), settings.notificationContent.first())

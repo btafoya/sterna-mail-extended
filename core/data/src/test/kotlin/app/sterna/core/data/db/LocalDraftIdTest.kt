@@ -20,7 +20,7 @@ class LocalDraftIdTest {
 
     @Test fun `the prefix cannot be mistaken for a JMAP id either`() {
         // RFC 8620 §1.2: a JMAP id is made of A-Za-z0-9, '-' and '_' only. A ':' therefore cannot
-        // occur in one, which is what keeps a local id out of that namespace too — and it is why
+        // occur in one, which is what keeps a local id out of that namespace too, and it is why
         // the prefix ends with a colon rather than a dash.
         assertTrue("a local draft id must carry a character no JMAP id can hold", ':' in LOCAL_DRAFT_ID_PREFIX)
         assertTrue(newLocalDraftId().startsWith(LOCAL_DRAFT_ID_PREFIX))

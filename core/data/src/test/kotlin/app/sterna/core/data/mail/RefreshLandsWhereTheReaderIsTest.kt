@@ -10,7 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** A refresh key no correct implementation would ever answer — see `OffsetSource`. */
+/** A refresh key no correct implementation would ever answer, see `OffsetSource`. */
 private const val DELEGATED = -777
 
 /**
@@ -23,11 +23,12 @@ class RefreshLandsWhereTheReaderIsTest {
 
     /**
      * One invalidation: the reader sits at folder row [readerRow] in a window that starts at
+     * [windowStart], a write lands, Paging asks for a refresh key and Room reloads at it.
      */
     private fun reloadAfterAWrite(windowStart: Int, folderRows: Int = 5_000): Int {
         val config = pagingConfig()
         // Paging's anchor, as the fetcher computes it with placeholders off: the reader's index
-        // INSIDE the loaded window, which is all the presenter knows about.
+        // inside the loaded window, which is all the presenter knows about.
         val anchorInWindow = readerRow - windowStart
         val key = refreshOffsetForAnchor(
             anchorPosition = anchorInWindow,
@@ -35,7 +36,7 @@ class RefreshLandsWhereTheReaderIsTest {
             initialLoadSize = config.initialLoadSize,
             placeholdersEnabled = config.enablePlaceholders,
         )
-        // getOffset(Refresh) — room 2.6.1, RoomPagingUtil.kt.
+        // getOffset(Refresh), room 2.6.1, RoomPagingUtil.kt.
         val k = key ?: 0
         return if (k >= folderRows) maxOf(0, folderRows - config.initialLoadSize) else k
     }
@@ -50,7 +51,7 @@ class RefreshLandsWhereTheReaderIsTest {
             starts += windowStart
         }
 
-        // 300 − 150/2 = 225, and it must STAY there: a window that starts at 225 puts the reader
+        // 300 − 150/2 = 225, and it must stay there: a window that starts at 225 puts the reader
         // at index 75 of it, and 75 − 75 = 0 is exactly the walk back to the top that the report
         // describes ("it jumps back and older mail can never be reached").
         assertEquals(
@@ -110,7 +111,7 @@ class RefreshLandsWhereTheReaderIsTest {
     @Test
     fun `with placeholders on the anchor is already absolute and must not be shifted twice`() {
         // Paging counts placeholdersBefore into anchorPosition as soon as placeholders are on;
-        // adding the window offset again would send the reload PAST the reader, by as much as
+        // adding the window offset again would send the reload past the reader, by as much as
         // they had scrolled.
         assertEquals(
             225,
@@ -126,7 +127,7 @@ class RefreshLandsWhereTheReaderIsTest {
     @Test
     fun `a page that does not know its offset is read as the top of the folder`() {
         // COUNT_UNDEFINED is Int.MIN_VALUE. Room always fills itemsBefore in, but the type says
-        // it may not be there, and adding it raw would clamp every key to 0 — the walk back to
+        // it may not be there, and adding it raw would clamp every key to 0, the walk back to
         // the newest mail, restored by arithmetic.
         assertEquals(
             225,
@@ -157,7 +158,7 @@ class RefreshLandsWhereTheReaderIsTest {
     // -- the seam: what the Pagers actually hand Room ---------------------------------------------
 
     /**
-     * Stands in for `LimitOffsetPagingSource`: same LIMIT/OFFSET loading and the same `itemsBefore`
+     * Stands in for `LimitOffsetPagingSource`: same limit/offset loading and the same `itemsBefore`
      */
     private class OffsetSource(private val folderRows: Int) : PagingSource<Int, String>() {
         val loadedOffsets = mutableListOf<Int>()
@@ -181,6 +182,7 @@ class RefreshLandsWhereTheReaderIsTest {
 
     /**
      * The state Paging hands `getRefreshKey`: the loaded window as the list of pages it really is
+     * ([window]: each page's folder offset, and how many rows it holds), in load order.
      */
     private fun stateOver(
         window: List<Pair<Int, Int>>,
@@ -210,12 +212,12 @@ class RefreshLandsWhereTheReaderIsTest {
     @Test
     fun `the key is measured from where the WINDOW starts, not from its last page`() {
         // What the reader's window looks like after three scroll steps: the reloaded 150 rows,
-        // then the appended pages. `anchorPosition` counts from the FIRST of them, so the offset
+        // then the appended pages. `anchorPosition` counts from the first of them, so the offset
         // it must be re-based on is the first page's.
         //
-        // Reading the last page's offset instead sends the reload 175 rows BELOW the reader: the
+        // Reading the last page's offset instead sends the reload 175 rows below the reader: the
         // message being read leaves the window downwards, the landing point sits at the window's
-        // edge so the mediator immediately APPENDs again — a burst of server pages, on mobile
+        // edge so the mediator immediately APPENDs again, a burst of server pages, on mobile
         // data, in the middle of the gesture. Worse than the defect this fixes, and silent.
         val source = AnchoredRefreshPagingSource(OffsetSource(folderRows = 5_000))
         val window = listOf(225 to 150, 375 to 50, 425 to 50, 475 to 50)
@@ -228,10 +230,10 @@ class RefreshLandsWhereTheReaderIsTest {
 
     @Test
     fun `the seam asks the config whether the anchor is already folder-wide`() {
-        // Placeholders ON: Paging counts placeholdersBefore into anchorPosition, so the anchor is
+        // Placeholders on: Paging counts placeholdersBefore into anchorPosition, so the anchor is
         // 300 (the folder row) and the key is 300 − 75. The wrapper must read that from the state's
         // config; a hard-wired `false` here would re-base an already-absolute anchor and answer
-        // 450 — a reload 150 rows past the reader.
+        // 450, a reload 150 rows past the reader.
         val withPlaceholders = PagingConfig(
             pageSize = 50,
             initialLoadSize = 150,
@@ -284,7 +286,7 @@ class RefreshLandsWhereTheReaderIsTest {
     // -- the plug, as source ----------------------------------------------------------------------
 
     /**
-     * SOURCE LINT. `MailRepository` needs Room, an Android `Context` and a live JMAP session, so
+     * Source lint. `MailRepository` needs Room, an Android `Context` and a live JMAP session, so
      */
     @Test
     fun `all four paged lists page through the anchored source`() {
@@ -308,7 +310,7 @@ class RefreshLandsWhereTheReaderIsTest {
         )
     }
 
-    /** The four numbers themselves are pinned above; this only says all four Pagers take THAT
+    /** The four numbers themselves are pinned above; this only says all four Pagers take that
      *  config, rather than one of them growing a window of its own. */
     @Test
     fun `all four Pagers page through pagingConfig`() {

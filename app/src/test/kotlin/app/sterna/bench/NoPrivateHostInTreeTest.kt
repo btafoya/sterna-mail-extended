@@ -9,30 +9,30 @@ import java.nio.file.Files
  * A whole-tree lint: the machine that serves the maintainer's real mail must not be named
  * anywhere in this public checkout.
  *
- * WHY. The bench runs against a private server. Its name kept leaking into the repo through the
- * two doors that look harmless — a KDoc example the maintainer copies at the bench, and an import
- * fixture pasted from a real export — and nothing stopped it coming back. This test is the stop.
+ * Why. The bench runs against a private server. Its name kept leaking into the repo through the
+ * two doors that look harmless, a KDoc example the maintainer copies at the bench, and an import
+ * fixture pasted from a real export, and nothing stopped it coming back. This test is the stop.
  * The public convention is `example.com` / `mail.example.com` (already used by the neighbouring
  * `outlook-xoauth2.k9s` fixture).
  *
- * HOW IT IS BUILT, and each point cost something:
+ * How it is built, and each point cost something:
  *
  * - NO `git ls-files`. In the toolchain container a worktree's `.git` points at an absolute
  *    host path that does not exist there; git answers "not a git repository" and zero files, so a
  *    lint built on it would be green and empty in the very tree being written.
- *  - So the tree is WALKED, from the repo root, with exclusions named one by one below. Never a
+ *  - So the tree is walked, from the repo root, with exclusions named one by one below. Never a
  *    list of files to scan: a brand-new file must be seen without anyone editing this test.
- * - The forbidden label is NOT written as one literal anywhere in this file. The walk reads
+ * - The forbidden label is not written as one literal anywhere in this file. The walk reads
  *    this file too, and a lint that spells its own target reports itself on every run.
- *  - The decision is a PURE FUNCTION, [namesThePrivateHost], EXECUTED against pinned lines by
+ *  - The decision is a pure function, [namesThePrivateHost], executed against pinned lines by
  *    [theDecisionIsExecutedOnPinnedLines]. A test that re-derived the rule to choose what to feed
- *    it would be a copy of the rule, green under any mutation of it — so the pinned lines are
+ *    it would be a copy of the rule, green under any mutation of it, so the pinned lines are
  *    spelled from their own fragments, deliberately not from the constant the decision uses.
- *  - The walk PROVES IT WALKED ([theWalkReallyCoveredTheTree]). A lint whose scope quietly shrinks
- *    is green and measures nothing, so the file count has a floor AND named witnesses must have
+ *  - The walk proves it walked ([theWalkReallyCoveredTheTree]). A lint whose scope quietly shrinks
+ *    is green and measures nothing, so the file count has a floor and named witnesses must have
  *    been read. The witnesses matter more than the floor: amputating one published directory
  *    (`fastlane/`, `site/`) leaves hundreds of files behind and clears any floor.
- *  - The walk-and-report is PARAMETERISED BY ITS ROOT ([offencesUnder]) and executed against a
+ *  - The walk-and-report is parameterised by its root ([offencesUnder]) and executed against a
  *    throwaway tree that really carries the label ([aPlantedFileIsReported_andTheTwoExclusionsAreNot]).
  *    That is the only positive case: this checkout is clean, so without it, emptying the report
  *    body leaves the whole suite green.
@@ -40,8 +40,8 @@ import java.nio.file.Files
 class NoPrivateHostInTreeTest {
 
     /**
-     * The decision, executed with arguments pinned HERE. The label in these lines is spelled from
-     * its own fragments and NOT from [PRIVATE_LABEL]: alter the constant the regex is built from
+     * The decision, executed with arguments pinned here. The label in these lines is spelled from
+     * its own fragments and not from [PRIVATE_LABEL]: alter the constant the regex is built from
      * and these lines still carry the real domain, so this test goes red. Deriving them from the
      * same constant would make the test a copy of the rule, green under any mutation of it.
      */
@@ -103,14 +103,14 @@ class NoPrivateHostInTreeTest {
     }
 
     /**
-     * THE POSITIVE CASE, and the reason [offencesUnder] takes its root as an argument.
+     * The positive case, and the reason [offencesUnder] takes its root as an argument.
      *
      * Without this test nothing ever makes the lint red on a real file: the checkout is clean, so
      * `val text = ""`, or an empty method body, leaves every other test here green. Proving it by
      * planting a file in the checkout by hand proves it once, for the person who did it.
      *
-     * So the walk is EXECUTED against a throwaway root that really carries the label, and three
-     * things are pinned in one shot — a hit is reported with its path, its LINE NUMBER and its
+     * So the walk is executed against a throwaway root that really carries the label, and three
+     * things are pinned in one shot, a hit is reported with its path, its line number and its
      * text; a hit inside a nested checkout is not; a hit under a name-excluded directory is not.
      * The planted text is spelled from its own fragments, not from [PRIVATE_LABEL], so altering
      * the pattern makes this go red too.
@@ -149,7 +149,7 @@ class NoPrivateHostInTreeTest {
         }
     }
 
-    /** The lint itself — the same function, pointed at the real checkout. */
+    /** The lint itself, the same function, pointed at the real checkout. */
     @Test
     fun noFileNamesThePrivateHost() {
         val offences = offencesUnder(REPO_ROOT)
@@ -185,11 +185,11 @@ class NoPrivateHostInTreeTest {
          */
         val PRIVATE_HOST = Regex("(?i)\\b" + PRIVATE_LABEL + "\\b")
 
-        /** THE DECISION. Pure, and executed by [theDecisionIsExecutedOnPinnedLines]. */
+        /** The decision. Pure, and executed by [theDecisionIsExecutedOnPinnedLines]. */
         fun namesThePrivateHost(text: String): Boolean = PRIVATE_HOST.containsMatchIn(text)
 
         /**
-         * THE WALK AND ITS REPORT, as one function of its ROOT — so it can be executed against a
+         * The walk and its report, as one function of its root, so it can be executed against a
          * throwaway tree that carries the label, which is the lint's only positive case. Paths are
          * reported relative to the root it was given, never to the checkout, so the two callers
          * read the same way.
@@ -209,10 +209,10 @@ class NoPrivateHostInTreeTest {
 
         /**
          * Directories (and, for `.git` in a worktree, a file) never read. Named and reasoned one
-         * by one — this is an exclusion list, never an inclusion list.
+         * by one, this is an exclusion list, never an inclusion list.
          */
         val SKIPPED_NAMES = setOf(
-            ".git", // git's own store; in a worktree the `.git` entry is a pointer FILE
+            ".git", // git's own store; in a worktree the `.git` entry is a pointer file
             ".gradle", // Gradle's local cache
             ".idea", // IDE state
             "build", // every module's build outputs, wherever they sit
@@ -238,14 +238,14 @@ class NoPrivateHostInTreeTest {
 
         /**
          * The walk reads ~735 files today. The floor is a floor, not a count: it must survive a
-         * few files being added or deleted, and must NOT survive the walk being narrowed to a
+         * few files being added or deleted, and must not survive the walk being narrowed to a
          * module (the largest single top-level directory holds 269).
          */
         const val MIN_FILES = 400
         const val MIN_K9S_FIXTURES = 3
 
         /**
-         * Known files the walk must have READ — not merely have on disk. One per area that an
+         * Known files the walk must have read, not merely have on disk. One per area that an
          * exclusion could amputate without denting the floor: measured, adding `fastlane` to
          * [SKIPPED_NAMES] still leaves 579 files, and `site` or `xml` are just as cheap. Every one
          * of those three is published material (F-Droid's listing in nine languages, the public
@@ -276,7 +276,7 @@ class NoPrivateHostInTreeTest {
             .onEnter { dir ->
                 dir == root || (
                     dir.name !in SKIPPED_NAMES &&
-                        // A directory holding a `.git` entry is a checkout of its own — a git
+                        // A directory holding a `.git` entry is a checkout of its own, a git
                         // worktree, a `.wt-*` release tree. Its content belongs to another commit,
                         // really does still carry the old domain, and is not ours to judge.
                         !File(dir, ".git").exists()

@@ -8,7 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Changing the sending identity rewrites the signature block of the body as TEXT
+ * Changing the sending identity rewrites the signature block of the body as text
  */
 class RichBodyRewriteTest {
 

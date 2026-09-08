@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Reading a cached message body. The rule: a row we cannot read costs one refetch, never a
+ * Reading a cached message body.
  */
 class CachedBodyReadTest {
 
@@ -36,7 +36,7 @@ class CachedBodyReadTest {
         // First open: the read throws, the caller gets a miss (and refetches), the row is gone.
         assertNull(readCachedOrPurge(read, purge))
         assertEquals(0, rows)
-        // Every later open is an ordinary cache miss — no exception escapes to the reader.
+        // Every later open is an ordinary cache miss, no exception escapes to the reader.
         assertNull(readCachedOrPurge(read, purge))
     }
 

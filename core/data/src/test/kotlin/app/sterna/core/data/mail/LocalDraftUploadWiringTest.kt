@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT — the last resort, as [LocalDraftSaveWiringTest] is and for the same reason:
+ * Source lint, the last resort, as [LocalDraftSaveWiringTest] is and for the same reason:
  */
 class LocalDraftUploadWiringTest {
 
@@ -54,7 +54,7 @@ class LocalDraftUploadWiringTest {
                 "row = localDraftDao.byId(credentials.id, id),",
                 "nowMillis = now,",
                 "markUploading = { localDraftDao.setState(credentials.id, id, LocalDraftState.UPLOADING) },",
-                // TWO bounds, at two levels, and BOTH lines with their argument.
+                // Two bounds, at two levels, and both lines with their argument.
                 //  - the read budget: `appendDraft` names none of its own, so without this element
                 "upload = { row ->",
                 "withLocalDraftAttemptBudget(LOCAL_DRAFT_ATTEMPT_BUDGET_MS) {",
@@ -78,9 +78,9 @@ class LocalDraftUploadWiringTest {
     }
 
     @Test fun `a save that could not reach the server books the deferred upload itself`() {
-        // THE promise of the volet, and nothing was booking it: `LocalDraftUploads.enqueue` had
+        // The promise of the volet, and nothing was booking it: `LocalDraftUploads.enqueue` had
         // two callers, the startup re-arm and the worker re-booking itself. A draft saved in a lift
-        // therefore left the phone only after the app had DIED and started again — the row was
+        // therefore left the phone only after the app had died and started again, the row was
         // written, the backoff was armed, and no timer was ever attached to it.
         //
         // The seam is the outbox's, copied: the data layer books work without knowing WorkManager.
@@ -104,8 +104,8 @@ class LocalDraftUploadWiringTest {
     }
 
     @Test fun `the IMAP upload asks before it appends, and every guard behind it still stands`() {
-        // The WHOLE IMAP branch, in order, because two separate things have to hold at once:
-        //  - the APPEND sits behind `appendDraftUnlessAlreadyThere`, fed by the REAL search
+        // The whole IMAP branch, in order, because two separate things have to hold at once:
+        //  - the APPEND sits behind `appendDraftUnlessAlreadyThere`, fed by the real search
         val body = DaoQuerySource.mailFunctionBody("MailRepository", "uploadDraft")
         val to = body.indexOf("return outcome")
         assertTrue("uploadDraft no longer holds an IMAP branch ending in `return outcome`", to > 0)
@@ -121,14 +121,14 @@ class LocalDraftUploadWiringTest {
                 "if (credentials.protocol == MailProtocol.IMAP) {",
                 "val drafts = mailboxDao.idForRole(credentials.id, \"drafts\") ?: error(\"This account has no Drafts folder.\")",
                 "val parts = imapDraftAttachments(attachments)",
-                // `val wentOut =` is LOAD-BEARING, and dropping it compiles: the function
-                // already answers "did the bytes actually go out", and thrown away — as it was —
+                // `val wentOut =` is load-bearing, and dropping it compiles: the function
+                // already answers "did the bytes actually go out"; thrown away, that answer is lost.
                 "val wentOut = appendDraftUnlessAlreadyThere(",
                 "row = row,",
-                // NAMED, and it is not a matter of taste: `draftIsAlreadyThere` takes a folder
+                // Named, and it is not a matter of taste: `draftIsAlreadyThere` takes a folder
                 // and a Message-ID, both `String`, and swapping the two at the declaration compiles
                 // against a positional call. The search then selects a folder named after a message
-                // id, throws, is read as "not there" — and appends. Silent, and green.
+                // id, throws, is read as "not there", and appends. Silent, and green.
                 "alreadyThere = { messageId ->",
                 "imap.draftIsAlreadyThere(credentials = credentials, draftsMailbox = drafts, messageId = messageId)",
                 "},",
@@ -141,8 +141,8 @@ class LocalDraftUploadWiringTest {
                 ")",
                 "val addressingIsCarried = draftAddressingIsCarried(",
                 "replacesEmailId = replacesEmailId,",
-                // The Cc AND the Bcc since 2026-08-25 — the appended draft carries a real `Bcc:`
-                // header now, so the server-side read has one to match. WHY it says that is
+                // The Cc and the Bcc since 2026-08-25, the appended draft carries a real `Bcc:`
+                // header now, so the server-side read has one to match. Why it says that is
                 // [DraftAddressingWiringTest]'s and [DraftSaveTest]'s; this list only has to keep
                 // following the shipped body, or it pins a guard the app no longer runs.
                 "replacement = draftReplacementAddressing(ccTrimmed, bccTrimmed),",
@@ -171,8 +171,8 @@ class LocalDraftUploadWiringTest {
     }
 
     @Test fun `every destroy guard is told whether the replacement actually went out`() {
-        // THE line that re-opens the defect, and it is one word: `replacementWentOut = true` on
-        // the IMAP branch. Every executable suite stays green — `draftReplacementIsFaithful` is
+        // The line that re-opens the defect, and it is one word: `replacementWentOut = true` on
+        // the IMAP branch.
         val upload = DaoQuerySource.mailFunctionBody("MailRepository", "uploadDraft")
         assertEquals(
             "the APPEND's answer must be CAUGHT, not dropped: a bare call is the defect itself",
@@ -202,8 +202,9 @@ class LocalDraftUploadWiringTest {
     }
 
     @Test fun `the leg is declared with no default, and production answers it in three places`() {
-        // THE guard is the ABSENT DEFAULT, not the position. `replacementWentOut: Boolean = true`
-        // compiles, leaves all three call sites untouched, leaves every assertion above green — and
+        // The guard is the absent default, not the position. `replacementWentOut: Boolean = true`
+        // compiles, leaves all three call sites untouched, leaves every assertion above green, and
+        // arms the defect for every caller written from then on, which inherits "it went out"
         assertEquals(
             "draftReplacementIsFaithful must declare `replacementWentOut: Boolean,` bare — no " +
                 "`= true`, which would compile and silently arm every future caller — and weigh " +
@@ -215,7 +216,7 @@ class LocalDraftUploadWiringTest {
             ),
             codeLinesNaming(DaoQuerySource.mailSource("DraftSave"), "replacementWentOut"),
         )
-        // And a CLOSED set of answers: exactly three, each one read above. A fourth call site
+        // And a closed set of answers: exactly three, each one read above. A fourth call site
         // appearing in either file turns this red rather than shipping an unreviewed `true`.
         assertEquals(
             "exactly three answers in production — the IMAP lookup's boolean, the JMAP server's " +
@@ -233,7 +234,7 @@ class LocalDraftUploadWiringTest {
 
     @Test fun `the lookup behind it enumerates the folder and compares the ids here`() {
         // The whole body, and every line of it is load-bearing:
-        //  - `newestUids`, not `allUids`: our copy is the LAST thing appended, and `allUids` keeps
+        //  - `newestUids`, not `allUids`: our copy is the last thing appended, and `allUids` keeps
         assertEquals(
             "draftIsAlreadyThere must SELECT the Drafts folder, enumerate its newest UIDs and " +
                 "compare the Message-IDs here:",
@@ -248,8 +249,11 @@ class LocalDraftUploadWiringTest {
             ),
             codeOf(DaoQuerySource.mailFunctionBody("ImapMailService", "draftIsAlreadyThere")),
         )
-        // And the DECLARATION, parameters included — the body lint above starts at the brace
-        // AFTER the closing parenthesis, so it sees nothing of the two `String`s the caller has to
+        // And the declaration, parameters included, the body lint above starts at the brace
+        // after the closing parenthesis, so it sees nothing of the two `String`s the caller has to
+        // get the right way round. [ImapDraftAppendGoesOutOnceTest] drives the function itself,
+        // positionally, and reads back what the server was actually sent; this states the contract
+        // that call relies on.
         val source = DaoQuerySource.mailSource("ImapMailService")
         val at = source.indexOf("suspend fun draftIsAlreadyThere(")
         assertTrue("ImapMailService no longer declares draftIsAlreadyThere( — renamed?", at >= 0)
@@ -268,9 +272,9 @@ class LocalDraftUploadWiringTest {
 
     @Test fun `the one place every IMAP call passes reads the budget its coroutine carries`() {
         // The other half of the wiring above: `MailRepository.uploadLocalDraft` installing an
-        // [ImapReadBudget] is worth nothing unless `runWithRetry` LOOKS for it. The decision itself
+        // [ImapReadBudget] is worth nothing unless `runWithRetry` looks for it. The decision itself
         // ([ImapBudget.effective]) is executed by ImapBudgetTest; this pins that it is asked, with
-        // the caller's budget and the ambient one, and that the answer becomes THE deadline.
+        // the caller's budget and the ambient one, and that the answer becomes the deadline.
         //
         // The whole body, in order, because two mutations that compile live in it:
         //  - `ImapBudget.deadline(budgetMs, …)` back as it was: every caller keeps working, every
@@ -307,7 +311,7 @@ class LocalDraftUploadWiringTest {
         )
         // And the deferred upload's own bound, which no executed test can read off the call site:
         // a minute is above any honest APPEND and well under the ten minutes at which WorkManager
-        // stops a worker — the attempt has to record its failure INSIDE its own run.
+        // stops a worker, the attempt has to record its failure inside its own run.
         assertEquals(
             listOf("const val LOCAL_DRAFT_UPLOAD_BUDGET_MS: Int = 60_000"),
             codeLinesNaming(DaoQuerySource.mailSource("LocalDraftUpload"), "LOCAL_DRAFT_UPLOAD_BUDGET_MS: Int"),
@@ -315,7 +319,7 @@ class LocalDraftUploadWiringTest {
     }
 
     @Test fun `a draft's staged bytes are built under filesDir, never a tree Android empties`() {
-        // `DataFactory` is read by no executed test — it builds Room, a Context and every
+        // `DataFactory` is read by no executed test, it builds Room, a Context and every
         // repository. `appContext.filesDir` → `appContext.cacheDir` compiles, and the attachments
         assertEquals(
             "one tree, resolved under filesDir and handed to BOTH readers — the repository that " +
@@ -331,7 +335,7 @@ class LocalDraftUploadWiringTest {
 
     @Test fun `the startup re-arm reads the queue through the shipped statements`() {
         // Read over the whole file: these three are one-liners, and what has to be pinned is the
-        // ARGUMENTS each hands the DAO, not that a call of that name exists somewhere.
+        // arguments each hands the DAO, not that a call of that name exists somewhere.
         val source = DaoQuerySource.mailSource("MailRepository")
         assertEquals(
             "the accounts to re-arm come from the DAO's own DISTINCT, never from a caller's list",
@@ -358,16 +362,16 @@ class LocalDraftUploadWiringTest {
     }
 
     @Test fun `removing an account takes its local drafts and their staged bytes with it`() {
-        // A local draft is NOT cache: it is text the user typed that the server has not got. It
-        // belongs with `snoozed` and the outbox on the user-data side, so it goes on SIGN-OUT and
-        // on nothing else — not on "clear cache", not on the orphan sweep.
+        // A local draft is not cache: it is text the user typed that the server has not got. It
+        // belongs with `snoozed` and the outbox on the user-data side, so it goes on sign-out and
+        // on nothing else, not on "clear cache", not on the orphan sweep.
         //
         // The whole body, in order, because the two halves are separable and the second is the one
         // that gets forgotten: deleting the rows alone leaves the attachments of a removed account
         // on the phone with nothing left to name them.
         //
-        // And one `runCatching` PER STEP, as `purgeOrphanedAccounts` already does table by
-        // table. The draft purge was the one bare call in the middle of the run: a throw from it
+        // And one `runCatching` per step, as `purgeOrphanedAccounts` already does table by
+        // table.
         assertEquals(
             "StorageRepository.purgeAccount must purge the local drafts, rows AND files, and no " +
                 "step may take the ones after it down with it:",
@@ -395,8 +399,8 @@ class LocalDraftUploadWiringTest {
     }
 
     @Test fun `clearing the cache never touches a draft the server has not got`() {
-        // The witness on the test above, and the reason the purge is in ONE of the four. "Clear
-        // cache" and "clear this account's cache" are offered as free of consequence — every byte
+        // The witness on the test above, and the reason the purge is in one of the four. "Clear
+        // cache" and "clear this account's cache" are offered as free of consequence, every byte
         // they drop can be downloaded again. A local draft cannot: nothing else holds it.
         for (function in listOf("clearAllCache", "clearAccountCache")) {
             assertEquals(

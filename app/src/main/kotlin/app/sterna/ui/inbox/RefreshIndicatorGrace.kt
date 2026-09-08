@@ -44,7 +44,7 @@ internal fun startRefreshRun(previous: RefreshRun?, now: Long, instant: Boolean)
 }
 
 /** Whether the indicator is drawn at [now]. A stretch that ended before it was due to be shown is
- *  never shown at all (#178) — a blind floor would light the tern 250→750 ms for a refresh already
+ *  never shown at all (#178), a blind floor would light the tern 250→750 ms for a refresh already
  *  over. Otherwise from [showAt] to `max(endedAt, showAt + REFRESH_INDICATOR_MIN_SHOW_MS)`. */
 internal fun refreshIndicatorShowing(run: RefreshRun?, now: Long): Boolean {
     if (run == null) return false
@@ -55,7 +55,7 @@ internal fun refreshIndicatorShowing(run: RefreshRun?, now: Long): Boolean {
 }
 
 /** The next instant at which [refreshIndicatorShowing] answers differently, or null when it never
- * will again — the single wake-up [refreshIndicatorVisibility] schedules per emission. Null, not
+ * will again, the single wake-up [refreshIndicatorVisibility] schedules per emission. Null, not
  *  `showAt`, for a stretch that ended inside its grace: it has no visible future. */
 internal fun nextRefreshIndicatorChange(run: RefreshRun?, now: Long): Long? {
     if (run == null) return null
@@ -63,7 +63,7 @@ internal fun nextRefreshIndicatorChange(run: RefreshRun?, now: Long): Long? {
     val ended = run.endedAt
     if (ended != null && ended < from) return null
     if (now < from) return from
-    // Visible from here on: only an END can take it off, and a running stretch has none.
+    // Visible from here on: only an end can take it off, and a running stretch has none.
     if (ended == null) return null
     val until = maxOf(ended, from + REFRESH_INDICATOR_MIN_SHOW_MS)
     return if (now < until) until else null

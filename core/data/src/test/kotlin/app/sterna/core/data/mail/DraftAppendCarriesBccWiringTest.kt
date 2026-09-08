@@ -4,11 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * THIS TEST READS SOURCE TEXT — the last resort, and for the usual reason: `ImapMailService`
+ * This test reads source text, the last resort, and for the usual reason: `ImapMailService`
  */
 class DraftAppendCarriesBccWiringTest {
 
-    /** The code lines of the file naming [needle] — comments dropped, so prose can neither satisfy
+    /** The code lines of the file naming [needle], comments dropped, so prose can neither satisfy
      *  a rule nor break one. Whole lines: the assertion compares them, never searches inside them. */
     private fun codeLinesNaming(source: String, needle: String): List<String> =
         source.lines().map { it.trim() }
@@ -37,7 +37,7 @@ class DraftAppendCarriesBccWiringTest {
     }
 
     /**
-     * The other side of the same parameter, and the risk that is NOT on this bench at all.
+     * The other side of the same parameter, and the risk that is not on this bench at all.
      */
     @Test
     fun `the repository names the blind-copy type nowhere, so its submitted bytes keep the default`() {

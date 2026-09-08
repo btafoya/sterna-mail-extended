@@ -6,7 +6,11 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The empty-save of a draft opened straight off the SERVER, on its way from the composer to the
+ * The empty-save of a draft opened straight off the server, on its way from the composer to the
+ * expunge, source lint, the last resort, for [DraftVerdictWiringTest]'s reason: nothing in this
+ * module can instantiate `ComposeViewModel` (an `AndroidViewModel`, no Robolectric here). The
+ * decision itself is executed by [EmptiedServerDraftTest] ([emptiedServerDraftIsKept]); what nothing
+ * else can see is whether this route still asks it, and asks it about THIS screen's verdict.
  */
 class EmptiedServerDraftWiringTest {
 
@@ -28,7 +32,7 @@ class EmptiedServerDraftWiringTest {
 
     @Test fun `the kept copy is SAID, and the expunge is what the other branch does`() {
         val lines = codeLines(bodyOf("saveDraft"))
-        // Exact equality, never a prefix: the LOCAL route one branch above opens with almost the
+        // Exact equality, never a prefix: the local route one branch above opens with almost the
         // same words and closes on its own line (`submit(to) { _, _ -> destroyReplacedServerDraft(original) }`),
         // so a prefix match can land on that one and this test then pins the wrong branch.
         val at = lines.indexOfFirst { it == "submit(to) { _, _ ->" }
@@ -51,7 +55,7 @@ class EmptiedServerDraftWiringTest {
                 "next sync. Body was:\n" + lines.joinToString("\n"),
             listOf(
                 "submit(to) { _, _ ->",
-                // The account is resolved by a LOCAL FUN and not into a val up front: a
+                // The account is resolved by a local fun and not into a val up front: a
                 // lossy draft keeps its copy whatever the account says, and resolving an account
                 "fun destroyingCredentials(): AccountCredentials =",
                 "credentialsDestroyingEmptiedServerDraft(",
@@ -60,7 +64,7 @@ class EmptiedServerDraftWiringTest {
                 "lookup = { store.credentials(it) },",
                 ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
                 // The second term of the guard, and the whole correction: the addressing
-                // of the copy about to be expunged, PROVEN empty or not proven at all. Read under
+                // of the copy about to be expunged, proven empty or not proven at all. Read under
                 "val addressingIsProvenEmpty = !editingDraftLossy &&",
                 "repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
                 "if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {",
@@ -75,7 +79,8 @@ class EmptiedServerDraftWiringTest {
     }
 
     /**
-     * …and WHOSE server hears the expunge. `submit`'s own credentials are the account of the
+     * …and whose server hears the expunge. `submit`'s own credentials are the account of the
+     * identity the "From" picker is showing, and that picker covers every account: with "From"
      */
     @Test fun `the account it is addressed to is resolved once, from the freeze, with no fallback`() {
         val save = codeOf(COMPOSE_VIEW_MODEL.readText())
@@ -112,7 +117,7 @@ class EmptiedServerDraftWiringTest {
     }
 
     /**
-     * And the GATE that decides whether the destroying branch is entered at all.
+     * And the gate that decides whether the destroying branch is entered at all.
      */
     @Test fun `what counts as empty is the shared rule, holding this screen's own attachments`() {
         assertEquals(

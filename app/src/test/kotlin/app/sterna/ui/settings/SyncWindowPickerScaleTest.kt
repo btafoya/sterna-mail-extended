@@ -8,7 +8,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * What the "Messages to sync" row OFFERS, and the weld between each offered number and the label it
+ * What the "Messages to sync" row offers, and the weld between each offered number and the label it
+ * is shown under, in all nine languages.
  */
 class SyncWindowPickerScaleTest {
 
@@ -55,7 +56,7 @@ class SyncWindowPickerScaleTest {
         // The survivor an audit found, and it is the worst shape in this volet:
         //     selected = syncWindowChoices().firstOrNull { it == syncWindow } ?: syncWindowChoices().last()
         //
-        // A dialog with NO radio ticked on an unmigrated account is the ACCEPTED cost of that
+        // A dialog with NO radio ticked on an unmigrated account is the accepted cost of that
         // promise: the summary line tells the truth, and nothing is invented to fill a circle.
         assertTrue(
             "the sync-window row no longer shows `selected = syncWindow,` — whatever it shows " +
@@ -79,7 +80,7 @@ class SyncWindowPickerScaleTest {
             "SyncWindow.COUNT_50 -> context.getString(R.string.settings_sync_50_messages)",
             "SyncWindow.COUNT_200 -> context.getString(R.string.settings_sync_200_messages)",
             "SyncWindow.COUNT_500 -> context.getString(R.string.settings_sync_500_messages)",
-            // NOT settings_sync_everything any more — see the test below for why.
+            // Not settings_sync_everything any more, see the test below for why.
             "SyncWindow.ALL -> context.getString(R.string.settings_sync_10000_messages)",
         ).forEach {
             assertTrue(
@@ -94,7 +95,7 @@ class SyncWindowPickerScaleTest {
 
     @Test fun `each new label states, in every language, the number its window really caches`() {
         // The mutation this exists for: a member whose `limit` no longer matches the label it is
-        // shown under. Nothing else in the repo compares the two — the enum test would pass, the
+        // shown under. Nothing else in the repo compares the two, the enum test would pass, the
         // resource lint would pass, and the row would promise 1 000 messages while caching 500.
         // Digits only: the thousands separator is the translator's (1,000 / 1.000 / 1 000 / 1000).
         mapOf(
@@ -118,12 +119,12 @@ class SyncWindowPickerScaleTest {
     }
 
     @Test fun `an account left on Everything reads as 10000, in every language`() {
-        // WYSIWYG (CLAUDE.md's arbitration grid, rule 3: between lowering the label and raising
+        // WYSIWYG (claude.md's arbitration grid, rule 3: between lowering the label and raising
         // the code, lower the label). "Everything / Tout / Alles / Всё" now caches 10 000 messages
         // and no more. Left as it was, a user on that window would believe her whole mailbox is
         // offline while 40 000 messages leave the cache without the screen ever having said so.
         //
-        // The member is untouched, the string is untouched and still shipped: ONE `when` arm now
+        // The member is untouched, the string is untouched and still shipped: one `when` arm now
         // points at the label of the largest offered window, so the two render identically.
         val all = labelKeyOf("ALL")
         val biggest = labelKeyOf("COUNT_10000")
@@ -145,9 +146,9 @@ class SyncWindowPickerScaleTest {
     }
 
     @Test fun `the Everything strings are still shipped, they are just not shown any more`() {
-        // Nothing may be deleted: `SyncWindow.ALL` stays in the enum for ever (its name is on
+        // Nothing may be deleted: `SyncWindow.All` stays in the enum for ever (its name is on
         // disk), and a string removed today is a string a later volet cannot put back without a
-        // translation round. Nine locales, still there — SyncEverythingLabelTest pins the words.
+        // translation round. Nine locales, still there, SyncEverythingLabelTest pins the words.
         assertEquals(
             "settings_sync_everything was dropped from a locale",
             emptyList<String>(),

@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * THE NOTIFICATION PASS MUST NOT ERASE WHAT THE FOLDER WALK JUST WROTE (#187).
+ * The notification pass must not erase what the folder walk just wrote (#187).
  */
 class PushPassKeepsCachedPreviewsTest {
 
@@ -29,7 +29,7 @@ class PushPassKeepsCachedPreviewsTest {
     private fun pushRow(uid: Long) = message(uid).toEntity("acct-1", "INBOX", 42L, preview = null)
 
     /**
-     * THE WITNESS. The pass hands over a page it read no bodies for; the cache holds the opening
+     * The witness. The pass hands over a page it read no bodies for; the cache holds the opening
      */
     @Test fun `a row the push pass built blank takes back the opening line the cache holds`() {
         val kept = keepingCachedPreviews(
@@ -48,7 +48,7 @@ class PushPassKeepsCachedPreviewsTest {
     }
 
     /**
-     * EACH LINE UNDER ITS OWN ROW'S ID, never by position. The map is keyed by cache id for
+     * Each line under its own row's ID, never by position.
      */
     @Test fun `each opening line lands on the row whose id carries it`() {
         val kept = keepingCachedPreviews(
@@ -67,7 +67,9 @@ class PushPassKeepsCachedPreviewsTest {
     }
 
     /**
-     * A row that ALREADY carries an opening line keeps its OWN. The row is the fresher of the
+     * A row that already carries an opening line keeps its own. The row is the fresher of the
+     * two and the cached value is what it was about to replace; letting the cache win would freeze
+     * a stale line onto a row whose message the server has since changed under the same id.
      */
     @Test fun `a row that already carries an opening line keeps its own`() {
         val row = message(7L).toEntity("acct-1", "INBOX", 42L, preview = "what the row read")
@@ -82,7 +84,7 @@ class PushPassKeepsCachedPreviewsTest {
     }
 
     /**
-     * And a row the cache knows nothing about stays BLANK. On this path blank means "no opening
+     * And a row the cache knows nothing about stays blank. On this path blank means "no opening
      */
     @Test fun `a row the cache knows nothing about stays blank`() {
         val kept = keepingCachedPreviews(listOf(pushRow(7L)), emptyMap())
@@ -93,7 +95,7 @@ class PushPassKeepsCachedPreviewsTest {
     }
 
     /**
-     * SOURCE TEXT, AND A LAST RESORT — `MailRepository` cannot be instantiated on the JVM. The
+     * Source text, and a last resort, `MailRepository` cannot be instantiated on the JVM.
      */
     @Test fun `the shipped write carries the cached openings over, one folder page at a time`() {
         val body = DaoQuerySource.mailFunctionBody("MailRepository", "refreshAccountFolders")
@@ -115,7 +117,7 @@ class PushPassKeepsCachedPreviewsTest {
     }
 
     /**
-     * AND THE READ IS BOUNDED BY THE NUMBERING THE PAGE WAS READ UNDER — the half `keepingCachedPreviews`
+     * And the read is bounded by the numbering the page was read under, the half `keepingCachedPreviews`
      */
     @Test fun `the push load carries the numbering its page was read under, and has no default`() {
         val source = DaoQuerySource.mailSource("ImapMailService")

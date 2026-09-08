@@ -19,14 +19,14 @@ internal class ScriptedImapServer(
 
     private val server = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
 
-    /** Every command line received, tag stripped, in order — across every connection. */
+    /** Every command line received, tag stripped, in order, across every connection. */
     val commands: MutableList<String> = Collections.synchronizedList(mutableListOf<String>())
 
-    /** The payload of every literal received, in order — an APPEND's MIME, verbatim. */
+    /** The payload of every literal received, in order, an APPEND's MIME, verbatim. */
     val literals: MutableList<String> = Collections.synchronizedList(mutableListOf<String>())
 
     /**
-     * How many connections have been ACCEPTED, over the life of this server.
+     * How many connections have been accepted, over the life of this server.
      */
     val connections = AtomicInteger(0)
 
@@ -66,7 +66,7 @@ internal class ScriptedImapServer(
             writer.write(answer)
             writer.flush()
             // A LOGOUT the responder ANSWERED ends the connection, as a real server's does. One it
-            // left UNANSWERED must not: returning would close the socket under `.use`, the client
+            // left unanswered must not: returning would close the socket under `.use`, the client
             if (line.startsWith("LOGOUT") && answer.isNotEmpty()) return
         }
     }
@@ -85,7 +85,7 @@ internal class ScriptedImapServer(
     /** Command lines received so far, excluding the LOGIN (whose arguments are credentials). */
     fun issued(): List<String> = commands.toList().filterNot { it.startsWith("LOGIN") }
 
-    /** The received lines that start with [prefix] — what an assertion about a destroy reads. */
+    /** The received lines that start with [prefix], what an assertion about a destroy reads. */
     fun issued(prefix: String): List<String> = issued().filter { it.startsWith(prefix) }
 
     override fun close() {

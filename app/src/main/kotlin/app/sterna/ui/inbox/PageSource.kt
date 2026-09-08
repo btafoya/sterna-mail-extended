@@ -35,7 +35,7 @@ internal data class PageKey(
 )
 
 /** The key [InboxViewModel.pagedEmails] pages from. Every emission rebuilds the pager, so the list
- *  jumps to the top — hence [distinctUntilChanged], here and not in the caller, DataStore
+ *  jumps to the top, hence [distinctUntilChanged], here and not in the caller, DataStore
  * republishing all `Preferences` on every write. Needs equality on every [PageKey] member. */
 internal fun pageKeyFlow(
     selection: Flow<Sel>,
@@ -83,9 +83,9 @@ internal fun unreadRefreshTargets(
 internal fun refreshedInboxId(refreshedIds: List<String>, inboxId: String?): String? =
     inboxId?.takeIf { it in refreshedIds }
 
-/** Whether the list is filtered to unread — one answer, for the pager and for "Select all".
+/** Whether the list is filtered to unread, one answer, for the pager and for "Select all".
  * One function called from both: the pager forcing the filter while `selectAll` reads the raw
- *  toggle is the destructive half of #126 — "Select all" then "Delete" trashes every read message. */
+ *  toggle is the destructive half of #126, "Select all" then "Delete" trashes every read message. */
 internal fun listUnreadOnly(sel: Sel, toggle: Boolean): Boolean = listUnreadOnly(sel == Sel.Unread, toggle)
 
 /** The same decision asked by the screen, which holds a flag and not a [Sel]. An overload that

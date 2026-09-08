@@ -10,10 +10,13 @@ import org.junit.Test
 
 /**
  * The notification-content position on its way to and from storage (Codeberg #25): its key, its
+ * fallback, and its trip through a settings backup. All of it runs the shipped decision, the two
+ * lookups were pulled out of the flow and out of `restoreBackup` precisely so they could be, since
+ * `SettingsRepository` needs a Context and a DataStore and cannot be built in this module.
  */
 class NotificationContentStoredTest {
 
-    /** The persisted key, spelled as the store spells it — renaming it resets everyone's choice. */
+    /** The persisted key, spelled as the store spells it, renaming it resets everyone's choice. */
     private val storedKey = stringPreferencesKey("notification_content")
 
     @Test fun aFreshInstallShowsSenderAndSubject() {
@@ -35,7 +38,7 @@ class NotificationContentStoredTest {
     }
 
     @Test fun theTalkativePositionIsNeverReachedByAccident() {
-        // Every way of NOT having chosen it, and the answer is the same each time. The default is
+        // Every way of not having chosen it, and the answer is the same each time. The default is
         // the one direction of this setting that cannot be corrected after the fact: a body shown
         // on a lock screen has been read by whoever was looking at it.
         listOf(emptyPreferences(), preferencesOf(storedKey to ""), preferencesOf(storedKey to "sender_and_subject"))
@@ -49,7 +52,7 @@ class NotificationContentStoredTest {
     }
 
     @Test fun aPositionThisBuildDoesNotKnowFallsBackToSenderAndSubject() {
-        // A newer build's position, read after a downgrade. Written as a literal that is NOT one of
+        // A newer build's position, read after a downgrade. Written as a literal that is not one of
         // this enum's names, which is the whole point: the string is what an older build would have
         // been handed on the day BODY_PREVIEW shipped.
         assertEquals(
@@ -82,7 +85,7 @@ class NotificationContentStoredTest {
         )
         assertTrue("exported: $encoded", encoded.contains("\"notificationContent\": \"BODY_PREVIEW\""))
         val back = SettingsBackupCodec.decode(encoded)
-        // The VALUE restoreBackup would apply, run rather than described.
+        // The value restoreBackup would apply, run rather than described.
         assertEquals(
             NotificationContent.BODY_PREVIEW,
             notificationContentOrNull(back?.notificationContent),

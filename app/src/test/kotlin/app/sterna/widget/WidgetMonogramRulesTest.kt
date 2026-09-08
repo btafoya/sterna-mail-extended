@@ -12,7 +12,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
- * The badge's two decisions, EXECUTED — not read as text.
+ * The badge's two decisions, executed, not read as text.
  */
 class WidgetMonogramRulesTest {
 
@@ -23,7 +23,7 @@ class WidgetMonogramRulesTest {
         ToneRamp(Color(0xFFFFD8E4), Color(0xFF31111D)),
     )
 
-    /** The same three families as a dark scheme states them — the theme the reader switched to. */
+    /** The same three families as a dark scheme states them, the theme the reader switched to. */
     private val darkRamps = listOf(
         ToneRamp(Color(0xFF1F3B38), Color(0xFFCFE8E4)),
         ToneRamp(Color(0xFF362F42), Color(0xFFE8DEF8)),
@@ -35,7 +35,7 @@ class WidgetMonogramRulesTest {
     }
 
     /**
-     * THE WIDGET DOES NOT OWN A TINT RULE. Every one of the palette's eighteen badges must come
+     * The widget does not own a tint rule. Every one of the palette's eighteen badges must come
      */
     @Test fun `a badge is painted the colour the app's own list would paint that slot`() {
         assertEquals(
@@ -61,7 +61,7 @@ class WidgetMonogramRulesTest {
     }
 
     /**
-     * BLACK OR WHITE BY LUMINANCE, never a hard-coded white. The badge is drawn on the palest end
+     * Black or white by luminance, never a hard-coded white. The badge is drawn on the palest end
      */
     @Test fun `the initial is black or white by luminance, exactly as the in-app badge picks it`() {
         assertEquals(
@@ -96,7 +96,7 @@ class WidgetMonogramRulesTest {
     }
 
     /**
-     * THE KEY CARRIES THE RESOLVED COLOUR, and this is the rule the whole cache turns on.
+     * The key carries the resolved colour, and this is the rule the whole cache turns on.
      */
     @Test fun `two badges share a bitmap only when letter, resolved colour and side all match`() {
         val slot = MonogramSlot(2, 4)

@@ -12,7 +12,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The two decisions the link dialog makes (#131), EXECUTED — what it opens with, and what OK
+ * The two decisions the link dialog makes (#131), executed, what it opens with, and what OK
  */
 class LinkDialogTest {
 
@@ -85,7 +85,10 @@ class LinkDialogTest {
 
     @Test fun `OK with no label at all writes the address as its own words`() {
         // Without this, the fourth arm of `setLink` is reachable from the dialog: a bare cursor,
-        // no link under it, the label box empty — the body comes back UNCHANGED, `onApply` runs,
+        // no link under it, the label box empty, the body comes back unchanged, `onApply` runs,
+        // the dialog closes and nothing has happened, with nothing said. Gmail writes the address
+        // (rule 4), and `toPlainText` already spells that shape once rather than
+        // `https://example.org <https://example.org>`, so both ends agree.
         assertEquals(
             RichBody(
                 "hello worldhttps://example.org",
@@ -105,8 +108,8 @@ class LinkDialogTest {
     }
 
     @Test fun `a selection ignores the label box, empty or not`() {
-        // The guard on the rule above: the address must NOT be inserted when characters are
-        // already selected — those are the words the user chose, and `setLink` is right to ignore
+        // The guard on the rule above: the address must not be inserted when characters are
+        // already selected, those are the words the user chose, and `setLink` is right to ignore
         // the box. An `ifEmpty` applied one arm too far would append the URL to the message.
         assertEquals(
             RichBody("hello world", emptyMap(), emptyList(), listOf(link(6, 11, "https://example.org"))),
@@ -131,8 +134,8 @@ class LinkDialogTest {
     @Test fun `a label inserted into an item stays inside that item`() {
         // The lists half of this volet, and it is not decoration: `setLink` inserts through
         // `remapAfterEdit`, so the line the caret sits on keeps its block. Inserted any other way,
-        // the label would land on a line the list no longer covers and the item would break in two
-        // — one of them no longer an item at all.
+        // the label would land on a line the list no longer covers and the item would break in two,
+        // one of them no longer an item at all.
         val list = RichBody("milk\neggs", emptyMap(), listOf(Block(BlockKind.BULLET, 0..1)))
         assertEquals(
             RichBody(
@@ -146,7 +149,7 @@ class LinkDialogTest {
     }
 
     @Test fun `a selection covering two whole items is offered as the one link it carries`() {
-        // Two items, one address: stored as TWO links, because `</li><li>` carries no character.
+        // Two items, one address: stored as two links, because `</li><li>` carries no character.
         // Read as "no link", the dialog would offer to CREATE one with an empty address and
         // would not offer to remove anything, while `removeLink` would have done it.
         val two = RichBody(

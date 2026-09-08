@@ -17,7 +17,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The latest-messages widget's push, RUN — not read as source. What is pinned here is not that the
+ * The latest-messages widget's push, run, not read as source.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class RecentMailWidgetPushTest {
@@ -40,7 +40,7 @@ class RecentMailWidgetPushTest {
     /** The other empty: no inbox could be read at all, so the cell may claim nothing. */
     private val nothingToSay = RecentInbox(configured = false, rows = emptyList())
 
-    /** Nothing but the id matters here: the bound this pane follows is the list's SIZE. */
+    /** Nothing but the id matters here: the bound this pane follows is the list's size. */
     private fun account(id: String) = StoredAccount(id = id, server = "s", username = "u")
 
     /** Two accounts: above [AllInboxesView.existsFor], so the rows carry their colour dots. */
@@ -48,6 +48,9 @@ class RecentMailWidgetPushTest {
 
     /**
      * Stands in for `MailRepository.observeRecentUnifiedInbox(limit)`, and records two facts a
+     * single counter would conflate: that the factory was called, and that the flow it handed back
+     * was actually collected. Each subscription starts on a read of its own (`r0`, `r1`, …), so the
+     * collected values also say which subscription produced what.
      */
     private class Reader(private val initial: (Int) -> RecentInbox) {
         val asked = mutableListOf<String>()
@@ -104,7 +107,7 @@ class RecentMailWidgetPushTest {
     }
 
     /**
-     * The first cell placed opens the gate, and what happens afterwards arrives — this is the
+     * The first cell placed opens the gate, and what happens afterwards arrives, this is the
      * measured defect, in one test: a message marked read moves the rows, and the redraw follows.
      */
     @Test fun `the first widget placed starts the collection, and later reads arrive`() = runTest {
@@ -133,6 +136,7 @@ class RecentMailWidgetPushTest {
 
     /**
      * The claim [kotlinx.coroutines.flow.flatMapLatest] makes, executed rather than believed: the
+     * subscription is dropped when the last cell goes, not merely superseded. With `flatMapMerge`
      */
     @Test fun `the last widget removed really stops the collection`() = runTest {
         val reader = Reader { read(row("r$it")) }
@@ -157,7 +161,7 @@ class RecentMailWidgetPushTest {
         job.cancel()
     }
 
-    /** A cell placed again after the last one was removed gets a FRESH subscription. */
+    /** A cell placed again after the last one was removed gets a fresh subscription. */
     @Test fun `a widget placed again is followed again, on a new subscription`() = runTest {
         val reader = Reader { read(row("r$it")) }
         val placed = MutableStateFlow(true)
@@ -181,7 +185,9 @@ class RecentMailWidgetPushTest {
     }
 
     /**
-     * The gate's ceiling: an answer that has not CHANGED must not re-subscribe. Presence is fed by
+     * The gate's ceiling: an answer that has not changed must not re-subscribe. Presence is fed by
+     * callbacks that can repeat, and each repeat would otherwise cancel and rebuild the observed
+     * query for a state of affairs that is exactly what it already was.
      */
     @Test fun `the same answer twice does not re-subscribe the inbox`() = runTest {
         val reader = Reader { read(row("r$it")) }
@@ -200,7 +206,9 @@ class RecentMailWidgetPushTest {
     }
 
     /**
-     * THE SAME READ TWICE IS ONE REDRAW. Nothing upstream says so: Room invalidates per TABLE,
+     * The same read twice is one redraw. Nothing upstream says so: Room invalidates per table,
+     * so a sync writing a page of some other folder's mail re-runs this query and hands back the
+     * identical answer.
      */
     @Test fun `the same read arriving twice is drawn once`() = runTest {
         val first = read(row("a"), row("b"))
@@ -225,7 +233,8 @@ class RecentMailWidgetPushTest {
     }
 
     /**
-     * THE TWO EMPTIES ARE NOT THE SAME EMPTY, and this is the test the first version of this
+     * The two empties are not the same empty, and this is the test the first version of this
+     * pane did not have.
      */
     @Test fun `an empty inbox and no account at all are two different redraws`() = runTest {
         val seen = mutableListOf<RecentInbox>()
@@ -248,7 +257,7 @@ class RecentMailWidgetPushTest {
     }
 
     /**
-     * THE ROWS DO NOT MOVE AND THE CELL MUST STILL BE REDRAWN — the defect this pane closes.
+     * The rows do not MOVE and the cell must still be redrawn, the defect this pane closes.
      */
     @Test fun `crossing the two-account bound redraws, on rows that did not move`() = runTest {
         val reader = Reader { read(row("r$it")) }
@@ -279,7 +288,7 @@ class RecentMailWidgetPushTest {
     }
 
     /**
-     * THE PRICE OF THE ARM ABOVE, and the reason it carries a BOUND and not the account list.
+     * The price of the arm above, and the reason it carries a bound and not the account list.
      */
     @Test fun `an account list that does not cross the bound costs nothing`() = runTest {
         val reader = Reader { read(row("r$it")) }
@@ -315,7 +324,9 @@ class RecentMailWidgetPushTest {
         job.cancel()
     }
     /**
-     * ONE ACCOUNT IS NOT AN ABSENCE OF ACCOUNTS, and this test exists because the arm added for
+     * One account is not an absence of accounts, and this test exists because the arm added for
+     * the colour dots reads a bound: on a single-account install (the large majority) that bound
+     * is `false` for the whole life of the process.
      */
     @Test fun `a single account still follows the mail`() = runTest {
         val reader = Reader { read(row("r$it")) }
@@ -341,7 +352,7 @@ class RecentMailWidgetPushTest {
     }
 
     /**
-     * THE GATE GOVERNS BOTH ARMS, and this is the half a combine placed outside [flatMapLatest]
+     * The gate governs both arms, and this is the half a combine placed outside [flatMapLatest]
      */
     @Test fun `an account list that moves while no cell is placed redraws nothing`() = runTest {
         val reader = Reader { read(row("r$it")) }

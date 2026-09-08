@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, same shape and same reason as [OutboxParkWiringTest]. `ScheduledSendWorker` is a
+ * Source lint, same shape and same reason as [OutboxParkWiringTest].
  */
 class ScheduledSendFireWiringTest {
 
@@ -60,7 +60,7 @@ class ScheduledSendFireWiringTest {
     }
 
     /**
-     * Its own test, and the one that closes the window. The block above pins TWELVE lines around
+     * Its own test, and the one that closes the window. The block above pins twelve lines around
      */
     @Test fun `the row is destroyed in three places, and nowhere else`() {
         assertEquals(
@@ -71,7 +71,7 @@ class ScheduledSendFireWiringTest {
             listOf(
                 // 1. Proven departure: nothing can ever send it, so nothing is being lost.
                 "repo.deleteScheduledSend(id)",
-                // 2. AFTER enqueueSend returned — the outbox now holds the copy. Moved above the
+                // 2. After enqueueSend returned, the outbox now holds the copy. Moved above the
                 // enqueue, a throw would leave neither a scheduled row nor an outbox item.
                 "repo.deleteScheduledSend(id)",
                 // 3. Retries exhausted, and only after the banner has named the failure (#57).
@@ -82,7 +82,7 @@ class ScheduledSendFireWiringTest {
     }
 
     /**
-     * Counting the sites is not enough, and its own test says why. The three lines above are
+     * Counting the sites is not enough, and its own test says why.
      */
     @Test fun `only the proven-departure arm may destroy the row before the hand-over`() {
         val lines = linesOf(WORKER)

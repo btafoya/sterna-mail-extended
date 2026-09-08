@@ -6,7 +6,9 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — said first, as `SenderRuleDialogFitTest` says it, because the
+ * Source lint, not a behaviour test, said first, as `SenderRuleDialogFitTest` says it, because the
+ * defect it guards is a layout one and nothing in this module can measure a layout: there is no
+ * Robolectric, no compose-ui-test and no androidTest here, and adding one is a dependency decision.
  */
 class RecipientMenuFitTest {
 
@@ -77,7 +79,7 @@ class RecipientMenuFitTest {
     }
 
     /**
-     * Mutation B, half of it: the keyboard is read, once, before the popup — and halved. This
+     * Mutation B, half of it: the keyboard is read, once, before the popup, and halved.
      */
     @Test fun `the keyboard height is read whole, once, in the field, before the popup`() {
         val body = fieldBody()
@@ -157,7 +159,7 @@ class RecipientMenuFitTest {
         val name = keyedRemember(body).name
         val lines = popupContent(body).lines().map { it.trim() }.filter { it.isNotEmpty() }
         // The trailing comma is allowed off the cap line, so that deleting the scroll and moving
-        // the comma up — the shortest way to write mutation C — still lands on the message below
+        // the comma up (the shortest way to write mutation C) still lands on the message below
         // instead of on "no cap found".
         val cap = lines.indexOfFirst { it.removeSuffix(",") == ".heightIn(max = $name)" }
         assertTrue(
@@ -211,7 +213,7 @@ class RecipientMenuFitTest {
 
     // -- reading the source ---------------------------------------------------------------------
 
-    /** A `remember` with its keys, the name it is bound to, and the arguments of the [CALL] inside
+    /** A `remember` with its keys, the name it is bound to, and the arguments of the [call] inside
      *  it. Fails loudly at every step: this is what most rules above read. */
     private class Keyed(
         val name: String,
@@ -313,7 +315,7 @@ class RecipientMenuFitTest {
                 "and every rule in this file reads it (ComposeScreenIncognitoTest pins the same " +
                 "name for the incognito guarantee)"
         }
-        // Past the parameter list — its default values carry braces of their own ({ false }) — to
+        // Past the parameter list (its default values carry braces of their own ({ false })) to
         // the body's own opening brace.
         var i = code.indexOf('(', at)
         var depth = 0
@@ -385,8 +387,8 @@ class RecipientMenuFitTest {
         return out
     }
 
-    /** The file with comment lines and trailing comments removed, so no rule here can be satisfied
-     *  — or defeated — by prose. */
+    /** The file with comment lines and trailing comments removed, so no rule here can be satisfied,
+     *  or defeated, by prose. */
     private fun code(file: File): String = file.readLines().joinToString("\n") { line ->
         val trimmed = line.trimStart()
         if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) ""

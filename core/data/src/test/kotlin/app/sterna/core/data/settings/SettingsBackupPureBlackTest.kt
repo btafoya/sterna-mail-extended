@@ -38,7 +38,7 @@ class SettingsBackupPureBlackTest {
 
     @Test fun itIsCarriedAsTrueWhenExplicitlyOn() {
         // The direction that matters: the default is false, so "on" is the answer a backup has to
-        // carry. The VALUE, not the key — the codec writes with encodeDefaults, so an unset field
+        // carry. The value, not the key, the codec writes with encodeDefaults, so an unset field
         // is exported as `"pureBlack": null` and contains("pureBlack") is true of every export ever
         // written, including one that lost the setting entirely.
         val encoded = SettingsBackupCodec.encode(SettingsBackup(pureBlack = true))
@@ -50,7 +50,7 @@ class SettingsBackupPureBlackTest {
 
     @Test fun theDarkThemeKeepsItsSurfacesUntilSomebodyAsksForBlack() {
         // The default, run rather than described: the decision is executed on Preferences where the
-        // key is ABSENT, which is the only state a fresh install and every existing install are in
+        // key is absent, which is the only state a fresh install and every existing install are in
         // on the update that ships this. Flipping the elvis in pureBlackFrom repaints the dark
         // theme of every user who never asked, and nothing else in this repo would notice.
         assertFalse(
@@ -73,6 +73,6 @@ class SettingsBackupPureBlackTest {
         assertFalse(pureBlackFrom(preferencesOf(booleanPreferencesKey("unread_tint") to true)))
     }
 
-    /** The persisted key, spelled as the store spells it — see the test above. */
+    /** The persisted key, spelled as the store spells it, see the test above. */
     private val storedKey = booleanPreferencesKey("pure_black")
 }

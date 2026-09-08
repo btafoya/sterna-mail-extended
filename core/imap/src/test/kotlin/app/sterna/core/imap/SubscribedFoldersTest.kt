@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 
 /**
- * What the client asks a server about SUBSCRIPTION, and what it does with the answer (#174).
+ * What the client asks a server about subscription, and what it does with the answer (#174).
  */
 class SubscribedFoldersTest {
 
@@ -34,7 +34,7 @@ class SubscribedFoldersTest {
     private fun FakeImapServer.lsubLines() = issued().filter { it.startsWith("LSUB") }
 
     /**
-     * T1 — the setting on: a second round trip asks for the subscriptions, and the folders come
+     * T1, the setting on: a second round trip asks for the subscriptions, and the folders come
      */
     @Test
     fun `with the setting on the folders carry what LSUB said`() {
@@ -50,7 +50,7 @@ class SubscribedFoldersTest {
     }
 
     /**
-     * T5 — a subscription naming a mailbox the LIST did not: the intersection IGNORES it. It does
+     * T5, a subscription naming a mailbox the LIST did not: the intersection ignores it. It does
      * not invent a folder, and it does not make the answer look wrong either.
      */
     @Test
@@ -63,7 +63,9 @@ class SubscribedFoldersTest {
     }
 
     /**
-     * T2 — the setting off (the default): NOT ONE LSUB leaves the client, and every folder is
+     * T2, the setting off (the default): not one LSUB leaves the client, and every folder is
+     * subscribed. The command list is read, not the flags: asking and then ignoring the answer
+     * would cost a round trip on every push wake-up and pass a flags-only assertion.
      */
     @Test
     fun `with the setting off no LSUB is sent at all`() {
@@ -76,7 +78,7 @@ class SubscribedFoldersTest {
     }
 
     /**
-     * T3 — THE test of this panel. The server refuses the LSUB; the folder list still comes back
+     * T3, the test of this panel. The server refuses the LSUB; the folder list still comes back
      */
     @Test
     fun `a refused LSUB leaves every folder subscribed`() {
@@ -90,7 +92,7 @@ class SubscribedFoldersTest {
     }
 
     /**
-     * T3b — the answer that arrives and says nothing: an OK with no LSUB line. Indistinguishable
+     * T3b, the answer that arrives and says nothing: an OK with no LSUB line. Indistinguishable
      */
     @Test
     fun `an LSUB that names nothing hides nothing`() {
@@ -102,7 +104,7 @@ class SubscribedFoldersTest {
     }
 
     /**
-     * T4 — the two parsers must decode a mailbox name THE SAME WAY, or the intersection misses
+     * T4, the two parsers must decode a mailbox name the same way, or the intersection misses
      */
     @Test
     fun `a Cyrillic mailbox decodes to the same path on both sides`() {
@@ -116,7 +118,7 @@ class SubscribedFoldersTest {
     }
 
     /**
-     * The pure decision, with its arguments: what an LSUB that named OTHER folders does to the
+     * The pure decision, with its arguments: what an LSUB that named other folders does to the
      * one it did not name, and what an absent answer (`null`) does to all of them.
      */
     @Test

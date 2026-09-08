@@ -6,12 +6,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * [planSelectionSnooze] — who can be snoozed at all, executed rather than re-derived.
+ * [planSelectionSnooze], who can be snoozed at all, executed rather than re-derived.
  */
 class SelectionSnoozePlanTest {
 
     /**
-     * A fully filled row — every optional field of [Email] the partition could be tempted to read
+     * A fully filled row, every optional field of [Email] the partition could be tempted to read
      */
     private fun target(id: String, trusted: Boolean, account: String? = "accA", mailbox: String? = "mbA") =
         SelectionTarget(
@@ -33,13 +33,15 @@ class SelectionSnoozePlanTest {
         )
 
     /**
-     * The same row stripped to nothing but its ids. Paired with [target] in the mixed case below,
+     * The same row stripped to nothing but its ids.
      */
     private fun sparse(id: String, trusted: Boolean) =
         SelectionTarget(Email(id = id), folderTrusted = trusted)
 
     /**
      * The reported case, interleaved: the cached rows are snoozed, the rows drawn by the search are
+     * refused, each part in the order it was selected. Both parts are pinned by composition, the
+     * ids and the trust flag, because two parts of the right sizes can still hold the wrong rows.
      */
     @Test
     fun `a mixed selection snoozes the cached rows and refuses the rest`() {
@@ -85,7 +87,7 @@ class SelectionSnoozePlanTest {
     }
 
     /**
-     * The same id in both trust states — the two rows a merge of the cache and the search snapshot
+     * The same id in both trust states, the two rows a merge of the cache and the search snapshot
      */
     @Test
     fun `the same id trusted and untrusted lands in both parts, in either order`() {

@@ -6,7 +6,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * [ShowOnlySubscribedFoldersWiringTest]. The decision itself is executed next door in `core:data`
  */
 class IdentityCreationWiringTest {
 
@@ -255,14 +256,14 @@ class IdentityCreationWiringTest {
 
     // ── instrument (copied from [ShowOnlySubscribedFoldersWiringTest]) ───────────────────────────
 
-    /** [count] consecutive code lines from the ONE line starting with [prefix]. */
+    /** [count] consecutive code lines from the one line starting with [prefix]. */
     private fun block(file: File, prefix: String, count: Int): List<String> {
         val lines = codeLines(file)
         val at = only(lines, prefix, exact = false)
         return lines.subList(at, minOf(at + count, lines.size))
     }
 
-    /** [count] code lines starting [before] lines above the ONE line equal to [anchor]. */
+    /** [count] code lines starting [before] lines above the one line equal to [anchor]. */
     private fun blockEndingAt(file: File, anchor: String, before: Int, count: Int): List<String> {
         val lines = codeLines(file)
         val at = only(lines, anchor)

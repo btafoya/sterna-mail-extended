@@ -29,7 +29,7 @@ class ImapBudgetTest {
 
         // The bound handed to the connect...
         assertEquals(15_000, ImapBudget.remaining(deadline, start))
-        // ...and the one handed to the reads AFTER a connect that took 6 s. Recomputing is the
+        // ...and the one handed to the reads after a connect that took 6 s. Recomputing is the
         // whole point: reading it once would have given the reads a fresh 15 s on top.
         assertEquals(9_000, ImapBudget.remaining(deadline, start + 6_000))
     }
@@ -42,7 +42,7 @@ class ImapBudgetTest {
         val thrown = runCatching { ImapBudget.remaining(deadline, start + 15_001) }.exceptionOrNull()
 
         assertTrue("expected a timeout, got $thrown", thrown is SocketTimeoutException)
-        // NOT a cancellation: the snapshot falls back to the cache on a timeout, but must let a
+        // Not a cancellation: the snapshot falls back to the cache on a timeout, but must let a
         // real Undo through. The two must never arrive as the same type.
         assertFalse(thrown is CancellationException)
     }
@@ -56,11 +56,11 @@ class ImapBudgetTest {
     }
 
     @Test fun `an ambient budget serves the callers that named none, and overrules nobody`() {
-        // The rule behind [ImapReadBudget] (#95): `appendDraft` passes no budget of its own — it
-        // cannot, it is the same function the interactive save uses — so the deferred upload
-        // installs one on the COROUTINE, and this is where the two meet.
+        // The rule behind [ImapReadBudget] (#95): `appendDraft` passes no budget of its own, it
+        // cannot, it is the same function the interactive save uses, so the deferred upload
+        // installs one on the coroutine, and this is where the two meet.
 
-        // A caller that named a budget keeps EXACTLY what it named, shorter or longer than the
+        // A caller that named a budget keeps exactly what it named, shorter or longer than the
         // ambient one. `min` would compile here and would quietly shorten `ENUMERATE_BUDGET_MS`.
         assertEquals(10_000, ImapBudget.effective(10_000, 60_000))
         assertEquals(90_000, ImapBudget.effective(90_000, 60_000))
@@ -69,7 +69,7 @@ class ImapBudgetTest {
         // The case the whole element exists for: nothing at the call site, a budget in the context.
         assertEquals(60_000, ImapBudget.effective(ImapBudget.NO_BUDGET, 60_000))
 
-        // And with neither, NO_BUDGET — i.e. every existing caller, in every coroutine that
+        // And with neither, NO_BUDGET, i.e. every existing caller, in every coroutine that
         // installs no element, exactly as blocking as it has always been.
         assertEquals(
             ImapBudget.NO_BUDGET,
@@ -78,7 +78,7 @@ class ImapBudgetTest {
     }
 
     // There was a second test here, and it was a fake: it recomposed `deadline(effective(…))`
-    // itself and checked a subtraction, i.e. it re-derived the rule it was meant to be watching and
+    // itself and checked a subtraction, i.e.
 
     @Test fun `an absurd budget cannot wrap around into a timeout`() {
         // Int arithmetic on millis is where a "very long" budget silently becomes a negative

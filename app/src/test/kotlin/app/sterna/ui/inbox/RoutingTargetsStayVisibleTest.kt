@@ -60,7 +60,7 @@ class RoutingTargetsStayVisibleTest {
         )
     }
 
-    // ── what does NOT become visible ─────────────────────────────────────────────────────────────
+    // ── what does not become visible ─────────────────────────────────────────────────────────────
 
     @Test fun `an unsubscribed folder in neither table stays hidden`() {
         val folders = listOf(
@@ -87,7 +87,7 @@ class RoutingTargetsStayVisibleTest {
         )
     }
 
-    // ── the witness: ONE list of names, read by both sides ─────────────────────────────────────
+    // ── the witness: one list of names, read by both sides ─────────────────────────────────────
 
     @Test fun `routing and visibility answer the same on every name the tables hold`() {
         val disagree = (ARCHIVE_FOLDER_NAMES + TRASH_FOLDER_NAMES).filter { name ->

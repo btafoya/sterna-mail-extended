@@ -8,7 +8,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * What the foot of the walk's column says, and whether it has to be read — EXECUTED, over every
+ * What the foot of the walk's column says, and whether it has to be read, executed, over every
  */
 class ConnectStatusTest {
 
@@ -21,7 +21,7 @@ class ConnectStatusTest {
     @Test fun `a failure speaks at every step, and carries its own message`() {
         // handoverStarted = FALSE, and it is the whole point of the pair of arguments here:
         // credentialsPane answers SIGN_IN_OFFER for an Error once a hand-over is recorded, and
-        // WAITING before one is. Fed `true`, this test would sit on the branch the one-wheel rule
+        // waiting before one is. Fed `true`, this test would sit on the branch the one-wheel rule
         // cannot reach and would stay green under the very mutation the message below names.
         val said = ConnectStep.entries.map {
             it to statusLine(ConnectState.Error(offline), it, handover, handoverStarted = false)
@@ -45,9 +45,9 @@ class ConnectStatusTest {
     }
 
     @Test fun `a running attempt is a wheel at every step, except where the step draws its own`() {
-        // EVERY step, still — the expected answers are written out one by one below, so this is
+        // Every step, still, the expected answers are written out one by one below, so this is
         // the assertion that a step added later cannot slip through unanswered. The list this test
-        // walks used to BE `ConnectStep.entries`; spelling it out is what let the credentials step
+        // walks used to be `ConnectStep.entries`; spelling it out is what let the credentials step
         // be given a different answer, and this line is what keeps the two in step.
         val steps = listOf(ConnectStep.ADDRESS, ConnectStep.MANUAL, ConnectStep.CREDENTIALS)
         assertEquals(
@@ -92,7 +92,7 @@ class ConnectStatusTest {
                 CredentialsPane.WAITING to null,
             ),
             listOf(
-                // The token exchange, once the browser/device approval came back — the capture.
+                // The token exchange, once the browser/device approval came back, the capture.
                 ConnectState.Connecting to true,
                 // The OAuth server still being looked for, under the same wheel.
                 ConnectState.Discovering to true,
@@ -218,7 +218,11 @@ class ConnectStatusTest {
 }
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * [ImapDiscoveryWiringTest]: `ConnectScreen` is a composable and this module has neither
+ * Robolectric nor instrumented tests, so nothing here can be composed. What [statusLine] and
+ * [statusMustBeRead] decide is executed in [ConnectStatusTest]; what is held here is that the foot
+ * of the walk's column draws that value, and scrolls it into view when it is a sentence.
  */
 class ConnectStatusWiringTest {
 
@@ -279,8 +283,7 @@ class ConnectStatusWiringTest {
     }
 
     @Test fun `the block is a direct child of the walk's column, not something's else branch`() {
-        // THE HOLE THE COUNTER-AUDIT CAME THROUGH, and no trimmed pin in this repo can see it:
-        // wrap the whole foot of the column in `if (walkStep != ConnectStep.ADDRESS) { … }` and
+        // The hole the counter-audit came through, and no trimmed pin in this repo can see it:
         listOf(
             "val status = statusLine(state, walkStep, ask, handedOver)" to
                 "the value the foot of the column draws",
@@ -376,7 +379,7 @@ class ConnectStatusWiringTest {
 
     // -- reading the file ---------------------------------------------------------------------
 
-    /** [run] must appear in [SCREEN] as consecutive trimmed lines, exactly once. */
+    /** [run] must appear in [screen] as consecutive trimmed lines, exactly once. */
     private fun assertRun(run: List<String>, why: String) {
         val hits = (0..(lines.size - run.size)).count { lines.subList(it, it + run.size) == run }
         assertEquals(
@@ -392,7 +395,7 @@ class ConnectStatusWiringTest {
     private fun assertPinned(pinned: String, why: String) = assertRun(listOf(pinned), why)
 
     /**
-     * The one line of [SCREEN] whose trimmed text is [pinned] must carry exactly [spaces] leading
+     * The one line of [screen] whose trimmed text is [pinned] must carry exactly [spaces] leading
      */
     private fun assertIndent(pinned: String, spaces: Int, what: String) {
         val raw = source(SCREEN).lines().filter { it.trim() == pinned }

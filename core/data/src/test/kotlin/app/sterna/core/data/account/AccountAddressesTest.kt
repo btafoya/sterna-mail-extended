@@ -5,7 +5,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The addresses that ARE the user on one account — the list every "is this me?" refusal is
+ * The addresses that are the user on one account, the list every "is this me?" refusal is
+ * decided against.
  */
 class AccountAddressesTest {
 

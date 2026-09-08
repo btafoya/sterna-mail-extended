@@ -9,7 +9,7 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * `EmailDao.reconcileMailbox` RUN, against in-memory SQLite, with the arguments the shipped body
+ * `EmailDao.reconcileMailbox` run, against in-memory SQLite, with the arguments the shipped body
  */
 class ReconcileMailboxSqlTest {
     private lateinit var db: Connection
@@ -78,7 +78,9 @@ class ReconcileMailboxSqlTest {
     // ---- the shipped body, read and run ---------------------------------------------------------
 
     /**
-     * The named arguments of the ONE `reconcileEvictions(…)` call in the shipped reconcile, as
+     * The named arguments of the one `reconcileEvictions(…)` call in the shipped reconcile, as
+     * source text. Positional arguments are refused rather than guessed at: the whole point is that
+     * this test does not decide which id set plays which role.
      */
     private fun shippedEvictionArguments(): Map<String, String> {
         val body = DaoQuerySource.daoFunctionBody("EmailDao", RECONCILE_BODY)
@@ -130,7 +132,7 @@ class ReconcileMailboxSqlTest {
         }
 
     /**
-     * `idsForMailbox`'s shipped SQL, run for real, then the shipped bound applied to it — together
+     * `idsForMailbox`'s shipped SQL, run for real, then the shipped bound applied to it, together
      */
     private fun cachedIdsOf(
         expression: String,
@@ -168,6 +170,8 @@ class ReconcileMailboxSqlTest {
 
     /**
      * `EmailDao.reconcileMailbox`, replayed: the shipped read, the shipped decision with the
+     * shipped arguments, the shipped eviction statement. Returns the batches, so a caller can
+     * assert on the size no statement may exceed.
      */
     private fun reconcileMailboxRows(
         accountId: String,
@@ -207,8 +211,8 @@ class ReconcileMailboxSqlTest {
 
     @Test fun `it keeps what the walk named and deletes the rest`() {
         // The load-bearing case: `keepIds` is the walk's answer and it must reach the decision as
-        // the KEEP set. Substituting the spare set for it compiles, keeps the statements identical,
-        // and empties the folder — which is exactly what these rows say.
+        // the keep set. Substituting the spare set for it compiles, keeps the statements identical,
+        // and empties the folder, which is exactly what these rows say.
         listOf("w1", "w2", "w3", "stale1", "stale2").forEach { cache(it) }
 
         reconcileMailboxRows("acc", "mb-inbox", keepIds = setOf("w1", "w2", "w3"))
@@ -274,9 +278,9 @@ class ReconcileMailboxSqlTest {
     // ---- the bound: what may be deleted at all (#165) ---------------------------------------------
 
     @Test fun `a bound spares a row that landed after the caller read the folder`() {
-        // #165 against real SQLite. "arrived" is in the table when this body reads it — pushed in
+        // #165 against real SQLite. "arrived" is in the table when this body reads it, pushed in
         // while the walk ran, or in the millisecond between the caller's own read and this
-        // transaction — and it is named by no page of the walk. Only the bound stands between it
+        // transaction, and it is named by no page of the walk. Only the bound stands between it
         // and the DELETE, because by the time this body runs there is nobody left to ask.
         listOf("w1", "stale", "arrived").forEach { cache(it) }
 
@@ -297,7 +301,7 @@ class ReconcileMailboxSqlTest {
 
     @Test fun `an EMPTY bound deletes nothing at all — which is why null is not emptySet()`() {
         // The trap of this argument: an empty bound is not "no bound", it is "evict nothing", and
-        // it switches the reconcile off silently — the cache grows without limit and a message
+        // it switches the reconcile off silently, the cache grows without limit and a message
         // destroyed on the server never leaves the list. A caller that cannot name its folder
         // passes null (`MailRepository.imapWriteThrough`).
         listOf("w1", "stale").forEach { cache(it) }
@@ -309,7 +313,7 @@ class ReconcileMailboxSqlTest {
 
     @Test fun `no single statement is handed more ids than SQLite will bind`() {
         // Codeberg #29. Below Android 12 SQLite binds at most 999 variables; past that the
-        // statement throws, and it threw BEFORE the sync cursor was stored, so the folder
+        // statement throws, and it threw before the sync cursor was stored, so the folder
         (1..450).forEach { cache("m$it") }
 
         val batches = reconcileMailboxRows("acc", "mb-inbox", keepIds = emptySet())

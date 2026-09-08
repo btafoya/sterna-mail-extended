@@ -14,7 +14,7 @@ internal class AutocryptPeerImport(
 private val KNOWN_ATTRIBUTES = setOf("addr", "keydata", "prefer-encrypt")
 
 /**
- * Autocrypt Level 1 §2.1, or null meaning "ignore, in silence". [headers] must come from
+ * Autocrypt Level 1 §2.1, or null meaning "ignore, in silence".
  */
 internal fun autocryptPeerImportOf(
     headers: List<Pair<String, String>>,

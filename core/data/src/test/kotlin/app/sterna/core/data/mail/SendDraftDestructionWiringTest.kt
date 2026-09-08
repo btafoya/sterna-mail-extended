@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * THIS TEST READS SOURCE TEXT — the last resort, in exactly [DraftAddressingWiringTest]'s form
+ * This test reads source text, the last resort, in exactly [DraftAddressingWiringTest]'s form
  */
 class SendDraftDestructionWiringTest {
 
@@ -12,7 +12,7 @@ class SendDraftDestructionWiringTest {
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
     /**
-     * The parameter lines of `fun [function](`, comments dropped and trimmed — the DECLARATION,
+     * The parameter lines of `fun [function](`, comments dropped and trimmed, the declaration,
      * which is where the defaults live and which [bodyOf] cannot see at all.
      */
     private fun declarationLinesOf(function: String): List<String> {
@@ -28,7 +28,7 @@ class SendDraftDestructionWiringTest {
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
     }
 
-    /** The code lines of [body] naming [needle] — comments dropped, so prose can neither satisfy
+    /** The code lines of [body] naming [needle], comments dropped, so prose can neither satisfy
      *  a rule nor break one. Whole lines: the assertions compare them, never search inside them. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }
@@ -46,7 +46,7 @@ class SendDraftDestructionWiringTest {
     }
 
     @Test fun theDecisionIsHandedTheServerReadAndNotAConstant() {
-        // THE middle line: the one that ties the call above to the proof below. Pinned whole,
+        // The middle line: the one that ties the call above to the proof below. Pinned whole,
         // because `{ true }` here is shorter than the shipped lambda and `contains` sees nothing.
         assertEquals(
             "the addressing proof handed to replaceableDraftIdOrNull must be the server read " +
@@ -78,7 +78,7 @@ class SendDraftDestructionWiringTest {
     }
 
     @Test fun theRowCarriesTheProvenIdAndNeverTheRawOne() {
-        // THE line. performSend destroys what this field names; `= draftEmailId` is the defect.
+        // The line. performSend destroys what this field names; `= draftEmailId` is the defect.
         assertEquals(
             "the outbox row must carry the id the decision returned — never the raw parameter, " +
                 "which would re-authorise the destroy on every unproven send",
@@ -147,7 +147,7 @@ class SendDraftDestructionWiringTest {
             destroy,
         )
         // "No other destroy on the send path" said of the path, not of one function: a destroy
-        // inside the delivery itself would run BEFORE performSend's success ordering, and one in
+        // inside the delivery itself would run before performSend's success ordering, and one in
         // enqueueSend would run before anything was even sent.
         assertEquals(
             "the delivery may not destroy anything itself — its failure must leave the draft " +

@@ -8,7 +8,9 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * `EmailDao.numberingOfRows`' shipped statement, RUN against a real SQLite engine — the read a
+ * `EmailDao.numberingOfRows`' shipped statement, run against a real SQLite engine, the read a
+ * permanent delete freezes with the user's confirmation and opposes to the server minutes later
+ * (Codeberg #99).
  */
 class NumberingOfRowsSqlTest {
     private lateinit var db: Connection
@@ -34,7 +36,7 @@ class NumberingOfRowsSqlTest {
     @After fun tearDown() = db.close()
 
     /**
-     * THE ONE THAT MATTERS. One folder, two numberings — the state a folder is left in when a
+     * The one that matters.
      */
     @Test fun `two rows of one folder read under two numberings each answer their own`() {
         insert("imap:acc:INBOX:7", "INBOX", uidValidity = 42)
@@ -65,8 +67,8 @@ class NumberingOfRowsSqlTest {
         )
     }
 
-    /** An id the cache no longer holds comes back ABSENT, which the caller reads as "nothing to
-     *  oppose" — a row already evicted cannot say what its UID means. */
+    /** An id the cache no longer holds comes back absent, which the caller reads as "nothing to
+     *  oppose", a row already evicted cannot say what its UID means. */
     @Test fun `an id with no row is absent from the answer`() {
         insert("imap:acc:INBOX:7", "INBOX", uidValidity = 42)
 
@@ -100,7 +102,7 @@ class NumberingOfRowsSqlTest {
         }
     }
 
-    /** The SHIPPED statement, bound and executed — never a copy of it. */
+    /** The shipped statement, bound and executed, never a copy of it. */
     private fun numberingOfRows(accountId: String, ids: List<String>): Map<String, Long?> {
         val (sql, order) = DaoQuerySource.bindOrder(
             DaoQuerySource.emailDaoQuery("numberingOfRows"),
@@ -109,7 +111,7 @@ class NumberingOfRowsSqlTest {
         check(order.toSet() == setOf("accountId", "ids")) {
             "EmailDao.numberingOfRows binds $order — this test offers accountId and ids"
         }
-        // `order` repeats "ids" once per expanded `?`, in position — so walk it and consume the
+        // `order` repeats "ids" once per expanded `?`, in position, so walk it and consume the
         // list one id at a time rather than splicing it in wholesale at the first occurrence.
         val remaining = ids.iterator()
         val values = order.map { if (it == "accountId") accountId else remaining.next() }

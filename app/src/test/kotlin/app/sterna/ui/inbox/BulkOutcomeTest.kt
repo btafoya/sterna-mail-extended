@@ -4,8 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * [bulkOutcome] — what a finished bulk action says. It used to say "Couldn't complete the action"
- * as soon as ONE id was rejected, so 1 500 messages archived out of 2 000 read as a total failure.
+ * [bulkOutcome], what a finished bulk action says. It used to say "Couldn't complete the action"
+ * as soon as one id was rejected, so 1 500 messages archived out of 2 000 read as a total failure.
  */
 class BulkOutcomeTest {
 
@@ -26,10 +26,10 @@ class BulkOutcomeTest {
     }
 
     @Test fun nothingWasEvenAttempted() {
-        // Nothing was selected at all — an empty leg of an action (a delete with nothing to move,
+        // Nothing was selected at all, an empty leg of an action (a delete with nothing to move,
         // say): there is nothing to report, and no division of zero into a "total". A selection
-        // whose keys resolve to no row is NOT this case any more: those keys are attempts that
-        // failed, so it arrives here as attempted = N, failed = N, i.e. TOTAL.
+        // whose keys resolve to no row is not this case any more: those keys are attempts that
+        // failed, so it arrives here as attempted = N, failed = N, i.e. Total.
         assertEquals(BulkOutcome.NONE, bulkOutcome(attempted = 0, failed = 0))
         assertEquals(BulkOutcome.NONE, bulkOutcome(attempted = 0, failed = 3))
     }

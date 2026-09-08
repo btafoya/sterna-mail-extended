@@ -35,7 +35,7 @@ import org.junit.Test
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 
-/** The ids one `Email/set` request body carries, in order — its `update` keys or its `destroy`. */
+/** The ids one `Email/set` request body carries, in order, its `update` keys or its `destroy`. */
 /** The ids one `Email/get` request body asks for, in order. */
 private fun getIdsOf(body: String): List<String> =
     Json.parseToJsonElement(body).jsonObject["methodCalls"]!!
@@ -85,7 +85,7 @@ class JmapClientTest {
 
     @Test fun fetchSession_reAuthenticatesAfterCrossHostRedirect() = runBlocking {
         // OkHttp strips the Authorization header when a redirect crosses hosts (here: two mock
-        // servers on different ports), which is exactly the Fastmail autodiscovery shape —
+        // servers on different ports), which is exactly the Fastmail autodiscovery shape,
         // well-known redirecting to api.fastmail.com/jmap/session (issue #54). fetchSession
         // must retry the redirect target once, re-authenticated.
         val target = MockWebServer()
@@ -119,8 +119,7 @@ class JmapClientTest {
     }
 
     @Test fun fetchSession_reAuthenticatesWhenACrossHostRedirectAnswersAnAnonymousSession() = runBlocking {
-        // Issue #137. Same shape as the test above — a redirect that crosses origins, so OkHttp
-        // dropped the Authorization header — except that the server does NOT answer 401: it
+        // Issue #137.
         val target = MockWebServer()
         target.start()
         try {
@@ -154,7 +153,7 @@ class JmapClientTest {
     }
 
     @Test fun fetchSession_doesNotReplayWhenASameOriginRedirectOnlyChangesThePath() = runBlocking {
-        // The ordinary autodiscovery hop, /.well-known/jmap → /jmap/session on the SAME origin:
+        // The ordinary autodiscovery hop, /.well-known/jmap → /jmap/session on the same origin:
         // OkHttp keeps the Authorization header across it, so there is nothing to re-authenticate
         // and the credentials must not be sent a third time.
         server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", "/jmap/session"))
@@ -168,7 +167,7 @@ class JmapClientTest {
         )
 
         assertEquals("acc1", session.mailAccountId())
-        // Exactly the redirect and the hop it points at — no replay of the target.
+        // Exactly the redirect and the hop it points at, no replay of the target.
         assertEquals(2, server.requestCount)
         assertEquals("/.well-known/jmap", server.takeRequest().path)
         val followed = server.takeRequest()
@@ -177,13 +176,13 @@ class JmapClientTest {
     }
 
     @Test fun fetchSession_doesNotFollowARedirectThatChangesScheme() = runBlocking {
-        // followSslRedirects(false) governs EVERY scheme change, both ways (OkHttp's
+        // followSslRedirects(false) governs every scheme change, both ways (OkHttp's
         // buildRedirectRequest compares the two schemes for equality), so an http→https hop is
-        // refused exactly like the https→http downgrade the guard exists for — which lets the
+        // refused exactly like the https→http downgrade the guard exists for, which lets the
         // plaintext mock server prove it without any TLS test dependency.
         //
         // The target is 127.0.0.1:1: no DNS, no handshake, connection refused with the network
-        // cable out. If the guard ever goes away, OkHttp follows the hop and the call dies on a
+        // cable out.
         server.enqueue(
             MockResponse()
                 .setResponseCode(302)
@@ -213,7 +212,7 @@ class JmapClientTest {
 
     // ---- the decision itself, run on its arguments (issue #137) ----
     //
-    // What made the header fall off is the ORIGIN triplet (scheme + host + port) changing — that
+    // What made the header fall off is the origin triplet (scheme + host + port) changing, that
     // is OkHttp's own rule (canReuseConnectionFor). The response's status code says nothing about
     // it, and a session with no account is not a symptom either: an account that genuinely has no
     // mailbox answers exactly the same.
@@ -229,7 +228,7 @@ class JmapClientTest {
 
     @Test fun redirectDroppedAuthorization_isTrueWhenOnlyThePortChanged() {
         // The port is part of the triplet: without it two MockWebServers on localhost are
-        // "the same origin" and none of this is reproducible — nor is a real host:8443 hop.
+        // "the same origin" and none of this is reproducible, nor is a real host:8443 hop.
         assertTrue(
             JmapClient.redirectDroppedAuthorization(
                 "https://example.com/.well-known/jmap".toHttpUrl(),
@@ -349,7 +348,7 @@ class JmapClientTest {
     }
 
     /**
-     * Codeberg #174. `isSubscribed` (RFC 8621 §2) has to survive the WHOLE client path — the wire,
+     * Codeberg #174.
      */
     @Test fun getMailboxes_believesWhatTheServerSaidAboutEachFolderSubscription() = runBlocking {
         server.enqueue(MockResponse().setBody(MAILBOX_SUBSCRIPTION_JSON))
@@ -440,6 +439,8 @@ class JmapClientTest {
 
     /**
      * A query response with no `ids` array at all: the server did not say how many matched, and
+     * that must not be reported as "none matched", a caller reading zero there would present an
+     * empty result as the account's whole answer.
      */
     @Test fun searchEmails_leavesTheMatchCountUnknownWhenTheServerGaveNoIds() = runBlocking {
         server.enqueue(MockResponse().setBody(SEARCH_NO_IDS_JSON))
@@ -464,6 +465,8 @@ class JmapClientTest {
 
     /**
      * What `Mailbox/get` puts in [JmapException.errorType] is the evidence a caller is entitled to
+     * act on, and the sub-account probe of Codeberg #129 discards an account on exactly one value
+     * of it. So the two shapes are pinned here, at the only place that can observe them.
      */
     @Test fun getMailboxes_methodErrorCarriesItsTypeAsErrorType() {
         server.enqueue(MockResponse().setBody(FORBIDDEN_ERROR_JSON))
@@ -477,7 +480,7 @@ class JmapClientTest {
     }
 
     /**
-     * A TRANSPORT failure carries no error type — and must not be given one. An expiring Bearer
+     * A transport failure carries no error type, and must not be given one. An expiring Bearer
      */
     @Test fun getMailboxes_httpFailureCarriesNoErrorType() {
         server.enqueue(MockResponse().setResponseCode(403).setBody("Forbidden"))
@@ -581,7 +584,7 @@ class JmapClientTest {
     @Test fun sendEmail_returnsTheCreatedEmailId() = runBlocking {
         server.enqueue(MockResponse().setBody(SEND_JSON))
         // The send now reads back what the server did with the submission (#183), so the second
-        // request needs an answer too — without one this call sits on the read timeout.
+        // request needs an answer too, without one this call sits on the read timeout.
         server.enqueue(MockResponse().setBody(SUBMISSION_ACCEPTED_JSON))
         val session = JmapSession(apiUrl = server.url("/jmap/api/").toString())
 
@@ -601,11 +604,11 @@ class JmapClientTest {
         assertEquals("e123", emailId)
     }
 
-    // ---- a submission the server CREATED and then REFUSED (issue #183) --------------------------
+    // ---- a submission the server created and then refused (issue #183) --------------------------
     //
     // The refusal of a recipient that does not exist on the server's own domain never reaches
     // `notCreated`: the submission is valid, so it is created, and the rejection happens before the
-    // message is queued — which also means no bounce will ever be generated. Reading `notCreated`
+    // message is queued, which also means no bounce will ever be generated. Reading `notCreated`
     // alone therefore reports a perfect send on a message nobody will ever receive.
 
     /** One send through [JmapClient.sendEmail], with [submissionGet] answering the second request. */
@@ -615,7 +618,7 @@ class JmapClientTest {
         return doSend()
     }
 
-    /** The call alone, enqueueing nothing — for the tests that install a dispatcher instead. */
+    /** The call alone, enqueueing nothing, for the tests that install a dispatcher instead. */
     private fun doSend(using: JmapClient = client): String? = runBlocking {
         using.sendEmail(
             session = JmapSession(apiUrl = server.url("/jmap/api/").toString()),
@@ -631,7 +634,7 @@ class JmapClientTest {
         )
     }
 
-    /** The same, through the PGP/MIME route — blob upload first, then the import + submission. */
+    /** The same, through the PGP/MIME route, blob upload first, then the import + submission. */
     private fun importAndSend(submissionGet: MockResponse): String? {
         server.enqueue(MockResponse().setBody("""{"blobId":"blob1","type":"message/rfc822","size":12}"""))
         server.enqueue(MockResponse().setBody(IMPORT_SEND_JSON))
@@ -639,7 +642,7 @@ class JmapClientTest {
         return doImportAndSend()
     }
 
-    /** The call alone, enqueueing nothing — for the tests that install a dispatcher instead. */
+    /** The call alone, enqueueing nothing, for the tests that install a dispatcher instead. */
     private fun doImportAndSend(using: JmapClient = client): String? = runBlocking {
         val raw = "From: a@b\r\nTo: dest@example.org\r\nSubject: s\r\n\r\nbody\r\n".toByteArray()
         using.importAndSendEmail(
@@ -679,7 +682,7 @@ class JmapClientTest {
 
     @Test fun sendEmail_failsWhenTheServerRefusedARecipient() {
         val e = refusalOf { send(MockResponse().setBody(SUBMISSION_REFUSED_JSON)) }
-        // The address the user has to fix, and the server's own words about it — that string is
+        // The address the user has to fix, and the server's own words about it, that string is
         // persisted in the outbox row and shown under "Failed: %1$s".
         assertTrue("the refused address must be named: ${e.message}", "nope@masto.top" in e.message!!)
         assertTrue(
@@ -694,7 +697,7 @@ class JmapClientTest {
     }
 
     /**
-     * The counter-test of the trap. `delivered` is "unknown" for a recipient the server ACCEPTED
+     * The counter-test of the trap. `delivered` is "unknown" for a recipient the server accepted
      */
     @Test fun sendEmail_succeedsWhileDeliveryIsStillUnknown() {
         assertEquals(
@@ -718,10 +721,10 @@ class JmapClientTest {
 
     /**
      * Every doubt is a success. The message has already been handed to the server by the time
-     * this request goes out; a failure to READ the verdict is not a verdict.
+     * this request goes out; a failure to read the verdict is not a verdict.
      */
     @Test fun sendEmail_succeedsWhenTheSubmissionCannotBeRead() {
-        // The 500 carries a body that PARSES AS A REFUSAL on purpose: the status has to be
+        // The 500 carries a body that parses as a refusal on purpose: the status has to be
         // checked, not just the JSON. A server that answers 500 has told us nothing about the mail.
         assertEquals(
             "HTTP failure",
@@ -734,14 +737,14 @@ class JmapClientTest {
     }
 
     /**
-     * THE DOUBT THAT THROWS, which the four cases above never reach: they all fall on a `null`
+     * The doubt that throws, which the four cases above never reach: they all fall on a `null`
      */
     private fun serverThatNeverAnswersTheVerdictRequest() {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val body = request.body.readUtf8()
                 return when {
-                    // Read, recorded, and then NOTHING — the socket stays open and no answer ever
+                    // Read, recorded, and then nothing, the socket stays open and no answer ever
                     // comes, which is what a link going away looks like from here. [impatient]
                     // turns that into an IOException in two seconds instead of thirty.
                     "EmailSubmission/get" in body -> MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
@@ -770,7 +773,7 @@ class JmapClientTest {
     }
 
     /**
-     * The PLURAL. "the refused recipient(s)" is the promise, and naming only the first would send
+     * The plural. "the refused recipient(s)" is the promise, and naming only the first would send
      * the user back to a message with two dead addresses in it having fixed one.
      */
     @Test fun sendEmail_namesEveryRefusedRecipient() {
@@ -789,16 +792,16 @@ class JmapClientTest {
         )
     }
 
-    /** `deliveryStatus` is OPTIONAL in RFC 8621 §7.5: a server that omits it accuses nobody. */
+    /** `deliveryStatus` is optional in RFC 8621 §7.5: a server that omits it accuses nobody. */
     @Test fun sendEmail_succeedsWhenNoDeliveryStatusIsReported() {
         assertEquals("e123", send(MockResponse().setBody(SUBMISSION_NO_STATUS_JSON)))
     }
 
-    /** The second request, pinned by its ARGUMENTS: the created submission id, and that one only. */
+    /** The second request, pinned by its arguments: the created submission id, and that one only. */
     @Test fun sendEmail_asksTheServerAboutTheSubmissionItJustCreated() {
         send(MockResponse().setBody(SUBMISSION_ACCEPTED_JSON))
-        // Asserted BEFORE takeRequest, which blocks for ever on a request that never came: the
-        // verdict is read in a SECOND request, and no request at all means nothing was checked.
+        // Asserted before takeRequest, which blocks for ever on a request that never came: the
+        // verdict is read in a second request, and no request at all means nothing was checked.
         assertEquals("the send must ask the server what it did with the submission", 2, server.requestCount)
         server.takeRequest() // the send itself
         val get = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
@@ -811,7 +814,7 @@ class JmapClientTest {
             listOf("sub1"),
             call[1].jsonObject["ids"]!!.jsonArray.map { it.jsonPrimitive.content },
         )
-        // A SECOND request, not a back-reference: RFC 8621 §7.5's onSuccessUpdateEmail inserts an
+        // A second request, not a back-reference: RFC 8621 §7.5's onSuccessUpdateEmail inserts an
         // implicit Email/set under the same call id, and the server answers invalidResultReference.
         assertFalse("no result reference: $get", "#" in call[1].jsonObject.keys.joinToString())
     }
@@ -883,7 +886,7 @@ class JmapClientTest {
         assertTrue(sent.contains("\"fromAccountId\":\"s\""))
         assertTrue(sent.contains("\"accountId\":\"sub\""))
         // Regression guard: the destroy must name the real Email id in a second, explicit
-        // Email/set — Stalwart's onSuccessDestroyOriginal targets the creation id and
+        // Email/set, Stalwart's onSuccessDestroyOriginal targets the creation id and
         // silently leaves the original behind.
         assertTrue(sent.contains("\"destroy\":[\"e123\"]"))
         assertTrue(!sent.contains("onSuccessDestroyOriginal"))
@@ -989,7 +992,7 @@ class JmapClientTest {
 
     @Test fun saveDraft_surfacesMethodLevelError() {
         // A server can reject the whole method (e.g. Stalwart answers "forbidden" when the
-        // request targets an account the credential doesn't own) — that must throw, not
+        // request targets an account the credential doesn't own), that must throw, not
         // silently pass as a saved draft.
         server.enqueue(
             MockResponse().setBody(
@@ -1024,7 +1027,7 @@ class JmapClientTest {
         val sent = server.takeRequest().body.readUtf8()
         assertTrue(sent.contains("Email/get"))
         assertTrue(sent.contains("\"ids\":[\"e1\",\"e2\",\"e3\"]"))
-        // ids-only existence check — never a full header re-download.
+        // ids-only existence check, never a full header re-download.
         assertTrue(sent.contains("\"properties\":[\"id\"]"))
     }
 
@@ -1036,7 +1039,7 @@ class JmapClientTest {
 
     @Test fun missingEmailIds_throwsOnJmapErrorRatherThanGuessing() {
         // A method-level error must throw: a transient failure may never be read as
-        // "these messages are gone" (the caller prunes ONLY on an explicit notFound).
+        // "these messages are gone" (the caller prunes only on an explicit notFound).
         server.enqueue(MockResponse().setBody(ERROR_JSON))
         val session = JmapSession(apiUrl = server.url("/jmap/api/").toString())
         try {
@@ -1072,11 +1075,11 @@ class JmapClientTest {
             ),
             located,
         )
-        // notFound is simply absent — the caller reads that as "nothing left to destroy".
+        // notFound is simply absent, the caller reads that as "nothing left to destroy".
         assertEquals(null, located["e3"])
         val sent = server.takeRequest().body.readUtf8()
         assertEquals(listOf("e1", "e2", "e3", "e4"), getIdsOf(sent))
-        // The whole point of this call: mailboxIds. And nothing heavier — no preview, no bodies.
+        // The whole point of this call: mailboxIds. And nothing heavier, no preview, no bodies.
         assertTrue(sent.contains("\"properties\":[\"id\",\"mailboxIds\"]"))
     }
 
@@ -1087,8 +1090,8 @@ class JmapClientTest {
     }
 
     @Test fun mailboxIdsOf_throwsOnJmapErrorRatherThanGuessing() {
-        // The caller DESTROYS what this reports as still in place. A method error that came back
-        // as "no rows" would be read as "all these ids moved" — safe here — but the contract is
+        // The caller destroys what this reports as still in place. A method error that came back
+        // as "no rows" would be read as "all these ids moved" (safe here) but the contract is
         // the same as missingEmailIds': never answer a question the server refused.
         server.enqueue(MockResponse().setBody(ERROR_JSON))
         val session = JmapSession(apiUrl = server.url("/jmap/api/").toString())
@@ -1101,7 +1104,7 @@ class JmapClientTest {
     }
 
     @Test fun mailboxIdsOf_splitsIntoRequestsOfAtMostTheAdvertisedGetLimit() = runBlocking {
-        // An Empty-trash wave is 500 ids; a server admitting fewer per get refuses the WHOLE call.
+        // An Empty-trash wave is 500 ids; a server admitting fewer per get refuses the whole call.
         val dispatcher = LocateDispatcher()
         server.dispatcher = dispatcher
         val ids = (1..12).map { "e$it" }
@@ -1114,8 +1117,8 @@ class JmapClientTest {
     }
 
     @Test fun mailboxIdsOf_throwsRatherThanHandingBackThePartOfTheAnswerItGot() {
-        // A batch that never answered must not come back as "those ids are gone from the folder"
-        // — nor, once the caller inverts it, as anything at all. It throws, the destroy does not
+        // A batch that never answered must not come back as "those ids are gone from the folder",
+        // nor, once the caller inverts it, as anything at all. It throws, the destroy does not
         // run, and the worker retries it.
         val dispatcher = LocateDispatcher(failAt = 2)
         server.dispatcher = dispatcher
@@ -1174,7 +1177,7 @@ class JmapClientTest {
     // ---- Email/get batching ----
     //
     // The Undo of a big bulk move re-fetches every id it moved back. maxObjectsInGet is 500 on the
-    // test server and RFC 8620 §5.1 rejects the WHOLE call past it — and the Undo swallows that
+    // test server and RFC 8620 §5.1 rejects the whole call past it, and the Undo swallows that
     // failure, so the mail comes back on the server and vanishes from the list silently.
 
     @Test fun getEmailsByIds_splitsIntoRequestsOfAtMostTheAdvertisedGetLimit() = runBlocking {
@@ -1195,7 +1198,7 @@ class JmapClientTest {
 
     @Test fun getEmailsByIds_throwsRatherThanReturningWhatItManagedToFetch() {
         // A read has no partial credit: the Undo overwrites the cache with what comes back, so
-        // half an answer is worse than none — it would look like a successful restore of half.
+        // half an answer is worse than none, it would look like a successful restore of half.
         val dispatcher = EchoGetDispatcher(failAt = 2)
         server.dispatcher = dispatcher
         try {
@@ -1237,7 +1240,7 @@ class JmapClientTest {
     }
 
     @Test fun missingEmailIds_throwsRatherThanReturningAPartialUnion() {
-        // THE dangerous one: the caller DELETES the rows this returns. A batch that never
+        // The dangerous one: the caller DELETES the rows this returns. A batch that never
         // answered must never come back as "those messages are gone".
         val dispatcher = EchoGetDispatcher(failAt = 2, missing = setOf("e2"))
         server.dispatcher = dispatcher
@@ -1271,11 +1274,13 @@ class JmapClientTest {
 
     // ---- Email/set batching: no request may carry more ids than the server accepts ----
     //
-    // A single `Email/set` carrying a whole select-all is rejected in ONE block past the server's
+    // A single `Email/set` carrying a whole select-all is rejected in one block past the server's
     // maxObjectsInSet (Stalwart: 500), and nothing in the app used to read that number.
 
     /**
      * Answers every `Email/set` by echoing the ids it carried (as `updated` or `destroyed`), with
+     * a per-request `newState`, so a test can tell which request confirmed what. [failAt] makes
+     * the n-th request an HTTP 500, a transport failure, not a per-id rejection.
      */
     private class EchoSetDispatcher(
         private val failAt: Int? = null,
@@ -1353,7 +1358,7 @@ class JmapClientTest {
         // Aggregated: the union of what the three requests confirmed, not the last one's.
         assertEquals(ids.toSet(), result.done)
         assertTrue(result.failed.isEmpty())
-        // The newest state we hold: the LAST batch's. An older one would merely re-read wider.
+        // The newest state we hold: the last batch's. An older one would merely re-read wider.
         assertEquals("s3", result.newState)
         // Each request is a well-formed move of its own ids.
         assertTrue(dispatcher.bodies.all { it.contains("\"mailboxIds\":{\"mbArchive\":true}") })
@@ -1410,7 +1415,7 @@ class JmapClientTest {
         // grind through postWithRetry's backoff.
         assertEquals(2, server.requestCount)
         assertEquals(ids.take(5).toSet(), result.done)
-        // The failing batch AND the batch never attempted — not silently dropped.
+        // The failing batch and the batch never attempted, not silently dropped.
         assertEquals(ids.drop(5).toSet(), result.failed.keys)
         // Never "notFound": the repository prunes the local row of a notFound id, so marking an
         // unreachable batch that way would delete live messages from the cache.
@@ -1435,7 +1440,7 @@ class JmapClientTest {
 
     @Test fun setSeenAll_throwsWhenABatchFailsMidway() {
         // Like destroy, and for a caller-contract reason: "Mark all read" keeps the notifications
-        // it would otherwise dismiss ONLY if setReadAll threw (audit B5). Swallowing a transport
+        // it would otherwise dismiss only if setReadAll threw (audit B5). Swallowing a transport
         // failure here would dismiss the notifications of mail nothing ever marked read.
         val dispatcher = EchoSetDispatcher(failAt = 2)
         server.dispatcher = dispatcher
@@ -1461,7 +1466,7 @@ class JmapClientTest {
     @Test fun move_reportsThePerIdRejectionsOfEveryBatch() = runBlocking {
         // The aggregation of per-id SetErrors, which nothing exercised: the repository keys the
         // ghost prune off `notFound` and reports the rest as failures. Batch 2 of 3 rejects two of
-        // its five ids, for two DIFFERENT reasons.
+        // its five ids, for two different reasons.
         val dispatcher = EchoSetDispatcher(rejections = mapOf("e6" to "notFound", "e8" to "forbidden"))
         server.dispatcher = dispatcher
         val ids = (1..12).map { "e$it" }
@@ -1471,8 +1476,8 @@ class JmapClientTest {
         assertEquals(3, server.requestCount)
         // The other two batches keep their whole credit, and so do batch 2's three good ids.
         assertEquals(ids.toSet() - setOf("e6", "e8"), result.done)
-        // The TYPE survives aggregation: `notFound` is what makes the repository prune a ghost
-        // row, and anything else must NOT be read that way.
+        // The type survives aggregation: `notFound` is what makes the repository prune a ghost
+        // row, and anything else must not be read that way.
         assertEquals(mapOf("e6" to "notFound", "e8" to "forbidden"), result.failed)
     }
 
@@ -1502,9 +1507,9 @@ class JmapClientTest {
 
     // ---- A thread bigger than one server page ----
     //
-    // Thread/get + a back-referenced Email/get in ONE request asked for every message of the
+    // Thread/get + a back-referenced Email/get in one request asked for every message of the
     // thread with no bound at all. Past maxObjectsInGet the server refuses the get whole, so
-    // expanding a long conversation returned NOTHING — the only one of these three siblings that
+    // expanding a long conversation returned nothing, the only one of these three siblings that
     // loses something the reader can see.
 
     /**
@@ -1514,7 +1519,7 @@ class JmapClientTest {
         private val threadSize: Int,
         private val maxObjectsInGet: Int,
     ) : Dispatcher() {
-        /** The method name of each request's FIRST call, in order. */
+        /** The method name of each request's first call, in order. */
         val calls = mutableListOf<String>()
 
         /** The ids each explicit `Email/get` asked for, in order. */
@@ -1532,7 +1537,7 @@ class JmapClientTest {
                 responses += """["Thread/get",{"accountId":"acc1","state":"t1",
                     "list":[{"id":"th1","emailIds":[${all.joinToString(",") { "\"$it\"" }}]}],
                     "notFound":[]},"t0"]"""
-                // The old shape: a second call whose ids the SERVER resolves from the first.
+                // The old shape: a second call whose ids the server resolves from the first.
                 val chained = methodCalls.getOrNull(1)?.jsonArray
                 if (chained != null) {
                     responses += emailGet(all, "g0")
@@ -1546,7 +1551,9 @@ class JmapClientTest {
         }
 
         /**
-         * One row per id. A real server returns ONLY the properties the request asked for, and
+         * One row per id. A real server returns only the properties the request asked for, and
+         * this one does too for `mailboxIds`, otherwise a test could not tell a request that
+         * asks for it from one that does not, and the property could be dropped unnoticed.
          */
         private fun emailGet(ids: List<String>, callId: String, withMailboxIds: Boolean = true): String =
             if (ids.size > maxObjectsInGet) {
@@ -1567,7 +1574,7 @@ class JmapClientTest {
 
         val emails = client.getThreadEmails(sessionAdvertisingGet(500), "acc1", "th1", BasicAuth("u", "p"))
 
-        // One Thread/get, then the get split across the advertised limit — never one request.
+        // One Thread/get, then the get split across the advertised limit, never one request.
         assertEquals(3, server.requestCount)
         assertEquals(listOf("Thread/get", "Email/get", "Email/get"), dispatcher.calls)
         assertEquals(listOf(500, 200), dispatcher.getBatches.map { it.size })
@@ -1576,7 +1583,7 @@ class JmapClientTest {
 
     @Test fun getThreadEmails_stillAsksForWhatPlacesAMemberInAFolder() = runBlocking {
         // A thread that fits is still two requests, and still reads mailboxIds: the caller
-        // persists each member under its real folder and SKIPS any member without one, so
+        // persists each member under its real folder and skips any member without one, so
         // dropping that property would make an expansion fetch everything and keep nothing.
         val dispatcher = ThreadDispatcher(threadSize = 3, maxObjectsInGet = 500)
         server.dispatcher = dispatcher
@@ -1602,7 +1609,7 @@ class JmapClientTest {
     // ---- The windowed folder query: a window bigger than one server page ----
     //
     // "Messages to sync = All" is 1000 messages; Stalwart advertises maxObjectsInGet = 500. The
-    // folder query sends Email/query + a BACK-REFERENCED Email/get in one request, so the get's
+    // folder query sends Email/query + a back-referenced Email/get in one request, so the get's
 
     /**
      * A mailbox of [folderSize] messages (`e1` newest … `eN` oldest) answering `Email/query` +
@@ -1613,25 +1620,27 @@ class JmapClientTest {
         private val failAt: Int? = null,
         private val anchorNotFoundAt: Int? = null,
         /**
-         * Whether that `anchorNotFound` also SHORTENS the folder.
+         * Whether that `anchorNotFound` also shortens the folder.
          */
         private val anchorNotFoundShortensTheFolder: Boolean = true,
         /**
-         * How many MORE messages leave the folder in the same instant as the anchor, taken from
+         * How many more messages leave the folder in the same instant as the anchor, taken from
+         * just above it, i.e. of lower index, so everything past the anchor shifts down by
+         * `k + 1` and not by one.
          */
         private val alsoRemovedWithTheAnchor: Int = 0,
-        /** Ids the query lists but the get does NOT return (destroyed between the two calls). */
+        /** Ids the query lists but the get does not return (destroyed between the two calls). */
         private val omittedByGet: Set<String> = emptySet(),
     ) : Dispatcher() {
         /** The `Email/query` arguments of every request, in order. */
         val queries = mutableListOf<JsonObject>()
 
         /**
-         * The folder as the SERVER holds it, and it changes under the walk: an `anchorNotFound`
+         * The folder as the server holds it, and it changes under the walk: an `anchorNotFound`
          */
         private val all = (1..folderSize).mapTo(mutableListOf()) { "e$it" }
 
-        /** The folder as the server holds it NOW — what "the server still has it" is read from. */
+        /** The folder as the server holds it now, what "the server still has it" is read from. */
         val serverStillHolds: List<String> get() = all.toList()
 
         override fun dispatch(request: RecordedRequest): MockResponse {
@@ -1646,7 +1655,7 @@ class JmapClientTest {
                 if (anchorNotFoundAt == n) {
                     if (anchorNotFoundShortensTheFolder) {
                         val at = all.indexOf(anchor)
-                        // The k rows just ABOVE the anchor go with it: lower index, so every
+                        // The k rows just above the anchor go with it: lower index, so every
                         // position past the anchor drops by k + 1.
                         repeat(alsoRemovedWithTheAnchor) { if (at - 1 - it >= 0) all.removeAt(at - 1 - it) }
                         all.remove(anchor)
@@ -1690,7 +1699,7 @@ class JmapClientTest {
         queries.map { it["anchor"]?.jsonPrimitive?.content }
 
     /**
-     * What a walk handed off, page by page, and WHEN — [requestsAtHandOff] is how many requests
+     * What a walk handed off, page by page, and when, [requestsAtHandOff] is how many requests
      */
     private class Handed {
         val pages = mutableListOf<List<String>>()
@@ -1705,8 +1714,8 @@ class JmapClientTest {
 
     @Test fun queryEmailsWindow_splitsAWindowBiggerThanTheServerPageIntoTwoRequests() = runBlocking {
         // The lot's central case: 700 messages, a server admitting 500 per get, the "All"
-        // window (1000). Two requests, and every message handed over exactly once — the caller
-        // reconciles the mailbox against the ids of the WHOLE walk, so a walk that forgot the
+        // window (1000). Two requests, and every message handed over exactly once, the caller
+        // reconciles the mailbox against the ids of the whole walk, so a walk that forgot the
         // first request's ids would delete the folder down to the last page.
         val dispatcher = FolderDispatcher(folderSize = 700, maxObjectsInGet = 500)
         server.dispatcher = dispatcher
@@ -1725,16 +1734,16 @@ class JmapClientTest {
         assertEquals(700, walk.ids.size)
         assertEquals((1..700).map { "e$it" }, walk.ids)
         assertEquals((1..700).map { "e$it" }, handed.ids)
-        // The FIRST response's cursors: a queryState only describes the query it came from.
+        // The first response's cursors: a queryState only describes the query it came from.
         assertEquals("q1", walk.queryState)
         assertEquals("e1", walk.emailState)
-        // An ordinary anchored walk must NOT claim it paged by position: that claim costs the
+        // An ordinary anchored walk must not claim it paged by position: that claim costs the
         // caller its reconcile, i.e. the only thing that ever caps this folder's cache.
         assertFalse("an anchored walk reported a position resume", walk.resumedByPosition)
     }
 
     @Test fun queryEmailsWindow_handsEachPageOffAsItLandsAndRetainsNoMessages() = runBlocking {
-        // The shape this volet is FOR. The walk used to hold every `Email` of the window until
+        // The shape this volet is for. The walk used to hold every `Email` of the window until
         // the last request came back, because its caller wrote them all at once; twenty fields
         // and eight collections per message is what made "All" a heap problem. It now hands each
         // page over as it lands and keeps one string per message.
@@ -1748,8 +1757,8 @@ class JmapClientTest {
         )
 
         assertEquals("one hand-off per network page", listOf(500, 200), handed.pages.map { it.size })
-        // The load-bearing assertion: page 1 was handed over while only ONE request had been
-        // sent, i.e. BEFORE the walk knew what page 2 held. Accumulating and calling back at the
+        // The load-bearing assertion: page 1 was handed over while only one request had been
+        // sent, i.e. Before the walk knew what page 2 held. Accumulating and calling back at the
         // end would read [2, 2] here and pass every other assertion in this test.
         assertEquals(listOf(1, 2), handed.requestsAtHandOff)
         assertEquals(700, walk.ids.size)
@@ -1757,7 +1766,7 @@ class JmapClientTest {
 
     @Test fun queryEmailsWindow_asksTheSecondRequestOnlyForWhatTheWindowStillWants() = runBlocking {
         // The window (700) is not a multiple of the page (500): the second request asks for 200,
-        // not another 500 — the window is a promise about how much to keep, not a floor.
+        // not another 500, the window is a promise about how much to keep, not a floor.
         val dispatcher = FolderDispatcher(folderSize = 5000, maxObjectsInGet = 500)
         server.dispatcher = dispatcher
         val handed = Handed()
@@ -1807,11 +1816,11 @@ class JmapClientTest {
 
     @Test fun queryEmailsWindow_stopsOnTheFolderWhenTheWindowIsUnbounded() = runBlocking {
         // The same folder under a window bigger than itself. `Int.MAX_VALUE` is the extreme case
-        // of that, kept as the OVERFLOW GUARD on `minOf(target - fetched, pageSize)`; no shipped
-        // window carries it any more (the largest is 10 000 — `core:data`, `SyncWindowScaleTest`),
+        // of that, kept as the overflow guard on `minOf(target - fetched, pageSize)`; no shipped
+        // window carries it any more (the largest is 10 000, `core:data`, `SyncWindowScaleTest`),
         // and `core:jmap` cannot depend on that module to say so.
         //
-        // What the wire has to show: the FOLDER ends the walk, not the window. One request, 300
+        // What the wire has to show: the folder ends the walk, not the window. One request, 300
         // ids, and no second round trip per refresh for ever after.
         val dispatcher = FolderDispatcher(folderSize = 300, maxObjectsInGet = 500)
         server.dispatcher = dispatcher
@@ -1846,12 +1855,12 @@ class JmapClientTest {
         assertEquals((1..1200).map { "e$it" }, walk.ids)
         assertEquals((1..1200).map { "e$it" }, handed.ids)
         assertEquals("one hand-off per network page", listOf(500, 500, 200), handed.pages.map { it.size })
-        // The first response's cursors, as ever — a queryState describes the query it came from.
+        // The first response's cursors, as ever, a queryState describes the query it came from.
         assertEquals("q1", walk.queryState)
     }
 
     @Test fun queryEmailsWindow_paginatesEvenWhenTheServerAdvertisesNothing() = runBlocking {
-        // A silent server falls back to 100 ids per request. Capping WITHOUT paginating would
+        // A silent server falls back to 100 ids per request. Capping without paginating would
         // quietly shrink every window on such a server to 100 messages.
         val dispatcher = FolderDispatcher(folderSize = 5000, maxObjectsInGet = 100)
         server.dispatcher = dispatcher
@@ -1869,7 +1878,7 @@ class JmapClientTest {
 
     @Test fun queryEmailsWindow_keepsWalkingWhenTheGetReturnedFewerObjectsThanTheQueryListed() = runBlocking {
         // A message destroyed between the query and the back-referenced get: 500 ids listed, 499
-        // objects returned. Paging on what came BACK would read that as an exhausted folder and
+        // objects returned. Paging on what came back would read that as an exhausted folder and
         // abandon the remaining 200 messages of the window, on every refresh.
         val dispatcher = FolderDispatcher(folderSize = 700, maxObjectsInGet = 500, omittedByGet = setOf("e250"))
         server.dispatcher = dispatcher
@@ -1887,13 +1896,15 @@ class JmapClientTest {
     }
 
     @Test fun queryEmailsWindow_throwsRatherThanFinishingTheWalkItCouldNotFinish() {
-        // THE dangerous one, and the reason its name changed with this volet. It used to be
+        // The dangerous one, and the reason its name changed with this volet. It used to be
         // "never hand back the half it fetched": the caller reconciled the mailbox with the
         // return value, so half a window would have been read as "the folder holds these 500" and
         // deleted the other 200.
         //
-        // The pages are now written as they land, so the half IS in the cache — and the guard
-        // moved with it: the failure propagates UNCAUGHT, so the walk never returns, so the
+        // The pages are now written as they land, so the half IS in the cache, and the guard
+        // moved with it: the failure propagates uncaught, so the walk never returns, so the
+        // caller never reaches its reconcile and nothing is deleted (the write-through order is
+        // `MailRepository`'s `fullQueryWriteThrough`, executed by `FullQueryWriteThroughTest`).
         val dispatcher = FolderDispatcher(folderSize = 700, maxObjectsInGet = 500, failAt = 2)
         server.dispatcher = dispatcher
         val handed = Handed()
@@ -1918,11 +1929,10 @@ class JmapClientTest {
 
     @Test fun queryEmailsWindow_fallsBackToAPositionWhenTheAnchorHasGone() = runBlocking {
         // The anchor can leave the folder between two requests (deleted, moved). Recover once on
-        // an absolute position rather than failing the whole refresh — the same recovery the
+        // an absolute position rather than failing the whole refresh, the same recovery the
         // scroll mediator makes.
         //
-        // And recover BEHIND where the anchor was, not at it. `anchorNotFound` means the list
-        // has lost a row, so every index past the anchor has shifted DOWN by one: asking at the
+        // And recover behind where the anchor was, not at it.
         val dispatcher = FolderDispatcher(folderSize = 700, maxObjectsInGet = 500, anchorNotFoundAt = 2)
         server.dispatcher = dispatcher
         val handed = Handed()
@@ -1939,18 +1949,18 @@ class JmapClientTest {
         // The message that followed the vanished anchor came through, and was not deleted.
         assertTrue("e501 was skipped by the recovery", "e501" in walk.ids)
         assertEquals(700, walk.ids.size)
-        // Nothing was skipped HERE, and the walk still reports the resume: the flag says "this
-        // walk paged by position", not "this walk lost something" — it cannot tell the two apart
+        // Nothing was skipped here, and the walk still reports the resume: the flag says "this
+        // walk paged by position", not "this walk lost something", it cannot tell the two apart
         // from inside, which is why the refusal it triggers is the conservative direction.
         assertTrue(walk.resumedByPosition)
     }
 
     /**
-     * THE HOLE, EXECUTED — a burst of removals under the walk, and the ids that fall out of it.
+     * The hole, executed, a burst of removals under the walk, and the ids that fall out of it.
      */
     @Test fun queryEmailsWindow_skipsMessagesWhenTheAnchorLeavesWithABurst() = runBlocking {
-        // e500 is the anchor. It leaves with e498 and e499 — three rows out of the list in the
-        // same instant — so e501 sits at index 497, not 499. The recovery asks at 499 (one back
+        // e500 is the anchor. It leaves with e498 and e499, three rows out of the list in the
+        // same instant, so e501 sits at index 497, not 499. The recovery asks at 499 (one back
         // from the 500 accumulated) and is handed e503 onwards.
         val dispatcher = FolderDispatcher(
             folderSize = 700, maxObjectsInGet = 500,
@@ -1990,7 +2000,7 @@ class JmapClientTest {
     }
 
     /**
-     * The flag is a property of the WHOLE walk, and the walk goes on after the recovery.
+     * The flag is a property of the whole walk, and the walk goes on after the recovery.
      */
     @Test fun queryEmailsWindow_keepsSayingItResumedAfterTheWalkPagesOnPastTheRecovery() = runBlocking {
         val dispatcher = FolderDispatcher(folderSize = 2000, maxObjectsInGet = 500, anchorNotFoundAt = 2)
@@ -2015,8 +2025,9 @@ class JmapClientTest {
     }
 
     @Test fun queryEmailsWindow_handsTheOverlapOfARecoveryPageOverOnlyOnce() = runBlocking {
-        // The recovery restarts one position BEHIND on purpose, and when the folder did not
+        // The recovery restarts one position behind on purpose, and when the folder did not
         // actually shrink under it, that lands on a row the previous page already carried. The
+        // walk must hand that repeat over once:
         val dispatcher = FolderDispatcher(
             folderSize = 700, maxObjectsInGet = 500,
             anchorNotFoundAt = 2, anchorNotFoundShortensTheFolder = false,
@@ -2030,7 +2041,7 @@ class JmapClientTest {
         )
 
         // The recovery really did overlap, or this test proves nothing: it asked from position
-        // 499 of a folder still 700 long, so its 201 ids start at e500 — which page 1 ended on.
+        // 499 of a folder still 700 long, so its 201 ids start at e500, which page 1 ended on.
         assertEquals(3, server.requestCount)
         assertEquals(499, dispatcher.queries[2]["position"]!!.jsonPrimitive.int)
         assertEquals(listOf(500, 200), handed.pages.map { it.size })
@@ -2111,7 +2122,9 @@ class JmapClientTest {
         """
 
         /**
-         * What a server says about a submission it ACCEPTED, copied from the bench's Stalwart on
+         * What a server says about a submission it accepted, copied from the bench's Stalwart on
+         * 2026-08-30: `delivered` is "unknown" and the SMTP reply is a 250. This is the normal
+         * shape of a message on its way, a check stricter than `delivered == "no"` fails here.
          */
         const val SUBMISSION_ACCEPTED_JSON = """
             {
@@ -2145,7 +2158,7 @@ class JmapClientTest {
             }
         """
 
-        /** One recipient accepted, one refused — the message DID go out, to one of the two. */
+        /** One recipient accepted, one refused, the message did go out, to one of the two. */
         const val SUBMISSION_PARTIAL_JSON = """
             {
               "methodResponses": [
@@ -2175,7 +2188,7 @@ class JmapClientTest {
             }
         """
 
-        /** TWO refused recipients beside an accepted one: the plural of the promise. */
+        /** Two refused recipients beside an accepted one: the plural of the promise. */
         const val SUBMISSION_TWO_REFUSED_JSON = """
             {
               "methodResponses": [
@@ -2255,8 +2268,8 @@ class JmapClientTest {
             }
         """
 
-        // What a Stalwart answers to an unauthenticated GET of its session resource: HTTP 200,
-        // no user, no account — not a 401 (issue #137).
+        // What a Stalwart answers to an unauthenticated get of its session resource: HTTP 200,
+        // no user, no account, not a 401 (issue #137).
         const val ANONYMOUS_SESSION_JSON = """
             {
               "capabilities": {
@@ -2354,7 +2367,7 @@ class JmapClientTest {
             }
         """
 
-        /** Three ids matched, two objects returned — the shape `maxObjectsInGet` produces. */
+        /** Three ids matched, two objects returned, the shape `maxObjectsInGet` produces. */
         const val SEARCH_SHORT_GET_JSON = """
             {
               "methodResponses": [

@@ -8,6 +8,7 @@ import java.util.Collections
 
 /**
  * A message flagged `\Deleted` must not appear in any list, driven against a scripted server on
+ * loopback (Codeberg #99).
  */
 class DeletedFlagTest {
 
@@ -50,7 +51,7 @@ class DeletedFlagTest {
 
     /**
      * The whole point of the exercise: fetching the folder again does not bring them back. Not a
-     * cache — the filter is at the fetch, so every refresh takes the same decision on fresh data.
+     * cache, the filter is at the fetch, so every refresh takes the same decision on fresh data.
      */
     @Test
     fun `they stay out on the next refresh`() {
@@ -66,7 +67,7 @@ class DeletedFlagTest {
         }
     }
 
-    /** And they come back the moment another client clears the flag — nothing was cached. */
+    /** And they come back the moment another client clears the flag, nothing was cached. */
     @Test
     fun `clearing the flag elsewhere brings the message back`() {
         val deleted = mutableDeleted()
@@ -84,7 +85,9 @@ class DeletedFlagTest {
     }
 
     /**
-     * HIDING IS NOT DELETING. The Empty-trash snapshot enumerates with `UID SEARCH ALL`, which is
+     * Hiding is not deleting. The Empty-trash snapshot enumerates with `UID SEARCH all`, which is
+     * not a FETCH and never sees this filter: a Trash where every message is already flagged is
+     * invisible on screen and still entirely destroyable.
      */
     @Test
     fun `the purge still enumerates what the list hides`() {

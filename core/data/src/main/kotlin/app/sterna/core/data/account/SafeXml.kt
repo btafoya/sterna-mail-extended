@@ -10,7 +10,7 @@ import javax.xml.parsers.DocumentBuilderFactory
  */
 internal fun safeXmlDocumentBuilderFactory(): DocumentBuilderFactory =
     DocumentBuilderFactory.newInstance().apply {
-        // Harden against XXE / entity-expansion — a settings file needs none of it.
+        // Harden against XXE / entity-expansion, a settings file needs none of it.
         runCatching { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
         runCatching { setFeature("http://xml.org/sax/features/external-general-entities", false) }
         runCatching { setFeature("http://xml.org/sax/features/external-parameter-entities", false) }
@@ -18,7 +18,7 @@ internal fun safeXmlDocumentBuilderFactory(): DocumentBuilderFactory =
         runCatching { isExpandEntityReferences = false }
     }
 
-/** The direct child ELEMENTS of this element, in document order. */
+/** The direct child elements of this element, in document order. */
 internal fun Element.childElements(): List<Element> {
     val out = mutableListOf<Element>()
     val nodes = childNodes

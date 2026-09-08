@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The Identities editor opens on the default sender and folds the rest away. These cover the
+ * The Identities editor opens on the default sender and folds the rest away.
  */
 class IdentityRowsTest {
 
@@ -97,8 +97,8 @@ class IdentityRowsTest {
 
     @Test fun thePreviewIsExactlyWhatTheComposerWillInsert() {
         // The one thing that must not drift: what is shown here is the block the composer appends,
-        // minus only the blank line that separates it from the message above. True in BOTH
-        // positions of the delimiter switch — the preview is derived from the same function.
+        // minus only the blank line that separates it from the message above. True in both
+        // positions of the delimiter switch, the preview is derived from the same function.
         val signature = "Alex Rivera\nAcme"
         for (delimiter in listOf(true, false)) {
             val body = bodyWithSignature(quoted = "", signature = signature, delimiter = delimiter)
@@ -108,7 +108,7 @@ class IdentityRowsTest {
     }
 
     @Test fun aDelimiterTypedByHandIsShownDoubled() {
-        // Not stripped — the field holds the user's own text — but the preview makes it plain.
+        // Not stripped (the field holds the user's own text) but the preview makes it plain.
         assertEquals("-- \n-- \nAlex Rivera", signaturePreview("-- \nAlex Rivera", delimiter = true))
         assertTrue(signatureHasOwnDelimiter("-- \nAlex Rivera", delimiter = true))
         // Without the trailing space, and under a stray blank line the block would strip anyway.

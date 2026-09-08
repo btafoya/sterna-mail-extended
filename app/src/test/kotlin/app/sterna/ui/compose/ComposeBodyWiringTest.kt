@@ -6,11 +6,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as
+ * Source lint, not a behaviour test, same instrument and disclaimer as
+ * every source lint in this tree: it reads the source as text and proves nothing about behaviour.
  */
 class ComposeBodyWiringTest {
 
-    /** (a) The remap, its LIVE source and its last argument: `pending`, the armed style. */
+    /** (a) The remap, its live source and its last argument: `pending`, the armed style. */
     @Test fun `every keystroke remaps the styling from the live body, with the armed style`() {
         assertPinned(
             REMAP,
@@ -33,7 +34,7 @@ class ComposeBodyWiringTest {
     }
 
     /**
-     * (a bis) ONE remap, and BOTH halves of its answer taken.
+     * (a bis) one remap, and both halves of its answer taken.
      */
     @Test fun `the one remap hands back the styling, the blocks and the links`() {
         assertPinned(
@@ -59,7 +60,7 @@ class ComposeBodyWiringTest {
         )
     }
 
-    /** (b) The armed style falls on a caret move WITHOUT a keystroke, and only there. */
+    /** (b) The armed style falls on a caret move without a keystroke, and only there. */
     @Test fun `moving the caret without typing disarms the pending style`() {
         val lines = lines()
         val at = lines.indexOf("pending = null")
@@ -149,7 +150,7 @@ class ComposeBodyWiringTest {
         )
     }
 
-    /** (d ter) The dialog is composed on the LIVE selection — one mutation, one test. */
+    /** (d ter) The dialog is composed on the live selection, one mutation, one test. */
     @Test fun `the dialog is composed on the live selection`() {
         assertPinned(
             "selection = span(body.selection),",
@@ -160,7 +161,7 @@ class ComposeBodyWiringTest {
         )
     }
 
-    /** (d quater) The caret moves by exactly what was inserted — its DEFINITION, on its own line. */
+    /** (d quater) The caret moves by exactly what was inserted, its DEFINITION, on its own line. */
     @Test fun `the caret moves by exactly what the dialog inserted`() {
         assertPinned(
             "val inserted = applied.text.length - rich.text.length",
@@ -201,7 +202,7 @@ class ComposeBodyWiringTest {
     }
 
     /**
-     * (e) The leave guard compares the WHOLE body, blocks included. `RichBody.equals` is what
+     * (e) The leave guard compares the whole body, blocks included. `RichBody.equals` is what
      */
     @Test fun `the leave guard is given the blocks on both sides`() {
         assertPinned(
@@ -214,7 +215,7 @@ class ComposeBodyWiringTest {
     }
 
     /**
-     * (f) The markers are drawn in the TEXT LAYER, by the transformation, and from the live
+     * (f) The markers are drawn in the text layer, by the transformation, and from the live
      */
     @Test fun `the list markers are drawn by the field's visual transformation`() {
         assertPinned(
@@ -267,10 +268,10 @@ class ComposeBodyWiringTest {
     }
 
     /**
-     * (f bis) THE rule this whole branch exists for: NOT ONE SPAN IN THE FIELD'S VALUE.
+     * (f bis) the rule this whole branch exists for: not one span in the field's value.
      */
     @Test fun `no span is ever laid on the value the body field is handed`() {
-        // CASE-INSENSITIVE, and that is the whole reach of this rule: `annotatedString =`,
+        // Case-insensitive, and that is the whole reach of this rule: `annotatedString =`,
         // `toAnnotatedString(`, `AnnotatedString(` and `buildAnnotatedString {` are four spellings
         val offenders = lines().filter { "annotatedstring" in it.lowercase() }
         assertEquals(

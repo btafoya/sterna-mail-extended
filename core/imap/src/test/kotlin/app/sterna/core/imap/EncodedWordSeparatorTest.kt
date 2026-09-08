@@ -7,10 +7,11 @@ import java.util.Base64
 
 /**
  * The whitespace that separates two adjacent RFC 2047 encoded-words (Codeberg #123): "Réunion de
+ * rentrée" arriving on screen as "Réunion de ren trée".
  */
 class EncodedWordSeparatorTest {
 
-    /** [text] as one base64 encoded-word — the shape a mail client emits. */
+    /** [text] as one base64 encoded-word, the shape a mail client emits. */
     private fun b(text: String): String =
         "=?utf-8?B?${Base64.getEncoder().encodeToString(text.toByteArray(Charsets.UTF_8))}?="
 
@@ -55,14 +56,14 @@ class EncodedWordSeparatorTest {
 
     // ---- The guards, which is where a fix like this breaks something else ---------------------
 
-    /** THE WITNESS for plain text: a gap that is not only whitespace is not a separator. */
+    /** The witness for plain text: a gap that is not only whitespace is not a separator. */
     @Test fun `text between two encoded words survives with its spaces`() {
         assertEquals("Réunion de rentrée", decodeWords("${b("Réunion")} de ${b("rentrée")}"))
         assertEquals("Réunion - rentrée", decodeWords("${b("Réunion")} - ${b("rentrée")}"))
         assertEquals("Réunion, rentrée", decodeWords("${b("Réunion")}, ${b("rentrée")}"))
     }
 
-    /** THE WITNESS on the other side: whitespace between a word and plain text is a real space. */
+    /** The witness on the other side: whitespace between a word and plain text is a real space. */
     @Test fun `whitespace between an encoded word and plain text survives`() {
         assertEquals("Réunion de rentrée", decodeWords("${b("Réunion")} de rentrée"))
         assertEquals("Réunion de rentrée", decodeWords("Réunion de ${b("rentrée")}"))
@@ -78,7 +79,7 @@ class EncodedWordSeparatorTest {
     }
 
     /**
-     * A space the sender ENCODED is content and has nothing to do with §6.2. Asserted with a
+     * A space the sender encoded is content and has nothing to do with §6.2. Asserted with a
      * doubled space as the sentinel: keeping the separator too would give "Hello  world".
      */
     @Test fun `a space inside an encoded word is content and survives`() {
@@ -105,7 +106,7 @@ class EncodedWordSeparatorTest {
         assertEquals("Réunion", decodeWords(b(" Réunion ")))
     }
 
-    /** THE WITNESS for the ordinary case: one word, both encodings, still decodes as it did. */
+    /** The witness for the ordinary case: one word, both encodings, still decodes as it did. */
     @Test fun `a single encoded word is unaffected`() {
         assertEquals("Réunion", decodeWords("=?utf-8?B?UsOpdW5pb24=?="))
         assertEquals("Réunion", decodeWords("=?iso-8859-1?Q?R=E9union?="))
@@ -114,7 +115,7 @@ class EncodedWordSeparatorTest {
 
     // ---- The three call shapes ----------------------------------------------------------------
 
-    /** An IMAP literal token: `{n}` then the bytes — the only way a folded value reaches us. */
+    /** An IMAP literal token: `{n}` then the bytes, the only way a folded value reaches us. */
     private fun literal(value: String): String = "{${value.length}}\r\n$value"
 
     private fun fetchedMessage(subject: String, fromName: String): ImapMessage? =

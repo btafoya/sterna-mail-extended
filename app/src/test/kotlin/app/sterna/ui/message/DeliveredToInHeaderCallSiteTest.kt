@@ -5,12 +5,14 @@ import org.junit.Test
 import java.io.File
 
 /**
- * [DeliveredToInHeaderTest] executes the decision; this pins that the decision is still WIRED to
+ * [DeliveredToInHeaderTest] executes the decision; this pins that the decision is still wired to
+ * the open message's header, that the header still paints it, and what the label says (#180).
  */
 class DeliveredToInHeaderCallSiteTest {
 
     /**
-     * The decision is taken ONCE, at `MessageContent`'s call to `ConversationBody`, and it is
+     * The decision is taken once, at `MessageContent`'s call to `ConversationBody`, and it is
+     * taken with the account's own addresses. Both code lines that name it, whole and in order:
      */
     @Test fun `the reader decides the arrival line once, with the account's own addresses`() {
         assertEquals(
@@ -30,7 +32,10 @@ class DeliveredToInHeaderCallSiteTest {
     }
 
     /**
-     * And the decided line still travels — parameter by parameter — down to a `Text` in the
+     * And the decided line still travels (parameter by parameter) down to a `Text` in the
+     * header's Column, under the date. Every line that carries it, whole and in order: the call
+     * site, the two parameter declarations it passes through, the hand-off between them, the
+     * date's own `Text`, and only then the painting.
      */
     @Test fun `the decision reaches the header and is painted under the date`() {
         assertEquals(
@@ -53,7 +58,7 @@ class DeliveredToInHeaderCallSiteTest {
     }
 
     /**
-     * D6 — the flow that FEEDS all of the above, pinned WHOLE. The reader is a pager across
+     * D6, the flow that feeds all of the above, pinned whole. The reader is a pager across
      */
     @Test fun `the identity addresses are refilled, from the identities alone, for every message`() {
         assertEquals(
@@ -71,7 +76,7 @@ class DeliveredToInHeaderCallSiteTest {
     }
 
     /**
-     * The LABEL and its address are ONE translated string with a format argument, on the shape
+     * The label and its address are one translated string with a format argument, on the shape
      */
     @Test fun `the English label names the address through a format argument`() {
         assertEquals(

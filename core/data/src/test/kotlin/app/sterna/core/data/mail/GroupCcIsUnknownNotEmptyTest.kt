@@ -12,13 +12,13 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * **A Cc that is nothing but a group must read as UNKNOWN, never as empty** — executed on a real
+ * **A Cc that is nothing but a group must read as unknown, never as empty**, executed on a real
  */
 class GroupCcIsUnknownNotEmptyTest {
 
     /**
-     * THE case: `Cc: undisclosed-recipients:;`, i.e. a group start and its end, and no bcc.
-     * Unknown — the original must be kept.
+     * The case: `Cc: undisclosed-recipients:;`, i.e. a group start and its end, and no bcc.
+     * Unknown, the original must be kept.
      */
     @Test(timeout = 30_000)
     fun `a Cc holding only an empty group reads as unknown`() {
@@ -46,7 +46,7 @@ class GroupCcIsUnknownNotEmptyTest {
     }
 
     /**
-     * A group start with NO end. HYPOTHETICAL, and kept on purpose: no server here has been
+     * A group start with NO end. Hypothetical, and kept on purpose: no server here has been
      */
     @Test(timeout = 30_000)
     fun `a Cc holding a group start with no end reads as unknown too`() {
@@ -59,7 +59,7 @@ class GroupCcIsUnknownNotEmptyTest {
     }
 
     /**
-     * THE witness that gives the two above their meaning: a real address in the Cc comes back
+     * The witness that gives the two above their meaning: a real address in the Cc comes back
      */
     @Test(timeout = 30_000)
     fun `a Cc holding a real address reads as that address`() {
@@ -73,7 +73,7 @@ class GroupCcIsUnknownNotEmptyTest {
     }
 
     /**
-     * THE OTHER witness, and the one the defect's whole shape rests on: a draft with neither Cc
+     * The other witness, and the one the defect's whole shape rests on: a draft with neither Cc
      */
     @Test(timeout = 30_000)
     fun ccAndBccOfADraftWithNeitherCcNorBcc() {
@@ -89,6 +89,8 @@ class GroupCcIsUnknownNotEmptyTest {
 
     /**
      * Both halves are read together (`message.cc + message.bcc`), so a group naming nobody in the
+     * bcc makes the whole read unknown even though the Cc beside it is perfectly readable. A draft
+     * saved with `Bcc: undisclosed-recipients:;` loses its blind copies exactly the same way.
      */
     @Test(timeout = 30_000)
     fun `an empty group in the Bcc makes the read unknown though the Cc is readable`() {
@@ -104,7 +106,7 @@ class GroupCcIsUnknownNotEmptyTest {
     // ---- fixtures -----------------------------------------------------------------------------
 
     /**
-     * The shipped call, POSITIONALLY: folder then uid, the order the save and the send both pass
+     * The shipped call, positionally: folder then uid, the order the save and the send both pass
      */
     private suspend fun ccAndBccOf(server: ScriptedImapServer): Set<String>? =
         service().ccAndBccOf(credentials(server), DRAFTS, UID, ImapBudget.NO_BUDGET)
@@ -121,7 +123,7 @@ class GroupCcIsUnknownNotEmptyTest {
     }
 
     /** One `UID FETCH` row. Ten ENVELOPE slots: cc is the 7th and bcc the 8th, and getting those
-     *  two the wrong way round is its own data loss — see `envelopeAddresses`. */
+     *  two the wrong way round is its own data loss, see `envelopeAddresses`. */
     private fun envelope(cc: String, bcc: String) =
         "* 1 FETCH (UID $UID FLAGS (\\Draft) INTERNALDATE \"01-Jun-2026 10:00:00 +0000\" " +
             "ENVELOPE (\"Mon, 1 Jun 2026 10:00:00 +0000\" \"Half written\" " +
@@ -147,16 +149,19 @@ class GroupCcIsUnknownNotEmptyTest {
          *  then an entry with nothing at all in it (the group end). Neither is an address. */
         const val GROUP_WITH_END = "((NIL NIL \"undisclosed-recipients\" NIL)(NIL NIL NIL NIL))"
 
-        /** A group start alone, with no end marker — a shape no server here has been seen to
+        /** A group start alone, with no end marker, a shape no server here has been seen to
          * send (hypothetical), not the result of our own round trip: what this app appends is
-         *  `undisclosed-recipients:;`, which comes back start AND end. */
+         *  `undisclosed-recipients:;`, which comes back start and end. */
         const val GROUP_START_ONLY = "((NIL NIL \"undisclosed-recipients\" NIL))"
 
         /** …and a recipient that really is one. */
         const val COPY_CAT = "((\"Copy Cat\" NIL \"copy\" \"masto.top\"))"
 
         /**
-         * An [OAuthTokenRefresher] that is never used and cannot be built — the same trick, and for
+         * An [OAuthTokenRefresher] that is never used and cannot be built, the same trick, and for
+         * the same reason, as `ImapDraftAppendGoesOutOnceTest`'s: the real service is required, it
+         * needs a refresher, and a refresher needs an Android `Context`. `freshAccessToken` returns
+         * at `credentials.oauth ?: return null` for a password account, so no field is ever read.
          */
         fun unusedTokenRefresher(): OAuthTokenRefresher {
             val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")

@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * The home-screen list of the latest messages of every inbox — the second widget, and a separate
+ * The home-screen list of the latest messages of every inbox, the second widget, and a separate
  */
 class RecentMailWidgetProvider : AppWidgetProvider() {
 
@@ -26,7 +26,7 @@ class RecentMailWidgetProvider : AppWidgetProvider() {
         val app = context.applicationContext as? Application ?: return
         // onUpdate runs on the main thread and is over the moment it returns, while the read below
         // opens DataStore, the account store and Room. goAsync() holds the process until finish(),
-        // which EVERY path here reaches: never finishing leaks the broadcast.
+        // which every path here reaches: never finishing leaks the broadcast.
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
@@ -44,7 +44,7 @@ class RecentMailWidgetProvider : AppWidgetProvider() {
         }
     }
 
-    /** The FIRST cell of THIS widget was placed. Not the counter's — see [RecentMailWidgetPresence]. */
+    /** The first cell of THIS widget was placed. Not the counter's, see [RecentMailWidgetPresence]. */
     override fun onEnabled(context: Context) {
         RecentMailWidgetPresence.set(true)
     }
@@ -65,7 +65,7 @@ class RecentMailWidgetProvider : AppWidgetProvider() {
 }
 
 /**
- * Is at least one LATEST-MESSAGES cell placed? — its own state, and that is the whole point.
+ * Is at least one latest-messages cell placed?, its own state, and that is the whole point.
  */
 internal object RecentMailWidgetPresence {
 
@@ -82,7 +82,7 @@ internal object RecentMailWidgetPresence {
     }
 
     /**
-     * The same flow WITHOUT the seed — what [set] writes into, and the handle a JVM test can hold.
+     * The same flow without the seed, what [set] writes into, and the handle a JVM test can hold.
      */
     val live: StateFlow<Boolean> get() = state
 

@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHO DECIDES to read opening lines for the message list, and what the decision is made of (#187).
+ * Who decides to read opening lines for the message list, and what the decision is made of (#187).
  */
 class ListPreviewFillTest {
 
@@ -15,7 +15,7 @@ class ListPreviewFillTest {
             .filter { needle in it }
 
     /**
-     * The cache lambda is built in the REPOSITORY, from the two things `ImapMailService` has not
+     * The cache lambda is built in the repository, from the two things `ImapMailService` has not
      */
     @Test fun `the repository decides, from the settings and from the cache`() {
         val lines = DaoQuerySource.mailFunctionBody("MailRepository", "listPreviewCache")
@@ -62,7 +62,7 @@ class ListPreviewFillTest {
     }
 
     /**
-     * The "already filled" question is bound to a COUPLE, and both halves are load-bearing.
+     * The "already filled" question is bound to a couple, and both halves are load-bearing.
      */
     @Test fun `the already-filled question is asked of this account's rows alone`() {
         assertEquals(
@@ -72,13 +72,17 @@ class ListPreviewFillTest {
         )
     }
 
-    // -- what the walk WRITES for a row it did not re-read: pageOpenings, executed --------------
+    // -- what the walk writes for a row it did not re-read: pageOpenings, executed --------------
     //
     // The defect these three stand on (#187): the folder walk asks the server only for the rows
-    // the cache lacks — that is what makes an opening line cost one read ever — and then wrote the
+    // the cache lacks (that is what makes an opening line cost one read ever) and then wrote the
+    // page with what came back. Room's `@Upsert` replaces the whole row, so every row that was
+    // skipped for being already filled had its column set to null: 17 openings out of 20, then 1
+    // out of 20, then 17 again, one flip per pull-to-refresh and per `MailFetchWorker` round.
 
     /**
-     * The rows the page did NOT re-read come out carrying the value the cache already holds —
+     * The rows the page did not re-read come out carrying the value the cache already holds,
+     * untouched.
      */
     @Test fun `a row the page did not re-read comes out with the opening line the cache holds`() {
         val opened = pageOpenings(
@@ -103,7 +107,7 @@ class ListPreviewFillTest {
     }
 
     /**
-     * A page that read NOTHING — every row already filled, which is what a second pull-to-refresh
+     * A page that read nothing, every row already filled, which is what a second pull-to-refresh
      */
     @Test fun `a page that fetched nothing still carries every opening line the cache holds`() {
         assertEquals(
@@ -124,7 +128,7 @@ class ListPreviewFillTest {
     }
 
     /**
-     * Which ARGUMENT wins on a collision, pinned. It cannot happen on the shipped path — the
+     * Which argument wins on a collision, pinned.
      */
     @Test fun `a freshly read opening beats the cached one for the same row`() {
         assertEquals(

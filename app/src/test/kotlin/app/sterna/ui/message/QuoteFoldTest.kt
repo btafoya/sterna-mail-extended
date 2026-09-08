@@ -9,7 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [foldTopLevelQuotes] EXECUTED — it is a pure String→String function precisely so this file can
+ * [foldTopLevelQuotes] executed, it is a pure String→String function precisely so this file can
  */
 class QuoteFoldTest {
 
@@ -67,7 +67,7 @@ class QuoteFoldTest {
         assertTrue("the wrapper must be closed.\nGot:\n$out", "</details>" in out)
     }
 
-    // ── 2. The label that is SHOWN is the label that was PASSED ─────────────────────────────
+    // ── 2. The label that is shown is the label that was passed ─────────────────────────────
     @Test fun `the summary carries the label handed in, not one the function chose`() {
         val out = foldTopLevelQuotes(simple, label)
 
@@ -152,7 +152,7 @@ class QuoteFoldTest {
         )
     }
 
-    // ── 6. GUARD: the quote IS the body ─────────────────────────────────────────────────────
+    // ── 6. Guard: the quote IS the body ─────────────────────────────────────────────────────
     @Test fun `a body that is nothing but the quote is left alone`() {
         assertEquals(
             "a forwarded bulletin whose whole body is one <blockquote> would fold to an EMPTY " +
@@ -190,7 +190,7 @@ class QuoteFoldTest {
         )
     }
 
-    // ── 8/9. GUARD: markup the scan cannot balance ──────────────────────────────────────────
+    // ── 8/9. Guard: markup the scan cannot balance ──────────────────────────────────────────
     @Test fun `an unclosed quote is left exactly as it came in`() {
         val out = foldTopLevelQuotes(unclosed, label)
 
@@ -219,7 +219,7 @@ class QuoteFoldTest {
         assertEquals("same for the empty string.", simple, foldTopLevelQuotes(simple, ""))
     }
 
-    // ── 11. THE property: nothing of the body is ever lost ─────────────────────────────────
+    // ── 11. The property: nothing of the body is ever lost ─────────────────────────────────
     @Test fun `folding only ever ADDS the wrapper - the body always comes back whole`() {
         for (body in everyBody) {
             val out = foldTopLevelQuotes(body, label)
@@ -235,7 +235,7 @@ class QuoteFoldTest {
         }
     }
 
-    // ── 12/13/14. The document — buildHtmlDocument EXECUTED ────────────────────────────────
+    // ── 12/13/14. The document, buildHtmlDocument executed ────────────────────────────────
     private val noContent = "NO-CONTENT-SENTINEL"
 
     private fun richEmail(html: String): Email = Email(
@@ -307,7 +307,9 @@ class QuoteFoldTest {
         haystack.split(needle).size - 1
 
     /**
-     * Remove the two literal strings the fold is allowed to insert. Deliberately NOT a re-run of
+     * Remove the two literal strings the fold is allowed to insert. Deliberately not a re-run of
+     * the folding rule: it deletes fixed markup, so it cannot agree with a wrong implementation
+     * about where that markup belongs.
      */
     private fun stripWrapper(s: String): String =
         s.replace(Regex("""<details class="s-quote"><summary>.*?</summary>""", RegexOption.DOT_MATCHES_ALL), "")

@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The three signature settings — when it is inserted, where, and whether the "-- " delimiter line
+ * The three signature settings, when it is inserted, where, and whether the "-- " delimiter line
  */
 class SettingsBackupSignatureTest {
 
@@ -40,8 +40,8 @@ class SettingsBackupSignatureTest {
     }
 
     @Test fun theyAreCarriedAsFalseWhenExplicitlyOff() {
-        // The VALUES, not the keys — this is where the pattern was invented and where it was
-        // copied from. The codec writes with encodeDefaults and explicitNulls, so every key is
+        // The values, not the keys, this is where the pattern was invented and where it was
+        // copied from.
         val json0 = SettingsBackupCodec.encode(
             SettingsBackup(
                 signatureOnReplies = false,

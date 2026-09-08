@@ -9,7 +9,7 @@ internal data class UnsubscribeMail(
 )
 
 /**
- * A fixed English word, NOT the reader's interface label: a robot at the other end matches on this
+ * A fixed English word, not the reader's interface label: a robot at the other end matches on this
  * line, so a French phone must not send "Se désabonner" where a Russian one sends "Отписаться".
  */
 internal const val UNSUBSCRIBE_SUBJECT = "Unsubscribe"

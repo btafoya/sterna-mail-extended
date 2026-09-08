@@ -12,7 +12,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
- * What a failed row action (swipe delete/archive, and the Undo that puts it back) SAYS.
+ * What a failed row action (swipe delete/archive, and the Undo that puts it back) says.
  */
 class ActionFailureMessageTest {
 

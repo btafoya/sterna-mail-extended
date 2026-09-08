@@ -10,7 +10,7 @@ class AccountGoneException(val accountId: String) : kotlin.coroutines.cancellati
 /** The decision a sync makes before it writes: may rows still be tagged with [localAccountId]? A
  *  blank id is a programming error and throws loudly; an id no configured account owns throws
  *  [AccountGoneException]. An empty [configuredAccountIds] abandons everything, and `accounts()`
- *  also answers `emptyList()` on a decode failure — kept, since refusing a write loses nothing. */
+ *  also answers `emptyList()` on a decode failure, kept, since refusing a write loses nothing. */
 fun checkAccountStillConfigured(localAccountId: String, configuredAccountIds: Collection<String>) {
     require(localAccountId.isNotBlank()) {
         "checkAccountStillConfigured() needs a real account id: a blank one is the caller's own " +

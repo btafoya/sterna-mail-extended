@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * WHETHER THE LIST IS FILTERED TO UNREAD — the one answer the pager and "Select all" both ask.
+ * Whether the LIST is filtered to unread, the one answer the pager and "Select all" both ask.
  */
 class ListUnreadOnlyTest {
 

@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxViewModel.kt`, `InboxScreen.kt`,
+ * Source lint, not a behaviour test.
  */
 class LocalDraftListWiringLintTest {
 
@@ -46,7 +46,7 @@ class LocalDraftListWiringLintTest {
     @Test
     fun `the merge hides the replaced server row before it puts the local ones on top`() {
         // Held as text because `PagingData` cannot be read back without the `paging-testing`
-        // artifact. What the pure tests DO execute is every decision this body calls
+        // artifact. What the pure tests do execute is every decision this body calls
         assertEquals(
             "withLocalDrafts must be exactly these five lines, in this order. Body was:\n" +
                 functionBody(LOCAL_DRAFT_ROWS, "internal fun withLocalDrafts(").joinToString("\n"),
@@ -148,8 +148,7 @@ class LocalDraftListWiringLintTest {
 
     @Test
     fun `the swipe is refused where the gesture is armed, not after the row has flown off`() {
-        // THE most expensive line of this branch. performSwipe's refusal is a belt, and it
-        // arrives too late to be anything else: commitSwipe animates offsetX to the screen edge and
+        // The most expensive line of this branch.
         assertEquals(
             "The row must arm its swipe through rowGesturesEnabled(email.id, selectionActive), " +
                 "whole and once. '!selectionActive' alone is the shipped defect; dropping " +
@@ -157,8 +156,7 @@ class LocalDraftListWiringLintTest {
             listOf("gesturesEnabled = rowGesturesEnabled(email.id, selectionActive),"),
             member(INBOX_SCREEN, "emailRow").filter { it.startsWith("gesturesEnabled") },
         )
-        // …and the block has to READ the flag it is keyed on. Passing `gesturesEnabled` is half
-        // the guard: a pointerInput key only RESTARTS the block, it never stops it running, so a
+        // …and the block has to read the flag it is keyed on.
         assertEquals(
             "The row's swipe block must refuse on its FIRST line, before the tracker and the " +
                 "awaitPointerEventScope loop: a guard placed after the loop is armed is never " +
@@ -171,7 +169,7 @@ class LocalDraftListWiringLintTest {
 
     @Test
     fun `a local draft row is drawn no star to tap, at all three links`() {
-        // The star is a tap on EVERY row, TalkBack included, and it is not routed through
+        // The star is a tap on every row, TalkBack included, and it is not routed through
         // performSwipe: toggleFlag over a local id touches nothing on IMAP (the star never fills)
         val row = member(INBOX_SCREEN, "emailRow")
         val at = row.indexOfFirst { it.startsWith("onToggleFavourite") }
@@ -198,7 +196,7 @@ class LocalDraftListWiringLintTest {
             ),
             row.subList(at, minOf(at + 9, row.size)),
         )
-        // Link 2 of 3 — where the `null` TRAVELS. The rule above pins only where it is born, and
+        // Link 2 of 3, where the `null` travels. The rule above pins only where it is born, and
         // that is half a guard: SwipeableEmailRow's own parameter is nullable with a null default,
         // so `onToggleFavourite = onToggleFavourite ?: {},` on the relay compiles, leaves every
         // other rule in this file green, and hands the star back to every local draft.
@@ -211,8 +209,8 @@ class LocalDraftListWiringLintTest {
             functionBody(INBOX_SCREEN, "private fun SwipeableEmailRow(")
                 .filter { it.startsWith("onToggleFavourite") },
         )
-        // Link 3 of 3 — where the `null` ACTS. Only this condition decides whether a star exists
-        // at all; a live lambda arriving here draws a ☆ that TalkBack announces as a button and
+        // Link 3 of 3, where the `null` acts. Only this condition decides whether a star exists
+        // at all;
         assertEquals(
             "EmailListItem must declare onToggleFavourite nullable and defaulting to null (the " +
                 "search list draws this same row), gate the star on 'if (onToggleFavourite != " +
@@ -230,7 +228,7 @@ class LocalDraftListWiringLintTest {
     @Test
     fun `the upstream role map is shared without an expiring replay either`() {
         // The ban on `replayExpirationMillis = 0` is not the downstream line's alone. The same
-        // setting on the UPSTREAM does the same damage through it: on the way back to the screen
+        // setting on the upstream does the same damage through it: on the way back to the screen
         assertEquals(
             "InboxViewModel.folderRoles must stay scoped off accountsFlow and shared with " +
                 "WhileSubscribed(5_000) and NO replayExpirationMillis. Compared whole and in " +
@@ -278,7 +276,7 @@ class LocalDraftListWiringLintTest {
 
     @Test
     fun `the not-uploaded pill is pinned at all three links, arguments included`() {
-        // The mutation this exists for is not a deleted call, it is a changed ARGUMENT:
+        // The mutation this exists for is not a deleted call, it is a changed argument:
         // `showNotUploadedBadge = false` at any one of the three links compiles, leaves every other
         assertEquals(
             "The row renderer must ask the SAME predicate the gesture sites ask, on the row's own " +
@@ -312,7 +310,10 @@ class LocalDraftListWiringLintTest {
     // -- reading the sources --------------------------------------------------------------------
 
     /**
-     * The whole body of the member `val` [name] in [file], one trimmed code line per entry, IN
+     * The whole body of the member `val` [name] in [file], one trimmed code line per entry, in
+     * order: the declaration line, then every line indented deeper than it (or opening with an
+     * operator, which is how Kotlin continues a line). Stops at the next declaration at the same
+     * indentation.
      */
     private fun member(file: File, name: String): List<String> {
         val lines = codeLines(file)
@@ -332,7 +333,7 @@ class LocalDraftListWiringLintTest {
     }
 
     /**
-     * The body of the declaration whose line contains [opener] in [file] — the lines between the
+     * The body of the declaration whose line contains [opener] in [file], the lines between the
      * brace it opens and the one that closes it, trimmed, in order, braces excluded.
      */
     private fun functionBody(file: File, opener: String, after: String? = null): List<String> {
@@ -352,7 +353,7 @@ class LocalDraftListWiringLintTest {
             val next = depth + line.count { it == '{' } - line.count { it == '}' }
             if (seen) {
                 // The line that brings the brace count back to zero is the closing one: it ends the
-                // body and is not part of it. A body line that opens AND closes its own braces (a
+                // body and is not part of it. A body line that opens and closes its own braces (a
                 // one-line lambda) leaves the count where it was and is kept.
                 if (next <= 0) return out
                 line.trim().takeIf { it.isNotEmpty() }?.let { out += it }
@@ -363,7 +364,7 @@ class LocalDraftListWiringLintTest {
         return out
     }
 
-    /** [file]'s non-blank lines, indentation kept, with every comment taken out — block comments
+    /** [file]'s non-blank lines, indentation kept, with every comment taken out, block comments
      *  tracked across lines, and a `//` only honoured outside a double-quoted string, so a
      *  continuation written operator-first is never mistaken for a comment. */
     private fun codeLines(file: File): List<String> {
@@ -409,9 +410,9 @@ class LocalDraftListWiringLintTest {
         /** A line that carries on the previous one because it opens with an operator. */
         val CONTINUATION = Regex("""^\s*(\.|\?:|\?\.|\+|&&|\|\||,|\))""")
 
-        /** The row's swipe block, named by its WHOLE opening line. `.pointerInput(` on its own
+        /** The row's swipe block, named by its whole opening line. `.pointerInput(` on its own
          *  would find the account-chip drag in the drawer first, which [functionBody] would then
-         *  read instead — it takes the first match. */
+         *  read instead, it takes the first match. */
         const val ROW_POINTER_INPUT =
             ".pointerInput(gesturesEnabled, rightAction, leftAction, drawerBandPx, drawerCanOpen) {"
 

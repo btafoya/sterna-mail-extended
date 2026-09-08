@@ -13,7 +13,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * "All inboxes (N)" is shown twice — in the drawer and on a home-screen widget, which breaks it
+ * "All inboxes (N)" is shown twice, in the drawer and on a home-screen widget, which breaks it
+ * in two ways at once when the two counts disagree.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class UnifiedInboxUnreadTest {
@@ -40,7 +41,7 @@ class UnifiedInboxUnreadTest {
             }
         }
 
-        /** Emit [value] on the flow handed out for [scopes] — the Room invalidation that would
+        /** Emit [value] on the flow handed out for [scopes], the Room invalidation that would
          *  reach a subscription nothing cancelled. */
         fun push(scopes: List<Pair<String, String>>, value: Map<String, Int>) {
             val flow = handed[scopes]
@@ -158,7 +159,7 @@ class UnifiedInboxUnreadTest {
     }
 
     /**
-     * The dedupe's ceiling: a write that moves NOTHING the total is built from must not re-count.
+     * The dedupe's ceiling: a write that moves nothing the total is built from must not re-count.
      */
     @Test fun `a write that touches nothing the count is built from does not re-count`() = runTest {
         val counter = Counter(mapOf(("a" to "ia") to 5))
@@ -185,7 +186,7 @@ class UnifiedInboxUnreadTest {
     }
 
     /**
-     * The IMAP half, and the reason the dedupe key is NOT the derived scopes alone. An IMAP inbox
+     * The IMAP half, and the reason the dedupe key is not the derived scopes alone. An IMAP inbox
      */
     @Test fun `a stored counter moving re-counts even though the scopes are identical`() = runTest {
         val calls = mutableListOf<List<Pair<String, String>>>()
@@ -217,7 +218,7 @@ class UnifiedInboxUnreadTest {
     }
 
     /**
-     * The single number is DERIVED from the breakdown, and this is what "derived" has to mean:
+     * The single number is derived from the breakdown, and this is what "derived" has to mean:
      */
     @Test fun `the single unified number is the breakdown added up`() {
         assertEquals(
@@ -235,6 +236,8 @@ class UnifiedInboxUnreadTest {
 
     /**
      * Whole line, not a `contains`: a fragment check passes on anything appended to it. This is
+     * the "one copy" claim, the store must feed [UnifiedInbox.scopes] its stored list and nothing
+     * else. A second `mapNotNull { … inboxId … }` here is a rule that can drift from the widget's.
      */
     @Test fun `AccountStore derives the scopes through the shared rule, not a copy of it`() {
         val source = SourceText.read(
@@ -250,7 +253,7 @@ class UnifiedInboxUnreadTest {
     }
 
     /**
-     * SOURCE LINT, and the one hole the tests above cannot reach: they inject their own account
+     * Source lint, and the one hole the tests above cannot reach: they inject their own account
      */
     @Test fun `MailRepository builds the breakdown on the live account flow`() {
         val source = SourceText.read(
@@ -277,7 +280,7 @@ class UnifiedInboxUnreadTest {
     }
 
     /**
-     * And the single number is DERIVED from that one subscription, not observed a second time.
+     * And the single number is derived from that one subscription, not observed a second time.
      */
     @Test fun `the single number is derived from the breakdown, not observed a second time`() {
         val source = SourceText.read(

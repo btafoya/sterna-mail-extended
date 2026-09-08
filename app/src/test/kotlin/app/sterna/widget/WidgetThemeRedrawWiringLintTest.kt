@@ -6,12 +6,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument, same disclaimer and the same reason as
+ * Source lint, not a behaviour test, same instrument, same disclaimer and the same reason as
+ * [RecentMailWidgetWiringLintTest] next door: there is no Robolectric in this repository, so
+ * `SettingsViewModel`, `RecentMailWidgetDraw` and `UnreadWidgetDraw` cannot be run by this suite.
  */
 class WidgetThemeRedrawWiringLintTest {
 
     /**
-     * CHANGING THE THEME MUST REACH THE HOME SCREEN, for BOTH cells.
+     * Changing the theme must reach the home screen, for both cells.
      */
     @Test fun `changing the theme redraws both cells at once, so neither keeps colours the app dropped`() {
         assertEquals(

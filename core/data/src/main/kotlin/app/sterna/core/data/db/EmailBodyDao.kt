@@ -4,7 +4,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
 
-/** `LIKE … ESCAPE '\'`, not a subquery: body rows must go regardless of list rows; caller
+/** `like … escape '\'`, not a subquery: body rows must go regardless of list rows; caller
  *  escapes `%`, `_`, `\`. */
 const val BODY_CACHE_ID_PREFIX_SQL: String =
     "DELETE FROM email_bodies WHERE accountId = :accountId AND id LIKE :idPrefix ESCAPE '\\'"
@@ -52,7 +52,7 @@ interface EmailBodyDao {
     suspend fun accountIds(): List<String>
 
     /** Drops every cached body for every account, once per upgrade. Scope pinned to this table
-     *  only — widening it would silently wipe messages/attachments/search too. */
+     *  only, widening it would silently wipe messages/attachments/search too. */
     @Query(BODY_CACHE_CLEAR_SQL)
     suspend fun deleteAll()
 }

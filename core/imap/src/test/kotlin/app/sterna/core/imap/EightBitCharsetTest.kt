@@ -14,7 +14,7 @@ class EightBitCharsetTest {
     private fun wire(text: String, charset: Charset): String =
         String(text.toByteArray(charset), Charsets.ISO_8859_1)
 
-    /** A `UID FETCH … BODY[]` answer carrying [source] as a literal. */
+    /** A `UID FETCH … body[]` answer carrying [source] as a literal. */
     private fun sourceResponse(tag: String, uid: Long, source: String): String =
         "* 1 FETCH (UID $uid BODY[] {${source.length}}\r\n$source)\r\n$tag OK fetched\r\n"
 
@@ -46,7 +46,7 @@ class EightBitCharsetTest {
         assertEquals("Café à Noël", body.text)
     }
 
-    /** Cyrillic in its own charset — where nearly every character is 8-bit, so nearly every
+    /** Cyrillic in its own charset, where nearly every character is 8-bit, so nearly every
      *  character was destroyed rather than a handful of accents. */
     @Test
     fun `an 8-bit KOI8-R body reaches the reader intact`() {
@@ -55,7 +55,7 @@ class EightBitCharsetTest {
     }
 
     /**
-     * THE WITNESS for the common case. A UTF-8 body sent in 8 bits is what most mail is; reading
+     * The witness for the common case. A UTF-8 body sent in 8 bits is what most mail is; reading
      */
     @Test
     fun `an 8-bit UTF-8 body still reaches the reader intact`() {
@@ -63,7 +63,7 @@ class EightBitCharsetTest {
         assertEquals("Café 日本語 🐦", body.text)
     }
 
-    /** THE WITNESS for the encodings that already worked: a base64 attachment still arrives byte
+    /** The witness for the encodings that already worked: a base64 attachment still arrives byte
      *  for byte, including bytes that are not valid UTF-8 and never were. */
     @Test
     fun `a base64 attachment is unchanged`() {
@@ -96,7 +96,7 @@ class EightBitCharsetTest {
         val fetched = FakeImapServer { tag, line ->
             when {
                 line.startsWith("SELECT") -> selectResponse(tag, exists = 1)
-                // BODY.PEEK[2] — the section fetch an attachment download makes.
+                // Body.PEEK[2], the section fetch an attachment download makes.
                 line.startsWith("UID FETCH") ->
                     "* 1 FETCH (UID 7 BODY[2] {${fileBytes.size}}\r\n" +
                         String(fileBytes, Charsets.ISO_8859_1) + ")\r\n$tag OK fetched\r\n"
@@ -117,6 +117,8 @@ class EightBitCharsetTest {
 
     /**
      * The nearest a JVM test in this module can get to `MailRepository.decryptMessage`, which is
+     * not constructible off-device: a signed entity is a verbatim slice of the message source,
+     * so `toByteArray(ISO_8859_1)`, and only that, hands the verifier the octets the sender hashed.
      */
     @Test
     fun `a signed entity is recoverable as the exact bytes the sender sent`() {
@@ -148,8 +150,8 @@ class EightBitCharsetTest {
     // ---- Headers -----------------------------------------------------------------------------
 
     /** An IMAP literal token: `{n}` then the bytes. RFC 3501 forbids 8-bit bytes in a
-     *  quoted-string, so this is the ONLY shape a conforming server can send a non-ASCII
-     *  envelope value in — which is exactly the token whose reading this branch changed. */
+     *  quoted-string, so this is the only shape a conforming server can send a non-ASCII
+     *  envelope value in, which is exactly the token whose reading this branch changed. */
     private fun literal(value: String): String = "{${value.length}}\r\n$value"
 
     private fun envelopeResponse(
@@ -187,7 +189,7 @@ class EightBitCharsetTest {
     private fun fetchedSubject(subject: String): String? = fetchedMessage(subject)?.subject
 
     /**
-     * THE WITNESS that the header path was moved with the body path. A header carries no charset,
+     * The witness that the header path was moved with the body path.
      */
     @Test
     fun `a raw 8-bit UTF-8 subject survives the anti-spoofing filter`() {
@@ -209,7 +211,9 @@ class EightBitCharsetTest {
     }
 
     /**
-     * THE ADDRESS, which is the one value here that is not merely displayed. `fromEmail` is
+     * The address, which is the one value here that is not merely displayed. `fromEmail` is
+     * persisted in the cache, indexed for search, offered as a contact suggestion and prefilled
+     * as the recipient of a reply, so a mangled one does not look wrong, it sends wrong.
      */
     @Test
     fun `an EAI address in the envelope is read, not left as octets`() {

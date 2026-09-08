@@ -4,11 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * How far the FINGER must have travelled before a flick may change message.
+ * How far the finger must have travelled before a flick may change message.
  */
 class PagerFlingDistanceTest {
 
-    /** 25 dp at a density of 2.0 — the 360 dp bench the no-go was measured on. */
+    /** 25 dp at a density of 2.0, the 360 dp bench the no-go was measured on. */
     private val floorPx = 50f
 
     /** Well past the library's own 400 dp/s (800 px/s here): a real flick. */
@@ -23,7 +23,7 @@ class PagerFlingDistanceTest {
 
     @Test fun `the floor is androidx ViewPager's own 25 dp`() {
         // Pinned as a number because nothing else can see it: this file works in px, and the dp→px
-        // conversion happens in the composable. 25 dp is ViewPager's MIN_DISTANCE_FOR_FLING, the
+        // conversion happens in the composable.
         assertEquals(25, MIN_FLING_DISTANCE_DP)
     }
 
@@ -71,7 +71,7 @@ class PagerFlingDistanceTest {
 
     @Test fun `a slow release past the floor still gets its zero, unchanged`() {
         // A drag let go of at rest already has no fling: the guard must hand on the 0f it was
-        // given, which is what drops the gesture into the library's ClosestItem path — the slow
+        // given, which is what drops the gesture into the library's ClosestItem path, the slow
         // swipe, still decided by snapPositionalThreshold, untouched by any of this.
         assertEquals(0f, velocity(120f, velocityPxPerSec = 0f), 0f)
     }
@@ -111,7 +111,7 @@ class PagerFlingDistanceTest {
 
     @Test fun `the lift writes the final travel and closes the gesture`() {
         // The up event carries the pointer's true final position whatever the slop swallowed, so
-        // the travel is recomputed from it — 280 − 200 = 80 px — and NOT left at the last move's
+        // the travel is recomputed from it (280 − 200 = 80 px) and not left at the last move's
         // value (60 px here).
         assertEquals(
             PointerTravel(downX = 200f, travelPx = 80f, fingerDown = false),
@@ -125,8 +125,8 @@ class PagerFlingDistanceTest {
     }
 
     @Test fun `the travel outlives the lift`() {
-        // THE reason it is not cleared at the lift: the fling runs after the release, and this is
-        // the state it reads. Clear it there and the guard sees 0 px forever — no flick ever
+        // The reason it is not cleared at the lift: the fling runs after the release, and this is
+        // the state it reads. Clear it there and the guard sees 0 px forever, no flick ever
         // changes message, which is exactly the failure the bench measured.
         val lifted = PointerTravel(downX = 200f, travelPx = 80f, fingerDown = false)
         assertEquals(lifted, advanceTravel(lifted, isPress = false, anyPressed = false, x = 999f))
@@ -134,7 +134,7 @@ class PagerFlingDistanceTest {
 
     @Test fun `the next touch down clears the previous gesture's travel`() {
         // The case that tells the real machine from one that resets on every event: the travel of
-        // the finished gesture must survive until a NEW finger goes down, and then go to zero with
+        // the finished gesture must survive until a new finger goes down, and then go to zero with
         // a new origin.
         assertEquals(
             PointerTravel(downX = 500f, travelPx = 0f, fingerDown = true),
@@ -162,7 +162,7 @@ class PagerFlingDistanceTest {
     }
 
     @Test fun `a press wins over anyPressed, whatever the event says about pressure`() {
-        // Order of the branches, pinned: isPress is read FIRST and alone. Written
+        // Order of the branches, pinned: isPress is read first and alone. Written
         // `isPress && anyPressed ->`, or placed under the anyPressed branch, a press whose change
         // no longer reports itself pressed would fall through to the move branch and measure from
         // the previous gesture's origin.

@@ -10,6 +10,8 @@ import app.sterna.core.data.mail.accountDepartureIsProven
 
 /**
  * Delivers one persistent outbox item. WorkManager persists and fires this and gates it on
+ * death/reboot) and gates it on connectivity, so a send queued offline goes out automatically
+ * when the network returns. A held item (undo window / scheduled time) reschedules until due.
  */
 class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -19,9 +21,9 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         val repo = container.mailRepository
         val item = repo.outboxItem(id) ?: return Result.success() // sent, cancelled or deleted
 
-        // A delivery this row was already in the middle of, whose run never came back: PARK it, do
-        // not start it again. Written back with its own attemptCount and lastError — nothing was
-        // attempted here. This runs on the row AS READ, ahead of every other question: below
+        // A delivery this row was already in the middle of, whose run never came back: park it, do
+        // not start it again. Written back with its own attemptCount and lastError, nothing was
+        // attempted here. This runs on the row as read, ahead of every other question: below
         // isReadyToSend it is dead code, below the delivery it fires on a message just sent twice.
         OutboxLogic.parkOnPickup(item.state)?.let { parked ->
             repo.updateOutboxState(id, parked, item.attemptCount, item.lastError)
@@ -38,8 +40,8 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         if (item.state == OutboxState.FAILED) return Result.success() // no auto-retry once parked
 
         val credentials = container.accountStore.credentials(item.accountId) ?: run {
-            // A `null` here is NOT proof that the account left, and once queued this row is the
-            // ONLY copy of the message: `credentials` also answers null for a secret that will not
+            // A `null` here is not proof that the account left, and once queued this row is the
+            // only copy of the message: `credentials` also answers null for a secret that will not
             // decode, and an unreadable blob makes `accounts()` empty. So the departure is proved
             // first, in the one place a JVM test can execute the rule.
             val departed = accountDepartureIsProven(
@@ -51,7 +53,7 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                 repo.deleteOutbox(id)
                 return Result.success()
             }
-            // Unproven ⇒ nothing is destroyed, and NOTHING is written on the row: no state, no
+            // Unproven, so nothing is destroyed, and nothing is written on the row: no state, no
             // attemptCount, no lastError. Nothing was attempted here, so a bump would spend a retry
             return Result.retry()
         }
@@ -64,7 +66,7 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         } catch (t: Throwable) {
             val attempts = OutboxLogic.attemptsAfterFailure(item.attemptCount, t)
             val error = t.message ?: t.javaClass.simpleName
-            // The failure itself decides, not the count alone: a delivery the SERVER refused is
+            // The failure itself decides, not the count alone: a delivery the server refused is
             // parked at once (#183), the message being already in Sent and each auto-retry adding a
             // copy there. `stateAfterFailure` is where that rule is executed by a JVM test.
             val next = OutboxLogic.stateAfterFailure(attempts, t)

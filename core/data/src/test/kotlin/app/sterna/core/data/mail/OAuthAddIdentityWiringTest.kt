@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. The decision itself — which account is already installed —
+ * Source lint, not a behaviour test. The decision itself (which account is already installed)
  */
 class OAuthAddIdentityWiringTest {
 
@@ -13,7 +13,7 @@ class OAuthAddIdentityWiringTest {
             .lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("//") }
 
     /**
-     * [expected] must appear in the body of [function] as a CONTIGUOUS run of whole trimmed lines.
+     * [expected] must appear in the body of [function] as a contiguous run of whole trimmed lines.
      */
     private fun assertBlock(function: String, why: String, expected: List<String>) {
         val start = bodyLines(function).indexOf(expected.first())
@@ -58,7 +58,7 @@ class OAuthAddIdentityWiringTest {
 
     /**
      * IMAP: an IMAP account is keyed on its IMAP host (its `server` is blank), and on the address
-     * the `id_token` named — the one the store is given — never the alias the user typed.
+     * the `id_token` named (the one the store is given) never the alias the user typed.
      */
     @Test fun `the Microsoft OAuth IMAP add asks on the values the store is given`() {
         assertAsks(
@@ -91,7 +91,7 @@ class OAuthAddIdentityWiringTest {
     }
 
     /**
-     * The host the account is STORED under is not the host the tokens came from. The password
+     * The host the account is stored under is not the host the tokens came from. The password
      */
     @Test fun `the JMAP OAuth add resolves the server the password path would have stored`() {
         assertBlock(
@@ -157,7 +157,7 @@ class OAuthAddIdentityWiringTest {
     }
 
     /**
-     * And the resolved host must be what the store is GIVEN. Resolving it and then writing
+     * And the resolved host must be what the store is given. Resolving it and then writing
      * `server = host` anyway is the defect in full, with a decoy line above it that reads right.
      */
     @Test fun `the JMAP OAuth add stores the resolved server, not the document host`() {
@@ -175,7 +175,7 @@ class OAuthAddIdentityWiringTest {
     }
 
     /**
-     * And the store must be told the OTHER host this route has filed this address under. An
+     * And the store must be told the other host this route has filed this address under.
      */
     @Test fun `the JMAP OAuth add tells the store which host 1_5_x filed this account under`() {
         assertBlock(
@@ -194,7 +194,7 @@ class OAuthAddIdentityWiringTest {
     }
 
     /**
-     * Sub-account reconciliation runs on a CREATION only — the same rule the two neighbouring
+     * Sub-account reconciliation runs on a CREATION only, the same rule the two neighbouring
      */
     @Test fun `sub-account reconciliation only runs when the OAuth add created the account`() {
         val gated = "if (created) reconcileLinkedAccountsAfterAdd(id)"
@@ -212,7 +212,7 @@ class OAuthAddIdentityWiringTest {
     }
 
     private companion object {
-        /** Any call of the #129 reconcile, gated or not — the test compares the WHOLE line. */
+        /** Any call of the #129 reconcile, gated or not, the test compares the whole line. */
         val RECONCILE = Regex("""reconcileLinkedAccountsAfterAdd\(""")
     }
 }

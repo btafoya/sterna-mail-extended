@@ -31,10 +31,10 @@ fun LoadingRing(
         // track behind it and hold a notch open between the ends, so at a full turn it would rest
         // as a circle with a gap bitten out of it.
         //
-        // The wrapping Box is not decoration — it is what the ring ANNOUNCES. The determinate
+        // The wrapping Box is not decoration, it is what the ring announces. The determinate
         // overload publishes ProgressBarRangeInfo(1f, …) of its own accord, so a screen reader
         //
-        // SIZE: the caller's modifier goes on the Box, and Material 3's own `.size(40.dp)` on the
+        // Size: the caller's modifier goes on the Box, and Material 3's own `.size(40.dp)` on the
         // indicator is enforced against the incoming constraints, so it lands wherever the caller
         // asked. No explicit size is forced here: doing so would either freeze the default or
         // stretch the ring for a caller passing fill constraints.
@@ -53,7 +53,7 @@ fun LoadingRing(
     }
 }
 
-/** The turn a resting ring is drawn at: the WHOLE circle, never a fragment of one. */
+/** The turn a resting ring is drawn at: the whole circle, never a fragment of one. */
 internal const val LOADING_RING_REST_TURN = 1f
 
 /**

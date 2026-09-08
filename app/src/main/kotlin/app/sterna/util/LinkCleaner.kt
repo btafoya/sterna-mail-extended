@@ -2,7 +2,7 @@ package app.sterna.util
 
 /**
  * Strips known tracking query parameters (utm_*, fbclid, gclid, …) from a URL
- * before it is opened, so a sender can't tell when — or whether — a link was
+ * before it is opened, so a sender can't tell when, or whether, a link was
  * clicked. Pure string handling (no android.net.Uri) so it is JVM-unit-testable.
  *
  * Deliberately conservative: only parameters that exist solely to track are

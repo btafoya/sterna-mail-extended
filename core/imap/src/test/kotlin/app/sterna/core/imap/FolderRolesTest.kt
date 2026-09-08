@@ -6,10 +6,10 @@ import java.io.ByteArrayInputStream
 import java.util.Locale
 
 /**
- * The role a LIST gives each folder, on servers that never send a SPECIAL-USE attribute.
+ * The role a LIST gives each folder, on servers that never send a SPECIAL-use attribute.
  *
  * What is at stake is mail, not tidiness: with no folder carrying the "trash" role,
- * `MailRepository.deleteWouldDestroy` answers "this delete destroys" for EVERY message, and the
+ * `MailRepository.deleteWouldDestroy` answers "this delete destroys" for every message, and the
  * delete swipe erases instead of moving. A German, Polish or Russian mailbox on a server without
  * RFC 6154 got exactly that.
  *
@@ -90,7 +90,7 @@ class FolderRolesTest {
     /**
      * The English table as it stood before the other eight locales were added to it.
      *
-     * One folder per listing, because these are SYNONYMS: no server carries "Trash" and "Deleted
+     * One folder per listing, because these are synonyms: no server carries "Trash" and "Deleted
      * Items" at once, and a single listing holding both would be measuring the anti-duplicate
      * guard instead of the table.
      */
@@ -105,7 +105,7 @@ class FolderRolesTest {
         )
     }
 
-    /** A name in no table is nobody's special folder, and MUST keep a null role: that is what
+    /** A name in no table is nobody's special folder, and must keep a null role: that is what
      *  keeps it searchable and renameable (`SearchableFoldersTest`). */
     @Test fun anOrdinaryFolderKeepsNoRole() =
         assertEquals(listOf(null, null), roles("Facturen", "&BB8EQgQ4BEcEOgQ4-")) // Птички
@@ -113,7 +113,7 @@ class FolderRolesTest {
     // ─────────────────────────── the two list-wide guards ───────────────────────────
 
     /**
-     * A role the SERVER stated cannot be stolen by a role GUESSED from a name — whichever order
+     * A role the server stated cannot be stolen by a role guessed from a name, whichever order
      * they were listed in. The user folder "Архив" arriving first must not take "archive" from
      * the mailbox the server itself marked `\Archive`, or archiving files mail into a folder the
      * server does not consider an archive.
@@ -136,8 +136,8 @@ class FolderRolesTest {
     }
 
     /**
-     * Two candidates for the same role: ONE carries it. Two folders with role "trash" put two
-     * Trashes in the drawer and let `roleMailboxId` pick either — the deleted message lands in
+     * Two candidates for the same role: one carries it. Two folders with role "trash" put two
+     * Trashes in the drawer and let `roleMailboxId` pick either, the deleted message lands in
      * whichever the query returned first, i.e. not the one the user emptied.
      */
     @Test fun asecondCandidateForATakenRoleGetsNothing() {
@@ -146,9 +146,9 @@ class FolderRolesTest {
     }
 
     /**
-     * Same for a role stated twice: the drawer needs ONE trash, not the last one listed.
+     * Same for a role stated twice: the drawer needs one trash, not the last one listed.
      *
-     * The loser is deliberately named "Archiv" — a name the table reads as ANOTHER role. A folder
+     * The loser is deliberately named "Archiv", a name the table reads as another role. A folder
      * the server itself labelled `\Trash` must not be re-read as the archive because the trash
      * was already taken: the app would then file archived mail into a folder that gets purged.
      * With a loser named "Old Trash" this case is blind, since that name guesses nothing anyway.
@@ -178,10 +178,10 @@ class FolderRolesTest {
     // ─────────────────────── the claim that lost, reported and not thrown away ───────────────────
     //
     // A folder that lost a role is an ordinary folder in the drawer, and that is right. But a
-    // SECOND TRASH is not ordinary mail: an account with a personal "Trash" and a shared
+    // second TRASH is not ordinary mail: an account with a personal "Trash" and a shared
     // "Shared/…/Trash" has two, the loser was left role-less, and a role-less folder is searched
-    // and crawled into the local index — thrown-away mail came back in every search result and
-    // survived a cache purge. So the decision reports WHAT was claimed and lost; `:core:data` is
+    // and crawled into the local index, thrown-away mail came back in every search result and
+    // survived a cache purge. So the decision reports what was claimed and lost; `:core:data` is
     // what does something with it. Nothing here knows which roles a search skips.
 
     @Test fun theSameListingSaysWhichClaimEachLoserLost() {
@@ -193,7 +193,7 @@ class FolderRolesTest {
 
     @Test fun aSecondStatedTrashReportsTheTrashItClaimed() {
         // The server itself marked both `\Trash`. The second is elected to nothing, and what it
-        // claimed is the trash — not the "archive" its name would have guessed (rule 1 stands).
+        // claimed is the trash, not the "archive" its name would have guessed (rule 1 stands).
         val loser = folders(
             "* LIST (\\Trash) \".\" \"Trash\"\r\n",
             "* LIST (\\Trash) \".\" \"Archiv\"\r\n",
@@ -203,10 +203,10 @@ class FolderRolesTest {
     }
 
     @Test fun aSecondStatedJunkReportsTheJunkItClaimed() {
-        // The same branch, on the OTHER role a lost claim is acted on. A server that states
-        // SPECIAL-USE on a personal `Junk` and on the junk of a shared mailbox: restrict the
+        // The same branch, on the other role a lost claim is acted on. A server that states
+        // SPECIAL-use on a personal `Junk` and on the junk of a shared mailbox: restrict the
         // reporting of a stated-but-unelected claim to the trash and this is what stops being
-        // signalled — the shared spam folder goes back to being searched and crawled into the
+        // signalled, the shared spam folder goes back to being searched and crawled into the
         // index, where a cache purge cannot clear it.
         val listed = folders(
             "* LIST (\\Junk) \".\" \"Junk\"\r\n",
@@ -217,7 +217,7 @@ class FolderRolesTest {
     }
 
     @Test fun aSecondTrashGuessedFromItsNameReportsTheTrashItClaimed() {
-        // A server mute on SPECIAL-USE: both are read by the name table, and only the first is
+        // A server mute on SPECIAL-use: both are read by the name table, and only the first is
         // elected. German, because that is where the name table earns its keep.
         val listed = mute("Papierkorb", "Papierkorb")
         assertEquals(listOf("trash", null), listed.map { it.role })
@@ -256,9 +256,9 @@ class FolderRolesTest {
     // ──────────────────────────── the name that reaches the table ────────────────────────────
 
     /**
-     * What the table reads is the LEAF, never the whole path. Nothing in this file is flat by
+     * What the table reads is the leaf, never the whole path. Nothing in this file is flat by
      * accident: Dovecot's default namespace prefixes every mailbox with "INBOX.", Courier and
-     * Gmail nest too, and on those servers a table fed with the path matches nothing at all —
+     * Gmail nest too, and on those servers a table fed with the path matches nothing at all,
      * no trash role, and the delete swipe is back to destroying mail.
      */
     @Test fun theLeafDecidesTheRoleNotTheWholePath() {

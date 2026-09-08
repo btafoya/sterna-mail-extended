@@ -7,12 +7,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, same instrument and the same disclaimer as
+ * [UnreadWidgetPushWiringLintTest] next door, and it exists for the same reason: there is no
+ * Robolectric in this repository, so `RecentMailWidgetDraw`, `RecentMailWidgetService` and
+ * `RecentMailWidgetProvider` cannot be run by this suite at all.
  */
 class RecentMailWidgetWiringLintTest {
 
     /**
      * The four facts that decide what a row may say, what it wears and which mailbox it came from,
+     * must be read, from the store and the settings, every time the widget is read.
      */
     @Test fun `the widget read fetches the settings, the lock and the accounts, and hands them to the rule`() {
         assertEquals(
@@ -55,7 +59,7 @@ class RecentMailWidgetWiringLintTest {
     }
 
     /**
-     * The line the cell shows INSTEAD of a list comes from the rule that knows the three states
+     * The line the cell shows instead of a list comes from the rule that knows the three states
      */
     @Test fun `the cell's notice comes from the rule, and is never blank`() {
         assertEquals(
@@ -69,7 +73,7 @@ class RecentMailWidgetWiringLintTest {
     }
 
     /**
-     * THE SECOND WIDGET MUST NOT TOUCH THE FIRST ONE'S PRESENCE, and the whole bodies are pinned
+     * The second widget must not touch the first one's presence, and the whole bodies are pinned
      */
     @Test fun `this widget's presence callbacks write ITS OWN state, not the counter's`() {
         assertEquals(
@@ -94,7 +98,7 @@ class RecentMailWidgetWiringLintTest {
     }
 
     /**
-     * TURNING THE LOCK ON MUST REACH THE HOME SCREEN, and so must tightening the content
+     * Turning the lock on must reach the home screen, and so must tightening the content
      */
     @Test fun `switching the lock on, and tightening the content setting, redraw the cell at once`() {
         assertEquals(
@@ -137,7 +141,9 @@ class RecentMailWidgetWiringLintTest {
     }
 
     /**
-     * AND SO MUST TAKING THE SENDER INITIALS OFF — the fourth setter that reaches this cell, and
+     * And so must taking the sender initials off, the fourth setter that reaches this cell, and
+     * the one that is not a theme setting, which is why it is pinned here beside the lock and the
+     * content position rather than in [WidgetThemeRedrawWiringLintTest].
      */
     @Test fun `switching the sender initials off redraws the cell, and wakes only the cell that draws them`() {
         assertEquals(
@@ -161,7 +167,7 @@ class RecentMailWidgetWiringLintTest {
     }
 
     /**
-     * RECOLOURING AN ACCOUNT MUST REACH THE HOME SCREEN TOO, and by the same two calls.
+     * Recolouring an account must reach the home screen too, and by the same two calls.
      */
     @Test fun `recolouring an account redraws the cell, so no row keeps a colour the app dropped`() {
         assertEquals(
@@ -199,7 +205,7 @@ class RecentMailWidgetWiringLintTest {
         const val FORGET = "RecentMailWidgetDraw.forget()"
         const val REFRESH = "RecentMailWidgetDraw.refresh(getApplication())"
 
-        /** The counter's own redraw, on the app lock only — it shows no sender and no subject. */
+        /** The counter's own redraw, on the app lock only, it shows no sender and no subject. */
         const val COUNTER_REFRESH = "UnreadWidgetDraw.refresh(getApplication())"
     }
 }

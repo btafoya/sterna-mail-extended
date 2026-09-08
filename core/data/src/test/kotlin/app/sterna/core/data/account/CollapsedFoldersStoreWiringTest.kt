@@ -4,7 +4,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, same instrument and disclaimer as [ShowOnlySubscribedFoldersStoreWiringTest]: it
+ * Source lint, same instrument and disclaimer as [ShowOnlySubscribedFoldersStoreWiringTest]: it
+ * reads `AccountStore.kt` (and, for the rename, `MailRepository.kt`) as text, and proves nothing
+ * about a running store, which this module cannot build (a `Context` and the Keystore, no
+ * Robolectric here); nor about a running repository, which wants Room and a socket.
  */
 class CollapsedFoldersStoreWiringTest {
 
@@ -39,6 +42,8 @@ class CollapsedFoldersStoreWiringTest {
 
     /**
      * The re-key after an IMAP rename, pinned like its twin. On IMAP the id IS the path, so a
+     * rename changes it: without this the user's `false` stays under the old path, the renamed
+     * folder reads as "nobody decided" and the drawer's default folds it on the spot.
      */
     @Test fun `the rename re-key delegates to the pure function, under the lock`() {
         assertEquals(
@@ -60,7 +65,7 @@ class CollapsedFoldersStoreWiringTest {
     }
 
     /**
-     * The two re-keys, SIDE BY SIDE in `MailRepository.renameFolder`, with the same delimiter.
+     * The two re-keys, side by side in `MailRepository.renameFolder`, with the same delimiter.
      */
     @Test fun `the folder rename re-keys the watch flags AND the fold registry, same delimiter`() {
         assertEquals(
@@ -108,7 +113,11 @@ class CollapsedFoldersStoreWiringTest {
     }
 
     /**
-     * [count] consecutive CODE lines of `AccountStore.kt` from the single one starting with
+     * [count] consecutive code lines of `AccountStore.kt` from the single one starting with
+     * [prefix], [before] lines earlier when the annotation above it is part of the rule. Comments
+     * and blank lines are dropped first, so no rule can be satisfied by prose; a prefix matching
+     * anything other than exactly one line returns a message, so an assertion never passes by
+     * matching nothing.
      */
     private fun block(prefix: String, count: Int, before: Int = 0, path: String = ACCOUNT_STORE): List<String> {
         val code = codeLines(path)

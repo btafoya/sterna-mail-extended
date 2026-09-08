@@ -5,7 +5,7 @@ import java.util.Base64
 /** Everything decidable about [StoredAccount.pgpPublicKey], cached because a background
  *  sender (no screen) can't launch the provider's PendingIntent to read it. */
 
-/** Exact text [StoredAccount.pgpPublicKey] stores: `Base64.getEncoder()`, no line breaks —
+/** Exact text [StoredAccount.pgpPublicKey] stores: `Base64.getEncoder()`, no line breaks,
  *  not `getMimeEncoder()`, which folds and isn't what a header can carry. */
 fun pgpPublicKeyCacheValue(minimizedKey: ByteArray?): String =
     if (minimizedKey == null || minimizedKey.isEmpty()) {
@@ -15,14 +15,14 @@ fun pgpPublicKeyCacheValue(minimizedKey: ByteArray?): String =
     }
 
 /** Account whose public key must be fetched now, or null. Needs a signing key, empty cache,
- *  and [alreadyTried] not naming it — else a busy provider retries every re-arbitration. */
+ *  and [alreadyTried] not naming it, else a busy provider retries every re-arbitration. */
 fun pgpPublicKeyBackfill(account: StoredAccount?, alreadyTried: Set<String>): String? =
     account
         ?.takeIf { it.pgpSignKeyId != 0L && it.pgpPublicKey.isEmpty() && it.id !in alreadyTried }
         ?.id
 
 /** [accounts] with [id]'s key replaced by [publicKey], only while it still carries [signKeyId]
- *  — else the OLD key's bytes would land under a NEW id after a mid-flight key switch. */
+ *  (else the old key's bytes would land under a new id after a mid-flight key switch). */
 fun withCachedPgpPublicKey(
     accounts: List<StoredAccount>,
     id: String,

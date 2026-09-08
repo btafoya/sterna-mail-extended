@@ -11,7 +11,7 @@ class ContentTooLargeException(
 ) : Exception(message)
 
     /**
-     * Ceilings for what a single message may pull into memory over JMAP. Downloads have no framing of
+     * Ceilings for what a single message may pull into memory over JMAP.
      */
 object DownloadLimits {
 
@@ -27,7 +27,7 @@ object DownloadLimits {
     const val CALENDAR_MAX_BYTES = 2L * 1024 * 1024
 
         /** Whether a part announcing [size] bytes may be downloaded under [maxBytes]. A size of 0 (or
-         *  negative) means the server did not say — those pass here and are caught while reading, by
+         *  negative) means the server did not say, those pass here and are caught while reading, by
          *  the same ceiling. */
     fun allows(size: Long, maxBytes: Long): Boolean = size <= 0L || size <= maxBytes
 

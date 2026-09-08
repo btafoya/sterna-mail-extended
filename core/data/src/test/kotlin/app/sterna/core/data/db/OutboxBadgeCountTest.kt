@@ -40,7 +40,7 @@ class OutboxBadgeCountTest {
 
     /**
      * #70, the reason the badge exists: offline the delivery worker is gated on connectivity and
-     * never runs, so nothing moves the row and nothing fails — the clock alone must raise the badge.
+     * never runs, so nothing moves the row and nothing fails, the clock alone must raise the badge.
      */
     @Test fun sendingWhileOfflineMakesTheBadgeAppearOnItsOwn() = runTest {
         val rows = MutableStateFlow(listOf(OutboxBadgeItem(OutboxState.HELD, notBeforeMillis = window)))
@@ -87,7 +87,7 @@ class OutboxBadgeCountTest {
     }
 
     /**
-     * A transient failure puts the row back to QUEUED (OutboxWorker) without touching its deadline.
+     * A transient failure puts the row back to queued (OutboxWorker) without touching its deadline.
      */
     @Test fun aRowRequeuedAfterATransientFailureDoesNotRestartTheGrace() = runTest {
         val rows = MutableStateFlow(listOf(OutboxBadgeItem(OutboxState.HELD, notBeforeMillis = window)))
@@ -107,7 +107,7 @@ class OutboxBadgeCountTest {
         job.cancel()
     }
 
-    /** With the undo window turned off (holdMs = 0) the row is QUEUED from the start; still silent. */
+    /** With the undo window turned off (holdMs = 0) the row is queued from the start; still silent. */
     @Test fun aSendQueuedWithNoUndoWindowIsSilentTooThenCounts() = runTest {
         val rows = MutableStateFlow(listOf(OutboxBadgeItem(OutboxState.QUEUED, notBeforeMillis = 0)))
         val seen = mutableListOf<Int>()
@@ -124,6 +124,9 @@ class OutboxBadgeCountTest {
 
     /**
      * The coupling declared at MailRepository.retryOutbox: Retry rewrites the row's deadline, which
+     * is the very anchor the badge counts from, so a retried row leaves the badge for the length of
+     * the grace and returns on its own if it still has not gone out. The Outbox screen offers Retry
+     * on every row, so this is the path for a merely-waiting message as much as for a failed one.
      */
     @Test fun retryingARowTakesItOffTheBadgeForTheGraceThenBringsItBack() = runTest {
         val rows = MutableStateFlow(listOf(OutboxBadgeItem(OutboxState.FAILED, notBeforeMillis = 0)))
@@ -134,7 +137,7 @@ class OutboxBadgeCountTest {
         advanceTimeBy(60_000)
         assertEquals(listOf(1), seen)
 
-        // The user taps Retry: state back to QUEUED, deadline reset to now (MailRepository).
+        // The user taps Retry: state back to queued, deadline reset to now (MailRepository).
         val retriedAt = testScheduler.currentTime
         rows.value = listOf(OutboxBadgeItem(OutboxState.QUEUED, notBeforeMillis = retriedAt))
         runCurrent()
@@ -145,7 +148,7 @@ class OutboxBadgeCountTest {
         job.cancel()
     }
 
-    /** A send in flight is on the same threshold as the row it came from — no reset, no exemption. */
+    /** A send in flight is on the same threshold as the row it came from, no reset, no exemption. */
     @Test fun aSendInFlightIsCountedOnTheSameThreshold() = runTest {
         val rows = MutableStateFlow(listOf(OutboxBadgeItem(OutboxState.HELD, notBeforeMillis = window)))
         val seen = mutableListOf<Int>()

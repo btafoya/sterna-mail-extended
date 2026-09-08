@@ -4,7 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * [unreadRefreshTargets] RUN, not read: what a pull-to-refresh in the "unread" view sends to
+ * [unreadRefreshTargets] run, not read: what a pull-to-refresh in the "unread" view sends to
+ * `MailRepository.refreshAccountFolders(extraFolderIds = …)`.
  */
 class UnreadRefreshTargetsTest {
 
@@ -12,7 +13,7 @@ class UnreadRefreshTargetsTest {
         "a" to "INBOX",
         "a" to "Archive",
         "a" to "Projets",
-        // A sibling account on the SAME server, with a folder of the same name AND the same id.
+        // A sibling account on the same server, with a folder of the same name and the same id.
         "b" to "Archive",
         "b" to "INBOX",
     )
@@ -32,12 +33,12 @@ class UnreadRefreshTargetsTest {
         assertEquals(setOf("Archive", "Comptabilite"), unreadRefreshTargets("b", mixed, "INBOX"))
     }
 
-    /** Only THIS account's inbox is removed — "b"'s inbox id was never a candidate to begin with. */
+    /** Only THIS account's inbox is removed, "b"'s inbox id was never a candidate to begin with. */
     @Test fun `the inbox removed is the one of the account being refreshed`() {
         val perAccountIds = listOf("a" to "a-inbox", "a" to "a-archive", "b" to "b-inbox")
         assertEquals(setOf("a-archive"), unreadRefreshTargets("a", perAccountIds, "a-inbox"))
         // The same scope list, refreshed as "b": "a"'s inbox id is not this account's inbox, and it
-        // is not in the answer either — because it is not "b"'s folder.
+        // is not in the answer either, because it is not "b"'s folder.
         assertEquals(emptySet<String>(), unreadRefreshTargets("b", perAccountIds, "b-inbox"))
     }
 

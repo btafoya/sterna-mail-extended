@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxScreen.kt` as text and proves nothing about what
+ * Source lint, not a behaviour test. It reads `InboxScreen.kt` as text and proves nothing about what
  */
 class UnifiedTitleWiringLintTest {
 
@@ -156,7 +156,9 @@ class UnifiedTitleWiringLintTest {
     }
 
     /**
-     * [file] as ONE line of code: every comment taken out, every run of whitespace collapsed to a
+     * [file] as one line of code: every comment taken out, every run of whitespace collapsed to a
+     * single space, so a call the formatter spreads over eight lines reads the same as one written
+     * on a line, and the rules do not care which the formatter chose.
      */
     private fun codeText(file: File): String {
         val code = StringBuilder()
@@ -207,7 +209,7 @@ class UnifiedTitleWiringLintTest {
         private const val EXPECTED_SUBTITLE_CONDITION =
             "!ui.unified && ui.accountName.isNotBlank()"
 
-        /** The arm every OTHER folder still goes through. */
+        /** The arm every other folder still goes through. */
         private const val EXPECTED_ROLE_CALL =
             "mailboxDisplayName(selectedRole, ui.mailboxName)"
 

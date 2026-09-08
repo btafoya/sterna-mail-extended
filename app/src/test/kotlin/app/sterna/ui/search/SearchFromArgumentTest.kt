@@ -7,11 +7,12 @@ import java.io.File
 
 /**
  * "Search this sender" hands the per-sender screen's address to the search as a nav argument, and
+ * that address has to behave exactly like the words the inbox's search bar already hands over.
  */
 class SearchFromArgumentTest {
 
     @Test fun `a criterion the user edited beats the one the caller navigated with`() {
-        // The rule `q` already follows, and `from` now follows the same one — written once so the
+        // The rule `q` already follows, and `from` now follows the same one, written once so the
         // two cannot drift. It is only visible after a process death: the nav argument stays
         // attached to the entry for ever, so preferring it would wipe the edited field every time
         // the process came back.
@@ -26,9 +27,9 @@ class SearchFromArgumentTest {
     }
 
     @Test fun `both criteria that can arrive by navigation are restored by that one decision`() {
-        // SOURCE LINT. `from` diverging from `q` is the failure this whole rule exists for: the
+        // Source lint. `from` diverging from `q` is the failure this whole rule exists for: the
         // brief for it is "parity, not invention", and parity is exactly what a reviewer cannot
-        // see — two lines that look alike and read two different keys.
+        // see, two lines that look alike and read two different keys.
         val body = source("app/sterna/ui/search/SearchViewModel.kt").readText()
         listOf(
             "text = initialCriterion(handle[KEY_TEXT], handle[SEARCH_QUERY_ARG]),",
@@ -43,9 +44,9 @@ class SearchFromArgumentTest {
     }
 
     @Test fun `the route carries the argument the ViewModel reads`() {
-        // SOURCE LINT, and the expectation is BUILT FROM THE CONSTANT rather than typed out: the
+        // Source lint, and the expectation is built from the constant rather than typed out: the
         // route is a separate string literal, and the day someone renames the argument the two
-        // stop agreeing silently — the field simply never fills, with nothing anywhere to say so.
+        // stop agreeing silently, the field simply never fills, with nothing anywhere to say so.
         val graph = source("app/sterna/ui/SternaApp.kt").readText()
         assertTrue(
             "the search route must declare the '$SEARCH_FROM_ARG' query argument that " +
@@ -64,7 +65,7 @@ class SearchFromArgumentTest {
 
     @Test fun `the per-sender screen navigates with that argument, and through the guard`() {
         // The other end of the wire. `navigateOnce` is NavHostSourceRulesTest's business; what is
-        // pinned here is the ARGUMENT: a navigation to a bare "search" compiles, runs, opens an
+        // pinned here is the argument: a navigation to a bare "search" compiles, runs, opens an
         // empty form, and looks like the feature working badly rather than not being wired.
         val graph = source("app/sterna/ui/SternaApp.kt").readText()
         assertTrue(

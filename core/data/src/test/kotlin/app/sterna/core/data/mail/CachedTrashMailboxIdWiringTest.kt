@@ -10,7 +10,7 @@ class CachedTrashMailboxIdWiringTest {
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
-    /** Every CODE line of [text] — comments and blanks dropped, whitespace normalised — so prose
+    /** Every code line of [text] (comments and blanks dropped, whitespace normalised) so prose
      *  can neither satisfy a rule nor break one, and the assertions compare whole lines. */
     private fun codeLines(text: String): List<String> =
         text.lines().map { it.replace(Regex("""\s+"""), " ").trim() }

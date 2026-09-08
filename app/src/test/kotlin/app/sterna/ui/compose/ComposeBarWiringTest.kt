@@ -6,7 +6,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `ComposeScreen.kt` as text, same instrument and
+ * Source lint, not a behaviour test, it reads `ComposeScreen.kt` as text, same instrument and
+ * same disclaimer as [ScheduleMenuWiringTest], whose reader this file reuses. Nothing in this
+ * module can draw a composable (no Robolectric, no compose-ui-test, no instrumented tests), so the
+ * only thing that can be stated about the composer's top bar is what its source says.
  */
 class ComposeBarWiringTest {
 
@@ -41,7 +44,7 @@ class ComposeBarWiringTest {
     }
 
     /**
-     * THE SAME RULE FROM THE OTHER END, and the reason it is worth a second test: the one above
+     * The same rule from the other end, and the reason it is worth a second test: the one above
      */
     @Test fun `the three icons are not even imported any more`() {
         val back = COMPOSE_SCREEN.readLines().map { it.trim() }.filter { it in GONE_IMPORTS }
@@ -120,7 +123,7 @@ class ComposeBarWiringTest {
         )
     }
 
-    // -- 5. the delete still only ASKS -------------------------------------------------------------
+    // -- 5. the delete still only asks -------------------------------------------------------------
 
     @Test fun `tapping Delete draft only raises the confirmation`() {
         val block = overflowMenu()
@@ -233,7 +236,7 @@ class ComposeBarWiringTest {
 
     // -- reading the sources ------------------------------------------------------------------------
 
-    /** [file]'s code as one string, comments cut — same reader as [ScheduleMenuWiringTest]. */
+    /** [file]'s code as one string, comments cut, same reader as [ScheduleMenuWiringTest]. */
     private fun code(file: File): String = file.readLines().mapNotNull { line ->
         val trimmed = line.trimStart()
         if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) null
@@ -275,7 +278,7 @@ class ComposeBarWiringTest {
         )
 
         /**
-         * The three icons that went down into the overflow, as the SYMBOL and not as a call site.
+         * The three icons that went down into the overflow, as the symbol and not as a call site.
          */
         private val GONE = listOf(
             "Icons.Filled.Save",

@@ -9,7 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * `draftFlagIsCarried`, EXECUTED: the read the composer's fifth leg is fed, with the server side
+ * `draftFlagIsCarried`, executed: the read the composer's fifth leg is fed, with the server side
  * played by a lambda. False is the answer that spares a message, so every unknown must reach it.
  */
 class DraftFlagIsCarriedTest {

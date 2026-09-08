@@ -17,6 +17,8 @@ import org.junit.Test
 
 /**
  * **The round trip a draft naming nobody has to survive**, measured on `emu`/Stalwart on
+ * 2026-08-26 and closed here: the bytes [localDraftOutgoing] hands the APPEND, given back in the
+ * ENVELOPE shape the server answers for them, must still name the group on the second open.
  */
 class GroupTokenSurvivesTheAppendRoundTripTest {
 
@@ -31,7 +33,7 @@ class GroupTokenSurvivesTheAppendRoundTripTest {
 
         val written = localDraftOutgoing(row, "alex@masto.top", emptyList(), NOW).cc.single()
 
-        // The server's half of the trip, and the ONLY thing modelled here: RFC 5322 group syntax
+        // The server's half of the trip, and the only thing modelled here: RFC 5322 group syntax
         // `name:;` is handed back as a start `(NIL NIL "name" NIL)` and an end `(NIL NIL NIL NIL)`
         assertTrue(
             "⛔ what the APPEND writes must BE group syntax. Got \"$written\", which Stalwart " +
@@ -90,8 +92,8 @@ class GroupTokenSurvivesTheAppendRoundTripTest {
         const val UID = 431L
         const val NOW = 1_760_000_000_000L
 
-        /** Never used and never built — the same trick, for the same reason, as
-         *  [GroupCcIsUnknownNotEmptyTest]'s: the REAL service is required and a refresher needs an
+        /** Never used and never built, the same trick, for the same reason, as
+         *  [GroupCcIsUnknownNotEmptyTest]'s: the real service is required and a refresher needs an
          *  Android `Context`. `freshAccessToken` returns at `credentials.oauth ?: return null`. */
         fun unusedTokenRefresher(): OAuthTokenRefresher {
             val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")

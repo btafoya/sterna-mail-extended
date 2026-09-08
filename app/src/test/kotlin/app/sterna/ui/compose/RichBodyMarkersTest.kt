@@ -20,7 +20,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The markers a list is DRAWN with (#131), and the offset arithmetic that goes with them —
+ * The markers a list is drawn with (#131), and the offset arithmetic that goes with them,
+ * executed.
  */
 class RichBodyMarkersTest {
 
@@ -55,6 +56,8 @@ class RichBodyMarkersTest {
 
     /**
      * The reason the text is rebuilt from `subSequence` and not from its plain characters: the
+     * inline styling of #131 is laid over this very AnnotatedString, and a transformation that
+     * dropped it would show a body with its bold gone while the model still carries it.
      */
     @Test fun `the inline styling rides along, shifted by the markers`() {
         val text = AnnotatedString.Builder().apply {
@@ -109,7 +112,7 @@ class RichBodyMarkersTest {
     }
 
     /**
-     * THE property. Compose asks both directions on every caret move, drag and IME commit; a
+     * The property. Compose asks both directions on every caret move, drag and IME commit; a
      * pair that does not round trip is a caret that walks away from the finger.
      */
     @Test fun `the round trip is the identity for every offset, and both directions are monotonic`() {
@@ -148,7 +151,7 @@ class RichBodyMarkersTest {
         for (o in 0..raw.length) assertEquals("lost offset $o", o, map.transformedToOriginal(map.originalToTransformed(o)))
     }
 
-    // -- the body's ONE transformation: the styling AND the markers, together ----------------------
+    // -- the body's one transformation: the styling and the markers, together ----------------------
 
     /**
      * Why these run `bodyTransformation` and not just `markedText`: the body field has exactly
@@ -171,7 +174,9 @@ class RichBodyMarkersTest {
     }
 
     /**
-     * The two halves at once, which is the whole point: a bold word INSIDE a bullet item. The
+     * The two halves at once, which is the whole point: a bold word inside a bullet item. The
+     * span has to ride across the marker insertion, and the caret arithmetic has to be the
+     * markers' own, untouched.
      */
     @Test fun `a styled body inside a list is drawn with its spans shifted by the markers`() {
         val rich = RichBody(
@@ -226,7 +231,11 @@ class RichBodyMarkersTest {
     }
 
     /**
-     * The free path is `ranges` AND `links`, NOT [RichBody.isPlain] — which also counts the
+     * The free path is `ranges` and `links`, not [RichBody.isPlain], which also counts the
+     * blocks. A body in bullets with no bold, no italic and no link anywhere has nothing to lay
+     * on it, and `isPlain` there would send a 324 kB reply through `toAnnotatedString`, whose
+     * first act is `append(rich.text)`: a full copy of the body on every keystroke, in the field
+     * whose smoothness is #5, #6 and #26. The markers are inserted afterwards either way.
      */
     @Test fun `a body that is only a list, with no styling at all, is still handed straight back`() {
         val text = AnnotatedString("abc\ndef")
@@ -241,7 +250,7 @@ class RichBodyMarkersTest {
     }
 
     /**
-     * …and the same thing seen from the SITE OF THE CALL, which is what actually runs. An
+     * …and the same thing seen from the site of the call, which is what actually runs.
      */
     @Test fun `a plain body crosses the whole transformation without being copied once`() {
         val text = AnnotatedString("abcd")
@@ -256,10 +265,12 @@ class RichBodyMarkersTest {
 
     /**
      * The defensive guard. The field's value and the model it is drawn from are two pieces of
+     * state and can differ for the length of one frame. Laying spans of one text over another
+     * mismaps the caret at best and throws `IndexOutOfBounds` under the user's finger at worst;
      */
     @Test fun `a model whose text has drifted from the field's draws no style, and does not throw`() {
         val text = AnnotatedString("abcdef")
-        // THE SAME LENGTH, deliberately: a guard comparing `rich.text.length` instead of
+        // The same length, deliberately: a guard comparing `rich.text.length` instead of
         // `rich.text` would pass a body of the right size and the wrong characters, and the bold
         // would land on whatever happens to sit at 0..2 of the text on screen.
         val stale = RichBody("zzzzzz", mapOf(Inline.BOLD to listOf(Span(0, 2))))
@@ -297,10 +308,10 @@ class RichBodyMarkersTest {
             BlockKind.BULLET,
             listKindAt(body, Span(9, 14)),
         )
-        // …and the case that actually CROSSES a kind at that boundary: offset 19 is the first
+        // …and the case that actually crosses a kind at that boundary: offset 19 is the first
         // character of the numbered block. Read with `end` instead of `end - 1`, dragging the
         // handle from the first bullet down to the line under the list puts the lit button out of
-        // step with what the tap does — the button says "no list" while the tap removes one.
+        // step with what the tap does, the button says "no list" while the tap removes one.
         assertEquals(
             "a selection stopping at the start of a line of ANOTHER kind still does not reach it",
             BlockKind.BULLET,
@@ -309,7 +320,7 @@ class RichBodyMarkersTest {
     }
 
     /**
-     * The lit button must be the one that TURNS THE LIST OFF. `listKindAt` and `toggleBlock`
+     * The lit button must be the one that turns the LIST off. `listKindAt` and `toggleBlock`
      */
     @Test fun `the lit button is exactly the one whose tap removes the list`() {
         val plain = RichBody("shopping\nmilk\neggs", emptyMap())
@@ -318,7 +329,7 @@ class RichBodyMarkersTest {
             plain to Span(0, 0), plain to Span(9, 9), plain to Span(0, 18),
             bullets to Span(9, 9), bullets to Span(9, 18), bullets to Span(0, 18), bullets to Span(0, 0),
             // The boundary case, and the only one that makes the `- 1` of both rules load
-            // bearing: the selection stops exactly where the line AFTER the list begins.
+            // bearing: the selection stops exactly where the line after the list begins.
             bullets to Span(9, 14), bullets to Span(0, 9), bullets to Span(13, 18),
         )
 

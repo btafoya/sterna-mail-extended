@@ -21,11 +21,11 @@ data class FiltersUiState(
     val supported: Boolean = true,
     val foreignActive: Boolean = false,
     /** The rules below are on the server but not running: the script carrying them is not the active
-     *  one. Distinct from [foreignActive], which is false in the very state this flag exists for —
+     *  one. Distinct from [foreignActive], which is false in the very state this flag exists for:
      *  a vacation responder switched on and off again leaves no script active at all. */
     val rulesNotRunning: Boolean = false,
     /** The script named `vacation` is the active one: the auto-reply is running, and Save would
-     * switch it off by activating Sterna's script. Activity, not existence — an inactive
+     * switch it off by activating Sterna's script. Activity, not existence, an inactive
      *  `vacation` script beside a third active one must not claim the auto-reply is at stake. */
     val vacationScriptActive: Boolean = false,
     /** This account's `sterna` script exists and could not be parsed, so Save would replace content
@@ -48,7 +48,7 @@ data class FiltersUiState(
 )
 
 /** Drives the server-side filter rules (JMAP Sieve): edited locally and pushed in one Save
- *  (compile → validate → activate). Every read and write is a network round-trip. */
+ *  (compile, validate, activate). Every read and write is a network round-trip. */
 class FiltersViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = application.container.mailRepository
     private val store = application.container.accountStore

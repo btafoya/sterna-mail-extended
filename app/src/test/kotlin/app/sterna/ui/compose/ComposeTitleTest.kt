@@ -24,7 +24,7 @@ class ComposeTitleTest {
     @Test fun aComposerThatOpenedNothingIsANewMail() {
         // A blank compose, and equally one prefilled from a mailto: link, from "write to this
         // participant" or from a system Share: fields may be filled in, but no draft, no original
-        // and no queued row was opened — so none of them names the screen.
+        // and no queued row was opened, so none of them names the screen.
         assertEquals(ComposeTitle.NEW, title())
     }
 
@@ -119,7 +119,7 @@ class ComposeTitleTest {
     }
 
     @Test fun aRestoreThatFoundNothingHoldsNothing() {
-        // THE historical defect, at its source: the app was killed, so the argument survived and the
+        // The historical defect, at its source: the app was killed, so the argument survived and the
         // handed-over draft did not. `restore=true` on its own must not mean "a row is behind this".
         assertFalse(holdsQueuedOutboxRow(restore = true, restored = null))
     }
@@ -130,7 +130,7 @@ class ComposeTitleTest {
     }
 
     @Test fun aComposerThatIsNotARestoreHoldsNothing() {
-        // A draft left unconsumed in the handle must not leak into an ordinary compose — this is
+        // A draft left unconsumed in the handle must not leak into an ordinary compose, this is
         // what stops the leave dialog describing an outbox row that is not behind this screen.
         assertFalse(holdsQueuedOutboxRow(restore = false, restored = draft(editingOutboxId = 7L)))
     }
@@ -139,8 +139,8 @@ class ComposeTitleTest {
     //
     // The in-memory hand-over dies with the process; the route survives it and now carries the row
     // id. [outboxRowToResume] says which of the two the composer listens to, and it is executed
-    // here rather than read: invert its condition and a live reopen would take the row a SECOND
-    // time on top of the one `OutboxViewModel.edit` already holds EDITING.
+    // here rather than read: invert its condition and a live reopen would take the row a second
+    // time on top of the one `OutboxViewModel.edit` already holds editing.
 
     @Test fun aLiveReopenResumesNothingTheHandOverWinsAndTheRowIsAlreadyHeld() {
         assertNull(outboxRowToResume(restored = draft(editingOutboxId = 7L), outboxId = 7L))

@@ -6,7 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, same instrument and the same disclaimer as
+ * every source lint in this tree: it reads the source as text and proves nothing about behaviour.
  */
 class SwipeRewindWiringTest {
 
@@ -232,6 +233,7 @@ class SwipeRewindWiringTest {
 
     /**
      * The whole `name = …` argument of a call, from the line that opens it to the line where its
+     * brackets close again, that last line included, trailing comma and all.
      */
     private fun argument(callText: String, name: String): String {
         val lines = callText.lines()
@@ -248,7 +250,7 @@ class SwipeRewindWiringTest {
         return flat(out.joinToString("\n"))
     }
 
-    /** The argument text of every CALL to [name] in [text] (its declaration excluded), balanced. */
+    /** The argument text of every call to [name] in [text] (its declaration excluded), balanced. */
     private fun callSites(text: String, name: String): List<String> =
         Regex("""(?<!fun )\b${Regex.escape(name)}\(""").findAll(text)
             .map { balanced(text, it.range.last, '(', ')') }
@@ -263,7 +265,7 @@ class SwipeRewindWiringTest {
             .lines().map { it.trim() }.filter { it.isNotEmpty() }
     }
 
-    /** The PARAMETER lines of the declaration starting at [header], trimmed, parens balanced. */
+    /** The parameter lines of the declaration starting at [header], trimmed, parens balanced. */
     private fun parameters(file: File, header: String): List<String> {
         val text = code(file)
         val start = text.indexOf(header)
@@ -290,7 +292,7 @@ class SwipeRewindWiringTest {
     }
 
     /**
-     * The lines of [file] that are code, with their comments taken off — a line whose first
+     * The lines of [file] that are code, with their comments taken off, a line whose first
      */
     private fun codeLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val start = line.trimStart()
@@ -319,6 +321,8 @@ class SwipeRewindWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text: everything up to the
+     * first line indented no deeper than the declaration, once the declaration's own brackets have
+     * closed.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)

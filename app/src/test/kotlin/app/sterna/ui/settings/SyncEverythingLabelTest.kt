@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The nine "Everything" labels, and the fact that they are still SHIPPED.
+ * The nine "Everything" labels, and the fact that they are still shipped.
  */
 class SyncEverythingLabelTest {
 

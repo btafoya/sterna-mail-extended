@@ -8,6 +8,7 @@ import org.junit.Test
 
 /**
  * Sender or recipients? [showsRecipients] is that decision, and both surfaces make it here: the
+ * list row (`InboxScreen`) and the reader (`MessageViewModel._ownMessage`).
  */
 class ShowsRecipientsTest {
 
@@ -70,15 +71,15 @@ class ShowsRecipientsTest {
 
     @Test fun `an outgoing folder wins over the unified flag`() {
         // Defensive: the two never coincide on screen (a folder is selected or it is not), but the
-        // order of the terms is the guarantee — Sent must never be read as an incoming context.
+        // order of the terms is the guarantee, Sent must never be read as an incoming context.
         assertTrue(showsRecipients(role = "sent", unified = true, selfAuthored = false))
     }
 
-    // -- the author term is NECESSARY, not merely sufficient -----------------------------------
+    // -- the author term is necessary, not merely sufficient -----------------------------------
 
     @Test fun `mail from somebody else keeps its sender wherever it is filed`() {
-        // Every case above shows the author term is ENOUGH to get "To: …". None showed it is
-        // REQUIRED — and `return selfAuthored` mutated to `return true` passed the whole suite,
+        // Every case above shows the author term is enough to get "To: …". None showed it is
+        // REQUIRED, and `return selfAuthored` mutated to `return true` passed the whole suite,
         // which on screen means every message in the Archive and the Trash, received from anyone,
         // announced as if you had sent it. These are the cases that can tell the two apart.
         assertFalse(showsRecipients(role = "trash", unified = false, selfAuthored = false))
@@ -99,7 +100,7 @@ class ShowsRecipientsTest {
     )
 
     @Test fun `your own reply inside an incoming thread still shows its recipients`() {
-        // THE witness of #69's in-thread half, and it must come out right BY THE ROLE: a reply you
+        // The witness of #69's in-thread half, and it must come out right by the role: a reply you
         // wrote lives in Sent, whatever folder the thread is unfolded in.
         assertTrue(showsRecipientsInThread("acc", "out", roles, selfAuthored = true))
         assertTrue(showsRecipientsInThread("acc", "out", roles, selfAuthored = false))
@@ -129,7 +130,7 @@ class ShowsRecipientsTest {
     }
 
     @Test fun `the folder is resolved inside the row's own account`() {
-        // Servers number folders per account (issue #31): "in" is the Inbox of BOTH accounts here,
+        // Servers number folders per account (issue #31): "in" is the Inbox of both accounts here,
         // and reading the role of the wrong one is how a unified-list child gets judged by another
         // account's folder. Same id, one role each, resolved by the pair.
         assertFalse(showsRecipientsInThread("other", "in", roles, selfAuthored = true))

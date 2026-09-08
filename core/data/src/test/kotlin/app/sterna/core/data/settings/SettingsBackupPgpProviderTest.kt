@@ -5,7 +5,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The chosen OpenPGP app is the ONE preference that must NOT travel in a settings backup, so this
+ * The chosen OpenPGP app is the one preference that must not travel in a settings backup, so this
+ * file locks an absence where its neighbours lock a presence.
  */
 class SettingsBackupPgpProviderTest {
 
@@ -23,7 +24,7 @@ class SettingsBackupPgpProviderTest {
 
     @Test fun `a backup file naming a provider imports without adopting it`() {
         // Not a hypothetical: a hand-edited or future-build file can carry the key. Unknown keys
-        // are ignored, so it decodes — and must decode to a backup that says nothing about PGP.
+        // are ignored, so it decodes, and must decode to a backup that says nothing about PGP.
         val text = """{"version":1,"themeMode":"DARK","pgpProvider":"com.pgpony.android"}"""
         val decoded = SettingsBackupCodec.decode(text)
         assertTrue("a backup with an unknown key must still import", decoded != null)

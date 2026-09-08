@@ -31,7 +31,7 @@ data class MessageAnchor(
     }
 }
 
-/** What the reading pane shows, and the [session] it is shown in — the pane's recomposition key: a
+/** What the reading pane shows, and the [session] it is shown in, the pane's recomposition key: a
  *  tap on another row rebuilds the pager, a swipe moves the anchor and keeps the session, since
  *  rebuilding reloads every body on every page. */
 data class ReadingPaneState(val anchor: MessageAnchor? = null, val session: Int = 0)
@@ -44,7 +44,7 @@ object ReadingPaneRule {
         else ReadingPaneState(anchor = anchor, session = prev.session + 1)
 
     /** The pager settled on a page: the anchor follows the message under the finger, keeping its
-     *  `src` / `thread` and — deliberately — its session. */
+     *  `src` / `thread` and, deliberately, its session. */
     fun follow(prev: ReadingPaneState, emailId: String, accountId: String?, index: Int): ReadingPaneState {
         val anchor = prev.anchor ?: return prev
         if (anchor.matches(accountId, emailId)) return prev
@@ -55,7 +55,7 @@ object ReadingPaneRule {
     fun close(prev: ReadingPaneState): ReadingPaneState =
         if (prev.anchor == null) prev else prev.copy(anchor = null)
 
-    /** The list changed scope — folder, unified, unread, or account: the pane empties (#112).
+    /** The list changed scope, folder, unified, unread, or account: the pane empties (#112).
      * No per-account exception: sparing the anchor because it belongs to the arriving account
      *  keeps, in the unified inbox, a message in no folder the new list shows. */
     fun onViewChanged(prev: ReadingPaneState): ReadingPaneState = close(prev)
@@ -67,7 +67,7 @@ object ReadingPaneRule {
         if (prev.anchor?.matches(accountId, emailId) == true) prev else close(prev)
 
     /** The message a tapped notification parked for the account switch it asked for: put back on
-     *  its own account, dropped on any other — a park that outlived its switch would otherwise land
+     *  its own account, dropped on any other, a park that outlived its switch would otherwise land
      *  on a stranger's list (#92). */
     fun replayOnAccountChange(parked: MessageAnchor?, arrivingAccountId: String?): MessageAnchor? =
         if (parked?.accountId == arrivingAccountId) parked else null

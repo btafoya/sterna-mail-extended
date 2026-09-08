@@ -15,22 +15,22 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * ONE read, and everything the two ends of the cell spend it on: the rows, the palette they are drawn
+ * One read, and everything the two ends of the cell spend it on: the rows, the palette they are drawn
  */
 internal data class RecentWidgetDrawing(val snapshot: RecentWidgetSnapshot, val colours: WidgetColours?)
 
-/** The ONE way the latest-messages widget is read and drawn. The FRAME is a `RemoteViews` this
- *  object builds; the ROWS are served by the launcher pulling on a `RemoteViewsFactory` on its own
- *  schedule. Both ends spend the SAME read, so they cannot come from two different moments. */
+/** The one way the latest-messages widget is read and drawn. The frame is a `RemoteViews` this
+ *  object builds; the rows are served by the launcher pulling on a `RemoteViewsFactory` on its own
+ *  schedule. Both ends spend the same read, so they cannot come from two different moments. */
 internal object RecentMailWidgetDraw {
 
-    /** The cells the user has actually placed — checked before the container: a widget nobody
+    /** The cells the user has actually placed, checked before the container: a widget nobody
      *  placed must not open Room. */
     fun placedIds(context: Context): IntArray =
         AppWidgetManager.getInstance(context)
             .getAppWidgetIds(ComponentName(context, RecentMailWidgetProvider::class.java))
 
-    /** The last read that ARRIVED, colours included. Null means no read has answered yet, and a
+    /** The last read that arrived, colours included. Null means no read has answered yet, and a
      *  caller then draws nothing rather than an empty list, which is a claim ("no mail"). */
     @Volatile
     private var held: RecentWidgetDrawing? = null
@@ -38,17 +38,17 @@ internal object RecentMailWidgetDraw {
     /** What the factory serves between reads. */
     val drawing: RecentWidgetDrawing? get() = held
 
-    /** Drop the held snapshot, because what it was computed FROM has changed: the factory falls back
+    /** Drop the held snapshot, because what it was computed from has changed: the factory falls back
      *  to [held] when its own read times out, and the moment the content setting is tightened that
      *  fallback would redraw the very senders the reader has just asked to hide. */
     fun forget() {
         held = null
     }
 
-    /** Read the setting, the lock, the accounts, the mail and the theme, and project them — the only
-     * place that does. The settings are read FIRST and waited for: drawing before these DataStore
-     * flows answer would put a subject on the home screen of a reader who asked for NONE. Not
-     *  bounded here — the caller bounds it, and the two callers hold different budgets. */
+    /** Read the setting, the lock, the accounts, the mail and the theme, and project them, the only
+     * place that does. The settings are read first and waited for: drawing before these DataStore
+     * flows answer would put a subject on the home screen of a reader who asked for none. Not
+     *  bounded here, the caller bounds it, and the two callers hold different budgets. */
     suspend fun read(app: Application): RecentWidgetDrawing {
         val container = app.container
         val content = container.settingsRepository.notificationContent.first()
@@ -56,7 +56,7 @@ internal object RecentMailWidgetDraw {
         // LIST_MONOGRAM_DEFAULT would be free to disagree with the repository.
         val listMonogram = container.settingsRepository.listMonogram.first()
         val appLockEnabled = container.accountStore.appLockEnabled()
-        // ONE read of the account list, not one per row, and two reads may answer differently.
+        // One read of the account list, not one per row, and two reads may answer differently.
         val accounts = container.accountStore.accounts()
         val inbox = container.mailRepository.recentUnifiedInbox(ROW_LIMIT)
         val snapshot = RecentMailWidgetContent.snapshot(
@@ -69,7 +69,7 @@ internal object RecentMailWidgetDraw {
             generic = app.getString(R.string.widget_latest_hidden),
             accountColors = RecentMailWidgetContent.accountColors(accounts),
         )
-        // The cell's colours, from the app's OWN theme settings and no longer from the system's
+        // The cell's colours, from the app's own theme settings and no longer from the system's
         // night mode (#117), read here so frame and rows agree. Null is carried as-is. No `?:`.
         val colours = WidgetThemeReader.colours(app)
         val drawing = RecentWidgetDrawing(snapshot, colours)
@@ -95,13 +95,13 @@ internal object RecentMailWidgetDraw {
             views.setTextViewText(R.id.widget_recent_notice, notice)
             @Suppress("DEPRECATION") // RemoteCollectionItems is API 31+; minSdk here is 26.
             views.setRemoteAdapter(R.id.widget_recent_list, adapterIntent(app, id))
-            // ONE template for every row — the platform's only way of making the rows of a
+            // One template for every row, the platform's only way of making the rows of a
             // collection clickable. Without it the rows draw and swallow taps.
             views.setPendingIntentTemplate(R.id.widget_recent_list, rowTapTemplate(app))
             // The notice takes the cell whenever the list is empty; the launcher swaps the two.
             views.setEmptyView(R.id.widget_recent_list, R.id.widget_recent_notice)
             manager.updateAppWidget(id, views)
-            // AFTER updateAppWidget, which is what binds the adapter.
+            // After updateAppWidget, which is what binds the adapter.
             manager.notifyAppWidgetViewDataChanged(id, R.id.widget_recent_list)
         }
     }
@@ -127,7 +127,7 @@ internal object RecentMailWidgetDraw {
         }
 
     /**
-     * The ONE `PendingIntent` behind every row of a cell — a TEMPLATE, the only shape the platform
+     * The one `PendingIntent` behind every row of a cell, a template, the only shape the platform
      */
     private fun rowTapTemplate(context: Context): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
@@ -141,8 +141,8 @@ internal object RecentMailWidgetDraw {
         )
     }
 
-    /** What ONE row adds to the template when it is touched: the identity of its message, and
-     *  strictly nothing else — the three extras a tapped notification already carries, so a row opens
+    /** What one row adds to the template when it is touched: the identity of its message, and
+     *  strictly nothing else, the three extras a tapped notification already carries, so a row opens
      *  app starts. */
     fun rowFillIn(tap: RecentRowTap): Intent {
         val intent = Intent()
@@ -152,13 +152,13 @@ internal object RecentMailWidgetDraw {
         return intent
     }
 
-    /** This widget's own intent action, and NOT the counter's: it is what keeps the row template
+    /** This widget's own intent action, and not the counter's: it is what keeps the row template
      *  from being filterEquals-equal to a notification's intent and to the counter's. */
     private const val ACTION_ROW_TAP = "app.sterna.widget.OPEN_RECENT"
 
     /** A belt rather than the mechanism, the action above being the real defence. It must not be
      *  the counter's `TAP_REQUEST_CODE`, or the two templates would differ by their action alone.
-     * Do not "make it unique" against the notifications either — no number is. */
+     * Do not "make it unique" against the notifications either, no number is. */
     private const val ROW_TAP_REQUEST_CODE = 1
 
     /** How many messages the cell may list, lower than the read's own cap: nobody scrolls a
@@ -166,6 +166,6 @@ internal object RecentMailWidgetDraw {
     const val ROW_LIMIT = 25
 
     /** How long [refresh] may wait before leaving the cell as it is: this runs at the end of a
-     *  delivery pass holding a service awake. Nothing retries — the next arrival draws again. */
+     *  delivery pass holding a service awake. Nothing retries, the next arrival draws again. */
     private const val REFRESH_TIMEOUT_MS = 5_000L
 }

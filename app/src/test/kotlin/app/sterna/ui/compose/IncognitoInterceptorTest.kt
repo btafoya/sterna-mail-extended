@@ -13,7 +13,7 @@ import org.junit.Assert.assertSame
 import org.junit.Test
 
 /**
- * The interceptor RUN, not read (#120).
+ * The interceptor run, not read (#120).
  */
 @OptIn(ExperimentalComposeUiApi::class)
 class IncognitoInterceptorTest {
@@ -54,7 +54,7 @@ class IncognitoInterceptorTest {
     }
 
     @Test fun `what reaches the input method is the wrapper, never the field's own request`() {
-        // THE assertion this file exists for. `startInputMethod(request)` passes here and passes
+        // The assertion this file exists for. `startInputMethod(request)` passes here and passes
         // every lint; it fails only this.
         val original = FieldRequest()
         assertNotSame(
@@ -67,7 +67,7 @@ class IncognitoInterceptorTest {
 
     @Test fun `the wrapper is the interceptor's own, not something borrowed`() {
         // Two different fields must not end up sharing a request, and the wrapper must be the one
-        // this file builds — the same class both times, a different instance each time.
+        // this file builds, the same class both times, a different instance each time.
         val first = intercept(FieldRequest())
         val second = intercept(FieldRequest())
         assertNotNull(first)

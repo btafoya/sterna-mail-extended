@@ -103,7 +103,7 @@ class MainActivity : AppCompatActivity() {
         (parseMailto(intent) ?: parseShare(intent))?.let { pendingMailto.value = it }
         parseEmailOpen(intent)?.let { pendingEmailOpen.value = it }
         // The widget's usual path, not an edge case: the app is normally already running when a
-        // cell is tapped. Set only when the extra is there, like the two above — a bare assignment
+        // cell is tapped. Set only when the extra is there, like the two above, a bare assignment
         // would clear a request that arrived a moment ago and has not been consumed.
         if (parseUnifiedOpen(intent)) pendingUnifiedOpen.value = true
         consumeOAuthRedirect()
@@ -111,6 +111,7 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Hand an OAuth authorization-code redirect (#55) to the app-scoped driver, and strip it from
+     * app-scoped driver, and strip it from the retained intent once taken.
      */
     private fun consumeOAuthRedirect() {
         val current = intent ?: return
@@ -120,7 +121,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Drop a consumed one-shot payload from the retained intent. Belt and braces next to the
+     * Drop a consumed one-shot payload from the retained intent.
      */
     private fun stripEmailOpenPayload() {
         val i = intent ?: return
@@ -130,7 +131,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * The same one-shot strip for the home-screen widget's request (#112), and its OWN function on
+     * The same one-shot strip for the home-screen widget's request (#112), and its own function on
+     * purpose, see [stripEmailOpenPayload]'s note: folded into that one, opening a message would
+     * also discard a widget tap that had just arrived and not yet been carried out.
      */
     private fun stripUnifiedOpenPayload() {
         val i = intent ?: return
@@ -162,7 +165,7 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    /** RFC 6068 mailto: parsing — addresses plus the optional subject/body/cc/bcc fields. */
+    /** RFC 6068 mailto: parsing, addresses plus the optional subject/body/cc/bcc fields. */
     private fun parseMailto(intent: Intent?): MailtoDraft? {
         val data = intent?.data ?: return null
         if (!"mailto".equals(data.scheme, ignoreCase = true)) return null
@@ -200,7 +203,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         application.container.appLock.onAppBackgrounded(System.currentTimeMillis())
-        // Stopped activity → no frames → the reader's GL functor cannot draw, so a process kill
+        // A stopped activity draws no frames, so the reader's GL functor cannot draw, and a process kill
         // while backgrounded must not count as a fade-window crash.
         NavFadeGuard.onActivityStop(this)
     }
@@ -229,7 +232,7 @@ class MainActivity : AppCompatActivity() {
         const val EXTRA_OPEN_MAILBOX_ID = "app.sterna.OPEN_MAILBOX_ID"
 
         /**
-         * Open the cross-account unified inbox — set by the home-screen widget (#112), and only
+         * Open the cross-account unified inbox, set by the home-screen widget (#112), and only
          */
         const val EXTRA_OPEN_UNIFIED = "app.sterna.OPEN_UNIFIED"
     }

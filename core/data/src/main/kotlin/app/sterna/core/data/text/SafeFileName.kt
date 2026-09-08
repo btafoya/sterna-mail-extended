@@ -1,7 +1,7 @@
 package app.sterna.core.data.text
 
 /**
- * [name] made safe for a file name: keeps unicode letters, replaces only `/ \ : * ? " < > |` and
+ * [name] made safe for a file name: keeps unicode letters, replaces only `/ \ : * ?
  */
 fun safeFileName(name: String?, fallback: String, maxLength: Int = 80): String {
     val cleaned = name.orEmpty().trim()

@@ -16,7 +16,10 @@ import androidx.work.workDataOf
 import app.sterna.container
 
 /**
- * One-shot fetch+notify for a single account, expedited — the fetch path when a
+ * One-shot fetch+notify for a single account, expedited, the fetch path when a
+ * UnifiedPush event wakes a (possibly dead) process with no foreground service to do
+ * the work (issue #17). WorkManager gives retry semantics and outlives the connector
+ * service's short lifetime; the push delivery already opened a network window.
  */
 class PushFetchWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
@@ -43,7 +46,7 @@ class PushFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
         private const val KEY_RESET_INBOX = "resetInbox"
         private const val MAX_ATTEMPTS = 3
 
-        /** Unique per account, KEEP: one queued fetch covers coalesced pushes. */
+        /** Unique per account, keep: one queued fetch covers coalesced pushes. */
         fun enqueue(context: Context, accountId: String, resetInbox: Boolean = false) {
             val builder = OneTimeWorkRequestBuilder<PushFetchWorker>()
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())

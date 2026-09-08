@@ -3,7 +3,7 @@ package app.sterna.core.data.mail
 /** Reads RFC 8098's `Disposition-Notification-To:`. Both protocols feed it the same text. */
 object ReadReceiptHeader {
 
-    /** An EMPTY list is the only way of saying "nothing here": never throws, never a placeholder. */
+    /** An empty list is the only way of saying "nothing here": never throws, never a placeholder. */
     fun recipients(header: String?): List<String> {
         if (header.isNullOrBlank()) return emptyList()
         return splitTopLevel(header.replace(FOLDING, " ")).mapNotNull { addressIn(it) }
@@ -39,7 +39,8 @@ object ReadReceiptHeader {
     }
 
     /**
-     * The quoted display name is removed FIRST: a name may legally contain `<x@elsewhere.example>`,
+     * The quoted display name is removed first: a name may legally contain `<x@elsewhere.example>`,
+     * which must not be taken for the address.
      */
     private fun addressIn(token: String): String? {
         val unnamed = token.replace(QUOTED, " ")

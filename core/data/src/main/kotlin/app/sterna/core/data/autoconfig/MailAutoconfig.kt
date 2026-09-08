@@ -26,7 +26,7 @@ import javax.net.ssl.SSLSocketFactory
 import kotlin.coroutines.coroutineContext
 
 /**
- * What discovering IMAP/SMTP settings for an address answered. [Found] carries the STORED types
+ * What discovering IMAP/SMTP settings for an address answered. [Found] carries the stored types
  * ([MailEndpoint], [ConnectionSecurity]) so the screen can prefill them directly.
  */
 sealed interface MailAutoconfigResult {
@@ -40,13 +40,13 @@ sealed interface MailAutoconfigResult {
 }
 
 /**
- * How long the whole cascade may take — the sign-in screen's wait. Same motif as
+ * How long the whole cascade may take, the sign-in screen's wait. Same motif as
  * [app.sterna.core.data.mail.JMAP_DISCOVERY_BUDGET_MS]: production passes nothing, a test pins it.
  */
 const val MAIL_AUTOCONFIG_BUDGET_MS = 10_000L
 
 /**
- * The two — and ONLY two — URLs a domain may publish its config at (Thunderbird autoconfig
+ * The two, and only two, URLs a domain may publish its config at (Thunderbird autoconfig
  * format). Both on the user's own domain: no Mozilla ISPDB, no DNS SRV walk, ever.
  */
 fun autoconfigUrlsFor(domain: String): List<String> = listOf(
@@ -66,7 +66,8 @@ fun substitutedUsername(raw: String, emailAddress: String): String {
 }
 
 /**
- * The HTTP client the published-config tiers fetch with — NOT the JMAP client (attaches an
+ * The HTTP client the published-config tiers fetch with, not the JMAP client (attaches an
+ * unsubscribe one, and not the JMAP client (whose code path attaches an Authorization header).
  */
 internal fun defaultAutoconfigHttpClient(): OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(15, TimeUnit.SECONDS)
@@ -80,6 +81,7 @@ internal const val MAX_AUTOCONFIG_REDIRECTS = 5
 
 /**
  * Whether a redirect to [target] is allowed: only https, and only [domain] itself or a
+ * subdomain of it.
  */
 internal fun redirectAllowed(target: HttpUrl, domain: String): Boolean {
     if (target.scheme != "https") return false
@@ -92,7 +94,7 @@ internal fun redirectAllowed(target: HttpUrl, domain: String): Boolean {
 private const val TLS_PROBE_TIMEOUT_MS = 5_000
 
 /**
- * TLS probe behind a guessed host: connect, handshake, verify the certificate FOR THAT NAME.
+ * TLS probe behind a guessed host: connect, handshake, verify the certificate for that name.
  */
 internal suspend fun realTlsProbe(host: String, port: Int): Boolean = withContext(Dispatchers.IO) {
     try {
@@ -113,14 +115,14 @@ internal suspend fun realTlsProbe(host: String, port: Int): Boolean = withContex
 }
 
 /**
- * The cascade as the UI calls it: address only, shipped budget, production wiring — a separate
+ * The cascade as the UI calls it: address only, shipped budget, production wiring, a separate
  * entry point so callers need not put [OkHttpClient] on their classpath.
  */
 suspend fun discoverMailAutoconfig(emailAddress: String): MailAutoconfigResult =
     discoverMailSettings(emailAddress)
 
 /**
- * Discover IMAP/SMTP settings for [emailAddress], first found wins: the domain's PUBLISHED config
+ * Discover IMAP/SMTP settings for [emailAddress], first found wins: the domain's published config
  */
 suspend fun discoverMailSettings(
     emailAddress: String,
@@ -138,7 +140,7 @@ suspend fun discoverMailSettings(
             val verdict = try {
                 runCascade(emailAddress, domain, autoconfigUrls, httpClient, tlsProbe)
             } catch (t: Throwable) {
-                // A crashed cascade is "nothing found", but a CANCELLED one is not: cancellation
+                // A crashed cascade is "nothing found", but a cancelled one is not: cancellation
                 // is the caller leaving, and classifying it as a verdict keeps nobody informed.
                 if (t is CancellationException) throw t
                 MailAutoconfigResult.NotFound
@@ -167,7 +169,7 @@ private suspend fun runCascade(
 }
 
 /**
- * Fetch ONE published-config URL, or null for "this tier said nothing". HTTP 200 is NOT a
+ * Fetch one published-config URL, or null for "this tier said nothing".
  */
 private suspend fun fetchPublishedConfig(
     httpClient: OkHttpClient,
@@ -203,13 +205,15 @@ private suspend fun fetchPublishedConfig(
 
 /**
  * Read a Thunderbird-autoconfig document (hardened like the K-9 import), or null to reject the
+ * whole tier: a root that is not `clientConfig`, no IMAP incoming server, no SMTP outgoing
+ * server, or an endpoint [endpointOf] refuses.
  */
 internal fun parsePublishedConfig(body: InputStream, emailAddress: String): MailAutoconfigResult.Found? {
     val document = try {
         safeXmlDocumentBuilderFactory().newDocumentBuilder().parse(body)
     } catch (t: Throwable) {
         if (t is CancellationException) throw t
-        return null // Not XML at all — an HTML page, a truncated body, a doctype.
+        return null // Not XML at all, an HTML page, a truncated body, a doctype.
     }
     val root = document.documentElement ?: return null
     if (root.tagName != "clientConfig") return null
@@ -230,7 +234,7 @@ internal fun parsePublishedConfig(body: InputStream, emailAddress: String): Mail
 }
 
 /**
- * One server element as a stored endpoint, or null to reject it and the tier. `socketType` is
+ * One server element as a stored endpoint, or null to reject it and the tier.
  */
 private fun endpointOf(server: Element): MailEndpoint? {
     val host = server.childText("hostname")
@@ -246,7 +250,7 @@ private fun endpointOf(server: Element): MailEndpoint? {
 }
 
 /**
- * The guessed tier: `imap.`/`mail.` at 993, `smtp.`/`mail.` at 465 — implicit TLS only, so a kept
+ * The guessed tier: `imap.`/`mail.` at 993, `smtp.`/`mail.` at 465, implicit TLS only, so a kept
  */
 private suspend fun guessedSettings(
     domain: String,

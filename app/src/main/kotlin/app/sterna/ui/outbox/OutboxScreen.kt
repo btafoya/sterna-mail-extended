@@ -43,7 +43,7 @@ import app.sterna.ui.components.EmptyState
 @Composable
 fun OutboxScreen(
     onBack: () -> Unit,
-    /** Open the composer on the row just taken — with its id, which the route keeps across a process death. */
+    /** Open the composer on the row just taken, with its id, which the route keeps across a process death. */
     onEditDraft: (Long) -> Unit,
     viewModel: OutboxViewModel = viewModel(),
 ) {
@@ -51,12 +51,12 @@ fun OutboxScreen(
     val readyToEdit by viewModel.readyToEdit.collectAsStateWithLifecycle()
 
     // Id of the item whose Delete button was tapped, awaiting confirmation. A queued message has
-    // never reached the server, so deleting it destroys the only copy along with its attachments —
+    // never reached the server, so deleting it destroys the only copy along with its attachments.
     var pendingDelete by remember { mutableStateOf<Long?>(null) }
 
     pendingDelete?.let { id ->
-        // Which body this row is owed, from the list ALREADY collected above — no second read of
-        // the repository, no flow of its own. An INTERRUPTED row may already be at the recipient,
+        // Which body this row is owed, from the list already collected above, no second read of
+        // the repository, no flow of its own.
         val pendingState = items.firstOrNull { it.id == id }?.state
         val deleteBody = pendingState?.let(::outboxDeleteBody) ?: R.string.outbox_delete_body
         AlertDialog(
@@ -82,7 +82,7 @@ fun OutboxScreen(
         )
     }
 
-    // Once an item is staged for editing, open compose with the restored draft — and with the
+    // Once an item is staged for editing, open compose with the restored draft, and with the
     // row's id in the route, so a composer rebuilt after a process death can take it back.
     LaunchedEffect(readyToEdit) {
         readyToEdit?.let { id ->
@@ -130,7 +130,7 @@ fun OutboxScreen(
                         overflow = TextOverflow.Ellipsis,
                     )
                     // What the row says, and in which colour, is decided in OutboxRowText and
-                    // only EXECUTED here. A `when (item.state)` written back into this composable
+                    // only executed here. A `when (item.state)` written back into this composable
                     Text(
                         if (outboxStateShowsReason(item.state)) {
                             stringResource(
@@ -152,8 +152,10 @@ fun OutboxScreen(
                             MaterialTheme.colorScheme.primary
                         },
                     )
-                    // A row that is still waiting sometimes knows WHY — the server's refusal on one
-                    // of the first attempts, or an arming that never happened — and that reason was
+                    // A row that is still waiting sometimes knows why, the server's refusal on one
+                    // of the first attempts, or an arming that never happened, and that reason was
+                    // stored and shown nowhere, so Retry was pressed against a silent screen. It is
+                    // a line of its own, under the state sentence, which stays untouched and true:
                     if (outboxShowsWaitingReason(item.state, item.lastError)) {
                         Text(
                             stringResource(

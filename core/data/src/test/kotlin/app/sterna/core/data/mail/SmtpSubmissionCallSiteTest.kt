@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT on the ONE call of `SmtpClient.send` in the repo.
+ * Source lint on the one call of `SmtpClient.send` in the repo.
  */
 class SmtpSubmissionCallSiteTest {
 

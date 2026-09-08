@@ -3,18 +3,18 @@ package app.sterna.core.data.account
 import kotlinx.serialization.Serializable
 
 /**
- * Per-account "messages to sync" window — how much of a mailbox to keep cached,
- * either by recency ([maxAgeDays]) or by message [limit] (ARCHITECTURE.md →
+ * Per-account "messages to sync" window, how much of a mailbox to keep cached,
+ * either by recency ([maxAgeDays]) or by message [limit] (ARCHITECTURE.md,
  * "Storage & retention"). Age windows still cap the fetch with [limit].
  *
- * On an age window the two numbers are read TOGETHER, and [limit] is a FLOOR on what is kept,
+ * On an age window the two numbers are read together, and [limit] is a floor on what is kept,
  * not only a ceiling on what is fetched: retention keeps the newest [limit] messages of a folder
  * whatever their age, plus everything inside [maxAgeDays]. A folder of ten old messages therefore
- * keeps its ten, while a busy folder still keeps only its ninety days (Codeberg #110 — before
+ * keeps its ten, while a busy folder still keeps only its ninety days (Codeberg #110, before
  * this, the age was the only number retention looked at, so the setting could empty a quiet
  * folder down to whatever happened to be recent).
  *
- * [limit] counts MESSAGES, not threads: folder syncs are uncollapsed (the cache is
+ * [limit] counts messages, not threads: folder syncs are uncollapsed (the cache is
  * WYSIWYG and holds every thread member), so a window now matches its "N messages"
  * settings label exactly.
  *
@@ -23,10 +23,10 @@ import kotlinx.serialization.Serializable
  * 1 000 messages while it was scrolled to the bottom, where the JMAP Archive grew from 1 000 to
  * 1 150 under the same gesture.
  *
- * WHY it does not hold on IMAP is NOT established. Nothing below is a cause, only what the code
+ * Why it does not hold on IMAP is not established. Nothing below is a cause, only what the code
  * says. The scroll-to-load-more mediator is attached without testing the protocol ([pagedFolder]),
  * and its IMAP branch does ask the server for older pages ([folderMediator], then
- * `ImapMailService.fetchOlderPage` and `upsertAll`) — so "the app never asks" is not the answer.
+ * `ImapMailService.fetchOlderPage` and `upsertAll`), so "the app never asks" is not the answer.
  * Two candidates were read off the code and never told apart: every IMAP refresh re-walks the
  * window and its reconcile deletes what falls outside it (no cursor, so this runs every time), and
  * `endOfPaginationReached` may be frozen true by an early `Success`. What the JMAP branch has and
@@ -45,22 +45,22 @@ enum class SyncWindow(val limit: Int, val maxAgeDays: Int?) {
     COUNT_1000(limit = 1_000, maxAgeDays = null),
     COUNT_10000(limit = 10_000, maxAgeDays = null),
 
-    // Retired from the picker but ALIVE in the format (see [ALL]): never remove or rename.
+    // Retired from the picker but alive in the format (see [all]): never remove or rename.
     COUNT_50(limit = 50, maxAgeDays = null),
     COUNT_200(limit = 200, maxAgeDays = null),
     COUNT_500(limit = 500, maxAgeDays = null),
 
     /**
-     * "Everything" — retired from the picker, capped at 10 000 (largest offered window).
+     * "Everything", retired from the picker, capped at 10 000 (largest offered window).
      *
-     * NAME may not change or be deleted: it's the persisted format
-     * ([StoredAccount.syncWindow]); an unknown name fails the WHOLE list to decode, but not
-     * permanently — [AccountBlobGate] holds records until a build that knows it again.
+     * Name may not change or be deleted: it's the persisted format
+     * ([StoredAccount.syncWindow]); an unknown name fails the whole list to decode, but not
+     * permanently, [AccountBlobGate] holds records until a build that knows it again.
      */
     ALL(limit = 10_000, maxAgeDays = null),
 }
 
-/** Windows the row offers, in order. A WHITELIST, not `entries` minus something (see [SyncWindow.ALL]). */
+/** Windows the row offers, in order. A whitelist, not `entries` minus something (see [SyncWindow.All]). */
 fun syncWindowChoices(): List<SyncWindow> = listOf(
     SyncWindow.DAYS_30,
     SyncWindow.DAYS_90,

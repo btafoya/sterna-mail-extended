@@ -5,7 +5,9 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Executes [paneLayout] and [paneSplit] — the two decisions the inbox host spends when it puts a
+ * Executes [paneLayout] and [paneSplit], the two decisions the inbox host spends when it puts a
+ * reading pane beside the list (#103). Every expected number below is a LITERAL worked out by
+ * hand, never the formula replayed: a test that recomputes the rule agrees with any rule.
  */
 class PaneLayoutTest {
 

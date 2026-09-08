@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads four source files as text and proves nothing about
+ * Source lint, not a behaviour test, it reads four source files as text and proves nothing about
  */
 class UnreadTintWiringTest {
 
@@ -51,7 +51,7 @@ class UnreadTintWiringTest {
         )
     }
 
-    /** The negative screen — a `contains`, deliberately: it looks for what must be absent. */
+    /** The negative screen, a `contains`, deliberately: it looks for what must be absent. */
     @Test fun `neither copy of the default is spelled out as a boolean`() {
         val offenders = listOf(MAIN_ACTIVITY, LOCAL_LIST_DENSITY).flatMap { file ->
             codeLines(file)
@@ -163,6 +163,9 @@ class UnreadTintWiringTest {
 
     /**
      * The body of `SettingsSection(stringResource(R.string.settings_message_list_section)) {`, and
+     * only it: the block is closed by counting braces, not by waiting for the next section. Stopping
+     * at the next `SettingsSection(` swallowed everything down to the Reading screen, a switch
+     * dropped anywhere in three hundred unrelated lines would have satisfied the rule below.
      */
     private fun messageListSection(): List<String> {
         val lines = codeLines(SETTINGS_SCREEN)
@@ -215,7 +218,7 @@ class UnreadTintWiringTest {
         private const val SETTINGS_REPOSITORY_PATH =
             "core/data/src/main/kotlin/app/sterna/core/data/settings/SettingsRepository.kt"
 
-        /** Repo root, walked up from the module's working directory — the rules read BOTH modules. */
+        /** Repo root, walked up from the module's working directory, the rules read both modules. */
         val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, SETTINGS_REPOSITORY_PATH).isFile }

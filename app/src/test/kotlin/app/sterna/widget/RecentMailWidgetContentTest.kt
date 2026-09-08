@@ -14,11 +14,11 @@ import java.time.ZoneId
 import java.util.Locale
 
 /**
- * What the latest-messages widget draws, RUN — not read as source, and not recomputed here. Every
+ * What the latest-messages widget draws, run, not read as source, and not recomputed here. Every
  */
 class RecentMailWidgetContentTest {
 
-    // The caller's stand-ins, deliberately NOT the app's own strings: they are passed in, and this
+    // The caller's stand-ins, deliberately not the app's own strings: they are passed in, and this
     // file proves they are what comes back out.
     private val unknownSender = "«nobody named»"
     private val noSubject = "«nothing titled»"
@@ -33,7 +33,7 @@ class RecentMailWidgetContentTest {
     private val alphaColor = 0xFF17414C.toInt()
     private val gammaColor = 0xFFB3541E.toInt()
 
-    // The badges the fixtures below wear, as LITERALS. Not `monogramSlot("marie@example.test")`:
+    // The badges the fixtures below wear, as literals. Not `monogramSlot("marie@example.test")`:
     // calling the shipped rule to build the expectation is a copy of it, and the two would agree
     // however the rule was rewritten. These three pairs were computed once, off this suite, and are
     // now facts this file holds the widget to.
@@ -98,7 +98,7 @@ class RecentMailWidgetContentTest {
     // ---- the four positions of the notification-content setting ----
 
     /**
-     * BODY_PREVIEW draws NO body here. The rule deliberately gives it the same two lines as
+     * BODY_PREVIEW draws NO body here.
      */
     @Test fun `body preview draws the sender and the subject, and no body`() {
         assertEquals(
@@ -149,7 +149,7 @@ class RecentMailWidgetContentTest {
     // ---- the app lock ----
 
     /**
-     * The lock folds every position onto NONE. SECURITY.md promises it keeps someone who picks
+     * The lock folds every position onto none. SECURITY.md promises it keeps someone who picks
      * up the unlocked phone from reading the mail, and a home screen is read by exactly that person.
      */
     @Test fun `the app lock silences even the most talkative position`() {
@@ -164,7 +164,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * NOTHING of the message survives the lock — and the sender and the subject are not the only
+     * Nothing of the message survives the lock, and the sender and the subject are not the only
      */
     @Test fun `under the lock no drawn field carries the sender, the subject, or any identifier`() {
         val row = drawn(content = NotificationContent.BODY_PREVIEW, appLockEnabled = true)
@@ -180,7 +180,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * The same, one level up: a whole snapshot, locked, DRAWING nobody's name.
+     * The same, one level up: a whole snapshot, locked, drawing nobody's name.
      */
     @Test fun `under the lock a whole snapshot draws nobody`() {
         val snapshot = RecentMailWidgetContent.snapshot(
@@ -206,7 +206,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * THE FRONTIER THE TAP PANE HAD TO CROSS WITHOUT BREAKING: a line now CARRIES the three
+     * The frontier the tap pane had to cross without breaking: a line now CARRIES the three
      */
     @Test fun `at every position of the setting, and under the lock, no DRAWN field carries an identifier`() {
         val identifiers = listOf("msg-77", "acct-alpha", "mbox-beta")
@@ -328,7 +328,10 @@ class RecentMailWidgetContentTest {
     // ---- the badge a line wears ----
 
     /**
-     * WHICH LINES MAY WEAR A BADGE, and it is not this file's opinion: it is the third field of
+     * Which lines may wear a badge, and it is not this file's opinion: it is the third field of
+     * `MailNotificationText.widgetRow`, the only place that knows the position the app lock has
+     * already folded. A badge's letter is a letter of the sender's name, so the three positions
+     * that name a sender may draw one and none may not.
      */
     @Test fun `the three talkative positions wear a badge, and the silent one wears none`() {
         assertEquals(
@@ -346,7 +349,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * AND THE LOCK TAKES IT AWAY, FROM EVERY POSITION. SECURITY.md promises a locked home screen
+     * And the lock takes it away, from every position. SECURITY.md promises a locked home screen
      */
     @Test fun `the app lock leaves no badge at all, at any position`() {
         assertEquals(
@@ -361,7 +364,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * AND THE INITIALS SWITCH TAKES IT AWAY TOO — the setting #144 added to the message list
+     * And the initials switch takes it away too, the setting #144 added to the message list
      */
     @Test fun `the initials switch removes the badge from the most talkative row, and nothing else`() {
         assertEquals(
@@ -410,7 +413,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * With neither name nor address the badge falls back to the caller's stand-in, on BOTH halves:
+     * With neither name nor address the badge falls back to the caller's stand-in, on both halves:
      */
     @Test fun `with neither name nor address the badge comes from the caller's stand-in`() {
         assertEquals(
@@ -420,7 +423,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * A NON-LATIN SENDER KEEPS THEIR OWN ALPHABET. `initialOf` upper-cases whatever the first
+     * A non-latin sender keeps their own alphabet. `initialOf` upper-cases whatever the first
      * letter-or-digit is, so Cyrillic д becomes Д and not a transliteration and not "?".
      */
     @Test fun `a cyrillic sender wears a cyrillic capital`() {
@@ -433,7 +436,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * THE POINT OF COLOURING A BADGE AT ALL. Two correspondents whose names start with the same
+     * The point of colouring a badge at all. Two correspondents whose names start with the same
      */
     @Test fun `two senders with the same initial are told apart by the colour, not by the letter`() {
         val marie = drawn(row = mail(fromName = "Marie Dupont", fromEmail = "marie@example.test")).monogram
@@ -454,7 +457,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * THE SEED IS THE ADDRESS, NOT THE DISPLAYED NAME, and this is the assertion that pins it.
+     * The seed is the address, not the displayed name, and this is the assertion that pins it.
      */
     @Test fun `the badge's colour follows the address, and never the displayed name`() {
         val home = drawn(row = mail(fromName = "Marie Dupont", fromEmail = "marie@example.test")).monogram
@@ -477,7 +480,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * AND THE SEED DOES NOT TRAVEL. [RecentWidgetRow] is the shape the launcher draws; the
+     * And the seed does not travel. [RecentWidgetRow] is the shape the launcher draws;
      */
     @Test fun `the address the badge was seeded from is not carried on the drawn row`() {
         val row = drawn(content = NotificationContent.SENDER_ONLY, row = mail())
@@ -510,7 +513,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * THE ARM THIS FILE EXISTS FOR. `configured = false` is "no answer", not "no message" and
+     * The arm this file exists for.
      */
     @Test fun `a read that knew no inbox affirms nothing`() {
         assertEquals(
@@ -522,8 +525,8 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * And what that state DRAWS is pinned on the claim, not on a wording: the app's own name, which
-     * says nothing about anybody's mail — never the empty-inbox line.
+     * And what that state draws is pinned on the claim, not on a wording: the app's own name, which
+     * says nothing about anybody's mail, never the empty-inbox line.
      */
     @Test fun `the state that affirms nothing draws the app's name, never the empty line`() {
         assertEquals(
@@ -611,7 +614,7 @@ class RecentMailWidgetContentTest {
     // ---- which account a line came from ----
 
     /**
-     * THE PANE'S OWN DECISION, EXECUTED. The list interleaves several accounts by date and, until
+     * The pane's own decision, executed. The list interleaves several accounts by date and, until
      */
     @Test fun `two accounts with colours each get their own`() {
         assertEquals(
@@ -626,7 +629,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * ONE ACCOUNT, NO DOT AT ALL — the bound is [AllInboxesView], the same one the counter's
+     * One account, NO dot at all, the bound is [AllInboxesView], the same one the counter's
      */
     @Test fun `a single account is given no colour, however carefully it was chosen`() {
         assertEquals(
@@ -639,7 +642,9 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * AND "AUTO" IS NOT A COLOUR. `StoredAccount.color` is null on the first position of the
+     * And "auto" is not a colour. `StoredAccount.color` is null on the first position of the
+     * picker, which is where every account starts; inventing something for it would put on the home
+     * screen a colour the account editor never showed.
      */
     @Test fun `an account left on auto is left out, and does not take its neighbour's colour`() {
         assertEquals(
@@ -654,7 +659,7 @@ class RecentMailWidgetContentTest {
     }
 
     /**
-     * AND EACH LINE TAKES ITS OWN ACCOUNT'S COLOUR. This is the mutation the map alone cannot
+     * And each line takes its own account's colour. This is the mutation the map alone cannot
      */
     @Test fun `each line of a snapshot wears its own account's colour`() {
         val snapshot = RecentMailWidgetContent.snapshot(

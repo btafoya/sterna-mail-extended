@@ -4,14 +4,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * THIS TEST READS SOURCE TEXT — the last resort, for the reason [DestroyChecksTheFolderWiringTest]
+ * This test reads source text, the last resort, for the reason [DestroyChecksTheFolderWiringTest]
  */
 class DeleteWouldDestroyWiringTest {
 
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
-    /** Every CODE line of [text] — comments and blanks dropped, whitespace normalised — so prose
+    /** Every code line of [text] (comments and blanks dropped, whitespace normalised) so prose
      *  can neither satisfy a rule nor break one, and the assertions compare whole lines. */
     private fun codeLines(text: String): List<String> =
         text.lines().map { it.replace(Regex("""\s+"""), " ").trim() }
@@ -44,7 +44,7 @@ class DeleteWouldDestroyWiringTest {
     @Test fun `answering the question never writes a folder to the user's server`() {
         val body = bodyOf("deleteWouldDestroy")
         // delete() goes on to CREATE the bin where this stops; a probe that created one would
-        // write to the user's server to answer a question — and would do it on the swipe path,
+        // write to the user's server to answer a question, and would do it on the swipe path,
         // per message, and from deleteThread, per member of the thread.
         listOf("createTrashFolder(", "createMailbox(", "createFolder(").forEach { creation ->
             assertEquals(
@@ -69,10 +69,10 @@ class DeleteWouldDestroyWiringTest {
     }
 
     @Test fun `accountHasTrash keeps asking the role itself, never through the message rule`() {
-        // The two are NOT the same question, and their answers may now differ: a JMAP bin known
+        // The two are not the same question, and their answers may now differ: a JMAP bin known
         // by name only is a Trash for the message rule and not for this one. That asymmetry is
-        // arbitrated — the account probe's conservatism can only leave a row untreated and
-        // announced, never destroy one — so it stays exactly as it is.
+        // arbitrated, the account probe's conservatism can only leave a row untreated and
+        // announced, never destroy one, so it stays exactly as it is.
         val source = DaoQuerySource.mailSource("MailRepository")
         assertEquals(
             "the account-level probe must stay its own role lookup, whole, arguments included — " +

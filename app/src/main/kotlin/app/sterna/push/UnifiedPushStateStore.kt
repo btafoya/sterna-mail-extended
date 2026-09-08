@@ -15,10 +15,10 @@ enum class UpStatus {
     VERIFYING,
 
     /** A relay address exists and is shown for this account (IMAP), and nothing has ever arrived
-     *  through it. Deliberately not [ACTIVE], which the transport decisions read as "mail came". */
+     *  through it. Deliberately not [active], which the transport decisions read as "mail came". */
     PUBLISHED,
 
-    /** Verified — StateChange events flow through the endpoint. */
+    /** Verified, StateChange events flow through the endpoint. */
     ACTIVE,
 
     /** Registration or verification failed; the direct connection covers the account. */
@@ -34,7 +34,7 @@ data class UpAccountState(
     val status: UpStatus = UpStatus.NONE,
     /** When the subscription lapses server-side (renewed by the periodic worker). */
     val expiresAtMillis: Long = 0,
-    /** When [status] last changed — drives the stale-pending watchdog. */
+    /** When [status] last changed, drives the stale-pending watchdog. */
     val statusSinceMillis: Long = 0,
     /** The user asked for a relay address on this (IMAP) account; no push without it. */
     val relayRequested: Boolean = false,

@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 
 /**
- * WHEN the home-screen widget is pushed new numbers, kept apart from Android so it can be EXECUTED
+ * When the home-screen widget is pushed new numbers, kept apart from Android so it can be executed
  */
 internal object UnreadWidgetPush {
 
@@ -30,7 +30,7 @@ internal object UnreadWidgetPush {
         .distinctUntilChanged()
         .map { (unreadByAccount, _) -> unreadByAccount }
 
-    /** Which of [UnreadWidgetContent.of]'s three arms the cell is drawn by — the account list
+    /** Which of [UnreadWidgetContent.of]'s three arms the cell is drawn by, the account list
      *  projected down to the only thing this trigger may react to. */
     private enum class CellBound { ALL_INBOXES, ONE_ACCOUNT, NO_ACCOUNT }
 

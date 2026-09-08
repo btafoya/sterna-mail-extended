@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxViewModel.kt` as text and proves nothing about
+ * Source lint, not a behaviour test. It reads `InboxViewModel.kt` as text and proves nothing about
  */
 class ActionFailureWiringTest {
 
@@ -78,7 +78,7 @@ class ActionFailureWiringTest {
     }
 
     /**
-     * The batched bulk loops over ACCOUNTS, so it can be handed several failures. The one that
+     * The batched bulk loops over accounts, so it can be handed several failures.
      */
     @Test fun `the batched bulk keeps the first failure, not the last`() {
         val site = SITES.first { it.cut == Cut.CAUGHT_THEN_TOLD }
@@ -127,6 +127,9 @@ class ActionFailureWiringTest {
 
     /**
      * The `.onFailure { … }` block of the declaration starting at [header], comments stripped and
+     * whitespace squeezed to single spaces, braces balanced. Fails loudly when the declaration or
+     * its arm cannot be found, so a rename reddens these rules rather than satisfying them against
+     * an empty string.
      */
     private fun arm(site: Site): String = when (site.cut) {
         Cut.ON_FAILURE -> arm(site.header)
@@ -135,6 +138,10 @@ class ActionFailureWiringTest {
 
     /**
      * The two halves of the batched bulk's arm, joined: the `getOrElse { … }` that logs the
+     * failure and keeps it, and the `BulkOutcome.Total ->` branch that turns it into a sentence
+     * twenty lines below. They are read together because the rules span them, the log lives in
+     * the first, the decision in the second, and a rule reading one alone would pass while the
+     * other went missing.
      */
     private fun caughtThenTold(header: String): String {
         val text = code()
@@ -219,7 +226,8 @@ class ActionFailureWiringTest {
         )
 
         /**
-         * `actionFailureMessage(<this arm's throwable>, online = hasUsableNetwork(app))` — and, on
+         * `actionFailureMessage(<this arm's throwable>, online = hasUsableNetwork(app))`, and, on
+         * the two `.onFailure` arms, the `app.getString(…)` that wraps it, exactly as [decision]
          */
         private fun decidesOnLiveConnectivity(site: Site) = Regex(
             """\bactionFailureMessage\(${Regex.escape(site.failure)}, online = hasUsableNetwork\(app\)\)"""
@@ -227,7 +235,7 @@ class ActionFailureWiringTest {
         )
 
         /**
-         * The capture that survives a second failing account. ONE spelling, not an alternation:
+         * The capture that survives a second failing account. One spelling, not an alternation:
          */
         private val KEEPS_THE_FIRST_FAILURE = Regex("""if \(batchFailure == null\) batchFailure = it\b""")
 
@@ -252,7 +260,7 @@ class ActionFailureWiringTest {
                 "status.value = Status(refreshing = false, " +
                 "error = app.getString(actionFailureMessage(it, online = hasUsableNetwork(app))))"
 
-        /** Any read of the exception's own text — the thing that used to reach the screen. */
+        /** Any read of the exception's own text, the thing that used to reach the screen. */
         private val READS_THE_MESSAGE = Regex("""\bit\.message\b""")
 
         /** `online = true` / `online = false`, and the two literals on their own anywhere in the arm. */
@@ -288,6 +296,9 @@ class ActionFailureWiringTest {
 
 /**
  * One failure arm this fix owns: where it lives, how it is cut out of the source, and the name the
+ * `Throwable` goes by inside it. The batched bulk needed all three, it has no `.onFailure` block
+ * (it catches in a `runCatching { }.getOrElse { }` and decides in a `when` further down), and its
+ * throwable is not called `it`.
  */
 private data class Site(val name: String, val header: String, val cut: Cut, val failure: String)
 
@@ -296,6 +307,6 @@ private enum class Cut {
     /** The declaration's single `.onFailure { … }` block. */
     ON_FAILURE,
 
-    /** Its `getOrElse { … }` and its `BulkOutcome.TOTAL ->` branch, joined. */
+    /** Its `getOrElse { … }` and its `BulkOutcome.Total ->` branch, joined. */
     CAUGHT_THEN_TOLD,
 }

@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT — THE LAST RESORT, and stated as one.
+ * Source lint, the last resort, and stated as one.
  */
 class LocalDraftLeaseWiringTest {
 
@@ -78,7 +78,7 @@ class LocalDraftLeaseWiringTest {
     }
 
     @Test fun `no in-memory lease survives anywhere in the repository`() {
-        // The field, its mutex and the three pure functions that fed them are GONE, and this is
+        // The field, its mutex and the three pure functions that fed them are gone, and this is
         // what keeps them from creeping back: a lease is a promise about a process, and the process
         val code = codeOf(MAIL_REPOSITORY.readText()).lines().map { it.trim() }
         assertEquals(
@@ -105,7 +105,7 @@ class LocalDraftLeaseWiringTest {
     // -- reading the source ----------------------------------------------------------------------
 
     /**
-     * The line containing [opener] in `MailRepository.kt` and its BRACED body — down to the line
+     * The line containing [opener] in `MailRepository.kt` and its braced body, down to the line
      */
     private fun declarationAndBlockBody(opener: String): List<String> {
         val lines = codeOf(MAIL_REPOSITORY.readText()).lines().map { it.trim() }.filter { it.isNotEmpty() }
@@ -125,7 +125,8 @@ class LocalDraftLeaseWiringTest {
     }
 
     /**
-     * The line containing [opener] in `MailRepository.kt` and its EXPRESSION body — down to the
+     * The line containing [opener] in `MailRepository.kt` and its expression body, down to the
+     * line that balances the call it opens, comments cut, trimmed, in order.
      */
     private fun declarationAndExpressionBody(opener: String): List<String> {
         val lines = codeOf(MAIL_REPOSITORY.readText()).lines().map { it.trim() }.filter { it.isNotEmpty() }
@@ -142,7 +143,7 @@ class LocalDraftLeaseWiringTest {
         error("unbalanced parentheses under '$opener' in MailRepository.kt")
     }
 
-    /** [text] with every comment taken out — block comments tracked, `//` honoured outside strings. */
+    /** [text] with every comment taken out, block comments tracked, `//` honoured outside strings. */
     private fun codeOf(text: String): String {
         val out = StringBuilder()
         var inBlockComment = false

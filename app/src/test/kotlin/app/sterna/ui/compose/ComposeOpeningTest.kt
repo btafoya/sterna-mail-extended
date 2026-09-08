@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The one place the compose `mode` navigation argument is read. Before it existed,
+ * The one place the compose `mode` navigation argument is read.
  */
 class ComposeOpeningTest {
 
@@ -89,13 +89,13 @@ class ComposeOpeningTest {
 
     @Test fun anUnknownModeOpensAReply() {
         // Same as before this enum existed: an unknown string fell into the reply branch. What
-        // changes is that it now falls there in ALL three places at once, instead of one.
+        // changes is that it now falls there in all three places at once, instead of one.
         assertReply(composeOpening("fowrard"), "an unknown string")
     }
 
     @Test fun replyAllAndReplyAreDistinctOpenings() {
         // Reply-all differs from reply by its recipients, which the prefill decides on the enum
-        // value — so the two must not collapse into one.
+        // value, so the two must not collapse into one.
         assertEquals(ComposeOpening.REPLY_ALL, composeOpening("replyAll"))
         assertEquals(ComposeOpening.REPLY, composeOpening("reply"))
     }

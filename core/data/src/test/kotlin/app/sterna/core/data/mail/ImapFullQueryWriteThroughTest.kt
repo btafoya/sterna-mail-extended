@@ -12,7 +12,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The red line on the IMAP side, EXECUTED: pages written as they land, ONE reconcile at the end,
+ * The red line on the IMAP side, executed: pages written as they land, one reconcile at the end,
+ * and NO reconcile at all when the walk cannot vouch for what it read.
  */
 class ImapFullQueryWriteThroughTest {
 
@@ -21,7 +22,7 @@ class ImapFullQueryWriteThroughTest {
 
     private fun id(uid: Long) = "imap:$account:$inbox:$uid"
 
-    /** One cached row, as the walk writes it — only the fields these rules read carry meaning. */
+    /** One cached row, as the walk writes it, only the fields these rules read carry meaning. */
     private fun row(uid: Long, sortKey: Long = 1_000L) = EmailEntity(
         id = id(uid),
         accountId = account,
@@ -39,7 +40,7 @@ class ImapFullQueryWriteThroughTest {
     )
 
     /**
-     * One folder as this path leaves it — a cache of ids, a recently-mutated spare set that MOVES
+     * One folder as this path leaves it, a cache of ids, a recently-mutated spare set that MOVES
      */
     private class Folder(cached: List<String> = emptyList()) {
         val cache = LinkedHashSet(cached)
@@ -53,7 +54,7 @@ class ImapFullQueryWriteThroughTest {
             cache += page.map { it.id }
         }
 
-        /** The shipped reconcile, applied: complement against the WHOLE keep set, then evict. */
+        /** The shipped reconcile, applied: complement against the whole keep set, then evict. */
         suspend fun reconcile(mailboxId: String, keepIds: Set<String>, spareIds: List<String>, evictableIds: Set<String>?) {
             reconciledMailbox = mailboxId
             reconciledKeepIds = keepIds
@@ -96,12 +97,12 @@ class ImapFullQueryWriteThroughTest {
         )
     }
 
-    /** Three pages, so a MIDDLE one exists: a one-page fixture cannot tell "the whole walk" from
+    /** Three pages, so a middle one exists: a one-page fixture cannot tell "the whole walk" from
      *  "the last page" and would prove nothing. */
     private val threePages = listOf(listOf(9L, 8L), listOf(7L, 6L), listOf(5L))
     private val allThree = listOf(9L, 8L, 7L, 6L, 5L).map(::id)
 
-    /** The shipped call, with the shipped arguments — the shape [ImapWindowWiringTest] pins. */
+    /** The shipped call, with the shipped arguments, the shape [ImapWindowWiringTest] pins. */
     private fun run(
         folder: Folder,
         walk: suspend (suspend (List<EmailEntity>) -> Unit) -> ImapFolderLoad,
@@ -120,7 +121,7 @@ class ImapFullQueryWriteThroughTest {
 
     @Test fun `a walk cut off in the middle deletes NOTHING, and keeps the pages it did write`() {
         // The network drops after two of three pages. Everything the cache held must still be
-        // there — including "stale", which no page names — and the two pages received too.
+        // there (including "stale", which no page names) and the two pages received too.
         val folder = Folder(cached = listOf(id(999), id(6)))
         val boom = java.io.IOException("connection reset")
 
@@ -157,8 +158,8 @@ class ImapFullQueryWriteThroughTest {
     // -- the walk the folder moved under -----------------------------------------------------------
 
     @Test fun `a walk whose folder moved finishes, writes every page, and reconciles NOTHING`() {
-        // THE test of this volet, and the one thing IMAP has that JMAP does not. An EXPUNGE
-        // between two pages renumbers everything above it, so a page may have skipped a message —
+        // The test of this volet, and the one thing IMAP has that JMAP does not. An EXPUNGE
+        // between two pages renumbers everything above it, so a page may have skipped a message,
         // and a skipped message is not in the walk's UIDs. Reconciling here would delete it from
         // the cache while the server still holds it. "stale" stands for that message.
         val folder = Folder(cached = listOf(id(999)))
@@ -173,7 +174,7 @@ class ImapFullQueryWriteThroughTest {
         )
         assertEquals(emptyList<String>(), folder.evicted)
         assertTrue("a row the server still holds was evicted", id(999) in folder.cache)
-        // The mail still landed: not reconciling costs a cache that holds MORE than the window,
+        // The mail still landed: not reconciling costs a cache that holds more than the window,
         // never a cache that holds less.
         assertTrue(folder.cache.containsAll(allThree))
     }
@@ -213,11 +214,11 @@ class ImapFullQueryWriteThroughTest {
         assertTrue(id(999) in folder.cache)
     }
 
-    // -- the reconcile, when the walk DID finish -------------------------------------------------------
+    // -- the reconcile, when the walk did finish -------------------------------------------------------
 
     @Test fun `a finished walk reconciles once, against every page, not the last one`() {
-        // uid 6 is cached AND named by the MIDDLE page. Reconciling against the last page alone
-        // would evict it; against the whole walk it stays. uid 999 is named by no page and goes —
+        // uid 6 is cached and named by the middle page. Reconciling against the last page alone
+        // would evict it; against the whole walk it stays. uid 999 is named by no page and goes,
         // which is what makes this a reconcile and not a no-op.
         val folder = Folder(cached = listOf(id(6), id(999)))
 
@@ -245,9 +246,9 @@ class ImapFullQueryWriteThroughTest {
 
     @Test fun `the recently-mutated spare is read at the reconcile, not before the walk`() {
         // The 45 s protection window against a walk that takes minutes. uid 42 is a row the user
-        // restored WHILE the walk ran: it is in the cache, in no page, and in the spare set only
+        // restored while the walk ran: it is in the cache, in no page, and in the spare set only
         // from page 2 onwards. A spare set read at the entry is empty, and the reconcile deletes
-        // the restored row — undoing, one function later, the Undo.
+        // the restored row, undoing, one function later, the Undo.
         val folder = Folder(cached = listOf(id(42)))
 
         run(folder, walkOf(threePages, between = { i -> if (i == 1) folder.spare += id(42) }))
@@ -282,7 +283,7 @@ class ImapFullQueryWriteThroughTest {
 
     @Test fun `reconcilableIds refuses a moved folder and never answers an empty set instead`() {
         // Null is a refusal; an empty set is "keep nothing", i.e. delete the folder. The two
-        // must never be confused, so the refusal is stated on a NON-EMPTY walk.
+        // must never be confused, so the refusal is stated on a non-empty walk.
         val load = ImapFolderLoad(emptyList(), inbox, "Inbox", 0, "tester", ImapFolderWalk(listOf(9L, 8L), moved = true))
 
         assertNull(reconcilableIds(load, account))
@@ -293,7 +294,7 @@ class ImapFullQueryWriteThroughTest {
 
         // The cache id format spelled out: an id built from another account or another folder
         // would name nothing in the cache, and the reconcile would then evict the whole folder
-        // (#31/#121 — ids collide between accounts on the same server).
+        // (#31/#121, ids collide between accounts on the same server).
         assertEquals(setOf("imap:acc-1:INBOX:9", "imap:acc-1:INBOX:8", "imap:acc-1:INBOX:5"), reconcilableIds(load, account))
         assertEquals(setOf("imap:other:INBOX:9"), reconcilableIds(load.copy(walk = ImapFolderWalk(listOf(9L), false)), "other"))
     }

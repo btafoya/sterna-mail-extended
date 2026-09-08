@@ -14,7 +14,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The refresh indicator's grace and floor (#178), executed — never read.
+ * The refresh indicator's grace and floor (#178), executed, never read.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class RefreshIndicatorGraceTest {
@@ -39,7 +39,10 @@ class RefreshIndicatorGraceTest {
     }
 
     /**
-     * The two numbers themselves, EXECUTED on literal instants rather than read back from the
+     * The two numbers themselves, executed on literal instants rather than read back from the
+     * constants. Every other test in this file spells `grace` and `floor`, so it would follow the
+     * shipped rule wherever it was moved to: raise the grace to five seconds and they all stay
+     * green while the tern never appears again. These two do not move.
      */
     @Test fun `a refresh of 240 ms is never drawn and one of 260 ms is`() {
         val short = RefreshRun(startedAt = 0, endedAt = 240)
@@ -120,7 +123,7 @@ class RefreshIndicatorGraceTest {
     }
 
     /**
-     * The case the first version of [startRefreshRun] got wrong, and the one the floor is FOR.
+     * The case the first version of [startRefreshRun] got wrong, and the one the floor is for.
      */
     @Test fun `a refresh starting while the indicator is still drawn does not blink it off`() {
         val shown = RefreshRun(startedAt = 0, endedAt = 300)

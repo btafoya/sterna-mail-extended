@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * BEHAVIOUR TEST — it executes [suggestionMenuMaxHeight] and pins numbers, because that function
+ * Behaviour test, it executes [suggestionMenuMaxHeight] and pins numbers, because that function
  */
 class SuggestionMenuFitTest {
 
@@ -28,7 +28,7 @@ class SuggestionMenuFitTest {
 
     @Test fun `the keyboard's height comes off the room the menu may take`() {
         // Same window, same field, keyboard up: 1000 − 200 − 600 = 200 px = 100 dp. This is the
-        // whole point of the fix — the same field that allowed 256 dp a moment ago allows 100.
+        // whole point of the fix, the same field that allowed 256 dp a moment ago allows 100.
         assertEquals(
             "the keyboard must be subtracted: 100 dp is left under the field, not 256",
             100.dp,
@@ -73,6 +73,8 @@ class SuggestionMenuFitTest {
 
     /**
      * A row is not 56 dp at every font size. It holds two lines of text on top of the avatar,
+     * and at `font_scale 2.0` it is past 80 dp: measuring against the un-scaled 56 dp showed
+     * between 56 and one real row exactly the sliced row this fix refuses to draw.
      */
     @Test fun `the threshold follows the system font size`() {
         // 1000 − 200 − 560 = 240 px = 120 dp, against a row that is 56 × 2 = 112 dp here.
@@ -86,7 +88,7 @@ class SuggestionMenuFitTest {
                 density = Density(2f, fontScale = 2f),
             ),
         )
-        // 1000 − 200 − 600 = 200 px = 100 dp — which `the keyboard's height comes off the room the
+        // 1000 − 200 − 600 = 200 px = 100 dp, which `the keyboard's height comes off the room the
         // menu may take` above shows as a 100 dp menu at font scale 1. At font scale 2 the same
         // room does not hold a row, and a sliced row is not drawn.
         assertEquals(
@@ -103,7 +105,7 @@ class SuggestionMenuFitTest {
 
     @Test fun `a shrunken system font does not shrink the row below the avatar`() {
         // 500 − 100 − 360 = 40 px = 40 dp at density 1. Scaled by 0.5 the threshold would be
-        // 28 dp and this 40 dp menu would be drawn — half an avatar tall. The scaling is clamped
+        // 28 dp and this 40 dp menu would be drawn, half an avatar tall. The scaling is clamped
         // at 1, so 56 dp stays the floor and nothing is shown.
         assertEquals(
             "under a shrunken font the row floor stays 56 dp, so 40 dp shows nothing",
@@ -148,7 +150,7 @@ class SuggestionMenuFitTest {
 
     @Test fun `on a screen the size of the reporter's the menu shrinks instead of covering the keys`() {
         // The three numbers are deliberately different here and in every test above, so that
-        // putting the WINDOW in either other position changes the answer. What this cannot pin,
+        // putting the window in either other position changes the answer.
         assertEquals(
             "a 432 px tall screen with a 220 px keyboard leaves 92 dp under the field",
             92.dp,

@@ -22,7 +22,8 @@ fun compressUidSet(uids: Collection<Long>): String {
 }
 
     /**
-     * Expand an RFC 3501 sequence-set string into an ordered list of UIDs, preserving token order — a
+     * Expand an RFC 3501 sequence-set string into an ordered list of UIDs, preserving token order, a
+     * order the tokens appear in, a range `a:b` expands ascending or descending to match.
      */
 fun expandUidSet(set: String): List<Long> {
     val out = mutableListOf<Long>()

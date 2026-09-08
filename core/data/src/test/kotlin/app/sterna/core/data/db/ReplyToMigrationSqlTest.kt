@@ -80,7 +80,7 @@ class ReplyToMigrationSqlTest {
             }
         } as SupportSQLiteDatabase
 
-    /** The published v15 schema, populated — the state a real install carries before any of this. */
+    /** The published v15 schema, populated, the state a real install carries before any of this. */
     private fun seedPublishedV15() {
         db.createStatement().use { st ->
             st.executeUpdate(publishedEmailsCreate)
@@ -107,8 +107,8 @@ class ReplyToMigrationSqlTest {
                     "`hasAttachment`, `sortKey`) VALUES ('e2', 'accA', 'mb1', 'World', 1, 0, 0, 200)",
             )
             st.executeUpdate("INSERT INTO `email_bodies` VALUES ('e1', 'accA', '{}', '{}', 42)")
-            // The user data a destructive fallback destroys: a snooze, and above all a QUEUED
-            // outbox row — mail the user wrote and that has never left the phone.
+            // The user data a destructive fallback destroys: a snooze, and above all a queued
+            // outbox row, mail the user wrote and that has never left the phone.
             st.executeUpdate("INSERT INTO `snoozed` VALUES ('e2', 'accA', 99999)")
             st.executeUpdate(
                 "INSERT INTO `outbox` (`accountId`, `recipients`, `subject`, `textBody`, " +
@@ -141,7 +141,7 @@ class ReplyToMigrationSqlTest {
     }
 
     /**
-     * A REAL v19 database: the published v15 schema, populated, then carried forward by the very
+     * A real v19 database: the published v15 schema, populated, then carried forward by the very
      */
     private fun seedV19() {
         seedPublishedV15()
@@ -175,7 +175,9 @@ class ReplyToMigrationSqlTest {
     }
 
     /**
-     * The DECLARED shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`,
+     * The declared shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`,
+     * not just its name. Room's `TableInfo.Column.equals` compares the affinity, the nullability
+     * and the default, so a column of the right name and the wrong type fails `validateMigration`
      */
     private fun columnShapes(table: String): Map<String, Triple<String, Int, String?>> {
         val shapes = mutableMapOf<String, Triple<String, Int, String?>>()
@@ -286,7 +288,7 @@ class ReplyToMigrationSqlTest {
         migrate19to20()
 
         // No backfill: the header is not held locally, so an old row is NULL until its next sync,
-        // and NULL decodes to "no instruction — answer the sender".
+        // and NULL decodes to "no instruction, answer the sender".
         assertEquals(2, count("SELECT COUNT(*) FROM `emails` WHERE `replyToJson` IS NULL"))
         assertEquals(
             emptyList<EmailAddress>(),
@@ -317,10 +319,10 @@ class ReplyToMigrationSqlTest {
         seedV19()
         migrate19to20()
 
-        // Room compares the AFFINITY, the nullability and the default at open time. A column of
+        // Room compares the affinity, the nullability and the default at open time. A column of
         // the right name and the wrong type throws
         // IllegalStateException("Migration didn't properly handle: emails …") on every launch,
-        // and the only way out for the user is to reinstall — the outbox lost by the side door.
+        // and the only way out for the user is to reinstall, the outbox lost by the side door.
         assertEquals(Triple("TEXT", 0, null), columnShapes("emails")["replyToJson"])
         // The v17 column it is modelled on, as a witness that this is the shape Room expects here.
         assertEquals(Triple("TEXT", 0, null), columnShapes("emails")["recipientsJson"])
@@ -363,7 +365,8 @@ class ReplyToMigrationSqlTest {
     }
 
     /**
-     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
+     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from, the
+     * annotation is not retained at runtime, so it cannot be read reflectively (measured:
      */
     @Test fun theRegisteredMigrationsReachTheSchemaVersionRoomIsToldToOpen() {
         val reached = SternaDatabase.ALL_MIGRATIONS.filter { it.startVersion >= 15 }.maxOf { it.endVersion }

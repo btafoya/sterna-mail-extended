@@ -58,7 +58,7 @@ sealed interface ConnectState {
     data class Error(val message: String) : ConnectState
 }
 
-/** True when a JMAP password sign-in is aimed at Fastmail — their endpoint only accepts API
+/** True when a JMAP password sign-in is aimed at Fastmail, their endpoint only accepts API
  *  tokens (#54): the address is @fastmail.com/.fm, or the server points at api.fastmail.com. */
 internal fun isFastmailTarget(email: String, server: String): Boolean {
     val domain = email.trim().substringAfterLast('@', "").lowercase()
@@ -69,13 +69,13 @@ internal fun isFastmailTarget(email: String, server: String): Boolean {
 /** The account an add resolved to: its id, and whether this add is what created it. */
 internal data class AddedAccount(val id: String, val created: Boolean)
 
-/** What an add says when it is over — null for "say nothing". An add resolving onto an account
+/** What an add says when it is over, null for "say nothing". An add resolving onto an account
  *  already stored refreshes it in place, so a re-add says so. */
 @StringRes
 internal fun accountAddedToast(created: Boolean, @StringRes createdRes: Int?): Int? =
     if (created) createdRes else R.string.connect_account_refreshed
 
-/** Whether an IMAP sign-in failure means the server looked at the credentials and said no — the one
+/** Whether an IMAP sign-in failure means the server looked at the credentials and said no, the one
  *  reading that may say "wrong email or password". With a [responseCode] (RFC 5530) only the three
  *  credential codes blame the password; `[UNAVAILABLE]` during AUTHENTICATE is a server down. */
 internal fun imapAuthRejected(responseCode: String?, message: String): Boolean =
@@ -86,7 +86,7 @@ internal fun imapAuthRejected(responseCode: String?, message: String): Boolean =
             message.contains("AUTHENTICATE", ignoreCase = true)
     }
 
-/** The RFC 5530 codes that mean "the credentials themselves were refused" — and no other. */
+/** The RFC 5530 codes that mean "the credentials themselves were refused", and no other. */
 private val CREDENTIAL_RESPONSE_CODES = setOf("AUTHENTICATIONFAILED", "AUTHORIZATIONFAILED", "EXPIRED")
 
 /** What an add ended on: the account's id, and the priming failure it survived, if any. It is
@@ -145,7 +145,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
 
     private var imapDiscoveryJob: Job? = null
 
-    /** The address the cascade last set out for — a job still running, or a verdict rendered.
+    /** The address the cascade last set out for, a job still running, or a verdict rendered.
      *  Either way the same address is not probed twice; a different one starts over. */
     private var imapDiscoveryEmail: String? = null
 
@@ -181,7 +181,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         // of a network and the refusal be recorded as though the network were there.
         val online = hasUsableNetwork(app)
         if (!shouldDiscoverImapSettings(step, route, preset, email, online = online)) {
-            // A refusal still has to answer the walk — and must record nothing when the refusal is
+            // A refusal still has to answer the walk, and must record nothing when the refusal is
             // the missing network itself ([verdictAfterRefusal]).
             _discovery.value = verdictAfterRefusal(_discovery.value, email, online = online)
             return
@@ -206,7 +206,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** Ask the address' domain how it signs in — no credentials involved, so it can run at the
+    /** Ask the address' domain how it signs in, no credentials involved, so it can run at the
      *  address step. It rides with every cascade, on every step: gated on the step, a pass records
      *  a `Found` with no OAuth answer beside it and step 2 draws a bare wheel for ever. */
     private suspend fun probeOAuthFor(address: String): OAuthDiscovery {
@@ -219,7 +219,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         return OAuthDiscovery(address, chosen)
     }
 
-    /** Where the address step's button leads — [addressAdvance]'s call, with the link read here and
+    /** Where the address step's button leads, [addressAdvance]'s call, with the link read here and
      *  now, airplane mode being switched on a screen that is not recomposing. No side effect: it
      *  also computes the button's `enabled`. */
     internal fun advanceFromAddress(email: String): AddressAdvance =
@@ -330,7 +330,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
     private suspend fun finishTokenConnect(server: String, email: String, token: String, accountName: String) {
         try {
             val resolved = container.mailRepository.resolveJmapServerInput(server, BearerAuth(token))
-            // The token alone identifies the account server-side — Bearer auth never validates the
+            // The token alone identifies the account server-side, Bearer auth never validates the
             // typed address, so adopt the session's own when it declares one.
             val address = runCatching {
                 container.mailRepository.sessionIdentity(resolved, BearerAuth(token))
@@ -357,14 +357,14 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             )
             warnIfNotPrimed(added)
             // Surface linked sub-accounts before navigating, like the password path (#31). Only on
-            // a real creation — see [finishJmapConnect] for why a re-add must not.
+            // a real creation, see [finishJmapConnect] for why a re-add must not.
             if (created) container.mailRepository.reconcileLinkedAccountsAfterAdd(added.id)
             accountAddedToast(created, null)?.let { toast(it) }
             _state.value = ConnectState.Connected
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (t: Throwable) {
-            // A 401/403 with a token means the token itself was rejected — say so.
+            // A 401/403 with a token means the token itself was rejected, say so.
             val code = (t as? JmapException)?.httpCode
             _state.value = ConnectState.Error(
                 if (code == 401 || code == 403) string(R.string.connect_token_rejected)
@@ -386,7 +386,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         val candidates = if (server.isNotBlank()) listOf(server.trim()) else Jmap.autodiscoverHosts(emailTrim)
         _state.value = ConnectState.Discovering
         oauthJob = viewModelScope.launch {
-            // Collect, don't stop at the first answer — unless the address step already asked
+            // Collect, don't stop at the first answer, unless the address step already asked
             // ([reusableOAuth]): a host answering once but not twice would look unsupported.
             val reused = reusableOAuth(_oauthDiscovery.value, emailTrim, server)
             // Same bound as the address step: even with a server typed by hand, what the document
@@ -663,7 +663,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         refreshListing(keepSelected = null)
     }
 
-    /** Swipe-dismiss: disconnect and REMOVE the imported account entirely (it never appears in the
+    /** Swipe-dismiss: disconnect and remove the imported account entirely (it never appears in the
      *  account list; the user can re-import it later). Undoable via [restoreImportAccount]. */
     fun dismissImportAccount(id: String) {
         container.accountStore.remove(id)
@@ -811,7 +811,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         Toast.makeText(app, string(resId), Toast.LENGTH_LONG).show()
     }
     // It shows [resId] rather than naming a resource here, which would put the same sentence on
-    // every add again — the defect accountAddedToast exists to remove.
+    // every add again, the defect accountAddedToast exists to remove.
 
     private fun string(resId: Int) = getApplication<Application>().getString(resId)
     private fun string(resId: Int, vararg args: Any) = getApplication<Application>().getString(resId, *args)
@@ -871,7 +871,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 prime = { primeInbox(it) },
             )
             warnIfNotPrimed(added)
-            // Surface linked sub-accounts before navigating (#31) — only on a real create. A re-add
+            // Surface linked sub-accounts before navigating (#31), only on a real create. A re-add
             // may have moved the login from OAuth to a password; reconciling then hands
             // `diffLinkedAccounts` a session of the other auth family, and eviction reads the raw
             // discovered list (AccountStore), purging every sub-account (#129).
@@ -959,7 +959,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                         imapAuthRejected(code, t.message.orEmpty()) ->
                             string(R.string.connect_bad_credentials) + " " +
                                 string(R.string.connect_provider_app_password_note)
-                        // The server named its failure: show the CODE, never the response body —
+                        // The server named its failure: show the code, never the response body, since
                         // a server's free text has already leaked a bearer token once (8e942069).
                         code != null -> string(R.string.connect_imap_refused, code)
                         else -> t.message ?: t.javaClass.simpleName

@@ -30,29 +30,29 @@ interface OutboxDao {
     @Query("SELECT * FROM outbox ORDER BY createdAtMillis ASC")
     fun observeAll(): Flow<List<OutboxEntity>>
 
-    /** Items still in flight (not parked), for a startup re-arm; `SENDING` stays since a dead
+    /** Items still in flight (not parked), for a startup re-arm; `sending` stays since a dead
      *  WorkManager job needs re-arming. */
     @Query("SELECT * FROM outbox WHERE state IN ('HELD', 'QUEUED', 'SENDING') ORDER BY createdAtMillis ASC")
     suspend fun unfinished(): List<OutboxEntity>
 
-    /** Badge inputs, counted in [OutboxLogic.badgeCount] not SQL — a HELD row's state never
+    /** Badge inputs, counted in [OutboxLogic.badgeCount] not SQL, a held row's state never
      *  changes (#70). */
     @Query("SELECT state, notBeforeMillis FROM outbox")
     fun observeBadgeItems(): Flow<List<OutboxBadgeItem>>
 
-    /** Flip one row's state — used to take an item out for editing and to give it back (#70). */
+    /** Flip one row's state, used to take an item out for editing and to give it back (#70). */
     @Query("UPDATE outbox SET state = :state WHERE id = :id")
     suspend fun setState(id: Long, state: OutboxState)
 
-    /** Parks exhausted mid-edit rows as FAILED (#70); runs BEFORE [parkAllEditingAsInterrupted]. */
+    /** Parks exhausted mid-edit rows as failed (#70); runs before [parkAllEditingAsInterrupted]. */
     @Query("UPDATE outbox SET state = 'FAILED' WHERE state = 'EDITING' AND attemptCount >= :maxAttempts")
     suspend fun revertEditingExhaustedToFailed(maxAttempts: Int)
 
-    /** Parks every row left mid-edit (#70) as FAILED — must not restore to QUEUED (re-sends it). */
+    /** Parks every row left mid-edit (#70) as failed, must not restore to queued (re-sends it). */
     @Query("UPDATE outbox SET state = 'FAILED', attemptCount = :maxAttempts, lastError = :lastError WHERE state = 'EDITING'")
     suspend fun parkAllEditingAsInterrupted(maxAttempts: Int, lastError: String)
 
-    /** Parks a composer-closed row with a LOST body: FAILED, one write, mirroring
+    /** Parks a composer-closed row with a lost body: failed, one write, mirroring
      *  [MailRepository.releaseOutboxEdit]'s guard. */
     @Query("UPDATE outbox SET state = 'FAILED', attemptCount = :maxAttempts, lastError = :lastError WHERE id = :id AND state = 'EDITING'")
     suspend fun parkEditingAsInterrupted(id: Long, maxAttempts: Int, lastError: String)

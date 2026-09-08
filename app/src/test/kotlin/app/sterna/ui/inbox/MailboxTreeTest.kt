@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The drawer's own tree, RUN — it had no test at all until #174 came to filter what goes into it.
+ * The drawer's own tree, run, it had no test at all until #174 came to filter what goes into it.
  */
 class MailboxTreeTest {
 
@@ -17,7 +17,7 @@ class MailboxTreeTest {
 
     @Test fun `a flat list comes out flat, standard folders first`() {
         // Custom folders keep their arrival order (sortedBy is stable); the standard ones are
-        // reordered by role — Inbox, Drafts, Sent, Trash, Junk, Archive.
+        // reordered by role, Inbox, Drafts, Sent, Trash, Junk, Archive.
         val folders = listOf(
             mailbox("zulu"),
             mailbox("archive-1", role = "archive"),

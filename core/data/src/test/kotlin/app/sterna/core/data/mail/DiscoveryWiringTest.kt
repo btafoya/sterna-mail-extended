@@ -5,7 +5,9 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * [app.sterna.core.data.account.ImapStopsAtTheWindowIsDocumentedTest]: it reads a shipped file as
+ * text and proves nothing about what runs.
  */
 class DiscoveryWiringTest {
 
@@ -33,7 +35,7 @@ class DiscoveryWiringTest {
 
     /**
      * Whole line, never a fragment: `contains("BearerAuth(")` is blind to everything that
-     * LENGTHENS the line, and this line's mutation shortens AND lengthens it.
+     * LENGTHENS the line, and this line's mutation shortens and lengthens it.
      */
     @Test fun `autodiscovery proves a token as a Bearer, and only falls back on Basic without one`() {
         val body = discoverJmapServerBody()
@@ -49,7 +51,7 @@ class DiscoveryWiringTest {
     }
 
     /**
-     * Whole line, never a fragment — and the reason it is pinned at all is #188.
+     * Whole line, never a fragment, and the reason it is pinned at all is #188.
      */
     @Test fun `autodiscovery keeps the candidate order, so rank 0 is the domain she typed`() {
         val body = discoverJmapServerBody()
@@ -80,14 +82,14 @@ class DiscoveryWiringTest {
         const val DECLARATION = "suspend fun discoverJmapServer("
 
         /**
-         * The one line the OAuth half of #55 rests on, whole. A token is the ONLY credential the
+         * The one line the OAuth half of #55 rests on, whole. A token is the only credential the
          * OAuth cascade has: `addOAuthAccount` calls this with `password = ""`.
          */
         const val AUTH_LINE =
             """val auth = if (token != null) BearerAuth(token) else BasicAuth(email.trim(), password)"""
 
         /**
-         * The candidate list, whole. Its ORDER is load-bearing since #188: rank 0 is the typed
+         * The candidate list, whole. Its order is load-bearing since #188: rank 0 is the typed
          * domain, and only rank 0 can make the verdict BadCredentials.
          */
         const val HOSTS_LINE = """val hosts = Jmap.autodiscoverHosts(email)"""

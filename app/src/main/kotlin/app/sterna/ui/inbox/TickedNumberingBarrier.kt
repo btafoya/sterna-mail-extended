@@ -17,7 +17,8 @@ internal fun numberingStampsCover(awaited: Set<EmailKey>, published: Map<EmailKe
     published.keys.containsAll(awaited)
 
 /**
- * The stamps of the tick for [awaited], waiting — bounded — for the read started at the tick to be
+ * The stamps of the tick for [awaited], waiting, bounded, for the read started at the tick to be
+ * published (Codeberg #99, #189).
  */
 internal suspend fun tickedNumberingWhenCovered(
     awaited: Set<EmailKey>,

@@ -44,13 +44,13 @@ class LocalDraftSaveTest {
     private lateinit var db: Connection
     private lateinit var filesDir: File
 
-    /** Every call the harness made to the store, in order — so "exactly once" is countable. */
+    /** Every call the harness made to the store, in order, so "exactly once" is countable. */
     private val discarded = mutableListOf<String>()
 
-    /** Every deferred upload the save booked — what `LocalDraftUploads.enqueue` would receive. */
+    /** Every deferred upload the save booked, what `LocalDraftUploads.enqueue` would receive. */
     private val booked = mutableListOf<LocalDraftUploadJob>()
 
-    /** Every attempt the save wrote on a row — so "recorded nothing" is checkable, not assumed. */
+    /** Every attempt the save wrote on a row, so "recorded nothing" is checkable, not assumed. */
     private val recorded = mutableListOf<String>()
 
     @Before fun setUp() {
@@ -69,6 +69,9 @@ class LocalDraftSaveTest {
 
     /**
      * Room's `@Upsert` generates its statement at build time, so there is none to read out of the
+     * DAO. The column list is taken from the entity's own fields rather than typed out again: a
+     * third hand-written copy of the schema is a third thing to forget, and
+     * `LocalDraftEntityMatchesItsTableTest` already holds the entity and the CREATE together.
      */
     private fun upsert(row: LocalDraftEntity) {
         val fields = LocalDraftEntity::class.java.declaredFields
@@ -116,7 +119,7 @@ class LocalDraftSaveTest {
         }
     }
 
-    /** One row, read back out of SQLite — the draft as the phone would find it after a restart. */
+    /** One row, read back out of SQLite, the draft as the phone would find it after a restart. */
     private fun stored(accountId: String = ACCOUNT, id: String? = null): Map<String, String?>? =
         db.createStatement().use { st ->
             val where = if (id == null) "" else " AND id = '$id'"
@@ -153,21 +156,29 @@ class LocalDraftSaveTest {
         replacesUidValidity: Long? = null,
         /**
          * The composer's own verdict on the body it is handing over, exactly as
+         * `MailRepository.saveDraft` receives it from `editingDraftLossy`: true when this text
+         * cannot answer for the draft behind it, a reopened HTML draft flattened to plain text, or
+         * a body the resume slot could not park on disk during an activity recreation.
          */
         bodyIsLossy: Boolean = false,
         /**
-         * …and the OTHER half of that verdict, on its own: whether THIS COMPOSER lost the body it
+         * …and the other half of that verdict, on its own: whether this composer lost the body it
+         * is handing over. Only this one may refuse to write an empty body over a stored one; the
+         * disjunction above cannot, because a reopened HTML draft arms it while the composer has
+         * its text.
          */
         composerBodyWasLost: Boolean = false,
         /** Run inside the staging step, i.e. while the row is written but its files are not. */
         stagingProbe: suspend () -> Unit = {},
         /**
          * **What Room does before it writes, and what plain JDBC cannot do**: every DAO call is
+         * `withContext(Dispatchers.IO)`, a suspension point, so from a cancelled coroutine it throws
+         * instead of writing. Handed `{ yield() }`, the JDBC seams below behave as the DAO does.
          */
         roomDispatch: suspend () -> Unit = {},
         upload: suspend (LocalDraftEntity) -> DraftSaveOutcome,
     ): DraftSaveOutcome {
-        // Assembled exactly as MailRepository.saveDraft assembles it — including BOTH lookups, the
+        // Assembled exactly as MailRepository.saveDraft assembles it, including both lookups, the
         // second of which runs the shipped `forServerDraft` statement against the real table.
         val target = localDraftTarget(
             replacesEmailId,
@@ -198,8 +209,8 @@ class LocalDraftSaveTest {
                 stageLocalDraftAttachments(File(filesDir, localDraftDirName(it.id)), attachments)
             },
             // `MailRepository.discardLocalDraft`'s own shape, `runCatching` included: both halves
-            // are best-effort, so the CancellationException the Room delete throws is SWALLOWED
-            // while the file delete — which does not suspend — goes through anyway. Written as one
+            // are best-effort, so the CancellationException the Room delete throws is swallowed
+            // while the file delete (which does not suspend) goes through anyway. Written as one
             // straight line here, no test could see the row that survives its own bytes.
             discard = {
                 discarded += it.id
@@ -226,7 +237,7 @@ class LocalDraftSaveTest {
                 when (name) {
                     "accountId" -> ps.setString(i + 1, accountId)
                     "id" -> ps.setString(i + 1, id)
-                    // PENDING, always: there is no state to park a draft in (LocalDraftState).
+                    // Pending, always: there is no state to park a draft in (LocalDraftState).
                     "state" -> ps.setString(i + 1, LocalDraftState.PENDING.name)
                     "attemptCount" -> ps.setInt(i + 1, attempt.attemptCount)
                     "lastError" -> ps.setString(i + 1, attempt.error)
@@ -239,7 +250,7 @@ class LocalDraftSaveTest {
         }
     }
 
-    /** The shipped `LocalDraftDao.setState`, executed — what a reopen and a release both write. */
+    /** The shipped `LocalDraftDao.setState`, executed, what a reopen and a release both write. */
     private fun setState(id: String, state: LocalDraftState, accountId: String = ACCOUNT) {
         val (sql, order) = DaoQuerySource.bindOrder(DaoQuerySource.daoQuery("LocalDraftDao", "setState"))
         db.prepareStatement(sql).use { ps ->
@@ -255,7 +266,7 @@ class LocalDraftSaveTest {
         }
     }
 
-    /** The row as the entity — the columns a re-save reads back off it. */
+    /** The row as the entity, the columns a re-save reads back off it. */
     private fun byId(accountId: String, id: String): LocalDraftEntity? = entityOf(stored(accountId, id))
 
     /** The shipped `LocalDraftDao.forServerDraft`, run for real: the row already naming [emailId]. */
@@ -278,7 +289,7 @@ class LocalDraftSaveTest {
         )
     }
 
-    /** What an APPEND does with no network — the real message the composer used to display. */
+    /** What an APPEND does with no network, the real message the composer used to display. */
     private fun append(): Nothing =
         throw java.net.UnknownHostException("Unable to resolve host \"mail.example.org\"")
 
@@ -320,7 +331,7 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `the row is in the table before the upload is even attempted`() = runTest {
-        // THE assertion of this volet, and the only one that can tell the fix from a save that
+        // The assertion of this volet, and the only one that can tell the fix from a save that
         // merely files the draft away once the network has already refused. Writing after the
         // attempt would pass every other test here and still lose the text to a process killed
         // mid-upload, a socket that hangs, or a phone that runs out of battery in a lift.
@@ -337,6 +348,9 @@ class LocalDraftSaveTest {
     @Test fun `a failed save arms the backoff instead of leaving the row due at once`() = runTest {
         // The half nothing wrote (#95, upload volet): `saveDraftLocalFirst` swallowed the failure
         // into KEPT_ON_DEVICE and touched no column, so `attemptCount`, `lastError` and
+        // `notBeforeMillis` stayed as the save wrote them, and `pending` handed the row straight
+        // back. With a server that is refusing rather than absent, the worker then loops on it as
+        // fast as WorkManager will let it, on battery, for as long as the refusal lasts.
         //
         // The couples are written out, never recomputed from the shipped rule: a test that asks
         // localDraftRetryDelayMillis what to expect stays green when the rule is inverted.
@@ -356,11 +370,11 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `a save the network refused books its own deferred upload, at the backoff's instant`() = runTest {
-        // THE promise of the volet: "it rejoins the server on its own when the network comes
-        // back". Nothing booked anything at save time — `LocalDraftUploads.enqueue` had two
+        // The promise of the volet: "it rejoins the server on its own when the network comes
+        // back". Nothing booked anything at save time, `LocalDraftUploads.enqueue` had two
         //
         // And the delay is the one the attempt just wrote, not 0: against a server that is
-        // REFUSING rather than absent, a work item due immediately is a retry loop on battery.
+        // refusing rather than absent, a work item due immediately is a retry loop on battery.
         save(upload = offline)
 
         val id = requireNotNull(stored())["id"]!!
@@ -369,18 +383,17 @@ class LocalDraftSaveTest {
 
     @Test fun `a save that did reach the server books nothing at all`() = runTest {
         // The witness: the row was consumed, so a work item would wake up for a draft that no
-        // longer exists — and every wake-up costs a process start.
+        // longer exists, and every wake-up costs a process start.
         save(upload = { DraftSaveOutcome.SAVED })
 
         assertEquals(emptyList<LocalDraftUploadJob>(), booked)
     }
 
     @Test fun `a save the composer walked away from books the upload before it lets the cancel out`() = runTest {
-        // THE hole measured at the bench (#95): the composer closes while the upload is in
-        // flight, its scope goes with it, and nothing bounds the interactive attempt — so it has
+        // The hole measured at the bench (#95): the composer closes while the upload is in
+        // flight, its scope goes with it, and nothing bounds the interactive attempt, so it has
         //
-        // **This coroutine is REALLY cancelled**, as LocalDraftUploadTest's own stop test is.
-        // Made to `throw CancellationException()` from a live job it would pass against code that
+        // **This coroutine is really cancelled**, as LocalDraftUploadTest's own stop test is.
         var returnedNormally = false
         val job = launch(start = CoroutineStart.UNDISPATCHED) {
             save(upload = { awaitCancellation() })
@@ -393,7 +406,7 @@ class LocalDraftSaveTest {
         // The arguments, not merely "something was booked": the account, THIS row's id, and 0.
         // Zero, unlike the ordinary failure's backoff: nothing failed here. The row carries no
         // attempt to space out, and the user has just walked away from a draft the server has not
-        // got — the work item is due at once, and `pending` agrees below.
+        // got, the work item is due at once, and `pending` agrees below.
         assertEquals(listOf(LocalDraftUploadJob(ACCOUNT, id, 0L)), booked)
         assertTrue("a really cancelled job is what this pins", job.isCancelled)
         assertFalse(
@@ -405,8 +418,8 @@ class LocalDraftSaveTest {
 
     @Test fun `a cancelled save is not a failure, so it writes nothing on the row`() = runTest {
         // The guard the booking must not buy itself: an attempt written here makes
-        // `localDraftMayAlreadyBeOnServer` true on a row that has NEVER been on a wire, and the
-        // deferred upload then pays a folder read (`UID SEARCH ALL` plus envelopes) to be told no.
+        // `localDraftMayAlreadyBeOnServer` true on a row that has never been on a wire, and the
+        // deferred upload then pays a folder read (`UID SEARCH all` plus envelopes) to be told no.
         // A cancellation is not a failure: no count, no cause, no backoff armed.
         val job = launch(start = CoroutineStart.UNDISPATCHED) { save(upload = { awaitCancellation() }) }
 
@@ -428,16 +441,16 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `re-saving a draft the composer holds hands it back to the worker, not to the lease`() = runTest {
-        // THE mutation that survived the first pass: `state = LocalDraftState.PENDING` on the
-        // durable row → `state = existing?.state ?: LocalDraftState.PENDING`. Nothing here ever
+        // The mutation that survived the first pass: `state = LocalDraftState.Pending` on the
+        // durable row → `state = existing?.state ?: LocalDraftState.Pending`. Nothing here ever
         save(body = "first pass", upload = offline)
         val id = requireNotNull(stored())["id"]!!
         setState(id, LocalDraftState.EDITING)
         assertEquals("the composer holds it", LocalDraftState.EDITING.name, requireNotNull(stored())["state"])
 
-        // The row is read back out of SQLite AT the upload, which is the only instant the durable
+        // The row is read back out of SQLite at the upload, which is the only instant the durable
         // write can be judged on: the failure below records the attempt, and `recordAttempt` writes
-        // PENDING itself — so the final row says PENDING either way.
+        // pending itself, so the final row says pending either way.
         var attempted: LocalDraftEntity? = null
         save(body = "second pass", replacesEmailId = id, upload = { attempted = byId(ACCOUNT, id); append() })
 
@@ -447,9 +460,9 @@ class LocalDraftSaveTest {
             "⛔ the durable write hands the row back to the worker; it must not carry the lease over",
             LocalDraftState.PENDING, row.state,
         )
-        // And the decision itself, EXECUTED on the row as SQLite hands it back rather than
+        // And the decision itself, executed on the row as SQLite hands it back rather than
         // restated: a row still holding the lease is answered NOT_DUE, and a NOT_DUE whose
-        // notBeforeMillis is in the past carries no retryAtMillis at all — nothing to re-book.
+        // notBeforeMillis is in the past carries no retryAtMillis at all, nothing to re-book.
         val verdict = uploadLocalDraftOnce(
             row = row,
             nowMillis = row.notBeforeMillis,
@@ -463,7 +476,8 @@ class LocalDraftSaveTest {
 
     @Test fun `a save the composer left mid-staging still leaves a draft the worker picks up`() = runTest {
         // `stageLocalDraftAttachments` does not suspend, so a cancellation arriving while the
-        // attachment bytes are copied is FIRST SEEN at the write that turns the staged row into an
+        // attachment bytes are copied is first seen at the write that turns the staged row into an
+        // uploadable one, which sits outside the `try`, so nothing catches it.
         val source = File(filesDir, "compose-cache").apply { mkdirs() }
         val attached = File(source, "notes.txt").apply { writeText("hello") }
         val part = EmailBodyPart(partId = attached.absolutePath, name = "notes.txt", size = 5L)
@@ -498,8 +512,8 @@ class LocalDraftSaveTest {
     @Test fun `a staging that fails while the composer is leaving takes its own row with it`() = runTest {
         // The other half of the same hole. `discardLocalDraft` is two `runCatching`: the first
         // swallows the CancellationException the Room delete throws, the second deletes the staged
-        // tree anyway. Run from a cancelled coroutine it therefore removes the BYTES and keeps the
-        // ROW — STAGING, saying "[]" — which is precisely the row nothing ever picks up again.
+        // tree anyway. Run from a cancelled coroutine it therefore removes the bytes and keeps the
+        // row (STAGING, saying "[]") which is precisely the row nothing ever picks up again.
         val gone = File(filesDir, "compose-cache/vanished.pdf")
         var failure: Throwable? = null
         val job = launch(start = CoroutineStart.UNDISPATCHED) {
@@ -552,8 +566,7 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `a save that failed as the composer left still books its retry`() = runTest {
-        // The ordinary failure branch, cancelled. `record` suspends — it is a Room write — so on
-        // this path it throws, and a booking placed AFTER it never runs at all: the row keeps its
+        // The ordinary failure branch, cancelled.
         val job = launch(start = CoroutineStart.UNDISPATCHED) {
             save(
                 roomDispatch = { yield() },
@@ -615,7 +628,7 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `the outcome of a successful upload is the server path's own verdict`() = runTest {
-        // ORIGINAL_KEPT is about the OLD server copy (#63) and has nothing to do with this volet:
+        // ORIGINAL_KEPT is about the old server copy (#63) and has nothing to do with this volet:
         // the upload happened, so the local row goes either way and the verdict is passed through.
         val outcome = save(upload = { DraftSaveOutcome.ORIGINAL_KEPT })
 
@@ -643,8 +656,8 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `re-saving the SAME server draft with no network updates the one row`() = runTest {
-        // The reachable re-save, and the one the first pass doubled. Reopening a LOCAL draft is
-        // not wired to any screen yet; reopening a SERVER draft, correcting it and saving again
+        // The reachable re-save, and the one the first pass doubled. Reopening a local draft is
+        // not wired to any screen yet; reopening a server draft, correcting it and saving again
         val server = "imap:acc:Drafts:12"
         save(body = "first pass", replacesEmailId = server, upload = offline)
         val id = requireNotNull(stored())["id"]!!
@@ -695,7 +708,7 @@ class LocalDraftSaveTest {
         assertEquals("for the second account", requireNotNull(stored("acc-2"))["textBody"])
         assertNotEquals(requireNotNull(stored("acc-1"))["id"], requireNotNull(stored("acc-2"))["id"])
 
-        // And consuming the first account's draft leaves the second's alone — the delete is the
+        // And consuming the first account's draft leaves the second's alone, the delete is the
         // shipped, scoped statement, run against both rows sitting in the same table.
         val first = requireNotNull(stored("acc-1"))["id"]!!
         save(accountId = "acc-1", replacesEmailId = first, upload = { DraftSaveOutcome.SAVED })
@@ -712,11 +725,11 @@ class LocalDraftSaveTest {
         assertEquals("", requireNotNull(stored())["toAddresses"])
     }
 
-    // ---- 3 bis. a body the composer says it LOST never writes over the one already stored ----------
+    // ---- 3 bis. a body the composer says it lost never writes over the one already stored ----------
 
     @Test fun `the answers of the rule that decides which body is written`() {
-        // The decision itself, EXECUTED — not the line of source that contains it. The flag it
-        // weighs is the COMPOSER's own loss, never the row's `bodyIsLossy` (the disjunction that
+        // The decision itself, executed, not the line of source that contains it. The flag it
+        // weighs is the composer's own loss, never the row's `bodyIsLossy` (the disjunction that
         // licenses a destroy, #63): the last two answers are what the row-level flag got wrong.
         assertEquals(
             "armed + nothing to write + something already written: the stored text stands",
@@ -746,7 +759,7 @@ class LocalDraftSaveTest {
     }
 
     /**
-     * THE DERIVED BODY MUST NOT WALK THROUGH THE GUARD (#131).
+     * The derived body must not walk through the guard (#131).
      */
     @Test fun `a bullet tapped on a lost and empty body never overwrites the stored draft`() {
         val typed = RichBody("", emptyMap(), listOf(Block(BlockKind.BULLET, 0..0)))
@@ -792,7 +805,7 @@ class LocalDraftSaveTest {
 
     @Test fun `a body the user really typed still goes in, markers and all`() {
         // The other side, or the fix above would be "never write anything": a bullet on a body
-        // with WORDS in it is a real save and must land, projection included.
+        // with words in it is a real save and must land, projection included.
         val typed = RichBody("milk", emptyMap(), listOf(Block(BlockKind.BULLET, 0..0)))
         assertEquals(
             "- milk",
@@ -805,7 +818,7 @@ class LocalDraftSaveTest {
 
     @Test fun `a MARKED draft the composer never lost is emptied on the user's word`() {
         // The reported defect, at the level of the decision alone. A server HTML draft reopened
-        // MARKS the row (`bodyIsLossy = true`) for every destroy guard downstream, and the composer
+        // marks the row (`bodyIsLossy = true`) for every destroy guard downstream, and the composer
         // has its 1 020 characters all along. Weighed on that mark, the erasure was refused: the
         // decision must be taken on the composer's own loss, which here is false.
         assertEquals(
@@ -815,7 +828,7 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `a re-save whose body was lost keeps the text the row already holds`() {
-        // D7. A draft composed with no network, whose `local_drafts` row is the ONLY copy: during an
+        // D7. A draft composed with no network, whose `local_drafts` row is the only copy: during an
         // activity recreation the resume slot could not park a body above INLINE_LIMIT (16 384), so
         val existing = row().copy(textBody = LONG)
         val resaved = localDraftRow(
@@ -839,10 +852,10 @@ class LocalDraftSaveTest {
         assertTrue("and the row still says this save cannot answer for the original", resaved.bodyIsLossy)
     }
 
-    // ---- 3 ter. the html part FOLLOWS the text through that same guard (#131) ----------------
+    // ---- 3 ter. the html part follows the text through that same guard (#131) ----------------
 
     @Test fun `the answers of the rule that decides which html is written`() {
-        // The decision, EXECUTED, case by case — and it is the SAME condition the body rule uses,
+        // The decision, executed, case by case, and it is the same condition the body rule uses,
         // which is the whole point: two conditions could drift, and the drift is a row whose text
         // is one save and whose styling is another.
         assertEquals(
@@ -889,9 +902,9 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `the html written and the text written are the same save, always`() {
-        // The pairing, on hand-written triples: for each one, WHICH text is written and WHICH
+        // The pairing, on hand-written triples: for each one, which text is written and which
         // html is written, both stated here and neither recomputed. A condition inverted in either
-        // function breaks a row of this table — and a row of this table is a real draft.
+        // function breaks a row of this table, and a row of this table is a real draft.
         //  (lost, handed-over body, stored body) -> (text written, html written)
         val cases = listOf(
             Triple(true, "", "what was typed") to ("what was typed" to "<b>old</b>"),
@@ -924,8 +937,8 @@ class LocalDraftSaveTest {
 
     @Test fun `a re-save whose body was lost keeps the html the row already holds`() {
         // The same defect as the test above it, one column across: the composer came back empty,
-        // the row's text is protected — and its `text/html` part must be protected with it, since
-        // `localDraftPrefill` reads the html FIRST. Written as the composer's own (null), the next
+        // the row's text is protected, and its `text/html` part must be protected with it, since
+        // `localDraftPrefill` reads the html first. Written as the composer's own (null), the next
         // reopen shows the protected text stripped of the styling it was written with.
         val existing = row().copy(textBody = LONG, htmlBody = "<b>$LONG</b>")
         val resaved = localDraftRow(
@@ -958,13 +971,14 @@ class LocalDraftSaveTest {
 
     @Test fun `a marked draft the user emptied on purpose is written empty`() {
         // The bench measurement of 2026-08-26. A draft reopened from the server with an HTML body
-        // arms the ROW's `bodyIsLossy` for every destroy guard downstream (#63) — while the
+        // arms the row's `bodyIsLossy` for every destroy guard downstream (#63), while the
+        // composer plainly HAS its text. The user selects the whole body, deletes it, taps Save:
         val existing = row().copy(textBody = LONG, bodyIsLossy = true)
         val saved = localDraftRow(
             accountId = ACCOUNT, id = existing.id, messageId = "v2@example.org",
             to = listOf("bob@example.org"), cc = emptyList(), bcc = emptyList(),
             subject = "Half written", body = "",
-            // The row is MARKED (a reopened HTML draft) and the composer lost NOTHING.
+            // The row is marked (a reopened HTML draft) and the composer lost nothing.
             bodyIsLossy = true, composerBodyWasLost = false,
             existing = existing, nowMillis = NOW + 5_000L,
         )
@@ -1014,7 +1028,7 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `a reopened HTML draft re-saved with its text keeps every word typed since`() = runTest {
-        // The witness that forbids turning the guard on `bodyIsLossy` alone: ANY draft reopened
+        // The witness that forbids turning the guard on `bodyIsLossy` alone: any draft reopened
         // from the server with an HTML body arms it (`reopenedDraftIsLossy`, DraftSave) while
         // the composer plainly HAS its text. That is the everyday route, and on the flag alone every
         // re-save of such a draft would put the old body back and drop what was just typed.
@@ -1051,7 +1065,7 @@ class LocalDraftSaveTest {
 
     @Test fun `a row is not uploadable while its files are still being copied`() = runTest {
         // The orphan window the catch could never close: the row is written saying "[]" and the
-        // bytes are copied AFTER. An exception rolls the row back; a process KILLED between the two
+        // bytes are copied after. An exception rolls the row back; a process killed between the two
         // upserts does not, and what survives is a draft that a later upload would send amputated of
         // the very files the composer was showing as chips (#70).
         //
@@ -1113,11 +1127,10 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `a re-save whose attachment cannot be read keeps the draft already saved`() {
-        // THE loss. The rollback of a failed staging was unconditional, and `discard` is
-        // `discardLocalDraft`: `deleteById` PLUS `localDraftDir(id).deleteRecursively()`, and that
+        // THE loss.
         //
         // The trigger is not exotic: the composer's sources sit in `cacheDir`, which Android
-        // evicts under pressure, which "clear cache" empties, and which signing ANOTHER account
+        // evicts under pressure, which "clear cache" empties, and which signing another account
         // out empties too (StorageRepository.clearAttachments is not scoped per account).
         val source = File(filesDir, "compose-cache").apply { mkdirs() }
         val attached = File(source, "notes.txt").apply { writeText("hello") }
@@ -1197,7 +1210,7 @@ class LocalDraftSaveTest {
 
     @Test fun `an upload that failed destroys nothing on the server`() = runTest {
         var destroyed = false
-        // The shipped shape of the upload: append (or Email/set create) FIRST, and only then
+        // The shipped shape of the upload: append (or Email/set create) first, and only then
         // finishDraftSave → destroyDraft on the copy being replaced.
         val appendThenDestroy: suspend (LocalDraftEntity) -> DraftSaveOutcome = {
             append()
@@ -1218,7 +1231,7 @@ class LocalDraftSaveTest {
 
     @Test fun `a local id is never handed on as a server draft to destroy`() = runTest {
         // The id of a phone-only draft names nothing the server issued. Passed on, it would reach
-        // destroyDraft — and on IMAP a cache id ends in a UID, which always means SOMETHING.
+        // destroyDraft, and on IMAP a cache id ends in a UID, which always means something.
         assertNull(serverDraftReplacedBy(LOCAL_DRAFT_ID_PREFIX + "d1"))
         assertEquals("imap:acc:Drafts:12", serverDraftReplacedBy("imap:acc:Drafts:12"))
         assertEquals("Mff8aa", serverDraftReplacedBy("Mff8aa"))
@@ -1232,8 +1245,8 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `a re-save never rubs out the server draft the row already stands in for`() {
-        // The reachable route, and the one the reopen volet opened: a draft saved offline FROM a
-        // server draft carries `replacesEmailId` + the numbering it was read under. Reopened from
+        // The reachable route, and the one the reopen volet opened: a draft saved offline from a
+        // server draft carries `replacesEmailId` + the numbering it was read under.
         val existing = row(id = LOCAL_DRAFT_ID_PREFIX + "d1")
             .copy(replacesEmailId = "imap:acc:Drafts:12", replacesUidValidity = 4242L)
         val resaved = localDraftRow(
@@ -1264,8 +1277,8 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `the replaced draft is written at the row's creation and never again`() {
-        // The other side of the rule, stated so it can be falsified: a re-save cannot ARM a
-        // replacement either. It is unreachable by construction today — `localDraftTarget` only
+        // The other side of the rule, stated so it can be falsified: a re-save cannot arm a
+        // replacement either. It is unreachable by construction today, `localDraftTarget` only
         val existing = row(id = LOCAL_DRAFT_ID_PREFIX + "d2")
         val resaved = localDraftRow(
             accountId = ACCOUNT, id = existing.id, messageId = "v2@example.org",
@@ -1326,7 +1339,11 @@ class LocalDraftSaveTest {
     }
 
     /**
-     * **Frozen for the worker's retries, re-minted when the USER saves** — and this function is
+     * **Frozen for the worker's retries, re-minted when the user saves**, and this function is
+     * only ever called on the second of those, `MailRepository.uploadLocalDraft` never rebuilding a
+     * row. The rule it used to state, "minted once and then belongs to the row", is what made
+     * "found on the server ⇒ do not append" able to lose the newest version of a text: see
+     * [LocalDraftVersionIsNamedTest], which executes that sequence.
      */
     @Test fun `every save by the user mints the name, and a retry inherits it`() {
         val existing = row(messageId = "kept@example.org")
@@ -1430,7 +1447,7 @@ class LocalDraftSaveTest {
     // ---- 6 ter. a malformed address is an error of entry, not an outage ----------------------------------
 
     @Test fun `an address with a line break is refused before any row exists`() {
-        // Checked while the row is BUILT, i.e. before it is written and long before the upload.
+        // Checked while the row is built, i.e. before it is written and long before the upload.
         // Checked only inside localDraftOutgoing, as it was, the throw landed inside
         for (field in listOf("to", "cc", "bcc")) {
             val injected = listOf("bob@example.org\nBcc: victim@evil.com")
@@ -1450,7 +1467,7 @@ class LocalDraftSaveTest {
 
     @Test fun `an address merely pasted with surrounding whitespace is not an injection`() {
         // The witness. The stored form is trimmed, so a trailing newline off a paste disappears
-        // before any header is built — refusing it would turn a benign paste into an error banner.
+        // before any header is built, refusing it would turn a benign paste into an error banner.
         val built = localDraftRow(
             accountId = ACCOUNT, id = "local-draft:x", messageId = "m@example.org",
             to = listOf("bob@example.org\n", "\n carol@example.org "), cc = emptyList(), bcc = emptyList(),
@@ -1548,7 +1565,7 @@ class LocalDraftSaveTest {
 
     @Test fun `a draft that never reached the server does not consume the queued row it came from`() {
         // The destructive half of the save, and the loss the first pass shipped: a message waiting
-        // to be sent, "edit", "save", no network. deleteOutbox drops the queued row AND its staged
+        // to be sent, "edit", "save", no network. deleteOutbox drops the queued row and its staged
         assertFalse(
             "the upload did not happen, so nothing may be destroyed on the strength of it (#95×#70)",
             draftSaveConsumesTheQueuedRow(DraftSaveOutcome.KEPT_ON_DEVICE),
@@ -1588,7 +1605,7 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `the state a kept-on-device save parks in is one that shows and does not send itself`() {
-        // The five properties the parked state has to have, EXECUTED against the shipped outbox
+        // The five properties the parked state has to have, executed against the shipped outbox
         // rules rather than restated in prose: a state that fails any one of them is either
         val parked = draftSaveParksTheQueuedRowAs(DraftSaveOutcome.KEPT_ON_DEVICE)
             ?: error("nothing is parked at all — see the pinned pairs above")
@@ -1630,7 +1647,7 @@ class LocalDraftSaveTest {
     @Test fun `the parked row schedules no badge wake-up, because it already counts`() {
         // The clock side of the same choice: a state that counts at once has no threshold ahead of
         // it, so badgeCount must not arm a timer for it. Slipped onto the graced side, the row
-        // would be counted from the first emission AND book a wake-up 30 s later — and, worse for
+        // would be counted from the first emission and book a wake-up 30 s later, and, worse for
         // reading the code, "counts at once" and "waits out the grace" would both be true of it.
         val parked = draftSaveParksTheQueuedRowAs(DraftSaveOutcome.KEPT_ON_DEVICE)
             ?: error("nothing is parked at all — see the pinned pairs above")
@@ -1643,7 +1660,7 @@ class LocalDraftSaveTest {
     // ---- 9. a token that cannot be an address goes out as a group naming nobody ---------------
 
     /**
-     * THE case, measured on `emu`/Stalwart on 2026-08-26. Appending `Cc: undisclosed-recipients`
+     * The case, measured on `emu`/Stalwart on 2026-08-26. Appending `Cc: undisclosed-recipients`
      */
     @Test fun `a Cc that cannot be an address is appended as a group naming nobody`() {
         val row = row(cc = "undisclosed-recipients")
@@ -1656,7 +1673,7 @@ class LocalDraftSaveTest {
         )
     }
 
-    /** All THREE fields, so "only the cc is rewritten" is not a shape this can be left in. */
+    /** All three fields, so "only the cc is rewritten" is not a shape this can be left in. */
     @Test fun `the To the Cc and the Bcc all write the group form`() {
         val row = row(toAddresses = "the-team", cc = "undisclosed-recipients", bcc = "blind-list")
 
@@ -1672,7 +1689,9 @@ class LocalDraftSaveTest {
     }
 
     /**
-     * THE witness, and the one that matters most: a real address goes out UNTOUCHED. `a@b` is
+     * The witness, and the one that matters most: a real address goes out untouched. `a@b` is
+     * here on purpose, `isValidEmail` (the composer's typo-catcher) rejects it, RFC 5322 does not,
+     * and judging with that function would send `a@b:;` to the server and destroy a real address.
      */
     @Test fun `a real address is appended unchanged`() {
         val row = row(
@@ -1709,7 +1728,7 @@ class LocalDraftSaveTest {
     }
 
     /**
-     * D1 — what a user who KNOWS the syntax actually produces. Typing `undisclosed-recipients:;`
+     * D1, what a user who knows the syntax actually produces. Typing `undisclosed-recipients:;`
      */
     @Test fun `a trailing colon is completed into the group form, an inner one is left alone`() {
         val row = row(toAddresses = "foo:bar", cc = "undisclosed-recipients:", bcc = "the-team:")
@@ -1726,7 +1745,11 @@ class LocalDraftSaveTest {
     }
 
     /**
-     * THE case the whole thing exists for, and the one every other test here misses: a row that
+     * The case the whole thing exists for, and the one every other test here misses: a row that
+     * replaces a server draft. `replacesEmailId == null` is a first save, there is no original, so
+     * nothing can be expunged and the defect cannot happen. Every assertion above runs on that
+     * harmless shape, so a fix that skipped the rewrite whenever a draft has an original would pass
+     * them all while leaving the data loss exactly where it was.
      */
     @Test fun `the group form is written on the save that replaces a server draft`() {
         val row = row(cc = "undisclosed-recipients").copy(
@@ -1742,7 +1765,7 @@ class LocalDraftSaveTest {
         )
     }
 
-    /** A token holding the group TERMINATOR and no start is left alone: `the-list;:;` is worse. */
+    /** A token holding the group terminator and no start is left alone: `the-list;:;` is worse. */
     @Test fun `a token already carrying a group terminator is appended unchanged`() {
         assertEquals(
             listOf("the-list;"),

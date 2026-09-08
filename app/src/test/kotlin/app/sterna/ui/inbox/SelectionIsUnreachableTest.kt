@@ -7,7 +7,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * When the folder ON SCREEN stops being reachable and the list must fall back to the Inbox — the
+ * When the folder on screen stops being reachable and the list must fall back to the Inbox, the
+ * decision itself, [selectionIsUnreachable], executed. Two ways in: the folder was deleted (#89),
+ * or the account just ticked "show only subscribed folders" and it is not one of them (#174).
  */
 class SelectionIsUnreachableTest {
 
@@ -19,7 +21,7 @@ class SelectionIsUnreachableTest {
     ) = Mailbox(id = id, name = id, role = role, parentId = parentId, isSubscribed = subscribed)
 
     /**
-     * One account's folder list, as the cache delivers it — whole, unfiltered:
+     * One account's folder list, as the cache delivers it, whole, unfiltered:
      */
     private val folders = listOf(
         folder("inbox", role = "inbox"),
@@ -31,7 +33,7 @@ class SelectionIsUnreachableTest {
     )
 
     @Test fun `the fixture is what the rule is supposed to see`() {
-        // Pinned as literals, so a change in [visibleFolders] shows up HERE as a fixture that no
+        // Pinned as literals, so a change in [visibleFolders] shows up here as a fixture that no
         // longer says what these cases claim, instead of quietly redefining every expectation below.
         assertEquals(
             listOf("inbox", "vieux", "archive", "projet", "projet/done", "travail"),
@@ -47,7 +49,7 @@ class SelectionIsUnreachableTest {
 
     @Test fun `the folder on screen was just hidden by the setting, so the list falls back`() {
         // Bench, 2026-08-25: `Vieux` open, the box ticked in the account's settings, back to the
-        // list — header and messages still `Vieux`, offered by no drawer and no move-to picker,
+        // list, header and messages still `Vieux`, offered by no drawer and no move-to picker,
         // and no way back into it without unticking.
         assertTrue(selectionIsUnreachable("vieux", folders, true))
     }
@@ -68,7 +70,7 @@ class SelectionIsUnreachableTest {
         assertTrue(selectionIsUnreachable("travail", folders.filterNot { it.id == "travail" }, true))
     }
 
-    // ── what stays put with the setting ON ───────────────────────────────────────────────────────
+    // ── what stays put with the setting on ───────────────────────────────────────────────────────
 
     @Test fun `an unsubscribed folder that carries a role is visible, so it stays selected`() {
         assertFalse(selectionIsUnreachable("archive", folders, true))
@@ -110,7 +112,7 @@ class SelectionIsUnreachableTest {
 
     @Test fun `a deleted folder falls back even when nothing at all is visible`() {
         // The whole list is judged as well as the filtered one, and this is why. Here the filter
-        // answers an empty list, which reads as "not known yet" — but the WHOLE list is known, and
+        // answers an empty list, which reads as "not known yet", but the whole list is known, and
         // the folder on screen is not in it. #89 must not be spent by a server that reports
         // nothing subscribed.
         val nothingVisible = listOf(folder("vieux", subscribed = false), folder("autre", subscribed = false))

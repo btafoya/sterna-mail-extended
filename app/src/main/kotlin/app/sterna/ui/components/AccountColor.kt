@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Color
  *
  * Monogram initials and the swatch check-mark sit on arbitrary, user-chosen
  * accent colours (and on hashed avatar colours). A hard-coded white fails AA on
- * the light end of the palette — e.g. white on yellow #FDD835 is only 1.40:1 and
+ * the light end of the palette, e.g. white on yellow #FDD835 is only 1.40:1 and
  * white on orange #FB8C00 only 2.37:1, both unreadable. Picking the higher-
  * contrast foreground keeps every avatar legible (black on yellow = 15.05:1).
  * Luminance per WCAG 2.x relative-luminance.

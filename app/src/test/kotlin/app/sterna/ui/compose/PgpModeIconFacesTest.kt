@@ -13,7 +13,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * The four compose modes must be told apart ON SCREEN, and in the steady state the only permanent
+ * The four compose modes must be told apart on screen, and in the steady state the only permanent
  */
 class PgpModeIconFacesTest {
 
@@ -52,14 +52,16 @@ class PgpModeIconFacesTest {
         )
     }
 
-    /** Binary ink mask of the face [mode] wears, [SIDE] × [SIDE], row-major. */
+    /** Binary ink mask of the face [mode] wears, [side] × [side], row-major. */
     private fun face(mode: PgpMode): BooleanArray = rasterise(pgpModeIcon(mode))
 
-    /** Pixels where exactly one of the two masks has ink — the XOR of the two drawings. */
+    /** Pixels where exactly one of the two masks has ink, the XOR of the two drawings. */
     private fun differing(a: BooleanArray, b: BooleanArray): Int = a.indices.count { a[it] != b[it] }
 
     /**
      * Drops the six measurements next to the build outputs. testLogging prints failures only, so a
+     * green run would otherwise leave no trace of how far the faces are from colliding, the one
+     * number that says whether [DISTINCT_PIXELS] is a real guard or a rubber stamp.
      */
     private fun record(measured: List<Triple<PgpMode, PgpMode, Int>>) {
         val out = File("build/reports/pgp-icon-faces.txt")
@@ -98,7 +100,7 @@ class PgpModeIconFacesTest {
         fun x(px: Float, py: Float) = a * px + c * py + e
         fun y(px: Float, py: Float) = b * px + d * py + f
 
-        /** This map applied AFTER [m]. */
+        /** This map applied after [m]. */
         fun then(m: Xf) = Xf(
             a * m.a + c * m.b, b * m.a + d * m.b,
             a * m.c + c * m.d, b * m.c + d * m.d,
@@ -186,8 +188,8 @@ class PgpModeIconFacesTest {
         fun open(x: Float, y: Float) {
             current = Contour().also { out.add(it); it.add(at.x(x, y), at.y(x, y)) }
         }
-        // After a Close, a drawing command starts a NEW contour at the closed subpath's start
-        // point (which is where cx/cy have just been put back to) — not a contour missing its
+        // After a Close, a drawing command starts a new contour at the closed subpath's start
+        // point (which is where cx/cy have just been put back to), not a contour missing its
         // first point, which would drop a whole segment from the fill.
         fun lineTo(x: Float, y: Float) {
             val c = current ?: Contour().also {
@@ -299,6 +301,9 @@ class PgpModeIconFacesTest {
 
     /**
      * Scan-line fill: for every pixel row, the crossings of the contours at the row's centre,
+     * sorted; a pixel is inked when its centre lies inside under the winding rule. Every contour
+     * is implicitly closed, as a fill always is. Ink is or-ed into [mask], so several paths of one
+     * icon add up.
      */
     private fun fill(contours: List<Contour>, evenOdd: Boolean, mask: BooleanArray) {
         for (row in 0 until SIDE) {
@@ -348,7 +353,8 @@ class PgpModeIconFacesTest {
         const val STEPS = 32
 
         /**
-         * How many pixels two faces must differ by. Deliberately a FRANK gap, not a hair — and the
+         * How many pixels two faces must differ by. Deliberately a frank gap, not a hair, and the
+         * gap is wide on both sides, which is the only reason a round number is defensible here.
          */
         const val DISTINCT_PIXELS = 400
 

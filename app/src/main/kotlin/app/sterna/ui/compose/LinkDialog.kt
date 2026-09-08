@@ -33,7 +33,9 @@ data class LinkDialogFields(
     /** The label to show: the selected words, or what the link covers, or empty. */
     val text: String,
     /**
-     * Whether the label may be typed. False whenever characters are already involved — a
+     * Whether the label may be typed. False whenever characters are already involved, a
+     * selection, or a link being edited: the words are in the body, and letting the box rewrite
+     * them would be a second, invisible way to edit the message.
      */
     val textEditable: Boolean,
     /** Whether "remove the link" has anything to remove. */
@@ -41,7 +43,7 @@ data class LinkDialogFields(
 )
 
 /**
- * The dialog's opening state for [body] at [selection] — the link under the caret decides, through
+ * The dialog's opening state for [body] at [selection], the link under the caret decides, through
  * `linkAt`, which is the same answer that lights the toolbar button.
  */
 fun linkDialogFields(body: RichBody, selection: Span): LinkDialogFields {
@@ -60,7 +62,8 @@ fun linkDialogFields(body: RichBody, selection: Span): LinkDialogFields {
 }
 
 /**
- * What OK produces: [url] through the guard, then `setLink` — or `null` when the guard refuses it,
+ * What OK produces: [url] through the guard, then `setLink`, or `null` when the guard refuses it,
+ * which is what puts the error under the field and keeps the dialog open.
  */
 fun linkApplied(body: RichBody, selection: Span, url: String, text: String): RichBody? {
     val normalised = normalizeLinkUrl(url) ?: return null
@@ -69,6 +72,7 @@ fun linkApplied(body: RichBody, selection: Span, url: String, text: String): Ric
 
 /**
  * The dialog itself: an address, a label, and three buttons. [onApply] receives the body OK made,
+ * [onRemove] the body with the link taken off, and both close the dialog.
  */
 @Composable
 fun LinkDialog(

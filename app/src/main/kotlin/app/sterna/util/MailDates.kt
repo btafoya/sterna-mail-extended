@@ -21,15 +21,15 @@ object MailDates {
     /** "4 Jul 2026, 09:12" in the app's language. */
     private val fullFormatter = DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", appLocale)
 
-    /** "09:12" — a message from today is placed by its clock time. */
+    /** "09:12", a message from today is placed by its clock time. */
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm", appLocale)
 
-    /** "4 Jul" — the year is implicit while it is the current one. */
+    /** "4 Jul", the year is implicit while it is the current one. */
     private val dayMonthFormatter = DateTimeFormatter.ofPattern("d MMM", appLocale)
 
     /**
      * "12/19/89" in en-US, "19/12/89" in fr: the language's own short date with the year cut to two
-     * digits. Built once per language and kept — a list asks for one per visible row.
+     * digits. Built once per language and kept, a list asks for one per visible row.
      */
     private val shortDateFormatters = ConcurrentHashMap<Locale, DateTimeFormatter>()
 
@@ -42,7 +42,7 @@ object MailDates {
         }
 
     /**
-     * [pattern] with its year field narrowed to two digits, everything else untouched. Four of the
+     * [pattern] with its year field narrowed to two digits, everything else untouched.
      */
     private fun withTwoDigitYear(pattern: String): String = buildString {
         var i = 0
@@ -66,6 +66,9 @@ object MailDates {
 
     /**
      * The stamp a list row carries, in three steps: today shows the time, an earlier day of the
+     * of the current year the day and month ("4 Jul"), any other year a short numeric date
+     * ("12/19/89"). Dropping the year indefinitely made a 2019 message read exactly like a 2026
+     * one, the same trap K-9 and Gmail avoid by omitting the year for the current year only.
      */
     fun formatListDate(
         iso: String?,

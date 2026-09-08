@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The three lines of `ComposeViewModel` that carry the STYLING (#131) — SOURCE LINT, the last
+ * The three lines of `ComposeViewModel` that carry the styling (#131), source lint, the last
  */
 class SendBodiesWiringTest {
 
@@ -30,7 +30,7 @@ class SendBodiesWiringTest {
     }
 
     /**
-     * The TEXT alternative, the half no lint watched until the lists arrived (#131).
+     * The text alternative, the half no lint watched until the lists arrived (#131).
      */
     @Test fun `the text alternative spells the list markers and the addresses out`() {
         val code = codeLines(COMPOSE_VIEW_MODEL.readText())
@@ -64,7 +64,7 @@ class SendBodiesWiringTest {
     }
 
     /**
-     * THE SAME ANSWER FOR THE DRAFT (#131), and it is a different call site: `saveDraft` takes
+     * The same answer for the DRAFT (#131), and it is a different call site: `saveDraft` takes
      */
     @Test fun `the draft save stores the same plain-text answer as the send`() {
         val code = codeLines(COMPOSE_VIEW_MODEL.readText())
@@ -92,6 +92,7 @@ class SendBodiesWiringTest {
 
     /**
      * The undo round trip, both ends. The record kept for the undo window lives in memory, and the
+     * branch that reopens from it is `prepare()`'s: nothing in this module can execute either.
      */
     @Test fun `undoing a send gives the styling back, at both ends`() {
         val code = codeLines(COMPOSE_VIEW_MODEL.readText())

@@ -40,7 +40,7 @@ object Notifications {
     )
 
     /**
-     * The buttons a new-mail notification carries (#57). The question is not which setting is on
+     * The buttons a new-mail notification carries (#57).
      */
     fun actionsFor(
         content: NotificationContent,
@@ -55,7 +55,7 @@ object Notifications {
     }
 
     /** The per-message ids the account is left with once a pass is done. Counted rather than
-     *  re-read afterwards: the decision has to be made BEFORE the first child is posted. */
+     *  re-read afterwards: the decision has to be made before the first child is posted. */
     fun liveChildIdsAfter(
         active: Set<Int>,
         accountId: String,
@@ -91,7 +91,7 @@ object Notifications {
     private fun legacyChildId(emailId: String): Int = emailId.hashCode()
 
     /** Every notification id [emailIds] can be wearing: the current shape and the pre-#92 one.
-     *  Both, always — an unmatched banner is immortal, and every summary teardown puts it back. */
+     *  Both, always, an unmatched banner is immortal, and every summary teardown puts it back. */
     fun childIdsOf(accountId: String, emailIds: Collection<String>): Set<Int> =
         emailIds.flatMapTo(mutableSetOf()) { listOf(childId(accountId, it), legacyChildId(it)) }
 
@@ -103,7 +103,9 @@ object Notifications {
         "$accountId $emailId $action".hashCode()
 
     /**
-     * The new-mail channel, and only it — every function that posts a banner calls this first: on an
+     * The new-mail channel, and only it. Every function that posts a banner calls this first,
+     * because nothing else guarantees the channel exists: on an install whose push was never
+     * armed in direct mode [PushService] never starts, and Android drops each banner in silence.
      */
     fun ensureMailChannel(context: Context) {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
@@ -129,7 +131,7 @@ object Notifications {
     }
 
     /**
-     * A one-off notification that a queued message could not be sent. [body] is text the app is
+     * A one-off notification that a queued message could not be sent.
      */
     fun notifySendFailed(context: Context, subject: String, content: NotificationContent, body: String = "") {
         ensureMailChannel(context)
@@ -181,7 +183,7 @@ object Notifications {
             .build()
 
     /**
-     * [folderName] marks non-inbox mail (#16), null for the inbox; [mailboxId] is that folder's id,
+     * [folderName] marks non-inbox mail (#16), null for the inbox;
      */
     fun notifyNewMail(
         context: Context,
@@ -195,13 +197,13 @@ object Notifications {
     ) {
         ensureMailChannel(context)
         val generic = context.getString(R.string.notif_new_message)
-        // Kept apart from the stand-ins below: whether the mail names ITSELF decides the action
+        // Kept apart from the stand-ins below: whether the mail names itself decides the action
         // buttons, and "New message" / "(no subject)" name nothing (#57).
         val fromName = email.from.firstOrNull()?.display()
         val realSubject = email.subject?.takeIf { it.isNotBlank() }
         val sender = fromName ?: generic
         val subject = realSubject ?: context.getString(R.string.message_no_subject)
-        // What the notification reveals, per the privacy setting — the rule lives in
+        // What the notification reveals, per the privacy setting, the rule lives in
         // [MailNotificationText] so no caller can post with the defaults and leak what the user hid
         // (#84). The body opening comes from [Email.preview]; nothing is fetched from here.
         val (title, text, bigText) = MailNotificationText.resolve(content, sender, subject, generic, email.preview)
@@ -212,7 +214,7 @@ object Notifications {
             hasSubject = realSubject != null,
         )
         val notifId = childId(accountId, email.id)
-        // Carry the message identity so a tap opens THAT email even when the app is running. Its
+        // Carry the message identity so a tap opens that email even when the app is running. Its
         // account (#31) and folder (#91) travel along so the list ends up where the message is.
         val intent = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -276,7 +278,7 @@ object Notifications {
     }
 
     /**
-     * Whether tearing the group summary down can be UNDONE, given what the caller expects to keep
+     * Whether tearing the group summary down can be undone, given what the caller expects to keep
      */
     fun teardownRepairable(expectedChildIds: Set<Int>, shownChildIds: Set<Int>): Boolean =
         shownChildIds.containsAll(expectedChildIds)
@@ -299,7 +301,7 @@ object Notifications {
         val children = active.filter { sbn ->
             sbn.id != summaryId && sbn.notification.group == group &&
                 (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 &&
-                // …and the caller has NOT just cancelled it. Everything else alive stays, or the
+                // …and the caller has not just cancelled it. Everything else alive stays, or the
                 // cascade takes it and nobody puts it back. Both id shapes.
                 sbn.id !in cancelledChildIds
         }.sortedByDescending { it.postTime }
@@ -310,9 +312,9 @@ object Notifications {
         val live = expectedChildIds + shownChildIds
         if (!summaryShownFor(live.size)) {
             // Cancelling a summary cascades every live child away, so each one captured above is
-            // put straight back. ONLY when a summary is really on screen — otherwise the re-post
+            // put straight back. Only when a summary is really on screen, otherwise the re-post
             // would overwrite the lone child's GROUP_ALERT_ALL, the flag a single arrival needs to
-            // announce itself (#56) — and only when every counted id can be put back.
+            // announce itself (#56), and only when every counted id can be put back.
             if (teardownRepairable(expectedChildIds, shownChildIds) &&
                 active.any { it.id == summaryId && it.notification.group == group }) {
                 manager.cancel(summaryId)
@@ -359,7 +361,8 @@ object Notifications {
     }
 
     /**
-     * Among [active] — one `(id, group key)` pair per live notification — the ids belonging to
+     * Among [active], one `(id, group key)` pair per live notification, the ids belonging to
+     * [accountId]'s group: its per-message children and its group summary.
      */
     fun accountGroupIds(active: List<Pair<Int, String?>>, accountId: String): List<Int> {
         val group = GROUP_PREFIX + accountId
@@ -396,12 +399,12 @@ object Notifications {
             accountLabel,
             silent = true,
             expectedChildIds = liveChildIdsAfter(active, accountId, cleared = hit, added = emptyList()),
-            // …and exactly what the loop above cancelled, both id shapes — no more.
+            // …and exactly what the loop above cancelled, both id shapes, no more.
             cancelledChildIds = childIdsOf(accountId, hit),
         )
     }
 
-    /** Posts the per-account group summary. [lines] are "sender — subject" for the latest batch. */
+    /** Posts the per-account group summary. [lines] are "sender, subject" for the latest batch. */
     fun notifyGroupSummary(
         context: Context,
         accountId: String,

@@ -49,13 +49,13 @@ class ImapStopsAtTheWindowIsDocumentedTest {
             "A folder whose newest N messages collapse into few conversations is not truncated " +
                 "to those: the scroll mediator pages older mail in on demand (thread-aware fill), " +
                 "the window only bounds what stays cached offline.",
-            // Lengthened mid-claim — invisible to a `contains` of the sentence above.
+            // Lengthened mid-claim, invisible to a `contains` of the sentence above.
             "The scroll mediator pages much older mail in on demand.",
             // Qualified for both protocols, which is the lie with a JMAP badge on it.
             "On IMAP as on JMAP the scroll mediator pages older mail in on demand.",
             // The repo's own name for the object, hyphens and all (MailRepository).
             "On IMAP the scroll-to-load-more mediator pages past it on demand.",
-            // The public wording of README/FEATURES, unqualified.
+            // The public wording of README/features, unqualified.
             "Large IMAP folders page in as you scroll, fetching older mail from the server.",
         ).forEach { claim ->
             assertTrue(
@@ -74,7 +74,7 @@ class ImapStopsAtTheWindowIsDocumentedTest {
     // -- the decision, as a function ----------------------------------------------------------
 
     /**
-     * What is wrong with [doc], read as the KDoc block of `SyncWindow` — empty when nothing is.
+     * What is wrong with [doc], read as the KDoc block of `SyncWindow`, empty when nothing is.
      */
     private fun syncWindowDocVerdict(doc: String): List<String> {
         val normalized = normalize(doc)
@@ -130,7 +130,7 @@ class ImapStopsAtTheWindowIsDocumentedTest {
         const val SCROLL_ARRIVAL = "mail claimed to arrive by scrolling, on IMAP or on no protocol"
 
         /**
-         * THE CONTRACT. These sentences must be in `SyncWindow`'s KDoc, word for word. Three
+         * The contract. These sentences must be in `SyncWindow`'s KDoc, word for word. Three
          */
         val REQUIRED = listOf(
             "On IMAP the window is where the reader's mail ends.",
@@ -143,7 +143,7 @@ class ImapStopsAtTheWindowIsDocumentedTest {
         )
 
         /**
-         * A claim that mail ARRIVES because the reader scrolled — the promise, not the machinery.
+         * A claim that mail arrives because the reader scrolled, the promise, not the machinery.
          */
         val ARRIVAL_ON_SCROLL = Regex(
             """on\s+demand|(as|when|while)\s+you\s+scroll|\bon\s+scroll\b|pages?\s+past\s+it""",

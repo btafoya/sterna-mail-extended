@@ -1,7 +1,7 @@
 package app.sterna.core.data.account
 
 /** What a pruned shared mailbox leaves behind, so re-granting doesn't hand back a fresh
- *  account. Keyed `loginId -> pruned records`; COMFORT state outside the account blob's gate. */
+ *  account. Keyed `loginId -> pruned records`; comfort state outside the account blob's gate. */
 
 /** The account list and the leftover memory, as [reconciledAccounts] computed them together. */
 internal data class ReconciledAccounts(
@@ -10,7 +10,7 @@ internal data class ReconciledAccounts(
 )
 
 /** Files every [pruned] record under its login (records missing loginId/jmapAccountId are
- *  IGNORED); a deposit already present REPLACES it. */
+ *  IGNORED); a deposit already present replaces it. */
 internal fun rememberPrunedLinked(
     memory: Map<String, List<StoredAccount>>,
     pruned: List<StoredAccount>,
@@ -32,7 +32,7 @@ internal fun recallLinked(
     jmapAccountId: String,
 ): StoredAccount? = memory[loginId]?.firstOrNull { it.jmapAccountId == jmapAccountId }
 
-/** Drops one (login, server account) entry; a sub-map left empty is REMOVED with it, or a
+/** Drops one (login, server account) entry; a sub-map left empty is removed with it, or a
  *  ghost key would grow forever. */
 internal fun forgetLinked(
     memory: Map<String, List<StoredAccount>>,
@@ -43,8 +43,8 @@ internal fun forgetLinked(
     return if (kept.isEmpty()) memory - loginId else memory + (loginId to kept)
 }
 
-/** Forgets what an explicit REMOVAL made meaningless: a removed LOGIN takes its whole sub-map,
- *  a removed SUB-ACCOUNT takes only its own entry. */
+/** Forgets what an explicit removal made meaningless: a removed LOGIN takes its whole sub-map,
+ *  a removed sub-account takes only its own entry. */
 internal fun forgetRemovedLinked(
     memory: Map<String, List<StoredAccount>>,
     removed: List<StoredAccount>,
@@ -63,7 +63,7 @@ internal fun forgetRemovedLinked(
 }
 
 /** The [StoredAccount] for a newly granted share, wearing [remembered]'s settings if seen
- * before. RESET list, not KEEP list: named fields come FRESH, else BY DEFAULT (else a new field is silently lost). */
+ * before. Reset list, not keep list: named fields come fresh, else by default (else a new field is silently lost). */
 internal fun mintLinkedAccount(
     login: StoredAccount,
     sub: DiscoveredMailAccount,
@@ -102,8 +102,8 @@ internal fun mintLinkedAccount(
     ) ?: fresh
 }
 
-/** Applies [diff] to [list], carrying the memory across. A minted record is APPENDED, never
- *  slotted back (restored seniority could outrank a live one); memory is CONSUMED on recall. */
+/** Applies [diff] to [list], carrying the memory across. A minted record is appended, never
+ *  slotted back (restored seniority could outrank a live one); memory is consumed on recall. */
 internal fun reconciledAccounts(
     list: List<StoredAccount>,
     login: StoredAccount,

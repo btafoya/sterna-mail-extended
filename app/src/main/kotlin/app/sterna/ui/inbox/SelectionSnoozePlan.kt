@@ -1,6 +1,6 @@
 package app.sterna.ui.inbox
 
-/** How a bulk snooze splits: what can be [snooze]d, and what is [refused] — written nowhere,
+/** How a bulk snooze splits: what can be [snooze]d, and what is [refused], written nowhere,
  *  because writing it would arm a reminder that cannot ring. */
 internal data class SelectionSnoozePlan(
     val snooze: List<SelectionTarget>,

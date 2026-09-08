@@ -15,7 +15,7 @@ internal enum class PendingExit {
 }
 
 /**
- * Decide the next step for a "save, then leave" that is under way. [failed] wins over [dirty]: the
+ * Decide the next step for a "save, then leave" that is under way.
  */
 internal fun pendingExitStep(saving: Boolean, dirty: Boolean, failed: Boolean): PendingExit = when {
     saving -> PendingExit.WAIT

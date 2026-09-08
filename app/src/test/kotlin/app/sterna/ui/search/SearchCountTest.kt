@@ -14,7 +14,7 @@ class SearchCountTest {
 
     @Test fun `local hits shown while the server leg is still in flight say at least`() {
         // The defect: complete is initialised to true on every keystroke (nothing has reported
-        // stopping short yet), so completeness ALONE would print a firm total over a partial list.
+        // stopping short yet), so completeness alone would print a firm total over a partial list.
         assertEquals(SearchCount.AT_LEAST, searchCount(complete = true, loading = true))
     }
 
@@ -24,7 +24,7 @@ class SearchCountTest {
 
     @Test fun `an account whose leg failed still says at least once the search settles`() {
         // Same shape as the cap: the dropped account makes the result incomplete. Pinned separately
-        // because it is the case the two-pass change must ADD to, never replace.
+        // because it is the case the two-pass change must add to, never replace.
         val afterFailedAccountLeg = searchCount(complete = false, loading = false)
         assertEquals(SearchCount.AT_LEAST, afterFailedAccountLeg)
     }
@@ -46,8 +46,8 @@ class SearchCountTest {
     }
 
     @Test fun `a local index that fell over is not forgiven by a good server answer`() {
-        // The server leg records its verdict LAST, so taking it alone silently wrote off a locked
-        // or damaged FTS table — and every hit only that index finds — under a firm total.
+        // The server leg records its verdict last, so taking it alone silently wrote off a locked
+        // or damaged FTS table (and every hit only that index finds) under a firm total.
         assertEquals(false, searchComplete(local = false, server = true))
     }
 

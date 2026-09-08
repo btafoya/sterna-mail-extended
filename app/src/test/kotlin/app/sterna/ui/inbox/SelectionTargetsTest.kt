@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [resolveSelectionTargets] — what a bulk action acts on, executed rather than re-derived.
+ * [resolveSelectionTargets], what a bulk action acts on, executed rather than re-derived.
  */
 class SelectionTargetsTest {
 
@@ -98,10 +98,10 @@ class SelectionTargetsTest {
     @Test
     fun `two displayed rows sharing an id, only the selected account's is taken`() {
         // The #92 shape on the screen side: `mergeHits` dedupes by (accountId, id), so a unified
-        // search keeps BOTH rows numbered 7. Looking the fallback up by bare id would archive or
+        // search keeps both rows numbered 7. Looking the fallback up by bare id would archive or
         // delete account A's message when the user picked account B's result.
         //
-        // Both orders, deliberately: an id-keyed map keeps whichever row comes LAST, so a single
+        // Both orders, deliberately: an id-keyed map keeps whichever row comes last, so a single
         // ordering lets a bare-id lookup answer correctly by luck and the case proves nothing.
         val a7 = email("accA", "7", subject = "A's seven")
         val b7 = email("accB", "7", subject = "B's seven")
@@ -152,7 +152,7 @@ class SelectionTargetsTest {
 
     @Test
     fun `a displayed row is never trusted for its folder, even with a mailboxId`() {
-        // The whole point of the flag: this id is non-empty and still worthless — it is whatever
+        // The whole point of the flag: this id is non-empty and still worthless, it is whatever
         // the index held when it was crawled.
         val out = resolveSelectionTargets(
             keys = setOf(k1),

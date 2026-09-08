@@ -5,11 +5,11 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxViewModel.kt` as text and proves nothing about
+ * Source lint, not a behaviour test. It reads `InboxViewModel.kt` as text and proves nothing about
  */
 class RefreshFreshnessWiringLintTest {
 
-    // -- the callers that must NEVER be guarded ---------------------------------------------------
+    // -- the callers that must never be guarded ---------------------------------------------------
 
     @Test
     fun `the reconnect walk calls refresh bare, never the guarded door`() {
@@ -107,7 +107,10 @@ class RefreshFreshnessWiringLintTest {
     }
 
     /**
-     * Compared WHOLE since #103, and no longer only counted: this switch is the fifth of the five,
+     * Compared whole since #103, and no longer only counted: this switch is the fifth of the five,
+     * and the only one whose pane line a door count cannot see. Dropping `paneOnViewChanged()` from
+     * it left the whole suite green while an account switch kept the departing account's message on
+     * the right, the very thing the four other switches are pinned whole to prevent.
      */
     @Test
     fun `an account switch empties the pane, replays a notification's own message, and reconciles through the guard`() {
@@ -138,7 +141,7 @@ class RefreshFreshnessWiringLintTest {
         )
     }
 
-    // -- the reading pane's two bodies, pinned here for want of anywhere that can RUN them --------
+    // -- the reading pane's two bodies, pinned here for want of anywhere that can run them --------
 
     /**
      * Neither of the two rules below is about the freshness guard. They live in this file because
@@ -301,7 +304,7 @@ class RefreshFreshnessWiringLintTest {
      */
     private fun declarationBody(header: String): String {
         val text = codeText(INBOX_VIEW_MODEL)
-        // Word-boundary on BOTH sides when the header ends on a word character, so "init" does not
+        // Word-boundary on both sides when the header ends on a word character, so "init" does not
         // match inside "initialValue"; only on the left when it ends on '(' or ')'.
         val tail = if (header.last().isLetterOrDigit() || header.last() == '_') "(?![A-Za-z0-9_])" else ""
         val hits = Regex("""(?<![A-Za-z0-9_])${Regex.escape(header)}$tail""").findAll(text).toList()
@@ -330,7 +333,11 @@ class RefreshFreshnessWiringLintTest {
     }
 
     /**
-     * [file] as ONE line of code: every comment taken out, every run of whitespace collapsed to a
+     * [file] as one line of code: every comment taken out, every run of whitespace collapsed to a
+     * single space, so a call the formatter spreads over eight lines reads the same as one written
+     * on a line. Same scanner as [BoundedRefreshWiringLintTest]'s, deliberately: a `//` inside a
+     * string literal is not a comment, and a continuation line written operator-first does not
+     * start with `*`.
      */
     private fun codeText(file: File): String {
         val code = StringBuilder()

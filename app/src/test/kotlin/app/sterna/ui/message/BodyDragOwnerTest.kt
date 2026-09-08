@@ -4,14 +4,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The body's once-per-gesture axis decision (Codeberg #152): a message wider than the viewport — a
+ * The body's once-per-gesture axis decision (Codeberg #152): a message wider than the viewport, a
+ * 600px table on a 360dp screen, or any zoomed body, must scroll sideways under the finger
+ * instead of flipping to another message. This runs [bodyDragOwner] itself.
  */
 class BodyDragOwnerTest {
 
     private val slop = 10f
 
     @Test fun `a clearly horizontal drag with travel left that way scrolls the body`() {
-        // THE #152 failure: dragging right with content still hidden off the left edge. Before the
+        // The #152 failure: dragging right with content still hidden off the left edge. Before the
         // fix this was handed to the pager and the message changed under the reader.
         assertEquals(
             BodyDrag.CLAIM,
@@ -20,7 +22,7 @@ class BodyDragOwnerTest {
     }
 
     @Test fun `dragging right at the left edge goes to the pager`() {
-        // No travel back, but travel forward: proves the SIGN of dx picks which answer applies —
+        // No travel back, but travel forward: proves the sign of dx picks which answer applies,
         // a decision that read canScrollForward here would keep the gesture and freeze the pager.
         assertEquals(
             BodyDrag.RELEASE,
@@ -82,7 +84,7 @@ class BodyDragOwnerTest {
     }
 
     @Test fun `the dominance ratio is still 3 to 1 and still strict`() {
-        // Exactly 3:1 is NOT clearly horizontal — the body keeps it.
+        // Exactly 3:1 is not clearly horizontal, the body keeps it.
         assertEquals(
             BodyDrag.CLAIM,
             bodyDragOwner(dx = 30f, dy = 10f, slop = slop, canScrollBack = false, canScrollForward = false),

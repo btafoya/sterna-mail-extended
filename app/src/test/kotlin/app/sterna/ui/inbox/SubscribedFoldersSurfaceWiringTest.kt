@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — the instrument of [app.sterna.ui.settings] copied once more.
+ * Source lint, not a behaviour test, the instrument of [app.sterna.ui.settings] copied once more.
  */
 class SubscribedFoldersSurfaceWiringTest {
 
@@ -115,7 +115,8 @@ class SubscribedFoldersSurfaceWiringTest {
     }
 
     /**
-     * WHICH account each surface asks. Nothing else in this file reaches these two flows, and a
+     * Which account each surface asks. Nothing else in this file reaches these two flows, and a
+     * source lint is all there is: `InboxViewModel` cannot be instantiated on this bench.
      */
     @Test fun `each surface reads the setting of the account it is showing`() {
         assertEquals(
@@ -201,7 +202,10 @@ class SubscribedFoldersSurfaceWiringTest {
     }
 
     /**
-     * The Inbox fallback, and WHAT it is judged against — the 2026-08-25 arbitration, which
+     * The Inbox fallback, and what it is judged against, the 2026-08-25 arbitration, which
+     * reverses what #174 first shipped ("hidden is not deleted") under rule 3, WYSIWYG: the bench
+     * left the screen titled `Vieux`, showing `Vieux`, while the setting said only subscribed
+     * folders are shown and neither the drawer nor "move to" would still offer it. A trap, too:
      */
     @Test fun `the Inbox fallback follows the folder list AND the setting`() {
         assertEquals(
@@ -269,7 +273,7 @@ class SubscribedFoldersSurfaceWiringTest {
 
     // ── instrument (copied from ShowOnlySubscribedFoldersWiringTest) ─────────────────────────────
 
-    /** [count] consecutive code lines from the ONE line starting with [prefix]. */
+    /** [count] consecutive code lines from the one line starting with [prefix]. */
     private fun block(file: File, prefix: String, count: Int): List<String> {
         val lines = codeLines(file)
         val at = only(lines, prefix, exact = false)
@@ -292,7 +296,7 @@ class SubscribedFoldersSurfaceWiringTest {
     }
 
     private companion object {
-        /** Whole line, arguments included — the shape `PageKeyWiringLintTest` and
+        /** Whole line, arguments included, the shape `PageKeyWiringLintTest` and
          *  `UnreadViewWiringLintTest` pin from their own angle. */
         private const val NEW_BASE_COPY =
             "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, " +

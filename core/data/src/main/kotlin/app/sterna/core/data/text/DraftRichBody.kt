@@ -11,7 +11,8 @@ package app.sterna.core.data.text
 fun draftHtmlToSave(body: RichBody): String? = if (body.isPlain) null else toHtml(body)
 
 /**
- * The HTML this editor can use, or null — the single decision behind [richBodyFrom] and
+ * The HTML this editor can use, or null, the single decision behind [richBodyFrom] and
+ * [draftHtmlIsLossy].
  */
 private fun usableDraftHtml(html: String?): RichBody? =
     html?.let(::fromHtml)?.takeIf { it.text.isNotBlank() }
@@ -24,5 +25,6 @@ fun richBodyFrom(html: String?, plainText: () -> String): RichBody =
 
 /**
  * Whether [html] is an HTML body this editor cannot give back faithfully: present, and
+ * not usable as a rich body.
  */
 fun draftHtmlIsLossy(html: String?): Boolean = html != null && usableDraftHtml(html) == null

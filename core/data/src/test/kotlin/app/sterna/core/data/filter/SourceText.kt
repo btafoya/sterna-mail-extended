@@ -3,7 +3,7 @@ package app.sterna.core.data.filter
 import java.io.File
 
 /**
- * Reading the SHIPPED source as text — the instrument of the source lints, in one place.
+ * Reading the shipped source as text, the instrument of the source lints, in one place.
  */
 internal object SourceText {
 
@@ -37,7 +37,9 @@ internal object SourceText {
     fun read(relative: String): String = locate(relative).readText()
 
     /**
-     * The slice of [source] running from [signature] to the next KDoc block at the same indent —
+     * The slice of [source] running from [signature] to the next KDoc block at the same indent,
+     * i.e. one function, comments included, so a lint can drop them itself. The last member of a
+     * class has no KDoc after it, so the fall-back is the close of the enclosing declaration.
      */
     fun functionSource(source: String, signature: String): String {
         val start = source.indexOf(signature)

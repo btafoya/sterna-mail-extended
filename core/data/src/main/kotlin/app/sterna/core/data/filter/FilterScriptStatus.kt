@@ -1,7 +1,7 @@
 package app.sterna.core.data.filter
 
 /**
- * The name a server that implements the vacation responder as a Sieve script gives that script. Its
+ * The name a server that implements the vacation responder as a Sieve script gives that script.
  */
 const val VACATION_SCRIPT_NAME = "vacation"
 
@@ -11,18 +11,18 @@ const val VACATION_SCRIPT_NAME = "vacation"
 data class FilterScriptStatus(
     /** A script named `sterna` exists on the server. */
     val scriptExists: Boolean = false,
-    /** That script is the ACTIVE one. A server keeps a single active script per account. */
+    /** That script is the active one. A server keeps a single active script per account. */
     val scriptActive: Boolean = false,
     /** How many rules it carries that actually filter mail (see [enabledRuleCount]). */
     val enabledRuleCount: Int = 0,
-    /** A script named [VACATION_SCRIPT_NAME] exists next to it — EXISTENCE, not activity: what
+    /** A script named [VACATION_SCRIPT_NAME] exists next to it, EXISTENCE, not activity: what
      *  [filterScriptWarning] predicts on. */
     val vacationScriptExists: Boolean = false,
-    /** That `vacation` script is the ACTIVE one. Separate from [vacationScriptExists] because only
+    /** That `vacation` script is the active one. Separate from [vacationScriptExists] because only
      *  this one is about the present: "saving will stop your auto-reply" is false on an account
      *  whose active script is a third one. */
     val vacationScriptActive: Boolean = false,
-    /** Some script OTHER than `sterna` is the active one — so a save, which activates Sterna's
+    /** Some script other than `sterna` is the active one, so a save, which activates Sterna's
      *  script, switches that one off. */
     val foreignActive: Boolean = false,
 )
@@ -30,17 +30,17 @@ data class FilterScriptStatus(
 /** What a screen must tell the user about the state of their filter rules, or null for nothing. */
 enum class FilterScriptWarning {
     /**
-     * The rules exist but are NOT running: the script that carries them is not the active one.
+     * The rules exist but are not running: the script that carries them is not the active one.
      */
     RULES_NOT_RUNNING,
 
-    /** The rules ARE running, but this server materialises the responder as a Sieve script, so
+    /** The rules are running, but this server materialises the responder as a Sieve script, so
      *  turning it on will make that script the active one and stop the rules. */
     RESPONDER_WILL_SUSPEND_RULES,
 }
 
 /**
- * Which warning (if any) the vacation and filter screens must carry. The order of the guards is the
+ * Which warning (if any) the vacation and filter screens must carry.
  */
 fun filterScriptWarning(
     scriptExists: Boolean,
@@ -77,7 +77,7 @@ fun refreshedFilterWarning(
 
 /** Which "another script is active" line the filters screen must carry, or null for none. */
 enum class ForeignScriptNotice {
-    /** Some other script is active. Whose, and what it does, is unknown — so nothing is claimed. */
+    /** Some other script is active. Whose, and what it does, is unknown, so nothing is claimed. */
     ANOTHER_SCRIPT,
 
     /** The `vacation` script IS the active one: what Save costs is the auto-reply. */
@@ -108,7 +108,7 @@ fun foreignScriptNotice(
 fun showsNoRulesNote(ruleCount: Int, scriptUnreadable: Boolean): Boolean =
     ruleCount == 0 && !scriptUnreadable
 
-/** Which sentence the RESPONDER screen puts at its head, or null for none. */
+/** Which sentence the responder screen puts at its head, or null for none. */
 enum class VacationFilterLine {
     /** The rules are not running, and the way to put them back is named. */
     RULES_NOT_RUNNING_WITH_REMEDY,
@@ -121,7 +121,7 @@ enum class VacationFilterLine {
 }
 
 /**
- * Which of the two "not running" sentences the responder screen shows. The remedy — "you can put
+ * Which of the two "not running" sentences the responder screen shows. The remedy, "you can put
  */
 fun vacationFilterLine(warning: FilterScriptWarning?, responderEnabled: Boolean): VacationFilterLine? =
     when (warning) {
@@ -136,7 +136,7 @@ fun vacationFilterLine(warning: FilterScriptWarning?, responderEnabled: Boolean)
     }
 
 /**
- * Whether [warning] is the statement of fact — the rules are on the server and not running. A
+ * Whether [warning] is the statement of fact, the rules are on the server and not running.
  */
 fun rulesAreNotRunning(warning: FilterScriptWarning?): Boolean = warning == FilterScriptWarning.RULES_NOT_RUNNING
 

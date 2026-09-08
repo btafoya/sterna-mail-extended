@@ -5,7 +5,11 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `SettingsComponents.kt` and `SettingsScreen.kt` as
+ * Source lint, not a behaviour test, it reads `SettingsComponents.kt` and `SettingsScreen.kt` as
+ * text and proves nothing about what is drawn. [RevealIconOfferedTest] runs the decision; this file
+ * pins the plumbing around it, which nothing in this module can execute: `SettingTextField` is a
+ * composable, and there is no Robolectric, no `compose-ui-test` and no `androidTest` here (adding
+ * one is a dependency decision, not a test decision).
  */
 class SecretFieldRevealWiringTest {
 
@@ -81,7 +85,7 @@ class SecretFieldRevealWiringTest {
         )
     }
 
-    /** The negative screen — `contains`, deliberately: it looks for what must be absent. */
+    /** The negative screen, `contains`, deliberately: it looks for what must be absent. */
     @Test fun `nothing in the field dims or persists the reveal instead of dropping it`() {
         val offenders = body().filter { line ->
             BANNED.any { it in line }
@@ -96,7 +100,7 @@ class SecretFieldRevealWiringTest {
         )
     }
 
-    /** The insertion screen: every rule above filters, so none of them can see an ADDED line. */
+    /** The insertion screen: every rule above filters, so none of them can see an added line. */
     @Test fun `nothing else in the field renders the value a second time`() {
         val expected = listOf(
             EXPECTED_REMEMBER,
@@ -144,6 +148,9 @@ class SecretFieldRevealWiringTest {
 
     /**
      * The body of `if (account.authType != AuthType.OAUTH) {` on the account screen, closed by
+     * counting braces, a line number would rot on the next edit of that screen. The guard itself is
+     * not this branch's business (touching it overwrites an OAuth refresh token), it is only the
+     * landmark that locates the field.
      */
     private fun passwordFieldBlock(): List<String> {
         val lines = screenLines()

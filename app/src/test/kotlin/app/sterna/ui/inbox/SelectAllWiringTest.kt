@@ -6,7 +6,10 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, same instrument and the same disclaimer as
+ * [OutboxCountWiringTest] and [ConversationScopeWiringTest]: it reads source files as text, proves
+ * nothing about what happens on screen, and would still pass if the code it points at were broken
+ * inside.
  */
 class SelectAllWiringTest {
 
@@ -34,7 +37,7 @@ class SelectAllWiringTest {
     @Test fun `every argument of the decision is the live one`() {
         val call = callArguments(body(INBOX_VIEW_MODEL, "selectAll"), "selectAllKeys").singleOrNull()
         checkNotNull(call) { "selectAll() must contain exactly one selectAllKeys(...) call" }
-        // WHOLE arguments, compared as a list — not substrings. A substring rule accepts anything
+        // Whole arguments, compared as a list, not substrings. A substring rule accepts anything
         // written after what it matched, and one of those rewrites is destructive across accounts:
         assertEquals(
             "selectAllKeys(...) must be handed exactly these arguments, whole. Arguments were:\n$call",
@@ -45,7 +48,7 @@ class SelectAllWiringTest {
                 "loading = search.loading",
                 "complete = search.complete",
                 // The folder read, minus the server rows a local draft is standing in for (#95):
-                // those are taken OUT of the list but are still filed in `emails`, so the read
+                // those are taken out of the list but are still filed in `emails`, so the read
                 "folderKeys = selectableKeysMinusHidden(repo.selectableIds(currentScopes(), filtered), hidden)",
             ),
             arguments(call),
@@ -55,9 +58,15 @@ class SelectAllWiringTest {
     @Test fun `the folder branch is read through the list's own filter`() {
         // The second half of #126: the navigation list is filtered in SQL by "unread only", so the
         // selection must be too, or the funnel plus Select all plus delete moves read mail that was
+        // never on screen to the Trash. `filtered` must be what the LIST was built with, a call
+        // handed `false` satisfies the argument rule above only if that constant is written there,
+        // and this rule is what makes writing it impossible.
         //
         // It used to demand the raw funnel (`val filtered = unreadOnly.value`), and that stopped
         // being the list's filter when a third scope arrived: `Sel.Unread` forces the filter on
+        // whatever the funnel says, so the raw read reopened #126 by construction. The one source
+        // both the pager and this read now ask is `listUnreadOnly`, executed in ListUnreadOnlyTest
+        // and wired-checked whole-line in PageKeyWiringLintTest.
         val body = body(INBOX_VIEW_MODEL, "selectAll").replace(Regex("""\s+"""), " ")
         assertTrue(
             "selectAll() must take the list's own unread filter from listUnreadOnly(selection.value, " +
@@ -89,7 +98,7 @@ class SelectAllWiringTest {
         // rule fails if the screen stops spelling it that way, which is the moment to carry the
         // change across rather than the moment to discover it on a phone.
         //
-        // Anchored on the BRANCH, and compared WHOLE-LINE, for two reasons the auditors proved:
+        // Anchored on the branch, and compared whole-line, for two reasons the auditors proved:
         //  - the same `val searchActive = …` line exists elsewhere in the file (a scroll
         val lines = codeLines(INBOX_SCREEN).map { it.trim() }
         val branch = "searchActive -> when (searchDisplay(ui.searchResults.size, ui.searchLoading, ui.searchComplete)) {"
@@ -114,9 +123,9 @@ class SelectAllWiringTest {
 
     // -- reading the sources --------------------------------------------------------------------
 
-    /** The lines of [file] that are code, with comments taken off — a line opening a comment is
+    /** The lines of [file] that are code, with comments taken off, a line opening a comment is
      *  dropped whole, a trailing `//` outside a string cuts the rest of its line. The cut is what
-     *  makes these rules mean anything: the comments here NAME the calls they forbid. */
+     *  makes these rules mean anything: the comments here name the calls they forbid. */
     private fun codeLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val code = line.trimStart()
         if (code.startsWith("//") || code.startsWith("*") || code.startsWith("/*")) null
@@ -142,6 +151,9 @@ class SelectAllWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text: everything up to the
+     * first line indented no deeper than the declaration, once the declaration's own brackets have
+     * closed. Fails loudly when the declaration is not found, a rename must break these rules
+     * rather than satisfy them silently against an empty string.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)
@@ -167,6 +179,9 @@ class SelectAllWiringTest {
 
     /**
      * A call's arguments, one entry each, whitespace normalised: split on the commas that are at
+     * the call's own depth, so a nested call or lambda keeps its own. This is what lets the rules
+     * above compare arguments whole, the sole defence against a mutation that leaves the pinned
+     * text in place and appends to it.
      */
     private fun arguments(call: String): List<String> {
         val out = mutableListOf<String>()

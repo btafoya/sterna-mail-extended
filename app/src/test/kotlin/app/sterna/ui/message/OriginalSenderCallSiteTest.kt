@@ -5,7 +5,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * [OriginalSenderToShowTest] executes the decision; this pins that the decision is still WIRED to
+ * [OriginalSenderToShowTest] executes the decision; this pins that the decision is still wired to
+ * the screen, and what the screen calls the line (#160).
  */
 class OriginalSenderCallSiteTest {
 
@@ -28,7 +29,7 @@ class OriginalSenderCallSiteTest {
     }
 
     /**
-     * And the group is still CALLED, from inside the panel. Every pure-function test in this
+     * And the group is still called, from inside the panel. Every pure-function test in this
      * module survives its deletion; nothing else in the repository would notice.
      */
     @Test fun `the participants panel still paints the origin group`() {
@@ -43,7 +44,7 @@ class OriginalSenderCallSiteTest {
     }
 
     /**
-     * The LABEL, whole. Nothing verifies that a message was ever relayed: the header is a plain
+     * The label, whole. Nothing verifies that a message was ever relayed: the header is a plain
      */
     @Test fun `the label does not claim the origin was verified`() {
         assertEquals(

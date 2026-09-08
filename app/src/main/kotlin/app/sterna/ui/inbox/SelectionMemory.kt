@@ -6,11 +6,11 @@ import app.sterna.widget.AllInboxesView
 
 /*
  * The drawer's memory of the view you were last in: what to store, what to reopen on, and the header
- * it may claim before anything syncs. The stored value carries the account id next to the
+ * it may claim before anything syncs.
  */
 
 /** The string to store for [sel] under [accountId], or `null` for "fall back on the Inbox next
- *  time" — `Sel.Folder(null)` included, a never-synced account that would reopen on no folder. */
+ *  time", `Sel.Folder(null)` included, a never-synced account that would reopen on no folder. */
 internal fun encodeSelection(accountId: String?, sel: Sel): String? {
     if (accountId == null) return null
     return when (sel) {
@@ -21,7 +21,7 @@ internal fun encodeSelection(accountId: String?, sel: Sel): String? {
 }
 
 /**
- * The view to reopen on, or `null` for the Inbox. A folder deleted, renamed or unsubscribed is
+ * The view to reopen on, or `null` for the Inbox.
  */
 internal fun restoreSelection(
     stored: String?,
@@ -43,7 +43,7 @@ internal fun restoreSelection(
     }
 }
 
-/** [restoreSelection]'s three arguments, fetched from the store — the one place that fetches them,
+/** [restoreSelection]'s three arguments, fetched from the store, the one place that fetches them,
  *  `InboxViewModel` and `RootViewModel` needing the same answer (`SelectionMemoryWiringLintTest`). */
 internal fun restoredSelection(store: AccountStore): Sel? = restoreSelection(
     store.storedView(),
@@ -99,7 +99,7 @@ internal fun restoredFolderMeta(
     return RestoredMetaStep(settled = true, meta = Meta(accountLabel, folder.name, folder.unreadEmails))
 }
 
-/** The stored view to keep once [removedIds] have been signed out, or `null` to forget it —
+/** The stored view to keep once [removedIds] have been signed out, or `null` to forget it:
  *  `PRIVACY.md` promises everything goes with the account, and this holds an account id and, on
  * IMAP, a folder path the reader named herself. The key is global, so it goes only when its
  *  first field names a removed account. It does not replace [restoreSelection]'s account guard. */

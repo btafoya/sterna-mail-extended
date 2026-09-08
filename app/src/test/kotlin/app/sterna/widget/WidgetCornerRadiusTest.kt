@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as [UnreadWidgetDeclarationTest].
+ * Source lint, not a behaviour test, same instrument and disclaimer as [UnreadWidgetDeclarationTest].
  */
 class WidgetCornerRadiusTest {
 
@@ -46,14 +46,14 @@ class WidgetCornerRadiusTest {
         )
     }
 
-    /** The `<dimen name="widget_corner_radius">…` lines of [path], whole, or [ABSENT] if the file is gone. */
+    /** The `<dimen name="widget_corner_radius">…` lines of [path], whole, or [absent] if the file is gone. */
     private fun declarationsIn(path: String): List<String> {
         val file = File(DeclarationSource.ROOT, "app/src/main/res/$path")
         if (!file.isFile) return listOf(ABSENT)
         return codeLinesOf(file).filter { "name=\"widget_corner_radius\"" in it }
     }
 
-    /** The `android:background=…` lines of the layout at [path], whole, or [ABSENT] if the file is gone. */
+    /** The `android:background=…` lines of the layout at [path], whole, or [absent] if the file is gone. */
     private fun backgroundsIn(path: String): List<String> {
         val file = File(DeclarationSource.ROOT, "app/src/main/res/$path")
         if (!file.isFile) return listOf(ABSENT)
@@ -73,6 +73,8 @@ class WidgetCornerRadiusTest {
 
         /**
          * Every root that wears the cell's surface: the two widgets, the two picker previews, and
+         * the counter's enlarged layout, which the launcher swaps in on a cell dragged large, so a
+         * background missing there is a square-cornered cell for anyone who resized theirs.
          */
         val ROOTS = listOf(
             "layout/widget_unread.xml",

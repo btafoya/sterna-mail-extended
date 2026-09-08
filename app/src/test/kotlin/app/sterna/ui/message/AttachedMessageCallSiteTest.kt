@@ -5,12 +5,14 @@ import org.junit.Test
 import java.io.File
 
 /**
- * [AttachedMessageTest] executes the decision; this pins that the decision is still WIRED: the
+ * [AttachedMessageTest] executes the decision;
  */
 class AttachedMessageCallSiteTest {
 
     /**
      * The one code line of the view model that names [isAttachedMessage], whole: the type it
+     * decides on is the part's, and it turns into the sheet and returns, before the status
+     * line, before the download-to-cache launch.
      */
     @Test fun `the tap hands a message-rfc822 part to the sheet and stops there`() {
         assertEquals(
@@ -22,7 +24,7 @@ class AttachedMessageCallSiteTest {
     }
 
     /**
-     * And it routes AFTER the double-tap guard is taken, not before it: the line above is pinned
+     * And it routes after the double-tap guard is taken, not before it: the line above is pinned
      */
     @Test fun `the route is taken with the double-tap guard already held`() {
         val lines = codeLines(viewModel().readText())
@@ -68,6 +70,8 @@ class AttachedMessageCallSiteTest {
 
     /**
      * Nothing is written to disk on this path, and no app is asked to open anything: the
+     * attached message is parsed in memory and shown. `cacheAttachment`, `FileProvider` and
+     * `Intent(` are the three ways the viewer-app path leaves the process.
      */
     @Test fun `showing an attached message writes nothing and starts nothing`() {
         val body = openAttachedMessageBody()

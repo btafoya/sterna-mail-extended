@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * What a record ALREADY ON DISK decodes to, once `uploadSentCopy` exists.
+ * What a record already on disk decodes to, once `uploadSentCopy` exists.
  */
 class UploadSentCopyDefaultTest {
 

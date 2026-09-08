@@ -8,7 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * A walk can end WITHOUT throwing and still know nothing about the folder — and the reconcile
+ * A walk can end without throwing and still know nothing about the folder, and the reconcile
  */
 class EmptyWindowIsNotAnEmptyFolderTest {
 
@@ -82,7 +82,7 @@ class EmptyWindowIsNotAnEmptyFolderTest {
     }
 
     @Test fun `an emptied folder is still cleared — the witness for the test above`() {
-        // Without this, "a muted GET changes nothing" could be got by never reconciling at all.
+        // Without this, "a muted get changes nothing" could be got by never reconciling at all.
         val folder = Folder(cached = listOf("gone1", "gone2"))
 
         writeThrough(folder, walk(ids = emptyList(), queryCount = 0))

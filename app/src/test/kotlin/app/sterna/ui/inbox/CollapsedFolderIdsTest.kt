@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The resolution — registry vs default — EXECUTED. It is the single place the stored per-folder
+ * The resolution (registry vs default) executed. It is the single place the stored per-folder
  */
 class CollapsedFolderIdsTest {
 
@@ -96,7 +96,7 @@ class CollapsedFolderIdsTest {
     // ── V5: an account whose rows carry no unread count (IMAP) ──────────────────────────────────
 
     /**
-     * The heart of V5, and the thing it must NOT break. Suspending the default on an account
+     * The heart of V5, and the thing it must not break. Suspending the default on an account
      */
     @Test fun `with no badge on any row, a folder the user FOLDED stays folded`() {
         assertEquals(
@@ -123,7 +123,7 @@ class CollapsedFolderIdsTest {
     }
 
     /**
-     * The one behaviour V5 changes, pinned against its own control: the SAME list and the SAME
+     * The one behaviour V5 changes, pinned against its own control: the same list and the same
      */
     @Test fun `an untouched folder takes the default, and a badge-less account has none`() {
         assertEquals(
@@ -144,6 +144,8 @@ class CollapsedFolderIdsTest {
 
     /**
      * A fold decided on a folder that is momentarily out of the drawn list survives on this
+     * account too, the registry is untouched by V5, and the id is handed back although
+     * [defaultCollapsedFolderIds] answers nothing at all here.
      */
     @Test fun `with no badge on any row, a folded id the list does not hold still survives`() {
         assertEquals(

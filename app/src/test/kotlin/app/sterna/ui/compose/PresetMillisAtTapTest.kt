@@ -8,7 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * [presetMillisAtTap] is the decision the "send later" menu takes AT THE TAP, instead of scheduling
+ * [presetMillisAtTap] is the decision the "send later" menu takes at the tap, instead of scheduling
  */
 class PresetMillisAtTapTest {
     private val utc = ZoneId.of("UTC")
@@ -17,7 +17,7 @@ class PresetMillisAtTapTest {
     private fun millis(zone: ZoneId, h: Int, m: Int = 0, s: Int = 0, nano: Int = 0, day: Int = 18) =
         ZonedDateTime.of(2026, 8, day, h, m, s, nano, zone).toInstant().toEpochMilli()
 
-    /** What the menu really draws at [at] for [preset] — the setup of each case, not its expectation. */
+    /** What the menu really draws at [at] for [preset], the setup of each case, not its expectation. */
     private fun drawn(preset: SchedulePreset, at: Long, zone: ZoneId = utc): Long =
         schedulePresetsAt(at, zone).first { it.first == preset }.second
 
@@ -32,9 +32,9 @@ class PresetMillisAtTapTest {
     }
 
     @Test fun `this evening drawn yesterday morning and tapped this morning is refused`() {
-        // THE TRAP the refusal must not be built on: read against a FRESH list this tap looks
-        // perfectly legal — at 10 AM on the 19th "This evening" is offered again. The entry under
-        // the finger is not that one: it was drawn on the 18th and is worth 6 PM ON THE 18TH,
+        // The trap the refusal must not be built on: read against a fresh list this tap looks
+        // perfectly legal, at 10 AM on the 19th "This evening" is offered again. The entry under
+        // the finger is not that one: it was drawn on the 18th and is worth 6 PM on the 18TH,
         // sixteen hours gone. Reading the fresh list would let it through, i.e. send at once.
         assertEquals("at 10 AM on the 19th the menu does offer This evening = 19th 6 PM", millis(utc, 18, day = 19), drawn(SchedulePreset.THIS_EVENING, millis(utc, 10, day = 19)))
         assertNull(
@@ -45,7 +45,7 @@ class PresetMillisAtTapTest {
     }
 
     @Test fun `tomorrow morning drawn before midnight keeps the day the menu showed`() {
-        // THE REGRESSION this test exists for. Absolute entries are NOT re-computed at the tap:
+        // The regression this test exists for. Absolute entries are not re-computed at the tap:
         // drawn on the 18th at 11:50 PM, "Tomorrow, 8 AM" is the 19th at 8. Asking the rule again
         assertEquals("drawn on the 18th at 11:50 PM, Tomorrow 8 AM is the 19th at 8", millis(utc, 8, day = 19), drawn(SchedulePreset.TOMORROW_MORNING, millis(utc, 23, 50, day = 18)))
         assertEquals(
@@ -58,7 +58,7 @@ class PresetMillisAtTapTest {
     }
 
     @Test fun `in 1 hour counts from the tap, not from the drawing`() {
-        // The one RELATIVE entry, and the only one re-read: it promised an hour from the finger.
+        // The one relative entry, and the only one re-read: it promised an hour from the finger.
         // Drawn at 5:55 PM it was worth 6:55 PM; tapped at 6:05 it must be worth 7:05, pinned to
         // the millisecond. (Bench relevé G1 reads exactly this.)
         assertEquals("at 5:55 PM the menu draws In 1 hour = 6:55 PM", millis(utc, 18, 55), drawn(SchedulePreset.IN_1_HOUR, millis(utc, 17, 55)))
@@ -92,7 +92,7 @@ class PresetMillisAtTapTest {
         val now = millis(utc, 10)
         val evening = millis(utc, 18)
         // The drawn instant already carries the zone it was drawn in. Re-deriving "6 PM" in Paris
-        // would answer 6 PM PARIS = 4 PM UTC — two hours off, for a traveller or for a device whose
+        // would answer 6 PM paris = 4 PM UTC, two hours off, for a traveller or for a device whose
         // zone changed while the menu stood open.
         assertEquals("read in UTC the drawn evening comes back whole", evening, presetMillisAtTap(SchedulePreset.THIS_EVENING, evening, now, utc))
         assertEquals(
@@ -101,7 +101,7 @@ class PresetMillisAtTapTest {
             evening,
             presetMillisAtTap(SchedulePreset.THIS_EVENING, evening, now, paris),
         )
-        // The zone does travel to the rule for the relative entry — 10 AM UTC + 1 h, either way.
+        // The zone does travel to the rule for the relative entry, 10 AM UTC + 1 h, either way.
         assertEquals(millis(utc, 11), presetMillisAtTap(SchedulePreset.IN_1_HOUR, 0L, now, utc))
         assertEquals(millis(utc, 11), presetMillisAtTap(SchedulePreset.IN_1_HOUR, 0L, now, paris))
     }

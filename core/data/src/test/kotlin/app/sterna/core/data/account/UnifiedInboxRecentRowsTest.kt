@@ -14,7 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHICH inboxes the "latest messages" home-screen widget follows, and WHEN it asks again — pinned
+ * Which inboxes the "latest messages" home-screen widget follows, and when it asks again, pinned
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class UnifiedInboxRecentRowsTest {
@@ -44,6 +44,8 @@ class UnifiedInboxRecentRowsTest {
 
     /**
      * Stands in for `MailRepository.observeRecentUnifiedInbox(limit)` and records what it was
+     * asked, the arguments are the point. Each scope list gets a flow of its own, so the rows
+     * collected also say which subscription produced them.
      */
     private class Reader {
         val calls = mutableListOf<List<Pair<String, String>>>()
@@ -117,7 +119,8 @@ class UnifiedInboxRecentRowsTest {
     }
 
     /**
-     * THE ARBITRAGE THIS FILE EXISTS TO PIN, and the one place this rule DIVERGES from
+     * The arbitrage this file exists to pin, and the one place this rule diverges from
+     * [UnifiedInbox.unreadByAccount]: the key is the scopes, not [UnifiedInbox.countedInboxes].
      */
     @Test fun `a stored counter moving does not re-subscribe the rows`() = runTest {
         val reader = Reader()
@@ -211,7 +214,7 @@ class UnifiedInboxRecentRowsTest {
     }
 
     /**
-     * NO ACCOUNT LEFT IS ONE EMISSION, IT SAYS `configured = false`, AND IT READS NOTHING.
+     * NO account left is one emission, it says `configured = false`, and it reads nothing.
      */
     @Test fun `no account left emits one unconfigured read and reads nothing`() = runTest {
         val reader = Reader()
@@ -244,7 +247,7 @@ class UnifiedInboxRecentRowsTest {
     }
 
     /**
-     * SOURCE LINT, and the hole the tests above cannot reach: they inject their own account flow
+     * Source lint, and the hole the tests above cannot reach: they inject their own account flow
      */
     @Test fun `MailRepository observes the SAME widget query, over the live account flow`() {
         val source = SourceText.read(
@@ -267,7 +270,7 @@ class UnifiedInboxRecentRowsTest {
     }
 
     /**
-     * SOURCE LINT, and the only kind available for this one: what makes the widget's read REACTIVE
+     * Source lint, and the only kind available for this one: what makes the widget's read reactive
      */
     @Test fun `the widget's observed read is woken by BOTH the mail and the snoozes`() {
         val lines = SourceText.codeLines(

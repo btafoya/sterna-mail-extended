@@ -10,7 +10,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The two pure decisions behind prefilling the IMAP form from the autoconfig cascade — EXECUTED,
+ * The two pure decisions behind prefilling the IMAP form from the autoconfig cascade, executed,
+ * with pinned arguments, never re-read from the source:
  */
 class ImapDiscoveryTest {
 
@@ -123,7 +124,7 @@ class ImapDiscoveryTest {
             ),
         )
         // The other two JMAP routes, spelled out: the condition is "the IMAP form is the one on
-        // screen", NOT "the route is not JMAP_AUTODISCOVER". With only the autodiscover route ever
+        // screen", not "the route is not JMAP_AUTODISCOVER". With only the autodiscover route ever
         assertFalse(
             "JMAP with an API token is still a JMAP form: no IMAP fields for the verdict to land in.",
             shouldDiscoverImapSettings(
@@ -282,7 +283,8 @@ class ImapDiscoveryTest {
 }
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * every source lint in this tree: it reads the source as text and proves nothing about behaviour.
  */
 class ImapDiscoveryWiringTest {
 
@@ -734,10 +736,10 @@ class ImapDiscoveryWiringTest {
 
     @Test
     fun `the endpoints the handover dials are the ones the domain published`() {
-        // The guard line alone holds NOTHING about the arguments: shouldTryDiscoveredImap
+        // The guard line alone holds nothing about the arguments: shouldTryDiscoveredImap
         // returns a Boolean and never sees an endpoint. Swap incoming/outgoing here and the app
-        // fetches mail on the SMTP port; write ConnectionSecurity.NONE and the account is created,
-        // and then polled, IN THE CLEAR — credentials included — with every executed test green.
+        // fetches mail on the SMTP port; write ConnectionSecurity.None and the account is created,
+        // and then polled, in the clear (credentials included) with every executed test green.
         assertPinnedLine(
             SCREEN,
             "endpoints.incoming.host, endpoints.incoming.port, endpoints.incoming.security,",
@@ -759,9 +761,9 @@ class ImapDiscoveryWiringTest {
             "preset.smtpHost, preset.smtpPort.toInt(), preset.smtpSecurity,",
             "The manual route's outgoing trio.",
         )
-        // THE PINS ABOVE ARE BLIND TO A SWAP: exchange the two whole lines and each is still
+        // The pins above are blind to a swap: exchange the two whole lines and each is still
         // present exactly once, while the app fetches mail on the SMTP endpoint and posts it to
-        // the IMAP one. Only their ORDER says which argument is which — connectImap takes the
+        // the IMAP one. Only their order says which argument is which, connectImap takes the
         // incoming trio first, positionally.
         val lines = source(SCREEN).lines().map { it.trim() }
         assertTrue(
@@ -880,7 +882,7 @@ class ImapDiscoveryWiringTest {
 
     // -- reading the files -------------------------------------------------------------------------
 
-    /** Exactly one line of [path] whose TRIMMED text equals [pinned] — 0 or 2+ both fail. */
+    /** Exactly one line of [path] whose trimmed text equals [pinned], 0 or 2+ both fail. */
     private fun assertPinnedLine(path: String, pinned: String, why: String) {
         val hits = source(path).lines().count { it.trim() == pinned }
         assertEquals(

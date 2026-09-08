@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * [selectionUndoEntries] — who may be put back, executed rather than re-derived.
+ * [selectionUndoEntries], who may be put back, executed rather than re-derived.
  */
 class SelectionUndoTest {
 
@@ -60,7 +60,7 @@ class SelectionUndoTest {
     }
 
     /**
-     * The same id twice, trusted and not — the two rows a merge can hand over for one message.
+     * The same id twice, trusted and not, the two rows a merge can hand over for one message.
      */
     @Test
     fun `the same id trusted and untrusted withholds the Undo in either order`() {
@@ -78,6 +78,8 @@ class SelectionUndoTest {
 
     /**
      * `email.mailboxId?.let { }` lets `""` through, and an Undo to an empty folder id is a move to
+     * a folder that does not exist, the same write, just as irreversible. Its twin guard is on the
+     * destruction side (TrashPurge.kt).
      */
     @Test
     fun `an empty or absent source folder yields no entry, and does not sink the others`() {

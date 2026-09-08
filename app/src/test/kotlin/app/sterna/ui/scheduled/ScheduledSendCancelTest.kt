@@ -234,7 +234,7 @@ class ScheduledSendCancelTest {
 
     @Test fun `a styled message cancelled from the schedule is filed with its styling`() {
         // The row is the only copy: the deposit is what the user gets back. Filed on the text
-        // alone — which is what happened until #131 — the bold she applied is gone for good, with
+        // alone (which is what happened until #131) the bold she applied is gone for good, with
         // nothing on screen having said so.
         val draft = draftFromScheduledSend(row(htmlBody = "<b>see</b> you there"))
 
@@ -248,7 +248,7 @@ class ScheduledSendCancelTest {
 
     @Test fun `the deposit takes its text and its styling out of the same part`() {
         // The witness the test above cannot be: there the row's two columns say the same words,
-        // so `body = row.textBody` passes it. Here they DIFFER — which a row is free to do — and
+        // so `body = row.textBody` passes it.
         val draft = draftFromScheduledSend(
             row(htmlBody = "<b>see</b> you there", textBody = "ok"),
         )
@@ -258,9 +258,9 @@ class ScheduledSendCancelTest {
     }
 
     @Test fun `a cancelled message keeps its link, in the html AND in the text filed`() {
-        // Both halves, and the text one is the mutation this exists for. `rich.text` there —
-        // which is what this file said until the links (#131) — files a draft whose text part is
-        // "see you there" while the html part beside it, built from the SAME body, carries the
+        // Both halves, and the text one is the mutation this exists for. `rich.text` there,
+        // which is what this file said until the links (#131), files a draft whose text part is
+        // "see you there" while the html part beside it, built from the same body, carries the
         // anchor. One deposit, two parts, two different messages about one address.
         val draft = draftFromScheduledSend(
             row(htmlBody = """see <a href="https://x">you</a> there"""),
@@ -283,7 +283,7 @@ class ScheduledSendCancelTest {
 
     @Test fun `a message whose html this editor cannot read is filed as text`() {
         // A forward (its carried original appended), or an imported HTML signature: the deposit
-        // flattens it, exactly as "Save draft" does — and says so by storing no html.
+        // flattens it, exactly as "Save draft" does, and says so by storing no html.
         val draft = draftFromScheduledSend(
             row(htmlBody = "see you there<br><br><div>-------- Forwarded --------</div>"),
         )
@@ -297,7 +297,7 @@ class ScheduledSendCancelTest {
         )
     }
 
-    // --- 5 bis. no credentials is NOT proof the account is gone --------------------------------
+    // --- 5 bis. no credentials is not proof the account is gone --------------------------------
 
     @Test fun `no credentials while the account is still there destroys nothing`() = runTest {
         val r = Run()
@@ -383,7 +383,7 @@ class ScheduledSendCancelTest {
         )
     }
 
-    // --- 9. the fields REALLY handed to saveDraft ------------------------------------------------
+    // --- 9. the fields really handed to saveDraft ------------------------------------------------
 
     @Test fun `the draft handed to saveDraft is the row, whole`() = runTest {
         val r = Run()

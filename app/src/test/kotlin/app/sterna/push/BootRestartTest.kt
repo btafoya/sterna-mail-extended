@@ -6,6 +6,10 @@ import org.junit.Test
 
 /**
  * After a reboot only the connection Sterna holds itself can be missing (issue #98): the
+ * periodic fallback is WorkManager's to restore and UnifiedPush is the distributor's. So the
+ * boot receiver must start the foreground service in exactly one case, and stay out of the
+ * way in every other, a permanent notification and an idle socket that buy nothing are a
+ * regression, not a safety net.
  */
 class BootRestartTest {
 

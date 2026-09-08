@@ -5,7 +5,7 @@ import androidx.room.Index
 
 /** Cached email for a mailbox list view. Composite `(accountId, id)` key: a JMAP id is unique
  *  only within its account; two accounts of one login (#31) can share an [id]. Index column
- *  order matters — it serves scope/sort/join queries in one (#121). */
+ *  order matters, it serves scope/sort/join queries in one (#121). */
 @Entity(
     tableName = "emails",
     primaryKeys = ["accountId", "id"],
@@ -33,7 +33,7 @@ data class EmailEntity(
     val replyToJson: String? = null,
     /** `Cc:` recipients, JSON-encoded (v21); rebuilds a reopened draft's Cc and "reply all". */
     val ccJson: String? = null,
-    /** `Bcc:` recipients, JSON-encoded (v21). Kept separate from [ccJson] — a blind copy
+    /** `Bcc:` recipients, JSON-encoded (v21). Kept separate from [ccJson], a blind copy
      *  must not show to others. */
     val bccJson: String? = null,
     /** IMAP UIDVALIDITY [id]'s UID was read under (v25, #99); decoupled from

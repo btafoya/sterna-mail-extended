@@ -17,6 +17,7 @@ import java.io.IOException
 
 /**
  * [discoverJmapAmong]: what the sign-in screen waits for, which hosts get the password, and which
+ * host is kept.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class DiscoveryIsBoundedTest {
@@ -24,13 +25,15 @@ class DiscoveryIsBoundedTest {
     /** The real candidate order of `Jmap.autodiscoverHosts("someone@masto.top")`. */
     private val hosts = listOf("masto.top", "mail.masto.top", "jmap.masto.top", "api.masto.top")
 
-    /** A delay no budget in this file survives — the shape of the 200 s the reporter waited. */
+    /** A delay no budget in this file survives, the shape of the 200 s the reporter waited. */
     private val hangs = 200_000L
 
     private val budget = 10_000L
 
     /**
      * A probe that answers [answers] after the stated virtual delay and records which hosts were
+     * actually asked, i.e. which of them received the password. Hosts listed in [deaf] ignore
+     * cancellation while they wait, like the blocking call the real probe makes.
      */
     private class Bench(
         private val answers: Map<String, Pair<Long, HostProbe>>,
@@ -76,8 +79,8 @@ class DiscoveryIsBoundedTest {
         val result = discoverJmapAmong(hosts, budget) { bench.probe(it) }
 
         assertEquals(MailRepository.DiscoveryResult.Found("mail.masto.top"), result)
-        // 100 ms for rank 0 to answer, then 300 ms for rank 1 — and not a second for the two
-        // black holes, which is the whole point: this is the HAPPY path.
+        // 100 ms for rank 0 to answer, then 300 ms for rank 1, and not a second for the two
+        // black holes, which is the whole point: this is the happy path.
         assertEquals(400L, currentTime)
     }
 
@@ -88,7 +91,7 @@ class DiscoveryIsBoundedTest {
             deaf = hosts.toSet(),
         )
 
-        // No budget passed, deliberately: this must exercise the DEFAULT, which is the value
+        // No budget passed, deliberately: this must exercise the default, which is the value
         // production gets. Handing it JMAP_DISCOVERY_BUDGET_MS here would pin the constant while
         // leaving whatever the app actually runs on unmeasured.
         val result = discoverJmapAmong(hosts) { bench.probe(it) }
@@ -321,7 +324,7 @@ class DiscoveryIsBoundedTest {
                 "masto.top" to (100L to HostProbe.NoAnswer),
                 "mail.masto.top" to (300L to HostProbe.Usable),
                 "jmap.masto.top" to (hangs to HostProbe.NoAnswer),
-                // First to answer by far, and the highest rank of all — the rank still decides.
+                // First to answer by far, and the highest rank of all, the rank still decides.
                 "api.masto.top" to (50L to HostProbe.BadCredentials),
             ),
         )
@@ -332,7 +335,7 @@ class DiscoveryIsBoundedTest {
         assertEquals(400L, currentTime)
     }
 
-    // ── What an answer MEANS, run rather than read ───────────────────────────────────────────
+    // ── What an answer means, run rather than read ───────────────────────────────────────────
 
     @Test
     fun `a session without a mail account is not a mail server`() {
@@ -385,7 +388,7 @@ class DiscoveryIsBoundedTest {
     }
 
     /**
-     * Cancellation is not something a host said. Leaving the sign-in screen cancels the probes, and
+     * Cancellation is not something a host said.
      */
     @Test
     fun `a cancelled probe is not a host that stayed silent`() {

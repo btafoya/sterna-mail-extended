@@ -11,13 +11,14 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 /**
- * The row a "save as a draft" left behind, run against a REAL SQLite engine through the
+ * The row a "save as a draft" left behind, run against a real SQLite engine through the
+ * statements the app ships (#95 × #70).
  */
 class KeptAsDraftRowTest {
 
     private lateinit var db: Connection
 
-    /** The state the shipped rule parks a kept-on-device save in — asked, never assumed. */
+    /** The state the shipped rule parks a kept-on-device save in, asked, never assumed. */
     private val parked = draftSaveParksTheQueuedRowAs(DraftSaveOutcome.KEPT_ON_DEVICE)
         ?: error("a save kept on the device parks nothing at all — see LocalDraftSaveTest")
 
@@ -38,6 +39,7 @@ class KeptAsDraftRowTest {
 
     /**
      * The startup re-arm ([OutboxDao.unfinished], read by `SternaApplication` at every launch and
+     * fed straight to the send worker) must not hand this row back.
      */
     @Test fun `the startup re-arm picks up the three states a worker still has something to do with`() {
         OutboxState.entries.forEach { insert(it) }
@@ -59,7 +61,8 @@ class KeptAsDraftRowTest {
     }
 
     /**
-     * The other startup path: the mid-edit recovery. Both statements only ever name `EDITING`, and
+     * The other startup path: the mid-edit recovery. Both statements only ever name `editing`, and
+     * that is exactly why parking at save time (rather than leaving the row editing and hoping)
      */
     @Test fun `the mid-edit recovery leaves a row saved as a draft exactly where it is`() {
         insert(parked, attemptCount = 0)
@@ -125,7 +128,7 @@ class KeptAsDraftRowTest {
         return out
     }
 
-    /** Every row's state, in insertion order — what the table holds after the recovery has run. */
+    /** Every row's state, in insertion order, what the table holds after the recovery has run. */
     private fun statesInOrder(): List<OutboxState> {
         val out = mutableListOf<OutboxState>()
         db.createStatement().use { st ->

@@ -17,13 +17,13 @@ enum class OutboxState {
     /** Auto-retry gave up; the item stays for manual retry/edit/delete. */
     FAILED,
 
-    /** Reopened and SAVED AS A DRAFT ON THE PHONE, no server copy (#95×#70): the send worker never picks it up. */
+    /** Reopened and saved as a DRAFT on the phone, no server copy (#95×#70): the send worker never picks it up. */
     KEPT_AS_DRAFT,
 
     /** Reopened for editing (#70): held from the send worker while open; a process death mid-edit strands it here. */
     EDITING,
 
-    /** A delivery ALREADY UNDER WAY when the process died, PARKED rather than retried: re-delivery risked an
+    /** A delivery already under way when the process died, parked rather than retried: re-delivery risked an
      *  unrecallable duplicate. */
     INTERRUPTED,
 }
@@ -53,17 +53,17 @@ data class OutboxEntity(
     val attemptCount: Int = 0,
     val lastError: String? = null,
     val lastAttemptMillis: Long? = null,
-    /** OpenPGP mode ("SIGN"/"ENCRYPT") when the payload is PGP/MIME; null otherwise. */
+    /** OpenPGP mode ("sign"/"encrypt") when the payload is PGP/MIME; null otherwise. */
     val pgpMode: String? = null,
-    /** File holding this row's PRE-BUILT MIME ENTITY; name is narrower than content — also carries RFC 8098 read
+    /** File holding this row's pre-built MIME entity; name is narrower than content, also carries RFC 8098 read
      *  receipts, [pgpMode] says which. */
     val pgpEntityPath: String? = null,
     /** Server draft this replaces (#63); destroyed once send succeeds so Drafts keeps no stale duplicate. */
     val draftEmailId: String? = null,
-    /** IMAP numbering [draftEmailId] was read under, frozen at composer time (#99); `null` destroys nothing — always
+    /** IMAP numbering [draftEmailId] was read under, frozen at composer time (#99); `null` destroys nothing, always
      *  true on JMAP (#122). */
     val draftUidValidity: Long? = null,
-    /** Asks for a read receipt (RFC 8098); `DEFAULT 0` ([MIGRATION_21_22]) — pre-v22 rows read back as "not asked for".
+    /** Asks for a read receipt (RFC 8098); `default 0` ([MIGRATION_21_22]), pre-v22 rows read back as "not asked for".
      *  */
     val requestReceipt: Boolean = false,
 )

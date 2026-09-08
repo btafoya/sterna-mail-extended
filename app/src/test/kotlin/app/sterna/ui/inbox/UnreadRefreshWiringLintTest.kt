@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST, and a LAST RESORT — read [UnreadRefreshTargetsTest] first.
+ * Source lint, not a behaviour test, and a last resort, read [UnreadRefreshTargetsTest] first.
  */
 class UnreadRefreshWiringLintTest {
 
@@ -41,7 +41,7 @@ class UnreadRefreshWiringLintTest {
     }
 
     /**
-     * The value that travels down the line above, EXECUTED — the same weld
+     * The value that travels down the line above, executed, the same weld
      */
     @Test
     fun `the per-folder limit is the repository's own default, not a window`() {
@@ -57,7 +57,7 @@ class UnreadRefreshWiringLintTest {
     }
 
     /**
-     * The rule that keeps the reader where they are, written as a rule about NAMING rather than
+     * The rule that keeps the reader where they are, written as a rule about naming rather than
      */
     @Test
     fun `the unread refresh never names the view's own state`() {
@@ -164,7 +164,9 @@ class UnreadRefreshWiringLintTest {
     }
 
     /**
-     * [file] as ONE line of code: comments out, runs of whitespace collapsed — so a call the
+     * [file] as one line of code: comments out, runs of whitespace collapsed, so a call the
+     * formatter spreads over five lines reads the same as one written on a line. A scanner over the
+     * whole file, not a per-line filter: a `//` inside a string literal is not a comment.
      */
     private fun codeText(file: File): String {
         val code = StringBuilder()

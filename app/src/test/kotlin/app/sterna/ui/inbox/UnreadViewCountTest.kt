@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The drawer badge of the "unread" view, RUN — not read as text.
+ * The drawer badge of the "unread" view, run, not read as text.
  */
 class UnreadViewCountTest {
 
@@ -36,7 +36,7 @@ class UnreadViewCountTest {
     @Test
     fun `a role given to a folder moves the badge with the scope`() {
         // Same folders, but the user folder has since been elected Junk by the server. The scope
-        // drops it; so must the badge. Nothing here restates which roles are dropped — the shipped
+        // drops it; so must the badge. Nothing here restates which roles are dropped, the shipped
         // function is asked.
         val rescoped = folders.map { if (it.id == "projets") it.copy(role = "junk") else it }
         assertEquals(3, unreadViewCount("a", unreadViewScopes("a", rescoped), rescoped))
@@ -45,7 +45,7 @@ class UnreadViewCountTest {
     @Test
     fun `a sibling account's folder of the same id is not counted`() {
         // #121/#31: servers number mailboxes per account, so "a" names a folder in both accounts.
-        // The scope is (account, folder) PAIRS and the account half is what has to be honoured —
+        // The scope is (account, folder) pairs and the account half is what has to be honoured,
         // dropping it counts the neighbour's mail into this account's badge.
         val mine = listOf(folder("a", "inbox", 5))
         assertEquals(0, unreadViewCount("me", listOf("sibling" to "a"), mine))
@@ -67,7 +67,7 @@ class UnreadViewCountTest {
     }
 
     /**
-     * This proves ONE thing: which FIELD is read. `unreadForList` is what the folder rows below
+     * This proves one thing: which field is read. `unreadForList` is what the folder rows below
      */
     @Test
     fun `the badge reads the field the folder rows are badged with`() {

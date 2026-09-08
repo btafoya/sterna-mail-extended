@@ -19,7 +19,7 @@ class SearchNeverSyncedAccountTest {
 
     /**
      * The plain never-synced case: nothing in the folder cache. The walk falls back to the inbox,
-     * so whatever it finds is what one folder holds — never what the account holds.
+     * so whatever it finds is what one folder holds, never what the account holds.
      */
     @Test fun `an account with no cached folder cannot claim a total, however the walk went`() {
         val known = searchableFolderIds(emptyList())
@@ -40,7 +40,7 @@ class SearchNeverSyncedAccountTest {
         assertFalse(imapSearchComplete(known, walkComplete = true, found = 2, limit = 50))
     }
 
-    /** The witness: an account whose folders ARE cached, walked to the end, under the cap. */
+    /** The witness: an account whose folders are cached, walked to the end, under the cap. */
     @Test fun `an account with its folders cached answers with a total`() {
         val known = searchableFolderIds(folders("i" to "inbox", "a" to "archive", "t" to "trash"))
 
@@ -51,7 +51,10 @@ class SearchNeverSyncedAccountTest {
     // ---- the wiring, read out of the shipped repository ----
 
     /**
-     * The one that cannot be called: the walk runs on the FALLBACK list, and the verdict is
+     * The one that cannot be called: the walk runs on the fallback list, and the verdict is
+     * computed on the cached one. Feed the verdict the fallback instead and it sees a non-empty
+     * folder list, so an account that was searched in its inbox alone reports "2 results" as a
+     * fact about the whole account.
      */
     @Test fun `the completeness verdict is computed from the cached folder list, not from the walked one`() {
         val source = imapSearchBranch()
@@ -77,6 +80,7 @@ class SearchNeverSyncedAccountTest {
 
     /**
      * The far end of the same fallback: not even an inbox id, so the search looked nowhere. The
+     * early return has to carry the incompleteness itself, it never reaches [imapSearchComplete].
      */
     @Test fun `an account with nowhere to search answers incomplete rather than empty`() {
         assertTrue(
@@ -86,7 +90,7 @@ class SearchNeverSyncedAccountTest {
     }
 
     /**
-     * The body of `search(credentials, query, limit)` — up to the unified `search(accounts, …)`
+     * The body of `search(credentials, query, limit)`, up to the unified `search(accounts, …)`
      */
     private fun imapSearchBranch(): String {
         val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt").readText()
@@ -97,7 +101,7 @@ class SearchNeverSyncedAccountTest {
         return source.substring(start, end)
     }
 
-    /** [relative] resolved from the test's working directory, walking up — as [DaoQuerySource] does. */
+    /** [relative] resolved from the test's working directory, walking up, as [DaoQuerySource] does. */
     private fun locate(relative: String): File {
         val fromModule = relative.substringAfter("core/data/")
         var dir: File? = File(System.getProperty("user.dir")).absoluteFile

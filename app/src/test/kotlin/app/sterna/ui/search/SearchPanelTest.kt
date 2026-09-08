@@ -7,6 +7,7 @@ import org.junit.Test
 
 /**
  * The advanced-filter panel can now be dragged from three places instead of one: its handle, the
+ * band above it (title bar and free-text field), and its own body once its scroll has run out.
  */
 class SearchPanelTest {
 
@@ -45,9 +46,9 @@ class SearchPanelTest {
     }
 
     @Test fun `below the flick threshold the answer flips exactly once, at the halfway line`() {
-        // Sweeps the whole travel and asserts the verdict changes sides ONCE and in the right
+        // Sweeps the whole travel and asserts the verdict changes sides once and in the right
         // place. Catches a reversed comparison, a threshold written against the wrong quantity, and
-        // any condition that is not monotonic in how far the panel has come out — none of which a
+        // any condition that is not monotonic in how far the panel has come out, none of which a
         // handful of spot values would necessarily catch.
         val verdicts = (0..400).map { searchPanelSettlesOpen(it.toFloat(), height, velocity = 0f) }
         assertEquals(201, verdicts.count { !it })  // 0..200 shut
@@ -60,11 +61,10 @@ class SearchPanelTest {
         // Before the first layout the height is 0, so the halfway line degenerates to `0 > 0` and a
         // slow release is shut...
         assertFalse(searchPanelSettlesOpen(offsetPx = 0f, panelHeightPx = 0f, velocity = 0f))
-        // ...but a FLICK still wins, because the throw is honoured before any distance is measured.
+        // ...but a flick still wins, because the throw is honoured before any distance is measured.
         assertTrue(searchPanelSettlesOpen(offsetPx = 0f, panelHeightPx = 0f, velocity = 2000f))
 
-        // Not guarded against, on purpose. It is unreachable — a height of 0 means the panel has
-        // not been laid out, and a frame is always laid out before it can be touched — and were it
+        // Not guarded against, on purpose.
     }
 
     // ---- what the panel takes from a drag, and what it hands back ----
@@ -72,7 +72,7 @@ class SearchPanelTest {
     @Test fun `two deltas in a row accumulate`() {
         // The defect this pins: reading the position and applying it were once separated by a
         // coroutine hop, so two touch events drained in one pass of the event loop both measured
-        // from BEFORE either had landed, and the first delta vanished after being reported as
+        // from before either had landed, and the first delta vanished after being reported as
         // consumed. Feeding the result back in is exactly what the caller does.
         var offset = 0f
         offset += searchPanelTakes(offset, height, 30f)

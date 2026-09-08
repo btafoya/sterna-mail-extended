@@ -6,6 +6,7 @@ import app.sterna.core.jmap.OAuthClient
 
 /**
  * Hands out a currently-valid OAuth access token for an account, refreshing it (and
+ * persisting the rotated tokens) when the cached one is within a minute of expiry.
  */
 class OAuthTokenRefresher(
     private val oauthClient: OAuthClient,

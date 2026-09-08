@@ -13,6 +13,8 @@ import java.sql.DriverManager
 
 /**
  * **v22 → v23** ([MIGRATION_22_23]): `outbox` and `scheduled_sends` each gain `draftUidValidity`,
+ * the IMAP numbering the composer read `draftEmailId` under
+ * ([OutboxEntity.draftUidValidity], [ScheduledSendEntity.draftUidValidity]).
  */
 class DraftNumberingMigrationSqlTest {
     private lateinit var db: Connection
@@ -80,7 +82,7 @@ class DraftNumberingMigrationSqlTest {
             }
         } as SupportSQLiteDatabase
 
-    /** The published v15 schema, populated — the state a real install carries before any of this. */
+    /** The published v15 schema, populated, the state a real install carries before any of this. */
     private fun seedPublishedV15() {
         db.createStatement().use { st ->
             st.executeUpdate(publishedEmailsCreate)
@@ -108,7 +110,7 @@ class DraftNumberingMigrationSqlTest {
             )
             st.executeUpdate("INSERT INTO `email_bodies` VALUES ('e1', 'accA', '{}', '{}', 42)")
             // The user data a destructive fallback destroys: a snooze, and above all mail written
-            // and never sent — one row waiting in the outbox, one waiting for its hour. Both were
+            // and never sent, one row waiting in the outbox, one waiting for its hour. Both were
             // edited from a saved draft, which is what this column is about.
             st.executeUpdate("INSERT INTO `snoozed` VALUES ('e2', 'accA', 99999)")
             st.executeUpdate(
@@ -143,7 +145,7 @@ class DraftNumberingMigrationSqlTest {
     }
 
     /**
-     * A REAL v22 database: the published v15 schema, populated, then carried forward by the very
+     * A real v22 database: the published v15 schema, populated, then carried forward by the very
      */
     private fun seedV22() {
         seedPublishedV15()
@@ -159,7 +161,7 @@ class DraftNumberingMigrationSqlTest {
 
     private fun migrate22to23() = MIGRATION_22_23.migrate(supportDb())
 
-    /** A REAL v24 database: [seedV22] carried up by the very migration objects that ship. */
+    /** A real v24 database: [seedV22] carried up by the very migration objects that ship. */
     private fun seedV24() {
         seedV22()
         MIGRATION_22_23.migrate(supportDb())
@@ -175,7 +177,7 @@ class DraftNumberingMigrationSqlTest {
         }
     }
 
-    /** The value of a single-cell query, or null — `getLong` alone reads a SQL NULL as 0. */
+    /** The value of a single-cell query, or null, `getLong` alone reads a SQL NULL as 0. */
     private fun longOrNull(sql: String): Long? = db.createStatement().use { st ->
         st.executeQuery(sql).use { rs ->
             assertTrue("no row for: $sql", rs.next())
@@ -198,7 +200,7 @@ class DraftNumberingMigrationSqlTest {
     }
 
     /**
-     * The DECLARED shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`.
+     * The declared shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`.
      */
     private fun columnShapes(table: String): Map<String, Triple<String, Int, String?>> {
         val shapes = mutableMapOf<String, Triple<String, Int, String?>>()
@@ -227,10 +229,10 @@ class DraftNumberingMigrationSqlTest {
     }
 
     @Test fun v22to23_addsTheColumnToTheScheduledSendsToo() {
-        // The slip this states on its own: a scheduled send waits in ITS table for hours and only
+        // The slip this states on its own: a scheduled send waits in its table for hours and only
         // becomes an outbox row when the worker fires. Without the column here the frozen number is
         // lost in that hand-over, and the destroy goes out blind on a folder that may have been
-        // renumbered meanwhile — expunging another message in Drafts, silently.
+        // renumbered meanwhile, expunging another message in Drafts, silently.
         seedV22()
         migrate22to23()
 
@@ -283,7 +285,7 @@ class DraftNumberingMigrationSqlTest {
         migrate22to23()
 
         // The two rows a destructive fallback destroys silently: a message queued in the outbox and
-        // a message waiting for its hour. Both are mail the user wrote and that never left — and
+        // a message waiting for its hour. Both are mail the user wrote and that never left, and
         // both were edited from a draft, so both carry the id this column belongs to.
         assertEquals(
             1,
@@ -328,9 +330,9 @@ class DraftNumberingMigrationSqlTest {
         seedV22()
         migrate22to23()
 
-        // NULL, deliberately, and NOT backfilled: nobody knows which numbering those rows were
+        // NULL, deliberately, and not backfilled: nobody knows which numbering those rows were
         // enqueued under, and `null` destroys nothing (`UidValidity.destroyableUnderNumbering`).
-        // 0 would be worse than useless — it is a numbering "the server never announced", and a
+        // 0 would be worse than useless, it is a numbering "the server never announced", and a
         // column defaulting to it would look like an answer while meaning "unknown".
         assertNull(longOrNull("SELECT `draftUidValidity` FROM `outbox` WHERE `subject` = 'Never sent'"))
         assertNull(longOrNull("SELECT `draftUidValidity` FROM `scheduled_sends` WHERE `subject` = 'Later'"))
@@ -353,7 +355,7 @@ class DraftNumberingMigrationSqlTest {
         db.createStatement().use { st ->
             st.executeUpdate("UPDATE `scheduled_sends` SET `draftUidValidity` = 4294967295 WHERE `subject` = 'Later'")
         }
-        // A UIDVALIDITY is a 32-bit UNSIGNED integer: the column must hold 4294967295 as itself.
+        // A UIDVALIDITY is a 32-bit unsigned integer: the column must hold 4294967295 as itself.
         assertEquals(
             4294967295L,
             longOrNull("SELECT `draftUidValidity` FROM `scheduled_sends` WHERE `subject` = 'Later'"),
@@ -364,9 +366,9 @@ class DraftNumberingMigrationSqlTest {
         seedV22()
         migrate22to23()
 
-        // The entity field is a `Long?`, so the column must be NULLABLE (`notnull` = 0) with no
-        // default — the shape of `draftEmailId TEXT`, not that of `requestReceipt INTEGER NOT NULL
-        // DEFAULT 0`. Room compares affinity and nullability at open time: NOT NULL here fails
+        // The entity field is a `Long?`, so the column must be nullable (`notnull` = 0) with no
+        // default, the shape of `draftEmailId text`, not that of `requestReceipt integer not NULL
+        // default 0`. Room compares affinity and nullability at open time: not NULL here fails
         // `validateMigration` on every launch, and the user's only way out takes the outbox with it.
         assertEquals(Triple("INTEGER", 0, null), columnShapes("outbox")["draftUidValidity"])
         assertEquals(Triple("INTEGER", 0, null), columnShapes("scheduled_sends")["draftUidValidity"])
@@ -424,7 +426,7 @@ class DraftNumberingMigrationSqlTest {
     }
 
     /**
-     * SOURCE LINT, and the one line every migration in this file depends on: the builder must
+     * Source lint, and the one line every migration in this file depends on: the builder must
      */
     @Test fun theBuilderReallyHandsThatArrayToRoom() {
         val code = STERNA_DATABASE.readText().lines().map { it.trim() }
@@ -439,15 +441,15 @@ class DraftNumberingMigrationSqlTest {
     }
 
     /**
-     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
+     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from, the
      * annotation is not retained at runtime, so it cannot be read reflectively.
      */
     @Test fun theRegisteredMigrationsReachTheDeclaredSchemaVersion() {
         val reached = SternaDatabase.ALL_MIGRATIONS.filter { it.startVersion >= 15 }.maxOf { it.endVersion }
 
         // Bumping the version without registering its step is the destructive case: Room asks for a
-        // path to the declared version and, finding none, drops every table. The converse — a step
-        // registered while the version stays behind — is just as wrong: the step never runs, the
+        // path to the declared version and, finding none, drops every table. The converse, a step
+        // registered while the version stays behind, is just as wrong: the step never runs, the
         // entity declares a column the schema has not got, and validateMigration fails at open.
         assertEquals(
             "the registered chain stops at v$reached while the database declares v$SCHEMA_VERSION",
@@ -516,7 +518,7 @@ class DraftNumberingMigrationSqlTest {
         seedV24()
         migrate24to25()
 
-        // NULL, deliberately, and NOT backfilled with the folder's current numbering: nobody
+        // NULL, deliberately, and not backfilled with the folder's current numbering: nobody
         // knows which numbering those rows were read under, and inventing one would license exactly
         assertNull(longOrNull("SELECT `uidValidity` FROM `emails` WHERE `id` = 'e1'"))
         assertEquals(2, count("SELECT COUNT(*) FROM `emails` WHERE `uidValidity` IS NULL"))
@@ -531,15 +533,15 @@ class DraftNumberingMigrationSqlTest {
         }
 
         assertEquals(42L, longOrNull("SELECT `uidValidity` FROM `emails` WHERE `id` = 'e1'"))
-        // Per ROW, which is the whole point: stamping one row must not answer for its neighbour in
-        // the same folder — that is precisely how two numberings coexist in one list after a
+        // Per row, which is the whole point: stamping one row must not answer for its neighbour in
+        // the same folder, that is precisely how two numberings coexist in one list after a
         // renumbering nothing pruned.
         assertNull(longOrNull("SELECT `uidValidity` FROM `emails` WHERE `id` = 'e2'"))
 
         db.createStatement().use { st ->
             st.executeUpdate("UPDATE `emails` SET `uidValidity` = 4294967295 WHERE `id` = 'e2'")
         }
-        // A UIDVALIDITY is a 32-bit UNSIGNED integer: the column must hold 4294967295 as itself.
+        // A UIDVALIDITY is a 32-bit unsigned integer: the column must hold 4294967295 as itself.
         assertEquals(4294967295L, longOrNull("SELECT `uidValidity` FROM `emails` WHERE `id` = 'e2'"))
     }
 
@@ -547,9 +549,9 @@ class DraftNumberingMigrationSqlTest {
         seedV24()
         migrate24to25()
 
-        // The entity field is a `Long?`, so the column must be NULLABLE (`notnull` = 0) with no
-        // default. Room compares affinity and nullability at open time: NOT NULL here fails
-        // `validateMigration` on every launch, and the user's only way out is a reinstall — which
+        // The entity field is a `Long?`, so the column must be nullable (`notnull` = 0) with no
+        // default. Room compares affinity and nullability at open time: not NULL here fails
+        // `validateMigration` on every launch, and the user's only way out is a reinstall, which
         // takes the outbox, the scheduled sends and the local drafts with it.
         assertEquals(Triple("INTEGER", 0, null), columnShapes("emails")["uidValidity"])
         // The witnesses: a nullable text column beside it, and a non-null one.

@@ -4,14 +4,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * THIS TEST READS SOURCE TEXT — the last resort, for the reason [DeleteWouldDestroyWiringTest]
+ * This test reads source text, the last resort, for the reason [DeleteWouldDestroyWiringTest]
  */
 class MoveToAccountWiringTest {
 
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
-    /** Every CODE line of [text] — comments and blanks dropped, whitespace normalised — so prose
+    /** Every code line of [text] (comments and blanks dropped, whitespace normalised) so prose
      *  can neither satisfy a rule nor break one, and the assertions compare whole lines. */
     private fun codeLines(text: String): List<String> =
         text.lines().map { it.replace(Regex("""\s+"""), " ").trim() }
@@ -24,8 +24,8 @@ class MoveToAccountWiringTest {
     private fun codeLinesNaming(text: String, needle: Regex): List<String> =
         codeLines(text).filter { needle.containsMatchIn(it) }
 
-    /** Any mention of a numbering, under any spelling — the needle [ImapMoveUnderNumberingTest]
-     * invented for this family of mutations, borrowed verbatim. Case-INSENSITIVE on purpose:
+    /** Any mention of a numbering, under any spelling, the needle [ImapMoveUnderNumberingTest]
+     * invented for this family of mutations, borrowed verbatim. Case-insensitive on purpose:
      *  a needle of `"frozen"` misses `FrozenNumbering.…` and `NothingFrozen`, which is most of the
      *  vocabulary this rule now has to see. */
     private val anyNumbering = Regex("(?i)(numbering|validity|frozen|recorded)")
@@ -71,7 +71,7 @@ class MoveToAccountWiringTest {
 
     @Test fun `nothing in the body destroys`() {
         val body = bodyOf("moveToAccount")
-        // The original leaves A through `delete` — the bin, with its own Undo — and through
+        // The original leaves A through `delete` (the bin, with its own Undo) and through
         // nothing else. A destroy here would be the one irreversible step of a gesture whose whole
         // design is that every step can be undone or costs at most a duplicate.
         listOf("destroy", "destroyAll", "evictAll").forEach { forbidden ->
@@ -85,7 +85,7 @@ class MoveToAccountWiringTest {
 
     @Test fun `the append on B is never replayed inside its session`() {
         // Same rule, same reason as appendDraft: a replay of an APPEND whose failure reached us
-        // after the server stored the bytes is TWO copies on B — and then A's original is trashed
+        // after the server stored the bytes is two copies on B, and then A's original is trashed
         // on the strength of one of them. The failure is reported as Failed; nothing retries it.
         val body = DaoQuerySource.mailFunctionBody("ImapMailService", "appendBytes")
         assertEquals(
@@ -115,7 +115,7 @@ class MoveToAccountWiringTest {
     }
 
     /**
-     * The signature, whole and in order — what the tick froze is the LAST parameter and it DEFAULTS
+     * The signature, whole and in order, what the tick froze is the last parameter and it defaults
      */
     @Test fun `the stamp of the tick is the last parameter, and defaults to nothing frozen`() {
         val signature = signatureOf("moveToAccount")
@@ -136,7 +136,7 @@ class MoveToAccountWiringTest {
     }
 
     /**
-     * AND IT REACHES EXACTLY TWO STEPS. A closed list, because both mistakes compile and both
+     * And it reaches exactly two steps. A closed list, because both mistakes compile and both
      */
     @Test fun `the stamp reaches the read and the trash, and no other step`() {
         val body = bodyOf("moveToAccount")
@@ -152,7 +152,7 @@ class MoveToAccountWiringTest {
         )
     }
 
-    /** The declaration lines of [function] — from its `fun` line to the line its body opens on.
+    /** The declaration lines of [function], from its `fun` line to the line its body opens on.
      *  These signatures are written one parameter per line precisely so this can read them. */
     private fun signatureOf(function: String): String {
         val lines = DaoQuerySource.mailSource("MailRepository").lines()

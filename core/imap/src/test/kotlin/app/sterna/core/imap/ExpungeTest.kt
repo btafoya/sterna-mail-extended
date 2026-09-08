@@ -10,7 +10,8 @@ import java.net.SocketTimeoutException
 import java.util.Collections
 
 /**
- * How a permanent purge behaves on a server WITHOUT the UIDPLUS extension, driven against a
+ * How a permanent purge behaves on a server without the UIDPLUS extension, driven against a
+ * scripted server on loopback (Codeberg #99).
  */
 class ExpungeTest {
 
@@ -24,7 +25,7 @@ class ExpungeTest {
     private val flaggedPerServer = mutableMapOf<FakeImapServer, () -> List<Long>>()
 
     /**
-     * A server that either implements UIDPLUS or does not, and — crucially — really keeps track
+     * A server that either implements UIDPLUS or does not, and (crucially) really keeps track
      */
     private fun scriptedServer(
         uidPlus: Boolean,
@@ -49,7 +50,7 @@ class ExpungeTest {
                 }
                 line.startsWith("UID SEARCH DELETED") ->
                     searchResponse(tag, flaggedOnServer.toList() - forgetsFlagsFor)
-                // A server without UIDPLUS does not merely dislike this command — it has never
+                // A server without UIDPLUS does not merely dislike this command, it has never
                 // heard of it, which is exactly how it answers.
                 line.startsWith("UID EXPUNGE") -> if (uidPlus) ok(tag) else "$tag BAD unknown command\r\n"
                 line == "EXPUNGE" -> { flaggedOnServer.clear(); ok(tag) }
@@ -101,7 +102,7 @@ class ExpungeTest {
 
     /**
      * The other half of the decision: nothing foreign is flagged, so the folder can be emptied
-     * for real — with ONE `EXPUNGE`, not one per chunk.
+     * for real, with one `EXPUNGE`, not one per chunk.
      */
     @Test
     fun `a folder flagged by nobody else is emptied with exactly one EXPUNGE`() {
@@ -135,7 +136,7 @@ class ExpungeTest {
             assertTrue("only one chunk: $issued", issued.setsOf("UID STORE").size > 1)
             // `drop(1)`: index 0 is the connect-time question of the RFC 2971 ID command (#173),
             // which every session now puts and which deliberately keeps nothing. What is counted
-            // here is what the PURGE asked — one for the whole purge, not one per chunk.
+            // here is what the purge asked, one for the whole purge, not one per chunk.
             assertEquals(
                 "the capability was asked per chunk: $issued",
                 1,
@@ -146,7 +147,7 @@ class ExpungeTest {
     }
 
     /**
-     * A STRICT SUBSET is a yes. The server reports fewer flagged messages than we flagged — one
+     * A strict subset is a yes. The server reports fewer flagged messages than we flagged, one
      */
     @Test
     fun `a subset of our own flags still allows the purge`() {
@@ -161,7 +162,7 @@ class ExpungeTest {
     }
 
     /**
-     * An empty answer is a no — not because it is unsafe, but because there is nothing left to
+     * An empty answer is a no, not because it is unsafe, but because there is nothing left to
      * erase and the command would be pure noise on the wire.
      */
     @Test
@@ -190,13 +191,15 @@ class ExpungeTest {
             val issued = server.issued()
             assertEquals("a bare EXPUNGE went out: $issued", 0, issued.bareExpunges())
             assertEquals(listOf("UID SEARCH DELETED"), issued.filter { it.startsWith("UID SEARCH") })
-            // Ours are flagged and everybody else's are untouched — 10 001 + 3 still there.
+            // Ours are flagged and everybody else's are untouched, 10 001 + 3 still there.
             assertEquals(10_004, server.stillFlagged().size)
         }
     }
 
     /**
      * Stopping short of the erase does not mean stopping short of the flagging: every message the
+     * caller named is flagged `\Deleted`, and no other. Under a refusal that flag is all the
+     * server is left with, so it had better cover exactly the right messages.
      */
     @Test
     fun `every named message is flagged deleted, and only those`() {
@@ -221,8 +224,8 @@ class ExpungeTest {
 
             val issued = server.issued()
             // CAPABILITY first: every session asks whether the server knows the RFC 2971 ID
-            // command before the caller says anything (#173). That answer is deliberately NOT
-            // kept — see ImapSession.identify — so the second one here really is the delete's.
+            // command before the caller says anything (#173). That answer is deliberately not
+            // kept (see ImapSession.identify) so the second one here really is the delete's.
             assertEquals(listOf("CAPABILITY", """SELECT "Trash"""", "CAPABILITY"), issued.take(3))
             assertEquals("a bare EXPUNGE went out: $issued", 0, issued.bareExpunges())
             // No question to ask: UID EXPUNGE already names its victims.
@@ -235,6 +238,8 @@ class ExpungeTest {
 
     /**
      * A `UID EXPUNGE` refused by a server that DOES advertise UIDPLUS is a failure, not a cue to
+     * reach for the folder-wide command. The destroy worker retries; a repeated destroy costs
+     * nothing, whereas the old recovery cost other people's mail.
      */
     @Test
     fun `a refused UID EXPUNGE fails instead of falling back to the folder`() {
@@ -302,7 +307,7 @@ class ExpungeTest {
 
     /**
      * The response-code form, read off the flattened line because `[` and `]` are not IMAP token
-     * delimiters — the parser hands back `[CAPABILITY` and `UIDPLUS]` as atoms.
+     * delimiters, the parser hands back `[CAPABILITY` and `UIDPLUS]` as atoms.
      */
     @Test
     fun `a CAPABILITY response code is read whole`() {
@@ -358,9 +363,9 @@ class ExpungeTest {
             val issued = server.issued()
             assertEquals("not exactly one EXPUNGE: $issued", 1, issued.bareExpunges())
             // `UID SEARCH DELETED` and not `UID SEARCH`: the identity probe a move now sends
-            // BEFORE each chunk (`UID SEARCH UID <set>`, see MoveConfirmsWhatLeftTheSourceTest)
+            // before each chunk (`UID SEARCH UID <set>`, see MoveConfirmsWhatLeftTheSourceTest)
             // is a different question, asked of a set and not of the folder. What is pinned here
-            // is that the FOLDER-WIDE one still belongs to the operation, not to the chunk.
+            // is that the folder-wide one still belongs to the operation, not to the chunk.
             assertEquals(
                 "DELETED was searched per chunk: $issued",
                 1,
@@ -369,7 +374,7 @@ class ExpungeTest {
         }
     }
 
-    /** With UIDPLUS the copy fallback erases only what it copied — one `UID EXPUNGE` per chunk. */
+    /** With UIDPLUS the copy fallback erases only what it copied, one `UID EXPUNGE` per chunk. */
     @Test
     fun `a move falling back to copy erases by uid when the server can`() {
         scriptedServer(uidPlus = true, flaggedByOthers = listOf(9_000L)).use { server ->
@@ -403,7 +408,7 @@ class ExpungeTest {
             }
 
             val issued = server.issued()
-            // Nothing is flagged, so nothing is asked about the FOLDER's `\Deleted` set and
+            // Nothing is flagged, so nothing is asked about the folder's `\Deleted` set and
             // nothing is purged. The `UID SEARCH UID 1:3` the move sends before the chunk is the
             // source-side observation of [ImapMoved.confirmedGone] and belongs to another file.
             assertTrue("DELETED was searched: $issued", issued.none { it.startsWith("UID SEARCH DELETED") })
@@ -420,6 +425,8 @@ class ExpungeTest {
 
     /**
      * The fallback is for a server that has no MOVE extension, and for nothing else. A server that
+     * advertises MOVE and still refuses the command is reporting a real error (over quota here)
+     * so the refusal must travel up untouched instead of being answered with a copy, a `\Deleted`
      */
     @Test
     fun `a refused move is not answered with a copy when the server advertises MOVE`() {
@@ -450,7 +457,10 @@ class ExpungeTest {
     }
 
     /**
-     * The other half of the same decision, and the path that must NOT move: no MOVE in the
+     * The other half of the same decision, and the path that must not move: no MOVE in the
+     * capability list, so the very same refusal still takes the copy fallback, servers that
+     * answer `UID MOVE` with a flat refusal because they have never heard of it are why the
+     * fallback exists.
      */
     @Test
     fun `a refused move still falls back to copy when the server does not advertise MOVE`() {
@@ -478,6 +488,10 @@ class ExpungeTest {
 
     /**
      * The socket died with the UID MOVE: no tagged completion was ever read, so the server was
+     * never heard refusing anything and the failure is rethrown as it came, no capability is
+     * asked about, no copy is set up. This server volunteers no capability list, so its cache is
+     * cold and the probe could not have been answered either; the twin below takes that excuse
+     * away.
      */
     @Test(timeout = 60_000)
     fun `a move cut mid-command takes no copy fallback on a refusal it never heard`() {
@@ -546,7 +560,7 @@ class ExpungeTest {
     }
 
     /**
-     * Not a refusal but a SILENCE. [ImapSession.command] wraps neither its write nor its read, so
+     * Not a refusal but a silence. [ImapSession.command] wraps neither its write nor its read, so
      */
     @Test(timeout = 60_000)
     fun `a move that runs out its read budget is not answered with a copy`() {

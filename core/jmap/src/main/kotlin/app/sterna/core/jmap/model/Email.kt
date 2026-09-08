@@ -29,7 +29,7 @@ data class EmailBodyPart(
 )
 
     /** A single raw header field of a message (RFC 8621 §4.1.3): its [name] and raw [value], exactly
-     *  as they appear on the wire. Fetched only for the "view headers" action — order and duplicates
+     *  as they appear on the wire. Fetched only for the "view headers" action, order and duplicates
      *  are preserved by requesting the `headers` property. */
 @Serializable
 data class EmailHeader(
@@ -69,13 +69,13 @@ data class Email(
     val receivedAt: String? = null,
     val from: List<EmailAddress> = emptyList(),
         /**
-         * `Reply-To` (RFC 5322 §3.6.2) — where the sender says an answer must go when that is not
+         * `Reply-To` (RFC 5322 §3.6.2), where the sender says an answer must go when that is not
          */
     val replyTo: List<EmailAddress> = emptyList(),
     val to: List<EmailAddress> = emptyList(),
     val cc: List<EmailAddress> = emptyList(),
         /** The blind copies (needed to reopen a draft for editing, #63). Asked of the server by the
-         *  body fetch AND the three list property sets, like [cc] and [replyTo]: the cache's `@Upsert`
+         *  body fetch and the three list property sets, like [cc] and [replyTo]: the cache's `@Upsert`
          *  replaces the row whole, so a list fetch omitting it would erase the body fetch's column. */
     val bcc: List<EmailAddress> = emptyList(),
     val messageId: List<String> = emptyList(),
@@ -89,15 +89,15 @@ data class Email(
     val attachments: List<EmailBodyPart> = emptyList(),
     val bodyValues: Map<String, EmailBodyValue> = emptyMap(),
         /** All header fields in their original order (duplicates kept), populated only when the
-         *  `headers` property is explicitly requested — the reader's "view headers" action (#60).
+         *  `headers` property is explicitly requested, the reader's "view headers" action (#60).
          *  Empty for every normal fetch. */
     val headers: List<EmailHeader> = emptyList(),
         /**
-         * `List-Unsubscribe` (RFC 2369), raw, requested only by the two body-bearing fetches. The
+         * `List-Unsubscribe` (RFC 2369), raw, requested only by the two body-bearing fetches.
          */
     @SerialName("header:List-Unsubscribe:asText")
     val listUnsubscribe: String? = null,
-    /** `List-Unsubscribe-Post` (RFC 8058) — the sender's promise that a bare POST is enough. */
+    /** `List-Unsubscribe-Post` (RFC 8058), the sender's promise that a bare POST is enough. */
     @SerialName("header:List-Unsubscribe-Post:asText")
     val listUnsubscribePost: String? = null,
         /**
@@ -106,7 +106,7 @@ data class Email(
     @SerialName("header:Disposition-Notification-To:asText")
     val dispositionNotificationTo: String? = null,
         /**
-         * Who a forwarding service says really wrote this message, already decoded and filtered — read
+         * Who a forwarding service says really wrote this message, already decoded and filtered, read
          */
     val originalSender: String? = null,
 ) {
@@ -117,7 +117,7 @@ data class Email(
     val isFlagged: Boolean get() = keywords["\$flagged"] == true
 
         /** Whether this is a draft ($draft keyword). A trashed draft keeps the keyword even though it
-         *  has left the Drafts folder, so the row can flag it as a draft anywhere it surfaces —
+         *  has left the Drafts folder, so the row can flag it as a draft anywhere it surfaces;
          *  otherwise it is indistinguishable from a sent mail (#69). */
     val isDraft: Boolean get() = keywords["\$draft"] == true
 
@@ -149,7 +149,7 @@ data class Email(
         )
     }
 
-        /** Calendar invite parts (text/calendar, e.g. a meeting REQUEST) that can be fetched. Surfaced
+        /** Calendar invite parts (text/calendar, e.g. a meeting request) that can be fetched. Surfaced
          *  as an event preview card, not as a plain attachment row (see [fileAttachmentParts]). */
     fun calendarParts(): List<EmailBodyPart> =
         attachments.filter {

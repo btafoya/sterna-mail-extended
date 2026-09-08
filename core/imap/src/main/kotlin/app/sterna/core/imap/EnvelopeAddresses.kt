@@ -1,7 +1,7 @@
 package app.sterna.core.imap
 
     /**
-     * One envelope address list — slot 4 (`reply-to`), 5 (`to`), 6 (`cc`) or 7 (`bcc`) of an ENVELOPE
+     * One envelope address list, slot 4 (`reply-to`), 5 (`to`), 6 (`cc`) or 7 (`bcc`) of an ENVELOPE
      */
 internal fun envelopeAddresses(entries: List<Any?>?): List<ImapAddress> {
     val parsed = entries.orEmpty().map(::parseEnvelopeEntry)
@@ -13,7 +13,7 @@ internal fun envelopeAddresses(entries: List<Any?>?): List<ImapAddress> {
             continue
         }
             // Neither an address nor a name: a delimiter, or something malformed. The only one worth
-            // an entry is a group start that no member follows — a group naming nobody. "No member
+            // an entry is a group start that no member follows, a group naming nobody. "No member
             // follows" covers a group end, the end of the list, and another group start;
             // `parsed[index + 1]` is null both past the end and for a token that is not an address.
         if (entry.isGroupStart && parsed.getOrNull(index + 1)?.isMember != true) {

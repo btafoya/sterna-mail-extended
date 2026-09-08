@@ -79,7 +79,7 @@ private fun comparePath(a: List<String>, b: List<String>, collator: Collator): I
     return a.size - b.size
 }
 
-/** The ancestors of [mailbox], outermost first — empty at the root. On IMAP read off the id,
+/** The ancestors of [mailbox], outermost first, empty at the root. On IMAP read off the id,
  *  never resolved as mailboxes: a `\Noselect` parent is absent yet still contains its children. */
 internal fun mailboxAncestors(mailbox: Mailbox, mailboxes: List<Mailbox>): List<String> {
     val (chain, _) = parentNameChain(mailbox, mailboxes)
@@ -88,7 +88,7 @@ internal fun mailboxAncestors(mailbox: Mailbox, mailboxes: List<Mailbox>): List<
     return parentPath.split(delimiter).filter { it.isNotEmpty() }
 }
 
-/** The path a server-side rule must name to file mail into [mailbox] — a Sieve `fileinto` value,
+/** The path a server-side rule must name to file mail into [mailbox], a Sieve `fileinto` value,
  *  never translated, and whole: a leaf alone names the wrong folder as soon as two share it. Null
  *  when it cannot be named with certainty. */
 internal fun mailboxFilePath(mailbox: Mailbox, mailboxes: List<Mailbox>): String? {
@@ -115,11 +115,11 @@ internal fun mailboxPathLabel(mailbox: Mailbox, mailboxes: List<Mailbox>): Strin
     return elideOutermost(ancestors)
 }
 
-/** Separator assumed between two segments of a JMAP mailbox path on the wire. Not established —
- *  JMAP has no path syntax — and unverified against a live server; single place to change. */
+/** Separator assumed between two segments of a JMAP mailbox path on the wire. Not established:
+ *  JMAP has no path syntax, and unverified against a live server; single place to change. */
 private const val JMAP_PATH_SEPARATOR = "/"
 
-/** Separator between two ancestors on screen — spaced, so it cannot be read as part of a name. */
+/** Separator between two ancestors on screen, spaced, so it cannot be read as part of a name. */
 private const val PATH_LABEL_SEPARATOR = " / "
 
 private const val ELLIPSIS = "…"
@@ -170,7 +170,7 @@ private fun parentNameChain(
     return chain.toList() to false
 }
 
-/** The parent path an IMAP id carries, with its delimiter — null when the id is not a path. The
+/** The parent path an IMAP id carries, with its delimiter, null when the id is not a path. The
  *  delimiter is read off the id, not guessed: "Foo/Bar" on a dot-delimited server would be cut. */
 private fun imapParentPath(mailbox: Mailbox): Pair<String, Char>? {
     val id = mailbox.id
@@ -181,13 +181,13 @@ private fun imapParentPath(mailbox: Mailbox): Pair<String, Char>? {
     return id.take(id.length - name.length - 1).takeIf { it.isNotEmpty() }?.let { it to delimiter }
 }
 
-/** The roles [mailboxDisplayName] answers with a localized label — keep the two in step. */
+/** The roles [mailboxDisplayName] answers with a localized label, keep the two in step. */
 private val TRANSLATED_ROLES = setOf(
     "inbox", "archive", "drafts", "sent", "junk", "trash", "all", "flagged", "important",
 )
 
 /** Drop control characters and bidi overrides from a path segment about to be shown: IMAP filters
- *  the folder name (#101) but not the path. Duplicated — the original is internal to `:core:imap`. */
+ *  the folder name (#101) but not the path. Duplicated, the original is internal to `:core:imap`. */
 private fun stripBidiAndControls(s: String): String = s.filterNot { c ->
     val code = c.code
     (code in 0x00..0x08) || (code in 0x0B..0x1F) || (code in 0x7F..0x9F) ||
@@ -208,7 +208,7 @@ internal fun filterFolderRows(rows: List<FolderPickerRow>, query: String): List<
     }
 }
 
-// ── a move into ANOTHER account's folder (#189) ───────────────────────────────────────────────
+// ── a move into another account's folder (#189) ───────────────────────────────────────────────
 
 /** The account whose folders the picker lists: the one chosen on its account row, else the owner,
  *  so [moveTargets] is handed one account's list (#92). */
@@ -239,7 +239,7 @@ internal enum class CrossAccountOutcome { ALL_MOVED, SOME_COPIED_NOT_REMOVED, PA
 
 /** Which banner: a copy whose original stayed wins over a failure, then a batch where nothing was
  * confirmed written on B, then a partial failure, then "all moved". The existential branch must
- * come after the total one, and [results] must be non-empty — `all {}` is true of nothing. */
+ * come after the total one, and [results] must be non-empty, `all {}` is true of nothing. */
 internal fun crossAccountBanner(results: List<CrossAccountMove>, skipped: Int): CrossAccountOutcome = when {
     results.any { it is CrossAccountMove.CopiedNotRemoved } -> CrossAccountOutcome.SOME_COPIED_NOT_REMOVED
     results.isNotEmpty() && results.all { it is CrossAccountMove.Failed } -> CrossAccountOutcome.ALL_FAILED
@@ -248,7 +248,7 @@ internal fun crossAccountBanner(results: List<CrossAccountMove>, skipped: Int): 
 }
 
 /** Which keys of a cross-account move go back under the tick (#189): every key whose verdict wrote
- * nothing on B and whose row is still in [cached]. "Nothing on B", not "stayed on A" — a
+ * nothing on B and whose row is still in [cached]. "Nothing on B", not "stayed on A", a
  * CopiedNotRemoved handed back would be copied to B twice. Indexed on the verdict. */
 internal fun crossAccountGiveBack(
     outcomes: Map<EmailKey, CrossAccountMove>,
@@ -279,7 +279,7 @@ internal fun crossAccountSelectionPlural(outcome: CrossAccountOutcome): Int? = w
     CrossAccountOutcome.PARTLY_FAILED, CrossAccountOutcome.ALL_FAILED -> null
 }
 
-/** The plain line a selection's banner ends on when the batch did not go through whole — null for
+/** The plain line a selection's banner ends on when the batch did not go through whole, null for
  * the two that count. Two outcomes, two sentences, never one branch: "some messages couldn't be
  *  processed" over a batch where nothing moved claims part of it travelled, and there is no Undo. */
 @StringRes
@@ -289,7 +289,7 @@ internal fun crossAccountSelectionFailedRes(outcome: CrossAccountOutcome): Int? 
     CrossAccountOutcome.ALL_MOVED, CrossAccountOutcome.SOME_COPIED_NOT_REMOVED -> null
 }
 
-/** The translated name of a folder with a role, or null for one called by its own name — the rule
+/** The translated name of a folder with a role, or null for one called by its own name, the rule
  *  behind `mailboxDisplayName` (composition) and `mailboxLabel` (ViewModel). */
 @StringRes
 internal fun mailboxRoleNameRes(role: String?): Int? = when (role) {
@@ -305,6 +305,6 @@ internal fun mailboxRoleNameRes(role: String?): Int? = when (role) {
     else -> null
 }
 
-/** [mailboxDisplayName] outside composition — how the ViewModel's banners name a folder. */
+/** [mailboxDisplayName] outside composition, how the ViewModel's banners name a folder. */
 internal fun mailboxLabel(context: Context, role: String?, name: String): String =
     mailboxRoleNameRes(role)?.let(context::getString) ?: name

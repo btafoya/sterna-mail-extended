@@ -10,13 +10,14 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The per-sender filter rule offered from the message being read (the ⋮ of the SENDER's row in
+ * The per-sender filter rule offered from the message being read (the ⋮ of the sender's row in
+ * the participants panel).
  */
 class SenderRuleFromReaderTest {
 
     private val address = "news@example.com"
 
-    /** The account doing the reading — an identity and an alias, as a two-alias account has. */
+    /** The account doing the reading, an identity and an alias, as a two-alias account has. */
     private val own = listOf("alex.rivera@masto.top", "alex@alias.example")
 
     private fun ruled(vararg addresses: String) = FilterRulesState.Loaded(
@@ -43,7 +44,7 @@ class SenderRuleFromReaderTest {
     }
 
     @Test fun `a recipient does not`() {
-        // A rule on FROM aimed at someone who was only in To or Cc is a rule about mail that
+        // A rule on from aimed at someone who was only in To or Cc is a rule about mail that
         // person has not sent. The panel lists all three groups with the same row, so the group
         // is an argument of the decision and not "whichever group happened to get a callback".
         assertEquals(SenderRuleEntry.ABSENT, entry(isSender = false))
@@ -60,7 +61,10 @@ class SenderRuleFromReaderTest {
 
     @Test fun `the reader is never offered a rule against itself`() {
         // R6, seen on a device (banc-1.4.8.md § 4): a message opened from the Sent folder carries
-        // the account's own identity in From, the entry was ACTIVE on it, and the dialog it
+        // the account's own identity in From, the entry was active on it, and the dialog it
+        // opened read "send future mail from alex.rivera@masto.top to the Trash?", about the
+        // very account reading it. The rule files away every message that account sends itself,
+        // and every reply a mailing list echoes back, marked read, for ever.
         assertEquals(SenderRuleEntry.ABSENT, entry(address = "alex.rivera@masto.top"))
         assertEquals(
             "an alias of the account is just as much oneself",
@@ -75,9 +79,9 @@ class SenderRuleFromReaderTest {
     }
 
     @Test fun `no state of the account's script brings the entry back on one's own address`() {
-        // The refusal is asked BEFORE anything the server said, so nothing the server says can
-        // undo it — not a script nobody read, not an unreachable one, not another script running.
-        // If any of these ever reads OFFERED, the gesture is on offer against oneself again.
+        // The refusal is asked before anything the server said, so nothing the server says can
+        // undo it, not a script nobody read, not an unreachable one, not another script running.
+        // If any of these ever reads offered, the gesture is on offer against oneself again.
         val states = listOf(
             SenderScript.Unread,
             SenderScript.Unreachable,
@@ -93,14 +97,14 @@ class SenderRuleFromReaderTest {
     }
 
     @Test fun `a From with no address at all has nothing to rule on`() {
-        // A From: carrying only a display name maps to email = "" (EmailMapper). `FROM :is ""`
+        // A From: carrying only a display name maps to email = "" (EmailMapper). `from :is ""`
         // is a rule about nobody: no mail matches it, nothing reads it back, and it stays in the
         // account's script.
         assertEquals(SenderRuleEntry.ABSENT, entry(address = ""))
         assertEquals(SenderRuleEntry.ABSENT, entry(address = "   "))
     }
 
-    // -- the noes that ARE about the account ----------------------------------------------------
+    // -- the noes that are about the account ----------------------------------------------------
 
     @Test fun `no Trash to name, and no server support, take the entry away`() {
         // The screen's own two silences, kept: with nothing to file the mail into there is
@@ -117,7 +121,7 @@ class SenderRuleFromReaderTest {
     }
 
     @Test fun `the address is matched the way the rule matches it`() {
-        // alreadyBlocked compares FROM/IS rules case-insensitively, which is how the per-sender
+        // alreadyBlocked compares from/IS rules case-insensitively, which is how the per-sender
         // screen groups. A second identical rule would file the same mail twice.
         assertEquals(SenderRuleEntry.ALREADY_RULED, entry(script = read(ruled("News@Example.com"))))
         assertEquals(
@@ -128,7 +132,7 @@ class SenderRuleFromReaderTest {
     }
 
     @Test fun `another Sieve script greys the entry instead of hiding it`() {
-        // The one place this location beats the list row: the reason can be SAID. On the
+        // The one place this location beats the list row: the reason can be said. On the
         // per-sender screen the entry disappears with no word anywhere; here it stays, disabled,
         // wearing the reason.
         val entry = entry(
@@ -142,7 +146,7 @@ class SenderRuleFromReaderTest {
         // Both true at once. Neither branch writes anything, so they differ only in what the
         // reader is told, and "another script is active" on an address that is already handled
         // reports an obstacle where there is none. Same order as addBlockRule's, and for the
-        // same reason (that one went red with "expected:<ALREADY_PRESENT> but was:<FAILED>").
+        // same reason (that one went red with "expected:<ALREADY_PRESENT> but was:<failed>").
         assertEquals(
             SenderRuleEntry.ALREADY_RULED,
             entry(
@@ -156,13 +160,13 @@ class SenderRuleFromReaderTest {
     // -- "not asked yet" and "asked, no answer" are two different states -------------------------
 
     @Test fun `a script nobody has read yet holds the entry back`() {
-        // The other half of R6: "not read" and "the read failed" were ONE null state, and the
-        // entry was offered in both. Before the panel's read answers, nothing is known — whether
+        // The other half of R6: "not read" and "the read failed" were one null state, and the
+        // entry was offered in both. Before the panel's read answers, nothing is known, whether
         assertEquals(SenderRuleEntry.ABSENT, entry(script = SenderScript.Unread))
     }
 
     @Test fun `a read that got no answer leaves the entry offered`() {
-        // And this is the state that must NOT be hidden — which is the whole reason the two are
+        // And this is the state that must not be hidden, which is the whole reason the two are
         // told apart. Hiding the entry offline makes an unreachable server look like an IMAP
         assertEquals(SenderRuleEntry.OFFERED, entry(script = SenderScript.Unreachable))
         assertEquals(
@@ -174,14 +178,16 @@ class SenderRuleFromReaderTest {
 
     @Test fun `the offered entry wears the gesture's own words, which are not the unsubscribe's`() {
         // The distinction the two menus are two taps apart on the same message: "Unsubscribe"
-        // ASKS the sender to stop and depends on their goodwill; this one asks nobody — the
+        // Asks the sender to stop and depends on their goodwill; this one asks nobody, the
         // server applies it, to anyone. They must not be able to read as the same thing.
         assertEquals(app.sterna.R.string.sender_volume_block, senderRuleLabel(SenderRuleEntry.OFFERED))
         assertEquals(app.sterna.R.string.sender_volume_block, senderRuleLabel(SenderRuleEntry.ABSENT))
     }
 
     /**
-     * SOURCE LINT, and the only one here. What it covers cannot be reached from the JVM: the
+     * Source lint, and the only one here. What it covers cannot be reached from the JVM: the
+     * decision's arguments at the call site, and the fact that the confirmation stands between
+     * the entry and the write.
      */
     @Test fun `the panel calls the decision with the row's own group and address`() {
         val screen = SOURCE.readText()
@@ -232,11 +238,11 @@ class SenderRuleFromReaderTest {
     }
 
     /**
-     * Both rules below were written after WATCHING their mutation survive the whole campaign.
+     * Both rules below were written after watching their mutation survive the whole campaign.
      */
     @Test fun `opening the panel is what reads the account's script`() {
         // The mutation that survived: delete the one line that arms the read. The state then
-        // stays Unread for ever — which now HIDES the entry instead of offering it wrongly, so
+        // stays Unread for ever, which now hides the entry instead of offering it wrongly, so
         // the gesture disappears with no word anywhere, and every test above goes on passing
         // because each of them hands the decision a state directly.
         val screen = SOURCE.readText()
@@ -282,8 +288,8 @@ class SenderRuleFromReaderTest {
     }
 
     @Test fun `the account's own addresses are re-read for every message the pager lands on`() {
-        // The reader crosses ACCOUNTS in the unified inbox. Own addresses read once, or read
-        // late, are the PREVIOUS account's — and "is this me?" answered with somebody else's
+        // The reader crosses accounts in the unified inbox. Own addresses read once, or read
+        // late, are the PREVIOUS account's, and "is this me?" answered with somebody else's
         // identities is the state R6 was found in. ReaderStateResetOnLoadTest holds the general
         // rule; this one holds what the value must be.
         val vm = VIEW_MODEL.readText()
@@ -304,10 +310,10 @@ class SenderRuleFromReaderTest {
 
     @Test fun `the confirmation names the address it is about to file`() {
         // The other survivor: keep the dialog, keep its title, drop the address it interpolates.
-        // The reader is then asked to confirm a rule about nobody in particular — on a panel
+        // The reader is then asked to confirm a rule about nobody in particular, on a panel
         // that lists several people, one row apart.
         //
-        // NOT pinned here, and it took a mutation to notice: WHICH of the dialog's two action
+        // Not pinned here, and it took a mutation to notice: which of the dialog's two action
         // slots the write leaves from. The rules below read the file as one string, so swapping
         val screen = SOURCE.readText()
         assertTrue(
@@ -320,7 +326,7 @@ class SenderRuleFromReaderTest {
                 "labels rather than an English path typed into nine translations",
             "R.string.sender_volume_block_body," in screen,
         )
-        // ORDERED. The three ids used to be checked with three unordered `in`: swapping the two
+        // Ordered. The three ids used to be checked with three unordered `in`: swapping the two
         // argument lines kept all three true, and the sentence that tells the reader how to undo
         assertTrue(
             "…and in the order the sentence reads: %1\$s is the settings entry, %2\$s the " +
@@ -331,7 +337,7 @@ class SenderRuleFromReaderTest {
 
     @Test fun `the reader's write path is addBlockRule, with a read taken at the moment of writing`() {
         // Same rule as the per-sender screen's, for the same reason: saveFilterRules rewrites the
-        // WHOLE script, so a save built on anything but a fresh successful read deletes the
+        // whole script, so a save built on anything but a fresh successful read deletes the
         // account's filters instead of adding one. And the foreign-script refusal lives inside
         // addBlockRule, where no caller can pass an argument that switches it off.
         val vm = VIEW_MODEL.readText()
@@ -359,7 +365,10 @@ class SenderRuleFromReaderTest {
 
     private companion object {
         /**
-         * The two arguments of a "Settings → Filters" sentence, IN THAT ORDER, each alone on its
+         * The two arguments of a "Settings → Filters" sentence, in that order, each alone on its
+         * own line, the same rule as `MailBySenderWiringTest.PATH_ARGS`, stated here because
+         * this is a different screen's copy of the same dialog and it had the same hole. Whole
+         * lines: a containment check is blind to anything appended to an argument.
          */
         val PATH_ARGS = Regex(
             """\n[ \t]*stringResource\(R\.string\.inbox_settings\),[ \t]*""" +

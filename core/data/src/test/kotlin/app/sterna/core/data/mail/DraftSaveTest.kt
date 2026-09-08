@@ -89,7 +89,7 @@ class DraftSaveTest {
     }
 
     /**
-     * A replacement that never left, every other leg green — and the original still stands.
+     * A replacement that never left, every other leg green, and the original still stands.
      */
     @Test fun aReplacementThatNeverLeftProvesNothingAndKeepsTheOriginal() {
         assertFalse(
@@ -103,7 +103,7 @@ class DraftSaveTest {
     }
 
     /**
-     * THE cheap half of the same damage, and the one no other leg can catch: a draft with NO
+     * The cheap half of the same damage, and the one no other leg can catch: a draft with NO
      */
     @Test fun `a replacement that never left keeps the original even with nothing to count`() {
         assertFalse(
@@ -133,7 +133,7 @@ class DraftSaveTest {
     // ---- draftAddressingIsCarried: the unknown, and the inclusion ----
 
     /**
-     * THE distinction of this fix, half one. `null` = the addressing could NOT be established
+     * The distinction of this fix, half one. `null` = the addressing could not be established
      */
     @Test fun anAddressingThatCouldNotBeReadIsNotAnEmptyOne() {
         assertFalse(draftAddressingIsCarried(original = null, replacement = emptySet()))
@@ -146,7 +146,7 @@ class DraftSaveTest {
     }
 
     /**
-     * THE distinction of this fix, half two, and deliberately a SEPARATE test from the one
+     * The distinction of this fix, half two, and deliberately a separate test from the one
      */
     @Test fun anAddressingReadAsEmptyIsCarriedByAnything() {
         assertTrue(draftAddressingIsCarried(original = emptySet(), replacement = emptySet()))
@@ -179,7 +179,7 @@ class DraftSaveTest {
     }
 
     /**
-     * The inclusion runs ONE way: original ⊆ replacement. A replacement that ADDED an address
+     * The inclusion runs one way: original ⊆ replacement. A replacement that added an address
      */
     @Test fun anAddressAddedByTheUserStillCarriesTheOriginal() {
         assertTrue(
@@ -208,7 +208,7 @@ class DraftSaveTest {
     // ---- draftReplacementAddressing: what the replacement may offer as proof (2026-08-25) ----
 
     /**
-     * THE test of this volet, and it EXECUTES the decision rather than reading the call site.
+     * The test of this volet, and it executes the decision rather than reading the call site.
      */
     @Test fun aBlindCopyIsCarriedByTheReplacementsOwnBcc() {
         assertTrue(
@@ -223,7 +223,7 @@ class DraftSaveTest {
     }
 
     /**
-     * The safe direction, unchanged: a replacement whose Bcc came back EMPTY (the reopen gave
+     * The safe direction, unchanged: a replacement whose Bcc came back empty (the reopen gave
      */
     @Test fun aReplacementWithNoBccDoesNotCarryABlindCopy() {
         assertFalse(
@@ -271,7 +271,7 @@ class DraftSaveTest {
         assertFalse("nothing to replace must not cost a server round trip", read)
     }
 
-    /** The id being replaced is the one whose addressing is read — not some other draft's. */
+    /** The id being replaced is the one whose addressing is read, not some other draft's. */
     @Test fun theAddressingIsReadForTheDraftBeingReplaced() = runTest {
         val asked = mutableListOf<String>()
         val carried = draftAddressingIsCarried(
@@ -325,7 +325,7 @@ class DraftSaveTest {
         )
     }
 
-    /** A draft with no copied parties at all is still replaced in place — one draft, not two. */
+    /** A draft with no copied parties at all is still replaced in place, one draft, not two. */
     @Test fun aDraftWithNoCopiedPartiesIsStillReplacedInPlace() = runTest {
         val carried = draftAddressingIsCarried(
             replacesEmailId = "imap:acct:Drafts:42",
@@ -344,7 +344,11 @@ class DraftSaveTest {
     }
 
     /**
-     * The EMPTYING gestures (#69 × #95) ask THIS question, with an empty replacement — the
+     * The emptying gestures (#69 × #95) ask THIS question, with an empty replacement, the
+     * composer has just been emptied, so it offers nothing at all, and read the answer as "was the
+     * original provably copied to nobody?". `MailRepository.emptiedDraftAddressingIsProvenEmpty` is
+     * the one line of wiring between the two, pinned by [DraftAddressingWiringTest] because nothing
+     * here can instantiate the repository; the decision is this, and it is executed.
      */
     @Test fun theEmptyingProvesAnEmptyAddressingOnlyWhenTheServerSaidSo() = runTest {
         val reads = listOf<suspend (String) -> Set<String>?>(
@@ -383,7 +387,7 @@ class DraftSaveTest {
     }
 
     /**
-     * The entry the server hands back with no address at all — measured on the bench, a server
+     * The entry the server hands back with no address at all, measured on the bench, a server
      */
     @Test fun theOnlyEntryBeingUnreadableIsUnknownAndNotAnEmptyAddressing() {
         val read = copiedAddressesOrNull(listOf(ImapAddress(name = "aa", email = null)))
@@ -413,6 +417,7 @@ class DraftSaveTest {
 
     /**
      * `Cc: undisclosed-recipients:;`, the entry the envelope parser now produces for it, and the
+     * decision that follows, executed, not described.
      */
     @Test fun aCcThatIsOnlyAGroupNamingNobodyKeepsTheServerCopy() {
         val read = copiedAddressesOrNull(
@@ -434,14 +439,18 @@ class DraftSaveTest {
     // ---- draftReceiptRequestIsCarried: the same rule, for the read receipt (D2) ---------------
 
     /**
-     * THE distinction, half one, and the reason this field could not be in the guard before the
+     * The distinction, half one, and the reason this field could not be in the guard before the
+     * header could be read: `null` = could not be established. Not "asks for nothing".
      */
     @Test fun aReceiptRequestThatCouldNotBeReadIsNotTheAbsenceOfOne() {
         assertFalse(draftReceiptRequestIsCarried(original = null, replacement = false))
     }
 
     /**
-     * …and the limit of that conservatism: when the REPLACEMENT asks for a receipt, nothing the
+     * …and the limit of that conservatism: when the replacement asks for a receipt, nothing the
+     * original held can be lost, whatever it held. Answering false there would leave a duplicate
+     * in Drafts on every save of a draft that asks for one, the very thing this guard is supposed
+     * to stop doing to ordinary drafts.
      */
     @Test fun aReplacementThatAsksForOneCarriesAnythingIncludingAnUnknown() {
         assertTrue(draftReceiptRequestIsCarried(original = null, replacement = true))
@@ -461,7 +470,7 @@ class DraftSaveTest {
         assertFalse(draftReceiptRequestIsCarried(original = true, replacement = false))
     }
 
-    /** And the ordinary case, which must NOT leave a duplicate behind. */
+    /** And the ordinary case, which must not leave a duplicate behind. */
     @Test fun aReceiptRequestStillAskedForIsCarried() {
         assertTrue(draftReceiptRequestIsCarried(original = true, replacement = true))
     }
@@ -526,7 +535,7 @@ class DraftSaveTest {
         )
     }
 
-    /** A server that will not serve the header answers null — likewise unknown. */
+    /** A server that will not serve the header answers null, likewise unknown. */
     @Test fun aServerThatCannotAnswerLeavesTheOriginalAlone() = runTest {
         assertFalse(
             draftReceiptRequestIsCarried(

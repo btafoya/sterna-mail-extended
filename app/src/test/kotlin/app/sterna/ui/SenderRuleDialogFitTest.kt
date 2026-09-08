@@ -6,19 +6,20 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE + RESOURCE LINT, NOT A BEHAVIOUR TEST — and this file says so first because the defect it
+ * Source + resource lint, not a behaviour test, and this file says so first because the defect it
+ * guards is a layout one, which nothing in this repo can measure.
  */
 class SenderRuleDialogFitTest {
 
     /**
-     * ≈ 14 characters is one line of a dialog action at the largest font scale — see the second
+     * ≈ 14 characters is one line of a dialog action at the largest font scale, see the second
      */
     private val maxActionLabelChars = 14
 
     @Test fun `every confirmation is found, with both of its action slots`() {
         // The rule that keeps every other rule in this file honest. Each of the assertions below
         // reads slots out of a dialog located by its title string; if a dialog moves, is renamed,
-        // or loses a slot, the extraction must fail LOUDLY here rather than quietly asserting over
+        // or loses a slot, the extraction must fail loudly here rather than quietly asserting over
         // an empty string somewhere else.
         assertEquals(
             "each confirmation that writes to the server must be found by its own title string",
@@ -38,7 +39,7 @@ class SenderRuleDialogFitTest {
     }
 
     /**
-     * Which slot WRITES. The one rule in this file that is not about layout, and the worst
+     * Which slot writes. The one rule in this file that is not about layout, and the worst
      */
     @Test fun `the write leaves from the confirm slot of every confirmation, and the dismiss slot writes nothing`() {
         DIALOGS.forEach { dialog ->
@@ -65,7 +66,7 @@ class SenderRuleDialogFitTest {
     }
 
     /**
-     * The rule that makes the length rule mean anything: an action label is ONE WHOLE STRING
+     * The rule that makes the length rule mean anything: an action label is one whole string
      */
     @Test fun `each action label of every confirmation is one whole string resource`() {
         DIALOGS.forEach { dialog ->
@@ -85,7 +86,7 @@ class SenderRuleDialogFitTest {
         DIALOGS.forEach { dialog ->
             listOf("confirmButton", "dismissButton").forEach { slot ->
                 actionLabelIds(dialog, slot).forEach { id ->
-                    // FAIL CLOSED. This read used to be `texts[id] ?: return@forEach`: an id the
+                    // Fail closed. This read used to be `texts[id] ?: return@forEach`: an id the
                     // string map does not resolve was measured by nothing, silently, at any
                     val absent = strings.filterValues { id !in it }.keys
                     if (absent.isNotEmpty()) {
@@ -123,13 +124,14 @@ class SenderRuleDialogFitTest {
 
     /**
      * Defect (B): Material's `text` slot is a height-bounded box with no scrolling of its own,
+     * and a bare `Text` in it is CLIPPED, not ellipsised, not scrollable, just cut.
      */
     @Test fun `the body of every confirmation scrolls instead of being clipped`() {
         DIALOGS.forEach { dialog ->
             val body = namedLambda(dialogSource(dialog), "text")
             val lines = body.lines().map { it.trim() }
             // Written after watching the mutation survive, twice: `maxLines = 3` next to the scroll
-            // modifier left this rule green and the body clipped at three lines again — the exact
+            // modifier left this rule green and the body clipped at three lines again, the exact
             assertEquals(
                 "${dialog.name}'s body must bound its text NOWHERE ELSE: a maxLines or " +
                     "an overflow beside the scroll modifier clips the sentence again, and the " +
@@ -165,7 +167,7 @@ class SenderRuleDialogFitTest {
     }
 
     /**
-     * The string ids [slot] of [file]'s rule dialog uses as labels — with the SHAPE of each label
+     * The string ids [slot] of [file]'s rule dialog uses as labels, with the shape of each label
      */
     private fun actionLabelIds(dialog: Confirmation, slot: String): List<String> {
         val lambda = namedLambda(dialogSource(dialog), slot)
@@ -229,7 +231,7 @@ class SenderRuleDialogFitTest {
     }
 
     /** The file with its comment lines and trailing comments removed, so no rule here can be
-     *  satisfied — or defeated — by prose. */
+     *  satisfied (or defeated) by prose. */
     private fun code(file: File): String = file.readLines().mapNotNull { line ->
         val trimmed = line.trimStart()
         if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) null
@@ -269,7 +271,7 @@ class SenderRuleDialogFitTest {
 
     private companion object {
         /**
-         * A `<string>` with its text — attributes ALLOWED, as `TranslationParityTest` reads them.
+         * A `<string>` with its text, attributes allowed, as `TranslationParityTest` reads them.
          */
         val STRING = Regex("""<string\s+name="([^"]+)"[^>]*>(.*?)</string>""", RegexOption.DOT_MATCHES_ALL)
 
@@ -277,7 +279,7 @@ class SenderRuleDialogFitTest {
         val LABEL = Regex("""stringResource\(R\.string\.(\w+)\)""")
 
         /** The server-side write, on any of the three surfaces. Named, because nothing here can
-         *  derive it — and every rule that uses it is written to fail when the name stops being
+         *  derive it, and every rule that uses it is written to fail when the name stops being
          *  found. `viewModel.save()` rewrites the whole Sieve script of the account. */
         val WRITE = Regex("""\b(onBlock|blockSender|viewModel\.save)\(""")
 

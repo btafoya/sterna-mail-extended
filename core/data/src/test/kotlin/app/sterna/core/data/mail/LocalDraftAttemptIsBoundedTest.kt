@@ -18,11 +18,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * **The bound on ONE deferred attempt at a draft** (#95), EXECUTED — never read off the source.
+ * **The bound on one deferred attempt at a draft** (#95), executed, never read off the source.
  */
 class LocalDraftAttemptIsBoundedTest {
 
-    /** What the shipped decision handed each seam, in order — so "never" and "exactly once" count. */
+    /** What the shipped decision handed each seam, in order, so "never" and "exactly once" count. */
     private val recorded = mutableListOf<LocalDraftAttempt>()
     private val discarded = mutableListOf<String>()
     private val marked = mutableListOf<String>()
@@ -55,7 +55,7 @@ class LocalDraftAttemptIsBoundedTest {
         }
         val elapsed = System.currentTimeMillis() - started
 
-        // A WINDOW AROUND THE BUDGET, not "some day this century". This is the only assertion in
+        // A window around the budget, not "some day this century". This is the only assertion in
         // the suite that ties the constant handed in to the deadline actually installed: the expiry
         assertTrue(
             "⛔ the call has to come back ON ITS BUDGET — the block never returns by itself, so " +
@@ -89,7 +89,7 @@ class LocalDraftAttemptIsBoundedTest {
             LocalDraftUploadResult(LocalDraftUploadStep.KEPT_FOR_LATER, NOW + 30_000L),
             result,
         )
-        // This is the assertion that says `withTimeout` cancelled its own CHILD and not the
+        // This is the assertion that says `withTimeout` cancelled its own child and not the
         // coroutine calling it: `record` runs after the throw, in the caller, and it is suspending.
         assertEquals("exactly one attempt written down", 1, recorded.size)
         val written = recorded.single()
@@ -102,7 +102,7 @@ class LocalDraftAttemptIsBoundedTest {
     }
 
     @Test fun `an attempt that finishes inside its budget is handed through untouched`() = runBlocking {
-        // The witness. Without it, a bound of zero — or one that throws whatever the block did —
+        // The witness. Without it, a bound of zero (or one that throws whatever the block did)
         // would satisfy every assertion above and no draft would ever leave the phone again.
         assertEquals(
             "the block's own answer comes back, not the wrapper's",
@@ -122,9 +122,9 @@ class LocalDraftAttemptIsBoundedTest {
 
     @Test fun `a worker really stopped still comes out as a cancellation, not as a failed attempt`() = runBlocking {
         // The other witness, and the one mutation that is invisible everywhere else: catching
-        // CancellationException in general instead of the expiry alone. WorkManager stopping the
+        // CancellationException in general instead of the expiry alone.
         //
-        // REALLY cancelled, not a CancellationException thrown by hand: the budget here is ten
+        // Really cancelled, not a CancellationException thrown by hand: the budget here is ten
         // minutes, so nothing but the cancellation can end this attempt.
         var thrown: Throwable? = null
         val row = row()
@@ -156,11 +156,14 @@ class LocalDraftAttemptIsBoundedTest {
     }
 
     @Test fun `a stop landing WHILE the expiry is being written down still writes it`() = runBlocking {
-        // THE case the test above cannot see: it cancels BEFORE the deadline, so the attempt never
-        // reaches `record` at all. Here the two are IMBRICATED, and they arrive together by
+        // The case the test above cannot see: it cancels before the deadline, so the attempt never
+        // reaches `record` at all.
         //
         // Without `NonCancellable` around that write, `record` throws at its first suspension point
-        // and NOTHING is written: no counter, no cause, no backoff — the row stays UPLOADING and the
+        // and nothing is written: no counter, no cause, no backoff, the row stays UPLOADING and the
+        // ordinary failure has been requalified as a stop, which is the symptom this volet exists to
+        // remove. Nothing else in the suite can see it: the row is a Room write and every other test
+        // records into a list that never suspends.
         val row = row()
         val writing = CompletableDeferred<Unit>()
         val letTheWriteFinish = CompletableDeferred<Unit>()
@@ -174,7 +177,7 @@ class LocalDraftAttemptIsBoundedTest {
                     row = row,
                     nowMillis = NOW,
                     markUploading = { marked += row.id },
-                    // A REAL expiry, through the shipped wrapper — not a hand-thrown exception.
+                    // A real expiry, through the shipped wrapper, not a hand-thrown exception.
                     upload = { withLocalDraftAttemptBudget(BUDGET_MS) { awaitCancellation() } },
                     discard = { discarded += it.id },
                     record = {

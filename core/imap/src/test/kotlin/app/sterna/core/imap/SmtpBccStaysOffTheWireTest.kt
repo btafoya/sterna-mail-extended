@@ -7,7 +7,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * THE BLIND COPY, read off a real socket. `OutgoingMime.build` can now write a `Bcc:` header —
+ * The blind copy, read off a real socket. `OutgoingMime.build` can now write a `Bcc:` header,
+ * and it must never reach the wire.
  */
 class SmtpBccStaysOffTheWireTest {
 
@@ -37,12 +38,12 @@ class SmtpBccStaysOffTheWireTest {
                 delivered.orEmpty().lineSequence().filter { it.startsWith("Bcc:") }.toList(),
             )
             // Not just "no Bcc line": the address must not appear anywhere in the transmitted
-            // bytes — a header spelled differently, or the body, discloses exactly as much.
+            // bytes, a header spelled differently, or the body, discloses exactly as much.
             assertTrue(
                 "the blind recipient is named in the transmitted message:\n$delivered",
                 !delivered.orEmpty().contains("blind@example.org"),
             )
-            // The visible addressing is untouched — this is not a test that passes by sending less.
+            // The visible addressing is untouched, this is not a test that passes by sending less.
             assertEquals(
                 listOf("To: dest@example.org", "Cc: copy@example.org"),
                 delivered.orEmpty().lineSequence().filter { it.startsWith("To:") || it.startsWith("Cc:") }.toList(),

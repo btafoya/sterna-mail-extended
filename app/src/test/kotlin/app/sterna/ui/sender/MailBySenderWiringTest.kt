@@ -6,7 +6,10 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — the same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, the same instrument and the same disclaimer as
+ * [app.sterna.ui.inbox.OutboxCountWiringTest]: it reads source files as text, it proves nothing
+ * about what happens on screen, and it would still pass if the code it points at were broken
+ * inside.
  */
 class MailBySenderWiringTest {
 
@@ -45,8 +48,8 @@ class MailBySenderWiringTest {
     }
 
     @Test fun `the row menu is drawn from the pure decision, over that row's own state`() {
-        // WHICH entries exist and which are tappable is senderMenuEntries', and MailBySenderTest
-        // RUNS it. What no JVM test can reach is the call: the arguments it is given. Two of them
+        // Which entries exist and which are tappable is senderMenuEntries', and MailBySenderTest
+        // runs it. What no JVM test can reach is the call: the arguments it is given. Two of them
         val screen = code(SCREEN)
         assertTrue(
             "the menu must be built by senderMenuEntries(canDelete, canBlock, blocked, working, " +
@@ -82,7 +85,7 @@ class MailBySenderWiringTest {
 
     @Test fun `the search entry opens the search on that row's own address`() {
         // The argument, not the call: `onSearch = {}` compiles, the entry is there, every rule
-        // about WHICH entries exist stays green, and the one gesture that gives something to
+        // about which entries exist stays green, and the one gesture that gives something to
         // look at before anything is destroyed quietly does nothing.
         val row = callArguments(code(SCREEN), "SenderRow").single { "row = row" in it }
         assertTrue(
@@ -93,7 +96,7 @@ class MailBySenderWiringTest {
     }
 
     @Test fun `the deleted message is counted, in this screen's own plural`() {
-        // "Message deleted", singular, for forty messages — on a screen whose entire job is to
+        // "Message deleted", singular, for forty messages, on a screen whose entire job is to
         // count. The count must be the offer's `deleted` (what the server confirmed it moved),
         // not `targets.size` (what can be put back, which excludes mail already in the Trash).
         val screen = code(SCREEN)
@@ -125,9 +128,9 @@ class MailBySenderWiringTest {
     }
 
     @Test fun `the foot note comes from the pure decision, over the same two readings`() {
-        // The note and the missing entry must describe ONE account: written from a different
+        // The note and the missing entry must describe one account: written from a different
         // reading, the screen can print "another script is active" beside a working entry, or
-        // hide the entry with no note at all. Two assignments in one copy() — exactly the shape
+        // hide the entry with no note at all. Two assignments in one copy(), exactly the shape
         // a mutation drops half of.
         val body = functionBody(VIEW_MODEL, "load")
         assertTrue(
@@ -145,8 +148,7 @@ class MailBySenderWiringTest {
                 "decide nothing of its own",
             "state.blockNote?.let" in screen,
         )
-        // ORDERED, and on the note's OWN call. This assertion used to be two unordered `in`
-        // checks over the whole file, and the mutation that swapped the two argument lines was
+        // Ordered, and on the note's own call. This assertion used to be two unordered `in`
         val notes = callArguments(screen, "stringResource").filter { it.startsWith("note,") }
         assertEquals(
             "the note must be drawn by exactly one 'stringResource(note, …)' — this rule reads " +
@@ -163,13 +165,13 @@ class MailBySenderWiringTest {
                 "was:\n${notes.single()}",
             PATH_ARGS.containsMatchIn(notes.single()),
         )
-        // NOT pinned here, and said so rather than left to be discovered: that the note carries
-        // no button. Taking a running Sieve script over is the Filters screen's decision — it
+        // Not pinned here, and said so rather than left to be discovered: that the note carries
+        // no button.
     }
 
     @Test fun `the rule entry is held back until the script has actually been read`() {
         // R6's second half, on this side: the entry may not be offered on what nobody has asked
-        // the server yet. The screen already had it right and nothing pinned it — canBlock is
+        // the server yet.
         val body = functionBody(VIEW_MODEL, "load")
         val counts = body.substringBefore("val loaded = ")
         assertTrue(
@@ -213,7 +215,7 @@ class MailBySenderWiringTest {
     }
 
     @Test fun `addBlockRule's load callback is the repository call itself`() {
-        // Pinned by SHAPE, not by counting. Counting the lines that mention loadFilterRules let
+        // Pinned by shape, not by counting. Counting the lines that mention loadFilterRules let
         // the worst mutation of this module through: replace the callback with a snapshot taken
         val body = code(VIEW_MODEL)
         assertTrue(
@@ -238,12 +240,12 @@ class MailBySenderWiringTest {
     }
 
     @Test fun `the server-side rule is written only from its own confirmation`() {
-        // SOURCE LINT, and a narrow one: it proves where the CALL sits, never that a dialog is
-        // drawn or that a finger can reach it. What it does pin is the argument — which row the
-        // rule is written for — and the one sentence that dialog exists for.
+        // Source lint, and a narrow one: it proves where the call sits, never that a dialog is
+        // drawn or that a finger can reach it. What it does pin is the argument, which row the
+        // rule is written for, and the one sentence that dialog exists for.
         //
         // The gesture reached the row menu with no confirmation at all: one tap wrote a permanent
-        // server-side rule, invisibly, with no Undo, while the SAME write from the reader went
+        // server-side rule, invisibly, with no Undo, while the same write from the reader went
         val screen = code(SCREEN)
         val dialogs = callArguments(screen, "AlertDialog")
         assertEquals(
@@ -266,9 +268,9 @@ class MailBySenderWiringTest {
                 "That sentence IS the dialog's reason to exist. Body was:\n$body",
             "R.string.sender_volume_block_body" in body,
         )
-        // Its two arguments, ORDERED, for the reason written over the foot note's rule: this list
+        // Its two arguments, ordered, for the reason written over the foot note's rule: this list
         // used to be three unordered `in` checks, and swapping the two argument lines left the
-        // body telling the reader to undo the rule in "Filters → Settings" — a path that exists
+        // body telling the reader to undo the rule in "Filters → Settings", a path that exists
         // on no screen, in all nine languages, with every rule here green.
         assertTrue(
             "…named by the app's own localised labels and in the order the sentence reads: " +
@@ -325,12 +327,12 @@ class MailBySenderWiringTest {
     }
 
     /**
-     * The address the write actually goes to, on both sides of the hand-over. TWO mutations of
+     * The address the write actually goes to, on both sides of the hand-over.
      */
     @Test fun `the dialog is bound to the row it was opened over`() {
-        // The WHOLE line, not a substring of it: `"val ruleFor = confirmRule" in screen` passes
+        // The whole line, not a substring of it: `"val ruleFor = confirmRule" in screen` passes
         // over `val ruleFor = confirmRule?.let { state.rows.first() }`, which is the mutation this
-        // rule exists for — it survived the first version of this very test.
+        // rule exists for, it survived the first version of this very test.
         val bound = codeLines(SCREEN).map { it.trim() }.filter { it.startsWith("val ruleFor") }
         assertEquals(
             "the dialog's row must be the confirmation itself and nothing else, bound as exactly " +
@@ -356,7 +358,7 @@ class MailBySenderWiringTest {
 
     @Test fun `a delete that half worked is not announced as a total failure`() {
         // The screen said "Couldn't complete the action" for a single rejected id and, in the
-        // next breath, counted the ones that DID go — two contradictory sentences about one
+        // next breath, counted the ones that did go, two contradictory sentences about one
         val body = functionBody(VIEW_MODEL, "confirmDelete")
         assertTrue(
             "confirmDelete must ask 'deleteMessageRes(ids.size, result.failed.size)' — the list " +
@@ -407,7 +409,7 @@ class MailBySenderWiringTest {
 
     @Test fun `the confirmation is opened over the WHOLE counted list`() {
         // Found by a mutation that survived every other rule here: `PendingDelete(sender, ids)`
-        // → `PendingDelete(sender, ids.take(1))`. Announced and done stay equal — the dialog
+        // → `PendingDelete(sender, ids.take(1))`. Announced and done stay equal, the dialog
         val body = functionBody(VIEW_MODEL, "askDelete")
         assertTrue(
             "askDelete must read the ids from the shared scope query, as 'val ids = " +
@@ -425,8 +427,8 @@ class MailBySenderWiringTest {
     }
 
     @Test fun `the delete entry no longer waits for a trash role`() {
-        // It used to read `canDelete = canDeleteFrom(mailboxes)` — no folder carrying the trash
-        // role, no entry — which was honest for exactly as long as `deleteAll` failed the whole
+        // It used to read `canDelete = canDeleteFrom(mailboxes)`, no folder carrying the trash
+        // role, no entry, which was honest for exactly as long as `deleteAll` failed the whole
         //
         // Whole lines, by equality: a `contains` check would sit green on
         // `canDelete = true && mailboxes.any { it.role == "trash" }`, which is the old defect
@@ -449,18 +451,18 @@ class MailBySenderWiringTest {
     }
 
     @Test fun `nothing stands between the folder read and the state the screen draws`() {
-        // THE THIRD TIME on this branch that a rule pinning WHICH LINES MUST EXIST let a line
-        // inserted BETWEEN them decide otherwise. The mutation that walked green through every
+        // The third time on this branch that a rule pinning which lines must exist let a line
+        // inserted between them decide otherwise. The mutation that walked green through every
         // rule in this file, dropped just above the state assignment:
         //
         //     if (trashPath == null) { _state.value = _state.value.copy(loading = false); return@launch }
         //
         // On exactly the accounts the resolve-or-create delete has just unblocked, the screen
-        // would then draw the EMPTY body — "no mail from anyone is stored on this phone" — with
+        // would then draw the empty body ("no mail from anyone is stored on this phone") with
         // no row and no row menu at all. The withheld gesture comes back through the back door,
         // and worse: not one entry missing, the whole screen.
         //
-        // So the SLICE is pinned WHOLE, by equality: from the folder read to the closing
+        // So the slice is pinned whole, by equality: from the folder read to the closing
         // parenthesis of the state it produces. Anything inserted, removed, reordered or
         // lengthened in there reddens this, whatever it is called.
         val body = functionBody(VIEW_MODEL, "load").lines().map { it.trim() }.filter { it.isNotEmpty() }
@@ -488,7 +490,7 @@ class MailBySenderWiringTest {
             ),
             body.subList(from, to + 1),
         )
-        // The other half, and the one the slice cannot see: an exit dropped BEFORE the folder
+        // The other half, and the one the slice cannot see: an exit dropped before the folder
         // read leaves the slice untouched and the screen just as blank.
         val exits = body.indices.filter { "return@launch" in body[it] }
         assertEquals(
@@ -505,7 +507,6 @@ class MailBySenderWiringTest {
 
     @Test fun `the confirmed delete acts on the list the dialog counted`() {
         // The other half of "announced and done are the same set", and the half nothing held:
-        // the dialog can be given `pending.ids.size` while confirmDelete re-reads the ids from
         val body = functionBody(VIEW_MODEL, "confirmDelete")
         assertTrue(
             "confirmDelete must take its batch from the confirmation, as 'val ids = " +
@@ -533,9 +534,9 @@ class MailBySenderWiringTest {
 
     @Test fun `the list is keyed on the address exactly as stored`() {
         // SQLite's lower() is ASCII-only, Kotlin's lowercase() is not: "Éric@x" and "éric@x" are
-        // two rows out of the query and ONE lowercase() key. A LazyColumn given the same key
+        // two rows out of the query and one lowercase() key. A LazyColumn given the same key
         // twice throws, and the screen dies with no way back. Two rows already have two distinct
-        // addresses — there is nothing to normalise.
+        // addresses, there is nothing to normalise.
         val screen = code(SCREEN)
         assertTrue(
             "the LazyColumn key must be 'key = { it.email }', with no transformation",
@@ -549,7 +550,7 @@ class MailBySenderWiringTest {
 
     @Test fun `each body the decision names draws the widget it promises`() {
         // screenBody() is executed by MailBySenderTest; what it cannot see is what each of its
-        // answers is DRAWN as. The one that matters is LOADING: the previous version of this
+        // answers is drawn as.
         assertTrue(
             "the screen must render `when (screenBody(state))` rather than re-deciding",
             "when (screenBody(state))" in code(SCREEN),
@@ -597,7 +598,7 @@ class MailBySenderWiringTest {
     @Test fun `the count read cannot strand the screen on a spinner`() {
         // `loading` starts true and is only ever lowered by the code that follows the read. An
         // unprotected read that throws kills the coroutine there: the spinner stays up for the
-        // life of the ViewModel, with no message and no retry — worse than the blank page it
+        // life of the ViewModel, with no message and no retry, worse than the blank page it
         // replaced, because it looks like work in progress.
         val body = functionBody(VIEW_MODEL, "load")
         assertTrue(
@@ -630,10 +631,10 @@ class MailBySenderWiringTest {
     }
 
     @Test fun `nothing lowers the in-flight flag except a finally`() {
-        // With the flag raised and an exception on the way out — cachedEmailsByIds throwing, a
-        // repository that dies mid-batch — the coroutine dies before the line that lowers it, and
+        // With the flag raised and an exception on the way out, cachedEmailsByIds throwing, a
+        // repository that dies mid-batch, the coroutine dies before the line that lowers it, and
         // both entries of every row stay greyed for the life of the ViewModel, with no word. The
-        // flag must come down on EVERY way out, which in Kotlin is one construct.
+        // flag must come down on every way out, which in Kotlin is one construct.
         listOf("confirmDelete", "blockSender").forEach { name ->
             val body = functionBody(VIEW_MODEL, name)
             assertTrue(
@@ -663,7 +664,7 @@ class MailBySenderWiringTest {
     }
 
     /**
-     * The text of the `name = { … }` argument of a call, braces balanced — so a rule can ask what
+     * The text of the `name = { … }` argument of a call, braces balanced, so a rule can ask what
      */
     private fun namedLambda(text: String, name: String): String {
         val at = text.indexOf("$name = {")
@@ -710,7 +711,7 @@ class MailBySenderWiringTest {
     }
 
     /**
-     * The body of `fun [name]` in [file], braces included and comments stripped — so a rule can
+     * The body of `fun [name]` in [file], braces included and comments stripped, so a rule can
      */
     private fun functionBody(file: File, name: String): String {
         val text = code(file)
@@ -776,7 +777,8 @@ class MailBySenderWiringTest {
 
     companion object {
         /**
-         * The two arguments of a "Settings → Filters" sentence, IN THAT ORDER, each alone on its
+         * The two arguments of a "Settings → Filters" sentence, in that order, each alone on its
+         * own line.
          */
         private val PATH_ARGS = Regex(
             """\n[ \t]*stringResource\(R\.string\.inbox_settings\),[ \t]*""" +
@@ -808,7 +810,7 @@ class MailBySenderWiringTest {
         private val SCREEN: File by lazy { File(root, SCREEN_PATH) }
         private val VIEW_MODEL: File by lazy { File(root, VIEW_MODEL_PATH) }
 
-        /** Every source file of this screen's package — the rules that apply to the whole of it
+        /** Every source file of this screen's package, the rules that apply to the whole of it
          *  cover a file added tomorrow, not a list written today. */
         fun packageSources(): List<File> = (File(root, PACKAGE_PATH).listFiles() ?: emptyArray())
             .filter { it.isFile && it.extension == "kt" }

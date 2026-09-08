@@ -9,7 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * A full re-query whose walk had to RESTART ON A POSITION must delete nothing.
+ * A full re-query whose walk had to restart on a position must delete nothing.
  */
 class ResumedWalkIsNotReconciledTest {
 
@@ -38,7 +38,9 @@ class ResumedWalkIsNotReconciledTest {
     }
 
     /**
-     * A walk that hands [pages] over one at a time and answers with the ids it handed over —
+     * A walk that hands [pages] over one at a time and answers with the ids it handed over,
+     * plus [resumedByPosition], the one thing it knows that its ids cannot show. It decides
+     * nothing. It accumulates what it is given.
      */
     private fun walkOf(
         pages: List<List<String>>,
@@ -73,7 +75,7 @@ class ResumedWalkIsNotReconciledTest {
     }
 
     // The walk's pages: it listed e499/e500, lost its anchor, restarted too far down and came back
-    // with e503 onwards. e501 and e502 are in NEITHER page and are still on the server.
+    // with e503 onwards. e501 and e502 are in neither page and are still on the server.
     private val pagesOfAResumedWalk = listOf(listOf("e499", "e500"), listOf("e503", "e504"))
 
     // The cache as the previous sync left it: the two messages the walk is about to step over, plus
@@ -83,9 +85,9 @@ class ResumedWalkIsNotReconciledTest {
     // -- the volet ------------------------------------------------------------------------------
 
     @Test fun `a walk that resumed on a position deletes nothing at all`() {
-        // THE test of this volet. e501 and e502 were cached before the walk and are named by no
-        // page of it, so the reconcile is entitled to delete them — the #165 bound protects rows
-        // that arrived DURING the walk, and these did not. They are on the server. Deleting them
+        // The test of this volet. e501 and e502 were cached before the walk and are named by no
+        // page of it, so the reconcile is entitled to delete them, the #165 bound protects rows
+        // that arrived during the walk, and these did not. They are on the server. Deleting them
         // here is permanent: `putSyncState` runs on the next lines.
         val folder = folderBeforeTheWalk()
 
@@ -116,7 +118,7 @@ class ResumedWalkIsNotReconciledTest {
 
     @Test fun `a walk that did NOT resume still caps the cache — the witness`() {
         // The witness for the test above. The same fixture, the same pages, the same rows named
-        // by nothing — with the resume withheld, the reconcile runs and clears them. Without this,
+        // by nothing, with the resume withheld, the reconcile runs and clears them. Without this,
         // "nothing was deleted" could be got by switching the reconcile off altogether, and the
         // full query would stop being the only thing that ever caps this folder.
         val folder = folderBeforeTheWalk()
@@ -140,7 +142,7 @@ class ResumedWalkIsNotReconciledTest {
     // -- the log token and the keep rule cannot drift apart ----------------------------------------
 
     @Test fun `every input answers one token, and skip means exactly no reconcile`() {
-        // [fullQueryReconcileReason] exists to say on the bench WHY a folder was left alone, so it
+        // [fullQueryReconcileReason] exists to say on the bench why a folder was left alone, so it
         // has to be the same decision as [reconcilableWindowIds] and not a second copy of it. The
         // whole grid, both functions, one pass: a `skip` token must be a null keep set and a null
         // keep set must be a `skip` token, whatever else the walk says.
@@ -172,7 +174,7 @@ class ResumedWalkIsNotReconciledTest {
 
         // …and the tokens themselves, in grid order, so a rename or a re-ordered `when` shows up
         // as a failure here instead of as a silent change in what the bench reads back. The
-        // last four say that the resume is tested FIRST: a walk that resumed answers `skip/resumed`
+        // last four say that the resume is tested first: a walk that resumed answers `skip/resumed`
         // even when it listed ids, which is the only case where the loss can happen at all.
         assertEquals(
             listOf(
@@ -188,9 +190,9 @@ class ResumedWalkIsNotReconciledTest {
     // -- the plug, which no JVM test can execute ---------------------------------------------------
 
     @Test fun `the full query prints the token it decided with`() {
-        // SOURCE LINT, and a whole line: `MailRepository` needs Room, a Context and a live
+        // Source lint, and a whole line: `MailRepository` needs Room, a Context and a live
         // session, so the one thing a JVM test cannot do is watch this line run. The decision above
-        // is executed; what is read here is that the log line calls THIS function with THE walk —
+        // is executed; what is read here is that the log line calls THIS function with the walk,
         // a token computed from anything else would be a second decision.
         val body = DaoQuerySource.mailFunctionBody("MailRepository", "syncMailbox")
             .lines().map { it.trim() }

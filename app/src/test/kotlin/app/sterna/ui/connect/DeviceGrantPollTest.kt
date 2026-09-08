@@ -11,18 +11,19 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The device-grant wait, EXECUTED — the first test in this repo that runs it at all.
+ * The device-grant wait, executed, the first test in this repo that runs it at all.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class DeviceGrantPollTest {
 
     private val tokens = OAuthTokens(accessToken = "granted", refreshToken = "later")
 
-    /** What `OAuthClient` answers at its `catch (_: IOException)` — the exchange reached nobody. */
+    /** What `OAuthClient` answers at its `catch (_: IOException)`, the exchange reached nobody. */
     private val unreachable = DeviceTokenResult.Failed("network_error")
 
     /**
-     * Replays [script] in order, then [thenForever] for as long as it is asked — and records the
+     * Replays [script] in order, then [thenForever] for as long as it is asked, and records the
+     * virtual instant of every question, which is how the cadence is read.
      */
     private class ScriptedPoll(
         private val script: List<DeviceTokenResult>,
@@ -84,7 +85,7 @@ class DeviceGrantPollTest {
         )
     }
 
-    /** Half an hour of reaching nothing: the deadline must say WHICH end was quiet. */
+    /** Half an hour of reaching nothing: the deadline must say which end was quiet. */
     @Test fun `a wait that never reached a server runs out saying so`() = runTest {
         val bench = ScriptedPoll(emptyList(), thenForever = unreachable)
 
@@ -102,7 +103,7 @@ class DeviceGrantPollTest {
         assertEquals("6 polls fit in 30 s at 5 s apart, delay first.", 6, bench.calls)
     }
 
-    /** And the reverse: polls that WERE answered, and simply were never approved. */
+    /** And the reverse: polls that were answered, and simply were never approved. */
     @Test fun `a wait the server kept answering runs out as an expiry`() = runTest {
         val bench = ScriptedPoll(emptyList(), thenForever = DeviceTokenResult.Pending)
 
@@ -119,7 +120,7 @@ class DeviceGrantPollTest {
     }
 
     /**
-     * And the third way a server talks: `slow_down` is an ANSWER, so a wait made of nothing else
+     * And the third way a server talks: `slow_down` is an answer, so a wait made of nothing else
      */
     @Test fun `a wait answered only by slow down runs out as an expiry`() = runTest {
         val bench = ScriptedPoll(emptyList(), thenForever = DeviceTokenResult.SlowDown)
@@ -141,6 +142,8 @@ class DeviceGrantPollTest {
 
     /**
      * The cadence, and the reason the `delay` sits at the HEAD of the loop. Moved to the foot it
+     * would send the first poll out instantly and, now that an unreachable poll no longer ends the
+     * wait, turn a server that is down into a burst hammering it for thirty minutes.
      */
     @Test fun `each poll waits its full interval before going out`() = runTest {
         val bench = ScriptedPoll(
@@ -162,7 +165,11 @@ class DeviceGrantPollTest {
     }
 
     /**
-     * A server may legally answer `"interval": 0` — the field is optional in RFC 8628 § 3.2 and a
+     * A server may legally answer `"interval": 0`, the field is optional in RFC 8628 § 3.2 and a
+     * missing or zero value is not a licence to hammer the token endpoint. `delay(0)` bounds
+     * nothing, so without a floor inside this loop the wait becomes a burst of POSTs running for
+     * the whole half hour of the device code, and #55 made that worse, because a burst used to die
+     * on its first `network_error` and now no longer does.
      */
     @Test fun `an interval of zero is still paced at one second`() = runTest {
         val bench = ScriptedPoll(
@@ -205,6 +212,8 @@ class DeviceGrantPollTest {
 
     /**
      * The risk this fix is closest to. Now that an unreachable poll keeps the loop going, a
+     * `catch (Throwable)` anywhere inside it would turn leaving the screen into a coroutine polling
+     * for the rest of the device code's half hour, behind a screen that is gone.
      */
     @Test fun `cancellation leaves the wait instead of becoming a verdict`() = runTest {
         val outcome = runCatching {

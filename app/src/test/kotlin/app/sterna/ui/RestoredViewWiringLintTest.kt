@@ -5,12 +5,13 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `SternaApp.kt` as TEXT and compares whole trimmed
+ * Source lint, not a behaviour test. It reads `SternaApp.kt` as text and compares whole trimmed
  */
 class RestoredViewWiringLintTest {
 
     /**
-     * THE ORDER IS THE GUARD, which is why this is a block and not two line checks — and the
+     * The order is the guard, which is why this is a block and not two line checks, and the
+     * block is pinned whole.
      */
     @Test fun `the push flag is seeded from the stored view, immediately before the arm`() {
         assertEquals(
@@ -29,7 +30,7 @@ class RestoredViewWiringLintTest {
     }
 
     /**
-     * `switchAccount()` KEEPS ITS OWN `= false`, and it is REDUNDANT — that is the whole point
+     * `switchAccount()` keeps its own `= false`, and it is redundant, that is the whole point
      */
     @Test fun `switching account still clears the flag itself, before refreshing`() {
         assertEquals(
@@ -50,7 +51,7 @@ class RestoredViewWiringLintTest {
     }
 
     /**
-     * `?:`, NEVER `== true`.
+     * `?:`, never `== true`.
      */
     @Test fun `a notification falls back on the restored view when the list is not composed yet`() {
         assertEquals(
@@ -101,7 +102,7 @@ class RestoredViewWiringLintTest {
     }
 
     /**
-     * [count] consecutive CODE lines of [path] from the single one starting with [prefix], trimmed.
+     * [count] consecutive code lines of [path] from the single one starting with [prefix], trimmed.
      */
     private fun codeBlock(path: String, prefix: String, count: Int): List<String> {
         val code = codeLines(path)

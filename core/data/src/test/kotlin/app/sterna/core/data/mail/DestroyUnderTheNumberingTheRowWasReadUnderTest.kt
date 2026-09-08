@@ -14,12 +14,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * A permanent delete opposes the numbering ITS ROWS WERE READ UNDER, not the folder's current
+ * A permanent delete opposes the numbering its rows were read under, not the folder's current
  */
 class DestroyUnderTheNumberingTheRowWasReadUnderTest {
 
     /**
-     * THE DEFECT, end to end: 42, then a background pass that meets 77, then a destroy built from
+     * The defect, end to end: 42, then a background pass that meets 77, then a destroy built from
      * the rows read under 42. Not one command naming a UID may leave.
      */
     @Test fun `rows read under 42 destroy nothing once the folder is renumbered to 77`() {
@@ -56,7 +56,7 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
                     service.recordedUidValidity(ACCOUNT, INBOX),
                 )
 
-                // The user taps delete on the rows STILL ON SCREEN, i.e. the stale ones.
+                // The user taps delete on the rows still on screen, i.e. the stale ones.
                 val route = routeFor(stale)
                 assertEquals("the destroy must oppose what the rows were read under", 42L, route.uidValidity)
                 refusal = runCatching {
@@ -80,7 +80,7 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
     }
 
     /**
-     * THE INVERSE WITNESS, and it is not optional: without it "stamp nothing / refuse always"
+     * The inverse witness, and it is not optional: without it "stamp nothing / refuse always"
      */
     @Test fun `rows read under 42 on a folder still numbered 42 are destroyed exactly as before`() {
         val store = RememberedNumbering()
@@ -90,7 +90,7 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
             runBlocking {
                 val rows = watchedPass(service, credentials)
                 assertEquals(listOf(42L, 42L, 42L), rows.map { it.uidValidity })
-                // A second pass, exactly as above — only the server does not renumber.
+                // A second pass, exactly as above, only the server does not renumber.
                 watchedPass(service, credentials)
                 assertEquals(
                     "nothing was renumbered, so nothing may be invalidated",
@@ -108,7 +108,7 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
     }
 
     /**
-     * THE SECOND DEFECT OF THE SAME KEY, end to end: the row is not stale, it is REPLACED.
+     * The second defect of the same key, end to end: the row is not stale, it is replaced.
      */
     @Test fun `rows ticked under 42 destroy nothing once the same ids are rewritten under 77`() {
         val store = RememberedNumbering()
@@ -116,7 +116,7 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
             val service = service(store)
             val credentials = credentials(server)
             runBlocking {
-                // The rows AS THEY WERE AT THE TICK: this is where the selection's stamps come from.
+                // The rows as they were at the tick: this is where the selection's stamps come from.
                 val ticked = watchedPass(service, credentials).associate { it.id to it.uidValidity }
                 assertEquals(mapOf(ID7 to 42L, ID8 to 42L, ID9 to 42L), ticked)
 
@@ -131,7 +131,7 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
                 val now = rewritten.associate { it.id to it.uidValidity }
                 assertEquals(mapOf(ID7 to 77L, ID8 to 77L, ID9 to 77L), now)
 
-                // WHY THE DOWNSTREAM GUARD LETS THIS THROUGH — the state before this fix. The
+                // Why the downstream guard lets this through, the state before this fix. The
                 // route built on the rewritten rows opposes 77, and 77 is exactly what the server
                 // now states, so the expunge is licit and would go out on three live messages.
                 val licit = routeFor(rewritten)
@@ -174,7 +174,7 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
     }
 
     /**
-     * THE INVERSE WITNESS of the split, and it is not negotiable: without it "refuse everything
+     * The inverse witness of the split, and it is not negotiable: without it "refuse everything
      */
     @Test fun `rows ticked under 42 on a folder still numbered 42 are destroyed exactly as before`() {
         val store = RememberedNumbering()
@@ -207,13 +207,13 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
 
     // ---- fixtures -----------------------------------------------------------------------------
 
-    /** One background push pass over the inbox — the pass that MEETS the renumbering, records it
+    /** One background push pass over the inbox, the pass that meets the renumbering, records it
      *  and writes rows anyway. Returns the rows it cached. */
     private suspend fun watchedPass(service: ImapMailService, credentials: AccountCredentials): List<EmailEntity> =
         service.loadWatchedFolders(credentials, extraPaths = emptySet(), includeInbox = true, limit = 10)
             .first.single().messages
 
-    /** The one route a held-back destroy of [rows] produces — the very function `InboxViewModel`
+    /** The one route a held-back destroy of [rows] produces, the very function `InboxViewModel`
      *  hands to `MessageDestroyWorker.FolderDestroy`, run here on the rows the server produced. */
     private fun routeFor(rows: List<EmailEntity>): UidValidity.ImapDestroyRoute {
         val numbering = rows.associate { it.id to it.uidValidity }
@@ -261,7 +261,7 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
         imap = MailEndpoint(server.host, server.port, ConnectionSecurity.NONE),
     )
 
-    /** The store as the app really has it, minus Room — the same stand-in
+    /** The store as the app really has it, minus Room, the same stand-in
      *  [DestroyNeedsTheNumberingStatedNowTest] uses, and it keeps `record`'s invariant: a value at
      *  or below 0 is never written, which is what makes "recorded > 0" mean "the server stated a
      *  numbering at some point". */
@@ -290,7 +290,7 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
         val ID9 = ImapMailService.emailId(ACCOUNT, INBOX, 9L)
 
         /**
-         * An [OAuthTokenRefresher] that is never used and cannot be built — see
+         * An [OAuthTokenRefresher] that is never used and cannot be built, see
          */
         fun unusedTokenRefresher(): OAuthTokenRefresher {
             val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")

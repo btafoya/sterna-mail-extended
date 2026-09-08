@@ -4,11 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The gate's answer, RUN — the half of [UnreadWidgetPresence] that needs no Android.
+ * The gate's answer, run, the half of [UnreadWidgetPresence] that needs no Android.
  */
 class UnreadWidgetPresenceTest {
 
-    /** No cell placed — the answer for the large majority of installs, and the expensive one to
+    /** No cell placed, the answer for the large majority of installs, and the expensive one to
      *  get wrong. */
     @Test fun `no cell placed means no widget`() {
         assertEquals(
@@ -20,7 +20,7 @@ class UnreadWidgetPresenceTest {
         )
     }
 
-    /** One cell is enough: the gate asks whether ANY exists, never how many. */
+    /** One cell is enough: the gate asks whether any exists, never how many. */
     @Test fun `one cell placed means a widget`() {
         assertEquals(
             "a single id is a placed cell. Answering false here leaves the gate shut for the life " +
@@ -36,7 +36,7 @@ class UnreadWidgetPresenceTest {
     }
 
     /**
-     * The callbacks' end. `onEnabled` fires for the FIRST cell and `onDisabled` for the LAST one
+     * The callbacks' end. `onEnabled` fires for the first cell and `onDisabled` for the last one
      */
     @Test fun `the system's callbacks move the live answer, both ways`() {
         UnreadWidgetPresence.set(true)

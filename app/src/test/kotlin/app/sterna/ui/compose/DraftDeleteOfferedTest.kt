@@ -23,7 +23,7 @@ class DraftDeleteOfferedTest {
     @Test fun `a draft the phone is keeping may be deleted too, with no cached row behind it`() {
         // The row exists only in `local_drafts`; no server ever saw it, so nothing is in the cache
         // and `draftInHand` can never be true. The lease this composer holds is what makes the
-        // button honest — it is exactly what the deletion acts on.
+        // button honest, it is exactly what the deletion acts on.
         assertTrue(
             draftDeleteOffered(
                 restore = false,
@@ -37,7 +37,7 @@ class DraftDeleteOfferedTest {
     @Test fun `a local draft whose lease this composer lost offers nothing`() {
         // `LocalDraftEdit.Gone`: the upload worker consumed the row between the list being drawn
         // and the tap landing. The navigation argument still names a local draft and the editor is
-        // still on screen — and a button here would do nothing at all.
+        // still on screen, and a button here would do nothing at all.
         assertFalse(
             draftDeleteOffered(
                 restore = false,
@@ -63,8 +63,11 @@ class DraftDeleteOfferedTest {
     }
 
     @Test fun `a message taken back out of the send queue is never offered this button`() {
-        // It carries a draft id of its own, and its row waits in the outbox marked EDITING: that
+        // It carries a draft id of its own, and its row waits in the outbox marked editing: that
         // row has to be handed back or consumed, and deleting it is the outbox screen's gesture,
+        // not this one (#70). The screen is titled "Edit" for exactly that reason. Including
+        // when a local-draft lease is held: a restored send reopened from the phone's own store
+        // still belongs to the outbox gesture.
         assertFalse(
             draftDeleteOffered(restore = true, draftId = "draft-1", draftInHand = true, localDraftHeld = false),
         )
@@ -83,7 +86,7 @@ class DraftDeleteOfferedTest {
     }
 
     @Test fun `the whole truth table, written out`() {
-        // Sixteen inputs, sixteen answers spelled out rather than recomputed — a table that derives
+        // Sixteen inputs, sixteen answers spelled out rather than recomputed, a table that derives
         // the expectation from the same expression as the code under it would agree with any
         // mistake that expression makes. Exactly three rows are true, and all three are a live
         // draft this composer really holds one end of.

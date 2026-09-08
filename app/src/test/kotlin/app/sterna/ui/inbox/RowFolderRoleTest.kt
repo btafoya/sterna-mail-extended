@@ -6,14 +6,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHICH folder a list row is judged by.
+ * Which folder a list row is judged by.
  */
 class RowFolderRoleTest {
 
     private fun row(id: String, account: String?, mailbox: String?) =
         Email(id = id, accountId = account, mailboxId = mailbox)
 
-    /** A view showing [selected], among folders [folders] — the only two fields this reads. */
+    /** A view showing [selected], among folders [folders], the only two fields this reads. */
     private fun view(selected: String?, folders: List<Mailbox>) = MailUi(
         accountName = "a",
         mailboxName = "m",
@@ -49,7 +49,7 @@ class RowFolderRoleTest {
     @Test
     fun `the same folder id under two accounts answers each account's own role`() {
         // Codeberg #121/#31: servers number mailboxes per account, so "5" is a different folder
-        // under a different account — routinely the Inbox of one and the Trash of the other. A
+        // under a different account, routinely the Inbox of one and the Trash of the other. A
         // bare-id lookup hands account A's role to account B's message and offers to destroy it.
         val roles = mapOf(("a" to "5") to "trash", ("b" to "5") to "inbox")
         val ui = view("5", listOf(folder("5", "trash")))
@@ -64,7 +64,7 @@ class RowFolderRoleTest {
     @Test
     fun `a row in a role-less user folder falls back rather than inventing a role`() {
         // "Projets" has no role, so the map holds no entry for it. In a view that has no role
-        // either — the unified inbox, the unread scope — that is null, i.e. "nothing special", and
+        // either (the unified inbox, the unread scope) that is null, i.e. "nothing special", and
         // every affordance keeps its ordinary meaning.
         val ui = view(null, listOf(folder("i", "inbox")))
         assertEquals(null, rowFolderRole(row("1", "a", "projets"), ui, mapOf(("a" to "i") to "inbox"), folderTrusted = true))
@@ -75,7 +75,7 @@ class RowFolderRoleTest {
     @Test
     fun `a row with no folder on it reads the view's role`() {
         // A row drawn from the search index carries a mailboxId frozen at crawl time, which may be
-        // empty (SelectionTargets.folderTrusted). Blank is as absent as null — not through a guard
+        // empty (SelectionTargets.folderTrusted). Blank is as absent as null, not through a guard
         // of its own (one was written and deleted: a mutation removing it survived, because a blank
         // id has no entry in the role map either) but through the same single fallback.
         val roles = mapOf(("a" to "t") to "trash", ("a" to "arch") to "archive")
@@ -105,7 +105,7 @@ class RowFolderRoleTest {
     @Test
     fun `a search hit keeps the view's role however confident its own folder looks`() {
         // The reported walk, and it costs mail: a message is archived and indexed; it is then moved
-        // to "Projets" from the webmail. The FTS row still says `archive` — SelectionTargets puts it
+        // to "Projets" from the webmail.
         val inboxView = view("i", listOf(folder("i", "inbox"), folder("arch", "archive")))
         val roles = mapOf(("a" to "i") to "inbox", ("a" to "arch") to "archive")
         val staleHit = row("1", "a", "arch")
@@ -123,6 +123,8 @@ class RowFolderRoleTest {
     fun `a search hit of another account cannot claim a role in the unified view`() {
         // The second damage of the same hole. In the unified list an untrusted hit of account B
         // filed in B's Archive would read `archive`, and the unarchive path then picks its
+        // destination out of ui.mailboxes (the selected account's folders) and files B's message
+        // in A's Inbox (#92/#121). The unified view selects no folder, so the honest answer is null:
         val unified = view(null, listOf(folder("i-a", "inbox")))
         val roles = mapOf(("b" to "arch-b") to "archive", ("a" to "i-a") to "inbox")
         assertEquals(null, rowFolderRole(row("1", "b", "arch-b"), unified, roles, folderTrusted = false))
@@ -131,7 +133,7 @@ class RowFolderRoleTest {
     @Test
     fun `an untrusted row is refused before the map is consulted at all`() {
         // Not "the lookup happens to miss": the refusal comes first. A hit whose folder IS in the
-        // map, and whose role is the Trash, must still read the view — otherwise a stale index row
+        // map, and whose role is the Trash, must still read the view, otherwise a stale index row
         // turns a swipe into a permanent destroy.
         val archiveView = view("arch", listOf(folder("arch", "archive"), folder("t", "trash")))
         val roles = mapOf(("a" to "t") to "trash", ("a" to "arch") to "archive")
@@ -155,7 +157,7 @@ class RowFolderRoleTest {
     @Test
     fun `in the unified inbox every row reads inbox`() {
         // The unified view selects no folder, so its own role is null and the pre-change answer was
-        // null for every row. Every row in it IS in an inbox, so the new answer is "inbox" — which
+        // null for every row. Every row in it IS in an inbox, so the new answer is "inbox", which
         // is not the Trash, not the Archive and not Drafts, so no affordance changes.
         val ui = view(null, emptyList())
         val roles = mapOf(("a" to "i-a") to "inbox", ("b" to "i-b") to "inbox")

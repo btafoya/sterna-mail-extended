@@ -5,6 +5,7 @@ import org.junit.Test
 
 /**
  * Executes the transformation that runs when the user switches OpenPGP app. Expectations are
+ * written out by hand, never recomputed from the function under test.
  */
 class PgpSignKeyResetTest {
 
@@ -40,8 +41,8 @@ class PgpSignKeyResetTest {
     }
 
     @Test fun `the cached public key goes with the key id, for every account`() {
-        // The cache is the bytes of a key belonging to the provider being LEFT. Kept, the account
-        // would keep announcing that key — under a key id the screen no longer shows, or under a
+        // The cache is the bytes of a key belonging to the provider being left. Kept, the account
+        // would keep announcing that key, under a key id the screen no longer shows, or under a
         // new one it does not match. It is one fact, so it is dropped in one gesture.
         val after = withoutPgpSignKeys(
             listOf(account("a", 0x11L), account("b", 0x22L), account("c", 0x33L)),

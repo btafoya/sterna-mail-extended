@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The `Disposition-Notification-To:` parser (RFC 8098), EXECUTED on the shapes a real header
+ * The `Disposition-Notification-To:` parser (RFC 8098), executed on the shapes a real header
  */
 class ReadReceiptHeaderTest {
 
@@ -41,7 +41,7 @@ class ReadReceiptHeaderTest {
     }
 
     /**
-     * And the one that FABRICATES a destination: an address written inside a quoted display
+     * And the one that fabricates a destination: an address written inside a quoted display
      */
     @Test fun `an address hidden in a quoted display name is not the destination`() {
         assertEquals(
@@ -55,7 +55,10 @@ class ReadReceiptHeaderTest {
     }
 
     /**
-     * RFC 5322 §4.4's obsolete route: `<@relay,@hop:mailbox@domain>` is ONE address, and the
+     * RFC 5322 §4.4's obsolete route: `<@relay,@hop:mailbox@domain>` is one address, and the
+     * mailbox is what follows the colon. The commas inside the brackets are not separators,
+     * which is what the splitter's bracket depth is for, and the only input in this file that
+     * can tell whether it is still there.
      */
     @Test fun `an obsolete source route names one mailbox, not the relays`() {
         assertEquals(
@@ -73,7 +76,7 @@ class ReadReceiptHeaderTest {
         assertEquals(listOf("ann@example.org"), ReadReceiptHeader.recipients("\"ann@example.org"))
     }
 
-    /** RFC 5322 §3.4 group syntax with no members — `undisclosed-recipients:;` and friends. */
+    /** RFC 5322 §3.4 group syntax with no members, `undisclosed-recipients:;` and friends. */
     @Test fun `an empty group names nobody`() {
         assertEquals(emptyList<String>(), ReadReceiptHeader.recipients("undisclosed-recipients:;"))
         assertEquals(emptyList<String>(), ReadReceiptHeader.recipients("Team: ;"))
@@ -99,7 +102,7 @@ class ReadReceiptHeaderTest {
     }
 
     /**
-     * A comma INSIDE a quoted display name is not a separator — the classic split(',') defect.
+     * A comma inside a quoted display name is not a separator, the classic split(',') defect.
      */
     @Test fun `a quoted display name holding a comma stays one address`() {
         assertEquals(
@@ -162,6 +165,8 @@ class ReadReceiptHeaderTest {
 
     /**
      * No policy, stated as a test: the same address twice comes back twice, and an address that
+     * has nothing to do with the sender comes back all the same. Deduplicating or filtering here
+     * would be a decision made where the caller cannot see it.
      */
     @Test fun `no address is deduplicated, reordered or judged`() {
         assertEquals(

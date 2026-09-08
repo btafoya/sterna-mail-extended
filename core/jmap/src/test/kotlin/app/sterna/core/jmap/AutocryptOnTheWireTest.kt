@@ -19,7 +19,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * The `Autocrypt:` header on the JMAP wire — the OCTETS that leave, read back from a mock server.
+ * The `Autocrypt:` header on the JMAP wire, the octets that leave, read back from a mock server.
  */
 class AutocryptOnTheWireTest {
 
@@ -62,7 +62,10 @@ class AutocryptOnTheWireTest {
            ]}"""
 
     /**
-     * The submission STANDS and the server then says one recipient was refused (#183's read), for
+     * The submission stands and the server then says one recipient was refused (#183's read), for
+     * an address that happens to carry the word this guard matches on, the Autocrypt project's
+     * own mailing list is `autocrypt@lists.mayfirst.org`. The refusal text is the server's, and no
+     * amount of hardening the searched string takes that address out of it.
      */
     private val refusedDeliveryResponse =
         """{"methodResponses":[
@@ -195,14 +198,14 @@ class AutocryptOnTheWireTest {
     }
 
     @Test fun `a refusal that only NAMES an autocrypt address never re-sends the message`() {
-        // THE one that cannot be taken back. The delivery refusal is read AFTER the message was
+        // The one that cannot be taken back. The delivery refusal is read after the message was
         // created and submitted, and its text is the recipient's address plus the server's own SMTP
-        // reply — neither of which this app writes. A replay here puts a second copy in front of
-        // every recipient that DID accept it, and a second copy in Sent.
+        // reply, neither of which this app writes. A replay here puts a second copy in front of
+        // every recipient that did accept it, and a second copy in Sent.
         val session = session()
         server.enqueue(MockResponse().setBody(sendResponse))
         server.enqueue(MockResponse().setBody(refusedDeliveryResponse))
-        // Enqueued only so a second send would ANSWER instead of hanging: nothing may consume them.
+        // Enqueued only so a second send would answer instead of hanging: nothing may consume them.
         server.enqueue(MockResponse().setBody(sendResponse))
         server.enqueue(MockResponse().setBody(refusedDeliveryResponse))
 
@@ -231,7 +234,7 @@ class AutocryptOnTheWireTest {
     // --- the decision itself, executed ----------------------------------------------------------------
 
     @Test fun `nothing that happens after the create may buy a replay`() {
-        // The decision itself, run. The MockWebServer test above proves the point is TRIPPED where
+        // The decision itself, run. The MockWebServer test above proves the point is tripped where
         // it must be; this proves what tripping it does, on the exact texts a server produces.
         val propertyRefusal =
             """Could not create the message: {"type":"invalidProperties","properties":["header:Autocrypt:asText"]}"""

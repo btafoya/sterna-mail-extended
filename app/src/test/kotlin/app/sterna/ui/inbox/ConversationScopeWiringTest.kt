@@ -6,7 +6,9 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument as [app.sterna.ui.NavHostSourceRulesTest],
+ * Source lint, not a behaviour test, same instrument as [app.sterna.ui.NavHostSourceRulesTest],
+ * and the same disclaimer: it reads source files as text, proves nothing about what happens on
+ * screen, and would still pass if the code it points at were broken inside.
  */
 class ConversationScopeWiringTest {
 
@@ -83,7 +85,6 @@ class ConversationScopeWiringTest {
         // stream exactly the right calls while those calls answer nothing. Empty either of them out
         //
         // A source rule is a poor instrument for that and this one claims no more than it does:
-        // both queries live in core:data, where they can be RUN against a real database, and that
         val members = body(MAIL_REPOSITORY, MEMBER_QUERY.substringAfter('.'))
             .substringAfter(" =", missingDelimiterValue = "")
         val ignored = listOf("accountId", "mailboxIds", "threadKey").filterNot { it in members }
@@ -141,7 +142,7 @@ class ConversationScopeWiringTest {
         )
     }
 
-    // -- the representative: read where it is DRAWN ------------------------------------------
+    // -- the representative: read where it is drawn ------------------------------------------
 
     @Test fun `the members listed under a row exclude the representative that row draws`() {
         val screen = code(INBOX_SCREEN)
@@ -209,8 +210,8 @@ class ConversationScopeWiringTest {
     }
 
     @Test fun `every path that takes a member off the unfolded rows wraps its call in the mask`() {
-        // The rule above checks the wrapper EXISTS and goes through the mask; it says nothing about
-        // it being used. Unwrap a single caller — leave the op bare — and everything stays green
+        // The rule above checks the wrapper exists and goes through the mask; it says nothing about
+        // it being used. Unwrap a single caller (leave the op bare) and everything stays green
         val missing = MASKED_PATHS.map { it.first }
             .filterNot { "$SCOPED_HIDE(" in body(INBOX_VIEW_MODEL, it) }
         assertEquals(
@@ -231,8 +232,8 @@ class ConversationScopeWiringTest {
     }
 
     @Test fun `each masked path hides the very messages it is taking away`() {
-        // And the rule above cannot see the ARGUMENT. Hand one of those calls an empty set — the
-        // wrapper is still there, still called, still counted — and the mask covers nothing on the
+        // And the rule above cannot see the argument. Hand one of those calls an empty set, the
+        // wrapper is still there, still called, still counted, and the mask covers nothing on the
         // one path it was written for: the child comes straight back under the reader's thumb for
         // the length of the network call. So each path says which messages it masks, by name.
         MASKED_PATHS.forEach { (path, expected) ->
@@ -255,7 +256,7 @@ class ConversationScopeWiringTest {
     // -- the swipe context a conversation opens with ------------------------------------------
 
     @Test fun `opening a message inside a conversation records the order the row is showing`() {
-        // The CALL SITE, which is all this rule can see. What the call then does with the order is
+        // The call site, which is all this rule can see. What the call then does with the order is
         // [ThreadOrders]'s, and is pinned by running it (ThreadMemberStreamTest): this rule alone
         val screen = code(INBOX_SCREEN)
         val calls = Regex("""${Regex.escape(RECORD_ORDER)}\(""").findAll(screen).count()
@@ -277,8 +278,8 @@ class ConversationScopeWiringTest {
 
     @Test fun `the recorded order is kept by the store that is tested, and read back from it`() {
         // The other end of the same wiring: the ViewModel may build the order, but it must not be
-        // the one KEEPING it. Both halves live in [ThreadOrders] — a plain class, instantiable,
-        // exercised — so that dropping the keeping is a red test rather than a silent regression.
+        // the one keeping it. Both halves live in [ThreadOrders], a plain class, instantiable,
+        // exercised, so that dropping the keeping is a red test rather than a silent regression.
         val record = body(INBOX_VIEW_MODEL, "recordThreadOrder")
         assertTrue(
             "recordThreadOrder must delegate to $ORDER_STORE.record(...): building the entries here " +
@@ -322,8 +323,8 @@ class ConversationScopeWiringTest {
     }
 
     @Test fun `every pager is built from the resolution the chip is counted over`() {
-        // The mutation the unfold's rules cannot see: hand the PAGER an empty Sent scope and the
-        // divergence comes back the other way round — an unfold of 3 under a chip of 2 — with every
+        // The mutation the unfold's rules cannot see: hand the pager an empty Sent scope and the
+        // divergence comes back the other way round (an unfold of 3 under a chip of 2) with every
         // other rule here satisfied. The repository's parameter has no default precisely so that
         // omitting it does not compile; this pins the other way of saying nothing.
         val body = body(INBOX_VIEW_MODEL, "pagedEmails")
@@ -353,7 +354,7 @@ class ConversationScopeWiringTest {
     // -- reading the sources ----------------------------------------------------------------
 
     /**
-     * The lines of [file] that are code, WITH THEIR COMMENTS TAKEN OFF: a line whose first non-blank
+     * The lines of [file] that are code, with their comments taken off: a line whose first non-blank
      */
     private fun codeLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val code = line.trimStart()
@@ -362,7 +363,7 @@ class ConversationScopeWiringTest {
     }
 
     /**
-     * [line] up to its first `//` that is not inside a double-quoted string — the whole line when
+     * [line] up to its first `//` that is not inside a double-quoted string, the whole line when
      * there is none. `\` escapes the next character, so a `\"` inside a string does not end it.
      */
     private fun withoutTrailingComment(line: String): String {
@@ -381,12 +382,12 @@ class ConversationScopeWiringTest {
     }
 
     /**
-     * [file]'s code as ONE string. Rules match over this rather than line by line: a call that fits
+     * [file]'s code as one string. Rules match over this rather than line by line: a call that fits
      */
     private fun code(file: File): String = codeLines(file).joinToString("\n")
 
     /**
-     * The argument texts of every call to [name] in [text], parentheses balanced — so `f(a) { … }`
+     * The argument texts of every call to [name] in [text], parentheses balanced, so `f(a) { … }`
      */
     private fun callArguments(text: String, name: String): List<String> =
         Regex("""(?<!fun <T> )${Regex.escape(name)}\(""").findAll(text).map { match ->
@@ -405,6 +406,8 @@ class ConversationScopeWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text: everything up to the
+     * first line indented no deeper than the declaration, the closing brace of a block form, the
+     * next declaration after an expression form. Comment lines are dropped ([codeLines]).
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)
@@ -461,25 +464,27 @@ class ConversationScopeWiringTest {
         private const val MEMBER_QUERY = "repo.observeThreadEmails"
 
         /** And the shape of the hand-over: the stream's own arguments, straight through. A lambda
-         *  that resolves its own folders — or answers a flow of its own — is the second resolution
+         *  that resolves its own folders (or answers a flow of its own) is the second resolution
          *  this whole file exists to forbid. */
         private val MEMBER_READ = Regex(
             """read\s*=\s*\{\s*accountId\s*,\s*folders\s*,\s*threadKey\s*->\s*""" +
                 """${Regex.escape(MEMBER_QUERY)}\(\s*accountId\s*,\s*folders\s*,\s*threadKey\s*,?\s*\)""",
         )
 
-        /** The observed snooze table the member stream must be fed — the chip's SQL excludes an
-         *  active snooze, and the unfold has to see it start AND lapse. */
+        /** The observed snooze table the member stream must be fed, the chip's SQL excludes an
+         *  active snooze, and the unfold has to see it start and lapse. */
         private const val SNOOZE_SOURCE = "repo.observeActiveSnoozed("
 
-        /** A flow that answers a constant nothing — the shape an emptied-out query takes. */
+        /** A flow that answers a constant nothing, the shape an emptied-out query takes. */
         private val CONSTANT_EMPTY_FLOW = Regex("""flowOf\(\s*empty\w*\(\s*\)\s*\)""")
 
         /** The only form allowed to hide a member from the unfolded rows. */
         private const val SCOPED_HIDE = "hidingThreadMembers"
 
         /**
-         * The paths that take a member off the unfolded rows, and must therefore mask it — the
+         * The paths that take a member off the unfolded rows, and must therefore mask it, the
+         * swipe of one message, the held-back destroy, and the two selection-bar batches, each
+         * with the messages it must mask: the ones it is itself taking away, never fewer.
          */
         private val MASKED_PATHS: List<Pair<String, Regex>> = listOf(
             // Every message whose row it evicts.
@@ -494,18 +499,18 @@ class ConversationScopeWiringTest {
             "moveSelectedToAccount" to Regex("""^setOf\(\s*key\s*,?\s*\)$"""),
         )
 
-        /** The store that keeps the swipe context — out of the ViewModel so it can be run. */
+        /** The store that keeps the swipe context, out of the ViewModel so it can be run. */
         private const val ORDER_STORE = "threadOrder"
 
         /** The swipe context of a message opened from inside an unfolded conversation. */
         private const val RECORD_ORDER = "viewModel.recordThreadOrder"
 
-        /** Recorded from what the row is DRAWING: its own representative and the members below. */
+        /** Recorded from what the row is drawing: its own representative and the members below. */
         private val RECORDED_ORDER = Regex(
             """${Regex.escape(RECORD_ORDER)}\(\s*threadKey\s*,\s*email\s*,\s*members\s*,?\s*\)""",
         )
 
-        /** Raising or lifting that mask outside [SCOPED_HIDE] — the shape a caller can forget. */
+        /** Raising or lifting that mask outside [SCOPED_HIDE], the shape a caller can forget. */
         private val BY_HAND = Regex("""\b(removedMembers|restoreThreadMembers|dropThreadMembers?)\b""")
 
         private const val APP_SOURCES = "app/src/main/kotlin"
@@ -514,7 +519,7 @@ class ConversationScopeWiringTest {
         private const val CONVERSATION_EXPANSION_PATH = "$APP_SOURCES/app/sterna/ui/inbox/ConversationExpansion.kt"
         private const val REPOSITORY_PATH = "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt"
 
-        /** Repo root, walked up from the module's working directory — the rules read BOTH modules. */
+        /** Repo root, walked up from the module's working directory, the rules read both modules. */
         private val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, INBOX_VIEW_MODEL_PATH).isFile }

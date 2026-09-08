@@ -8,10 +8,11 @@ import java.io.File
 
 /**
  * `SECURITY.md` says how many components this app exports. This test makes that sentence answer to
+ * the manifest.
  */
 class SecurityDocExportedCountTest {
 
-    /** THE LINT: today's manifest against today's `SECURITY.md`. */
+    /** The lint: today's manifest against today's `SECURITY.md`. */
     @Test
     fun securityDocAnnouncesAsManyExportedComponentsAsTheManifestDeclares() {
         val manifest = DeclarationSource.file(MANIFEST_PATH)
@@ -37,7 +38,9 @@ class SecurityDocExportedCountTest {
     }
 
     /**
-     * THE POSITIVE CASE, manifest half. The decision executed against a fragment written HERE,
+     * The positive case, manifest half. The decision executed against a fragment written here,
+     * whose answer is known by reading it rather than by running the code. Without this, emptying
+     * the function body leaves the lint above comparing 0 to 0.
      */
     @Test
     fun theManifestDecisionIsExecutedOnAPinnedFragment() {
@@ -71,8 +74,8 @@ class SecurityDocExportedCountTest {
             </manifest>
         """.trimIndent()
 
-        // Four claims: the attribute counts on its own line AND inline on the opening tag, `false`
-        // is not `true`, a commented-out mention is not a declaration, and the ORDER of the names
+        // Four claims: the attribute counts on its own line and inline on the opening tag, `false`
+        // is not `true`, a commented-out mention is not a declaration, and the order of the names
         // is the order of the file (so the failure message reads like the manifest).
         assertEquals(
             listOf(".MainActivity", ".push.BootReceiver"),
@@ -81,7 +84,9 @@ class SecurityDocExportedCountTest {
     }
 
     /**
-     * THE POSITIVE CASE, prose half. Two decoys are planted on purpose: one BEFORE the section and
+     * The positive case, prose half. Two decoys are planted on purpose: one before the section and
+     * one after it, both perfectly shaped inventory sentences with a different number. Widening the
+     * search to the whole document therefore answers 9 or 7 instead of 3, and this goes red.
      */
     @Test
     fun theProseDecisionIsExecutedOnAPinnedFragment() {
@@ -111,7 +116,7 @@ class SecurityDocExportedCountTest {
     }
 
     /**
-     * The section boundary, the other way round: an inventory sentence that lives only in a LATER
+     * The section boundary, the other way round: an inventory sentence that lives only in a later
      */
     @Test
     fun theInventoryIsReadOnlyInsideItsOwnSection() {
@@ -136,6 +141,8 @@ class SecurityDocExportedCountTest {
 
     /**
      * A `#` at column 0 inside a fenced code block is a shell comment, not a heading. Without the
+     * fence guard the section ends at that line, the inventory sentence below it is never reached,
+     * and the lint reddens over a doc edit that changed nothing it guards.
      */
     @Test
     fun aHashInsideAFencedBlockDoesNotEndTheSection() {
@@ -155,7 +162,7 @@ class SecurityDocExportedCountTest {
         assertEquals(4, announcedExportedCount(prose).number)
     }
 
-    /** The word-to-integer half, executed word by word — including the loud refusal. */
+    /** The word-to-integer half, executed word by word, including the loud refusal. */
     @Test
     fun everyNumberWordIsReadAsItsInteger() {
         val pinned = mapOf(
@@ -168,7 +175,7 @@ class SecurityDocExportedCountTest {
             fail("the number-word reader no longer reads ${wrong.keys.joinToString(", ")} as pinned")
         }
 
-        // An unknown word must NOT quietly become 0: a 0 read from the prose would compare equal
+        // An unknown word must not quietly become 0: a 0 read from the prose would compare equal
         // to a manifest that exports nothing, and the day someone writes "Thirteen" the lint would
         // go green instead of asking to be taught the word.
         val unknown = runCatching { toInt("umpteen") }
@@ -210,7 +217,7 @@ class SecurityDocExportedCountTest {
         /** The heading whose bullet list carries the inventory sentence. */
         const val SECTION = "### Android platform surface"
 
-        /** Opening tags of the things Android calls components — attributes live only in there. */
+        /** Opening tags of the things Android calls components, attributes live only in there. */
         val COMPONENT_TAG = Regex("<(activity|activity-alias|service|receiver|provider)\\b[^>]*>")
 
         val EXPORTED_TRUE = Regex("android:exported\\s*=\\s*\"true\"")
@@ -219,6 +226,8 @@ class SecurityDocExportedCountTest {
 
         /**
          * The inventory sentence: a bullet opening on an English number-word, "components are
+         * exported". Anchored on the bullet so a number-word in the middle of a paragraph cannot
+         * answer for the inventory.
          */
         val INVENTORY = Regex("^-\\s+([A-Za-z]+)\\s+components?\\s+are\\s+exported\\b")
 
@@ -228,7 +237,8 @@ class SecurityDocExportedCountTest {
         )
 
         /**
-         * DECISION 1, pure. The components that really carry `android:exported="true"`, by name,
+         * Decision 1, pure. The components that really carry `android:exported="true"`, by name,
+         * out of manifest text whose comments are already gone.
          */
         fun exportedComponents(manifestCode: String): List<String> {
             val carriers = COMPONENT_TAG.findAll(manifestCode)
@@ -244,7 +254,7 @@ class SecurityDocExportedCountTest {
             return carriers
         }
 
-        /** DECISION 2, pure: the number the document announces, and where it says it. */
+        /** Decision 2, pure: the number the document announces, and where it says it. */
         fun announcedExportedCount(docText: String): Announced {
             val lines = docText.lines()
             val start = lines.indexOfFirst { it.trim() == SECTION }
@@ -287,7 +297,7 @@ class SecurityDocExportedCountTest {
         }
 
         /**
-         * The inverse, for the failure message. Never a DIGIT above [WORDS]: the sentence
+         * The inverse, for the failure message. Never a DIGIT above [words]: the sentence
          */
         fun rewriteInstruction(n: Int): String {
             val word = WORDS.getOrNull(n - 1)?.replaceFirstChar { it.uppercase() }

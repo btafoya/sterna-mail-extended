@@ -11,7 +11,7 @@ class MailboxNameTest {
 
     // Wire forms, as a server really announces them.
     private val flagged = "&BB8EPgQ8BDUERwQ1BD0EPQRLBDU-" to "Помеченные"
-    private val sent = "&BB4EQgQ,BEAEMAQyBDsENQQ9BD0ESwQ1-" to "Отправленные" // note the ',' — base64 '/'
+    private val sent = "&BB4EQgQ,BEAEMAQyBDsENQQ9BD0ESwQ1-" to "Отправленные" // note the ',', base64 '/'
     private val hello = "&BB8EQAQ4BDIENQRC-" to "Привет"
 
     // ---- the encoding itself ---------------------------------------------------------------
@@ -45,17 +45,19 @@ class MailboxNameTest {
 
     /**
      * The hierarchy delimiter is never encoded and never swallowed: `/` and `.` are outside the
+     * modified base64 alphabet, so a whole path can be decoded in one pass. If a shift sequence
+     * could eat a delimiter, nesting would break.
      */
     @Test fun `the hierarchy delimiter stays a delimiter`() {
         assertEquals("INBOX/&BB8EQAQ4BDIENQRC-", encodeModifiedUtf7("INBOX/Привет"))
         assertEquals("INBOX/Привет", decodeModifiedUtf7("INBOX/&BB8EQAQ4BDIENQRC-"))
         assertEquals("INBOX.Привет.Ж", decodeModifiedUtf7("INBOX.&BB8EQAQ4BDIENQRC-.&BBY-"))
-        // Unterminated shift, delimiter right after: the shift ends AT the delimiter.
+        // Unterminated shift, delimiter right after: the shift ends at the delimiter.
         assertEquals("Привет/x", decodeModifiedUtf7("&BB8EQAQ4BDIENQRC/x"))
     }
 
-    /** A malformed sequence must survive AS TEXT: a name is an identifier, losing part of it
-     *  would address a different mailbox — or none. */
+    /** A malformed sequence must survive as text: a name is an identifier, losing part of it
+     *  would address a different mailbox, or none. */
     @Test fun `a malformed encoding survives as text instead of vanishing`() {
         assertEquals("&12-", decodeModifiedUtf7("&12-")) // 2 base64 chars = 1 byte: not UTF-16
         assertEquals("&AB!", decodeModifiedUtf7("&AB!"))
@@ -64,7 +66,7 @@ class MailboxNameTest {
     }
 
     /**
-     * …and surviving as text is NOT enough on its own. Those decodings all contain a literal `&`,
+     * …and surviving as text is not enough on its own.
      */
     @Test fun `a name that would not encode back keeps its wire form`() {
         for (raw in listOf("x&", "&12-", "&AB!", "&Zz", "R&D")) {

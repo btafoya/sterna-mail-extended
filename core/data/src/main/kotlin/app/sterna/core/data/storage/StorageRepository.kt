@@ -29,7 +29,9 @@ data class StorageUsage(
 data class AccountUsage(val accountId: String, val messageCount: Int)
 
 /**
- * Reports and manages the on-device cache (Room DB + downloaded attachments) — device usage only,
+ * Reports and manages the on-device cache (Room db + downloaded attachments), device usage only,
+ * distinct from the server mailbox quota. Attachments are a re-downloadable cache, so clearing
+ * them is always safe.
  */
 class StorageRepository(
     private val context: Context,
@@ -40,7 +42,7 @@ class StorageRepository(
     private val snoozedDao: SnoozedDao,
     private val purgeSnapshotDao: PurgeSnapshotDao,
     private val mailboxUidValidityDao: MailboxUidValidityDao,
-    /** Drafts written on the phone and not yet on the server (#95) — user data, not cache. */
+    /** Drafts written on the phone and not yet on the server (#95), user data, not cache. */
     private val localDraftDao: LocalDraftDao,
     /** Where those drafts' attachment bytes are staged; the same tree `MailRepository` writes to. */
     private val localDraftFilesDir: File,
@@ -48,7 +50,7 @@ class StorageRepository(
     private val attachmentsDir: File get() = File(context.cacheDir, "attachments")
 
     /**
-     * Where compose stages outgoing-attachment bytes (#70). enqueueSend copies these into the
+     * Where compose stages outgoing-attachment bytes (#70).
      */
     private val outgoingDir: File get() = File(context.cacheDir, "outgoing")
 
@@ -79,7 +81,7 @@ class StorageRepository(
     }
 
     /**
-     * Purge one account's cached messages. Snoozes are user intent, not cache — kept.
+     * Purge one account's cached messages. Snoozes are user intent, not cache, kept.
      */
     suspend fun clearAccountCache(accountId: String) = withContext(Dispatchers.IO) {
         emailDao.deleteForAccount(accountId)
@@ -102,7 +104,7 @@ class StorageRepository(
         // A pending Empty-trash destroy list belongs to the account that is going away (#99).
         runCatching { purgeSnapshotDao.deleteForAccount(accountId) }
         runCatching { mailboxUidValidityDao.deleteForAccount(accountId) }
-        // Every row of the account, EDITING and STAGING ones included — an upload queue read would
+        // Every row of the account, editing and STAGING ones included, an upload queue read would
         // walk past exactly the draft whose composer was open when the user signed out.
         runCatching {
             purgeLocalDraftsOfAccount(
@@ -115,18 +117,18 @@ class StorageRepository(
     }
 
     /**
-     * Sweep the cached mail of accounts that no longer exist, given the accounts that DO.
+     * Sweep the cached mail of accounts that no longer exist, given the accounts that do.
      */
     suspend fun purgeOrphanedAccounts(knownAccountIds: () -> Collection<String>): List<String> =
         withContext(Dispatchers.IO) {
-            // The inventory FIRST: everything written after this snapshot belongs to an account the
+            // The inventory first: everything written after this snapshot belongs to an account the
             // list read below is guaranteed to contain.
             val cached = emailDao.countsByAccount().map { it.accountId } +
                 mailboxDao.accountIds() + emailFtsDao.accountIds() + emailBodyDao.accountIds()
             val known = knownAccountIds()
             val orphans = OrphanedAccountCache.orphans(known, cached)
             orphans.forEach { accountId ->
-                // One runCatching PER table: a failure in one must not leave the rest behind.
+                // One runCatching per table: a failure in one must not leave the rest behind.
                 runCatching { emailDao.deleteForAccount(accountId) }
                 runCatching { emailFtsDao.clearAccount(accountId) }
                 runCatching { emailBodyDao.deleteForAccount(accountId) }
@@ -180,7 +182,7 @@ class StorageRepository(
 }
 
 /**
- * Empty the two attachment CACHE trees — the downloaded attachments and compose's outgoing staging
+ * Empty the two attachment cache trees, the downloaded attachments and compose's outgoing staging
  */
 internal fun clearAttachmentTrees(attachmentsDir: File, outgoingDir: File) {
     attachmentsDir.listFiles()?.forEach { it.delete() }

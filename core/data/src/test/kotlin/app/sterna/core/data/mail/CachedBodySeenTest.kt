@@ -147,8 +147,8 @@ class CachedBodySeenTest {
     @Test fun `what the Room cache path RETURNS is the reconciled body`() {
         // The mutation the test above cannot see: `reconcileCachedSeen(…)` on its own line,
         // followed by `return cached`. The call is still there, with the very arguments pinned
-        // above, and the bug is back whole — this is the most travelled of the two cache paths.
-        // So the returned EXPRESSION is pinned, whole, not merely the existence of a call.
+        // above, and the bug is back whole, this is the most travelled of the two cache paths.
+        // So the returned expression is pinned, whole, not merely the existence of a call.
         assertEquals(
             "cachedMessage must RETURN what it reconciled, not the body it read: a reconciliation " +
                 "whose result is dropped is issue #148 restored, with every call site untouched",
@@ -188,7 +188,7 @@ class CachedBodySeenTest {
     @Test fun `the network path is left alone`() {
         // The third return of openMessage is the fetch: it carries the server's own answer and is
         // fresher than any local row. Reconciling it against a stale cached row would be a
-        // downgrade, so the call count above is also a statement about what is NOT called.
+        // downgrade, so the call count above is also a statement about what is not called.
         val code = codeOf(bodyOf("openMessage"))
         val fetch = code.indexOf("openEmail(credentials, emailId, markRead)")
         assertTrue("openMessage must still fetch over the network when both caches miss", fetch > 0)
@@ -222,7 +222,7 @@ class CachedBodySeenTest {
     }
 
     /**
-     * The expression every `return` of [body] hands back, whole and in source order — labelled
+     * The expression every `return` of [body] hands back, whole and in source order, labelled
      */
     private fun returnsOf(body: String): List<String> {
         val code = codeOf(body)
@@ -248,7 +248,7 @@ class CachedBodySeenTest {
         }.toList()
     }
 
-    /** The `{ … }` block that follows [marker] in [code], braces included — one branch of a
+    /** The `{ … }` block that follows [marker] in [code], braces included, one branch of a
      *  function, so a rule about it cannot be satisfied by some other branch's code. */
     private fun blockAfter(code: String, marker: String): String {
         val at = code.indexOf(marker)
@@ -295,7 +295,7 @@ class CachedBodySeenTest {
         error("unbalanced call in the source at offset $open")
     }
 
-    /** [body] with every comment removed, string literals left alone — the comments in this
+    /** [body] with every comment removed, string literals left alone, the comments in this
      *  repository name the very arguments the rules above pin. */
     private fun codeOf(body: String): String {
         val out = StringBuilder()

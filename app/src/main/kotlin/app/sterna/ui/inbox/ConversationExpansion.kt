@@ -31,7 +31,7 @@ data class ThreadKey(val accountId: String?, val threadId: String) {
 }
 
 /** The scope the list on screen was built with: the folder(s) it pages and the Sent resolution its
- * chips counted over. Recorded where the pager is built, never re-read at unfold time — after a
+ * chips counted over. Recorded where the pager is built, never re-read at unfold time, after a
  *  switch the old rows stay drawn, and a chip tapped then unfolds with the new scope. */
 internal data class ListScope(
     val viewedMailboxIds: List<String> = emptyList(),
@@ -49,7 +49,7 @@ internal data class ListScope(
  *  a reply in an open thread moves the chip to 4 over three messages. */
 internal object ThreadMemberStream {
 
-    /** The whole membership of every unfolded conversation, keyed by thread — what the row's chip
+    /** The whole membership of every unfolded conversation, keyed by thread, what the row's chip
      * counts. [snoozed] are the ids a snooze hides, which the chip's SQL excludes too. The
      *  representative is not taken out here: an id recorded at tap time is the wrong one. */
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -97,12 +97,12 @@ internal object ThreadMemberStream {
 }
 
 /** The members masked from the live reading of the unfolded rows: a gesture has taken a row off
- * screen but its cache row leaves only on the server's word. [hiding] is the whole API — mask,
+ * screen but its cache row leaves only on the server's word. [hiding] is the whole API, mask,
  * call, lift in a `finally`. A set, not a counter: overlapping calls would lift too early. */
 internal class ThreadMemberMask {
     private val hidden = mutableSetOf<EmailKey>()
 
-    /** The masked members, for the reading to drop — see [ThreadMemberStream.reconcile]. */
+    /** The masked members, for the reading to drop, see [ThreadMemberStream.reconcile]. */
     val keys: Set<EmailKey> get() = hidden
 
     /** Mask [keys] for the duration of [op], and no longer. */
@@ -121,7 +121,7 @@ internal class ThreadMemberMask {
 
 /** The swipe context of every conversation a message has been opened from, in the order the row
  * showed it. Recorded from the screen, never rebuilt from a representative remembered since the
- *  unfold — the row re-picks its representative on every write ([membersBelow]). */
+ *  unfold, the row re-picks its representative on every write ([membersBelow]). */
 internal class ThreadOrders {
     private val orders = mutableMapOf<ThreadKey, List<Pair<String, String?>>>()
 
@@ -155,7 +155,7 @@ internal object ConversationExpansion {
         if (key in expanded) expanded - key else expanded + key
 
     /** The members to list beneath an unfolded row: the thread minus the representative the row
-     * draws. Called at the draw site, with the id that row shows at that instant — the paging
+     * draws. Called at the draw site, with the id that row shows at that instant, the paging
      *  query re-picks it on every write, and a remembered one draws the newcomer twice. */
     fun membersBelow(all: List<Email>, representativeId: String): List<Email> =
         all.filter { it.id != representativeId }

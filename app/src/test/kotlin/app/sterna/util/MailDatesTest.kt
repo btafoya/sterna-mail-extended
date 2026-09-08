@@ -49,7 +49,7 @@ class MailDatesTest {
     // --- List rows: today / this year / another year -----------------------------------------
     //
     // Three steps: today shows the time, an earlier day of the current year "d MMM", any other
-    // year a short numeric date in the language's own order with a two-digit year. The month NAME
+    // year a short numeric date in the language's own order with a two-digit year. The month name
 
     @Test fun aMessageFromTodayIsPlacedByItsTime() {
         assertEquals(
@@ -67,7 +67,7 @@ class MailDatesTest {
 
     @Test fun anotherYearIsNumericInTheLanguagesOwnOrder() {
         // 19 December 1989, read in two languages. English-US puts the month first, French the
-        // day: same instant, two orders, and nothing hand-written decides which — the locale does.
+        // day: same instant, two orders, and nothing hand-written decides which, the locale does.
         val reference = LocalDate.of(2026, 11, 2)
         val us = MailDates.formatListDate("1989-12-19T08:12:33Z", paris, reference, Locale.US)
         val fr = MailDates.formatListDate("1989-12-19T08:12:33Z", paris, reference, Locale.FRENCH)

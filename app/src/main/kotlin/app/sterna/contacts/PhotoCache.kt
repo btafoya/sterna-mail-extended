@@ -1,7 +1,7 @@
 package app.sterna.contacts
 
 /**
- * A tiny least-recently-used cache bounded twice over: by number of entries AND by the total weight
+ * A tiny least-recently-used cache bounded twice over: by number of entries and by the total weight
  */
 class PhotoCache<T>(private val maxEntries: Int, private val maxBytes: Long) {
     private class Entry<T>(val value: T, val bytes: Long)
@@ -14,7 +14,7 @@ class PhotoCache<T>(private val maxEntries: Int, private val maxBytes: Long) {
     @Synchronized
     fun get(key: String): T? = map[key]?.value
 
-    /** Whether [key] has an entry — tells "not looked up yet" from "looked up, no photo". */
+    /** Whether [key] has an entry, tells "not looked up yet" from "looked up, no photo". */
     @Synchronized
     fun contains(key: String): Boolean = map.containsKey(key)
 

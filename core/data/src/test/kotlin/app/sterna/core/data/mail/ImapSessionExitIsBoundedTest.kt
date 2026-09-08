@@ -15,7 +15,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * **That the WAY OUT of a session is bounded too** (#95) — the half the ambient budget cannot
+ * **That the way out of a session is bounded too** (#95), the half the ambient budget cannot
  */
 class ImapSessionExitIsBoundedTest {
 
@@ -23,11 +23,11 @@ class ImapSessionExitIsBoundedTest {
     fun `an APPEND to a peer that goes mute comes back, teardown included`() {
         muteAfterLoginServer().use { server ->
             // On a daemon thread, exactly as the sibling test and for its reason: what is under
-            // test is whether the call COMES BACK. Before the fix it does not — and a blocking
+            // test is whether the call comes back. Before the fix it does not, and a blocking
             // `read()` cannot be interrupted, so a call made on the test's own thread would park the
             // suite and be reported as a JUnit timeout instead of as this assertion.
             val outcome = appendOnItsOwnThread(server)
-            // Waited FIRST, into a val. `assertTrue(message, condition)` builds its message before
+            // Waited first, into a val. `assertTrue(message, condition)` builds its message before
             // it evaluates the condition, so an `await` inline in the call would have every
             // `server.issued()` in these messages read the list as it was at t=0, i.e. empty.
             val cameBack = outcome.done.await(LOGOUT_BUDGET_MS + MARGIN_MS, TimeUnit.MILLISECONDS)
@@ -56,12 +56,12 @@ class ImapSessionExitIsBoundedTest {
     }
 
     /**
-     * **That the answer to the `LOGOUT` is READ, and that the budget for reading it is real.**
+     * **That the answer to the `LOGOUT` is read, and that the budget for reading it is real.**
      */
     @Test(timeout = 30_000)
     fun `the goodbye is not written and forgotten - its answer is waited for`() {
         slowGoodbyeServer().use { server ->
-            // Started before the thread, so the connect and the LOGIN are counted IN. They can
+            // Started before the thread, so the connect and the LOGIN are counted in. They can
             // only make the measurement longer, i.e. they can never turn a call that skipped the
             // read into one that looks like it waited.
             val startedAt = System.nanoTime()
@@ -97,7 +97,7 @@ class ImapSessionExitIsBoundedTest {
     }
 
     /**
-     * `appendDraft` against [server] under a short [ImapReadBudget], on a DAEMON thread.
+     * `appendDraft` against [server] under a short [ImapReadBudget], on a daemon thread.
      */
     private fun appendOnItsOwnThread(server: ScriptedImapServer): Outcome {
         val outcome = Outcome(CountDownLatch(1))
@@ -115,7 +115,7 @@ class ImapSessionExitIsBoundedTest {
     }
 
     /**
-     * A server that greets, logs in, takes the `APPEND` literal — and then answers nothing ever
+     * A server that greets, logs in, takes the `APPEND` literal, and then answers nothing ever
      */
     private fun muteAfterLoginServer() = ScriptedImapServer { tag, line ->
         when {
@@ -127,7 +127,7 @@ class ImapSessionExitIsBoundedTest {
     }
 
     /**
-     * The same mute `APPEND` as above — but a server that DOES say goodbye back, [LOGOUT_DELAY_MS]
+     * The same mute `APPEND` as above, but a server that DOES say goodbye back, [LOGOUT_DELAY_MS]
      */
     private fun slowGoodbyeServer() = ScriptedImapServer { tag, line ->
         when {
@@ -164,11 +164,14 @@ class ImapSessionExitIsBoundedTest {
     private companion object {
         const val DRAFTS = "Drafts"
 
-        /** Short on purpose, as the sibling test's: what is under test is the read AFTER this one. */
+        /** Short on purpose, as the sibling test's: what is under test is the read after this one. */
         const val BUDGET_MS = 500
 
         /**
-         * `LOGOUT_READ_BUDGET_MS` of `ImapClient.kt`, restated — it is file-private there, and this
+         * `LOGOUT_READ_BUDGET_MS` of `ImapClient.kt`, restated, it is file-private there, and this
+         * module cannot see it. Restated as a bound on elapsed time, not as a decision: the test
+         * measures how long a real call takes, so raising the shipped number above this makes the
+         * call miss the deadline and this test go red.
          */
         const val LOGOUT_BUDGET_MS = 5_000L
 

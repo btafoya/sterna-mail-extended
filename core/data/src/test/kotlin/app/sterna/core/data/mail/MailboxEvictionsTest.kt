@@ -21,8 +21,8 @@ class MailboxEvictionsTest {
     // -- level 1: the decision, executed ---------------------------------------------------
 
     @Test fun nothingIsPurgedWhenTheServerStillCarriesEveryCachedFolder() {
-        // THE TRAP OF THE OBVIOUS FIX: chunking the `NOT IN (:keepIds)` into several statements
-        // deletes everything outside each chunk in turn — the whole drawer, one batch at a time.
+        // The trap of the obvious fix: chunking the `not in (:keepIds)` into several statements
+        // deletes everything outside each chunk in turn, the whole drawer, one batch at a time.
         // 1 040 folders, all still on the server, cut into six chunks: nothing may be deleted.
         val cached = (1..1040).map { "Folder$it" }
 
@@ -36,7 +36,7 @@ class MailboxEvictionsTest {
 
         val batches = mailboxEvictions(cached, keepIds = setOf("INBOX", "Archive", "Trash", "Renamed.new"))
 
-        // Exactly the one folder that left, and nothing else — "Renamed.new" is new on the server,
+        // Exactly the one folder that left, and nothing else, "Renamed.new" is new on the server,
         // not something to delete, and the three survivors stay.
         assertEquals(listOf(listOf("Renamed.old")), batches)
     }
@@ -97,7 +97,7 @@ class MailboxEvictionsTest {
 
     @Test fun idsForAccountReadsEVERYFolderOfOneAccountAndNoOtherAccounts() {
         // The purge deletes whatever this returns, so anything this statement leaves out is a
-        // folder the purge stops touching — silently. Two ways to lose rows, and the fixture must
+        // folder the purge stops touching, silently. Two ways to lose rows, and the fixture must
         Class.forName("org.sqlite.JDBC")
         DriverManager.getConnection("jdbc:sqlite::memory:").use { db ->
             db.createStatement().use {
@@ -166,7 +166,7 @@ class MailboxEvictionsTest {
     )
 
     /**
-     * A [MailboxDao] whose `replaceAll` is the SHIPPED default method: the test executes the real
+     * A [MailboxDao] whose `replaceAll` is the shipped default method: the test executes the real
      */
     private class FakeMailboxDao(private val cachedByAccount: Map<String, List<String>>) : MailboxDao {
 
@@ -222,7 +222,7 @@ class MailboxEvictionsTest {
         }
 
         /**
-         * [source] with its Kotlin comments removed, string literals left alone — a source lint
+         * [source] with its Kotlin comments removed, string literals left alone, a source lint
          * that reads prose as code fails on files that are correct.
          */
         fun withoutComments(source: String): String {

@@ -6,7 +6,9 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, same instrument and the same disclaimer as
+ * [ConversationScopeWiringTest]: it reads source files as text, proves nothing about what appears on
+ * screen, and would still pass if the code it points at were broken inside.
  */
 class OutboxCountWiringTest {
 
@@ -110,7 +112,7 @@ class OutboxCountWiringTest {
 
     // -- reading the sources --------------------------------------------------------------------
 
-    /** The arguments of the single `BadgedBox(` in the inbox screen — the dot on the overflow
+    /** The arguments of the single `BadgedBox(` in the inbox screen, the dot on the overflow
      *  button. A second one would have to be told apart by name here, which is the point of
      *  failing loudly rather than picking the first. */
     private fun toolbarBadge(): String {
@@ -123,7 +125,7 @@ class OutboxCountWiringTest {
         return calls.single()
     }
 
-    /** The `trailingIcon` lambda of the menu entry that opens the Outbox — found by the string it
+    /** The `trailingIcon` lambda of the menu entry that opens the Outbox, found by the string it
      *  labels itself with, not by its position among the entries. */
     private fun outboxMenuTrailingIcon(): String {
         val entry = callArguments(code(INBOX_SCREEN), "DropdownMenuItem")
@@ -143,7 +145,7 @@ class OutboxCountWiringTest {
     }
 
     /**
-     * The lines of [file] that are code, with their comments taken off — a line whose first
+     * The lines of [file] that are code, with their comments taken off, a line whose first
      */
     private fun codeLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val code = line.trimStart()
@@ -173,6 +175,7 @@ class OutboxCountWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text: everything up to the
+     * first line indented no deeper than the declaration, once its own brackets have closed.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)
@@ -224,7 +227,7 @@ class OutboxCountWiringTest {
         /** The menu entry's count: immediate, only visible once the menu was opened (#70). */
         private const val MENU_COUNT = "outboxQueuedCount"
 
-        /** Read as a whole word — `outboxQueuedCount` must not answer for `outboxCount`. */
+        /** Read as a whole word, `outboxQueuedCount` must not answer for `outboxCount`. */
         private val DOT_READ = Regex("""\b$DOT\b""")
         private val MENU_READ = Regex("""\b$MENU_COUNT\b""")
 
@@ -237,7 +240,7 @@ class OutboxCountWiringTest {
         )
 
         /**
-         * The list, pinned by SHAPE and not by presence: `isWaitingInOutbox` being named somewhere
+         * The list, pinned by shape and not by presence: `isWaitingInOutbox` being named somewhere
          */
         private val OUTBOX_FLOW = Regex(
             """outboxDao\.observeAll\(\s*\)\s*\.map\s*\{\s*rows\s*->\s*rows\.filter\s*\{\s*""" +
@@ -254,7 +257,7 @@ class OutboxCountWiringTest {
         private const val INBOX_SCREEN_PATH = "$APP_SOURCES/app/sterna/ui/inbox/InboxScreen.kt"
         private const val REPOSITORY_PATH = "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt"
 
-        /** Repo root, walked up from the module's working directory — the rules read BOTH modules. */
+        /** Repo root, walked up from the module's working directory, the rules read both modules. */
         private val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, INBOX_VIEW_MODEL_PATH).isFile }

@@ -10,6 +10,8 @@ import org.junit.Test
 
 /**
  * The push pass's twin of [EmptyImapWalkIsNotAnEmptyFolderTest]: a page that came back with
+ * nothing in it is not a page over an empty folder, and only the second may clear the folder's
+ * notification baseline.
  */
 class EmptyPushPageIsNotAnEmptyFolderTest {
 
@@ -17,8 +19,8 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
     private val inbox = "INBOX"
 
     /**
-     * A watched folder that is NOT the inbox: one of the Sieve-filed folders multi-folder push
-     * exists for (#16). No `role` — the server names no role for it — and a path of its own.
+     * A watched folder that is not the inbox: one of the Sieve-filed folders multi-folder push
+     * exists for (#16). No `role` (the server names no role for it) and a path of its own.
      */
     private val sieveFolder = "INBOX.Lists.sterna"
     private val sieveFolderName = "sterna"
@@ -40,7 +42,7 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
     )
 
     /**
-     * The folder is a PARAMETER, and the three fields that identify it move together. A fixture
+     * The folder is a parameter, and the three fields that identify it move together. A fixture
      */
     private fun load(
         messages: List<EmailEntity>,
@@ -62,7 +64,7 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
 
     // -- the decision itself ---------------------------------------------------------------------------
 
-    /** A1 — the first door: the SELECT never stated a count, so nothing here knows anything. */
+    /** A1, the first door: the SELECT never stated a count, so nothing here knows anything. */
     @Test fun `an empty page whose SELECT never stated a count is a REFUSAL, not an empty folder`() {
         assertNull(
             "the baseline of a folder nothing was learned about was replaced with an empty one",
@@ -71,7 +73,9 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
     }
 
     /**
-     * A3 — THE SECOND DOOR, and the case that tells the two designs apart. The server stated its
+     * A3, the second door, and the case that tells the two designs apart. The server stated its
+     * count, and stated it above zero: `existsObserved` is TRUE here. A refusal that reads only that
+     * flag licenses the wipe, and every `\Deleted`-but-not-expunged folder re-notifies its day.
      */
     @Test fun `an empty page from a folder the server said HOLDS messages is a REFUSAL too`() {
         val status = ImapMailboxStatus(exists = 12, uidValidity = 1L, uidNext = 99L, existsObserved = true)
@@ -84,7 +88,7 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
         )
     }
 
-    /** A4 — the witness: a folder the server SAID holds nothing does clear its baseline. */
+    /** A4, the witness: a folder the server said holds nothing does clear its baseline. */
     @Test fun `a folder the server SAID holds nothing clears its baseline — the witness`() {
         val status = ImapMailboxStatus(exists = 0, uidValidity = 1L, uidNext = 99L, existsObserved = true)
 
@@ -96,7 +100,7 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
         )
     }
 
-    /** A7 — the ordinary path: the page brought messages back, so it saw the folder. */
+    /** A7, the ordinary path: the page brought messages back, so it saw the folder. */
     @Test fun `a page that DID bring messages back is remembered as those messages, stated-empty or not`() {
         listOf(false, true).forEach { stated ->
             assertEquals(
@@ -108,10 +112,12 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
         }
     }
 
-    // -- the same decision, on a WATCHED folder that is not the inbox ----------------------------------
+    // -- the same decision, on a watched folder that is not the inbox ----------------------------------
 
     /**
-     * A1 on a Sieve folder. The decision knows nothing about WHICH folder it is deciding for, and
+     * A1 on a Sieve folder. The decision knows nothing about which folder it is deciding for, and
+     * the watched extras are the ones that hurt most: the user does not look at them at app-open, so
+     * `seedsSilently` never covers them (issue #16) and every re-announcement they make is a banner.
      */
     @Test fun `a watched folder's empty page whose SELECT stated no count is refused just the same`() {
         assertNull(
@@ -149,7 +155,7 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
     }
 
     /**
-     * A4 on a Sieve folder — the witness travels too, so the hole cannot be closed the other way
+     * A4 on a Sieve folder, the witness travels too, so the hole cannot be closed the other way
      * round (refusing everything that is not the inbox): an emptied watched folder still clears.
      */
     @Test fun `a watched folder the server SAID holds nothing clears its baseline too`() {
@@ -222,7 +228,7 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
     // -- the wiring, read from the shipped source ------------------------------------------------------
 
     /**
-     * SOURCE LINT — `ImapMailService.loadWatchedFolders` cannot be run on the JVM (a token
+     * Source lint, `ImapMailService.loadWatchedFolders` cannot be run on the JVM (a token
      */
     @Test fun `the load fills the provenance from the shared decision, never forges one on the spot`() {
         val body = DaoQuerySource.mailFunctionBody("ImapMailService", "loadWatchedFolders")
@@ -243,8 +249,8 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
     }
 
     /**
-     * SOURCE LINT — the same for `MailRepository.refreshAccountFolders`: the IMAP branch must hand
-     * the notifier the DECISION's answer, not the page it happens to hold.
+     * Source lint, the same for `MailRepository.refreshAccountFolders`: the IMAP branch must hand
+     * the notifier the decision's answer, not the page it happens to hold.
      */
     @Test fun `the IMAP refresh hands out the decided baseline, not the page it read`() {
         val body = DaoQuerySource.mailFunctionBody("MailRepository", "refreshAccountFolders")
@@ -258,7 +264,7 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
         )
     }
 
-    /** The code lines of [body] naming [needle], comments dropped — whole lines, never a search. */
+    /** The code lines of [body] naming [needle], comments dropped, whole lines, never a search. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }

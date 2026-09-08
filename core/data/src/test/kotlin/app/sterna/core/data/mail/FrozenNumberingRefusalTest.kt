@@ -5,14 +5,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * "FROZEN, AND THERE WAS NOTHING" IS REFUSED — the volet of #189 that a `Long?` could not carry.
+ * "frozen, and there was nothing" is refused, the volet of #189 that a `Long?` could not carry.
  */
 class FrozenNumberingRefusalTest {
 
-    // ---- the decision, RUN ---------------------------------------------------------------------
+    // ---- the decision, run ---------------------------------------------------------------------
 
     /**
-     * Three inputs, three outputs, and the test states them as literals — it does not recompute the
+     * Three inputs, three outputs, and the test states them as literals, it does not recompute the
      * rule it is checking. Invert any branch of [numberingToOppose] and exactly one of these reds.
      */
     @Test fun `nothing frozen falls back, a stamp is opposed, a frozen absence refuses`() {
@@ -38,7 +38,7 @@ class FrozenNumberingRefusalTest {
         )
     }
 
-    /** A REAL stamp is carried, not interpreted: whatever number was frozen is the number opposed. */
+    /** A real stamp is carried, not interpreted: whatever number was frozen is the number opposed. */
     @Test fun `every frozen number is handed on as itself`() {
         listOf(1L, 42L, 77L, Long.MAX_VALUE).forEach { stamp ->
             assertEquals(
@@ -50,7 +50,7 @@ class FrozenNumberingRefusalTest {
     }
 
     /**
-     * AND `0` IS NOT A NUMBERING — nor is anything below it. It is the same rule as
+     * And `0` is not a numbering, nor is anything below it.
      */
     @Test fun `a frozen zero, and anything below it, refuses like an absence`() {
         listOf(0L, -1L, Long.MIN_VALUE).forEach { notANumbering ->
@@ -67,7 +67,7 @@ class FrozenNumberingRefusalTest {
     // ---- where it is spent ----------------------------------------------------------------------
 
     /**
-     * SOURCE LINT, the last resort and only beside the executed test above: `MailRepository`
+     * Source lint, the last resort and only beside the executed test above: `MailRepository`
      */
     private fun codeLines(text: String): List<String> =
         text.lines().map { it.replace(Regex("""\s+"""), " ").trim() }
@@ -83,7 +83,7 @@ class FrozenNumberingRefusalTest {
     }
 
     /**
-     * THE READ IS WHERE IT HAS TO LAND. `crossAccountMove` runs readSource → writeTarget →
+     * The read is where it has to land. `crossAccountMove` runs readSource → writeTarget →
      */
     @Test fun `the read refuses before it fetches, and hands the wire what the decision chose`() {
         assertEquals(
@@ -102,7 +102,9 @@ class FrozenNumberingRefusalTest {
     }
 
     /**
-     * AND THE BIN REFUSES TOO, because the read alone leaves the case where the octets were
+     * And the bin refuses too, because the read alone leaves the case where the octets were
+     * already in hand. The `?: recordedUidValidity(...)` on the last line stays: it is the fallback
+     * that makes every ordinary swipe-delete work, and `Select(null)` is what reaches it.
      */
     @Test fun `the bin refuses before it moves, and keeps the fallback the swipe depends on`() {
         assertEquals(
@@ -121,7 +123,7 @@ class FrozenNumberingRefusalTest {
     }
 
     /**
-     * AND JMAP NEVER REACHES EITHER. Both refusals sit inside a protocol gate, and that is the
+     * And JMAP never reaches either.
      */
     @Test fun `both refusals sit behind a protocol gate`() {
         mapOf(

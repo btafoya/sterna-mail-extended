@@ -14,7 +14,7 @@ data class SnoozedEntity(
 
 /**
  * A snoozed message as the "Snoozed" screen lists it: the snooze row plus the cached header
- * of the message it hides. Query projection only — no table of its own, no schema change.
+ * of the message it hides. Query projection only, no table of its own, no schema change.
  */
 data class SnoozedListRow(
     val emailId: String,

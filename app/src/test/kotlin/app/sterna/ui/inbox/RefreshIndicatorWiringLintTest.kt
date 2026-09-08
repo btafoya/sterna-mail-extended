@@ -6,26 +6,26 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxViewModel.kt` and `InboxScreen.kt` as text and
- * proves nothing about what the app does. [RefreshIndicatorGraceTest] is the real test of #178 —
- * read it first: it EXECUTES the grace, the floor and the visibility flow on a virtual clock. This
+ * Source lint, not a behaviour test. It reads `InboxViewModel.kt` and `InboxScreen.kt` as text and
+ * proves nothing about what the app does. [RefreshIndicatorGraceTest] is the real test of #178,
+ * read it first: it executes the grace, the floor and the visibility flow on a virtual clock. This
  * file only holds the wiring, which no JVM test can reach: `InboxViewModel` is an
  * `AndroidViewModel` and is not instantiable here, and the screen is Compose.
  *
  * Each rule below is a one-word mutation that compiles and leaves the rest of the suite green:
- *  - `refreshRequested()` setting its flag AFTER calling `refresh()` — `viewModelScope` is
+ *  - `refreshRequested()` setting its flag after calling `refresh()`, `viewModelScope` is
  *    `Main.immediate`, so the launch body has already started and the pull gets the grace it exists
  *    to skip;
  *  - the seed of the state flow carrying `showRefreshIndicator = true`, which puts the tern back on
- *    screen for the whole of every cold start — #178's third case, shipped by its own fix;
- *  - the seed losing `refreshing = true`, which is NOT this fix's field: it empties the centre so
+ *    screen for the whole of every cold start, #178's third case, shipped by its own fix;
+ *  - the seed losing `refreshing = true`, which is not this fix's field: it empties the centre so
  *    "this folder is empty" cannot lie during the first fetch (#63);
- *  - `PullToRefreshBox`/`TernRefreshIndicator` reading `ui.refreshing` again — the defect itself,
+ *  - `PullToRefreshBox`/`TernRefreshIndicator` reading `ui.refreshing` again, the defect itself,
  *    restored, with every test still green;
  *  - the `ui.refreshing -> Unit` arm switched to the new field, which would let the empty-folder
  *    scene draw itself during a fetch shorter than the grace (#63 undone).
  *
- * Every rule compares a WHOLE unit — a whole declaration body, a whole named argument. Never a
+ * Every rule compares a whole unit, a whole declaration body, a whole named argument. Never a
  * `contains` on a fragment: a fragment is blind to any mutation that LENGTHENS the line
  * (`ui.showRefreshIndicator` contains neither more nor less than `ui.refreshing || debug`, and
  * `refreshing = true` is a prefix of `refreshing = true && x`). The price is that a reformat
@@ -222,7 +222,7 @@ class RefreshIndicatorWiringLintTest {
     @Test
     fun `no refresh entry point on the screen bypasses refreshRequested`() {
         val text = codeText(INBOX_SCREEN)
-        // (?![A-Za-z]) and not a `contains`: 'viewModel::refresh' is a PREFIX of
+        // (?![A-Za-z]) and not a `contains`: 'viewModel::refresh' is a prefix of
         // 'viewModel::refreshRequested', so a looser rule reddens on the fix itself.
         val direct = Regex("""viewModel::refresh(?![A-Za-z])|viewModel\.refresh\(\)""")
             .findAll(text).map { it.value }.toList()
@@ -239,7 +239,7 @@ class RefreshIndicatorWiringLintTest {
         val text = codeText(INBOX_SCREEN)
         val hits = Regex(Regex.escape(RING_ARM_LABEL)).findAll(text).toList()
         assertEquals("InboxScreen.kt is expected to open that arm exactly once.", 1, hits.size)
-        // The label plus what follows it, cut to the expected arm's length — so a mutation that
+        // The label plus what follows it, cut to the expected arm's length, so a mutation that
         // LENGTHENS the arm ('if (true || ringShowing)') lands inside the window and mismatches,
         // which a `contains` on the label would wave through. Same cut as the opener rule in
         // BoundedRefreshWiringLintTest.
@@ -266,8 +266,8 @@ class RefreshIndicatorWiringLintTest {
             listOf("val ringShowing = rememberGracedIndicator(refreshLoading && !staleRows)"),
             codeLines(INBOX_SCREEN).map { it.trim() }.filter { it.startsWith("val ringShowing") },
         )
-        // The rule above holds the ARGUMENT; this one holds what the callee does with it.
-        // Inverting `if (active)` is ONE character, it puts the centred ring back on every folder
+        // The rule above holds the argument; this one holds what the callee does with it.
+        // Inverting `if (active)` is one character, it puts the centred ring back on every folder
         // switch (#63), and it leaves every other rule in this file green: the call line, the arm,
         // the two clock reads and the single startRefreshRun are all untouched by it. Swapping the
         // two branches does the same, which is why the whole decision is compared and not one line.
@@ -323,8 +323,8 @@ class RefreshIndicatorWiringLintTest {
     }
 
     /**
-     * The WHOLE named arguments of the call whose token starts at [from]: the parenthesised list
-     * split on its own top-level commas. Whole arguments, never fragments — see the class comment.
+     * The whole named arguments of the call whose token starts at [from]: the parenthesised list
+     * split on its own top-level commas. Whole arguments, never fragments, see the class comment.
      */
     private fun argsAt(text: String, from: Int): List<String> {
         val open = text.indexOf('(', from)
@@ -363,15 +363,15 @@ class RefreshIndicatorWiringLintTest {
     }
 
     /**
-     * [file] as ONE line of code: comments out, runs of whitespace collapsed — so a call the
+     * [file] as one line of code: comments out, runs of whitespace collapsed, so a call the
      * formatter spreads over eight lines reads the same as one written on a line. Same scanner as
      * `BoundedRefreshWiringLintTest`, including the `//` inside a string literal it must not take
      * for a comment.
      */
     /**
-     * [file]'s non-blank lines, trimmed, with every comment taken out — block comments tracked
+     * [file]'s non-blank lines, trimmed, with every comment taken out, block comments tracked
      * across lines, a `//` honoured only outside a double-quoted string. The same scanner as
-     * [codeText], kept per LINE: a rule about a whole declaration needs the line's end, which the
+     * [codeText], kept per line: a rule about a whole declaration needs the line's end, which the
      * collapsed form no longer has, and a `contains` on a prefix is blind to any mutation that
      * lengthens it (`elapsedRealtime` is a prefix of `elapsedRealtimeNanos`).
      */

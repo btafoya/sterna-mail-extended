@@ -66,13 +66,13 @@ fun MailBySenderScreen(
     val undo by viewModel.undo.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     // The row the rule is being confirmed for, or null. It lives here and not in the ViewModel
-    // because there is nothing to read before asking — the delete's confirmation carries the ids
+    // because there is nothing to read before asking, the delete's confirmation carries the ids
     // it materialised, this one carries a decision and an address. Same shape as the reader's
     // (MessageScreen's `confirmRule`), for the same gesture.
     var confirmRule by remember { mutableStateOf<SenderVolume?>(null) }
     val undoLabel = stringResource(R.string.inbox_undo)
     // Counted, not "Message deleted" in the singular for forty. The count is the offer's own
-    // `deleted` — what the server confirmed it moved — and the plural is this screen's, not the
+    // `deleted`, what the server confirmed it moved, and the plural is this screen's, not the
     // inbox's shared string: the grouped path through the inbox is not in this lot.
     val deletedLabel = undo?.let {
         pluralStringResource(R.plurals.sender_volume_deleted, it.deleted, it.deleted)
@@ -177,8 +177,8 @@ fun MailBySenderScreen(
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
-                // Keyed on the address AS STORED, with no transformation. Two lines are two SQL
-                // groups, so their LOWER(fromEmail) differ, so their fromEmail differ — the key
+                // Keyed on the address as stored, with no transformation. Two lines are two SQL
+                // groups, so their lower(fromEmail) differ, so their fromEmail differ, the key
                 items(state.rows, key = { it.email }) { row ->
                     SenderRow(
                         row = row,
@@ -194,7 +194,7 @@ fun MailBySenderScreen(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
                 // The one absent gesture that can be explained, explained at the foot of the
-                // list — the shape FiltersScreen's own note uses, and with no button, because
+                // list, the shape FiltersScreen's own note uses, and with no button, because
                 // taking a running script over belongs to the screen that warns in red first.
                 state.blockNote?.let { note ->
                     item {
@@ -225,7 +225,7 @@ fun MailBySenderScreen(
             onDismissRequest = { viewModel.cancelDelete() },
             title = {
                 // The count is the size of the list this dialog's confirm button hands to the
-                // delete — read when the dialog opened, not when the screen did. It can differ
+                // delete, read when the dialog opened, not when the screen did. It can differ
                 // from the row's number; when it does, this one is the true one.
                 Text(
                     pluralStringResource(
@@ -256,8 +256,7 @@ fun MailBySenderScreen(
             onDismissRequest = { confirmRule = null },
             title = { Text(stringResource(R.string.sender_volume_block_title, ruleFor.email)) },
             text = {
-                // The body SCROLLS, as the reader's copy of this dialog does. Material's text
-                // slot is a height-bounded box with no scrolling of its own, and a bare Text in
+                // The body scrolls, as the reader's copy of this dialog does.
                 Text(
                     stringResource(
                         R.string.sender_volume_block_body,
@@ -270,6 +269,10 @@ fun MailBySenderScreen(
             confirmButton = {
                 // A verb, not the menu entry's sentence, and for the reason measured on the
                 // reader's copy of this dialog: with the sentence here the label wrapped and
+                // Cancel was drawn inside this button, one tap landing on both, on a permanent
+                // server-side write. The mechanism behind that is a hypothesis about Material's
+                // action row (its sources are not available here); the measurement is not. The
+                // menu entry keeps sender_volume_block, where the whole sentence fits and belongs.
                 TextButton(onClick = { confirmRule = null; viewModel.blockSender(ruleFor) }) {
                     Text(stringResource(R.string.sender_volume_block_confirm))
                 }
@@ -338,7 +341,7 @@ private fun SenderRow(
                 modifier = Modifier.width(280.dp),
             ) {
                 // Which entries exist, and which of them can be tapped, is senderMenuEntries()'s
-                // decision — a plain function a JVM test runs. An entry is ABSENT only when this
+                // decision, a plain function a JVM test runs.
                 val entries =
                     senderMenuEntries(canDelete, canBlock, blocked, working, row.email, ownAddresses)
                 entries.forEach { entry ->

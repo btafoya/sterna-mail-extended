@@ -7,6 +7,8 @@ import java.io.File
 
 /**
  * A draft id never leaves the composer under an account other than the one it was read from
+ * (#31 × #63), source lint, the last resort, for [DraftVerdictWiringTest]'s reason: nothing in
+ * this module can instantiate `ComposeViewModel` (an `AndroidViewModel`, no Robolectric here).
  */
 class DraftAccountCarriedWiringTest {
 
@@ -175,7 +177,9 @@ class DraftAccountCarriedWiringTest {
     }
 
     /**
-     * \u26d4 The guard must be the LAST link: `linesNaming` selects the lines that name it, so a
+     * \u26d4 The guard must be the last link: `linesNaming` selects the lines that name it, so a
+     * link appended on the next line is invisible to every rule above,
+     * `.let { if (it.emailId == null) SendDraftTarget(editingDraftId, editingDraftUidValidity) else it }`
      */
     private fun assertEndsTheChain(body: String) {
         val lines = body.lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("//") }
@@ -192,7 +196,7 @@ class DraftAccountCarriedWiringTest {
 
     // --- reading the source (the instruments of DraftNumberingCarriedWiringTest) ----------------
 
-    /** The lines of [body] naming any of [names], trimmed, in order — whole lines, never `contains`
+    /** The lines of [body] naming any of [names], trimmed, in order, whole lines, never `contains`
      *  as a verdict: the comparison above is an equality against the complete list. */
     private fun linesNaming(body: String, vararg names: String): List<String> =
         body.lines().map { it.trim() }.filter { line -> names.any { it in line } }

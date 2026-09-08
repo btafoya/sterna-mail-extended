@@ -10,7 +10,7 @@ data class ConversationRow(
     @Embedded val email: EmailEntity,
     /** Messages of the thread in the viewed mailbox(es); the chip shows this. */
     val threadCount: Int,
-    /** Cached messages of the thread across the whole account — gates expandability. */
+    /** Cached messages of the thread across the whole account, gates expandability. */
     val threadTotal: Int,
     /** 0 (falsy) when any message in the thread is unread: MIN(seen) over the group. */
     val threadUnread: Int,

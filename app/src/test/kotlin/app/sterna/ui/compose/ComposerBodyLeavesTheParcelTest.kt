@@ -6,7 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * [DialogFlagsSurviveRotationTest] next door: `ComposeScreen` is a composable and `MainActivity` is
+ * an activity, this module has neither Robolectric nor instrumented tests, so nothing here can be
+ * executed. The decisions themselves are executed in [ComposerResumeSlotTest]; what is left is the
+ * wiring, and this file reads it as text.
  */
 class ComposerBodyLeavesTheParcelTest {
 
@@ -33,7 +37,7 @@ class ComposerBodyLeavesTheParcelTest {
     }
 
     /**
-     * THE MUTATION THAT SURVIVED THE FIRST ROUND. Turned into a plain `remember`, this line
+     * The mutation that survived the first round. Turned into a plain `remember`, this line
      */
     @Test
     fun `the resume state is parcelled through its own saver`() {
@@ -46,7 +50,9 @@ class ComposerBodyLeavesTheParcelTest {
     }
 
     /**
-     * ONE FILE PER NAVIGATION ENTRY, and two entries ARE reachable: `MainActivity` is singleTask,
+     * One file per navigation entry, and two entries are reachable: `MainActivity` is singleTask,
+     * `onNewIntent` feeds `pendingMailto`, and the host navigates to `compose` unguarded, so a
+     * mailto: link or a share arriving with the composer open stacks a second composer on the first.
      */
     @Test
     fun `each composer entry gets a slot of its own`() {
@@ -86,10 +92,10 @@ class ComposerBodyLeavesTheParcelTest {
         )
     }
 
-    // -- and when the body could NOT be parked, the loss is carried to the destroy routes --------
+    // -- and when the body could not be parked, the loss is carried to the destroy routes --------
 
     /**
-     * THE HALF NO OTHER RULE IN THIS FILE COVERS. `no line of the screen puts the body or its
+     * The half NO other rule in this file covers.
      */
     @Test
     fun `a body lost on the way into the parcel is pushed to the view model`() {
@@ -105,8 +111,7 @@ class ComposerBodyLeavesTheParcelTest {
                 "the flag on every composer that ever opens and freeze the verdict at `lossy`, " +
                 "which stops every legitimate draft replacement instead.",
         )
-        // AND ITS POSITION, because `assertPinned` counts lines and cannot see where they sit.
-        // The line above is valid Kotlin anywhere in this composable: moved inside the
+        // And its position, because `assertPinned` counts lines and cannot see where they sit.
         val lines = codeLines(SCREEN)
         val built = lines.indexOf(RESUME_STATE)
         assertTrue("$SCREEN no longer builds the resume state as '$RESUME_STATE'", built >= 0)
@@ -128,7 +133,7 @@ class ComposerBodyLeavesTheParcelTest {
     }
 
     /**
-     * The verdict must read BOTH terms. Either one alone is a destroy: `editingDraftLossyOnOpen`
+     * The verdict must read both terms. Either one alone is a destroy: `editingDraftLossyOnOpen`
      */
     @Test
     fun `the destroy verdict reads what the draft held AND what the composer lost`() {
@@ -145,7 +150,10 @@ class ComposerBodyLeavesTheParcelTest {
     }
 
     /**
-     * RAISED ONCE, NEVER LOWERED, and pinned as a CLOSED list because that is the only shape a
+     * Raised once, never lowered, and pinned as a closed list because that is the only shape a
+     * lint can hold: an assignment added anywhere else, `composerBodyWasLost = false` in a reset,
+     * in `abandon()`, at the end of a save, puts the loss back on the floor exactly where the
+     * `var editingDraftLossy` used to lose it.
      */
     @Test
     fun `the lost-body flag is only ever raised`() {
@@ -167,7 +175,7 @@ class ComposerBodyLeavesTheParcelTest {
             ),
             assignments,
         )
-        // AND THE WHOLE BODY OF THE RAISER, because the list above only sees lines that ASSIGN.
+        // And the whole body of the RAISER, because the list above only sees lines that ASSIGN.
         // `if (_draftLoading.value) return` added on a line of its own leaves that list untouched
         val lines = codeLines(VIEW_MODEL)
         val raiser = lines.indexOf(RAISER)
@@ -183,7 +191,7 @@ class ComposerBodyLeavesTheParcelTest {
     }
 
     /**
-     * …and the OTHER half of the verdict is a closed list too. `editingDraftLossyOnOpen` is the
+     * …and the other half of the verdict is a closed list too.
      */
     @Test
     fun `the reopen verdict is written in five places and nowhere else`() {
@@ -222,7 +230,7 @@ class ComposerBodyLeavesTheParcelTest {
     }
 
     /**
-     * THE FOURTH EXIT, and it was missed. The trash on a SERVER draft — `editingLocalDraftId`
+     * The fourth exit, and it was missed. The trash on a server draft, `editingLocalDraftId`
      */
     @Test
     fun `deleting a server draft closes the slot too`() {
@@ -261,7 +269,7 @@ class ComposerBodyLeavesTheParcelTest {
     // -- nothing is said to the user, so nothing is translated ------------------------------------
 
     /**
-     * The property is LOCAL to this change, not a freeze of `strings.xml`: a count pinned there
+     * The property is local to this change, not a freeze of `strings.xml`: a count pinned there
      */
     @Test
     fun `the resume slot says nothing to the user`() {
@@ -277,7 +285,7 @@ class ComposerBodyLeavesTheParcelTest {
 
     // -- reading the sources ---------------------------------------------------------------------
 
-    /** Asserts exactly [times] code lines of [path], trimmed, ARE [pinned] — whole line, never a fragment. */
+    /** Asserts exactly [times] code lines of [path], trimmed, are [pinned], whole line, never a fragment. */
     private fun assertPinned(path: String, pinned: String, why: String, times: Int = 1) {
         val hits = codeLines(path).count { it == pinned }
         assertEquals(
@@ -334,7 +342,7 @@ class ComposerBodyLeavesTheParcelTest {
             "LaunchedEffect(resume.bodyWasLost) { if (resume.bodyWasLost) viewModel.onComposerBodyLost() }"
         const val RAISER = "fun onComposerBodyLost() {"
 
-        /** An assignment TO the lost-body flag — `==` is a read and must not be caught here. */
+        /** An assignment to the lost-body flag, `==` is a read and must not be caught here. */
         val LOST_ASSIGNED = Regex("""\bcomposerBodyWasLost\s*=(?!=)""")
 
         /** …and to the reopen verdict beside it, same shape, same reason. */

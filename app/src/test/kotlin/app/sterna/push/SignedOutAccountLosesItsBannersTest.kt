@@ -18,7 +18,7 @@ class SignedOutAccountLosesItsBannersTest {
         val active = listOf(
             101 to group("alex"), // a per-message banner
             102 to group("alex"), // another one
-            103 to group("alex"), // and the group summary — same group, that is the point
+            103 to group("alex"), // and the group summary, same group, that is the point
         )
         assertEquals(
             "every banner of the account being signed out has to go. One left behind is one that " +
@@ -30,7 +30,7 @@ class SignedOutAccountLosesItsBannersTest {
 
     @Test fun `the summary is taken too, not spared the way activeChildIds spares it`() {
         // The summary carries the same group and is only told apart by FLAG_GROUP_SUMMARY, which
-        // `activeChildIds` filters on. Filtering on it HERE would leave "3 new messages —
+        // `activeChildIds` filters on. Filtering on it here would leave "3 new messages,
         // Alex (work)" on screen after the account is gone, expanding to the InboxStyle lines of
         // messages whose children were just cancelled.
         val summaryOnly = listOf(900 to group("alex"))
@@ -58,7 +58,7 @@ class SignedOutAccountLosesItsBannersTest {
 
     @Test fun `an ungrouped banner is never touched, and Message not sent is ungrouped`() {
         // `notifySendFailed` posts with no group at all (the only two `.setGroup(` calls in the
-        // app are pinned below). It is the banner that CARRIES the text the user typed — the
+        // app are pinned below). It is the banner that CARRIES the text the user typed, the
         // hand-back is the only place that text still exists. Cancelling it destroys it.
         val active = listOf(101 to group("alex"), 555 to null)
         assertEquals(
@@ -98,7 +98,7 @@ class SignedOutAccountLosesItsBannersTest {
     }
 
     /**
-     * SOURCE LINT — the call site. `AccountsViewModel` is an `AndroidViewModel` and this module
+     * Source lint, the call site. `AccountsViewModel` is an `AndroidViewModel` and this module
      */
     @Test fun `sign-out cancels the banners of exactly the accounts it removed`() {
         val body = bodyOf(ACCOUNTS_VM, "signOut")
@@ -164,7 +164,7 @@ class SignedOutAccountLosesItsBannersTest {
     }
 
     /**
-     * SOURCE LINT over two very short bodies, and here is why it is not a copy of the decision:
+     * Source lint over two very short bodies, and here is why it is not a copy of the decision:
      */
     @Test fun `neither the decision nor its wiring may tell the summary apart from a child`() {
         val decision = bodyOf(NOTIFICATIONS, "accountGroupIds")
@@ -222,7 +222,7 @@ class SignedOutAccountLosesItsBannersTest {
             .filterNot { it.isEmpty() || it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
             .filter { needle in it }
 
-    /** The block body of `fun [name]` in [file] — braces included. */
+    /** The block body of `fun [name]` in [file], braces included. */
     private fun bodyOf(file: File, name: String): String {
         val source = file.readText()
         val fn = Regex("""\bfun\s+$name\s*\(""").find(source)
@@ -243,7 +243,7 @@ class SignedOutAccountLosesItsBannersTest {
     companion object {
         private const val MAIN_SOURCES = "app/src/main/kotlin"
 
-        /** Every source set that ships in an APK — `test` is the only one that does not. */
+        /** Every source set that ships in an APK, `test` is the only one that does not. */
         private val SHIPPED_SOURCES = listOf(MAIN_SOURCES, "app/src/testApp/kotlin", "app/src/benchShared/kotlin")
         private const val NOTIFICATIONS_PATH = "$MAIN_SOURCES/app/sterna/push/Notifications.kt"
         private const val ACCOUNTS_VM_PATH = "$MAIN_SOURCES/app/sterna/ui/settings/AccountsViewModel.kt"

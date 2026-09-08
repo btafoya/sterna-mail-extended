@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
+ * Source lint, not a behaviour test, read this before trusting it.
  */
 class PermanentDrawerWiringLintTest {
 
@@ -123,7 +123,8 @@ class PermanentDrawerWiringLintTest {
     }
 
     /**
-     * The drawer's whole STATE, pinned at both call sites — the two envelopes must be handed the
+     * The drawer's whole state, pinned at both call sites, the two envelopes must be handed the
+     * same thing, argument for argument.
      */
     @Test fun `both envelopes hand the drawer content the same state, argument for argument`() {
         val call = listOf(
@@ -161,13 +162,13 @@ class PermanentDrawerWiringLintTest {
     }
 
     private companion object {
-        /** The [count] consecutive code lines starting at EACH line equal to [head]. */
+        /** The [count] consecutive code lines starting at each line equal to [head]. */
         fun blocksAt(lines: List<String>, head: String, count: Int): List<List<String>> =
             lines.indices.filter { lines[it] == head }
                 .map { lines.subList(it, minOf(it + count, lines.size)) }
 
         /**
-         * The single line equal to [needle] and the one after it — or, with [back], the line
+         * The single line equal to [needle] and the one after it, or, with [back], the line
          */
         fun adjacentPair(lines: List<String>, needle: String, back: Int = 0): List<String> {
             val hits = lines.indices.filter { lines[it] == needle }

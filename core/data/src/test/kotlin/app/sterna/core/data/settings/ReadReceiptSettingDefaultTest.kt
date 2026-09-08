@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The read-receipt switch's stored value, RUN — the first of the two locks on #148.
+ * The read-receipt switch's stored value, run, the first of the two locks on #148.
  */
 class ReadReceiptSettingDefaultTest {
 
@@ -28,6 +28,8 @@ class ReadReceiptSettingDefaultTest {
 
     /**
      * The key is spelled out here rather than imported: it names persisted user data. Renaming it
+     * silently turns the switch back off for everyone who had turned it on, which fails safe, and
+     * is exactly why nothing else would ever report it.
      */
     @Test fun `the switch is read back from the key it was written to`() {
         assertTrue(askReadReceiptFrom(preferencesOf(booleanPreferencesKey("ask_read_receipt") to true)))
@@ -35,6 +37,6 @@ class ReadReceiptSettingDefaultTest {
         assertFalse(askReadReceiptFrom(preferencesOf(booleanPreferencesKey("confirm_links") to true)))
     }
 
-    /** The persisted key, spelled as the store spells it — see the test above. */
+    /** The persisted key, spelled as the store spells it, see the test above. */
     private val storedKey = booleanPreferencesKey("ask_read_receipt")
 }

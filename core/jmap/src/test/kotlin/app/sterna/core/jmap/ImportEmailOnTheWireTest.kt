@@ -17,7 +17,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * WHAT `importEmail` PUTS ON THE WIRE — the JMAP half of a cross-account move (#189): a blob
+ * What `importEmail` puts on the wire, the JMAP half of a cross-account move (#189): a blob
  */
 class ImportEmailOnTheWireTest {
 
@@ -61,7 +61,7 @@ class ImportEmailOnTheWireTest {
         }
     }
 
-    /** The `Email/import` call of [request] — its args — asserting it is the only method call. */
+    /** The `Email/import` call of [request] (its args) asserting it is the only method call. */
     private fun importArgs(request: JsonObject): JsonObject {
         val calls = request["methodCalls"]!!.jsonArray
         assertEquals("one Email/import and nothing else", 1, calls.size)

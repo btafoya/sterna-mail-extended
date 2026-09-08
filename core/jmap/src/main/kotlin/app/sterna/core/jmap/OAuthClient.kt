@@ -26,7 +26,8 @@ data class OAuthMetadata(
     @SerialName("token_endpoint") val tokenEndpoint: String = "",
     @SerialName("device_authorization_endpoint") val deviceAuthorizationEndpoint: String? = null,
         /**
-         * Set by [OAuthClient.discoverMetadata] when a named endpoint was blanked FOR ITS HOST — the
+         * Set by [OAuthClient.discoverMetadata] when a named endpoint was blanked for its host, the
+         * document sent the sign-in to somewhere we will not carry tokens. Never read off the wire.
          */
     @kotlinx.serialization.Transient val endpointsOffDomain: Boolean = false,
 ) {
@@ -74,9 +75,9 @@ data class OAuthError(
 /** One device-token poll outcome (RFC 8628 §3.5). */
 sealed interface DeviceTokenResult {
     data class Success(val tokens: OAuthTokens) : DeviceTokenResult
-    /** `authorization_pending` — the user hasn't approved yet; keep polling. */
+    /** `authorization_pending`, the user hasn't approved yet; keep polling. */
     data object Pending : DeviceTokenResult
-    /** `slow_down` — poll less often (increase the interval by 5s, per RFC). */
+    /** `slow_down`, poll less often (increase the interval by 5s, per RFC). */
     data object SlowDown : DeviceTokenResult
     /** Terminal failure: `expired_token`, `access_denied`, or an HTTP/transport error.
      *  [description] and [aadstsCode] carry the server's `error_description` detail when present. */
@@ -88,18 +89,18 @@ sealed interface DeviceTokenResult {
 }
 
     /**
-     * PKCE — Proof Key for Code Exchange (RFC 7636). A public client cannot keep a secret, so PKCE
+     * PKCE, Proof Key for Code Exchange (RFC 7636). A public client cannot keep a secret, so PKCE
      */
 object Pkce {
     /** The only method we announce. `plain` sends the verifier itself through the browser. */
     const val CODE_CHALLENGE_METHOD = "S256"
 
-    /** RFC 7636 §4.1 `unreserved` = ALPHA / DIGIT / "-" / "." / "_" / "~". */
+    /** RFC 7636 §4.1 `unreserved` = alpha / DIGIT / "-" / "." / "_" / "~". */
     private const val UNRESERVED =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
 
         /**
-         * One instance, seeded by the OS; `SecureRandom.nextInt(bound)` is unbiased. The TYPE IS
+         * One instance, seeded by the OS; `SecureRandom.nextInt(bound)` is unbiased.
          */
     internal val random: SecureRandom = SecureRandom()
 
@@ -111,7 +112,7 @@ object Pkce {
         return out.toString()
     }
 
-    /** `BASE64URL(SHA256(ASCII(verifier)))`, unpadded — RFC 7636 §4.2. */
+    /** `BASE64URL(SHA256(ASCII(verifier)))`, unpadded, RFC 7636 §4.2. */
     fun codeChallengeOf(verifier: String): String =
         Base64.getUrlEncoder().withoutPadding().encodeToString(
             MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII)),
@@ -150,7 +151,7 @@ fun buildAuthorizationUrl(
         .toString()
 }
 
-/** The seven names the grant owns — also the ones taken off the endpoint's own query. */
+/** The seven names the grant owns, also the ones taken off the endpoint's own query. */
 private val GRANT_PARAMETERS = listOf(
     "response_type",
     "client_id",
@@ -175,12 +176,12 @@ fun withLoginHint(verificationUri: String, loginHint: String): String {
         .toString()
 }
 
-/** The hint's name (OIDC Core §3.1.2.1) — also the one the server may have written itself. */
+/** The hint's name (OIDC Core §3.1.2.1), also the one the server may have written itself. */
 private const val LOGIN_HINT = "login_hint"
 
 /**
  * RFC 3986 percent-encoding: everything outside `unreserved` becomes `%XX` over its UTF-8 bytes.
- * A space is `%20` and never `+` — see [buildAuthorizationUrl]. Uppercase hex, no locale involved.
+ * A space is `%20` and never `+`, see [buildAuthorizationUrl]. Uppercase hex, no locale involved.
  */
 private fun percentEncode(value: String): String {
     val out = StringBuilder(value.length)
@@ -199,7 +200,7 @@ private fun percentEncode(value: String): String {
 private const val HEX = "0123456789ABCDEF"
 
     /**
-     * The client the four OAuth POSTs use — built here, and NOT the shared JMAP one. These POSTs go to
+     * The client the four OAuth POSTs use, built here, and not the shared JMAP one.
      */
 internal fun defaultOAuthHttpClient(): OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(20, TimeUnit.SECONDS)
@@ -219,7 +220,9 @@ internal fun oauthEndpointAllowed(endpoint: String, queriedHost: String, address
 }
 
     /**
-     * Whether [endpoint] names a host that is neither under [queriedHost] nor under [addressDomain] —
+     * Whether [endpoint] names a host that is neither under [queriedHost] nor under [addressDomain]:
+     * the one of [oauthEndpointAllowed]'s three refusals that is about who, and the only one the
+     * connect screen may describe as the server handing sign-in elsewhere.
      */
 internal fun oauthEndpointNamesAnotherHost(
     endpoint: String,
@@ -248,7 +251,7 @@ class OAuthClient internal constructor(
     private val tokenHttpClient: OkHttpClient,
     private val json: Json,
 ) {
-    /** Public constructor for app code — shared client for discovery, dedicated one for the POSTs. */
+    /** Public constructor for app code, shared client for discovery, dedicated one for the POSTs. */
     constructor() : this(JmapClient.defaultHttpClient(), defaultOAuthHttpClient(), JmapClient.DefaultJson)
 
         /**
@@ -270,10 +273,10 @@ class OAuthClient internal constructor(
         if (found.tokenEndpoint.isBlank()) return@withContext null
 
             // The host actually asked, read off the URL actually built: [host] may be a bare host or a
-            // full URL. Unreadable leaves [addressDomain] as the only owner — the safe side.
+            // full URL. Unreadable leaves [addressDomain] as the only owner, the safe side.
         val queriedHost = metadataUrl.toHttpUrlOrNull()?.host.orEmpty()
         fun allowed(endpoint: String?) = oauthEndpointAllowed(endpoint.orEmpty(), queriedHost, addressDomain)
-            // The FACT is narrower than the refusal: only a host that is someone else's raises it.
+            // The fact is narrower than the refusal: only a host that is someone else's raises it.
             // A cleartext endpoint on our own host is blanked the same and says nothing about who.
         fun elsewhere(endpoint: String?) = !endpoint.isNullOrBlank() &&
             oauthEndpointNamesAnotherHost(endpoint, queriedHost, addressDomain)
@@ -304,7 +307,7 @@ class OAuthClient internal constructor(
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                     // The `error` field only, RFC 6749 §5.2's short closed vocabulary: neither the body
-                    // nor `error_description` goes into the message or the cause — this endpoint's
+                    // nor `error_description` goes into the message or the cause, this endpoint's
                     // payload is a device code, and a proxy's error page is prose.
                 throw JmapException(
                     "Device authorization failed: HTTP ${response.code}",
@@ -328,7 +331,7 @@ class OAuthClient internal constructor(
             .add("client_id", clientId)
             .build()
         val request = Request.Builder().url(metadata.tokenEndpoint).post(form).header("Accept", "application/json").build()
-            // Caught BY TYPE, IOException only. Catching by scope made a 200 whose body this client
+            // Caught by type, IOException only. Catching by scope made a 200 whose body this client
             // cannot read report itself as a dead network. Catching by type also keeps a
             // CancellationException (leaving the screen mid-poll) passing.
         try {
@@ -349,8 +352,8 @@ class OAuthClient internal constructor(
                     }
                 }
             }
-            // A fixed token, NOT `e.message`: OkHttp names the URL, the host and the port in it, and
-            // the connect screen DISPLAYS this field. The caller only needs to know the exchange never
+            // A fixed token, not `e.message`: OkHttp names the URL, the host and the port in it, and
+            // the connect screen displays this field. The caller only needs to know the exchange never
             // reached a server.
         } catch (_: IOException) {
             DeviceTokenResult.Failed("network_error")
@@ -358,7 +361,7 @@ class OAuthClient internal constructor(
     }
 
         /**
-         * Exchange an authorization code for tokens (RFC 6749 §4.1.3), proving PKCE possession. The
+         * Exchange an authorization code for tokens (RFC 6749 §4.1.3), proving PKCE possession.
          */
     suspend fun exchangeCode(
         metadata: OAuthMetadata,
@@ -379,7 +382,7 @@ class OAuthClient internal constructor(
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                     // Same halves as `startDeviceAuthorization`: the protocol's `error` word travels,
-                    // the body and `error_description` never do — this payload is the account's tokens.
+                    // the body and `error_description` never do, this payload is the account's tokens.
                 throw JmapException(
                     "Code exchange failed: HTTP ${response.code}",
                     httpCode = response.code,
@@ -412,7 +415,7 @@ class OAuthClient internal constructor(
     }
 
         /**
-         * Decode an OAuth response WITHOUT letting the payload into the failure.
+         * Decode an OAuth response without letting the payload into the failure.
          */
     private fun <T> decodeGuarded(body: String, what: String, serializer: KSerializer<T>): T =
         try {

@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST, and worth only what it says. It reads `SternaApp.kt` and
+ * Source lint, not a behaviour test, and worth only what it says.
  */
 class RootRefreshWiringTest {
 
@@ -33,7 +33,7 @@ class RootRefreshWiringTest {
     }
 
     /**
-     * EVERY BRANCH OF THE ROOT `when`, not only the new one. Pinning the new state alone leaves the
+     * Every branch of the root `when`, not only the new one.
      */
     @Test fun `each root state shows its own screen, and the unreadable one asks for nothing`() {
         assertEquals(
@@ -58,7 +58,7 @@ class RootRefreshWiringTest {
     }
 
     /**
-     * THE SHAPE OF THE SCREEN, NOT ITS RENDERING. No composable can be rendered in this module,
+     * The shape of the screen, not its rendering.
      */
     @Test fun `the screen shows both labels, the reassurance included`() {
         assertEquals(
@@ -77,7 +77,7 @@ class RootRefreshWiringTest {
     }
 
     /**
-     * NOTHING TAPPABLE ON THIS SCREEN, held as an absence.
+     * Nothing tappable on this screen, held as an absence.
      */
     @Test fun `nothing on this screen can be tapped`() {
         val offenders = codeLines(UNREADABLE_SCREEN).filter { TAPPABLE.containsMatchIn(it) }
@@ -90,7 +90,7 @@ class RootRefreshWiringTest {
     }
 
     /**
-     * [count] consecutive CODE lines of [path] from the single one starting with [prefix], trimmed.
+     * [count] consecutive code lines of [path] from the single one starting with [prefix], trimmed.
      */
     private fun codeBlock(path: String, prefix: String, count: Int): List<String> {
         val code = codeLines(path)

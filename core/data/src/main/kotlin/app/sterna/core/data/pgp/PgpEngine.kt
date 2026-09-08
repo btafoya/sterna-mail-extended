@@ -4,13 +4,14 @@ import android.app.PendingIntent
 import android.content.Intent
 
 /**
- * Per-message crypto mode. [ENCRYPT] signs and encrypts; [ENCRYPT_UNSIGNED] encrypts without a
+ * Per-message crypto mode. [encrypt] signs and encrypts; [ENCRYPT_UNSIGNED] encrypts without a
  * signature. Subject and SMTP envelope are never hidden either way.
  */
 enum class PgpMode { OFF, SIGN, ENCRYPT, ENCRYPT_UNSIGNED }
 
 /**
- * "Does this mode turn the body into ciphertext?" — draft-keep, outbox-at-rest blanking and
+ * "Does this mode turn the body into ciphertext?", draft-keep, outbox-at-rest blanking and
+ * of encrypting hangs off this single question and they must never disagree:
  */
 val PgpMode.encrypts: Boolean get() = this == PgpMode.ENCRYPT || this == PgpMode.ENCRYPT_UNSIGNED
 
@@ -28,7 +29,7 @@ enum class PgpSignatureState {
     /** Signature present but the public key is not available (grey). */
     KEY_MISSING,
 
-    /** Signature did not verify — content altered or corrupt (red). */
+    /** Signature did not verify, content altered or corrupt (red). */
     INVALID,
 
     /** Valid signature but the key is revoked (red). */
@@ -79,6 +80,7 @@ class PgpDecrypted(
 
 /**
  * Message-level OpenPGP operations, kept behind an interface so core modules stay free of
+ * any crypto or provider dependency; the app layer binds the OpenKeychain service.
  */
 interface PgpEngine {
     /** True when an OpenPGP provider is installed and its service can be bound. */
@@ -91,7 +93,7 @@ interface PgpEngine {
     ): PgpResult<Long>
 
     /**
-     * This account's OWN public key for [keyId]: minimized (signatures stripped, user ids
+     * This account's own public key for [keyId]: minimized (signatures stripped, user ids
      */
     suspend fun getPublicKey(
         keyId: Long,
@@ -100,7 +102,7 @@ interface PgpEngine {
     ): PgpResult<ByteArray>
 
     /**
-     * File a CORRESPONDENT's public key under [peerId], from a message's `Autocrypt` header.
+     * File a correspondent's public key under [peerId], from a message's `Autocrypt` header.
      */
     suspend fun updateAutocryptPeer(
         peerId: String,

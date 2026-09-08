@@ -6,7 +6,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT for the ONE line of each paginated walk that carries a page to its writer, and the
+ * Source lint for the one line of each paginated walk that carries a page to its writer, and the
+ * only thing standing between a refused write and a walk that keeps going anyway.
  */
 class SyncWalkHandOffWiringTest {
 

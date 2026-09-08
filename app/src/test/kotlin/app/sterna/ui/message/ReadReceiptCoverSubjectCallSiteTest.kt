@@ -5,11 +5,13 @@ import org.junit.Test
 import java.io.File
 
 /**
- * [ReadReceiptOfferTest] executes the capture; this pins WHAT IT IS CALLED WITH, and WHERE the
+ * [ReadReceiptOfferTest] executes the capture; this pins what it is called with, and where the
+ * subject it is called with comes from, the only two facts that keep a decrypted subject off the
+ * wire (issue #128).
  */
 class ReadReceiptCoverSubjectCallSiteTest {
 
-    /** PIN 1 — the call site: the offer is built with the cover subject, and with nothing else. */
+    /** Pin 1, the call site: the offer is built with the cover subject, and with nothing else. */
     @Test fun `the offer hands the read receipt the cover subject`() {
         assertEquals(
             "maybeOfferReadReceipt() must build the request with the captured cover subject, on " +
@@ -21,7 +23,7 @@ class ReadReceiptCoverSubjectCallSiteTest {
     }
 
     /**
-     * PIN 2 — every code line of the file that names `coverSubject`, whole and in order.
+     * Pin 2, every code line of the file that names `coverSubject`, whole and in order.
      */
     @Test fun `the cover subject is captured before any decrypt, and never rewritten`() {
         assertEquals(
@@ -42,6 +44,8 @@ class ReadReceiptCoverSubjectCallSiteTest {
 
     /**
      * The body of `maybeOfferReadReceipt` up to the function that follows it. Both markers are
+     * asserted, so a rename fails here loudly instead of handing back an empty slice on which the
+     * assertion above would fail for the wrong reason.
      */
     private fun offerFunction(): String {
         val source = viewModel().readText()
@@ -60,7 +64,7 @@ class ReadReceiptCoverSubjectCallSiteTest {
     private fun viewModel(): File =
         locate("app/src/main/kotlin/app/sterna/ui/message/MessageViewModel.kt")
 
-    /** [relative] resolved from the test's working directory, walking up — as `DecryptedSubjectCallSiteTest` does. */
+    /** [relative] resolved from the test's working directory, walking up, as `DecryptedSubjectCallSiteTest` does. */
     private fun locate(relative: String): File {
         val fromModule = relative.substringAfter("app/")
         var dir: File? = File(System.getProperty("user.dir")).absoluteFile

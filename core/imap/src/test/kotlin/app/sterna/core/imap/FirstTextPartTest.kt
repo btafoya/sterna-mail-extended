@@ -6,7 +6,8 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 
 /**
- * WHICH SECTION a notification preview is about to read out of somebody's mailbox, decided from the
+ * Which section a notification preview is about to read out of somebody's mailbox, decided from the
+ * BODYSTRUCTURE the server already sent, executed, never restated.
  */
 class FirstTextPartTest {
 
@@ -25,8 +26,8 @@ class FirstTextPartTest {
             """("attachment" ("filename" "f.pdf")) NIL)"""
         const val PNG = """("image" "png" ("name" "logo.png") NIL "<logo>" "base64" 300 NIL)"""
 
-        /** A text part that is a FILE: an `attachment` disposition and a filename on it. Note the
-         *  extra `NIL` at index 8 — a text part carries `lines` at 7, so its md5 is at 8 and its
+        /** A text part that is a file: an `attachment` disposition and a filename on it. Note the
+         *  extra `NIL` at index 8, a text part carries `lines` at 7, so its md5 is at 8 and its
          *  disposition at 9. */
         const val PLAIN_ATTACHED = """("text" "plain" ("charset" "utf-8") NIL NIL "base64" 200 4 NIL """ +
             """("attachment" ("filename" "notes.txt")) NIL)"""
@@ -45,7 +46,10 @@ class FirstTextPartTest {
     // ---- a text part is not automatically the message -------------------------------------------
 
     /**
-     * THE MUTATION CASE, and the one the app already answers elsewhere: `MimeParser.walk` calls a
+     * The mutation case, and the one the app already answers elsewhere: `MimeParser.walk` calls a
+     * part with a filename or an `attachment` disposition a file. Reading it here as the message
+     * would put the contents of `notes.txt` in the notification, next to the sender who did not
+     * write it there.
      */
     @Test fun `a text part that is an attachment is not the message`() {
         assertEquals(
@@ -66,15 +70,15 @@ class FirstTextPartTest {
         assertNull(textPart(PLAIN_NAMED))
     }
 
-    /** An invitation's payload is `BEGIN:VCALENDAR VERSION:2.0 PRODID:…`. It is text, and it is
+    /** An invitation's payload is `BEGIN:VCALENDAR version:2.0 PRODID:…`. It is text, and it is
      *  not something to read on a lock screen. */
     @Test fun `a calendar invitation is not the message text`() {
         assertNull(textPart(CALENDAR))
         assertEquals("2", textPart("""($CALENDAR$PLAIN "mixed")""")?.section)
     }
 
-    /** THE INVERSE WITNESS, without which "refuse anything carrying a disposition" would pass every
-     *  case above — and that rule would leave a great many ordinary messages with no preview. */
+    /** The inverse witness, without which "refuse anything carrying a disposition" would pass every
+     *  case above, and that rule would leave a great many ordinary messages with no preview. */
     @Test fun `an inline disposition on the body changes nothing`() {
         assertEquals(
             ImapTextPart(section = "1", mime = "text/plain", encoding = "quoted-printable", charset = "iso-8859-1"),
@@ -105,7 +109,7 @@ class FirstTextPartTest {
         )
     }
 
-    /** THE MUTATION CASE. "The first part" here is a PDF: its base64 is what would be shown. */
+    /** The mutation case. "The first part" here is a PDF: its base64 is what would be shown. */
     @Test fun `a mail whose first part is an attachment still finds its text`() {
         assertEquals(
             ImapTextPart(section = "2", mime = "text/plain", encoding = "quoted-printable", charset = "iso-8859-1"),
@@ -113,8 +117,8 @@ class FirstTextPartTest {
         )
     }
 
-    /** THE MUTATION CASE, one level down: the text of the commonest mail there is sits at 1.1,
-     *  and "the first part" of the message is a multipart — whose own first field is not a type. */
+    /** The mutation case, one level down: the text of the commonest mail there is sits at 1.1,
+     *  and "the first part" of the message is a multipart, whose own first field is not a type. */
     @Test fun `the text of a nested alternative is found at its own section`() {
         assertEquals(
             ImapTextPart(section = "1.1", mime = "text/plain", encoding = "quoted-printable", charset = "iso-8859-1"),
@@ -180,6 +184,9 @@ class FirstTextPartTest {
 
     /**
      * The wiring, end to end: the structure is asked for by every envelope fetch already, so the
+     * part must arrive on the message without a second command. Nothing else in [ImapMessage] moves,
+     * the fields the lists and the cache read are asserted beside it, because "additive" is the
+     * claim that made this safe to add.
      */
     @Test fun `an envelope fetch carries the text part, with no further command`() {
         val server = FakeImapServer { tag, line ->

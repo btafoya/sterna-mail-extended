@@ -9,7 +9,9 @@ import java.sql.DriverManager
 import java.sql.Types
 
 /**
- * The one read that decides both halves of the IMAP list preview — which rows are NOT asked of the
+ * The one read that decides both halves of the IMAP list preview, which rows are not asked of the
+ * server, and which rows keep the opening line they already have, executed against SQLite, with
+ * the statement taken out of the shipped DAO ([DaoQuerySource.emailDaoQuery]).
  */
 class CachedPreviewNumberingSqlTest {
     private lateinit var db: Connection
@@ -68,7 +70,7 @@ class CachedPreviewNumberingSqlTest {
     }
 
     /**
-     * THE DEFECT THIS STATEMENT EXISTS TO STOP. Two rows, the SAME cache id, read under two
+     * The defect this statement exists to stop. Two rows, the same cache id, read under two
      */
     @Test fun `a row cached under another numbering is not an already-filled row`() {
         insert("imap:acc-1:INBOX:7", preview = "the OLD message's opening", uidValidity = 7L)
@@ -118,6 +120,8 @@ class CachedPreviewNumberingSqlTest {
 
     /**
      * The account bound is still there, and it is the older half of the same rule (#31): with the
+     * composite (accountId, id) key an id is not unique across accounts, so a same-server sibling's
+     * filled row would report THIS account's row as filled and leave it blank for good.
      */
     @Test fun `a sibling account's row under the same id and numbering is not this account's`() {
         insert("imap:acc-1:INBOX:7", preview = "the sibling's opening", uidValidity = 42L, accountId = "acc-2")

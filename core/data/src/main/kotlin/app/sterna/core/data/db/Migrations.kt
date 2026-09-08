@@ -30,7 +30,7 @@ const val OUTBOX_CREATE_SQL: String =
 
 /**
  * Additive 9→10: add the persistent `outbox` table. The outbox holds unsent mail, so it must never
- * be destroyed on upgrade — unlike the disposable cache.
+ * be destroyed on upgrade, unlike the disposable cache.
  */
 val MIGRATION_9_10 = object : Migration(9, 10) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -47,7 +47,8 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
 }
 
 /**
- * 12→13: `mailboxes` gains `accountId` (composite key). The table is a disposable server mirror —
+ * 12→13: `mailboxes` gains `accountId` (composite key). The table is a disposable server mirror,
+ * rebuilt in place instead of letting the destructive fallback wipe the whole DB.
  */
 val MIGRATION_12_13 = object : Migration(12, 13) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -109,7 +110,7 @@ const val SNOOZED_CREATE_SQL: String =
         "`until` INTEGER NOT NULL, " +
         "PRIMARY KEY(`accountId`, `emailId`))"
 
-/** Ordered column lists of the three rebuilt tables (identical in v13 and v14 — only the PK changes). */
+/** Ordered column lists of the three rebuilt tables (identical in v13 and v14, only the PK changes). */
 const val EMAILS_COLUMNS: String =
     "`id`, `accountId`, `mailboxId`, `threadId`, `subject`, `preview`, `receivedAt`, " +
         "`fromName`, `fromEmail`, `seen`, `flagged`, `hasAttachment`, `sortKey`"
@@ -127,7 +128,9 @@ private fun SupportSQLiteDatabase.rebuildTable(table: String, createSql: String,
 }
 
 /**
- * Additive 13→14 (released as 1.3.10): `outbox` and `scheduled_sends` gain `draftEmailId` — the
+ * Additive 13→14 (released as 1.3.10): `outbox` and `scheduled_sends` gain `draftEmailId`, the
+ * server draft an edited message came from, destroyed once the send succeeds so no duplicate
+ * lingers in Drafts (#63). Both tables hold unsent user mail, never rebuilt destructively.
  */
 val MIGRATION_13_14 = object : Migration(13, 14) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -137,7 +140,7 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
 }
 
 /**
- * Exact `CREATE VIRTUAL TABLE` Room generates for [EmailFtsEntity] with the `remove_diacritics=1`
+ * Exact `CREATE virtual table` Room generates for [EmailFtsEntity] with the `remove_diacritics=1`
  */
 const val EMAIL_FTS_CREATE_SQL: String =
     "CREATE VIRTUAL TABLE IF NOT EXISTS `email_fts` USING FTS4(" +
@@ -184,7 +187,7 @@ val MIGRATION_15_16 = object : Migration(15, 16) {
 }
 
 /**
- * Additive 16→17: `emails` gains `recipientsJson` ([EmailEntity.recipientsJson]) — Sent/Drafts rows
+ * Additive 16→17: `emails` gains `recipientsJson` ([EmailEntity.recipientsJson]), Sent/Drafts rows
  */
 val MIGRATION_16_17 = object : Migration(16, 17) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -203,7 +206,7 @@ const val PURGE_SNAPSHOT_CREATE_SQL: String =
         "PRIMARY KEY(`purgeId`, `accountId`, `emailId`))"
 
 /**
- * Additive 17→18: the `purge_snapshot` table (#99). "Empty trash" records the exact messages the
+ * Additive 17→18: the `purge_snapshot` table (#99).
  */
 val MIGRATION_17_18 = object : Migration(17, 18) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -212,7 +215,9 @@ val MIGRATION_17_18 = object : Migration(17, 18) {
 }
 
 /**
- * The UIDVALIDITY a snapshot was taken under ([PurgeSnapshotEntity.uidValidity]). NULLABLE, and the
+ * The UIDVALIDITY a snapshot was taken under ([PurgeSnapshotEntity.uidValidity]). Nullable, and the
+ * the null is load-bearing: a snapshot written by the previous version carries no value, which
+ * reads as "cannot be verified" and destroys nothing, the same choice `MessageDestroyWorker`
  */
 const val PURGE_SNAPSHOT_ADD_UIDVALIDITY_SQL: String =
     "ALTER TABLE `purge_snapshot` ADD COLUMN `uidValidity` INTEGER"
@@ -226,7 +231,7 @@ const val MAILBOX_UIDVALIDITY_CREATE_SQL: String =
         "PRIMARY KEY(`accountId`, `mailboxId`))"
 
 /**
- * Additive 18→19: remember which numbering an IMAP folder's UIDs belong to (#99). A server that
+ * Additive 18→19: remember which numbering an IMAP folder's UIDs belong to (#99).
  */
 val MIGRATION_18_19 = object : Migration(18, 19) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -246,6 +251,7 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
 
 /**
  * Additive 20→21: `emails` gains `ccJson` and `bccJson`. The row is what a reopened draft and a
+ * ([EmailRecipients], see [EmailEntity.ccJson] and [EmailEntity.bccJson]).
  */
 val MIGRATION_20_21 = object : Migration(20, 21) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -275,7 +281,8 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
 }
 
 /**
- * The `local_drafts` table ([LocalDraftEntity]) — drafts written on the phone and not yet on the
+ * The `local_drafts` table ([LocalDraftEntity]), drafts written on the phone and not yet on the
+ * server.
  */
 const val LOCAL_DRAFTS_CREATE_SQL: String =
     "CREATE TABLE IF NOT EXISTS `local_drafts` (" +
@@ -316,7 +323,7 @@ val MIGRATION_23_24 = object : Migration(23, 24) {
 }
 
 /**
- * Additive 24→25: `emails` gains `uidValidity`, the IMAP numbering each cached row was READ under
+ * Additive 24→25: `emails` gains `uidValidity`, the IMAP numbering each cached row was read under
  */
 val MIGRATION_24_25 = object : Migration(24, 25) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -334,7 +341,7 @@ val MIGRATION_25_26 = object : Migration(25, 26) {
 }
 
 /**
- * Additive 26→27: `emails` gains the composite index `(accountId, mailboxId, sortKey)` — the three
+ * Additive 26→27: `emails` gains the composite index `(accountId, mailboxId, sortKey)`, the three
  */
 val MIGRATION_26_27 = object : Migration(26, 27) {
     override fun migrate(db: SupportSQLiteDatabase) {

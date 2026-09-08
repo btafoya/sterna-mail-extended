@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads the sources as text and proves nothing about what
+ * Source lint, not a behaviour test, it reads the sources as text and proves nothing about what
  */
 class PagerFlingWiringTest {
 
@@ -162,7 +162,7 @@ class PagerFlingWiringTest {
         )
     }
 
-    /** The `header { … }` block of [source], braces balanced, whitespace runs collapsed — in
+    /** The `header { … }` block of [source], braces balanced, whitespace runs collapsed, in
      *  [source] as well as in [header], so a header spread over several lines can be named here on
      *  one. Comments are already gone (see [code]), so no brace can hide in one. */
     private fun block(header: String, source: String, path: String): String {
@@ -184,7 +184,7 @@ class PagerFlingWiringTest {
         error("unbalanced braces after: $header")
     }
 
-    /** The whole `name(...)` CALL in [source] — the declaration `fun name(` is skipped — with the
+    /** The whole `name(...)` call in [source] (the declaration `fun name(` is skipped) with the
      *  parentheses balanced and whitespace runs collapsed. */
     private fun call(name: String, source: String, path: String): String {
         val sites = Regex("""(?<!fun )\b${Regex.escape(name)}\(""").findAll(source).map { it.range.first }.toList()
@@ -212,7 +212,7 @@ class PagerFlingWiringTest {
         error("unbalanced parentheses after $name( in $path")
     }
 
-    /** The one whole LINE of [source] that contains [marker], whitespace runs collapsed. Asserts
+    /** The one whole line of [source] that contains [marker], whitespace runs collapsed. Asserts
      *  there is exactly one, the way [call] asserts a single call site: a second occurrence means
      *  this pin no longer names what it thinks it names. */
     private fun line(marker: String, source: String, path: String): String {
@@ -226,7 +226,7 @@ class PagerFlingWiringTest {
         return hits.single().replace(Regex("""\s+"""), " ").trim()
     }
 
-    /** [file]'s code as one string, comments cut — the comments here name the very expressions
+    /** [file]'s code as one string, comments cut, the comments here name the very expressions
      *  these rules are about. */
     private fun code(file: File): String {
         assertTrue("source not found where this lint expects it: $file", file.isFile)

@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [reopenedDraftIsLossy], EXECUTED — the verdict the composer computes when it reopens a saved
+ * [reopenedDraftIsLossy], executed, the verdict the composer computes when it reopens a saved
  */
 class ReopenedDraftLossyTest {
 
@@ -132,7 +132,7 @@ class ReopenedDraftLossyTest {
     }
 
     /**
-     * A header that is THERE but names no address, the shape `<>` a server hands back for a stripped one.
+     * A header that is there but names no address, the shape `<>` a server hands back for a stripped one.
      */
     @Test fun aReceiptHeaderNamingNoAddressIsLossy() {
         assertTrue(
@@ -254,7 +254,7 @@ class ReopenedDraftLossyTest {
     }
 
     /**
-     * **The pair that is a DESTROY, end to end**: a draft whose `text/plain` part has the user's
+     * **The pair that is a destroy, end to end**: a draft whose `text/plain` part has the user's
      */
     @Test fun aDraftWhoseHtmlPartIsEmptyOpensOnItsTextAndKeepsItsOriginal() {
         val html = ""
@@ -291,7 +291,7 @@ class ReopenedDraftLossyTest {
         )
     }
 
-    /** …but the OTHER legs still decide beside a readable html: fidelity is not one term. */
+    /** …but the other legs still decide beside a readable html: fidelity is not one term. */
     @Test fun ourOwnHtmlDoesNotRescueAnInlineImageOrAReceipt() {
         assertTrue(
             reopenedDraftIsLossy(

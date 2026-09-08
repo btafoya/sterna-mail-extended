@@ -12,7 +12,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The confirmation of a `mailto:` unsubscribe must show the TEXT it is about to send, not only
+ * The confirmation of a `mailto:` unsubscribe must show the text it is about to send, not only
  */
 class UnsubscribeConfirmationShowsMailTextTest {
 
@@ -62,7 +62,7 @@ class UnsubscribeConfirmationShowsMailTextTest {
     }
 
     /**
-     * SOURCE LINT. Pins the two ARGUMENTS and their order: subject first, body second. A swap
+     * Source lint. Pins the two arguments and their order: subject first, body second. A swap
      */
     @Test fun `the dialog shows the preview, subject first and body second`() {
         val source = File(repoRoot, "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt").readText()
@@ -80,7 +80,7 @@ class UnsubscribeConfirmationShowsMailTextTest {
     }
 
     /**
-     * SOURCE LINT. The preview comes from the CAPTURED pending gesture, on the mail branch only:
+     * Source lint. The preview comes from the captured pending gesture, on the mail branch only:
      */
     @Test fun `the preview is read from the captured pending gesture, on the mail branch`() {
         val source = File(repoRoot, "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt").readText()

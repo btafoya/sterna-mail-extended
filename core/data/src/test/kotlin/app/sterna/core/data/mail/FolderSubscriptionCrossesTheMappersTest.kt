@@ -8,7 +8,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The folder's subscription, EXECUTED across the three crossings it has to survive to reach the
+ * The folder's subscription, executed across the three crossings it has to survive to reach the
+ * drawer (Codeberg #174): IMAP listing → cache row ([imapMailboxEntity]), JMAP model → cache row
+ * ([toEntity]), and cache row → UI model ([toMailbox]).
  */
 class FolderSubscriptionCrossesTheMappersTest {
 
@@ -89,7 +91,7 @@ class FolderSubscriptionCrossesTheMappersTest {
     // --- what "nobody said" means ------------------------------------------------------------------
 
     /**
-     * Unknown is SUBSCRIBED, on all three types. This volet reads the subscription nowhere yet:
+     * Unknown is subscribed, on all three types. This volet reads the subscription nowhere yet:
      */
     @Test fun aFolderNobodySaidAnythingAboutIsSubscribed() {
         assertTrue(ImapFolder(name = "Projekte", path = "Projekte", role = null, delimiter = "/").isSubscribed)

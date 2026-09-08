@@ -9,7 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * EXECUTES the browser round-trip's decisions; it reads no source file.
+ * Executes the browser round-trip's decisions; it reads no source file.
  */
 class OAuthRedirectTest {
 
@@ -36,7 +36,7 @@ class OAuthRedirectTest {
     }
 
     /**
-     * The mutation this kills: `"app.sterna://oauth"` written as a constant. The test build is
+     * The mutation this kills: `"app.sterna://oauth"` written as a constant.
      */
     @Test fun `the redirect uri follows the package it is asked about`() {
         assertEquals("app.sterna.test://oauth", oauthRedirectUri("app.sterna.test"))
@@ -147,7 +147,7 @@ class OAuthRedirectTest {
         )
     }
 
-    /** The redirect URI posted is the one the browser was sent to — the server compares them. */
+    /** The redirect URI posted is the one the browser was sent to, the server compares them. */
     @Test fun `the exchange posts the redirect uri it was given`() {
         val verdict = redirectVerdict(request(), "STATE-1", "CODE-42", null) as RedirectVerdict.Exchange
         assertEquals(

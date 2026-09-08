@@ -58,7 +58,9 @@ class EmailMapperCopiesTest {
     }
 
     /**
-     * The four addressing fields land in four separate columns, each holding its OWN list. Pins the
+     * The four addressing fields land in four separate columns, each holding its own list. Pins the
+     * argument each column is written from, not merely that something was written: `ccJson` built
+     * from the To (or the Bcc) is invisible to any check that only asks "is it non-null?".
      */
     @Test fun eachAddressingFieldGoesToItsOwnColumnAndNoOther() {
         val entity = message().toEntity("accA", "inbox")
@@ -122,7 +124,7 @@ class EmailMapperCopiesTest {
     // --- one copy field filled, the other empty -----------------------------------------------------
 
     /**
-     * The commonest shape of a hidden copy: somebody in blind copy, NOBODY in visible copy.
+     * The commonest shape of a hidden copy: somebody in blind copy, nobody in visible copy.
      */
     @Test fun aBlindCopyAloneDoesNotFallBackIntoTheVisibleCc() {
         val entity = message(cc = emptyList(), bcc = listOf(dave)).toEntity("accA", "inbox")
@@ -217,6 +219,8 @@ class EmailMapperCopiesTest {
 
     /**
      * The addressee typed but not yet resolved: a server can hand a draft's recipient back with an
+     * empty address and the typed string in the name. It is still a recipient the user wrote, and
+     * losing it is the loss this column exists to stop.
      */
     @Test fun aCopiedRecipientWithNoAddressYetIsStillStored() {
         val typed = EmailAddress(name = "cc-typed-but-unresolved", email = "")

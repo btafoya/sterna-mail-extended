@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads three source files as text and proves nothing about
+ * Source lint, not a behaviour test, it reads three source files as text and proves nothing about
  */
 class PlainTextReadingWiringTest {
 
@@ -129,8 +129,8 @@ class PlainTextReadingWiringTest {
                 block.joinToString("\n"),
             block.none { "enabled =" in it } && block.none { "if (" in it },
         )
-        // A condition WRAPPING the switch sits outside those six lines and would hide the row
-        // entirely with every rule above still green — the defect PureBlackWiringTest was written
+        // A condition wrapping the switch sits outside those six lines and would hide the row
+        // entirely with every rule above still green, the defect PureBlackWiringTest was written
         // for after the Android-12 guard swallowed a switch.
         val enclosing = enclosingLineOfSwitch()
         assertTrue(
@@ -154,8 +154,8 @@ class PlainTextReadingWiringTest {
 
     // -- reading the sources ----------------------------------------------------------------------
 
-    /** The nearest enclosing line of the switch — the first line above it indented LESS than it is.
-     *  Reads the file unTRIMMED, since indentation is the only thing that says what wraps what. */
+    /** The nearest enclosing line of the switch, the first line above it indented less than it is.
+     *  Reads the file untrimmed, since indentation is the only thing that says what wraps what. */
     private fun enclosingLineOfSwitch(): String {
         val lines = SETTINGS_SCREEN_RAW
         val title = lines.indexOfFirst { it.trim() == EXPECTED_SWITCH[1] }
@@ -237,7 +237,7 @@ class PlainTextReadingWiringTest {
         private const val SETTINGS_REPOSITORY_PATH =
             "core/data/src/main/kotlin/app/sterna/core/data/settings/SettingsRepository.kt"
 
-        /** Repo root, walked up from the module's working directory — the rules read BOTH modules. */
+        /** Repo root, walked up from the module's working directory, the rules read both modules. */
         val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, SETTINGS_REPOSITORY_PATH).isFile }
@@ -255,7 +255,7 @@ class PlainTextReadingWiringTest {
             File(root, "app/src/main/kotlin/app/sterna/ui/settings/SettingsScreen.kt")
         }
 
-        /** SettingsScreen.kt with its indentation intact — see `enclosingLineOfSwitch`. */
+        /** SettingsScreen.kt with its indentation intact, see `enclosingLineOfSwitch`. */
         val SETTINGS_SCREEN_RAW: List<String> by lazy {
             SETTINGS_SCREEN.readLines().filterNot {
                 val code = it.trimStart()

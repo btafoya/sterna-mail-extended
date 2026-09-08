@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The three decisions a paginated folder walk takes, EXECUTED on their own: where the window
+ * The three decisions a paginated folder walk takes, executed on their own: where the window
  */
 class FolderWalkDecisionTest {
 
@@ -30,8 +30,7 @@ class FolderWalkDecisionTest {
     // -- how big a page may be ---------------------------------------------------------------------
 
     @Test fun `the page size is a few hundred, which is the whole point of paginating`() {
-        // Not a tautology, a BOUND. The shipped page size is the one number that can un-do this
-        // walk without changing a line of its logic: raise it past a window and every window is
+        // Not a tautology, a bound.
         assertTrue("IMAP_FOLDER_PAGE = $IMAP_FOLDER_PAGE is no longer a page", IMAP_FOLDER_PAGE in 50..500)
         assertTrue(
             "one page must be smaller than the largest window the app offers (1 000), or the " +
@@ -98,7 +97,7 @@ class FolderWalkDecisionTest {
     @Test fun `a renumbering makes the walk RE-READ, never skip — except at the floor`() {
         // The arithmetic behind the guard, stated as a fact about the ranges rather than as
         // prose. `k` messages are expunged while the walk is between its first and second page:
-        // every message above them slides DOWN by k positions.
+        // every message above them slides down by k positions.
         val exists = 1000
         val limit = 500
         val k = 3
@@ -107,7 +106,7 @@ class FolderWalkDecisionTest {
         val second = nextFolderPage(lowest, exists, first, 200)!! // 601..800
 
         // A message that sat at position p before the expunges sits at p - k after them. The
-        // second range therefore covers what USED to be at 601+k .. 800+k — which overlaps the
+        // second range therefore covers what used to be at 601+k .. 800+k, which overlaps the
         // first range's floor (801) instead of leaving a hole under it.
         assertTrue(
             "the shift opened a gap between the pages: nothing covers old position ${second.last + 1}",
@@ -165,7 +164,7 @@ class FolderWalkDecisionTest {
 
     @Test fun `the same EXISTS is not movement, and neither is an ordinary FETCH`() {
         // The witness for every assertion above: without this, "moved" could simply be always
-        // true and the whole table would still pass — and a walk that never reconciles never
+        // true and the whole table would still pass, and a walk that never reconciles never
         // trims the cache to the window.
         assertFalse(folderMoved(listOf(line("*", "1000", "EXISTS")), startedWith = 1000))
         assertFalse(

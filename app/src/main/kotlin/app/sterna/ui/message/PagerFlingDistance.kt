@@ -15,18 +15,18 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 
 /*
- * How far the FINGER must actually have travelled before a flick is allowed to change message.
+ * How far the finger must actually have travelled before a flick is allowed to change message.
  *
  */
 
-/** The travel a fling must have covered before it may carry the reader to another message, in dp —
+/** The travel a fling must have covered before it may carry the reader to another message, in dp,
  *  absolute, never a share of the page, since what is bounded is a movement of the thumb, which does
  *  not grow with the display. This is `ViewPager.MIN_DISTANCE_FOR_FLING`, compared against the same
  *  quantity ViewPager compared it against. */
 internal const val MIN_FLING_DISTANCE_DP = 25
 
 /**
- * The velocity the pager is ALLOWED TO SEE, given how far the finger actually travelled. Under the
+ * The velocity the pager is allowed to see, given how far the finger actually travelled.
  */
 internal fun flingVelocityForTravel(
     travelPx: Float,
@@ -67,7 +67,7 @@ internal class PagerTouchTravel {
     private var state = PointerTravel()
 
     /** The travel of the gesture that just ended, signed, in px. Nothing executing can see this
-     *  getter: return [PointerTravel.downX] instead — also a `Float`, also warning-free — and the guard
+     *  getter: return [PointerTravel.downX] instead (also a `Float`, also warning-free) and the guard
      *  reads the absolute x of the touch down, which clears the floor almost everywhere, with a green
      *  suite. Hence `PagerFlingWiringTest` pinning this class whole. */
     val travelPx: Float get() = state.travelPx

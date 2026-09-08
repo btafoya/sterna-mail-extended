@@ -36,8 +36,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 val credentials = container.accountStore.credentials(accountId)
-                // Reply leaves the common path BEFORE the dismissal below: it used to fall through
-                // to it, so a reply that sent nothing still cleared the notification and the text.
+                // Reply leaves the common path before the dismissal below: falling through to it,
+                // a reply that sent nothing would still clear the notification and the text.
                 if (action == ACTION_REPLY) {
                     reply(
                         appContext, container.mailRepository, container.settingsRepository,
@@ -83,9 +83,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
         return true
     }
 
-    /** The Reply path, whose only asset is the text the user just typed. Cache FIRST, exactly like
+    /** The Reply path, whose only asset is the text the user just typed. Cache first, exactly like
      *  the composer, so this never waits on a socket to learn where the reply is going. Three ends,
-     *  none of them silent — queued, handed back, or nothing was typed. */
+     *  none of them silent, queued, handed back, or nothing was typed. */
     private suspend fun reply(
         context: Context,
         repo: MailRepository,
@@ -107,6 +107,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             QuickReplyAct.Dismiss -> dismiss(context, accountId, credentials, emailId, notifId)
             // Read here and not before: the setting is only needed on the end that posts a banner.
             // Guarded, and not for tidiness: the DataStore has no corruption handler, so a
+            // out whatever the user had chosen).
             is QuickReplyAct.HandBack -> {
                 val content = runCatching { settings.notificationContent.first() }
                     .getOrDefault(NotificationContent.NONE)
@@ -117,6 +118,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
     /**
      * Hand the reply to the Outbox, which is what makes the text durable: sent when there is a
+     * network, retried with backoff, and parked as FAILED with its text intact if it never goes.
      */
     private suspend fun send(
         repo: MailRepository,
@@ -138,7 +140,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
     }
 
     /**
-     * The original's threading headers, or null — ABANDONED after [FETCH_BUDGET_MS].
+     * The original's threading headers, or null, abandoned after [FETCH_BUDGET_MS].
      */
     private suspend fun fetchWithinBudget(
         repo: MailRepository,
@@ -159,7 +161,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         emailId: String,
         notifId: Int,
     ) {
-        // The shade is read BEFORE the cancel below: `cancel` returns once the system has queued
+        // The shade is read before the cancel below: `cancel` returns once the system has queued
         // the work and `getActiveNotifications` does not drain that queue, so a later read still
         // shows the banner just taken down and the summary would put it back (#134).
         val active = Notifications.activeChildIds(context, accountId)
@@ -182,7 +184,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         const val EXTRA_NOTIF_ID = "notif_id"
         const val KEY_REPLY = "key_reply"
 
-        /** The leash on the threading fetch — well under goAsync's budget, deliberately. */
+        /** The leash on the threading fetch, well under goAsync's budget, deliberately. */
         private const val FETCH_BUDGET_MS = 5_000L
     }
 }

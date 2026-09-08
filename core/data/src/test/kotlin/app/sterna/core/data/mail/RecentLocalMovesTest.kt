@@ -36,7 +36,7 @@ class RecentLocalMovesTest {
     @Test
     fun `the same id in another account is not a self-move`() {
         val moves = registry()
-        moves.mark("acct-a", "a") // archived message "a" of account A
+        moves.mark("acct-a", "a") // archived message "a" of account A.
         assertTrue(a in moves)
         // Account B's genuinely new message that happens to carry the same JMAP id must
         // still notify, instead of being swallowed for the next 45 minutes.
@@ -59,7 +59,7 @@ class RecentLocalMovesTest {
         val moves = registry()
         moves.mark("acct-a", "a")
         assertTrue(a in moves)
-        assertTrue(a in moves) // threads scan + notify diff both see it
+        assertTrue(a in moves) // threads scan + notify diff both see it.
     }
 
     @Test

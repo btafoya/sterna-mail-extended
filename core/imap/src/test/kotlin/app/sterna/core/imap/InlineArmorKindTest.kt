@@ -5,7 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * EXECUTES [inlineArmorKind] — the confidentiality guard that keeps the reader's cache warm-up
+ * Executes [inlineArmorKind], the confidentiality guard that keeps the reader's cache warm-up
  */
 class InlineArmorKindTest {
 
@@ -20,7 +20,7 @@ class InlineArmorKindTest {
     }
 
     /**
-     * The shape a real message has: the armour sits in the MIDDLE of a body, with a greeting
+     * The shape a real message has: the armour sits in the middle of a body, with a greeting
      */
     @Test
     fun `an encrypted armour buried in a body is inline PGP`() {
@@ -47,7 +47,10 @@ class InlineArmorKindTest {
     }
 
     /**
-     * A pasted public key is NOT a crypto message: there is nothing to decrypt and nothing to
+     * A pasted public key is not a crypto message: there is nothing to decrypt and nothing to
+     * verify, so warming it shows the reader exactly what an unwarmed page would. Pinned because
+     * "any -----begin PGP" would be the natural over-shoot, and it would refuse to warm every
+     * message that quotes a key block.
      */
     @Test
     fun `a quoted public key block is not crypto`() {

@@ -3,7 +3,7 @@ package app.sterna.widget
 import java.io.File
 
 /**
- * Reading a DECLARATION as text — the mechanics shared by the widgets' source lints, and nothing
+ * Reading a declaration as text, the mechanics shared by the widgets' source lints, and nothing
  */
 internal object DeclarationSource {
 
@@ -22,7 +22,9 @@ internal object DeclarationSource {
     }
 
     /**
-     * The file's lines, comments removed WHOLE — an `<!-- … -->` block is cut out before the split,
+     * The file's lines, comments removed whole, an `<!-- … -->` block is cut out before the split,
+     * and a `//` line is dropped. Without that, every rule also matches the prose written to
+     * explain it.
      */
     fun codeLines(file: File): List<String> = file.readText()
         .replace(XML_COMMENT, "")
@@ -31,7 +33,7 @@ internal object DeclarationSource {
         .filter { it.isNotBlank() && !it.startsWith("//") }
 
     /**
-     * The whole brace-balanced block that opens with [opener] and contains [marker] — so a rule can
+     * The whole brace-balanced block that opens with [opener] and contains [marker], so a rule can
      */
     fun blockContaining(file: File, marker: String, opener: String): List<String> {
         val lines = codeLines(file)
@@ -66,7 +68,7 @@ internal object DeclarationSource {
     }
 
     /**
-     * The same for KOTLIN: KDoc and `//` lines dropped, trailing `//` cut outside string literals.
+     * The same for kotlin: KDoc and `//` lines dropped, trailing `//` cut outside string literals.
      */
     fun kotlinLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val code = line.trim()

@@ -11,12 +11,12 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 
 /**
- * WHEN the latest-messages widget is asked to draw itself again — [UnreadWidgetPush]'s twin, kept
+ * When the latest-messages widget is asked to draw itself again, [UnreadWidgetPush]'s twin, kept
  */
 internal object RecentMailWidgetPush {
 
     /**
-     * The moments the cell must be redrawn, as the READ that changed under it.
+     * The moments the cell must be redrawn, as the read that changed under it.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     fun redraws(

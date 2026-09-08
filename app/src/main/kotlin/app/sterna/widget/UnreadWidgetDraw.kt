@@ -18,32 +18,32 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * The ONE way the widget is drawn, and the one place that knows which cells exist: a second
+ * The one way the widget is drawn, and the one place that knows which cells exist: a second
  */
 internal object UnreadWidgetDraw {
 
     /** The cells the user has actually placed. Empty for the large majority of installs, and every
-     *  caller checks it BEFORE reaching for the container: a widget nobody placed must not open
+     *  caller checks it before reaching for the container: a widget nobody placed must not open
      *  Room. */
     fun placedIds(context: Context): IntArray =
         AppWidgetManager.getInstance(context)
             .getAppWidgetIds(ComponentName(context, UnreadWidgetProvider::class.java))
 
     /**
-     * Draw [unreadByAccount] into [ids]. Not free — `accounts()` decodes the whole blob and
+     * Draw [unreadByAccount] into [ids].
      */
     suspend fun draw(app: Application, ids: IntArray, unreadByAccount: Map<String, Int>) {
         if (ids.isEmpty()) return
         // The cell's colours, from the app's own theme settings and not from the system's night
-        // mode (#117) — three DataStore flows, which is why draw() suspends. Null travels to both
+        // mode (#117), three DataStore flows, which is why draw() suspends. Null travels to both
         // renders and is drawn by posting no colour at all. Never a `?:` default here.
         val palette = WidgetThemeReader.palette(app)
-        // One read of the account list, spent three times: what the cell is CALLED, what a tap
+        // One read of the account list, spent three times: what the cell is called, what a tap
         // asks for, and the enlarged layout's lines. Two reads is how the first two would disagree.
         val store = app.container.accountStore
         val accounts = store.accounts()
         val target = UnreadWidgetTap.of(accounts)
-        // The small layout's figure is this breakdown TOTALLED, never a second count.
+        // The small layout's figure is this breakdown totalled, never a second count.
         val small = tapped(app, renderTotal(app, UnreadWidgetContent.of(accounts, unreadByAccount.values.sum()), palette), target)
         // A locked app draws the total at every size: an account's name can be its owner's address.
         val rows = UnreadWidgetContent.byAccount(accounts, unreadByAccount, store.appLockEnabled())
@@ -51,7 +51,7 @@ internal object UnreadWidgetDraw {
             // API 31+ only: below it the size-map constructor does not exist and the cell keeps
             // the layout it has always had.
             if (rows.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                // The ventilated entry's height is DERIVED from how many lines there are: a
+                // The ventilated entry's height is derived from how many lines there are: a
                 // constant is a claim about how many accounts the reader has, and at four it cost
                 // them one, cut off in silence. The font scale is read here, at draw time,
                 // because the rest of the size rule must stay runnable in a test.
@@ -92,7 +92,7 @@ internal object UnreadWidgetDraw {
         }
 
     /**
-     * The cell as it has always been: one figure, one label under it. It reads nothing — [palette]
+     * The cell as it has always been: one figure, one label under it. It reads nothing, [palette]
      */
     private fun renderTotal(
         context: Context,
@@ -167,7 +167,7 @@ internal object UnreadWidgetDraw {
      *  a fixed height having cut the fourth account off. */
     private val SMALL = SizeF(110f, 40f)
 
-    /** The widget's own intent action — what keeps its `PendingIntent` from being a notification's
+    /** The widget's own intent action, what keeps its `PendingIntent` from being a notification's
      *  (see [tapIntent]). Never declared in an `intent-filter`: the action's only job is to differ. */
     private const val ACTION_WIDGET_TAP = "app.sterna.widget.TAP"
 
@@ -177,7 +177,7 @@ internal object UnreadWidgetDraw {
 }
 
 /**
- * Is at least one widget placed? — the condition [UnreadWidgetPush] gates its collection on, held
+ * Is at least one widget placed?, the condition [UnreadWidgetPush] gates its collection on, held
  */
 internal object UnreadWidgetPresence {
 
@@ -193,7 +193,7 @@ internal object UnreadWidgetPresence {
         return state
     }
 
-    /** The same flow WITHOUT the seed — what [set] writes into, and the handle a JVM test can
+    /** The same flow without the seed, what [set] writes into, and the handle a JVM test can
      *  hold: seeding needs a [Context] and the widget manager. */
     val live: StateFlow<Boolean> get() = state
 
@@ -203,6 +203,6 @@ internal object UnreadWidgetPresence {
 }
 
 /**
- * Does this set of placed cell ids mean the app has a widget? — the seed's decision, pulled out
+ * Does this set of placed cell ids mean the app has a widget?, the seed's decision, pulled out
  */
 internal fun anyWidgetPlaced(ids: IntArray): Boolean = ids.isNotEmpty()

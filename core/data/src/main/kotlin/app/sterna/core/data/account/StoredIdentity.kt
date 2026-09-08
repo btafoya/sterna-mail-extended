@@ -4,8 +4,8 @@ import app.sterna.core.data.text.htmlToText
 import app.sterna.core.data.text.looksLikeHtml
 import kotlinx.serialization.Serializable
 
-/** A sending identity: "from" name + address + signature. Stored twice — [signature] plain
- *  text, [signatureHtml] optional HTML — as JSON (not Room), so new fields default cleanly. */
+/** A sending identity: "from" name + address + signature. Stored twice, [signature] plain
+ *  text, [signatureHtml] optional HTML, as JSON (not Room), so new fields default cleanly. */
 @Serializable
 data class StoredIdentity(
     val id: String,

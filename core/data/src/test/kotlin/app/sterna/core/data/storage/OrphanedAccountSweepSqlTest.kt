@@ -78,7 +78,7 @@ class OrphanedAccountSweepSqlTest {
     }
 
     /**
-     * The decision, with its two arguments in the order the SHIPPED call passes them — the one
+     * The decision, with its two arguments in the order the shipped call passes them, the one
      */
     private fun decide(known: Collection<String>, cached: Collection<String>): List<String> {
         val values = mapOf(SweepShape.knownValue to known, SweepShape.cachedValue to cached)
@@ -101,7 +101,9 @@ class OrphanedAccountSweepSqlTest {
     }
 
     /**
-     * The whole sweep — inventory → account list → decision → the per-account deletes — in the
+     * The whole sweep (inventory → account list → decision → the per-account deletes) in the
+     * order the shipped function does them, with [afterFirstRead] standing in for whatever the rest
+     * of the app does while the sweep is between its two reads. Returns the ids swept.
      */
     private fun sweep(knownAccountIds: () -> Collection<String>, afterFirstRead: () -> Unit = {}): List<String> {
         val cached: List<String>
@@ -242,6 +244,9 @@ class OrphanedAccountSweepSqlTest {
 
     /**
      * The replay above runs whatever `purgeOrphanedAccounts` calls after its decision, so an
+     * unscoped delete would already show up as a live account losing its rows. This states the rule
+     * on its own, so the failure names it: nothing standing after the decision may run a statement
+     * that is not per-account, not in the loop, and not on the line before it.
      */
     @Test fun `every delete the sweep runs is scoped to one account`() {
         assertTrue(
@@ -267,7 +272,7 @@ class OrphanedAccountSweepSqlTest {
     // ---- the decision, as the repository calls it ----------------------------------------------
 
     /**
-     * THE CALL ITSELF, ARGUMENTS INCLUDED. Pinning only the function name left two mutations
+     * The call itself, arguments included. Pinning only the function name left two mutations
      */
     @Test fun `the decision is handed the account list first and the inventory second`() {
         assertEquals(
@@ -346,7 +351,7 @@ class OrphanedAccountSweepSqlTest {
     }
 
     /**
-     * The sweep's two callers, in the app module — the cold start and the sign-out. Neither can be
+     * The sweep's two callers, in the app module, the cold start and the sign-out. Neither can be
      */
     @Test fun `both callers hand the sweep a reader of the account store`() {
         val callers = mapOf(
@@ -392,11 +397,11 @@ class OrphanedAccountSweepSqlTest {
             }.getOrElse { error("the sweep calls $text, which has no readable @Query: ${it.message}") }
         }
 
-        /** The text of `purgeOrphanedAccounts`, declaration to closing brace — for failure messages. */
+        /** The text of `purgeOrphanedAccounts`, declaration to closing brace, for failure messages. */
         val body: String by lazy { functionText(SOURCE) }
 
         /**
-         * The same, with the comments taken out — what every rule here actually reads.
+         * The same, with the comments taken out, what every rule here actually reads.
          */
         val code: String by lazy { functionText(withoutComments(SOURCE)) }
 
@@ -435,7 +440,7 @@ class OrphanedAccountSweepSqlTest {
 
         val inventory: List<Call> by lazy { calls(code.substring(0, decisionAt)) }
 
-        /** Every DAO call standing after the decision — see [decisionAt]. */
+        /** Every DAO call standing after the decision, see [decisionAt]. */
         val deletes: List<Call> by lazy { calls(code.substring(decisionAt)) }
 
         /** The name of the parameter the account list is read through. */
@@ -483,7 +488,9 @@ class OrphanedAccountSweepSqlTest {
         }
 
         /**
-         * The name the loop binds each orphan to — `forEach { id ->`, a bare `forEach { … it … }`,
+         * The name the loop binds each orphan to, `forEach { id ->`, a bare `forEach { … it … }`,
+         * or `for (id in orphans)` alike. Read rather than assumed: renaming the loop variable, or
+         * writing the loop the other way, is not a defect and must not turn this file red.
          */
         val loopVariable: String by lazy {
             val after = code.substring(decisionAt)

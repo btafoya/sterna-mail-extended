@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The `Autocrypt:` header as [OutgoingMime.build] writes it — the ONE insertion point, and the one
+ * The `Autocrypt:` header as [OutgoingMime.build] writes it, the one insertion point, and the one
  */
 class OutgoingMimeAutocryptTest {
 
@@ -63,7 +63,7 @@ class OutgoingMimeAutocryptTest {
     }
 
     @Test fun `a CRLF in the value cannot smuggle a header`() {
-        // The sink is OutgoingMime.headerSafe, applied BEFORE folding — never after, or the folded
+        // The sink is OutgoingMime.headerSafe, applied before folding, never after, or the folded
         // value would come out flat again.
         val mime = OutgoingMime.build(msg("addr=alice@example.com\r\nBcc: victim@evil.com; keydata=x"))
         assertFalse(mime.split("\r\n").any { it.startsWith("Bcc:") })

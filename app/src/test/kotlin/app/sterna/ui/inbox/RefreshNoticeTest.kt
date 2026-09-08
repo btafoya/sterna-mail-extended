@@ -3,7 +3,7 @@ package app.sterna.ui.inbox
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** What the list says about a refresh that did not land — the decision, executed. */
+/** What the list says about a refresh that did not land, the decision, executed. */
 class RefreshNoticeTest {
 
     @Test fun aDeviceWithNoNetworkIsToldItIsOffline() {

@@ -23,7 +23,7 @@ class UidSetTest {
     }
 
     @Test fun sortsAndDedupesInput() {
-        // Out of order, with duplicates — the compressed set is still canonical.
+        // Out of order, with duplicates, the compressed set is still canonical.
         assertEquals("1:3,5,8:10", compressUidSet(listOf(10L, 2L, 9L, 1L, 5L, 3L, 8L, 5L, 2L)))
     }
 

@@ -6,23 +6,23 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `SternaApp.kt` as TEXT, because the inbox host
+ * Source lint, not a behaviour test. It reads `SternaApp.kt` as text, because the inbox host
  * cannot be composed on the JVM (no Robolectric in this module, and `InboxViewModel` needs the
- * repository). The decision it wires — [paneSplit] — IS executed by [PaneLayoutTest]; what no
+ * repository). The decision it wires ([paneSplit]) IS executed by [PaneLayoutTest]; what no
  * executing test can see is whether the host hands that decision to `InboxScreen`, and which
  * ViewModel it hands with it (#103).
  *
  * Whole trimmed lines, never `contains` of a fragment: a fragment rule is blind to anything
- * appended to a line — `paneSplit(...)` followed by `?.takeIf { false }` still "contains" the call.
+ * appended to a line, `paneSplit(...)` followed by `?.takeIf { false }` still "contains" the call.
  */
 class TwoPaneHostLintTest {
 
     /**
-     * On a two-pane host the list, the reader and the composer must share ONE `InboxViewModel`:
+     * On a two-pane host the list, the reader and the composer must share one `InboxViewModel`:
      * the one owned by the "inbox" back-stack entry, which the reader and the composer already
      * resolve through `getBackStackEntry("inbox")`. A `viewModel()` with no owner resolves against
-     * the nearest `ViewModelStoreOwner`, i.e. whatever destination is composing — a second store,
-     * a second list state. The ONE empty-parens call the file keeps is the root's own default,
+     * the nearest `ViewModelStoreOwner`, i.e. whatever destination is composing, a second store,
+     * a second list state. The one empty-parens call the file keeps is the root's own default,
      * pinned here as a whole line so that nothing else can hide behind the exemption.
      */
     @Test fun `no destination resolves a ViewModel without naming its owner`() {
@@ -37,12 +37,12 @@ class TwoPaneHostLintTest {
     }
 
     /**
-     * The lines that make the "inbox" destination a two-pane host: the window WIDTH decides
+     * The lines that make the "inbox" destination a two-pane host: the window width decides
      * (never the orientation), `panes` carries the decision (null = one pane), and the ViewModel
-     * handed to the screen is the entry's own. The ARGUMENTS are pinned, not only the calls:
+     * handed to the screen is the entry's own. The arguments are pinned, not only the calls:
      * `panes = null,` or `detail = null,` at the call site keeps every declaration above intact
-     * and gives every window one pane. Since V2 the pane READS the ViewModel's anchor and a tap
-     * on a wide window WRITES it (`openInPane`) instead of navigating: `if (false)` there sends
+     * and gives every window one pane. Since V2 the pane reads the ViewModel's anchor and a tap
+     * on a wide window writes it (`openInPane`) instead of navigating: `if (false)` there sends
      * every tap to the full-screen route again, with the pane forever on its invitation line.
      */
     @Test fun `the inbox destination decides on the window width and hands over its own ViewModel`() {
@@ -73,12 +73,12 @@ class TwoPaneHostLintTest {
     }
 
     /**
-     * The other end of the hand-over: InboxScreen must actually WRAP its Scaffold in the split it
+     * The other end of the hand-over: InboxScreen must actually wrap its Scaffold in the split it
      * was handed. `ListDetailPanes(null, detail) {` keeps every declaration above intact, compiles,
-     * and gives every window one pane — no executing test can see it, the row is a Composable.
+     * and gives every window one pane, no executing test can see it, the row is a Composable.
      */
     /**
-     * Both taps of the list — a row, and a message inside an inline-expanded conversation — must
+     * Both taps of the list (a row, and a message inside an inline-expanded conversation) must
      * take the pane on a wide window. One of the two rewritten to navigate compiles, and every
      * whole-line rule above still finds its line in the other.
      */
@@ -94,8 +94,8 @@ class TwoPaneHostLintTest {
     }
 
     /**
-     * A tapped notification asks [PaneOrders] — executed by [PaneOrdersTest] — with the SPLIT and
-     * the WHOLE stack, posts a lone anchor (no paging context, like the route it replaces), and
+     * A tapped notification asks [PaneOrders] (executed by [PaneOrdersTest]) with the split and
+     * the whole stack, posts a lone anchor (no paging context, like the route it replaces), and
      * hands it to the list through the same held one-shot as the notification's folder. The
      * arguments are pinned: `emailOpen(true, …)` gives every window the pane, `emailOpen(…,
      * emptyList())` gives every stack the pane, and an anchor with `src = "list"` would page the
@@ -122,29 +122,29 @@ class TwoPaneHostLintTest {
     }
 
     /**
-     * The width CONVERSIONS (#103, V4), which no executing test can reach: both live inside a
+     * The width conversions (#103, V4), which no executing test can reach: both live inside a
      * `composable(…)` lambda. [PaneConversionTest] runs the two verdicts; what it cannot see is
      * whether the host asks them, with which arguments, and what it does with the answer.
      *
      * The mutations these lines exist for, every one of which compiles and leaves the rest green:
      *  - either `if (…)` turned into `if (false)`: a rotation with a message open then keeps the
      *    restored reader full screen over a two-pane list, or strands an anchor on a narrow window
-     *    where nothing draws it — the message the person was reading, gone;
+     *    where nothing draws it, the message the person was reading, gone;
      *  - `readerToPane(true, stack)`: every reader converts, the one opened from Search included,
      *    which pops the person onto results she then has to leave twice;
      *  - the `stack` read from anything but `nav.currentBackStack`, which is the restored state and
      *    the only thing that knows what is under the reader;
      *  - `MessageScreen` composed in the conversion arm as well (the `return@composable` dropped):
-     *    a second `MessageViewModel` settles the same message a second time — a read receipt
+     *    a second `MessageViewModel` settles the same message a second time, a read receipt
      *    offered twice, a second decryption, a message marked read from a screen nobody looked at;
      *  - `withResumed` dropped: a restored entry is not RESUMED until its transition ends, so
      *    `navigateOnce` refuses and the conversion is lost in silence;
      *  - `onEmailOpened` dropped: nothing stages the return-flash, so the row no longer flashes on
      *    the way back out of the reader.
      *
-     * What it does NOT cover, because it only asks whether a LINE belongs to the file (or, for
-     * the two pinned below, to the conversion arm): the ORDER of these calls, their nesting, and a
-     * whole block lifted out of the `withResumed` lambda — all three keep every line present and
+     * What it does not cover, because it only asks whether a line belongs to the file (or, for
+     * the two pinned below, to the conversion arm): the order of these calls, their nesting, and a
+     * whole block lifted out of the `withResumed` lambda, all three keep every line present and
      * this test green. The order of `closePane()` and `onEmailOpened` is not a rule anyway (see
      * the comment at that site); the nesting is, and nothing here reads it.
      */

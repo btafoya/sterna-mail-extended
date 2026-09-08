@@ -6,13 +6,15 @@ package app.sterna.core.imap
 const val IMAP_FOLDER_PAGE = 200
 
     /**
-     * What one paginated walk of a folder brings back — UIDS and a verdict, never messages: the walk
+     * What one paginated walk of a folder brings back, UIDS and a verdict, never messages: the walk
      */
 data class ImapFolderWalk(
     val uids: List<Long>,
     val moved: Boolean,
         /**
-         * Whether the `SELECT` this walk started from STATED that the folder holds nothing — an
+         * Whether the `SELECT` this walk started from stated that the folder holds nothing, an
+         * `* 0 exists` the client actually parsed ([ImapMailboxStatus.existsObserved] and a count of
+         * zero), and never the absence of an answer.
          */
     val folderStatedEmpty: Boolean = false,
 )
@@ -23,7 +25,8 @@ data class ImapFolderWalk(
 fun folderWindowLowest(exists: Int, limit: Int): Int = (exists - limit + 1).coerceAtLeast(1)
 
     /**
-     * The sequence range of the NEXT request of a newest-first folder walk over [lowest]..[highest], or
+     * The sequence range of the next request of a newest-first folder walk over [lowest]..[highest], or
+     * null when the walk has reached the bottom of the window.
      */
 fun nextFolderPage(lowest: Int, highest: Int, previous: IntRange?, pageSize: Int): IntRange? {
     if (pageSize <= 0 || highest < 1 || lowest > highest) return null
@@ -35,6 +38,7 @@ fun nextFolderPage(lowest: Int, highest: Int, previous: IntRange?, pageSize: Int
 
     /**
      * Whether these untagged response lines say the folder is no longer the one the walk started on,
+     * which held [startedWith] messages.
      */
 fun folderMoved(untagged: List<List<Any?>>, startedWith: Int): Boolean = untagged.any { line ->
     val second = line.getOrNull(1)

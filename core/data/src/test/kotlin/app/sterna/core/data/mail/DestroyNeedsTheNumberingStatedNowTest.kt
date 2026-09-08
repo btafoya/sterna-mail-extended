@@ -13,7 +13,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * A destroy may only go out under a numbering the server states IN THE SELECT IT IS ABOUT TO
+ * A destroy may only go out under a numbering the server states in the SELECT it is about to
+ * EXPUNGE under (Codeberg #99).
  */
 class DestroyNeedsTheNumberingStatedNowTest {
 
@@ -85,7 +86,9 @@ class DestroyNeedsTheNumberingStatedNowTest {
     }
 
     /**
-     * THE ARGUMENT ITSELF, on a perfectly healthy server. The twin of
+     * The argument itself, on a perfectly healthy server. The twin of
+     * `MoveNeedsTheNumberingStatedNowTest`'s "a move that opposes nothing is refused, on a
+     * perfectly healthy server", and the only thing that kills this mutation:
      */
     @Test fun `a destroy that opposes nothing is refused, on a perfectly healthy server`() {
         val store = RememberedNumbering()
@@ -122,7 +125,7 @@ class DestroyNeedsTheNumberingStatedNowTest {
     }
 
     /**
-     * The server that NEVER states a numbering is not this guard's business: nothing is recorded
+     * The server that never states a numbering is not this guard's business: nothing is recorded
      */
     @Test fun `a server that never states a numbering is refused without reaching the destroy`() {
         val store = RememberedNumbering()
@@ -152,8 +155,8 @@ class DestroyNeedsTheNumberingStatedNowTest {
     }
 
     @Test fun `a numbering the server did not state licenses nothing`() {
-        // THE defect: 0 is "the SELECT carried no UIDVALIDITY line", and it used to sail through
-        // because `ImapSession.select` only compares two POSITIVE numbers.
+        // The defect: 0 is "the SELECT carried no UIDVALIDITY line", and it used to sail through
+        // because `ImapSession.select` only compares two positive numbers.
         assertFalseThat("stated 0", UidValidity.mayDestroyUnderStatedNumbering(frozen = 42L, stated = 0L))
         assertFalseThat("stated -1", UidValidity.mayDestroyUnderStatedNumbering(frozen = 42L, stated = -1L))
     }
@@ -176,7 +179,8 @@ class DestroyNeedsTheNumberingStatedNowTest {
     // ---- fixtures -----------------------------------------------------------------------------
 
     /**
-     * A server whose Nth SELECT announces [announce] `(n)` — null meaning NO `UIDVALIDITY` line at
+     * A server whose Nth SELECT announces [announce] `(n)`, null meaning NO `UIDVALIDITY` line at
+     * all, which is exactly what a server that stops stating its numbering sends. The `exists`
      */
     private fun scripted(announce: (Int) -> Long?): (String, String) -> String {
         var selects = 0
@@ -209,7 +213,7 @@ class DestroyNeedsTheNumberingStatedNowTest {
     private fun id(mailbox: String, uid: Long) = ImapMailService.emailId(ACCOUNT, mailbox, uid)
 
     /** The store as the app really has it, minus Room: [MailboxUidValidityStore] needs three DAOs.
-     *  It keeps `record`'s invariant — a value of 0 or less is never written — because that is what
+     *  It keeps `record`'s invariant (a value of 0 or less is never written) because that is what
      *  makes "frozen > 0" mean "the server stated a numbering at some point". */
     private class RememberedNumbering : UidValidityStore {
         val numbers = mutableMapOf<String, Long>()

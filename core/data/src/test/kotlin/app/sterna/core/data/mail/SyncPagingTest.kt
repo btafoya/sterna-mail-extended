@@ -5,6 +5,8 @@ import org.junit.Test
 
 /**
  * The sizing decision of a folder refresh, executed. Every expectation is a literal: a test that
+ * recomputed `min(window, capacity)` would agree with the code by construction, including when
+ * the code caps the wrong number.
  */
 class SyncPagingTest {
 
@@ -17,7 +19,7 @@ class SyncPagingTest {
     @Test fun theRetentionFloorIsNotCappedWithIt() {
         // The trap this function exists for. The floor is "keep at least the newest N whatever
         // their age" (#110). Capping it to the server's request limit would make the prune delete,
-        // right after the refresh, mail the user asked to keep — 500 kept out of the 1000 wanted.
+        // right after the refresh, mail the user asked to keep, 500 kept out of the 1000 wanted.
         assertEquals(1000, folderSyncSizing(windowLimit = 1000, serverCapacity = 500).retentionFloor)
     }
 
@@ -45,7 +47,7 @@ class SyncPagingTest {
 
     @Test fun aRequestIsCappedToWhatTheServerAdmits() {
         // The header crawl that feeds local search asked for a hardcoded 500. On a server
-        // admitting 200 every page was refused whole and the crawl gave up after three refusals —
+        // admitting 200 every page was refused whole and the crawl gave up after three refusals,
         // silently: it has no surface of its own, so local search just stopped being covered.
         assertEquals(200, requestPageSize(wanted = 500, serverCapacity = 200))
     }

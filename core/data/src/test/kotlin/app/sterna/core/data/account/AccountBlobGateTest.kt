@@ -8,20 +8,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The decision that stops an unreadable account list from being deleted, EXECUTED — not read off
+ * The decision that stops an unreadable account list from being deleted, executed, not read off
  * the source of [AccountStore], which needs a `Context` and the Keystore and cannot be built here.
  *
  * The bench saw it twice on 2026-08-06: four accounts, then two, then "Add an account", with the
- * `pw_<id>` keys of the vanished accounts still in the prefs file — the list had been rewritten,
+ * `pw_<id>` keys of the vanished accounts still in the prefs file, the list had been rewritten,
  * not emptied by anyone. The mechanism is that a decode failure used to read back as "no accounts",
  * and every mutator is a read-modify-write, so the first setting the user touched persisted that
  * empty list over the real one.
  *
- * The parser below is the one [AccountStore] declares — but this file builds its OWN gate, so it
+ * The parser below is the one [AccountStore] declares, but this file builds its own gate, so it
  * cannot prove the store passes that parser: [AccountStoreGateWiringTest] pins the construction
  * site, because a gate handed a decoder that cannot fail never refuses anything and every test
- * here stays green. The trigger is real too: kotlinx serialises an enum BY NAME and
- * `ignoreUnknownKeys` does not cover a name, so ONE constant this build does not know takes the
+ * here stays green. The trigger is real too: kotlinx serialises an enum by name and
+ * `ignoreUnknownKeys` does not cover a name, so one constant this build does not know takes the
  * whole list down.
  */
 class AccountBlobGateTest {
@@ -33,7 +33,7 @@ class AccountBlobGateTest {
         encode = { json.encodeToString(it) },
     )
 
-    /** Four accounts as a device has them, the third one on a sync window this build cannot name —
+    /** Four accounts as a device has them, the third one on a sync window this build cannot name,
      *  exactly what a renamed `SyncWindow` constant leaves behind. */
     private val fourAccountsOneUnknownName =
         """[{"id":"a1","server":"https://mail.example.org","username":"alex"},""" +
@@ -105,7 +105,7 @@ class AccountBlobGateTest {
     }
 
     @Test fun `an absent blob after an unreadable one also lifts the refusal`() {
-        // "Clear app data" wipes the prefs FILE, so the next read sees no key at all. Without the
+        // "Clear app data" wipes the prefs file, so the next read sees no key at all. Without the
         // lift, that install would refuse to store an account for ever.
         val gate = gate()
         gate.read(fourAccountsOneUnknownName)
@@ -146,7 +146,7 @@ class AccountBlobGateTest {
             blob,
         )
 
-        // Corrective build installed: the SAME bytes now decode, and all four accounts are there.
+        // Corrective build installed: the same bytes now decode, and all four accounts are there.
         blob = fourAccountsAllKnown
         assertEquals(listOf("alex", "jordan", "sam", "casey"), gate.read(blob).map { it.username })
     }

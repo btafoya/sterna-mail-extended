@@ -9,21 +9,21 @@ import kotlinx.coroutines.flow.Flow
  *  [accountsWithDrafts] (ids only). */
 @Dao
 interface LocalDraftDao {
-    /** Writes a draft, replacing the row with the same `(accountId, id)` — autosave is idempotent. */
+    /** Writes a draft, replacing the row with the same `(accountId, id)`, autosave is idempotent. */
     @Upsert
     suspend fun upsert(draft: LocalDraftEntity)
 
     @Query("SELECT * FROM local_drafts WHERE accountId = :accountId AND id = :id")
     suspend fun byId(accountId: String, id: String): LocalDraftEntity?
 
-    /** Row this account keeps for the SERVER draft [replacesEmailId]; `LIMIT 1` newest-first, not a unique index. */
+    /** Row this account keeps for the server draft [replacesEmailId]; `limit 1` newest-first, not a unique index. */
     @Query(
         "SELECT * FROM local_drafts WHERE accountId = :accountId AND replacesEmailId = :replacesEmailId " +
             "ORDER BY updatedAtMillis DESC LIMIT 1",
     )
     suspend fun forServerDraft(accountId: String, replacesEmailId: String): LocalDraftEntity?
 
-    /** Every local draft of one account, newest edit first — what the Drafts list merges in. */
+    /** Every local draft of one account, newest edit first, what the Drafts list merges in. */
     @Query("SELECT * FROM local_drafts WHERE accountId = :accountId ORDER BY updatedAtMillis DESC")
     fun observeForAccount(accountId: String): Flow<List<LocalDraftEntity>>
 
@@ -35,19 +35,19 @@ interface LocalDraftDao {
     )
     suspend fun pending(accountId: String, nowMillis: Long): List<LocalDraftEntity>
 
-    /** Accounts with at least one draft not on the server, for a startup re-arm — ids only; EVERY row counts. */
+    /** Accounts with at least one draft not on the server, for a startup re-arm, ids only; every row counts. */
     @Query("SELECT DISTINCT accountId FROM local_drafts")
     suspend fun accountsWithDrafts(): List<String>
 
-    /** Take a row out for editing and give it back — see [LocalDraftState.EDITING]. */
+    /** Take a row out for editing and give it back, see [LocalDraftState.Editing]. */
     @Query("UPDATE local_drafts SET state = :state WHERE accountId = :accountId AND id = :id")
     suspend fun setState(accountId: String, id: String, state: LocalDraftState)
 
-    /** Brings back one account's rows left mid-upload (#70); [LocalDraftState.EDITING] stays untouched. */
+    /** Brings back one account's rows left mid-upload (#70); [LocalDraftState.Editing] stays untouched. */
     @Query("UPDATE local_drafts SET state = 'PENDING' WHERE accountId = :accountId AND state = 'UPLOADING'")
     suspend fun revertUploadingToPending(accountId: String)
 
-    /** Brings process-killed `STAGING` rows back to `PENDING`, flagged [LocalDraftEntity.bodyIsLossy]. */
+    /** Brings process-killed `STAGING` rows back to `pending`, flagged [LocalDraftEntity.bodyIsLossy]. */
     @Query(
         "UPDATE local_drafts SET state = 'PENDING', bodyIsLossy = 1 " +
             "WHERE accountId = :accountId AND state = 'STAGING'",
@@ -70,7 +70,7 @@ interface LocalDraftDao {
         notBeforeMillis: Long,
     )
 
-    /** Consume one row — the draft has reached the server (or the user threw it away). */
+    /** Consume one row, the draft has reached the server (or the user threw it away). */
     @Query("DELETE FROM local_drafts WHERE accountId = :accountId AND id = :id")
     suspend fun deleteById(accountId: String, id: String)
 

@@ -6,7 +6,7 @@ import app.sterna.ui.compose.signatureBlock
 /** Display rules for the Identities editor. Presentation only: nothing here is persisted. */
 
 /** One row of the editor, in display order: the server group first, then the manual group.
- *  [aliasIds] carries the other ids that may point at the same row — a server identity edited
+ *  [aliasIds] carries the other ids that may point at the same row, a server identity edited
  *  through a manual override can be recorded under either id, and both must match the default. */
 internal data class IdentityRowRef(val rowId: String, val aliasIds: List<String> = emptyList())
 

@@ -13,59 +13,59 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * THE TRIGGER, not the consequence. Volets A–C stop an unreadable account list from being
+ * The trigger, not the consequence. Volets A–C stop an unreadable account list from being
  * overwritten; this file stops it from becoming unreadable in the first place.
  *
- * The whole account list is ONE JSON blob, kotlinx serialises enums BY NAME, and `ignoreUnknownKeys`
- * does not cover a name — so renaming or dropping ONE enum member stops the WHOLE list from
+ * The whole account list is one JSON blob, kotlinx serialises enums by name, and `ignoreUnknownKeys`
+ * does not cover a name, so renaming or dropping one enum member stops the whole list from
  * decoding, including the accounts that never carried that member. On the device that reads as
  * **no accounts at all** (`AccountStore.accounts()` answers a decode failure with an empty list),
  * and every write is then refused until a build that knows the name is installed ([AccountBlobGate]).
  * It happened twice on the bench on 2026-08-06. The same is true of a field that loses its default:
  * every record already on disk was written without it.
  *
- * And the rename COMPILES. An IDE "rename symbol" updates every call site, the build is green,
+ * And the rename compiles. An IDE "rename symbol" updates every call site, the build is green,
  * review sees a tidy diff, and the damage is only visible on a phone that already has accounts.
  * Nothing but this file stands between that refactor and the account screens of every install.
  *
  * How it is built, and why it is not a list of names someone has to remember to extend:
- *  - [enumFields] holds, per persisted key, the members read OFF THE ENUM (which move with a
- *    rename) next to the names written BY HAND below (which do not). A rename makes the two sets
- *    disagree in one direction, a NEW member makes them disagree in the other — so a member added
+ *  - [enumFields] holds, per persisted key, the members read off the enum (which move with a
+ *    rename) next to the names written by hand below (which do not). A rename makes the two sets
+ *    disagree in one direction, a new member makes them disagree in the other, so a member added
  *    tomorrow and left uncovered fails this file instead of slipping through it;
  *  - the no-default fields are not listed at all: [minimalAccount] carries only `id`/`server`/
- *    `username`, so ANY field that stops having a default — a new one, or an old one that loses it —
+ *    `username`, so any field that stops having a default (a new one, or an old one that loses it)
  *    makes that record stop decoding, whatever it is called;
- *  - [enumFields] is itself checked against the SERIALIZER'S DESCRIPTOR, so a FIFTH enum added to
+ *  - [enumFields] is itself checked against the serializer's descriptor, so a fifth enum added to
  *    the record cannot arrive uncovered. Without that, the list of keys below was hand-written and
  * a new enum-valued field would land on every user's disk with no on it and nothing pinning
- *    its names — the original trigger, rebuilt underneath the net that was meant to stop it.
+ *    its names, the original trigger, rebuilt underneath the net that was meant to stop it.
  *
  * The parser is the store's own (`Json { ignoreUnknownKeys = true }`, pinned against the shipped
- * source by the last two tests below — the backup codec decodes the SAME records with its own
+ * source by the last two tests below, the backup codec decodes the same records with its own
  * `Json` and feeds them straight back into the store): with `coerceInputValues` or an enum default
  * either of them would silently substitute a value instead of failing, which would change the
  * stored format under everyone and make every conclusion here false.
  *
- * WHAT THIS NET DOES NOT CATCH — read this before trusting it.
+ * What this net does not catch, read this before trusting it.
  *
- *  1. **New name → older build.** It catches a name LEAVING this tree: rename or delete, and a
- *     record already on disk stops decoding here. The other direction is invisible — a member added
+ *  1. **New name → older build.** It catches a name leaving this tree: rename or delete, and a
+ *     record already on disk stops decoding here. The other direction is invisible, a member added
  *     today, written to a device, then an earlier build installed over it (an APK downgrade, a
  *     bench shared between branches, a rollback) hands that older build a name it has never heard
  *     of, and that build has no test that could ever have known about it. Inobservable from a
  *     single tree, still true after this volet, and exactly what the bench hit on 2026-08-06. The
  *     only protection there is [AccountBlobGate] refusing to write: it keeps the records, not the
  *     screen.
- *  2. **A COORDINATED edit.** Renaming a member *and* updating `covered` in the same commit is
+ *  2. **A coordinated edit.** Renaming a member *and* updating `covered` in the same commit is
  *     green, by construction: no test can tell that apart from a legitimate new member. The failure
- *     message is the whole barrier — it exists to be read by someone who has just been stopped, and
+ *     message is the whole barrier, it exists to be read by someone who has just been stopped, and
  *     to make them put the name back instead of updating the list.
  *  3. **Key renames outside the enum-valued ones.** The five keys in [enumFields] are pinned;
  *     `StoredAccount` has some thirty. Renaming `watchedFolders` compiles, passes everything here,
  *     and silently drops every user's watched folders (`ignoreUnknownKeys` eats the old key). Out of
  *     this volet's scope on purpose, and said rather than half-done.
- *  4. **Enums persisted ELSEWHERE** (`SettingsRepository`'s `SwipeAction`, `PreviewLines`,
+ *  4. **Enums persisted elsewhere** (`SettingsRepository`'s `SwipeAction`, `PreviewLines`,
  *     `NotificationContent`, …). Those live in their own prefs keys, so a rename there loses one
  *     setting, not the account list.
  */
@@ -78,7 +78,7 @@ class StoredAccountReferenceRecordTest {
     // ── The reference records: JSON exactly as a device has it in its prefs file ────────────────
 
     /**
-     * The SMALLEST record a device can hold — the three fields that have no default and nothing
+     * The smallest record a device can hold, the three fields that have no default and nothing
      */
     private val minimalAccount =
         """{"id":"a1","server":"https://mail.example.org","username":"alex"}"""
@@ -103,7 +103,7 @@ class StoredAccountReferenceRecordTest {
         val key: String,
         /** Read off the enum: MOVES when a member is renamed. */
         val members: List<String>,
-        /** Written by hand: does NOT move when a member is renamed. The on-disk truth. */
+        /** Written by hand: does not move when a member is renamed. The on-disk truth. */
         val covered: List<String>,
         /** The name the decoded record came back with, for this key. */
         val read: (StoredAccount) -> String,
@@ -125,14 +125,14 @@ class StoredAccountReferenceRecordTest {
         ) { it.syncWindow.name },
     )
 
-    /** [minimalAccount] with one enum key added — a record a device really could hold. */
+    /** [minimalAccount] with one enum key added, a record a device really could hold. */
     private fun record(key: String, name: String) =
         """{"id":"a1","server":"https://mail.example.org","username":"alex","$key":"$name"}"""
 
     // ── The net ────────────────────────────────────────────────────────────────────────────────
 
     /**
-     * The rename catcher. Sets, not lists: the DECLARATION ORDER of an enum is not persisted
+     * The rename catcher. Sets, not lists: the declaration order of an enum is not persisted
      */
     @Test fun `every enum name a device may have on disk is still a member, and every member is covered`() {
         enumFields.forEach { field ->
@@ -163,7 +163,7 @@ class StoredAccountReferenceRecordTest {
     }
 
     /**
-     * Exhaustive over the ENUMS, not only over their members — the hole the check above cannot
+     * Exhaustive over the enums, not only over their members, the hole the check above cannot
      */
     @Test fun `every enum-valued key of the stored record is covered by this file`() {
         assertEquals(
@@ -198,7 +198,7 @@ class StoredAccountReferenceRecordTest {
             .sorted()
 
     /**
-     * THE DRAMA ITSELF, executed for every persisted enum and not only for `SyncWindow`
+     * The drama itself, executed for every persisted enum and not only for `SyncWindow`
      */
     @Test fun `one impossible name in one record takes the WHOLE account list down`() {
         enumFields.forEach { field ->
@@ -226,7 +226,9 @@ class StoredAccountReferenceRecordTest {
     }
 
     /**
-     * The same names, EXECUTED: one record per member, decoded through the store's parser. The
+     * The same names, executed: one record per member, decoded through the store's parser. The
+     * assertion above compares two sets of strings; this one proves those strings really are what
+     * comes back off disk, so neither is standing in for the other.
      */
     @Test fun `every name on disk decodes, one reference record each`() {
         enumFields.forEach { field ->
@@ -250,7 +252,7 @@ class StoredAccountReferenceRecordTest {
     }
 
     /**
-     * THE ANTI-VACUITY CHECK, and the reason the rest of this file means anything. If a key were
+     * The anti-vacuity CHECK, and the reason the rest of this file means anything.
      */
     @Test fun `each key is genuinely read, so an impossible name is refused and not shrugged off`() {
         enumFields.forEach { field ->
@@ -302,6 +304,9 @@ class StoredAccountReferenceRecordTest {
 
     /**
      * The other direction, so the check above cannot pass by being vacuous: these three, and
+     * exactly these three, are the keys whose absence is fatal. Computed by removing one key at a
+     * time from the reference record, never by reading the class. Sorted, because the order of the
+     * keys in a JSON object is not part of anything.
      */
     @Test fun `and exactly three account keys are fatal when absent`() {
         assertEquals(
@@ -335,7 +340,7 @@ class StoredAccountReferenceRecordTest {
     }
 
     /**
-     * One whole record, every persisted enum at once, each on a non-default member — the shape a
+     * One whole record, every persisted enum at once, each on a non-default member, the shape a
      * real IMAP account has on disk, decoded in one go rather than one key at a time.
      */
     @Test fun `a whole configured account record decodes, every enum included`() {
@@ -347,14 +352,15 @@ class StoredAccountReferenceRecordTest {
         assertEquals(ConnectionSecurity.NONE, account.smtpSecurity)
         assertEquals(SyncWindow.COUNT_500, account.syncWindow)
         assertEquals(listOf("alex@example.org"), account.identities.map { it.email })
-        // Two NON-enum keys, both stored at a value that is not their default (993 / "Inbox"), so
+        // Two non-enum keys, both stored at a value that is not their default (993 / "Inbox"), so
         // this really shows the record being read rather than reconstructed from defaults.
         assertEquals(143, account.imapPort)
         assertEquals("INBOX", account.inboxName)
     }
 
     /**
-     * A SOURCE READ, deliberately, and the only one here: `AccountStore` needs a `Context` and the
+     * A source read, deliberately, and the only one here: `AccountStore` needs a `Context` and the
+     * Keystore and cannot be built in this module, so the parser above is a copy of its declaration.
      */
     @Test fun `the store still parses with the codec these records were read with`() {
         assertEquals(
@@ -373,7 +379,7 @@ class StoredAccountReferenceRecordTest {
     }
 
     /**
-     * THE SECOND DECODER OF THE SAME RECORDS. `SettingsBackupCodec` reads `List<StoredAccount>`
+     * The second decoder of the same records. `SettingsBackupCodec` reads `List<StoredAccount>`
      */
     @Test fun `the backup codec still refuses a name it cannot resolve instead of substituting one`() {
         assertEquals(
@@ -398,7 +404,7 @@ class StoredAccountReferenceRecordTest {
     }
 
     /**
-     * [count] consecutive CODE lines of [path] from the single one starting with [prefix], trimmed;
+     * [count] consecutive code lines of [path] from the single one starting with [prefix], trimmed;
      */
     private fun codeBlock(path: String, prefix: String, count: Int): List<String> {
         val root = generateSequence(java.io.File("").absoluteFile) { it.parentFile }

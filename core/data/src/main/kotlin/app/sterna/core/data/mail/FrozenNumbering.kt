@@ -22,8 +22,8 @@ sealed interface NumberingToOppose {
     data class Select(val stamp: Long?) : NumberingToOppose
 }
 
-/** [FrozenNumbering.NothingFrozen] → `Select(null)`; `Frozen(x)` with a real numbering → `Select(x)`;
- *  `Frozen(null)`, `0` or a negative → [NumberingToOppose.Refuse]. Says nothing about JMAP. */
+/** [FrozenNumbering.NothingFrozen] gives `Select(null)`; `Frozen(x)` with a real numbering gives
+ *  `Select(x)`; `Frozen(null)`, `0` or a negative gives [NumberingToOppose.Refuse]. Says nothing about JMAP. */
 fun numberingToOppose(frozen: FrozenNumbering): NumberingToOppose = when (frozen) {
     FrozenNumbering.NothingFrozen -> NumberingToOppose.Select(null)
     is FrozenNumbering.Frozen -> UidValidity.stated(frozen.value)?.let { NumberingToOppose.Select(it) } ?: NumberingToOppose.Refuse

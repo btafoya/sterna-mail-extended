@@ -4,7 +4,7 @@ import java.util.Base64
 
 /** A file attachment found while parsing a MIME message. */
 data class MimeAttachment(
-    /** IMAP body section path (e.g. "2" or "2.1") for a later BODY[section] fetch. */
+    /** IMAP body section path (e.g. "2" or "2.1") for a later body[section] fetch. */
     val section: String,
     val name: String,
     val type: String,
@@ -21,7 +21,7 @@ data class MimeBody(
     val text: String?,
     val attachments: List<MimeAttachment> = emptyList(),
         /** The source was past [MimeParser.MAX_BODY_CHARS] and was not parsed at all. The caller must
-         *  say so rather than render an empty message — nothing here was read. */
+         *  say so rather than render an empty message, nothing here was read. */
     val tooLarge: Boolean = false,
 )
 
@@ -29,7 +29,7 @@ data class MimeBody(
 enum class CryptoKind { PGP_ENCRYPTED, PGP_SIGNED, PGP_INLINE }
 
     /**
-     * Legacy INLINE OpenPGP, recognised on an already-decoded body: the two armour headers a message
+     * Legacy inline OpenPGP, recognised on an already-decoded body: the two armour headers a message
      */
 fun inlineArmorKind(text: String): CryptoKind? =
     if (text.contains("-----BEGIN PGP MESSAGE-----") ||
@@ -48,7 +48,7 @@ data class CryptoEnvelope(
     val kind: CryptoKind,
     /** ASCII-armored ciphertext (multipart/encrypted part 2, or the inline block). */
     val encryptedArmor: String? = null,
-        /** The signed MIME entity of a multipart/signed, as a VERBATIM substring of the raw source
+        /** The signed MIME entity of a multipart/signed, as a verbatim substring of the raw source
          *  (headers included, boundaries excluded). Signature verification is byte-exact, so this is
          *  never re-flowed or re-encoded. */
     val signedEntityRaw: String? = null,
@@ -93,8 +93,8 @@ object MimeParser {
         val cte = headers["content-transfer-encoding"]?.substringBefore(';')?.trim()?.lowercase() ?: "7bit"
         val disposition = headers["content-disposition"] ?: ""
             // Decoded, not raw: an attachment called "Отчёт.pdf" travels as an RFC 2231 parameter or an
-            // RFC 2047 word, and both used to reach the screen verbatim (Codeberg #101). Display name
-            // only — what lands on disk is sanitised separately.
+            // RFC 2047 word, and both would reach the screen verbatim (Codeberg #101). Display name
+            // only, what lands on disk is sanitised separately.
         val filename = mimeParamValue(disposition, "filename") ?: mimeParamValue(contentType, "name")
 
         if (mime.startsWith("multipart/")) {
@@ -128,7 +128,7 @@ object MimeParser {
             }
             mime == "text/html" -> decode(body, cte, charsetOf(contentType)) to null
             mime == "text/plain" -> null to decode(body, cte, charsetOf(contentType))
-            // A calendar invite (text/calendar, e.g. METHOD:REQUEST) is usually an inline
+            // A calendar invite (text/calendar, e.g. Method:request) is usually an inline
             // part with no filename/disposition, so it would otherwise be lost here. Capture
             // it as a downloadable part (named invite.ics) so the reader can fetch + preview it.
             mime.startsWith("text/calendar") -> {
@@ -153,7 +153,7 @@ object MimeParser {
         parseHeaders(headerBlockOf(raw))[name.lowercase()]
 
         /**
-         * The header block of [part], and nothing else — exactly what `splitHeaders(part).first`
+         * The header block of [part], and nothing else, exactly what `splitHeaders(part).first`
          */
     private fun headerBlockOf(part: String): String {
         val sep = Regex("\\r?\\n\\r?\\n").find(part) ?: return part
@@ -161,12 +161,12 @@ object MimeParser {
     }
 
         /**
-         * The same header, READY TO SHOW: [headerOf] put through [decodeWords]. It lives here because
+         * The same header, ready to show: [headerOf] put through [decodeWords]. It lives here because
          */
     fun decodedHeaderOf(raw: String, name: String): String? = decodeWords(headerOf(raw, name))
 
         /**
-         * The SAME door as [decodedHeaderOf], for a value already separated from its message. A second
+         * The same door as [decodedHeaderOf], for a value already separated from its message. A second
          */
     fun decodedHeaderValue(value: String?): String? = decodeWords(value)
 
@@ -198,8 +198,8 @@ object MimeParser {
     }
 
         /** The still-transfer-encoded body + Content-Transfer-Encoding of the part at [section]
-         *  ("1", "2.1", …) inside a raw MIME entity — the same section paths [parseBody] assigns.
-         *  Used to pull attachments out of a decrypted entity. */
+         *  ("1", "2.1", …) inside a raw MIME entity, the same section paths [parseBody] assigns.
+         *  Pulls attachments out of a decrypted entity. */
     fun partAt(raw: String, section: String): Pair<String, String>? {
         var current = raw
         val indices = section.split('.').map { it.toIntOrNull() ?: return null }
@@ -287,7 +287,7 @@ object MimeParser {
     }
 
         /**
-         * The first part of a multipart body as a VERBATIM substring: from just after the line break
+         * The first part of a multipart body as a verbatim substring: from just after the line break
          */
     private fun rawFirstPart(body: String, boundary: String): String? {
         val delimiter = "--$boundary"
@@ -318,7 +318,7 @@ object MimeParser {
             val begin = "-----BEGIN PGP $kind-----"
             val start = text.indexOf(begin)
             if (start < 0) continue
-            // A cleartext-signed block ends with the signature's END line.
+            // A cleartext-signed block ends with the signature's end line.
             val endMarker =
                 if (kind == "SIGNED MESSAGE") "-----END PGP SIGNATURE-----" else "-----END PGP MESSAGE-----"
             val end = text.indexOf(endMarker, start)
@@ -329,7 +329,7 @@ object MimeParser {
     }
 
         /**
-         * Decode a fetched part body (BODY[section]) to raw bytes using its transfer-encoding. The
+         * Decode a fetched part body (body[section]) to raw bytes using its transfer-encoding.
          */
     fun decodeBytes(content: String, encoding: String?): ByteArray = when (encoding?.lowercase()) {
         "base64" -> runCatching {
@@ -373,6 +373,8 @@ object MimeParser {
 
         /**
          * The charset a part declared, as a [java.nio.charset.Charset]: UTF-8 when it declared none,
+         * and UTF-8 when it declared one this JVM does not know, the fallback that has always been
+         * applied here, in one place.
          */
     fun charsetNamed(name: String?): java.nio.charset.Charset =
         runCatching { charset(name?.takeIf { it.isNotBlank() } ?: "utf-8") }.getOrDefault(Charsets.UTF_8)
@@ -402,6 +404,7 @@ object MimeParser {
 
         /**
          * A part's body as text: undo the transfer-encoding, then read the resulting bytes with the
+         * part's declared [charset].
          */
     private fun decode(body: String, cte: String, charset: java.nio.charset.Charset): String = when (cte) {
         "base64" -> runCatching {

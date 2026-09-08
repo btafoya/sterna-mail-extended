@@ -29,7 +29,7 @@ class DiscardWordingTest {
 
     @Test fun aDraftAlreadyOnTheServerIsNotDiscardedByLeaving() {
         // #35/#127: reopen a saved draft, type, tap the close button. The dialog said "Discard
-        // message?" while its own body said "changes" — and leaving destroys nothing on the server
+        // message?" while its own body said "changes", and leaving destroys nothing on the server
         // (cancel() → abandon(), a no-op outside the outbox). The draft is still in Drafts
         // afterwards, exactly as it was before this composer opened.
         assertEquals(
@@ -40,9 +40,9 @@ class DiscardWordingTest {
 
     @Test fun aDraftBeingEncryptedStillExplainsWhyItCannotBeSaved() {
         // Reached by closing the padlock by hand on a reopened draft. Both halves are owed at once:
-        // the reason the Save button is gone (a draft is uploaded exactly as typed), AND the fact
-        // that the copy in Drafts survives. The plain ENCRYPTED wording ends on "Leaving now
-        // discards the message", which is false here — that was the last title still lying.
+        // the reason the Save button is gone (a draft is uploaded exactly as typed), and the fact
+        // that the copy in Drafts survives. The plain encrypted wording ends on "Leaving now
+        // discards the message", which is false here, that was the last title still lying.
         assertEquals(
             DiscardWording.ENCRYPTED_DRAFT,
             discardWording(editingOutbox = false, mayKeepDraft = false, editingDraft = true),
@@ -64,7 +64,7 @@ class DiscardWordingTest {
     }
 
     @Test fun aQueuedMessageOutranksADraftBehindTheSameScreen() {
-        // A send queued from a reopened draft carries both. Where the MESSAGE is outranks what the
+        // A send queued from a reopened draft carries both. Where the message is outranks what the
         // screen was opened from: it is in the outbox, and the outbox wording is the one that says
         // so (#70).
         assertEquals(
@@ -110,13 +110,13 @@ class DiscardWordingTest {
     }
 
     @Test fun anUndoneSendStartedFromADraftStillHasThatDraftBehindIt() {
-        // THE hole, and it is the reported symptom reached by another path. A send started from a
-        // draft leaves that draft in Drafts until the message is DELIVERED; Undo only removes the
+        // The hole, and it is the reported symptom reached by another path. A send started from a
+        // draft leaves that draft in Drafts until the message is delivered;
         assertTrue(savedDraftBehindScreen(draftId = null, restoredDraftId = "d1"))
     }
 
     @Test fun anUndoneSendOfANewMailHasNothingBehindIt() {
-        // The message really does exist nowhere else here — it was never a draft — so this is the
+        // The message really does exist nowhere else here (it was never a draft) so this is the
         // case where "Discard message?" is the true title, and it must stay reachable.
         assertFalse(savedDraftBehindScreen(draftId = null, restoredDraftId = null))
         assertEquals(
@@ -130,7 +130,7 @@ class DiscardWordingTest {
     }
 
     @Test fun aDraftReopenedOfflineIsStillADraftOnTheServer() {
-        // The navigation argument, not whether the draft could be READ: an offline reopen whose
+        // The navigation argument, not whether the draft could be read: an offline reopen whose
         // fetch failed has its draft sitting in Drafts, untouched.
         assertEquals(
             DiscardWording.DRAFT,
@@ -149,14 +149,14 @@ class DiscardWordingTest {
     }
 
     @Test fun whereTheMessageIsOutranksWhyItCannotBeADraft() {
-        // Reached by closing the padlock BY HAND on a message reopened from the outbox — an already
+        // Reached by closing the padlock by hand on a message reopened from the outbox, an already
         // encrypted row cannot be reopened at all (OutboxLogic.canEdit refuses it, its ciphertext
         assertTrue(discardWording(editingOutbox = true, mayKeepDraft = false, editingDraft = false).fromOutbox)
     }
 
     @Test fun theOutboxWordingSplitsOnWhetherSaveDraftIsOnOffer() {
-        // The body has to be true of BOTH buttons in front of the user, and "Save draft" is the one
-        // that takes the message OUT of the outbox (it consumes the queued row). So the sentence
+        // The body has to be true of both buttons in front of the user, and "Save draft" is the one
+        // that takes the message out of the outbox (it consumes the queued row). So the sentence
         // that mentions drafts is used only where that button exists; the other layout, which can
         // only leave, gets the shorter sentence and may point at the outbox's own delete.
         assertEquals(DiscardWording.OUTBOX, discardWording(editingOutbox = true, mayKeepDraft = true, editingDraft = false))

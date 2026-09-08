@@ -10,7 +10,9 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, same instrument and the same disclaimer as
+ * [WidgetCornerRadiusTest] next door. A `res/drawable` is drawn by the launcher's process out of
+ * compiled resources; nothing in this module can inflate one, and there is no Robolectric here.
  */
 class WidgetSurfaceDrawableTest {
 
@@ -37,7 +39,8 @@ class WidgetSurfaceDrawableTest {
     }
 
     /**
-     * EXECUTED, unlike everything above it: [WidgetThemeReader.background] is a plain `when` over an
+     * Executed, unlike everything above it: [WidgetThemeReader.background] is a plain `when` over an
+     * enum and needs no Android runtime, so the suite can run the choice instead of reading it.
      */
     @Test fun `each of the three cell states asks for a drawable of its own`() {
         val chosen = WidgetSurface.entries.associateWith { WidgetThemeReader.background(it) }
@@ -69,7 +72,7 @@ class WidgetSurfaceDrawableTest {
             .filter { it.startsWith("<corners") || it.startsWith("<solid") }
     }
 
-    /** `#RRGGBB` when the surface is opaque, `#AARRGGBB` when it is not — a see-through cell must redden. */
+    /** `#RRGGBB` when the surface is opaque, `#AARRGGBB` when it is not, a see-through cell must redden. */
     private fun hex(c: Color): String {
         val argb = c.toArgb()
         return if ((argb ushr 24) and 0xFF == 0xFF) String.format("#%06X", argb and 0xFFFFFF)

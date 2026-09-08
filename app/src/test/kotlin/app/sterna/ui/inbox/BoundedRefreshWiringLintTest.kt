@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `InboxViewModel.kt` as text and proves nothing about
+ * Source lint, not a behaviour test. It reads `InboxViewModel.kt` as text and proves nothing about
  */
 class BoundedRefreshWiringLintTest {
 
@@ -20,7 +20,7 @@ class BoundedRefreshWiringLintTest {
             1, calls.size,
         )
         val at = calls.single().range.first
-        // The call token plus what follows it, cut to the length of the expected opener — so the
+        // The call token plus what follows it, cut to the length of the expected opener, so the
         // comparison sees the '(' of any budget spelled here rather than stopping just before it.
         val opener = body.substring(at, minOf(at + EXPECTED_OPENER.length, body.length))
         assertEquals(
@@ -108,6 +108,8 @@ class BoundedRefreshWiringLintTest {
 
     /**
      * The whole `when` arm that starts with [label], from the label to the brace that balances the
+     * arm's `{`. Fails loudly on anything but exactly one such arm: a second one would have to be
+     * told apart here rather than silently picked.
      */
     private fun whenArm(label: String): String {
         val text = codeText(INBOX_VIEW_MODEL)
@@ -138,7 +140,9 @@ class BoundedRefreshWiringLintTest {
     }
 
     /**
-     * [file] as ONE line of code: every comment taken out, every run of whitespace collapsed to a
+     * [file] as one line of code: every comment taken out, every run of whitespace collapsed to a
+     * single space, so a call the formatter spreads over eight lines reads the same as one written
+     * on a line, and the rules do not care which the formatter chose.
      */
     private fun codeText(file: File): String {
         val code = StringBuilder()

@@ -7,7 +7,9 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT for the plug, with the value it carries EXECUTED beside it. `InboxViewModel` is an
+ * Source lint for the plug, with the value it carries executed beside it. `InboxViewModel` is an
+ * `AndroidViewModel` and this module has neither Robolectric nor instrumented tests, so the one
+ * line that turns the setting into a request cannot be run here, only read.
  */
 class SyncWindowIsWhatTheRefreshSendsTest {
 
@@ -15,7 +17,7 @@ class SyncWindowIsWhatTheRefreshSendsTest {
 
     @Test fun `the window this path reads is the largest the picker offers`() {
         // The weld between the pinned line below and the constants: the number written out here is
-        // the settings label ("10,000 messages"), and if either end moves this fails on the PATH,
+        // the settings label ("10,000 messages"), and if either end moves this fails on the path,
         // naming it, as well as in core:data.
         assertEquals(
             "the value `refreshFolder` sends as its refresh limit is no longer the number the " +
@@ -59,7 +61,7 @@ class SyncWindowIsWhatTheRefreshSendsTest {
 
     @Test fun `the age cutoff is derived from the same window, not from a second setting`() {
         // The two halves of one setting: `pruneBefore` is the window's age and `window.limit` its
-        // count, and `MailRepository.pruneRetention` requires them to come from the SAME window
+        // count, and `MailRepository.pruneRetention` requires them to come from the same window
         // (its floor is read as "keep at least this many whatever their age"). Two different
         // sources here would let the prune delete under a floor the fetch never used.
         val body = bodyLines("refreshFolder")

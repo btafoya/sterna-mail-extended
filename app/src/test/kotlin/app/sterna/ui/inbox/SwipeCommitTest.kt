@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * How far — or how FAST — a list row must be dragged before letting go runs its action
+ * How far (or how fast) a list row must be dragged before letting go runs its action
  */
 class SwipeCommitTest {
 
@@ -21,13 +21,15 @@ class SwipeCommitTest {
     /** A phone row: wide enough that 40% of it is far beyond the absolute distance. */
     private val wideRow = 1080f
 
-    /** A narrow row (a split-screen or freeform window): 40% of it is SHORT of the distance. */
+    /** A narrow row (a split-screen or freeform window): 40% of it is short of the distance. */
     private val narrowRow = 400f
 
     private fun threshold(rowWidthPx: Float) = swipeCommitThresholdPx(rowWidthPx, distancePx)
 
     /**
      * The decision under test, with the gesture at rest by default: no speed at all, and a drag that
+     * really ended under the finger. Every velocity argument is therefore something a test says on
+     * purpose, and the distance-only cases below read exactly as they did before the flick existed.
      */
     private fun direction(
         offsetPx: Float,
@@ -61,7 +63,7 @@ class SwipeCommitTest {
         // K-9's MessageListSwipeCallback overrides neither getSwipeEscapeVelocity nor
         // getSwipeVelocityThreshold, so ItemTouchHelper's default applies:
         // item_touch_helper_swipe_escape_velocity = 120 dp/s. Raising it is the report re-filed in
-        // the other axis — a flick that has to be violent is a flick that does not work.
+        // the other axis, a flick that has to be violent is a flick that does not work.
         assertEquals(120, SWIPE_ESCAPE_VELOCITY_DP_PER_SEC)
     }
 
@@ -89,7 +91,7 @@ class SwipeCommitTest {
     }
 
     @Test fun `the gesture can only ever get shorter than the old rule, never longer`() {
-        // The cap's second merit, and the reason it is a cap and not a floor: for every MEASURED
+        // The cap's second merit, and the reason it is a cap and not a floor: for every measured
         // width, the new threshold is at most what the old 40% rule asked, and at most 72 dp. (An
         // unmeasured row, width 0, is deliberately outside this and has its own test below.)
         for (width in 1..2000 step 7) {
@@ -113,8 +115,8 @@ class SwipeCommitTest {
     // -- an unmeasured row ----------------------------------------------------------------------
 
     @Test fun `a row that has not been measured commits nothing, whatever the offset`() {
-        // rowWidth is 0 until the first layout pass. No bench run will ever produce this — a frame
-        // is laid out before it can be touched — which is exactly why it has to be held here. The
+        // rowWidth is 0 until the first layout pass. No bench run will ever produce this, a frame
+        // is laid out before it can be touched, which is exactly why it has to be held here. The
         // cap alone would make the threshold 0 and hand `0 >= 0` to every release.
         val t = threshold(0f)
         assertTrue("an unmeasured row must not offer a reachable threshold, got $t", t > 0f)
@@ -161,7 +163,7 @@ class SwipeCommitTest {
     }
 
     @Test fun `the threshold is the same in both directions`() {
-        // The old code compared a SIGNED fraction twice, once negated; this asserts the symmetry
+        // The old code compared a signed fraction twice, once negated; this asserts the symmetry
         // that was maintained by hand. A direction-dependent threshold is the kind of thing only a
         // left-handed user reports, two releases later.
         val t = threshold(wideRow)
@@ -181,9 +183,9 @@ class SwipeCommitTest {
     // -- monotonicity, and the band where the reveal must stay neutral ---------------------------
 
     @Test fun `pulling further only ever commits more, and the verdict flips exactly twice`() {
-        // Sweeps the whole travel of a phone row and asserts the verdict changes sides ONCE per
+        // Sweeps the whole travel of a phone row and asserts the verdict changes sides once per
         // direction, at the threshold. Catches a reversed comparison, a threshold written against
-        // the wrong quantity, and any rule that is not monotonic in how far the row was pulled —
+        // the wrong quantity, and any rule that is not monotonic in how far the row was pulled,
         // none of which a handful of spot values would necessarily catch. At rest: a still finger.
         val t = threshold(wideRow).toInt()
         val verdicts = (-1080..1080).map { direction(it.toFloat(), threshold(wideRow)) }
@@ -198,7 +200,7 @@ class SwipeCommitTest {
     @Test fun `the reveal stays neutral exactly where releasing would do nothing`() {
         // This is the WYSIWYG promise in InboxScreen's own words: the reveal arms "the moment
         // releasing would trigger the action". Both sites now ask this one function, so the two can
-        // no longer drift — but the band still has to be the right one. Stated here for a finger at
+        // no longer drift, but the band still has to be the right one. Stated here for a finger at
         // rest; with a flick the band moves, and the reveal moves with it, which is the point.
         val t = threshold(wideRow)
         for (offset in -1080..1080) {
@@ -212,7 +214,7 @@ class SwipeCommitTest {
     // == the flick ================================================================================
 
     @Test fun `a short quick flick commits where a short slow drag does not`() {
-        // #125's second half, in one pair of assertions. 60 px is a third of the 189 px distance —
+        // #125's second half, in one pair of assertions. 60 px is a third of the 189 px distance,
         // and, at 400 px/s, a deliberate flick. Before this, only the first line's verdict existed
         // and it was 0: no gesture, however sharp, ever committed without travelling the distance.
         val t = threshold(wideRow)
@@ -223,9 +225,9 @@ class SwipeCommitTest {
     }
 
     @Test fun `a slow long drag still commits — the distance rule is untouched`() {
-        // The flick is an OR, not a replacement. A finger that crawls the full distance and stops
+        // The flick is an or, not a replacement. A finger that crawls the full distance and stops
         // dead before lifting has velocity ~0 and must still fire; making the velocity a
-        // REQUIREMENT rather than an alternative breaks every careful swipe there is.
+        // requirement rather than an alternative breaks every careful swipe there is.
         val t = threshold(wideRow)
         assertEquals(1, direction(t, t, vx = 0f))
         assertEquals(1, direction(t + 50f, t, vx = 3f))
@@ -235,7 +237,7 @@ class SwipeCommitTest {
 
     @Test fun `a flick back the other way commits nothing — the doubling-back case`() {
         // Archive right, delete left. The finger goes right (the swipe arms), pulls 30 px, then
-        // whips back LEFT and lifts. The row's offset is still slightly positive — or pinned at 0
+        // whips back left and lifts. The row's offset is still slightly positive, or pinned at 0
         val t = threshold(wideRow)
         assertEquals("pulled right, flicked left", 0, direction(30f, t, vx = -2000f))
         assertEquals("pulled left, flicked right", 0, direction(-30f, t, vx = 2000f))
@@ -249,8 +251,7 @@ class SwipeCommitTest {
     }
 
     @Test fun `a flick that is more vertical than horizontal commits nothing`() {
-        // ItemTouchHelper's fourth condition, |vx| > |vy|, and it is not decoration here. The
-        // direction lock upstream judged on distances ACCUMULATED SINCE TOUCH-DOWN, never on the
+        // ItemTouchHelper's fourth condition, |vx| > |vy|, and it is not decoration here.
         val t = threshold(wideRow)
         assertEquals("equal parts: not a horizontal flick", 0, direction(60f, t, vx = 900f, vy = 900f))
         assertEquals("mostly vertical", 0, direction(60f, t, vx = 900f, vy = 1200f))
@@ -262,7 +263,7 @@ class SwipeCommitTest {
 
     @Test fun `a flick that has barely moved the row commits nothing`() {
         // The floor, and the reason it has to be written here rather than inherited: the travel the
-        // finger makes while the direction lock is still deciding is THROWN AWAY — offsetX only
+        // finger makes while the direction lock is still deciding is thrown away, offsetX only
         val t = threshold(wideRow)
         assertEquals("under slop, however fast", 0, direction(slopPx - 1f, t, vx = 5000f))
         assertEquals("under slop, mirrored", 0, direction(-(slopPx - 1f), t, vx = -5000f))
@@ -286,7 +287,7 @@ class SwipeCommitTest {
     }
 
     @Test fun `a row that has not moved at all commits nothing, at any speed`() {
-        // Offset exactly 0: there is no direction to commit IN. Reachable — the offset bound is 0
+        // Offset exactly 0: there is no direction to commit in. Reachable, the offset bound is 0
         // on a side with no action assigned, so a flick that way leaves the row at exactly 0 while
         // the tracker still reports the finger's full speed.
         val t = threshold(wideRow)
@@ -304,14 +305,14 @@ class SwipeCommitTest {
     @Test fun `a cancelled drag commits nothing, by either path`() {
         // horizontalDrag returns false when the pointer was taken away rather than lifted. The
         // value used to be dropped, harmlessly: the row was where a considered finger had left it.
-        // With a flick in the rule it is a way in — the gesture carries the speed of the instant it
+        // With a flick in the rule it is a way in, the gesture carries the speed of the instant it
         // was snatched, and nobody decided anything.
         val t = threshold(wideRow)
         assertEquals("cancelled past the distance", 0, direction(t + 200f, t, completed = false))
         assertEquals("cancelled past the distance, mirrored", 0, direction(-(t + 200f), t, completed = false))
         assertEquals("cancelled mid-flick", 0, direction(60f, t, vx = 5000f, completed = false))
         assertEquals("cancelled mid-flick, mirrored", 0, direction(-60f, t, vx = -5000f, completed = false))
-        // ...and the same inputs, merely completed, DO commit — otherwise this test would pass
+        // ...and the same inputs, merely completed, do commit, otherwise this test would pass
         // against a rule that commits nothing at all.
         assertEquals(1, direction(t + 200f, t, completed = true))
         assertEquals(1, direction(60f, t, vx = 5000f, completed = true))
@@ -338,7 +339,7 @@ class SwipeCommitTest {
 
     @Test fun `a flick never commits in a direction the row was not pulled`() {
         // The invariant behind the doubling-back case, stated over the whole plane: whatever
-        // commits, commits the way the row actually moved. Nothing else can be honest — the reveal
+        // commits, commits the way the row actually moved. Nothing else can be honest, the reveal
         // the user is looking at is drawn on the side the offset points to.
         val t = threshold(wideRow)
         for (offset in -400..400 step 3) {

@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `ComposeScreen.kt` and `ComposeViewModel.kt` as text
+ * Source lint, not a behaviour test, it reads `ComposeScreen.kt` and `ComposeViewModel.kt` as text
  */
 class DialogFlagsSurviveRotationTest {
 
@@ -62,7 +62,7 @@ class DialogFlagsSurviveRotationTest {
 
     @Test fun `only those two doors ever write each flag`() {
         DIALOGS.forEach { d ->
-            // Every line NAMING the backing flow, not only `.value =`: an `update { false }`, a
+            // Every line naming the backing flow, not only `.value =`: an `update { false }`, a
             // `tryEmit(false)` or an alias would all be writes this rule must see too.
             val writers = codeLines(VIEW_MODEL).filter { d.backing in it }
             assertEquals(
@@ -389,7 +389,7 @@ class DialogFlagsSurviveRotationTest {
                 "A plain `Row` puts OK off the edge instead of under it.",
         )
         // Anchored, not counted: `FlowRow(` is used three times in this screen, so the line
-        // that has to be one is the one RIGHT ABOVE the action row's own modifier.
+        // that has to be one is the one right above the action row's own modifier.
         val actionRowAt = code.indexOf("modifier = Modifier.align(Alignment.End).padding(top = 24.dp),")
         assertEquals(
             "⛔ the clock's actions must WRAP (#161). Material's own dialog puts them in an " +
@@ -400,7 +400,7 @@ class DialogFlagsSurviveRotationTest {
             "FlowRow(", code.getOrNull(actionRowAt - 1),
         )
         // Anchored to the weight, not counted: this screen scrolls in three places. What has to
-        // be true is the CHAIN — the picker's box shrinks by the weight, and what no longer fits is
+        // be true is the chain, the picker's box shrinks by the weight, and what no longer fits is
         // reachable by the scroll right under it.
         val weightAt = code.indexOf(".weight(1f, fill = false)")
         assertEquals(
@@ -416,7 +416,7 @@ class DialogFlagsSurviveRotationTest {
             listOf(code.getOrNull(weightAt + 1), code.getOrNull(weightAt + 2)),
         )
         // Anchored, not counted: the pin above counts two inset lines and a count is not a
-        // place. This one says the SHELL has its own — the line right above its properties line —
+        // place. This one says the shell has its own (the line right above its properties line)
         // so moving it onto any other dialog of this screen keeps the total at two and lands here.
         val shellPropertiesAt = code.indexOf("properties = DialogProperties(decorFitsSystemWindows = false),")
         assertEquals(
@@ -748,7 +748,8 @@ class DialogFlagsSurviveRotationTest {
     // -- reading the source ---------------------------------------------------------------------
 
     /**
-     * Asserts exactly [times] code lines of [path], trimmed, are [pinned] — WHOLE line, never a
+     * Asserts exactly [times] code lines of [path], trimmed, are [pinned], whole line, never a
+     * fragment.
      */
     private fun assertPinned(path: String, pinned: String, why: String, times: Int = 1) {
         val hits = codeLines(path).count { it == pinned }
@@ -807,7 +808,7 @@ class DialogFlagsSurviveRotationTest {
 
     /**
      * One of the composer's dialogs: the ViewModel flow that holds its question, the name the
-     * screen reads it under (kept as it was — other lints pin lines naming it), and its two doors.
+     * screen reads it under (kept as it was, other lints pin lines naming it), and its two doors.
      */
     private data class Dialog(
         val what: String,
@@ -815,14 +816,14 @@ class DialogFlagsSurviveRotationTest {
         val local: String,
         val ask: String,
         val clear: String,
-        /** Every line of the SCREEN allowed to call `clear`, whole and in order. */
+        /** Every line of the screen allowed to call `clear`, whole and in order. */
         val closes: List<String>,
-        /** How many `onDismissRequest` lines this dialog has — two when it is drawn on two faces. */
+        /** How many `onDismissRequest` lines this dialog has, two when it is drawn on two faces. */
         val dismissSites: Int = 1,
     ) {
         val backing = "_$flow"
 
-        /** An ASSIGNMENT to the backing flow — `=` not `==`, so a read is never mistaken for a write. */
+        /** An ASSIGNMENT to the backing flow, `=` not `==`, so a read is never mistaken for a write. */
         val write = Regex("""${backing}\s*\.\s*value\s*=[^=]""")
     }
 
@@ -880,7 +881,7 @@ class DialogFlagsSurviveRotationTest {
                 flow = "pendingScheduleDay", local = "pendingScheduleDay",
                 ask = "askScheduleDay", clear = "clearScheduleDay",
                 // In source order, and the order changed with the two faces: the buttons are
-                // hoisted ABOVE the branch so their bodies exist once, and each face then carries
+                // hoisted above the branch so their bodies exist once, and each face then carries
                 closes = listOf(
                     "viewModel.clearScheduleDay()",
                     "TextButton(onClick = { viewModel.clearScheduleDay() }) {",
@@ -893,7 +894,7 @@ class DialogFlagsSurviveRotationTest {
                 what = "the \"pick date and time\" CLOCK (#161)",
                 flow = "pendingScheduleTime", local = "pendingScheduleTime",
                 ask = "askScheduleTime", clear = "clearScheduleTime",
-                // Cancel BEFORE OK: this list is compared in source order, and the two
+                // Cancel before OK: this list is compared in source order, and the two
                 // buttons now sit in an action Row of our own, Cancel first, instead of Material's
                 // `dismissButton`/`confirmButton` slots which took them the other way round.
                 closes = listOf(

@@ -5,7 +5,8 @@ import org.junit.Test
 import java.util.Base64
 
 /**
- * [MimeParser.decodedHeaderValue] — the same sanitising door as [MimeParser.decodedHeaderOf], for
+ * [MimeParser.decodedHeaderValue], the same sanitising door as [MimeParser.decodedHeaderOf], for
+ * a value that has already been separated from its message.
  */
 class DecodedHeaderValueTest {
 

@@ -6,7 +6,9 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `ComposeScreen.kt` and `SternaApp.kt` as text and
+ * Source lint, not a behaviour test, it reads `ComposeScreen.kt` and `SternaApp.kt` as text and
+ * proves nothing about what happens on screen. Same instrument and disclaimer as
+ * `NavHostSourceRulesTest`, which reads the same navigation file for a different rule.
  */
 class ComposeDeleteWiringTest {
 
@@ -46,7 +48,8 @@ class ComposeDeleteWiringTest {
     }
 
     /**
-     * **The SAME rule for the draft the phone is keeping** (#95), and it was not held: that
+     * **The same rule for the draft the phone is keeping** (#95), and it was not held: that
+     * delete flew the tern away while the draft the phone kept was untouched.
      */
     @Test fun `deleting the draft the phone is keeping does not fly the tern away either`() {
         val screen = code(COMPOSE_SCREEN).lines().map { it.trim() }
@@ -58,9 +61,9 @@ class ComposeDeleteWiringTest {
             listOf("viewModel.localDraftDeleted.collect {"),
             screen.filter { "localDraftDeleted" in it },
         )
-        // The collector's body, WHOLE LINES and in order. The one-liner this used to be could not
+        // The collector's body, whole lines and in order. The one-liner this used to be could not
         // hold anything else; now that it has a body, the rule above only pins where it opens, so
-        // what is inside is pinned here — `onDone()` or `ComposeState.Done` slipped in would be the
+        // what is inside is pinned here, `onDone()` or `ComposeState.Done` slipped in would be the
         // very regression this test exists for, and it would sit in these two lines.
         val opens = screen.indexOf("viewModel.localDraftDeleted.collect {")
         assertEquals(
@@ -80,7 +83,7 @@ class ComposeDeleteWiringTest {
     }
 
     /**
-     * **The BINDING, whole line — the mutation every rule in this file was blind to.**
+     * **The BINDING, whole line, the mutation every rule in this file was blind to.**
      */
     @Test fun `the delete gesture is bound to the lease itself, and to the kept-copy verdict`() {
         val screen = code(COMPOSE_SCREEN).lines().map { it.trim() }
@@ -169,7 +172,7 @@ class ComposeDeleteWiringTest {
     }
 
     /**
-     * **One title, two BODIES, and which one is drawn is pinned WHOLE-LINE** (#95).
+     * **One title, two BODIES, and which one is drawn is pinned whole-line** (#95).
      */
     @Test fun `the confirmation names the body that is true of the draft in hand`() {
         val text = bodySlot().let { slot -> callArguments(slot, "Text").single() }
@@ -206,7 +209,7 @@ class ComposeDeleteWiringTest {
     }
 
     /**
-     * **The confirming button's two branches, WHOLE, and they are two different gestures.**
+     * **The confirming button's two branches, whole, and they are two different gestures.**
      */
     @Test fun `the confirming button sends a kept draft to the composer's own deletion`() {
         val click = confirmOnClick()
@@ -232,7 +235,9 @@ class ComposeDeleteWiringTest {
     }
 
     /**
-     * The body of this confirmation must SCROLL, because Material's `text` slot is a
+     * The body of this confirmation must scroll, because Material's `text` slot is a
+     * height-bounded box with no scrolling of its own: a bare `Text` in it is CLIPPED, not
+     * ellipsised, not scrollable, just cut, with nothing on screen saying more text existed.
      */
     @Test fun `the confirmation body scrolls instead of being clipped`() {
         val slot = bodySlot()
@@ -280,9 +285,9 @@ class ComposeDeleteWiringTest {
     }
 
     @Test fun `the draft is taken inside the navigation guard, not before it`() {
-        // Ordering, and it is the reader's precedent: the mutating step belongs INSIDE
+        // Ordering, and it is the reader's precedent: the mutating step belongs inside
         // navigateOnce. takeEditingDraft() hands the row over exactly once, so consuming it
-        // outside meant a tap the guard drops — two fingers, the X and the trash in one frame —
+        // outside meant a tap the guard drops (two fingers, the X and the trash in one frame)
         // had thrown the draft away while deleting nothing.
         val handler = argument(composeRoute(), HANDLER).replace(Regex("""\s+"""), " ")
         val guard = handler.indexOf("entry.navigateOnce {")
@@ -298,7 +303,7 @@ class ComposeDeleteWiringTest {
     @Test fun `the delete button does not live inside the encryption-only block`() {
         // draftSaveAllowed hides the save and schedule icons while encrypting, because both would
         // put plaintext on the server. A delete persists nothing, so it has no business being
-        // hidden with them — and the draft it removes is exactly as deletable encrypted or not.
+        // hidden with them, and the draft it removes is exactly as deletable encrypted or not.
         val screen = code(COMPOSE_SCREEN)
         val guardAt = screen.indexOf(SAVE_GUARD)
         check(guardAt >= 0) { "ComposeScreen no longer contains '$SAVE_GUARD'" }
@@ -355,7 +360,7 @@ class ComposeDeleteWiringTest {
 
     /**
      * The `onClick = { … }` block of the confirmation's `confirmButton` slot, braces balanced, as
-     * trimmed non-empty lines — comments already cut by [code].
+     * trimmed non-empty lines, comments already cut by [code].
      */
     private fun confirmOnClick(): List<String> {
         val dialog = confirmationBlock()
@@ -410,7 +415,7 @@ class ComposeDeleteWiringTest {
         return text.substring(start, (i - 1).coerceAtLeast(start)).trim()
     }
 
-    /** [file]'s code as one string, comments cut — load-bearing: the comments beside both call
+    /** [file]'s code as one string, comments cut, load-bearing: the comments beside both call
      *  sites name `discardDraft`, `ComposeState.Done` and `popBackStack("inbox", …)` on purpose. */
     private fun code(file: File): String = file.readLines().mapNotNull { line ->
         val trimmed = line.trimStart()
@@ -442,7 +447,7 @@ class ComposeDeleteWiringTest {
         private const val SAVE_GUARD = "if (draftSaveAllowed(pgpMode))"
 
         /**
-         * Material's body slot of the confirmation — the height-bounded box that clips. The
+         * Material's body slot of the confirmation, the height-bounded box that clips. The
          * lookbehind is the whole point: without it this also matches inside `context = `.
          */
         private val SLOT = Regex("""(?<![\w.])text = \{""")

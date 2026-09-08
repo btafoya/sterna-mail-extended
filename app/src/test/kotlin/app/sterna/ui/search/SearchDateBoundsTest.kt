@@ -8,7 +8,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 
 /**
- * "Since 1 June" means 1 June WHERE THE PHONE IS. Material's date picker hands the day back as
+ * "Since 1 June" means 1 June where the phone is.
  */
 class SearchDateBoundsTest {
 

@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, and a narrow one: nothing in this chain can be instantiated in a JVM test
+ * Source lint, and a narrow one: nothing in this chain can be instantiated in a JVM test
  */
 class DepartedMailLosesItsBannerWiringTest {
 
@@ -84,6 +84,7 @@ class DepartedMailLosesItsBannerWiringTest {
     @Test fun `no banner is taken down before the server says the message really left`() {
         // The dangerous half of #134, found by the counter-expertise. `MailRepository`'s own KDoc
         // says the first queryChanges run from a pre-change queryState can report an email as
+        // `removed` for a mere flag change, and the only spare against that (isRecentlyMutated)
         val body = bodyOf(NOTIFIER, "notifyDiff")
         assertEquals(
             "the notifier must ask the REPOSITORY — the layer that talks to the server — never " +
@@ -101,8 +102,8 @@ class DepartedMailLosesItsBannerWiringTest {
 
     @Test fun `each refreshed folder hands the notifier its own departures`() {
         // Pinned as two whole lines rather than one: the call is multi-line since the bounded-read
-        // branch added `remembered` beside the announceable set (its own lint pins that argument —
-        // NotifyCandidatesWiringTest). `departedIds` is the LAST argument and defaulted, so
+        // branch added `remembered` beside the announceable set (its own lint pins that argument,
+        // NotifyCandidatesWiringTest). `departedIds` is the last argument and defaulted, so
         // dropping it compiles: only this assertion sees it go.
         val run = bodyOf(FETCH_AND_NOTIFY, "run")
         assertEquals(
@@ -125,7 +126,7 @@ class DepartedMailLosesItsBannerWiringTest {
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
             .filter { needle in it }
 
-    /** The block body of `fun [name]` in [file] — braces included. */
+    /** The block body of `fun [name]` in [file], braces included. */
     private fun bodyOf(file: File, name: String): String {
         val source = file.readText()
         val fn = Regex("""\bfun\s+$name\s*\(""").find(source)

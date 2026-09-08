@@ -6,7 +6,10 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, same instrument and the same disclaimer as
+ * [OutboxCountWiringTest]: it reads `InboxScreen.kt` as text, proves nothing about what appears on
+ * screen, and would still pass if [swipeCommitThresholdPx] were broken inside. What the rule
+ * computes is [SwipeCommitTest]'s job, against the functions themselves.
  */
 class SwipeCommitWiringTest {
 
@@ -52,7 +55,7 @@ class SwipeCommitWiringTest {
                 "reveal. Found ${calls.size}: ${calls.joinToString(" | ")}",
             2, calls.size,
         )
-        // Whole-match, argument by argument, and per site: the two now pass DIFFERENT expressions
+        // Whole-match, argument by argument, and per site: the two now pass different expressions
         // for the same quantities (the handler has the release velocity and a PointerInputScope
         assertEquals(
             "exactly one call must be the DRAG HANDLER's: the release velocity read from the " +
@@ -214,8 +217,8 @@ class SwipeCommitWiringTest {
 
     @Test fun `a release that commits nothing springs the row back and dispatches nothing`() {
         // Found as a surviving mutation: drop this guard and a plain short drag calls the swipe
-        // handler with SwipeAction.NONE on every release, while the row stays where the finger
-        // left it. The behaviour tests cannot see it — they answer "which direction", and the
+        // handler with SwipeAction.None on every release, while the row stays where the finger
+        // left it. The behaviour tests cannot see it, they answer "which direction", and the
         // answer there is a correct 0.
         assertTrue(
             "a committed direction of 0 must spring the row back and call nothing at all. Row " +
@@ -274,7 +277,7 @@ class SwipeCommitWiringTest {
 
     @Test fun `the guard that hands a dead direction to the drawer is still there`() {
         // Codeberg #30, and the invariant that is invisible from any test but this one: the drawer
-        // does not open because the row does something, it opens because the row does NOT consume.
+        // does not open because the row does something, it opens because the row does not consume.
         // "Simplifying" this into consuming and then doing nothing breaks the drawer without
         // breaking a single test.
         assertTrue(
@@ -291,7 +294,7 @@ class SwipeCommitWiringTest {
     }
 
     @Test fun `a direction with no action still cannot move the row`() {
-        // What makes the missing `!= NONE` guard in `armed` harmless: on a side with no action the
+        // What makes the missing `!= none` guard in `armed` harmless: on a side with no action the
         // offset bound is 0, so the row does not move that way at all and the reveal never lights.
         // Undo this coupling and the reveal arms for an action that will never fire.
         assertTrue(
@@ -314,6 +317,7 @@ class SwipeCommitWiringTest {
 
     /**
      * The whole statement declaring `val [name]` inside the row: from its line to the line where
+     * its parentheses close again, that last line included.
      */
     private fun statement(name: String): String {
         val lines = row().lines()
@@ -344,7 +348,7 @@ class SwipeCommitWiringTest {
     }
 
     /**
-     * The lines of [file] that are code, with their comments taken off — a line whose first
+     * The lines of [file] that are code, with their comments taken off, a line whose first
      */
     private fun codeLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val code = line.trimStart()
@@ -373,6 +377,9 @@ class SwipeCommitWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text: everything up to the
+     * first line indented no deeper than the declaration, once the declaration's own brackets have
+     * closed. Fails loudly when the declaration is not found, a rename must break these rules
+     * rather than satisfy them silently against an empty string.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)

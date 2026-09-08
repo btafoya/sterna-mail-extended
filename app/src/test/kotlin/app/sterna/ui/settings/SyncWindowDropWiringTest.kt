@@ -9,7 +9,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT for the plug, plus the decision EXECUTED beside it. `AccountsViewModel` is an
+ * Source lint for the plug, plus the decision executed beside it.
  */
 class SyncWindowDropWiringTest {
 
@@ -51,7 +51,7 @@ class SyncWindowDropWiringTest {
     // -- the plug --------------------------------------------------------------------------------
 
     @Test fun `the change is decided against the value already stored, before it is overwritten`() {
-        // Order matters and cannot be seen from the outside: reading the stored window AFTER
+        // Order matters and cannot be seen from the outside: reading the stored window after
         // setSyncWindow would compare the new value with itself and never drop anything.
         val body = lines()
         val decision = body.indexOf("val changed = syncWindowChanged(store.syncWindow(id), window)")
@@ -81,7 +81,7 @@ class SyncWindowDropWiringTest {
     @Test fun `the whole body is these four lines, so nothing can be slipped above them`() {
         // Whole body, not the presence of lines: an inserted `if (id != store.currentId()) return`
         // leaves every pinned line where it is, reads like an optimisation, and makes the setting
-        // inert for every account that is not the current one. AndroidViewModel — nothing here can
+        // inert for every account that is not the current one. AndroidViewModel, nothing here can
         // execute it, so an addition has to be caught as text or not at all.
         assertEquals(
             "AccountsViewModel.setSyncWindow is no longer, line for line, what this test was " +
@@ -113,7 +113,7 @@ class SyncWindowDropWiringTest {
     }
 
     @Test fun `the row still writes at the tap, without waking the Save button`() {
-        // The screen says, above Save, that this setting is saved as you change it — and Save has no
+        // The screen says, above Save, that this setting is saved as you change it, and Save has no
         // parameter for it. Routing the row through markEdited() would light a button that writes
         // nothing of the kind.
         val screen = SETTINGS_SCREEN.readText()

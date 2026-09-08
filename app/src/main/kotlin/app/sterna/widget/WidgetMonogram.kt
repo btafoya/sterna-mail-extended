@@ -9,12 +9,12 @@ import app.sterna.R
 import app.sterna.ui.components.ToneRamp
 
 /**
- * The badge of a widget row, as a `Bitmap` — the only way a `RemoteViews` can carry a coloured
+ * The badge of a widget row, as a `Bitmap`, the only way a `RemoteViews` can carry a coloured
  */
 internal object WidgetMonogram {
 
     /**
-     * The disc for [monogram], painted in the tones handed in — cached, then handed out as is.
+     * The disc for [monogram], painted in the tones handed in, cached, then handed out as is.
      */
     fun badge(context: Context, monogram: RecentRowMonogram, ramps: List<ToneRamp>): Bitmap {
         val side = context.resources.getDimensionPixelSize(R.dimen.widget_recent_monogram)
@@ -25,7 +25,7 @@ internal object WidgetMonogram {
     }
 
     /**
-     * A filled circle with the initial centred on it. The baseline is computed from the FONT
+     * A filled circle with the initial centred on it. The baseline is computed from the font
      */
     private fun draw(initial: String, argb: Int, side: Int): Bitmap {
         val bitmap = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
@@ -44,13 +44,13 @@ internal object WidgetMonogram {
     }
 
     /**
-     * The letter's height as a fraction of the disc — the ratio the app's own badge draws at. The
+     * The letter's height as a fraction of the disc, the ratio the app's own badge draws at. The
      * widget's disc is smaller, and the ratio is what makes it read as the same badge.
      */
     private const val LETTER_SCALE = 0.4f
 
     /**
-     * Bounded in BYTES, not in entries: a disc's side comes from the resources, so an xxxhdpi
+     * Bounded in bytes, not in entries: a disc's side comes from the resources, so an xxxhdpi
      */
     private const val CACHE_KB = 512
 

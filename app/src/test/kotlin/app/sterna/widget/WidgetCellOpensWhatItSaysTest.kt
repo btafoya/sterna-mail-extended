@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHAT THIS PREVENTS: a home-screen cell that says one thing and opens another.
+ * What this prevents: a home-screen cell that says one thing and opens another.
  */
 class WidgetCellOpensWhatItSaysTest {
 
@@ -34,12 +34,12 @@ class WidgetCellOpensWhatItSaysTest {
         )
     }
 
-    /** What the drawn cell is called — read off the rendered state, never derived here. */
+    /** What the drawn cell is called, read off the rendered state, never derived here. */
     private fun saysAllInboxes(accounts: List<StoredAccount>): Boolean =
         UnreadWidgetContent.of(accounts, unread = 7).label ==
             WidgetLabel.Translated(R.string.inbox_all_inboxes)
 
-    /** What a tap on that same cell asks the app for — again the returned value, not a rule. */
+    /** What a tap on that same cell asks the app for, again the returned value, not a rule. */
     private fun opensUnifiedInbox(accounts: List<StoredAccount>): Boolean =
         UnreadWidgetTap.of(accounts) == WidgetTapTarget.UnifiedInbox
 }

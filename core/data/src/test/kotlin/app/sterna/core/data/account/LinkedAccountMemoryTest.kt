@@ -10,9 +10,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The shared-mailbox memory, EXECUTED: [reconciledAccounts] is the whole list transformation
+ * The shared-mailbox memory, executed: [reconciledAccounts] is the whole list transformation
  * `AccountStore.reconcileLinkedAccounts` performs, so these tests replay the real decision rather
- * than re-stating it. The diff itself comes from the shipped [diffLinkedAccounts] — nothing here
+ * than re-stating it. The diff itself comes from the shipped [diffLinkedAccounts], nothing here
  * recomputes what should be pruned or added.
  *
  * The store cannot be built in this module (a `Context` and the Keystore, no Robolectric), which is
@@ -341,31 +341,31 @@ class LinkedAccountMemoryTest {
     /**
      * The blob actually survives storage. `AccountStore.saveLinkedMemory` / `linkedMemory` encode
      * and decode this map with the store's own `Json`, and both are wrapped in a `runCatching`
-     * whose whole purpose is to fail QUIETLY. So a map shape kotlinx cannot round-trip would not
+     * whose whole purpose is to fail quietly. So a map shape kotlinx cannot round-trip would not
      * crash, would not log, and would not fail a single other test: the memory would simply be
      * empty on every read, every re-granted share would come back factory-fresh, and the feature
      * would be inert with nothing on screen saying so.
      *
-     * What it does NOT prove: the store's `json` is private, so this builds its own with the
+     * What it does not prove: the store's `json` is private, so this builds its own with the
      * same configuration (`ignoreUnknownKeys = true`, `AccountStore`). Reconfigure the
      * store's parser and this test stays green. What it does prove is the one thing that would
      * otherwise fail in total silence: kotlinx can round-trip THIS shape at all. Run on a map
-     * carrying the collection-valued settings — the collection-valued ones
+     * carrying the collection-valued settings, the collection-valued ones
      * are the shapes worth pinning, and the nested `StoredIdentity` list is the deepest of them.
      */
     /**
-     * The reset list, pinned WHOLE — every field of the minted record, against one literal.
+     * The reset list, pinned whole, every field of the minted record, against one literal.
      *
      * The `copy` in [mintLinkedAccount] names seventeen fields, and the assertions above reach
-     * seven of them. Deleting any of the other ten — `importPending`, `inboxName`, the OAuth
-     * four, `protocol`, `authType`, `loginId`, `jmapAccountId` — kept every other test in this
+     * seven of them. Deleting any of the other ten, `importPending`, `inboxName`, the OAuth
+     * four, `protocol`, `authType`, `loginId`, `jmapAccountId`, kept every other test in this
      * file green. `importPending` alone is a real screen defect: a restored share carrying a
-     * stale "needs sign-in" flag is filtered out of the accounts list AND out of the sign-in
+     * stale "needs sign-in" flag is filtered out of the accounts list and out of the sign-in
      * list (it has a valid credential through its login), so the shared mailbox has no row
      * anywhere. Its KDoc promises "forgetting one must be the loud choice"; this is what makes
      * that true, for all seventeen at once.
      *
-     * [DIRTY] carries a non-default value in EVERY field, so a reset that stops covering one
+     * [DIRTY] carries a non-default value in every field, so a reset that stops covering one
      * shows up here as that field's dirty value surviving.
      */
     @Test fun `the whole minted record is pinned, field by field, against the reset list`() {
@@ -394,7 +394,7 @@ class LinkedAccountMemoryTest {
                 oauthAccessExpiresAt = 0,
                 oauthTokenEndpoint = "",
                 oauthClientId = "",
-                // --- kept: everything the USER chose ---
+                // --- kept: everything the user chose ---
                 syncWindow = SyncWindow.YEAR_1,
                 notificationsEnabled = false,
                 uploadSentCopy = false,
@@ -420,8 +420,8 @@ class LinkedAccountMemoryTest {
     }
 
     /**
-     * The `pinPrimaryId` branch, EXECUTED. It is the function's only write by index, it was moved
-     * into [reconciledAccounts] by this change, and nothing else in this file reaches it — every
+     * The `pinPrimaryId` branch, executed. It is the function's only write by index, it was moved
+     * into [reconciledAccounts] by this change, and nothing else in this file reaches it, every
      * other fixture login already carries its `jmapAccountId`. Pinning the login's own account id
      * on first discovery is what later reconciles use to tell the login apart from its shares: get
      * it wrong and every real share looks revoked, which prunes them all with their caches.
@@ -496,7 +496,7 @@ class LinkedAccountMemoryTest {
         )
 
         /**
-         * A remembered share with a NON-DEFAULT value in every field, so the whole-record
+         * A remembered share with a non-default value in every field, so the whole-record
          * assertion sees any field that quietly leaves the reset list.
          */
         val DIRTY = StoredAccount(
@@ -538,7 +538,7 @@ class LinkedAccountMemoryTest {
             pgpEncryptByDefault = true,
         )
 
-        /** A share under ANOTHER login, so the round-trip carries more than one key. */
+        /** A share under another login, so the round-trip carries more than one key. */
         val SECOND_SHARE = StoredAccount(
             id = "S2",
             server = SERVER,

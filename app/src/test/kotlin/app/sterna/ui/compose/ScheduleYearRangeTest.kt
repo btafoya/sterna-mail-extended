@@ -31,7 +31,7 @@ class ScheduleYearRangeTest {
 
     @Test fun `west of UTC on New Year's Eve, the year that is ENDING is the first offered`() {
         // 31 December, 23:00 in Los Angeles is already 1 January, 07:00 UTC. Read in UTC the list
-        // would start on 2027 — the user, still in 2026, could no longer reach 31 December, the
+        // would start on 2027, the user, still in 2026, could no longer reach 31 December, the
         // one day they are most likely to be scheduling for.
         val now = at(la, 2026, 12, 31, 23)
         assertEquals(2027, ZonedDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneOffset.UTC).year)

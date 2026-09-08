@@ -5,7 +5,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — read `RestoredMetaTest` first, it is the real one: it
+ * Source lint, not a behaviour test, read `RestoredMetaTest` first, it is the real one: it
+ * executes [restoredMeta] and [restoredFolderMeta] and pins their answers as literals.
  */
 class RestoredHeaderWiringLintTest {
 
@@ -161,7 +162,7 @@ class RestoredHeaderWiringLintTest {
 
     /**
      * The statements inside the block that opens at [anchor]'s line, trimmed, blanks dropped, in
-     * source order — the braces' own lines excluded.
+     * source order, the braces' own lines excluded.
      */
     private fun blockLines(anchor: Regex): List<String> {
         val text = codeLines().joinToString("\n")
@@ -250,12 +251,12 @@ class RestoredHeaderWiringLintTest {
         return text.substring(open, i).trim()
     }
 
-    /** The file as ONE line of code: comments out, runs of whitespace collapsed. */
+    /** The file as one line of code: comments out, runs of whitespace collapsed. */
     private fun codeText(): String =
         codeLines().joinToString(" ").replace(Regex("""\s+"""), " ").trim()
 
     /**
-     * The file line by line, comments taken out and line structure KEPT — the order of two
+     * The file line by line, comments taken out and line structure kept, the order of two
      */
     private fun codeLines(): List<String> {
         val out = mutableListOf<String>()

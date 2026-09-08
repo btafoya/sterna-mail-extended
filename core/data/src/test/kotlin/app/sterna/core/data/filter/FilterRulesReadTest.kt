@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * What reading an account's filters answers — [loadedFilterRules], executed.
+ * What reading an account's filters answers, [loadedFilterRules], executed.
  */
 class FilterRulesReadTest {
 
@@ -29,7 +29,8 @@ class FilterRulesReadTest {
     }
 
     /**
-     * THE BUG. A `sterna` script with content nobody can decode used to come back as
+     * The bug. A `sterna` script with content nobody can decode used to come back as
+     * `Loaded(rules = [], foreignActiveScript = false)`, an ordinary account with no filters.
      */
     @Test fun `an unreadable sterna script warns instead of reporting no rules`() {
         val state = loadedFilterRules("if header :is \"subject\" \"x\" { discard; }", otherActiveScript = false)
@@ -76,7 +77,7 @@ class FilterRulesReadTest {
     }
 
     /**
-     * The witness. A blank script is not unreadable — it holds nothing, so rewriting it loses
+     * The witness. A blank script is not unreadable, it holds nothing, so rewriting it loses
      */
     @Test fun `a blank sterna script is zero rules, and no warning`() {
         for (blank in listOf("", "   ", "\n\n")) {
@@ -99,7 +100,7 @@ class FilterRulesReadTest {
         assertFalse(loadedFilterRules(null, otherActiveScript = false).foreignActiveScript)
     }
 
-    // ---- a script we read only PART of: our marker, and hand-written Sieve around it ----
+    // ---- a script we read only part of: our marker, and hand-written Sieve around it ----
 
     /** The marker line `generate` writes for [rule] alone, JSON and all. */
     private val bossMarker =
@@ -118,7 +119,7 @@ class FilterRulesReadTest {
     private fun script(vararg lines: String) = lines.joinToString("\n", postfix = "\n")
 
     /**
-     * THE BUG THIS BRANCH FIXES. A perfectly valid marker line, and around it Sieve this app
+     * The bug this branch fixes. A perfectly valid marker line, and around it Sieve this app
      */
     @Test fun `a rule written by hand after our own marks the script unreadable`() {
         val state = loadedFilterRules(
@@ -140,7 +141,7 @@ class FilterRulesReadTest {
     }
 
     /**
-     * **THE LIKELIEST SHAPE OF THE BUG, and the one every other test here misses.** Sterna
+     * **the likeliest shape of the bug, and the one every other test here misses.** Sterna
      */
     @Test fun `an empty rule list with hand-written Sieve around it is still unreadable`() {
         val state = loadedFilterRules(
@@ -191,7 +192,7 @@ class FilterRulesReadTest {
     }
 
     /**
-     * Only the FIRST marker line is ours — the one [SieveCodec.parseRulesOrNull] read. A second one
+     * Only the first marker line is ours, the one [SieveCodec.parseRulesOrNull] read. A second one
      * further down is content in excess, so it counts as foreign like any other line.
      */
     @Test fun `a second marker line lower down marks the script unreadable`() {
@@ -232,7 +233,7 @@ class FilterRulesReadTest {
         assertTrue("another active script must not hide that OURS was half-read", state.scriptUnreadable)
     }
 
-    // ---- the witnesses: what must NOT be called foreign ----
+    // ---- the witnesses: what must not be called foreign ----
 
     /** What this app writes, read straight back. Anything else here would be a false alarm. */
     @Test fun `a script this app just generated is never foreign`() {
@@ -250,7 +251,9 @@ class FilterRulesReadTest {
     }
 
     /**
-     * THE WITNESS THAT FIXES THE COMPARED VALUE. A script written by an OLDER version of this
+     * The witness that fixes the compared value. A script written by an older version of this
+     * app: the Sieve below is byte-for-byte what we emit, but the marker's JSON carries a key we
+     * do not know (a field added later, or dropped later).
      */
     @Test fun `a marker written by another version of this app is not foreign`() {
         val extraKey =
@@ -290,6 +293,8 @@ class FilterRulesReadTest {
 
     /**
      * The non-regression witness. A blank script holds nothing to lose, so it is zero rules and
+     * NO alarm, the guard is written into the comparison itself, not left to the luck of what
+     * `generate(emptyList())` happens to normalise to.
      */
     @Test fun `a blank script is never foreign`() {
         for (blank in listOf("", "   ", "\n\n", "\r\n\r\n")) {
@@ -300,7 +305,7 @@ class FilterRulesReadTest {
         }
     }
 
-    /** The decision on its own, with literal arguments — no state, no fold, just the comparison. */
+    /** The decision on its own, with literal arguments, no state, no fold, just the comparison. */
     @Test fun `holdsForeignSieve compares the Sieve and ignores the marker line`() {
         assertTrue(
             "one hand-written line in excess is enough",
@@ -318,12 +323,12 @@ class FilterRulesReadTest {
             ),
         )
         // Measured on 2026-08-12, and left standing: deleting the `script.isBlank()` guard from
-        // holdsForeignSieve leaves the whole suite green. It is EQUIVALENT BY CONSTRUCTION, not a
+        // holdsForeignSieve leaves the whole suite green.
         assertFalse("blank is never foreign", holdsForeignSieve("   \n\t\n", emptyList()))
         assertFalse("what we write is never foreign", holdsForeignSieve(SieveCodec.generate(listOf(rule)), listOf(rule)))
     }
 
-    // ---- the wiring, read out of the shipped source: a LAST RESORT, not the proof ----
+    // ---- the wiring, read out of the shipped source: a last resort, not the proof ----
 
     /**
      * Everything above executes the decision; this one cannot. `MailRepository` opens shared
@@ -342,8 +347,8 @@ class FilterRulesReadTest {
             "the other-script question must still be asked of the OTHER scripts",
             body.contains("otherActiveScript = scripts.any { it.isActive && it.name != SieveCodec.SCRIPT_NAME }"),
         )
-        // Measured: narrowing this selection to the ACTIVE script left the whole suite green, and
-        // it reopens the very bug above — an unreadable script that is merely INACTIVE is then not
+        // Measured: narrowing this selection to the active script left the whole suite green, and
+        // it reopens the very bug above, an unreadable script that is merely inactive is then not
         assertEquals(
             "the account's own script must be selected BY NAME ALONE, as exactly `val managed = " +
                 "scripts.firstOrNull { it.name == SieveCodec.SCRIPT_NAME }` and nothing more on " +
@@ -359,7 +364,7 @@ class FilterRulesReadTest {
     }
 
     /**
-     * Every WHOLE line of [body] declaring `val [name]`, trimmed, comments dropped.
+     * Every whole line of [body] declaring `val [name]`, trimmed, comments dropped.
      */
     private fun declarationsOf(body: String, name: String): List<String> =
         SourceText.codeLines(body).filter { it.substringBefore(" =") == "val $name" }

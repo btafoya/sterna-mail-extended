@@ -10,6 +10,9 @@ import java.sql.PreparedStatement
 
 /**
  * Verifies, against in-memory SQLite, the anchor selection of
+ * [app.sterna.core.data.db.EmailDao.oldestRepresentativeEmailId] and its companion count:
+ * the fetch-older page is anchored on the oldest cached row that is its thread's newest
+ * within the folder.
  */
 class RepresentativeAnchorSqlTest {
     private lateinit var db: Connection
@@ -82,10 +85,10 @@ class RepresentativeAnchorSqlTest {
         }
 
     @Test fun skipsOlderThreadMemberAndAnchorsOnItsRepresentative() {
-        insert("m1", threadId = "T1", sortKey = 100) // oldest ROW, but not T1's newest
+        insert("m1", threadId = "T1", sortKey = 100) // oldest row, but not T1's newest
         insert("m2", threadId = "T1", sortKey = 300) // T1's representative
         insert("solo", threadId = null, sortKey = 200) // its own representative
-        // The raw oldest row (m1) must NOT be the anchor: the collapsed query never lists it.
+        // The raw oldest row (m1) must not be the anchor: the collapsed query never lists it.
         assertEquals("solo", anchor())
         assertEquals(2, representativeCount())
     }
@@ -100,20 +103,20 @@ class RepresentativeAnchorSqlTest {
     @Test fun scopesToAccountAndMailbox() {
         insert("in1", threadId = "T1", sortKey = 100)
         insert("sent1", threadId = "T1", sortKey = 300, mailbox = "sent") // newer, other folder
-        // The sibling account's member is NEWER than in1 (issue #31: same-server accounts share
+        // The sibling account's member is newer than in1 (issue #31: same-server accounts share
         insert("other1", threadId = "T1", sortKey = 500, accountId = "accB")
-        // Within (acc, inbox), in1 is T1's newest — neither the Sent reply nor the sibling
+        // Within (acc, inbox), in1 is T1's newest, neither the Sent reply nor the sibling
         // account's newer member demotes it.
         assertEquals("in1", anchor())
         assertEquals(1, representativeCount())
     }
 
     @Test fun aSiblingAccountsIdenticalCopyIsNeitherAnchorNorCounted() {
-        // The case [scopesToAccountAndMailbox] cannot see, and the reason the OUTER
-        // `accountId = :accountId AND mailboxId = :mailboxId` has to stay: both parameters survive
+        // The case [scopesToAccountAndMailbox] cannot see, and the reason the outer
+        // `accountId = :accountId and mailboxId = :mailboxId` has to stay: both parameters survive
         //
-        // Unless they TIE. Two sub-accounts of one server (issue #31) receive the same message —
-        // same receivedAt, so the same sortKey, and the same server thread id — and the sibling's
+        // Unless they tie. Two sub-accounts of one server (issue #31) receive the same message,
+        // same receivedAt, so the same sortKey, and the same server thread id, and the sibling's
         insert("B-dup", threadId = "T-dup", sortKey = 100, accountId = "accB")
         insert("A-dup", threadId = "T-dup", sortKey = 100)
         insert("A-new", threadId = "T-a", sortKey = 300)

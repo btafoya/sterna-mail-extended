@@ -12,7 +12,10 @@ import java.net.ServerSocket
 import java.util.Collections
 
 /**
- * A one-connection, scripted SMTP submission server on loopback — the `SmtpClient` sibling of
+ * A one-connection, scripted SMTP submission server on loopback, the `SmtpClient` sibling of
+ * [FakeImapServer]. `send()` takes host and port from [MailServerConfig] and opens no TLS when the
+ * security is [MailSecurity.None], so a server here observes the exact command sequence the
+ * shipped client writes, with nothing changed in production code to accommodate it.
  */
 internal class FakeSmtpServer(
     /** The `AUTH` capability to advertise in the EHLO response (e.g. `"AUTH PLAIN LOGIN"`), or none. */
@@ -21,6 +24,9 @@ internal class FakeSmtpServer(
     private val multiline: Boolean = false,
     /**
      * Full override for one command: a non-null result is written verbatim (one entry per line,
+     * CRLF added) instead of the canned reply. Not for `data` itself, the dot-terminated body mode
+     * is driven by the canned path, but it IS consulted for [END_OF_DATA], the dot that ends the
+     * body, whose reply is the one read a submission may legitimately wait minutes for.
      */
     private val respond: (String) -> List<String>? = { null },
     /**
@@ -28,7 +34,7 @@ internal class FakeSmtpServer(
      */
     private val greeting: (() -> List<String>?)? = null,
     /**
-     * Write these lines and then **stop answering, for good** — the one thing [respond] cannot do.
+     * Write these lines and then **stop answering, for good**, the one thing [respond] cannot do.
      */
     private val cutAfter: (String) -> List<String>? = { null },
 ) : Closeable {
@@ -39,13 +45,13 @@ internal class FakeSmtpServer(
     val commands: MutableList<String> = Collections.synchronizedList(mutableListOf<String>())
 
     /**
-     * The DATA payload of the accepted message, or null when nothing was accepted.
+     * The data payload of the accepted message, or null when nothing was accepted.
      */
     @Volatile
     var delivered: String? = null
         private set
 
-    /** Every byte the client wrote, in order, before any line-ending interpretation — see [wire]. */
+    /** Every byte the client wrote, in order, before any line-ending interpretation, see [wire]. */
     private val wireBytes = ByteArrayOutputStream()
 
     /**
@@ -65,7 +71,7 @@ internal class FakeSmtpServer(
     )
 
     /**
-     * The accepted connection, so [close] can end it. Interrupting the serving thread does NOT
+     * The accepted connection, so [close] can end it. Interrupting the serving thread does not
      * unblock a socket read, and the mute path spends its whole life in one.
      */
     @Volatile
@@ -77,7 +83,7 @@ internal class FakeSmtpServer(
         runCatching {
             server.accept().use { socket ->
                 accepted = socket
-                // The tee sits UNDER the reader, so what is recorded is what the client wrote and
+                // The tee sits under the reader, so what is recorded is what the client wrote and
                 // not what the reader made of it. Nothing else in the dialogue changes.
                 val reader = BufferedReader(InputStreamReader(TeeInputStream(socket.inputStream), Charsets.UTF_8))
                 // ISO-8859-1 so a scripted reply goes out byte for byte, as in FakeImapServer.
@@ -107,7 +113,7 @@ internal class FakeSmtpServer(
                 val hello = if (scriptedGreeting == null) canned("220", "fake ESMTP ready") else scriptedGreeting()
                 if (hello == null) {
                     // Accepted and mute: hold the connection open, saying nothing, until the client
-                    // gives up on its own and closes — which is the whole point of the case.
+                    // gives up on its own and closes, which is the whole point of the case.
                     runCatching { socket.soTimeout = MUTE_HOLD_MS }
                     while (true) {
                         val after = runCatching { reader.readLine() }.getOrNull() ?: break
@@ -163,8 +169,8 @@ internal class FakeSmtpServer(
                         line.equals("DATA", ignoreCase = true) -> {
                             inData = true
                             // Canned like every other reply, so [multiline] reaches it too: a real
-                            // server's answer to DATA may be multi-line, and a literal here made
-                            // that the ONE response no test could give more than a single line.
+                            // server's answer to data may be multi-line, and a literal here made
+                            // that the one response no test could give more than a single line.
                             canned("354", "end with <CRLF>.<CRLF>")
                         }
                         line.equals("QUIT", ignoreCase = true) -> listOf("221 2.0.0 bye")
@@ -203,7 +209,7 @@ internal class FakeSmtpServer(
         if (multiline) listOf("$code-$text", "$code-still $text", "$code $text") else listOf("$code $text")
 
     /**
-     * Commands received so far, minus `QUIT` — the client writes it after the send has already
+     * Commands received so far, minus `QUIT`, the client writes it after the send has already
      * returned, so whether it arrived before the assertions is a race, and it proves nothing.
      */
     fun issued(): List<String> = commands.toList().filterNot { it.equals("QUIT", ignoreCase = true) }
@@ -221,7 +227,7 @@ internal class FakeSmtpServer(
 
     override fun close() {
         runCatching { server.close() }
-        // The accepted socket too: closing the LISTENING socket leaves an established connection
+        // The accepted socket too: closing the listening socket leaves an established connection
         // untouched, and the serving thread of a mute session is parked on a read of it.
         runCatching { accepted?.close() }
         thread.interrupt()
@@ -230,6 +236,7 @@ internal class FakeSmtpServer(
     companion object {
         /**
          * An address, not a bare word, and that is the whole point: a real SMTP username is an
+         * address, and a fixture without an '@' cannot tell apart any per-account mangling of it.
          */
         const val USER = "tester@example.org"
         const val PASSWORD = "correct-horse-battery-staple-correct-horse-battery-staple-0123456789"
@@ -237,7 +244,7 @@ internal class FakeSmtpServer(
         /** [cutAfter] trigger for the server greeting, which no command of the client precedes. */
         const val GREETING = "<greeting>"
 
-        /** [cutAfter] trigger for the reply to the dot that ends the DATA body. */
+        /** [cutAfter] trigger for the reply to the dot that ends the data body. */
         const val END_OF_DATA = "."
 
         /** How long a cut connection keeps listening for a client that has not noticed yet. */

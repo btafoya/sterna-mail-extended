@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. The order this pins — write each page, reconcile once, only
+ * Source lint, not a behaviour test. The order this pins, write each page, reconcile once, only
  */
 class FullQueryStreamingWiringTest {
 
@@ -25,15 +25,15 @@ class FullQueryStreamingWiringTest {
 
     @Test fun `fullQueryWriteThrough is these six statements, in this order, with no guard`() {
         // The red line of the volet, as source. It is short precisely so it can be pinned
-        // entire: the mutations this exists to catch are INSERTIONS (a try/catch around the walk,
+        // entire: the mutations this exists to catch are insertions (a try/catch around the walk,
         // a finally around the reconcile), and no presence check can see an inserted line.
         //
-        // The `?: return walked` is the IMAP half — a walk whose folder was renumbered under it
-        // answers null and nothing is deleted. It sits ABOVE `spareIds()` on purpose: not
+        // The `?: return walked` is the IMAP half, a walk whose folder was renumbered under it
+        // answers null and nothing is deleted. It sits above `spareIds()` on purpose: not
         // reconciling must not consume the protection window's read either.
         //
-        // `val before = folderIds()` is the #165 half, and its POSITION is the fix: read ONCE,
-        // before the walk, and carried into `reconcile` as the fourth argument — the set of rows
+        // `val before = folderIds()` is the #165 half, and its position is the fix: read once,
+        // before the walk, and carried into `reconcile` as the fourth argument, the set of rows
         // that DELETE is allowed to touch.
         assertEquals(
             "fullQueryWriteThrough is no longer, line for line, what this was written against. " +
@@ -65,9 +65,9 @@ class FullQueryStreamingWiringTest {
         // whole because each has a plausible-looking wrong version:
         assertLine("MailRepository", "syncMailbox", "val full = fullQuerySizing(")
         assertLine("MailRepository", "syncMailbox", "val walked = fullQueryWriteThrough<List<Email>, WindowWalk>(")
-        // #165: the folder as it stood BEFORE the walk, which travels to the reconcile as the
-        // bound on what may be DELETED. `localAccountId` and `mailboxId` are the SAME two the
-        // reconcile is given below — a bound read off another folder would evict nothing at all
+        // #165: the folder as it stood before the walk, which travels to the reconcile as the
+        // bound on what may be DELETED. `localAccountId` and `mailboxId` are the same two the
+        // reconcile is given below, a bound read off another folder would evict nothing at all
         // and switch the reconcile off. On this path it is never null: the folder is known.
         assertLine(
             "MailRepository", "syncMailbox",
@@ -103,7 +103,7 @@ class FullQueryStreamingWiringTest {
     @Test fun `the full query branch catches nothing and has no finally`() {
         // The half of the red line that lives at the call site rather than in the function: an
         // exception must climb out of syncMailbox. A `runCatching` around the write-through here
-        // would let the caller carry on as if the folder had synced — and store a cursor on it.
+        // would let the caller carry on as if the folder had synced, and store a cursor on it.
         val body = DaoQuerySource.mailFunctionBody("MailRepository", "syncMailbox").lines().map { it.trim() }
         val start = body.indexOfFirst { it.startsWith("val full = fullQuerySizing(") }
         assertTrue("syncMailbox no longer starts its full-query branch with `val full = fullQuerySizing(`", start >= 0)
@@ -124,8 +124,8 @@ class FullQueryStreamingWiringTest {
 
     @Test fun `replaceMailbox still upserts and then reconciles, for its remaining caller`() {
         // The extraction must be invisible to the caller that still hands over a whole snapshot at
-        // once — emptying a deleted folder's cache, `MailRepository.deleteMailbox`: same two
-        // things, same order, one transaction. Pinned as the whole body — the failure this
+        // once, emptying a deleted folder's cache, `MailRepository.deleteMailbox`: same two
+        // things, same order, one transaction. Pinned as the whole body, the failure this
         // catches is a line moving or appearing, and no presence check sees either.
         assertEquals(
             "EmailDao.replaceMailbox is no longer, line for line, what this was written against. " +
@@ -142,8 +142,7 @@ class FullQueryStreamingWiringTest {
     }
 
     @Test fun `exactly one transaction, whichever way into the reconcile`() {
-        // The two entry points are transactional and the shared body is NOT. If the body were,
-        // `replaceMailbox` would open a transaction inside a transaction — supported by Room and
+        // The two entry points are transactional and the shared body is not.
         assertTrue("replaceMailbox is no longer one transaction", DaoQuerySource.isTransactional("EmailDao", "replaceMailbox"))
         assertTrue("reconcileMailbox is no longer one transaction", DaoQuerySource.isTransactional("EmailDao", "reconcileMailbox"))
         assertEquals(
@@ -167,7 +166,7 @@ class FullQueryStreamingWiringTest {
     }
 
     @Test fun `the reconcile is these four lines, and evicts WITHOUT un-indexing`() {
-        // Pinned whole, because the mutations that matter here are ARGUMENT substitutions:
+        // Pinned whole, because the mutations that matter here are argument substitutions:
         // `keepIds` and `spareIds` are both id collections, so handing reconcileEvictions the wrong
         assertEquals(
             "EmailDao.reconcileMailboxRows is no longer, line for line, what this was written against.",

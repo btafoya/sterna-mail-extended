@@ -9,12 +9,14 @@ import org.junit.Test
 import java.io.File
 
 /**
- * EXECUTES the sentence an add ends on, it does not read the routes that show it.
+ * Executes the sentence an add ends on, it does not read the routes that show it.
  */
 class AccountAddedToastTest {
 
     /**
-     * The witness this whole file rests on. If the two resource ids were the same number — the
+     * The witness this whole file rests on. If the two resource ids were the same number, the
+     * shape a unit test takes when it runs against defaulted resources, every assertion below
+     * would pass whatever the function did, including the version that never says "already there".
      */
     @Test fun `the two sentences are different resources, or nothing here can fail`() {
         assertNotEquals(
@@ -37,7 +39,7 @@ class AccountAddedToastTest {
     }
 
     /**
-     * The same, with the OTHER resource: the argument is what is pinned, not "some string". A body
+     * The same, with the other resource: the argument is what is pinned, not "some string". A body
      */
     @Test fun `the sentence a create gets is the one the route passed in`() {
         val chosen: Int? = accountAddedToast(created = true, createdRes = R.string.connect_outlook_added)
@@ -71,6 +73,8 @@ class AccountAddedToastTest {
 
     /**
      * And on the silent routes too. This is the case that was invisible: the sign-in came back,
+     * the screen navigated on, and nothing on it said that the address typed was already installed,
+     * so the reader repeats the add, or goes looking for the second account.
      */
     @Test fun `a re-add speaks even on a route that says nothing when it creates`() {
         val chosen: Int? = accountAddedToast(created = false, createdRes = null)
@@ -84,7 +88,7 @@ class AccountAddedToastTest {
 }
 
 /**
- * RESOURCE LINT — the sentence exists in the nine languages the app ships, and carries something.
+ * Resource lint, the sentence exists in the nine languages the app ships, and carries something.
  */
 class AccountRefreshedStringTest {
 

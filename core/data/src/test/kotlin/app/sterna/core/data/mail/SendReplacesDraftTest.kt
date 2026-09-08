@@ -8,11 +8,11 @@ import org.junit.Test
 import java.io.IOException
 
 /**
- * The decision the SEND path runs before it may destroy the draft a message was edited from:
+ * The decision the send path runs before it may destroy the draft a message was edited from:
  */
 class SendReplacesDraftTest {
 
-    /** The witness: a proven replacement still buys its destroy — no stale duplicate in Drafts. */
+    /** The witness: a proven replacement still buys its destroy, no stale duplicate in Drafts. */
     @Test fun aProvenReplacementCarriesTheIdToTheRow() = runTest {
         assertEquals(
             "d1",
@@ -28,7 +28,7 @@ class SendReplacesDraftTest {
         )
     }
 
-    /** An addressing shown NOT to be carried refuses the destroy on its own. */
+    /** An addressing shown not to be carried refuses the destroy on its own. */
     @Test fun anAddressingDisprovenKeepsTheIdOffTheRow() = runTest {
         assertNull(
             replaceableDraftIdOrNull("d1", attachmentCount = 0, bodyIsLossy = false) { false },
@@ -36,7 +36,7 @@ class SendReplacesDraftTest {
     }
 
     /**
-     * Offline, dropped socket, a row that is gone: the proof cannot be ESTABLISHED. An unknown
+     * Offline, dropped socket, a row that is gone: the proof cannot be established. An unknown
      */
     @Test fun anAddressingThatCannotBeReadIsUnknownAndKeepsTheIdOff() = runTest {
         assertNull(
@@ -50,7 +50,7 @@ class SendReplacesDraftTest {
         )
     }
 
-    /** The id being replaced is the one the proof is asked about — not some other draft's. */
+    /** The id being replaced is the one the proof is asked about, not some other draft's. */
     @Test fun theProofIsAskedForTheDraftBeingReplaced() = runTest {
         val asked = mutableListOf<String>()
         replaceableDraftIdOrNull("imap:acct:Drafts:42", attachmentCount = 0, bodyIsLossy = false) { id ->

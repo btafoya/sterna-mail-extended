@@ -15,7 +15,7 @@ class DeparturesComeFromTheServerTest {
     // ---- the decision, executed ------------------------------------------------------------
 
     @Test fun `a reorder is not a departure`() {
-        // Favouriting pins a row to the top of the query: the delta reports the SAME id removed
+        // Favouriting pins a row to the top of the query: the delta reports the same id removed
         // and added. Feed that raw to the notifier and starring an unread message kills its banner.
         assertEquals(
             emptyList<String>(),
@@ -41,7 +41,7 @@ class DeparturesComeFromTheServerTest {
 
     // ---- the confirmation, executed --------------------------------------------------------
     //
-    // A delta eviction is a CANDIDATE, never a verdict: MailRepository's own KDoc says a
+    // A delta eviction is a candidate, never a verdict: MailRepository's own KDoc says a
     // queryChanges run from a pre-change queryState reports a merely-flagged row as `removed`, and
     // the spare against that only knows this app's own mutations. So a star put from Thunderbird
     // on an unread message is a "departure" nothing protects. [confirmedDepartures] is what asks.
@@ -56,7 +56,7 @@ class DeparturesComeFromTheServerTest {
     }
 
     @Test fun `a keyword set from another client is not a departure`() = runBlocking {
-        // THE case this whole gate exists for. Another client stars an UNREAD message; the delta
+        // The case this whole gate exists for. Another client stars an unread message; the delta
         // reports it removed; the message is alive, unread, in the folder. Its banner must stay.
         val locator = Locator(mapOf("M1" to setOf("inbox")))
         assertEquals(
@@ -84,8 +84,8 @@ class DeparturesComeFromTheServerTest {
     }
 
     @Test fun `a pass with no candidate asks the server nothing`() = runBlocking {
-        // The cost argument of the whole design: the ordinary refresh — no departure, or none with
-        // a banner on screen — must not pay one request per folder per pass.
+        // The cost argument of the whole design: the ordinary refresh, no departure, or none with
+        // a banner on screen, must not pay one request per folder per pass.
         val locator = Locator(emptyMap())
         assertEquals(emptyList<String>(), confirmedDepartures(emptyList(), "inbox", locator.locate))
         assertEquals("no request may be sent", emptyList<List<String>>(), locator.asked)
@@ -98,7 +98,7 @@ class DeparturesComeFromTheServerTest {
     }
 
     @Test fun `a confirmation that fails takes no banner down, and does not throw`() = runBlocking {
-        // The one place in this lot where a caught failure is the RIGHT gesture. The destroy path
+        // The one place in this lot where a caught failure is the right gesture. The destroy path
         // next door lets its location read propagate, because it destroys mail. Here the action is
         // cosmetic and the pass carries new mail to announce: an offline pass leaves the banners
         // where they are and gets on with announcing.
@@ -197,14 +197,14 @@ class DeparturesComeFromTheServerTest {
     }
 
     @Test fun `each folder's content is read AFTER the sync that named its departures`() {
-        // The other survivor: read the cache BEFORE the sync and every departed id is still in
+        // The other survivor: read the cache before the sync and every departed id is still in
         // `emails`, so `departuresToCancel`'s "an id the folder still holds keeps its banner"
         // clause silently swallows the whole signal and #134 reopens, whole and green.
         val lines = DaoQuerySource.mailFunctionBody("MailRepository", "refreshAccountFolders")
             .lines().map { it.trim() }
         val sync = lines.indexOfFirst { it == "val sync = syncMailbox(" }
         // The bounded notification read replaced the whole-folder one (see BoundedFolderReadsSqlTest);
-        // the ORDER is what this test owns, and it matters just as much: a bounded read taken before
+        // the order is what this test owns, and it matters just as much: a bounded read taken before
         // the sync still holds every departed row.
         val read = lines.indexOfFirst { it == "val read = notifyRead(credentials.id, mailbox.id)" }
         assertTrue("the JMAP branch no longer calls syncMailbox as `val sync = syncMailbox(`", sync >= 0)

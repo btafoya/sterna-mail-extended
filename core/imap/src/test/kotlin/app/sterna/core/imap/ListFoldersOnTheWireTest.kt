@@ -38,14 +38,14 @@ class ListFoldersOnTheWireTest {
     private fun FakeImapServer.listLine(): String = issued().single { it.startsWith("LIST") }
 
     /**
-     * The fix itself: on a server that says it knows SPECIAL-USE, the attributes are asked for by
+     * The fix itself: on a server that says it knows SPECIAL-use, the attributes are asked for by
      * name, and the French trash comes back with a role instead of nothing.
      */
     @Test
     fun `a server advertising SPECIAL-USE is asked for the attributes by name`() {
-        // SPECIAL-USE and nothing else, deliberately: it is the capability RFC 6154 §2 has a
+        // SPECIAL-use and nothing else, deliberately: it is the capability RFC 6154 §2 has a
         // special-use server advertise, and it is the one the guard must be reading. A server
-        // announcing LIST-EXTENDED as well would make this test pass on either name.
+        // announcing LIST-extended as well would make this test pass on either name.
         server("SPECIAL-USE").use { server ->
             val folders = server.session().use { it.listFolders() }
 
@@ -66,14 +66,14 @@ class ListFoldersOnTheWireTest {
             // The witness: the folders are still there. Had the return option gone out anyway,
             // this server's BAD would have thrown and left the account with no mailboxes at all.
             assertEquals(listOf("INBOX", "Corbeille"), folders.map { it.path })
-            // This server withholds the attributes, so the role can only come from the name —
+            // This server withholds the attributes, so the role can only come from the name,
             // which is now read in nine languages (`FolderRolesTest`), French among them.
             assertEquals("trash", folders.single { it.path == "Corbeille" }.role)
         }
     }
 
     /**
-     * THE case the two above cannot stand in for: the capability list arrives in the LOGIN
+     * The case the two above cannot stand in for: the capability list arrives in the LOGIN
      */
     @Test
     fun `the capability list volunteered at login is what the guard reads`() {
@@ -90,7 +90,9 @@ class ListFoldersOnTheWireTest {
     }
 
     /**
-     * A source lint on the whole body that builds the two commands, pinned LINE BY LINE. It is a
+     * A source lint on the whole body that builds the two commands, pinned line by line. It is a
+     * secondary net behind the wire cases: `in`/`contains` on a source line is blind to any
+     * mutation that LENGTHENS it, which is how three of this project's regressions got through.
      */
     @Test
     fun `the LIST command line is built under the capability guard`() {
@@ -108,7 +110,10 @@ class ListFoldersOnTheWireTest {
     }
 
     /**
-     * [count] consecutive CODE lines of `ImapClient.kt` from the single one starting with [prefix],
+     * [count] consecutive code lines of `ImapClient.kt` from the single one starting with [prefix],
+     * trimmed. Comments and blank lines are dropped first, a mutation cannot hide in a comment,
+     * and pinning prose would make this fail on every reword. A prefix matching anything other than
+     * exactly one line returns a message, so the assertion can never pass by matching nothing.
      */
     private fun sourceBlock(prefix: String, count: Int): List<String> {
         val path = "core/imap/src/main/kotlin/app/sterna/core/imap/ImapClient.kt"

@@ -37,7 +37,6 @@ class SchedulePickerLayoutTest {
 
     @Test fun `one dp either side of the frontier, because the four benches are nowhere near it`() {
         // The cases that pin the comparison itself rather than the two obvious orientations.
-        // Every other case here is hundreds of dp from the boundary, so an OFFSET slipped into the
         assertTrue(
             "one dp shorter than it is wide is already landscape to Material, and already the " +
                 "horizontal dial an AlertDialog cannot hold.",

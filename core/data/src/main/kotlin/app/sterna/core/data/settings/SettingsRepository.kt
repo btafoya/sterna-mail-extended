@@ -35,7 +35,7 @@ enum class SortOrder { DATE_DESC, DATE_ASC, SUBJECT, SENDER, UNREAD_FIRST, FLAGG
 enum class MessageTextSize(val zoom: Int) { SMALL(85), NORMAL(100), LARGE(125), HUGE(150) }
 
 /**
- * How new mail reaches the device (#17, outcome-framed — never a transport choice): INSTANT keeps
+ * How new mail reaches the device (#17, outcome-framed, never a transport choice): instant keeps
  */
 enum class DeliveryMode { INSTANT, BATTERY_SAVER }
 
@@ -47,7 +47,7 @@ enum class NotificationContent { BODY_PREVIEW, SENDER_AND_SUBJECT, SENDER_ONLY, 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 /**
- * Reactive app-preferences store backed by a Preferences [DataStore]. Separate from
+ * Reactive app-preferences store backed by a Preferences [DataStore].
  */
 class SettingsRepository(context: Context) {
     private val dataStore = context.applicationContext.settingsDataStore
@@ -88,7 +88,7 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_PREVIEW_LINES] = value.name }
     }
 
-    /** Whether an unread row carries a background of its own on top of its bold text (#141). ON by
+    /** Whether an unread row carries a background of its own on top of its bold text (#141). On by
      *  default. Off, an unread row is painted like a read one and the bold text is the only
      *  difference again. */
     val unreadTint: Flow<Boolean> = dataStore.data.map(::unreadTintFrom)
@@ -97,16 +97,16 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_UNREAD_TINT] = enabled }
     }
 
-    /** Whether the dark theme sits on a black background, for OLED panels (#117). OFF by default,
-     *  and it only ever touches the DARK scheme. Elevated surfaces are compressed toward black
-     *  rather than flattened onto it — see `pulledToBlack`. */
+    /** Whether the dark theme sits on a black background, for OLED panels (#117). Off by default,
+     *  and it only ever touches the dark scheme. Elevated surfaces are compressed toward black
+     *  rather than flattened onto it, see `pulledToBlack`. */
     val pureBlack: Flow<Boolean> = dataStore.data.map(::pureBlackFrom)
 
     suspend fun setPureBlack(enabled: Boolean) {
         dataStore.edit { it[KEY_PURE_BLACK] = enabled }
     }
 
-    /** Whether a message-list row starts with the sender's coloured initials (#144). ON by default.
+    /** Whether a message-list row starts with the sender's coloured initials (#144). On by default.
      *  No other monogram in the app (the reader, the drawer, the account picker) is touched. */
     val listMonogram: Flow<Boolean> = dataStore.data.map(::listMonogramFrom)
 
@@ -125,8 +125,8 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_SWIPE_LEFT] = action.name }
     }
 
-    /** Deduped: DataStore republishes the WHOLE `Preferences` on every write, whatever key was
-     *  touched, and the browse list is built off this flow — so an unrelated setting's write threw
+    /** Deduped: DataStore republishes the whole `Preferences` on every write, whatever key was
+     *  touched, and the browse list is built off this flow, so an unrelated setting's write threw
      *  away the running pager and started it at the first page again. */
     val sortOrder: Flow<SortOrder> = dataStore.data.map { prefs ->
         prefs[KEY_SORT_ORDER]?.let { runCatching { SortOrder.valueOf(it) }.getOrNull() } ?: SortOrder.DATE_DESC
@@ -159,8 +159,8 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_MARK_READ_ON_ARCHIVE] = enabled }
     }
 
-    /** Mark a message as read when it LEAVES the Inbox for another folder — an explicit
-     *  move-to-folder, Report spam included, never a move back INTO the Inbox (off by default; #67). */
+    /** Mark a message as read when it leaves the Inbox for another folder, an explicit
+     *  move-to-folder, Report spam included, never a move back into the Inbox (off by default; #67). */
     val markReadOnMove: Flow<Boolean> = dataStore.data.map { it[KEY_MARK_READ_ON_MOVE] ?: false }
 
     suspend fun setMarkReadOnMove(enabled: Boolean) {
@@ -176,14 +176,14 @@ class SettingsRepository(context: Context) {
     }
 
     /** Whether a reply or a forward also opens with the signature in its body. Off by default. The
-     *  signature itself is per identity; this only says WHEN it is inserted. */
+     *  signature itself is per identity; this only says when it is inserted. */
     val signatureOnReplies: Flow<Boolean> = dataStore.data.map { it[KEY_SIGNATURE_ON_REPLIES] ?: false }
 
     suspend fun setSignatureOnReplies(enabled: Boolean) {
         dataStore.edit { it[KEY_SIGNATURE_ON_REPLIES] = enabled }
     }
 
-    /** Whether the signature sits BELOW the quoted text in a reply. Off by default. Independent of
+    /** Whether the signature sits below the quoted text in a reply. Off by default. Independent of
      *  [signatureOnReplies]: neither disables the other. */
     val signatureBelowQuote: Flow<Boolean> = dataStore.data.map { it[KEY_SIGNATURE_BELOW_QUOTE] ?: false }
 
@@ -191,9 +191,9 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_SIGNATURE_BELOW_QUOTE] = enabled }
     }
 
-    /** Whether the composer puts the standard "-- " delimiter line above the signature. ON by
+    /** Whether the composer puts the standard "-- " delimiter line above the signature. On by
      *  default: that line is what other mail apps recognise a signature by. Turned off, the
-     *  signature field holds EXACTLY what goes into the message (#90). */
+     *  signature field holds exactly what goes into the message (#90). */
     val signatureDelimiter: Flow<Boolean> = dataStore.data.map { it[KEY_SIGNATURE_DELIMITER] ?: true }
 
     suspend fun setSignatureDelimiter(enabled: Boolean) {
@@ -201,7 +201,7 @@ class SettingsRepository(context: Context) {
     }
 
     /** The OpenPGP app the user picked, by package name; `null` = no choice expressed (#151). null
-     *  is NOT "no provider": it means the app decides, through `PgpProviders.resolve`.
+     *  is not "no provider": it means the app decides, through `PgpProviders.resolve`.
      *  restored onto a phone without that app it would name a provider that cannot be bound. */
     val pgpProvider: Flow<String?> = dataStore.data.map { it[KEY_PGP_PROVIDER] }
 
@@ -209,7 +209,7 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_PGP_PROVIDER] = packageName }
     }
 
-    /** Whether the reader shows the Reply/Forward bar along the bottom of a message. ON by default;
+    /** Whether the reader shows the Reply/Forward bar along the bottom of a message. On by default;
      *  both actions stay one tap away in the top bar either way (#63). Global, not per account: the
      *  reader is shared by the unified inbox, so a per-account answer would make the bar come and go
      *  between two messages of one list. */
@@ -219,8 +219,8 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_REPLY_BAR] = enabled }
     }
 
-    /** Whether a message OPENS as text rather than as its own HTML (#149). OFF by default. It
-     *  decides what a message opens as, not what it can be shown as — the reader's menu still
+    /** Whether a message opens as text rather than as its own HTML (#149). Off by default. It
+     *  decides what a message opens as, not what it can be shown as, the reader's menu still
      *  switches the message in hand. Global, not per account, for [replyBar]'s reason. */
     val plainText: Flow<Boolean> = dataStore.data.map(::plainTextFrom)
 
@@ -228,9 +228,9 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_PLAIN_TEXT] = enabled }
     }
 
-    /** Whether the dates the composer writes into an outgoing message — a reply's quote attribution
-     *  line and a forward's Date header — are rendered in UTC rather than in the device's time zone
-     *  (#120). OFF by default. Global: the question is about the device, not about a mailbox. */
+    /** Whether the dates the composer writes into an outgoing message, a reply's quote attribution
+     *  line and a forward's Date header, are rendered in UTC rather than in the device's time zone
+     *  (#120). Off by default. Global: the question is about the device, not about a mailbox. */
     val quotedDatesUtc: Flow<Boolean> = dataStore.data.map(::quotedDatesUtcFrom)
 
     suspend fun setQuotedDatesUtc(enabled: Boolean) {
@@ -312,7 +312,7 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_IMAGE_ALLOWLIST] = cleaned }
     }
 
-    /** New-mail delivery mode; INSTANT (today's behavior) by default. */
+    /** New-mail delivery mode; instant (today's behavior) by default. */
     val deliveryMode: Flow<DeliveryMode> = dataStore.data.map { prefs ->
         prefs[KEY_DELIVERY_MODE]?.let { runCatching { DeliveryMode.valueOf(it) }.getOrNull() }
             ?: DeliveryMode.INSTANT
@@ -402,7 +402,7 @@ class SettingsRepository(context: Context) {
     }
 
     /**
-     * Quiet hours — new-mail notifications still arrive but are posted silently during the nightly
+     * Quiet hours, new-mail notifications still arrive but are posted silently during the nightly
      * window. Off by default.
      */
     val quietHoursEnabled: Flow<Boolean> = dataStore.data.map { it[KEY_QUIET_ENABLED] ?: false }
@@ -474,9 +474,9 @@ class SettingsRepository(context: Context) {
     }
 }
 
-// Two rules hold for every setting below. Each `KEY_*` is pinned BY NAME in its `…From`'s test:
+// Two rules hold for every setting below. Each `KEY_*` is pinned by name in its `…From`'s test:
 // renaming one loses the choice of every user who touched that switch. And each `…From(prefs)`
-// takes the whole [Preferences] rather than the stored value — see [replyBarFrom] for why.
+// takes the whole [Preferences] rather than the stored value, see [replyBarFrom] for why.
 
 /** The key the notification-content position is stored under. */
 internal val KEY_NOTIFICATION_CONTENT = stringPreferencesKey("notification_content")
@@ -487,7 +487,7 @@ internal val KEY_NOTIFICATION_CONTENT = stringPreferencesKey("notification_conte
 internal val NOTIFICATION_CONTENT_DEFAULT = NotificationContent.SENDER_AND_SUBJECT
 
 /**
- * A stored position name, or null when there is nothing usable to read. Null means "no answer", NOT
+ * A stored position name, or null when there is nothing usable to read. Null means "no answer", not
  */
 internal fun notificationContentOrNull(stored: String?): NotificationContent? =
     stored?.let { name -> NotificationContent.entries.firstOrNull { it.name == name } }
@@ -526,7 +526,7 @@ internal val KEY_PURE_BLACK = booleanPreferencesKey("pure_black")
 
 /**
  * What the dark theme does when nobody has touched the switch: keep the Pelagic surfaces (#117).
- * OFF deliberately — a default of `true` would repaint every dark-theme user's app on update.
+ * Off deliberately, a default of `true` would repaint every dark-theme user's app on update.
  */
 const val PURE_BLACK_DEFAULT = false
 
@@ -564,8 +564,8 @@ internal fun listMonogramFrom(prefs: Preferences): Boolean =
 internal val KEY_PLAIN_TEXT = booleanPreferencesKey("plain_text")
 
 /**
- * What a message opens as when nobody has touched the switch: its own HTML (#149). OFF
- * deliberately — a default of `true` would change what every message looks like on update.
+ * What a message opens as when nobody has touched the switch: its own HTML (#149). Off
+ * deliberately, a default of `true` would change what every message looks like on update.
  */
 const val PLAIN_TEXT_DEFAULT = false
 
@@ -576,8 +576,8 @@ internal fun plainTextFrom(prefs: Preferences): Boolean = prefs[KEY_PLAIN_TEXT] 
 internal val KEY_QUOTED_DATES_UTC = booleanPreferencesKey("quoted_dates_utc")
 
 /**
- * What the composer writes when nobody has touched the switch: the device's local time (#120). OFF
- * deliberately — a default of `true` would change the dates every user's correspondents read.
+ * What the composer writes when nobody has touched the switch: the device's local time (#120). Off
+ * deliberately, a default of `true` would change the dates every user's correspondents read.
  */
 const val QUOTED_DATES_UTC_DEFAULT = false
 

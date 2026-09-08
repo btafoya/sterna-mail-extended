@@ -7,7 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * WHICH FOLDER a row of the unread view came from — the whole of issue #169, and nothing else.
+ * Which folder a row of the unread view came from, the whole of issue #169, and nothing else.
  */
 class UnreadRowFolderTest {
 
@@ -40,7 +40,8 @@ class UnreadRowFolderTest {
     // -- the symptom -------------------------------------------------------------------------
 
     /**
-     * The test that carries the value. Two rows of ONE object, one per folder it is filed in —
+     * The test that carries the value. Two rows of one object, one per folder it is filed in,
+     * must come back as two different folders with two different names.
      */
     @Test
     fun `the same message filed in two folders names each folder`() {
@@ -101,7 +102,7 @@ class UnreadRowFolderTest {
     }
 
     /**
-     * A COLLAPSED CONVERSATION names nothing, and this is the row the chip could lie about.
+     * A collapsed conversation names nothing, and this is the row the chip could lie about.
      */
     @Test
     fun `a row standing for several messages names no folder at all`() {
@@ -170,7 +171,7 @@ class UnreadRowFolderTest {
     }
 
     /**
-     * The #31/#121 guard, and the one this file exists to hold: [MailUi.mailboxes] is ONE
+     * The #31/#121 guard, and the one this file exists to hold: [MailUi.mailboxes] is one
      */
     @Test
     fun `a row of another account names nothing, even when its folder id exists here`() {

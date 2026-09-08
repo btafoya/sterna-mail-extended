@@ -14,7 +14,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * **What ticking "show only subscribed folders" ON actually puts on the wire** (#174).
+ * **What ticking "show only subscribed folders" on actually puts on the wire** (#174).
  */
 class SubscriptionToggleAsksTheServerTest {
 
@@ -41,7 +41,7 @@ class SubscriptionToggleAsksTheServerTest {
                     limit = 1,
                     onlySubscribed = sync.onlySubscribed,
                     onPage = {},
-                    // No opening lines: this test counts what ONE TICK of the switch costs the
+                    // No opening lines: this test counts what one tick of the switch costs the
                     // server, and a preview read would add a `UID FETCH` per section to that list.
                     cachedPreviewsFor = null,
                 )
@@ -88,7 +88,7 @@ class SubscriptionToggleAsksTheServerTest {
                     limit = 1,
                     onlySubscribed = sync.onlySubscribed,
                     onPage = {},
-                    // No opening lines: this test counts what ONE TICK of the switch costs the
+                    // No opening lines: this test counts what one tick of the switch costs the
                     // server, and a preview read would add a `UID FETCH` per section to that list.
                     cachedPreviewsFor = null,
                 )
@@ -114,7 +114,7 @@ class SubscriptionToggleAsksTheServerTest {
     }
 
     /**
-     * **Everything the tick really puts on the wire** — the whole command list, in order.
+     * **Everything the tick really puts on the wire**, the whole command list, in order.
      */
     @Test(timeout = 30_000)
     fun `the tick costs a listing, a select and one discarded fetch`() {
@@ -128,7 +128,7 @@ class SubscriptionToggleAsksTheServerTest {
                     limit = 1,
                     onlySubscribed = sync.onlySubscribed,
                     onPage = {},
-                    // No opening lines: this test counts what ONE TICK of the switch costs the
+                    // No opening lines: this test counts what one tick of the switch costs the
                     // server, and a preview read would add a `UID FETCH` per section to that list.
                     cachedPreviewsFor = null,
                 )
@@ -140,7 +140,7 @@ class SubscriptionToggleAsksTheServerTest {
                 listOf(
                     // The first is the connect-time question of the RFC 2971 ID command (#173),
                     // whose answer is deliberately kept by nobody; the second is the listing's own
-                    // SPECIAL-USE question, which is why it is asked again.
+                    // SPECIAL-use question, which is why it is asked again.
                     "CAPABILITY",
                     "CAPABILITY",
                     """LIST "" "*"""",
@@ -158,6 +158,8 @@ class SubscriptionToggleAsksTheServerTest {
 
     /**
      * Three mailboxes, two of them subscribed. [lsub] scripts the LSUB answer, tag included, so a
+     * test can make the server refuse it. An empty INBOX (`0 exists`) so the folder-list listing
+     * walks no message, this caller asks for the folders and nothing else.
      */
     private fun server(exists: Int = 0, lsub: (String) -> String = ::subscriptions) = ScriptedImapServer { tag, line ->
         when {

@@ -7,7 +7,8 @@ import org.junit.Test
 import java.util.Base64
 
 /**
- * [originalSenderHeaderOf], EXECUTED — which header names a forwarded message's real author, and
+ * [originalSenderHeaderOf], executed, which header names a forwarded message's real author, and
+ * what is done to the value before anything shows it (#160).
  */
 class OriginalSenderHeaderTest {
 
@@ -32,6 +33,8 @@ class OriginalSenderHeaderTest {
 
     /**
      * The four spellings in the wild, and one casing nobody would write on purpose. The rule is
+     * the shape of the name (`x-` plus `original-from`) and never a list of vendors: a list is
+     * a promise to keep chasing whichever alias service ships next.
      */
     @Test fun `every spelling of the same header is recognised, whatever its casing`() {
         assertEquals(
@@ -52,20 +55,22 @@ class OriginalSenderHeaderTest {
         )
     }
 
-    /** The ordinary message: nothing of the shape, nothing read — decoys included. */
+    /** The ordinary message: nothing of the shape, nothing read, decoys included. */
     @Test fun `a message that was never relayed reads as null`() {
         assertNull(originalSenderHeaderOf(around("From" to "ann@example.org")))
     }
 
     /**
-     * BOTH halves are required. `Original-From` with no `X-` is not an extension field, and a
+     * Both halves are required. `Original-From` with no `X-` is not an extension field, and a
+     * match on `original-from` alone would let any future standard header of that name be shown
+     * as an origin this app never agreed to trust.
      */
     @Test fun `original-from without the x- prefix is not this header`() {
         assertNull(originalSenderHeaderOf(around("Original-From" to "ann@example.org")))
     }
 
     /**
-     * Two fields of the shape in one message: the FIRST occurrence is the one kept.
+     * Two fields of the shape in one message: the first occurrence is the one kept.
      */
     @Test fun `on a chain of two relays the first occurrence is the one kept`() {
         assertEquals(
@@ -93,6 +98,8 @@ class OriginalSenderHeaderTest {
 
     /**
      * The other half of the same door, and the reason this header cannot be shown raw: it is
+     * entirely under the sender's control, and a right-to-left override in it would paint a
+     * reversed address that reads like somebody else's.
      */
     @Test fun `a bidi override is gone from the value`() {
         val answer = originalSenderHeaderOf(

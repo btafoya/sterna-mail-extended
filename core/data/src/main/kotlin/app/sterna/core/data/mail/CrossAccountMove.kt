@@ -24,7 +24,7 @@ interface CrossAccountMoveSteps {
     suspend fun readSource(): ByteArray
 
     /** Write the copy into B's folder. The id B gave the copy, or null when B named nothing (an
-     *  IMAP server without UIDPLUS) — that is not a failed write; a refused write throws. */
+     *  IMAP server without UIDPLUS), that is not a failed write; a refused write throws. */
     suspend fun writeTarget(bytes: ByteArray): String?
 
     suspend fun findTarget(): String?
@@ -72,7 +72,7 @@ private val CARRIED_FLAGS = listOf(
 )
 
 /** The IMAP flag list an APPEND on B takes for [keywords]: those of the three that are true, in
- *  that order. Not `$draft` — a `\Draft` flag would make B show a received message as a draft. */
+ *  that order. Not `$draft`, a `\Draft` flag would make B show a received message as a draft. */
 fun imapFlagsOf(keywords: Map<String, Boolean>): String =
     CARRIED_FLAGS.filter { keywords[it.first] == true }.joinToString(" ") { it.second }
 

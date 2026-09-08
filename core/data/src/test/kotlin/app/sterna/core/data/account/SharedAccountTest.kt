@@ -49,7 +49,7 @@ class SharedAccountTest {
     // ---- the rows of the accounts screen, in order (volet 3) ----
     //
     // Same fact the four `sharedLabelsUnder` tests carried before this batch (which delegate hangs
-    // under which login, and that another login's delegates never do), now expressed in ROWS: a
+    // under which login, and that another login's delegates never do), now expressed in rows: a
     // shared mailbox has a row of its own, indented, instead of a mention in its login's subtitle.
 
     @Test fun aLoginOnItsOwnIsOneTopLevelRow() {
@@ -74,7 +74,7 @@ class SharedAccountTest {
     }
 
     @Test fun eachDelegateHangsUnderItsOwnLoginWhateverTheStoredOrder() {
-        // `all` is the order accounts were ADDED, so sam's login can land AFTER another login's
+        // `all` is the order accounts were added, so sam's login can land after another login's
         // delegate. Grouping by position would then put ops under alex, and jordan under nobody.
         val sam = login().copy(id = "sam-uuid", username = "sam@example.org")
         val jordan = delegated()
@@ -106,7 +106,7 @@ class SharedAccountTest {
     }
 
     @Test fun aDelegateWhoseLoginIsNotInTheListKeepsATopLevelRow() {
-        // Dropping it would make the mailbox — and its own notification switch — unreachable.
+        // Dropping it would make the mailbox (and its own notification switch) unreachable.
         val orphan = delegated().copy(loginId = "gone-uuid")
         val sam = login().copy(id = "sam-uuid", username = "sam@example.org")
 
@@ -131,7 +131,10 @@ class SharedAccountTest {
 
     @Test fun aDelegateWhoseLoginIsItselfADelegateFallsBackToTopLevel() {
         // A shared mailbox is never a parent: only a login opens a group, so a loginId naming
-        // ANOTHER delegate hangs under nothing even though that delegate IS on screen — as its
+        // another delegate hangs under nothing even though that delegate IS on screen, as its
+        // login's child row, and a child row hosts no child. It falls back to the end, top level,
+        // rather than being dropped: this is the "never nests further" fact the old
+        // `sharedLabelsUnder` tests carried, expressed in rows.
         val jordan = delegated()
         val subOfJordan = delegated("nested-uuid", "nested@example.org", loginId = "jordan-uuid")
 
@@ -147,7 +150,7 @@ class SharedAccountTest {
 
     @Test fun anImportPendingDelegateHasNoRowAnywhere() {
         // Reachable: `AccountStore.importAccounts` gives the copy a fresh id and importPending,
-        // but KEEPS its loginId — so an imported file can hold a delegate awaiting its sign-in.
+        // but keeps its loginId, so an imported file can hold a delegate awaiting its sign-in.
         val pendingDelegate = delegated("pending-uuid", "pending@example.org").copy(importPending = true)
 
         assertEquals(

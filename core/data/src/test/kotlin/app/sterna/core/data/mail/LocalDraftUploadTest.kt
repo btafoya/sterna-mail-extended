@@ -33,7 +33,7 @@ class LocalDraftUploadTest {
     private lateinit var db: Connection
     private lateinit var filesDir: File
 
-    /** Every call the harness made, in order — so "exactly once" and "never" are countable. */
+    /** Every call the harness made, in order, so "exactly once" and "never" are countable. */
     private val uploaded = mutableListOf<String>()
     private val discarded = mutableListOf<String>()
     private val marked = mutableListOf<String>()
@@ -61,8 +61,8 @@ class LocalDraftUploadTest {
         assertEquals(15_360_000L, localDraftRetryDelayMillis(10))
         assertEquals("six hours, and never more", 21_600_000L, localDraftRetryDelayMillis(11))
         assertEquals(21_600_000L, localDraftRetryDelayMillis(40))
-        // The number that says there is no cap on ATTEMPTS. A phone weeks from the network its
-        // account is on still asks four times a day, for ever — it is never given up on.
+        // The number that says there is no cap on attempts. A phone weeks from the network its
+        // account is on still asks four times a day, for ever, it is never given up on.
         assertEquals("the thousandth failure still books a retry", 21_600_000L, localDraftRetryDelayMillis(1_000))
         assertEquals(
             "⛔ and it must not WRAP: `30_000 shl 64` is 30_000 again, i.e. a half-minute retry " +
@@ -81,7 +81,7 @@ class LocalDraftUploadTest {
         assertEquals(NOW, first.atMillis)
         assertEquals(NOW + 30_000L, first.notBeforeMillis)
 
-        // Counted off the ROW, not by the caller: the save and the worker both fail into this,
+        // Counted off the row, not by the caller: the save and the worker both fail into this,
         // and a counter either of them kept would reset every time the other one ran.
         val eighth = localDraftAttemptAfterFailure(row().copy(attemptCount = 7), failure, NOW)
         assertEquals(8, eighth.attemptCount)
@@ -155,7 +155,7 @@ class LocalDraftUploadTest {
     }
 
     @Test fun `the hundredth failure leaves the draft exactly where the first one did`() = runTest {
-        // THE test of this volet. The outbox parks an item as FAILED past OutboxLogic.MAX_ATTEMPTS
+        // The test of this volet. The outbox parks an item as failed past OutboxLogic.MAX_ATTEMPTS
         // because an undeliverable message has a recipient waiting. A draft has nobody waiting: a
         // phone can be weeks from the network its account is on, and the ninety-ninth failure must
         // book a hundredth attempt exactly as the first booked a second.
@@ -239,13 +239,13 @@ class LocalDraftUploadTest {
         assertEquals("nothing was consumed either", emptyList<String>(), discarded)
     }
 
-    // ---- 2b. what ONE attempt books for itself, being stopped included ----------------------------
+    // ---- 2b. what one attempt books for itself, being stopped included ----------------------------
 
     /** Every booking made, in order: the delay, and whether it must give way to an existing one. */
     private val booked = mutableListOf<Pair<Long, Boolean>>()
 
     @Test fun `an attempt books the instant the row named, and books nothing when it named none`() = runTest {
-        // The re-booking the worker used to do inline, executed here — with BOTH arguments pinned.
+        // The re-booking the worker used to do inline, executed here, with both arguments pinned.
         // A seam that books "something" at the wrong instant is a draft that leaves hours late or a
         // worker that spins; one that books it under the wrong policy is the next test's subject.
         val kept = uploadLocalDraftRebooking(
@@ -255,13 +255,13 @@ class LocalDraftUploadTest {
         )
 
         assertEquals(LocalDraftUploadResult(LocalDraftUploadStep.KEPT_FOR_LATER, NOW + 90_000L), kept)
-        // `false`: the row has just been given a NEW backoff, and that instant must win over
+        // `false`: the row has just been given a new backoff, and that instant must win over
         // whatever was booked for this draft before it. Keeping the old one here is a draft that
         // wakes on a stale instant for ever.
         assertEquals("the distance from now to the instant the row carries", listOf(90_000L to false), booked)
 
-        // And NOTHING for a verdict that names no instant: the row is gone, or a composer is
-        // holding it and its own save re-arms it — a wake-up booked here fires at once, and again,
+        // And nothing for a verdict that names no instant: the row is gone, or a composer is
+        // holding it and its own save re-arms it, a wake-up booked here fires at once, and again,
         // for as long as the user keeps typing.
         booked.clear()
         uploadLocalDraftRebooking({ NOW }, { LocalDraftUploadResult(LocalDraftUploadStep.UPLOADED, null) }, rebook())
@@ -278,8 +278,8 @@ class LocalDraftUploadTest {
     }
 
     @Test fun `the delay is measured when the attempt ENDS, and not when it began`() = runTest {
-        // The clock is a FUNCTION for this one reason. Passed as a value, it is read before the
-        // attempt runs — and the attempt is now allowed to take up to LOCAL_DRAFT_UPLOAD_BUDGET_MS.
+        // The clock is a function for this one reason. Passed as a value, it is read before the
+        // attempt runs, and the attempt is now allowed to take up to LOCAL_DRAFT_UPLOAD_BUDGET_MS.
         // The delay would then carry the attempt's whole duration on top of the row's backoff: the
         // draft comes back later than the row itself says, and the slower the link the later it is.
         var clock = NOW
@@ -298,13 +298,14 @@ class LocalDraftUploadTest {
     }
 
     @Test fun `a worker stopped mid-upload books its own retry before it lets the stop through`() = runTest {
-        // THE hole measured at the bench (#95, gesture B9): the system stops the worker while the
-        // APPEND is in flight, the coroutine is cancelled, and from that instant EVERY suspending
-        // call throws — `recordAttempt` included. So nothing is written on the row and nothing books
+        // The hole measured at the bench (#95, gesture B9): the system stops the worker while the
+        // APPEND is in flight, the coroutine is cancelled, and from that instant every suspending
+        // call throws, `recordAttempt` included. So nothing is written on the row and nothing books
         // a wake-up: the draft sits in UPLOADING until the app is killed and started again.
         //
-        // **This coroutine is REALLY cancelled**, and that is the whole design of the test. Made
+        // **This coroutine is really cancelled**, and that is the whole design of the test. Made
         // to `throw CancellationException()` from a live job instead, it passes against code that
+        // cannot work: insert any suspension point before the booking, a `yield()`, an "improved"
         var returnedNormally = false
         var clockReads = 0
         val job = launch(start = CoroutineStart.UNDISPATCHED) {
@@ -318,8 +319,9 @@ class LocalDraftUploadTest {
 
         job.cancelAndJoin()
 
-        // Half a minute, NOT zero: a worker stopped under system pressure that re-books itself
-        // for `now` is stopped again at once, and again — a loop against the very condition that
+        // Half a minute, not zero: a worker stopped under system pressure that re-books itself
+        // for `now` is stopped again at once, and again, a loop against the very condition that
+        // stopped it.
         assertEquals(listOf(30_000L to true), booked)
         assertTrue("a cancelled job is what this pins", job.isCancelled)
         assertFalse(
@@ -327,7 +329,7 @@ class LocalDraftUploadTest {
                 "ordinary, successful run",
             returnedNormally,
         )
-        // And the clock is not read on this path at all: reading it here means it is read BEFORE
+        // And the clock is not read on this path at all: reading it here means it is read before
         // the attempt, which is what inflates the ordinary delay by the attempt's own duration.
         assertEquals("the stop path has no use for a clock", 0, clockReads)
     }
@@ -340,7 +342,7 @@ class LocalDraftUploadTest {
     // ---- 3. what a startup books ------------------------------------------------------------------
 
     @Test fun `a startup books one job per waiting row, each at its own instant`() {
-        // Backed-off rows INCLUDED, with a delay. Skipping them — "they are not due" — leaves a
+        // Backed-off rows included, with a delay. Skipping them ("they are not due") leaves a
         // draft that failed ten minutes before the reboot with no work item at all: WorkManager's
         // jobs are what a reboot loses, and this re-arm is the only thing that puts them back.
         val jobs = localDraftUploadJobs(
@@ -370,9 +372,9 @@ class LocalDraftUploadTest {
 
     @Test fun `a deferred upload rebuilds its attachments from the row`() {
         // There is no composer left: the parts can only come from the descriptors the staging wrote.
-        // And the COUNT matters as much as the bytes — `uploadDraft` weighs it before it lets
+        // And the count matters as much as the bytes, `uploadDraft` weighs it before it lets
         // the original be destroyed (#63), so an emptyList() here would upload the draft amputated
-        // AND call the amputation a faithful replacement.
+        // and call the amputation a faithful replacement.
         val json = OutboxAttachments.encode(
             listOf(
                 OutboxAttachment(
@@ -434,7 +436,7 @@ class LocalDraftUploadTest {
     }
 
     @Test fun `the drafts are named before they are deleted, or their files can never be found`() {
-        // The ORDER, and it is the whole of the second half: the directories are named after the
+        // The order, and it is the whole of the second half: the directories are named after the
         // ids and nothing else names them. Read after the DELETE, the list is empty and the bytes
         // of the account just removed stay on the phone for good.
         val order = mutableListOf<String>()
@@ -473,7 +475,7 @@ class LocalDraftUploadTest {
         record = { written -> recordAttempt(row.accountId, row.id, written) },
     )
 
-    /** What an APPEND does with no network — the real message the composer used to display. */
+    /** What an APPEND does with no network, the real message the composer used to display. */
     private fun offline(): Nothing =
         throw java.net.UnknownHostException("Unable to resolve host \"mail.example.org\"")
 
@@ -538,7 +540,7 @@ class LocalDraftUploadTest {
         "recordAttempt",
         mapOf(
             "accountId" to accountId, "id" to id,
-            // PENDING, always: there is no state to park a draft in (LocalDraftState).
+            // Pending, always: there is no state to park a draft in (LocalDraftState).
             "state" to LocalDraftState.PENDING.name,
             "attemptCount" to attempt.attemptCount, "lastError" to attempt.error,
             "lastAttemptMillis" to attempt.atMillis, "notBeforeMillis" to attempt.notBeforeMillis,

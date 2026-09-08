@@ -8,6 +8,8 @@ import org.junit.Test
 
 /**
  * The connectivity rule (#65), driven the way the framework drives it: a transport callback for
+ * the real networks underneath, a default-network callback for the route this app is given (the
+ * tunnel, under an always-on VPN), and the outcome of the refreshes themselves.
  */
 class ReconnectGateTest {
 
@@ -259,7 +261,7 @@ class ReconnectGateTest {
 
     @Test fun `the callbacks replayed at registration are not the plumbing moving`() {
         // The view model does `refresh(); connectivity.start()`, and the gate is seeded from the
-        // synchronous connectivity read — the latches are up, but no network identity is known yet.
+        // synchronous connectivity read, the latches are up, but no network identity is known yet.
         val live = Live(link = true)
         live.refreshDiedOnTheTransport()
         live.transportUp(WIFI)
@@ -349,7 +351,7 @@ class ReconnectGateTest {
         // The honest limit of the rule, now that a rebuilt tunnel *does* trigger an attempt: a VPN
         // that comes back on the very same network object leaves nothing at all to observe, so the
         // banner stays until a refresh (the user's pull, the next reconnect, the next push wake)
-        // comes back — and no timer is burned pretending otherwise.
+        // comes back, and no timer is burned pretending otherwise.
         val live = tunnelled()
         live.refreshDiedOnTheTransport()
         assertFalse(live.online)

@@ -5,12 +5,17 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, same instrument and the same disclaimer as
+ * [SelectAllWiringTest] and [HeldBackDestroyCarriesItsFolderTest]: it reads `InboxViewModel.kt` as
+ * text, proves nothing about what happens on screen, and would still pass if the code it points at
+ * were broken inside.
  */
 class SelectionTargetsWiringTest {
 
     /**
-     * The three arguments both paths must hand the shared resolution — the live selection, the
+     * The three arguments both paths must hand the shared resolution, the live selection, the
+     * cache answer, and the rows the screen is currently drawing. `displayed` is what makes a
+     * search hit with no local row reachable at all; drop it and the defect is back.
      */
     private val expectedArguments = listOf(
         "keys = keys",
@@ -64,7 +69,7 @@ class SelectionTargetsWiringTest {
     }
 
     /**
-     * The vote and the loop must be over ALL the targets. Pinned whole-line because the mutation
+     * The vote and the loop must be over all the targets. Pinned whole-line because the mutation
      */
     @Test fun `the whole selection votes, and the whole selection is written`() {
         val body = body(INBOX_VIEW_MODEL, "toggleSelectedRead")
@@ -199,6 +204,8 @@ class SelectionTargetsWiringTest {
 
     /**
      * The declaration of `fun`/`val` [name] in [file] and its body, as text. Fails loudly when the
+     * declaration is not found, a rename must break these rules rather than satisfy them silently
+     * against an empty string.
      */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)

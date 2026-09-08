@@ -4,14 +4,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * THIS TEST READS SOURCE TEXT — the last resort, exactly as [DestroyChecksTheFolderWiringTest]
+ * This test reads source text, the last resort, exactly as [DestroyChecksTheFolderWiringTest]
  */
 class DraftAddressingWiringTest {
 
     private fun bodyOf(file: String, function: String): String =
         DaoQuerySource.mailFunctionBody(file, function)
 
-    /** The code lines of [body] — comments dropped, so prose can neither satisfy a rule nor break
+    /** The code lines of [body], comments dropped, so prose can neither satisfy a rule nor break
      *  one. Whole lines: the assertions compare them, never search inside them. */
     private fun codeLines(body: String): List<String> =
         body.lines().map { it.trim() }
@@ -32,7 +32,7 @@ class DraftAddressingWiringTest {
     }
 
     @Test fun theProofIsTheCcAndTheBccSinceTheAppendedDraftCarriesBoth() {
-        // THE line of the counter-expertise, and it turned over on 2026-08-25. Until then
+        // The line of the counter-expertise, and it turned over on 2026-08-25. Until then
         // OutgoingMime.build wrote From/To/Cc and no `Bcc:`, so an address typed into Bcc reached
         assertEquals(
             "the replacement's proof is draftReplacementAddressing(ccTrimmed, bccTrimmed) — the " +
@@ -71,7 +71,7 @@ class DraftAddressingWiringTest {
     @Test fun theVerdictIsTheOneJustComputedAndTheJmapBranchSaysWhyItIsExempt() {
         // Three lines, in this order: the read, the IMAP branch handing its verdict on, and the
         // JMAP branch's literal `true` (its reopen goes through Email/get, so the composer's
-        // fields ARE the original's). `= true` on the IMAP one is the whole defect, restored.
+        // fields are the original's). `= true` on the IMAP one is the whole defect, restored.
         assertEquals(
             "the IMAP save must hand draftReplacementIsFaithful the verdict it just read; only " +
                 "the JMAP branch, which reopens through Email/get, may pass a literal true",
@@ -86,7 +86,7 @@ class DraftAddressingWiringTest {
 
     @Test fun anAddressingThatCannotBeReadReturnsUnknownAndNotAnEmptySet() {
         // `?: return emptySet()` here is a purged cache row, or an id whose UID is gone, passing
-        // itself off as "this draft had no copied parties" — and the original is destroyed.
+        // itself off as "this draft had no copied parties", and the original is destroyed.
         val body = bodyOf("MailRepository", "imapDraftAddressing")
         assertEquals(
             "every bail-out of imapDraftAddressing must answer null (unknown, keep the " +
@@ -107,7 +107,7 @@ class DraftAddressingWiringTest {
     }
 
     /**
-     * The EMPTYING gestures ask the same question, and until 2026-08-25 they asked nothing at all
+     * The emptying gestures ask the same question, and until 2026-08-25 they asked nothing at all
      */
     @Test fun theEmptyingAsksTheServerWhetherTheOriginalWasCopiedToAnybody() {
         assertEquals(
@@ -125,8 +125,8 @@ class DraftAddressingWiringTest {
                 "a JMAP draft reopens through Email/get, which returns the server's to/cc/bcc, so " +
                 "the fields the user has just emptied ARE the original's addressing. Body was:",
             listOf(
-                // The braces are IN the expected list, and the body is compared WHOLE. Dropped
-                // — `.drop(1).dropLast(1)`, which reads as tidier — the opening brace's own line
+                // The braces are in the expected list, and the body is compared whole. Dropped
+                // (`.drop(1).dropLast(1)`, which reads as tidier) the opening brace's own line
                 "{",
                 "if (credentials.protocol == MailProtocol.IMAP) {",
                 "return draftAddressingIsCarried(",
@@ -144,7 +144,7 @@ class DraftAddressingWiringTest {
 
     @Test fun anUnreadableEnvelopeEntryIsNotSilentlyDroppedFromTheAddressing() {
         // A server can hand back a recipient with an empty address. `mapNotNull { it.email }`
-        // would drop it, and if it was the only Cc the set is empty — "nothing to lose".
+        // would drop it, and if it was the only Cc the set is empty, "nothing to lose".
         val body = bodyOf("ImapMailService", "ccAndBccOf")
         assertEquals(
             "the envelope read must go through copiedAddressesOrNull, which answers null when " +

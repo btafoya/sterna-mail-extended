@@ -8,7 +8,8 @@ import org.junit.Assert.assertSame
 import org.junit.Test
 
 /**
- * The decision an ADD takes about the new inbox's notification baseline, EXECUTED —
+ * The decision an add takes about the new inbox's notification baseline, executed,
+ * against the read's own id list.
  */
 class AddedInboxBaselineTest {
 
@@ -27,8 +28,9 @@ class AddedInboxBaselineTest {
             listOf("a", "b", "c", "d", "e"),
             baselineForAddedInbox(read, hasBaseline = false),
         )
-        // IDENTITY, not just equality, and it is the assertion that survives a small fixture.
-        // Equality on five ids stays green under `read.baselineIds.take(NOTIFY_CANDIDATE_MAX)` —
+        // Identity, not just equality, and it is the assertion that survives a small fixture.
+        // Equality on five ids stays green under `read.baselineIds.take(NOTIFY_CANDIDATE_MAX)`,
+        // identity does not.
         assertSame(
             "the decision must hand back the read's own id list, untouched: anything that copies " +
                 "it through take/map/filter can bound the baseline, and a bounded baseline forgets " +
@@ -39,7 +41,7 @@ class AddedInboxBaselineTest {
     }
 
     /**
-     * A re-authentication, or the re-add of an account already set up here, finds a LIVE baseline.
+     * A re-authentication, or the re-add of an account already set up here, finds a live baseline.
      */
     @Test fun `an add that finds a baseline already there writes nothing`() {
         val read = NotifyRead(
@@ -54,7 +56,7 @@ class AddedInboxBaselineTest {
     }
 
     /**
-     * An empty read writes NOTHING, and this is the assertion that keeps the fix from being
+     * An empty read writes nothing, and this is the assertion that keeps the fix from being
      */
     @Test fun `an empty read seeds nothing, because empty may be a page that could not answer`() {
         assertNull(

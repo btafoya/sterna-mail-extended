@@ -18,7 +18,7 @@ sealed interface SearchState {
     data object Idle : SearchState
     data object Searching : SearchState
     /**
-     * [query] is the query these results came from — NOT the one being edited, so the folded panel
+     * [query] is the query these results came from, not the one being edited, so the folded panel
      */
     data class Results(
         val query: SearchQuery,
@@ -30,6 +30,8 @@ sealed interface SearchState {
 
 /**
  * Lazy-list key for a result row. Account + id, never the id alone: search spans every account and
+ * and deduplicates by (accountId, id) on purpose, so the same JMAP id legitimately appears twice
+ * and a duplicate key in a lazy list throws (#92). Same form as the inbox lists.
  */
 internal fun searchResultKey(email: Email): String = "${email.accountId}|${email.id}"
 
@@ -49,6 +51,7 @@ const val SEARCH_QUERY_ARG = "q"
 
 /**
  * Nav argument: the address the screen opens on, so "search this sender" lands on a search that is
+ * screen lands on a search that is already about that sender.
  */
 const val SEARCH_FROM_ARG = "from"
 
@@ -71,7 +74,7 @@ class SearchViewModel(
     private val repo = application.container.mailRepository
 
     /**
-     * The query lives HERE, next to the results, not in the screen's `remember`s: split between the
+     * The query lives here, next to the results, not in the screen's `remember`s: split between the
      * two, a process death restored a folded panel with no criteria and no results.
      */
     private val _form = MutableStateFlow(restoreForm())
@@ -145,7 +148,7 @@ class SearchViewModel(
     private fun restoreForm(): SearchForm = SearchForm(
         query = SearchQuery(
             // The inbox's search bar hands its words over as a nav argument; a value saved here
-            // wins over it after a process death. Both criteria go through the SAME decision.
+            // wins over it after a process death. Both criteria go through the same decision.
             text = initialCriterion(handle[KEY_TEXT], handle[SEARCH_QUERY_ARG]),
             from = initialCriterion(handle[KEY_FROM], handle[SEARCH_FROM_ARG]),
             recipient = handle[KEY_RECIPIENT] ?: "",

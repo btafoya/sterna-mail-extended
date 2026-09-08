@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * READ AS SOURCE TEXT — the last resort, and only for what nothing in this module can run.
+ * Read as source text, the last resort, and only for what nothing in this module can run.
  */
 class ScheduledCancelScopeWiringTest {
 
@@ -50,7 +50,7 @@ class ScheduledCancelScopeWiringTest {
     }
 
     /**
-     * Every argument, by name AND by value, in ONE comparison.
+     * Every argument, by name and by value, in one comparison.
      */
     @Test fun `every field of the row reaches saveDraft, by name and by value`() {
         val save = callsOf(bodyOf(VIEW_MODEL, "cancel"), "repo.saveDraft(").single()
@@ -62,18 +62,18 @@ class ScheduledCancelScopeWiringTest {
                 "subject" to "d.subject",
                 // The one the review's mutation swapped for `d.subject`: the whole message.
                 "body" to "d.body",
-                // …and its styling (#131), out of the SAME mapping and never re-derived here:
+                // …and its styling (#131), out of the same mapping and never re-derived here:
                 // dropped, a cancelled scheduled send is filed with the user's bold removed.
                 "html" to "d.html",
                 "cc" to "d.cc",
                 "bcc" to "d.bcc",
                 "inReplyTo" to "d.inReplyTo",
                 "references" to "d.references",
-                // Naming the server draft this message was edited from would let the save DESTROY
+                // Naming the server draft this message was edited from would let the save destroy
                 // it, while the deposit flattens the HTML body: a duplicate in Drafts is
                 // recoverable, a destroyed original is not (#63).
                 "replacesEmailId" to "null",
-                // Passed explicitly because we aim at no original — never left out (#99).
+                // Passed explicitly because we aim at no original, never left out (#99).
                 "replacesUidValidity" to "null",
                 // Without the chosen identity the draft goes back under the login address (#31).
                 "fromName" to "d.fromName",
@@ -82,7 +82,7 @@ class ScheduledCancelScopeWiringTest {
                 // whole, so nothing was lost on the way into a parcel. `true` here would refuse to
                 // write the body of a message whose text is genuinely empty.
                 "composerBodyWasLost" to "false",
-                // Only ever read when the line above is true, which this route never is — but
+                // Only ever read when the line above is true, which this route never is, but
                 // `saveDraft` takes it with no default, so it is stated. It is answered from the
                 // text being deposited: there is no composer in this story to ask (#131).
                 "typedBodyIsBlank" to "d.body.isBlank()",

@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, and a narrow one: neither `InboxViewModel` nor `MessageDestroyWorker` can be
+ * Source lint, and a narrow one: neither `InboxViewModel` nor `MessageDestroyWorker` can be
  */
 class HeldBackDestroyCarriesItsFolderTest {
 
@@ -23,7 +23,7 @@ class HeldBackDestroyCarriesItsFolderTest {
             .filter { needle in it }
 
     /**
-     * The order of two WHOLE code lines of [lines], with BOTH required to exist.
+     * The order of two whole code lines of [lines], with both required to exist.
      */
     private fun assertLineOrder(what: String, lines: List<String>, first: String, then: String) {
         val i = lines.indexOf(first)
@@ -33,7 +33,7 @@ class HeldBackDestroyCarriesItsFolderTest {
         assertTrue("$what — <$first> (line $i) must come BEFORE <$then> (line $j)", i < j)
     }
 
-    /** The block body of `fun [name]` in [file] — braces included. */
+    /** The block body of `fun [name]` in [file], braces included. */
     private fun bodyOf(file: File, name: String): String {
         val source = file.readText()
         val fn = Regex("""\bfun\s+$name\s*\(""").find(source)
@@ -71,7 +71,8 @@ class HeldBackDestroyCarriesItsFolderTest {
     }
 
     /**
-     * M2's only executioner. The numbering must come out of THIS REQUEST'S `Data` — frozen when
+     * M2's only executioner. The numbering must come out of this request's `Data`, frozen when
+     * the user confirmed. Reading it from the repository here (`repo.recordedUidValidity(...)`)
      */
     @Test fun theWorkerOpposesTheNumberingItWasENQUEUED_withNotTheCurrentOne() {
         val body = bodyOf(WORKER, "doWork")
@@ -131,7 +132,7 @@ class HeldBackDestroyCarriesItsFolderTest {
     }
 
     /**
-     * The freeze itself: read ONCE, in the hold-back, before the destroy is enqueued. `flushNow`
+     * The freeze itself: read once, in the hold-back, before the destroy is enqueued. `flushNow`
      */
     @Test fun theViewModelFreezesTheNumberingWithTheConfirmationAndReplaysIt() {
         assertEquals(
@@ -177,7 +178,7 @@ class HeldBackDestroyCarriesItsFolderTest {
     }
 
     /**
-     * THE REGRESSION THIS BRANCH CLOSES, stated as an absence.
+     * The regression this branch closes, stated as an absence.
      */
     @Test fun theDestroyPathNeverAsksTheFOLDERForItsNumbering() {
         listOf("heldBackDestroy", "recordedNumbering").forEach { function ->
@@ -192,25 +193,25 @@ class HeldBackDestroyCarriesItsFolderTest {
     }
 
     /**
-     * THE UPSTREAM HALF OF #99: a destruction may only touch a line that is STILL THE LINE THAT
-     * WAS TICKED.
+     * The upstream half of #99: a destruction may only touch a line that is still the line that
+     * was ticked.
      *
-     * A selection holds KEYS, and an IMAP key (`imap:<account>:<folder>:<uid>`) carries the bare
+     * A selection holds keys, and an IMAP key (`imap:<account>:<folder>:<uid>`) carries the bare
      * UID with no numbering in it. A server that renumbers the shifting way makes the next
-     * background walk `@Upsert` the row bearing that exact text with ANOTHER message's envelope:
+     * background walk `@Upsert` the row bearing that exact text with another message's envelope:
      * the tick follows the key, so the new envelope is on screen already ticked and nobody touched
      * anything. Confirm the delete on a row that reads "in the Trash" and `UID EXPUNGE` leaves on a
-     * live message no one selected — with no error and no way back.
+     * live message no one selected, with no error and no way back.
      *
      * Nothing downstream can see it, and `mayDestroyUnderStatedNumbering` is not wrong: it destroys
-     * what the line represents NOW, under a number the server confirms. Only the selection spans
+     * what the line represents now, under a number the server confirms. Only the selection spans
      * the two moments, so only here can the earlier fact be opposed.
      *
      * Source lint, and only because `InboxViewModel` needs an `Application` and Room. The
-     * decision itself is EXECUTED — `DestroyOnlyWhatWasTickedTest` runs the rule, and
+     * decision itself is executed, `DestroyOnlyWhatWasTickedTest` runs the rule, and
      * `DestroyUnderTheNumberingTheRowWasReadUnderTest` runs it against a scripted socket and reads
      * the verdict off the commands that left the client. What can only be read as text is the
-     * WIRING: which list the destruction is handed, and with which arguments the split is called.
+     * wiring: which list the destruction is handed, and with which arguments the split is called.
      */
     @Test fun theDestructionTakesOnlyWhatIsStillTheLineThatWasTicked() {
         val body = bodyOf(INBOX_VIEW_MODEL, "deleteSelected")
@@ -248,7 +249,7 @@ class HeldBackDestroyCarriesItsFolderTest {
             listOf("val now = recordedNumbering(destroyTargets)"),
             codeLinesNaming(body, "recordedNumbering("),
         )
-        // AND THE ROWS IT READS ARE THE DESTROY LEG. This line is one identifier away from
+        // And the rows it reads are the destroy leg. This line is one identifier away from
         // `plan.move`, and that single word turns the whole guard off in silence: `now` then holds
         assertEquals(
             "the 'now' read must be built from the DESTROY leg — built from any other list it " +
@@ -263,7 +264,7 @@ class HeldBackDestroyCarriesItsFolderTest {
     }
 
     /**
-     * The stamp of the tick is captured WITH THE KEYS, before anything suspends, and it is never
+     * The stamp of the tick is captured with the keys, before anything suspends, and it is never
      */
     @Test fun theStampOfTheTickIsCapturedAtTheGestureAndNeverReReadForAKeyAlreadyTicked() {
         val body = bodyOf(INBOX_VIEW_MODEL, "deleteSelected")
@@ -278,8 +279,8 @@ class HeldBackDestroyCarriesItsFolderTest {
             ),
             codeLinesNaming(body, "ticked"),
         )
-        // THE FIRST LINE OF THE LAUNCH, and that is what replaces the old "capture outside the
-        // launch" rule. The stamps are no longer TAKEN at the gesture, they are AWAITED: the read
+        // The first line of the launch, and that is what replaces the old "capture outside the
+        // launch" rule. The stamps are no longer taken at the gesture, they are awaited: the read
         val gestureLines = body.lines().map { it.trim() }
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
             .filter { it.isNotEmpty() }
@@ -330,16 +331,15 @@ class HeldBackDestroyCarriesItsFolderTest {
             listOf("val numbering = repo.numberingRowsWereReadUnder(credentials, group.map { it.emailId })"),
             codeLinesNaming(bodyOf(INBOX_VIEW_MODEL, "rememberTickedNumbering"), "repo."),
         )
-        // LOADING THE STAMPS TAKES FOUR LINES, NOT ONE, and each of the four can be mutated
+        // Loading the stamps takes four lines, not one, and each of the four can be mutated
         // while the other three keep their exact appearance: `repo.numberingRowsWereReadUnder(…)`
         //
         // What a broken load costs is IMAP mail, and IMAP mail only.
-        // `MailRepository.numberingRowsWereReadUnder` returns `emptyMap()` for anything that is
         val remembered = bodyOf(INBOX_VIEW_MODEL, "rememberTickedNumbering")
         // What the user loses if this line drops what it read (`read[key] = null`): every IMAP
         // stamp is null, the bulk delete destroys a line swapped under the tick again, and the
-        // move between accounts sends it to the other account again — no Undo there to take it
-        // back — while the repository call above still reads word for word as it does today.
+        // move between accounts sends it to the other account again, no Undo there to take it
+        // back, while the repository call above still reads word for word as it does today.
         assertEquals(
             "the numbering read for the new keys must be WRITTEN under each key: a stamp that is " +
                 "read and then discarded is no stamp at all, and both #99 guards then pass every " +
@@ -347,7 +347,7 @@ class HeldBackDestroyCarriesItsFolderTest {
             listOf("group.forEach { key -> read[key] = numbering[key.emailId] }"),
             codeLinesNaming(remembered, "read[key]"),
         )
-        // ONLY THE KEYS WITHOUT A STAMP ARE READ. `(fresh + keys)` compiles without a warning
+        // Only the keys without a stamp are read. `(fresh + keys)` compiles without a warning
         // and inverts the rule this very test is named after: every already-stamped key is read
         assertEquals(
             "only the keys that carry no stamp yet may be read: a re-read answers what the row " +
@@ -356,9 +356,9 @@ class HeldBackDestroyCarriesItsFolderTest {
             listOf("fresh.groupBy { credentialsFor(it) }.forEach { (credentials, group) ->"),
             codeLinesNaming(remembered, "groupBy"),
         )
-        // AND WHAT SURVIVES THE READ IS THE SELECTION AS IT IS NOW. The read above suspends, so
+        // And what survives the read is the selection as it is now. The read above suspends, so
         // the stamps are filtered on the keys still ticked when it comes back. Written as a
-        // constant — `emptySet()` — the field is emptied on every pass instead: no stamp survives,
+        // constant (`emptySet()`) the field is emptied on every pass instead: no stamp survives,
         // both guards pass everything on IMAP, and no call site anywhere looks different.
         assertEquals(
             "the stamps kept must be those of the keys STILL ticked when the read came back, off " +
@@ -366,8 +366,8 @@ class HeldBackDestroyCarriesItsFolderTest {
             listOf("val still = _selectedKeys.value"),
             codeLinesNaming(remembered, "val still ="),
         )
-        // And it must read ONLY the keys it does not already hold. Re-reading a known key
-        // answers what its row carries NOW — which is the value the whole field exists not to be —
+        // And it must read only the keys it does not already hold. Re-reading a known key
+        // answers what its row carries now (the value the whole field exists not to be).
         assertEquals(
             "the collector must keep the stamps it already has and read the NEW keys only",
             listOf(
@@ -380,7 +380,9 @@ class HeldBackDestroyCarriesItsFolderTest {
     }
 
     /**
-     * What the split refused is COUNTED and GIVEN BACK. A destruction that quietly dropped part of
+     * What the split refused is counted and given back. A destruction that quietly dropped part of
+     * a confirmed selection would be a silent half-action, the failure mode this whole area keeps
+     * producing, and the screen would agree with it.
      */
     @Test fun whatTheSplitRefusedIsCountedAsAFailureAndPutBackInTheSelection() {
         val body = bodyOf(INBOX_VIEW_MODEL, "deleteSelected")

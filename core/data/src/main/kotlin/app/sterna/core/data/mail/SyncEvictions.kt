@@ -38,8 +38,8 @@ internal suspend fun confirmedDepartures(
     }
 }
 
-/** Why [deltaEvictions] kept a cached id, ordered by severity for the log. Only [DESTROY] leaves a
- *  true ghost; [REMOVAL] is usually a stale keyword change. */
+/** Why [deltaEvictions] kept a cached id, ordered by severity for the log. Only [destroy] leaves a
+ *  true ghost; [removal] is usually a stale keyword change. */
 internal enum class SpareReason(val log: String) {
     DESTROY("destroy"),
 
@@ -103,7 +103,7 @@ internal fun retentionEvictions(
 
 /** Which cached ids a full-query reconcile drops, in batches no statement can choke on. Computed as
  *  a complement against the whole [keepIds] before chunking: SQLite binds at most 999 variables below
- *  Android 12 (#29), and chunking a `NOT IN` would delete the whole folder. */
+ *  Android 12 (#29), and chunking a `not in` would delete the whole folder. */
 internal fun reconcileEvictions(
     cachedIds: List<String>,
     keepIds: Set<String>,

@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * What an empty list SAYS, run rather than read: the picture, the two strings, and whether the way
+ * What an empty list says, run rather than read: the picture, the two strings, and whether the way
  */
 class EmptyListSceneTest {
 
@@ -85,6 +85,8 @@ class EmptyListSceneTest {
 
     /**
      * The unread view outranks the folder role left over from the last folder visited: nothing in
+     * the view is that folder any more, and `selectedMailboxId` is null there anyway. Pinned so the
+     * scope's arm cannot be written under the role arms, where the trash would answer first.
      */
     @Test
     fun `the scope outranks a stale folder role`() {
@@ -95,7 +97,7 @@ class EmptyListSceneTest {
     }
 
     /**
-     * The four titles are pinned as LITERALS above, one by one, and never as "whatever
+     * The four titles are pinned as literals above, one by one, and never as "whatever
      */
     @Test
     fun `the ids these scenes are told apart by are all different`() {

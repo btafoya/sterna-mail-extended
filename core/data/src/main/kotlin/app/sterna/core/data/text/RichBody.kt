@@ -2,6 +2,8 @@ package app.sterna.core.data.text
 
 /**
  * The model of a rich body (#131): plain text plus four inline style families, each a set of
+ * normalised half-open spans, plus paragraph blocks (bullet and numbered lists), each a run of
+ * whole lines, plus the hyperlinks it carries. Pure Kotlin, no Compose.
  */
 
 /** An inline style family. Declaration order is the canonical nesting order in HTML: b > i > u > s. */
@@ -11,7 +13,7 @@ enum class Inline { BOLD, ITALIC, UNDERLINE, STRIKE }
 enum class BlockKind { BULLET, NUMBER }
 
 /**
- * A run of consecutive lines, by INCLUSIVE line index (a line is what `\n` separates), rendered as
+ * A run of consecutive lines, by inclusive line index (a line is what `\n` separates), rendered as
  * one list. No nesting, no indent, no checkbox: one flat run of lines, one list.
  */
 data class Block(val kind: BlockKind, val lines: IntRange)
@@ -108,7 +110,7 @@ private fun normaliseSpans(length: Int, spans: List<Span>): List<Span> {
 }
 
 /**
- * Clamped, empty ones dropped, cut at every line break a list stands for, sorted — and NOT
+ * Clamped, empty ones dropped, cut at every line break a list stands for, sorted, and not
  */
 private fun normaliseLinks(text: String, blocks: List<Block>, links: List<Link>): List<Link> {
     if (links.isEmpty()) return emptyList()
@@ -135,7 +137,7 @@ private fun normaliseBlocks(lineCount: Int, blocks: List<Block>): List<Block> =
 
 /**
  * The kind covering each line, or null. A block outside the text is dropped, not clamped onto the
- * last line; on a line claimed twice the LAST block written wins.
+ * last line; on a line claimed twice the last block written wins.
  */
 private fun kindsByLine(lineCount: Int, blocks: List<Block>): Array<BlockKind?> {
     val kinds = arrayOfNulls<BlockKind>(lineCount)
@@ -163,7 +165,7 @@ private fun blocksOfLines(kinds: Array<BlockKind?>): List<Block> {
 }
 
 /**
- * The offsets of the `\n` that a list stands for — a line break with a block on either side. HTML
+ * The offsets of the `\n` that a list stands for, a line break with a block on either side. HTML
  */
 private fun hardBreaks(text: String, blocks: List<Block>): Set<Int> {
     if (blocks.isEmpty()) return emptySet()
@@ -225,7 +227,7 @@ fun remapAfterEdit(
                 else -> Span(minOf(s.start, a), maxOf(s.end - removed, a))
             }
             if (afterRemoval.isEmpty) continue
-            // 2. the insertion of n characters at a
+            // 2.
             val st = afterRemoval.start
             val en = afterRemoval.end
             val carries = carried == null || kind in carried
@@ -246,7 +248,9 @@ fun remapAfterEdit(
 }
 
 /**
- * The links after the same edit — the removal exactly like a span, the insertion WITHOUT the
+ * The links after the same edit, the removal exactly like a span, the insertion without the
+ * sticky rule: text typed at either border of a link is written outside it, and only a keystroke
+ * strictly inside extends it.
  */
 private fun remapLinks(links: List<Link>, a: Int, b: Int, n: Int): List<Link> {
     val removed = b - a
@@ -290,8 +294,8 @@ private fun remapBlocks(old: RichBody, newText: String, a: Int, removed: Int, n:
         }
         newKinds[line] = oldKinds[lineAt(oldText, back)]
     }
-    // Gmail: Enter on an EMPTY item ends the list. Gmail also deletes the blank line; we may
-    // not — remapAfterEdit has no right to change the text. Assumed debt, already arbitrated.
+    // Gmail: Enter on an empty item ends the list. Gmail also deletes the blank line; we may
+    // not, remapAfterEdit has no right to change the text. Assumed debt, already arbitrated.
     if (removed == 0 && n == 1 && a < newText.length && newText[a] == '\n') {
         val l0 = lineAt(oldText, a)
         val oldStarts = lineStarts(oldText)
@@ -355,6 +359,8 @@ fun clear(body: RichBody, selection: Span): RichBody {
 
 /**
  * Turn every line the selection touches into a list of [kind]; if they all carry that kind already,
+ * already, turn them back into text. Unlike [toggle], an empty selection is not a no-op: the
+ * cursor's line alone is the target, because that is the gesture in Gmail.
  */
 fun toggleBlock(body: RichBody, selection: Span, kind: BlockKind): RichBody {
     val text = body.text
@@ -369,6 +375,8 @@ fun toggleBlock(body: RichBody, selection: Span, kind: BlockKind): RichBody {
 
 /**
  * The families a toolbar should show as active. For a selection, those covering all of it. For a
+ * a cursor `c`, those with a span containing `c` or ending exactly at `c` (the sticky rule of
+ * [remapAfterEdit]: what a keystroke there would inherit), not those starting at `c`.
  */
 fun stylesAt(body: RichBody, selection: Span): Set<Inline> =
     if (selection.isEmpty) {
@@ -415,6 +423,7 @@ private val LIST_TAG = mapOf(BlockKind.BULLET to "ul", BlockKind.NUMBER to "ol")
 
 /**
  * The body as HTML: escaped text, `\n` as `<br>`, and `<a> <b> <i> <u> <s>` always nested in that
+ * order, so at a boundary the inner tags close and reopen around the one that changes.
  */
 fun toHtml(body: RichBody, verbatim: Pair<Span, String>? = null): String {
     val text = body.text
@@ -438,7 +447,7 @@ fun toHtml(body: RichBody, verbatim: Pair<Span, String>? = null): String {
             Inline.entries.filter { kind ->
                 body.ranges[kind].orEmpty().any { it.start <= p && p < it.end }
             }
-        // Every element — the anchor included — closes at the end of the text and at a list break:
+        // Every element, the anchor included, closes at the end of the text and at a list break:
         // an `<li>` never ends with a tag still open, and `<ul>` never sits inside one.
         val target: List<Any> = if (p == text.length || p in hard) emptyList() else active
         var common = 0
@@ -471,7 +480,7 @@ private fun listBreak(kinds: Array<BlockKind?>, line: Int): String {
     return sb.toString()
 }
 
-/** `<b>` … or the anchor, whose URL is escaped for an ATTRIBUTE: the three text characters, plus
+/** `<b>` … or the anchor, whose URL is escaped for an attribute: the three text characters, plus
  *  the quote that would end the value and the two line breaks that would break the tag open. */
 private fun openTagOf(element: Any): String = when (element) {
     is Inline -> "<" + TAG_OF.getValue(element) + ">"
@@ -497,7 +506,11 @@ private val BR = Regex("<[bB][rR]( ?/)?>")
 private val ENTITY = Regex("&(amp|lt|gt|quot|#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6});")
 
 /**
- * ONE attribute, named `href`, one space, and the value in matching quotes — the whole of what an
+ * One attribute, named `href`, one space, and the value in matching quotes, the whole of what an
+ * of what an anchor may be here. `<a href="x" onclick="y">`, `<a class="c" href="x">`,
+ * `<a href="x" target="_blank">` and `<a>` all fail to match and the body is refused whole, which
+ * is what every foreign html has always got from this parser. The value may hold no `<` `>` nor
+ * the quote that closes it; everything else in it is an entity or a literal character.
  */
 private val ANCHOR = Regex("<[aA] [hH][rR][eE][fF]=(?:\"([^\"<>]*)\"|'([^'<>]*)')>")
 private val ANCHOR_CLOSE = Regex("</[aA]>")
@@ -510,7 +523,7 @@ private class OpenTag(val kind: Inline?, val url: String?, val start: Int)
  */
 fun fromHtml(html: String): RichBody? {
     val text = StringBuilder(html.length)
-    // One stack for the four families AND the anchor: `open.isNotEmpty()` is what refuses a list
+    // One stack for the four families and the anchor: `open.isNotEmpty()` is what refuses a list
     // opened inside a tag and an item closed under one, and an anchor is no exception.
     val open = ArrayList<OpenTag>()
     val ranges = HashMap<Inline, MutableList<Span>>()
@@ -541,9 +554,9 @@ fun fromHtml(html: String): RichBody? {
                     // character belongs to is the guess this parser refuses to make.
                     if (open.any { it.url != null }) return null
                     val raw = anchor.groupValues[1].ifEmpty { anchor.groupValues[2] }
-                    // THE STRICT face of the guard, never the dialog's: a stored draft may not
-                    // bring in a `javascript:`, and a RELATIVE href may not be turned into an
-                    // address of our own invention. Refused here, the WHOLE body is refused.
+                    // The strict face of the guard, never the dialog's: a stored draft may not
+                    // bring in a `javascript:`, and a relative href may not be turned into an
+                    // address of our own invention. Refused here, the whole body is refused.
                     val url = linkUrlFromHref(decodeEntities(raw) ?: return null) ?: return null
                     open.add(OpenTag(kind = null, url = url, start = text.length))
                     i += anchor.value.length
@@ -552,7 +565,7 @@ fun fromHtml(html: String): RichBody? {
                 val closer = ANCHOR_CLOSE.matchAt(html, i)
                 if (closer != null) {
                     // `?: return null` twice: a `</a>` with nothing open, and one closing over a
-                    // style tag opened inside it — a crossed pair.
+                    // style tag opened inside it, a crossed pair.
                     val top = open.removeLastOrNull() ?: return null
                     val url = top.url ?: return null
                     links.add(Link(Span(top.start, text.length), url))
@@ -570,14 +583,14 @@ fun fromHtml(html: String): RichBody? {
                             if (list != listKind || inItem || items == 0) return null
                             blocks.add(Block(listKind, listFrom..line))
                             list = null
-                            // …and a list ENDS a line: nothing may follow `</ul>` but the end of
+                            // …and a list ends a line: nothing may follow `</ul>` but the end of
                             // the input or the `<br>` that opens the next one.
                             if (i < html.length && BR.matchAt(html, i) == null) return null
                         } else {
                             if (list != null || open.isNotEmpty()) return null
-                            // A list STARTS a line. Reading `a<ul><li>b</li></ul>` as "ab" on one
+                            // A list starts a line. Reading `a<ul><li>b</li></ul>` as "ab" on one
                             // line is worse than refusing it: `draftHtmlIsLossy` would then call
-                            // that draft faithful, and the next save DESTROYS the original.
+                            // that draft faithful, and the next save destroys the original.
                             if (text.isNotEmpty() && text.last() != '\n') return null
                             list = listKind; listFrom = line; items = 0
                         }
@@ -629,7 +642,7 @@ fun fromHtml(html: String): RichBody? {
 }
 
 /**
- * An attribute value: the same entities as the text, and `&#10;` / `&#13;` are ALLOWED here.
+ * An attribute value: the same entities as the text, and `&#10;` / `&#13;` are allowed here.
  * In the text they are refused because [toHtml] writes a newline as `<br>` and nothing else.
  */
 private fun decodeEntities(value: String): String? {
@@ -664,7 +677,7 @@ private val SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.\\-]*:")
 private val LINK_SCHEMES = setOf("http", "https", "mailto")
 
 /**
- * THE STRICT FACE OF THE GUARD, for every URL this app did not just watch someone type: an `href`
+ * The strict face of the guard, for every URL this app did not just watch someone type: an `href`
  */
 fun linkUrlFromHref(raw: String): String? {
     val trimmed = raw.trim()
@@ -676,12 +689,13 @@ fun linkUrlFromHref(raw: String): String? {
 }
 
 /**
- * THE GUARD as the DIALOG asks it — the other face of [linkUrlFromHref], and the only one that
+ * The guard as the dialog asks it, the other face of [linkUrlFromHref], and the only one that
+ * decides what a typed URL becomes.
  */
 fun normalizeLinkUrl(raw: String): String? {
     val trimmed = raw.trim()
     if (trimmed.isEmpty()) return null
-    // The ONE thing this face adds, and the ONE place it may be added: a scheme, for a string
+    // The one thing this face adds, and the one place it may be added: a scheme, for a string
     // someone has just typed into the dialog. Everything else is [linkUrlFromHref]'s answer.
     if (SCHEME.find(trimmed) == null) return "https://" + trimmed
     return linkUrlFromHref(trimmed)
@@ -700,7 +714,8 @@ fun linkAt(body: RichBody, selection: Span): Link? =
     }
 
 /**
- * The one link a selection running over SEVERAL items carries, or null — the counterpart of
+ * The one link a selection running over several items carries, or null, the counterpart of
+ * the single-item lookup for a selection that crosses a hard break.
  */
 private fun linkAcrossBreaks(body: RichBody, target: Span): Link? {
     val hard = hardBreaks(body.text, body.blocks)
@@ -717,7 +732,7 @@ private fun linkAcrossBreaks(body: RichBody, target: Span): Link? {
 }
 
 /**
- * Put [url] on the body, in this ORDER — the order IS the rule:
+ * Put [url] on the body, in this order, the order IS the rule:
  */
 fun setLink(body: RichBody, selection: Span, url: String, text: String? = null): RichBody {
     if (!selection.isEmpty) {
@@ -736,7 +751,7 @@ fun setLink(body: RichBody, selection: Span, url: String, text: String? = null):
     if (text.isNullOrEmpty()) return body
     val c = selection.start
     val newText = body.text.substring(0, c) + text + body.text.substring(c)
-    // Through the ordinary edit path, with an EMPTY pending: the styling around the caret must
+    // Through the ordinary edit path, with an empty pending: the styling around the caret must
     // follow the insertion as it does for a keystroke, and the inserted label must not inherit the
     // bold that ends where it starts. The blocks come from that same remap: inserting a label
     // inside an item must leave the item a list item.
@@ -746,7 +761,7 @@ fun setLink(body: RichBody, selection: Span, url: String, text: String? = null):
 
 /**
  * Take the link off: every link the selection touches, or the one the cursor is strictly inside.
- * The TEXT stays — this is "remove the link", never "delete the linked words".
+ * The text stays, this is "remove the link", never "delete the linked words".
  */
 fun removeLink(body: RichBody, selection: Span): RichBody {
     val kept = if (selection.isEmpty) {

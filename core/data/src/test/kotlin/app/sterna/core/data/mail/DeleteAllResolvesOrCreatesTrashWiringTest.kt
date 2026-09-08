@@ -4,23 +4,23 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * THIS TEST READS SOURCE TEXT — the last resort, for the reason [DestroyChecksTheFolderWiringTest]
+ * This test reads source text, the last resort, for the reason [DestroyChecksTheFolderWiringTest]
  */
 class DeleteAllResolvesOrCreatesTrashWiringTest {
 
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
-    /** Every CODE line of [text] — comment lines and blanks dropped, trailing comments cut,
-     *  whitespace normalised — so prose can neither satisfy a rule nor break one, and the
-     *  assertions compare WHOLE lines (`contains` is blind to anything appended to a line). */
+    /** Every code line of [text], comment lines and blanks dropped, trailing comments cut,
+     *  whitespace normalised, so prose can neither satisfy a rule nor break one, and the
+     *  assertions compare whole lines (`contains` is blind to anything appended to a line). */
     private fun codeLines(text: String): List<String> =
         text.lines()
             .filterNot { it.trim().startsWith("//") || it.trim().startsWith("*") || it.trim().startsWith("/*") }
             .map { withoutTrailingComment(it).replace(Regex("""\s+"""), " ").trim() }
             .filter { it.isNotEmpty() }
 
-    /** [line] without its trailing `//` comment — string-aware, so a `"http://…"` is not cut. */
+    /** [line] without its trailing `//` comment, string-aware, so a `"http://…"` is not cut. */
     private fun withoutTrailingComment(line: String): String {
         var inString = false
         var i = 0
@@ -109,9 +109,9 @@ class DeleteAllResolvesOrCreatesTrashWiringTest {
 
     @Test fun `the resolution is not wrapped in a runCatching`() {
         val body = bodyOf("deleteAll")
-        // Offline, resolving the bin goes over the socket and throws: the batch fails and NOTHING
+        // Offline, resolving the bin goes over the socket and throws: the batch fails and nothing
         // is created on the user's server. Swallowed, the throw would become a null, and a null
-        // is what the two branches above no longer know how to refuse — a swallowed IMAP failure
+        // is what the two branches above no longer know how to refuse, a swallowed IMAP failure
         // would move messages onto a folder name that was never created.
         assertEquals(
             "no runCatching may stand in deleteAll: a resolution that fails must take the batch " +
@@ -123,7 +123,7 @@ class DeleteAllResolvesOrCreatesTrashWiringTest {
 
     @Test fun `the bulk delete never falls back on All Mail`() {
         // Same reason as the single delete: "all mail" is an acceptable archive and not an
-        // acceptable bin — the messages stay in the list, so the batch would look like a no-op.
+        // acceptable bin, the messages stay in the list, so the batch would look like a no-op.
         val body = bodyOf("deleteAll")
         assertEquals(
             "deleteAll must never route a delete to the All-Mail folder. Body was:\n$body",

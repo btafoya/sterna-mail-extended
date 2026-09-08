@@ -1,11 +1,11 @@
 package app.sterna.push
 
 /**
- * What the Delete button of a new-mail banner is to do — see [bannerDeleteAct].
+ * What the Delete button of a new-mail banner is to do, see [bannerDeleteAct].
  */
 sealed interface BannerDeleteAct {
     /**
-     * Nothing at all: no move, no local eviction, and the banner STAYS UP — a banner that does not
+     * Nothing at all: no move, no local eviction, and the banner stays up, a banner that does not
      */
     data object DoNothing : BannerDeleteAct
 

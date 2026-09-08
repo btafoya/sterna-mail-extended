@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [buildHtmlDocument] EXECUTED, and the document it emits read as text: the two reserved blanks
+ * [buildHtmlDocument] executed, and the document it emits read as text: the two reserved blanks
  */
 class ReaderSpacerDocumentTest {
 
@@ -47,7 +47,7 @@ class ReaderSpacerDocumentTest {
     }
 
     @Test fun `the dark template reserves the same two blanks`() {
-        // The reader has TWO templates — the dark one inverts the whole page with a CSS filter and
+        // The reader has two templates, the dark one inverts the whole page with a CSS filter and
         // is a different document (#149, the "white band in dark theme" bug). Both blanks are built
         // before that branch, so both templates get them; nothing else pins that, and a blank lost
         // on one side would put the opaque header on the message for every reader in dark mode.

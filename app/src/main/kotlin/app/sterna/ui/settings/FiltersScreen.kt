@@ -62,7 +62,7 @@ fun FiltersScreen(
     // Confirm-on-back (#34); both doors go through it, the scaffold's arrow and the system gesture.
     // Held above the rule-editor branch below so the early return never straddles a remember.
     var confirmExit by remember { mutableStateOf(false) }
-    // Saving from the dialog is a network round-trip (compile → validate → activate), so the
+    // Saving from the dialog is a network round-trip (compile, validate, activate), so the
     // screen leaves only once the server has taken it; a refusal keeps the error in view.
     var leaveAfterSave by remember { mutableStateOf(false) }
     // The overwrite confirmation, and which gesture waits behind it: the exit dialog's Save must
@@ -184,7 +184,7 @@ private fun FiltersList(
     viewModel: FiltersViewModel,
     onEdit: (Int) -> Unit,
     onAdd: () -> Unit,
-    // NOT viewModel::save: the write goes through the screen's one door, which asks first when the
+    // Not viewModel::save: the write goes through the screen's one door, which asks first when the
     // save would replace a script nobody could read.
     onSave: () -> Unit,
 ) {
@@ -266,7 +266,7 @@ private fun FiltersList(
         }
         Button(
             onClick = onSave,
-            // Nothing to push until a rule differs from what the server holds (#34) — unless the
+            // Nothing to push until a rule differs from what the server holds (#34), unless the
             // server is not running the rules it holds, and Save is the way to put them back.
             enabled = filtersSaveEnabled(
                 saving = state.saving,
@@ -418,7 +418,7 @@ private fun ActionSwitch(label: String, checked: Boolean, onChange: (Boolean) ->
     }
 }
 
-/** "Sender contains \"X\" → Move to Y · Mark read" — a one-line human summary. */
+/** "Sender contains \"X\" → Move to Y · Mark read", a one-line human summary. */
 private fun ruleSummary(context: Context, rule: FilterRule): String {
     val cond = "${fieldLabel(context, rule.field)} ${matchLabel(context, rule.match)} \"${rule.value}\""
     val actions = buildList {

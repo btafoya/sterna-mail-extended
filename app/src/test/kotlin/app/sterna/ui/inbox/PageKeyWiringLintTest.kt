@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. It reads `SettingsRepository.kt` and `InboxViewModel.kt` as
+ * Source lint, not a behaviour test.
  */
 class PageKeyWiringLintTest {
 
@@ -77,7 +77,7 @@ class PageKeyWiringLintTest {
     }
 
     /**
-     * SOURCE LINT, and the guard on the destructive half of Codeberg #126.
+     * Source lint, and the guard on the destructive half of Codeberg #126.
      */
     @Test
     fun `the list's unread filter is decided once, and the selection asks the same question`() {
@@ -101,7 +101,7 @@ class PageKeyWiringLintTest {
     }
 
     /**
-     * SOURCE LINT. The rule above pins that the unread view's scope is HANDED to the paging key;
+     * Source lint. The rule above pins that the unread view's scope is handed to the paging key;
      */
     @Test
     fun `the unread scope has exactly two writers, and each says what it writes`() {
@@ -129,7 +129,7 @@ class PageKeyWiringLintTest {
     }
 
     /**
-     * SOURCE LINT, and a LAST RESORT — read this before trusting it.
+     * Source lint, and a last resort, read this before trusting it.
      */
     @Test
     fun `each multi-folder pager is built from its own scope list, and the unread one forces the filter`() {
@@ -150,7 +150,7 @@ class PageKeyWiringLintTest {
                     "key.conversationView", "sent",
                 ),
             ),
-            // Sorted, so reordering the branches of the `when` is not an error — which of the two
+            // Sorted, so reordering the branches of the `when` is not an error, which of the two
             // is written first says nothing.
             pagedMailboxCalls().sortedBy { it.joinToString(",") },
         )
@@ -160,6 +160,9 @@ class PageKeyWiringLintTest {
 
     /**
      * The arguments of the single `pageKeyFlow(` call in `InboxViewModel.kt`, one string per argument,
+     * whitespace collapsed, so a call the formatter spreads over eight lines reads the same as one
+     * written on a line. Split on the commas that sit at the call's own bracket depth, so a nested
+     * call's arguments could not be mistaken for the call's own.
      */
     private fun pageKeyFlowArguments(): List<String> {
         val text = codeText(INBOX_VIEW_MODEL).joinToString("\n")
@@ -173,7 +176,10 @@ class PageKeyWiringLintTest {
     }
 
     /**
-     * The arguments of EVERY `repo.pagedMailbox(` call in `InboxViewModel.kt`, one list per call, in
+     * The arguments of every `repo.pagedMailbox(` call in `InboxViewModel.kt`, one list per call, in
+     * source order. Fails loudly on anything but exactly two: the unified inbox's and the unread
+     * scope's. A third would be a third multi-folder view, which has to be judged here rather than
+     * silently ignored.
      */
     private fun pagedMailboxCalls(): List<List<String>> {
         val text = codeText(INBOX_VIEW_MODEL).joinToString("\n")
@@ -186,7 +192,7 @@ class PageKeyWiringLintTest {
         return calls.map { splitArguments(balanced(text, it.range.last)) }
     }
 
-    /** [inside] split on the commas that sit at its own bracket depth, whitespace collapsed — so a
+    /** [inside] split on the commas that sit at its own bracket depth, whitespace collapsed, so a
      *  call the formatter spread over eight lines reads the same as one written on a line, and a
      *  nested call's arguments cannot be mistaken for the call's own. */
     private fun splitArguments(inside: String): List<String> {
@@ -240,7 +246,7 @@ class PageKeyWiringLintTest {
             if (!CONTINUATION.containsMatchIn(next)) break
         }
         // A member-access continuation is glued back on with no space, so a call chained on the next
-        // line reads exactly as the same chain written on one — the rules must not care which the
+        // line reads exactly as the same chain written on one, the rules must not care which the
         // formatter chose. Any other continuation (an elvis, a boolean) keeps its space.
         val text = out.fold(StringBuilder()) { sb, line ->
             val piece = line.trim()
@@ -295,16 +301,16 @@ class PageKeyWiringLintTest {
     companion object {
         private const val GUARD = ".distinctUntilChanged()"
 
-        /** A line that carries on the previous one because it opens with an operator — `.map { }`,
+        /** A line that carries on the previous one because it opens with an operator, `.map { }`,
          *  `.distinctUntilChanged()`, an elvis, a boolean. Kotlin needs no `\` for these, so a
          *  bracket-balanced declaration can still be continued on the line below. */
         private val CONTINUATION = Regex("""^\s*(\.|\?:|\?\.|\+|&&|\|\||,)""")
 
-        /** The continuations that are re-joined WITHOUT a space: a member access, safe or not. */
+        /** The continuations that are re-joined without a space: a member access, safe or not. */
         private val GLUED = Regex("""^\s*\??\.""")
 
         /**
-         * The seven pairs the call site must spell. Whole pairs, and the ORDER is not compared: naming
+         * The seven pairs the call site must spell. Whole pairs, and the order is not compared: naming
          */
         private val EXPECTED_ARGUMENTS = listOf(
             "selection = selection",
@@ -321,7 +327,7 @@ class PageKeyWiringLintTest {
         private const val INBOX_VIEW_MODEL_PATH =
             "app/src/main/kotlin/app/sterna/ui/inbox/InboxViewModel.kt"
 
-        /** Repo root, walked up from the module's working directory — the rules read BOTH modules. */
+        /** Repo root, walked up from the module's working directory, the rules read both modules. */
         private val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, SETTINGS_PATH).isFile }

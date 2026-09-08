@@ -50,7 +50,7 @@ class NotificationFolderToShowTest {
     @Test fun `a notification for a folder the setting hides does NOT switch the list`() {
         // The trap this closes: the list would be left titled `vieux`, a folder the drawer no
         // longer lists and "move to" no longer offers, with no way back into it. The message
-        // itself still opens — the reader opens it, not this.
+        // itself still opens, the reader opens it, not this.
         assertNull(notificationFolderToShow(resolved("vieux"), folders, true))
     }
 

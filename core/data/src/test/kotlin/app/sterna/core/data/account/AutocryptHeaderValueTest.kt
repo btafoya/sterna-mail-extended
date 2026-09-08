@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * [autocryptHeaderValue], executed argument by argument — the whole decision of the volet.
+ * [autocryptHeaderValue], executed argument by argument, the whole decision of the volet.
  */
 class AutocryptHeaderValueTest {
 

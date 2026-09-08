@@ -5,7 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 
 /**
- * Codeberg #134: "when deleting an email with a different client, e.g. Thunderbird-Desktop, the
+ * Codeberg #134: "when deleting an email with a different client, e.g.
  */
 class DepartedBannerDecisionTest {
 
@@ -56,7 +56,7 @@ class DepartedBannerDecisionTest {
 
     @Test fun `a pass that names nothing cancels nothing`() {
         // IMAP, a failed pass, an offline refresh: an empty departure list is not "everything is
-        // gone". Only a NAMED id is ever cancelled.
+        // gone". Only a named id is ever cancelled.
         val active = setOf(Notifications.childId(account, "M1"), Notifications.childId(account, "M2"))
         assertEquals(
             emptyList<String>(),
@@ -73,7 +73,7 @@ class DepartedBannerDecisionTest {
     }
 
     @Test fun `the summary count drops the departures with the banners`() {
-        // The group summary is rebuilt from what is left AFTER the pass: a departure has to be
+        // The group summary is rebuilt from what is left after the pass: a departure has to be
         // counted out, or the account is credited with a message that is gone and the "who
         // announces this batch" rule (#56) reads the wrong number.
         val active = setOf(Notifications.childId(account, "M1"), Notifications.childId(account, "M2"))

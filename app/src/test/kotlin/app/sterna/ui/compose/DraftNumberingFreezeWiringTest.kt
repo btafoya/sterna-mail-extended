@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `ComposeViewModel.kt` as text and proves nothing
+ * Source lint, not a behaviour test, it reads `ComposeViewModel.kt` as text and proves nothing
  */
 class DraftNumberingFreezeWiringTest {
 
@@ -133,8 +133,8 @@ class DraftNumberingFreezeWiringTest {
             listOf(REMEMBER_ID, FREEZE_ACCOUNT),
             prepare.subList(id, (id + 2).coerceAtMost(prepare.size)),
         )
-        // The FIRST `viewModelScope.launch {` of prepare() belongs to another branch — the one
-        // that prefills a reply. The coroutine meant here is the one that opens AFTER the account
+        // The first `viewModelScope.launch {` of prepare() belongs to another branch, the one
+        // that prefills a reply. The coroutine meant here is the one that opens after the account
         // freeze, so it is looked for from there; searching from the top pins nothing at all.
         val launch = (account until prepare.size).firstOrNull { prepare[it] == "viewModelScope.launch {" } ?: -1
         assertTrue(
@@ -149,7 +149,7 @@ class DraftNumberingFreezeWiringTest {
     }
 
     /**
-     * The account is frozen exactly twice — the restore, and the reopen — and never looked up
+     * The account is frozen exactly twice (the restore, and the reopen) and never looked up
      */
     @Test fun `the account is frozen where the numbering is, and written nowhere else`() {
         val lines = codeLines(source())
@@ -186,7 +186,7 @@ class DraftNumberingFreezeWiringTest {
     }
 
     /**
-     * An assignment to the frozen account, however it is written — bare, or through a qualified
+     * An assignment to the frozen account, however it is written, bare, or through a qualified
      * `this.`, which a `startsWith` never sees.
      */
     private val ASSIGNS_ACCOUNT = Regex("""^(this\.)?editingDraftAccountId\s*=[^=]""")
@@ -269,7 +269,7 @@ class DraftNumberingFreezeWiringTest {
         return code.substring(start, (i - 1).coerceAtLeast(start))
     }
 
-    /** The lines of [text] that are code, trimmed, with comments taken off — the comments here
+    /** The lines of [text] that are code, trimmed, with comments taken off, the comments here
      *  name the very calls and the very ordering the rules above pin. */
     private fun codeLines(text: String): List<String> = text.lines().mapNotNull { line ->
         val code = line.trimStart()

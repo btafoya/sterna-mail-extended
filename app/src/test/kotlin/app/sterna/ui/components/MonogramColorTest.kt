@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Issue #85: contact badges were the one surface that ignored the system palette — a private hue
+ * Issue #85: contact badges were the one surface that ignored the system palette, a private hue
  */
 class MonogramColorTest {
 
@@ -26,7 +26,7 @@ class MonogramColorTest {
     )
     private val darkSurface = Color(0xFF1C1B1F)
 
-    /** A fully achromatic palette — the announced trade-off, kept honest by a test of its own. */
+    /** A fully achromatic palette, the announced trade-off, kept honest by a test of its own. */
     private val monochromeRamps = listOf(
         ToneRamp(Color(0xFFDDDDDD), Color(0xFF1A1A1A)),
         ToneRamp(Color(0xFFDEDEDE), Color(0xFF1B1B1B)),
@@ -118,6 +118,10 @@ class MonogramColorTest {
 
     /**
      * Measured, not hoped for: the worst badge of the 18 reaches 2.47:1 in light, 3.84:1 in dark and
+     * 2.55:1 monochrome. The floor below is set just under the light figure, so it is a standard the
+     * palette actually meets rather than a tripwire far beneath it, re-paling the start of the
+     * ramps, which is the one change that would lower it, trips this immediately. For reference the
+     * hue wheel this replaced bottomed out at 2.05:1, so the change improved legibility.
      */
     @Test fun `every badge keeps a visible contrast against the surface it sits on`() {
         val cases = listOf(
@@ -137,7 +141,7 @@ class MonogramColorTest {
     // --- the two-step path the widget takes ------------------------------------------------------
 
     /**
-     * THIS TEST CANNOT FAIL TODAY, AND THAT IS WHAT IT SAYS. `monogramColor(seed, ramps)` is
+     * This test cannot fail today, and that is what it says.
      */
     @Test fun `the two entry points agree, for as long as they are two`() {
         for (ramps in listOf(lightRamps, darkRamps)) {
@@ -153,7 +157,9 @@ class MonogramColorTest {
     }
 
     /**
-     * The slot is what crosses the process boundary, so its two numbers are pinned as literals —
+     * The slot is what crosses the process boundary, so its two numbers are pinned as literals,
+     * computed once by hand from the derivation as it shipped: a widget that stored a slot
+     * yesterday must find the same badge today.
      */
     @Test fun `known addresses land on known slots`() {
         assertEquals(MonogramSlot(family = 2, tone = 0), monogramSlot("alex.rivera@masto.top"))
@@ -163,7 +169,7 @@ class MonogramColorTest {
     }
 
     /**
-     * AND THE OTHER HALF OF THE DERIVATION, IN LITERALS — the half that reads the PALETTE.
+     * And the other half of the derivation, in literals, the half that reads the palette.
      */
     @Test fun `three known badges come out the exact colours they shipped as`() {
         assertEquals(
@@ -197,7 +203,7 @@ class MonogramColorTest {
 
     // --- helpers ---------------------------------------------------------------------------------
 
-    /** A badge as it is packed for drawing — the form both the in-app badge and the widget use. */
+    /** A badge as it is packed for drawing, the form both the in-app badge and the widget use. */
     private fun argb(seed: String, ramps: List<ToneRamp>): String =
         "0x%08X".format(monogramColor(seed, ramps).toArgb())
 

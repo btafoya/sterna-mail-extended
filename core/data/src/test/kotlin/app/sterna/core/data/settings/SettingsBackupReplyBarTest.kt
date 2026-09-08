@@ -39,21 +39,21 @@ class SettingsBackupReplyBarTest {
         // The direction that matters: the default is true, so "off" is the answer a backup has to
         // carry, and a codec that dropped false values would restore the bar the user removed.
         //
-        // The VALUE, not the key. `contains("replyBar")` was true of any export at all: the codec
+        // The value, not the key. `contains("replyBar")` was true of any export at all: the codec
         // writes with encodeDefaults and explicitNulls, so an unset field is exported as
         // `"replyBar": null` and the key is always there. An encoding that lost the setting on
-        // every export left this assertion green — which is precisely what it was written to stop.
+        // every export left this assertion green, which is precisely what it was written to stop.
         val encoded = SettingsBackupCodec.encode(SettingsBackup(replyBar = false))
         assertTrue("exported: $encoded", encoded.contains("\"replyBar\": false"))
     }
 
     @Test fun theBarIsOnUntilSomebodyTurnsItOff() {
         // The default, run rather than described. Nothing covered it: flipping the elvis in
-        // SettingsRepository.replyBar took the bar away from EVERY user who had never touched the
-        // switch — the exact opposite of what the setting announces — with the whole suite green.
+        // SettingsRepository.replyBar took the bar away from every user who had never touched the
+        // switch (the exact opposite of what the setting announces) with the whole suite green.
         //
-        // The LOOKUP is run too, not just the defaulting. As a function of the stored `Boolean?`
-        // this could still be defeated from outside — `replyBarFrom(prefs[KEY] ?: false)` is one
+        // The lookup is run too, not just the defaulting. As a function of the stored `Boolean?`
+        // this could still be defeated from outside, `replyBarFrom(prefs[key] ?: false)` is one
         // line, does the same damage, and leaves the function itself untouched. It takes the whole
         // Preferences now, so there is nothing left to pre-empt.
         assertTrue("a reader that has never seen the switch shows the bar", replyBarFrom(emptyPreferences()))
@@ -70,6 +70,6 @@ class SettingsBackupReplyBarTest {
         assertTrue(replyBarFrom(preferencesOf(booleanPreferencesKey("conversation_view") to false)))
     }
 
-    /** The persisted key, spelled as the store spells it — see the test above. */
+    /** The persisted key, spelled as the store spells it, see the test above. */
     private val storedKey = booleanPreferencesKey("reply_bar")
 }

@@ -1,7 +1,8 @@
 package app.sterna.core.data.mail
 
 /**
- * The lines that opened the blocks still open just before [index] — what a given line of source is
+ * The lines that opened the blocks still open just before [index], what a given line of source is
+ * enclosed by.
  */
 internal fun openBlocksAt(lines: List<String>, index: Int): List<String> {
     val stack = ArrayDeque<String>()

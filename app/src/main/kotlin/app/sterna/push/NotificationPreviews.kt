@@ -5,21 +5,21 @@ import app.sterna.core.data.settings.NotificationContent
 import kotlinx.coroutines.CancellationException
 
 /**
- * WHEN a notification pass may read the opening of a message, HOW MANY it may read and for HOW LONG
+ * When a notification pass may read the opening of a message, how many it may read and for how long
  */
 object NotificationPreviews {
 
-    /** The wall clock for ONE ACCOUNT'S WHOLE PASS, every watched folder included. Four seconds:
+    /** The wall clock for one account's whole pass, every watched folder included. Four seconds:
      *  this runs while mail already arrived waits to be announced, and a late notification is worth
      *  less than one with no opening line. */
     const val BUDGET_MS = 4_000
 
-    /** How many messages ONE ACCOUNT'S PASS may read, its folders sharing the count. Six, which is
+    /** How many messages one account's pass may read, its folders sharing the count. Six, which is
      *  how many children the group summary lists: past that the reader is looking at the summary. */
     const val MAX_PER_PASS = 6
 
     /**
-     * The six reads and the four seconds of ONE ACCOUNT'S PASS, held in one place so its FOLDERS
+     * The six reads and the four seconds of one account's pass, held in one place so its folders
      */
     class PreviewBudget(private val nowMs: () -> Long) {
         private var deadline: Long? = null
@@ -54,7 +54,7 @@ object NotificationPreviews {
         val numberedAtStart = rescued { numbering() } ?: return emptyMap()
         val gathered = LinkedHashMap<String, String>()
         for ((id, source) in targets) {
-            // What the ACCOUNT'S pass has left, so a second watched folder cannot start afresh.
+            // What the account's pass has left, so a second watched folder cannot start afresh.
             val budgetMs = budget.claim() ?: break
             rescued { fetch(source, budgetMs) }?.let { gathered[id] = it }
             if (rescued { numbering() } != numberedAtStart) break
@@ -63,7 +63,7 @@ object NotificationPreviews {
     }
 
     /**
-     * Post [mail], each with the opening line [gather] found for it — ALL of them gathered BEFORE
+     * Post [mail], each with the opening line [gather] found for it, all of them gathered before
      */
     suspend fun <T> postGatheredFirst(
         mail: List<T>,
@@ -75,8 +75,8 @@ object NotificationPreviews {
         mail.forEach { post(it, gathered[keyOf(it)]) }
     }
 
-    /** [block]'s answer, or null if it failed. A cancellation is not a failure — it means the pass
-     *  itself is gone — and goes through, or a cancelled push would carry on notifying. */
+    /** [block]'s answer, or null if it failed. A cancellation is not a failure, it means the pass
+     *  itself is gone, and goes through, or a cancelled push would carry on notifying. */
     private suspend fun <T> rescued(block: suspend () -> T?): T? = try {
         block()
     } catch (cancelled: CancellationException) {

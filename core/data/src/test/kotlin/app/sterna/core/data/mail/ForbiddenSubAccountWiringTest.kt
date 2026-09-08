@@ -5,7 +5,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. The decisions themselves are EXECUTED by
+ * Source lint, not a behaviour test. The decisions themselves are executed by
+ * `ReachableMailAccountsTest` and `LinkedAccountsDiffTest`; this only reads the plug that carries
+ * them, because `MailRepository` needs Room, an Android `Context` and a live session, and `client`
  */
 class ForbiddenSubAccountWiringTest {
 
@@ -58,7 +60,7 @@ class ForbiddenSubAccountWiringTest {
     }
 
     /**
-     * The probe must come from the head of the candidate list DOWN, never over the whole of it:
+     * The probe must come from the head of the candidate list down, never over the whole of it:
      */
     @Test fun `the probed set starts after the primary`() {
         val probeLines = bodyLines("reconcileLinkedAccounts").filter { "getMailboxes" in it || "drop(" in it }
@@ -86,7 +88,7 @@ class ForbiddenSubAccountWiringTest {
     }
 
     /**
-     * The add-flow entry point reuses the cached context's session AND its auth, so surfacing
+     * The add-flow entry point reuses the cached context's session and its auth, so surfacing
      * sub-accounts right after an add costs no token work and no second session fetch.
      */
     @Test fun `the after-add path reuses the cached context's own auth`() {
@@ -108,7 +110,7 @@ class ForbiddenSubAccountWiringTest {
     }
 
     /**
-     * ORDER, not the whole body: the mention list below sees only the TEXT and its rank, so moving
+     * Order, not the whole body: the mention list below sees only the text and its rank, so moving
      */
     @Test fun `connect reconciles the linked accounts before it uses the session`() {
         val lines = bodyLines("connect")
@@ -128,7 +130,7 @@ class ForbiddenSubAccountWiringTest {
     }
 
     /**
-     * Every mention of the reconcile in the file, declaration and call sites alike, WITH their
+     * Every mention of the reconcile in the file, declaration and call sites alike, with their
      */
     @Test fun `the reconcile is declared once and called from exactly these two places`() {
         val mentions = DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }
@@ -149,6 +151,10 @@ class ForbiddenSubAccountWiringTest {
 
     /**
      * Both `runCatching`s of this path now span a suspension point, and a bare one turns a
+     * cancellation into a normal return: the probe would be filed as "this account failed, so keep
+     * it", and `ConnectViewModel` (`:249` / `:680`) would write `ConnectState.Connected` on the
+     * next line, for a screen the user has just left, its own `catch (cancelled: ...)` never
+     * reached. The decision is executed in `CancellationTest`; the plug is read here.
      */
     @Test fun `both runCatchings of this path re-throw a cancellation`() {
         val guarded = DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }

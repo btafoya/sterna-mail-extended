@@ -4,7 +4,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 
 /**
- * In-app UI language. [SYSTEM] follows the device language; the others force a specific translation.
+ * In-app UI language. [system] follows the device language; the others force a specific translation.
  */
 enum class AppLanguage(val tag: String) {
     SYSTEM(""),

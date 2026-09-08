@@ -38,6 +38,7 @@ object SieveCodec {
 
     /**
      * The rules a script carries, or **null when this script cannot be read as ours**: content, but
+     * content, but no `# sterna-rules-V1:` line, or a line whose JSON does not decode.
      */
     fun parseRulesOrNull(script: String): List<FilterRule>? {
         if (script.isBlank()) return emptyList()
@@ -54,7 +55,8 @@ object SieveCodec {
     fun parseRules(script: String): List<FilterRule> = parseRulesOrNull(script) ?: emptyList()
 
     /**
-     * [script] reduced to the Sieve it runs: its marker line removed whole, blanks normalised — the
+     * [script] reduced to the Sieve it runs: its marker line removed whole, blanks normalised. The
+     * value two scripts are compared on to tell "we wrote all of this" from "we wrote part of it".
      */
     fun sieveBody(script: String): String {
         val lines = script.replace("\r\n", "\n").replace('\r', '\n').lines()

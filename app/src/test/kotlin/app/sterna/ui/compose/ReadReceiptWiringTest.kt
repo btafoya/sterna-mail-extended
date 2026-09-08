@@ -142,7 +142,7 @@ class ReadReceiptWiringTest {
             "d.requestReceipt",
             restored["requestReceipt"],
         )
-        // …and the other two openings must NOT set it. A fresh compose, or one prefilled from a
+        // …and the other two openings must not set it. A fresh compose, or one prefilled from a
         // mailto: link, has nobody's request to restore: ticking the box there would ask for a
         // receipt the user never asked for.
         assertEquals(
@@ -162,7 +162,7 @@ class ReadReceiptWiringTest {
         )
     }
 
-    // --- 3. read as source text: the SCREEN hands its answer on ---------------------------------
+    // --- 3. read as source text: the screen hands its answer on ---------------------------------
 
     @Test fun `the send button hands the box's state to the ViewModel`() {
         assertEquals(
@@ -197,9 +197,9 @@ class ReadReceiptWiringTest {
     }
 
     @Test fun `every scheduled send is scheduled with it`() {
-        // TWO call sites since #161: the preset entries of the menu, and the instant picked by hand
+        // Two call sites since #161: the preset entries of the menu, and the instant picked by hand
         // in the calendar + clock pair. Both write the same row, where the message then waits for
-        // hours — one of them wired to `false` drops the request on that path alone, which is the
+        // hours, one of them wired to `false` drops the request on that path alone, which is the
         // kind of half-loss nothing on screen shows.
         val calls = positionalArguments(composeScreen(), "viewModel.scheduleSend(")
         assertEquals(
@@ -225,7 +225,7 @@ class ReadReceiptWiringTest {
 
     @Test fun `the leave guard treats the box as a field of the message`() {
         // The defect this rule was written for: the box was not a field of the verdict at all, so on
-        // a reopened outbox message BOTH senses were lost in silence, with no dialogue — unticking
+        // a reopened outbox message both senses were lost in silence, with no dialogue, unticking
         val call = callsOf(codeOf(COMPOSE_SCREEN.readText()), "ComposeDirty.isDirty(").single()
         assertEquals(
             "the live state of the box must be handed to the unsaved-changes verdict",
@@ -416,13 +416,15 @@ class ReadReceiptWiringTest {
             "app/src/main/kotlin/app/sterna/ui/compose/ComposeScreen.kt"
 
         /**
-         * What the composer hands to send/scheduleSend, positionally — the receipt is the last one.
+         * What the composer hands to send/scheduleSend, positionally, the receipt is the last one.
          */
         private val SEND_ARGUMENTS =
             listOf("to", "cc", "bcc", "subject.text", "rich", "requestReceipt")
 
         /**
-         * …and to saveDraft, which takes the SAME `rich` since #131: the draft is stored with its
+         * …and to saveDraft, which takes the same `rich` since #131: the draft is stored with its
+         * styling as a `text/html` part beside its text. `body.text` here saves the draft with the
+         * styling stripped, and the next reopen shows the stripping, not the loss.
          */
         private val SAVE_ARGUMENTS =
             listOf("to", "cc", "bcc", "subject.text", "rich", "requestReceipt")

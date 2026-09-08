@@ -58,7 +58,7 @@ class SearchableFoldersTest {
     }
 
     // A folder that CLAIMED trash or junk and lost the role to another folder of the account is
-    // stored with the role marked (`~trash`, `~junk` — imapMailboxEntity). It is an ordinary folder
+    // stored with the role marked (`~trash`, `~junk`, imapMailboxEntity). It is an ordinary folder
     // everywhere else, but a search must skip it just as it skips the elected one: a shared
     // `Shared/…/Trash` holds mail the user threw away.
     @Test fun aTrashThatLostTheRoleIsStillLeftOut() {
@@ -83,7 +83,7 @@ class SearchableFoldersTest {
 
     // The witness: the mark is not a wildcard. Only the roles a search already skipped are marked
     // (imapMailboxEntity marks nothing else), so a role that merely begins with the mark is a
-    // folder like any other — otherwise the three cases above would pass under a rule that hides
+    // folder like any other, otherwise the three cases above would pass under a rule that hides
     // every folder whose role starts with '~'.
     @Test fun aMarkOnAnyOtherRoleDoesNotLeaveAFolderOutOfASearch() {
         assertEquals(
@@ -101,8 +101,8 @@ class SearchableFoldersTest {
     // ---- may the answer be called a total? ----
     //
     // An IMAP search only ever covers the folders the drawer has cached. When that list is empty
-    // the walk falls back to the inbox alone, and calling THAT a total is how "flagged only" would
-    // end up quietly hiding every star filed in a folder that was never synced — under a flat
+    // the walk falls back to the inbox alone, and calling that a total is how "flagged only" would
+    // end up quietly hiding every star filed in a folder that was never synced, under a flat
     // "No results" if there happened to be none in the inbox.
 
     @Test fun aWalkOverKnownFoldersThatFinishedUnderTheCapIsATotal() {
@@ -112,7 +112,7 @@ class SearchableFoldersTest {
     @Test fun theInboxFallbackIsNeverATotal() {
         // No cached folder list: whatever the walk found, it looked at a fraction of the account.
         assertFalse(imapSearchComplete(emptyList(), walkComplete = true, found = 3, limit = 50))
-        // Including — especially — when it found nothing.
+        // Including (especially) when it found nothing.
         assertFalse(imapSearchComplete(emptyList(), walkComplete = true, found = 0, limit = 50))
     }
 

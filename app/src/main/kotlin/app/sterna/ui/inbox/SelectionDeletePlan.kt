@@ -3,7 +3,7 @@ package app.sterna.ui.inbox
 import app.sterna.core.jmap.model.Email
 
 /** How a bulk delete splits: what is permanently [destroy]ed, what is [move]d to the Trash, and
- *  what is [untreated] — deleted nowhere, because either would be a guess and the wrong guess
+ *  what is [untreated], deleted nowhere, because either would be a guess and the wrong guess
  *  destroys mail. */
 internal data class SelectionDeletePlan(
     val destroy: List<Email>,

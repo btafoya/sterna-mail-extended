@@ -13,7 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * THE UNDO, and the numbering it opposes (Codeberg #99).
+ * The undo, and the numbering it opposes (Codeberg #99).
  */
 class UndoMovesUnderTheNumberingCopyUidStatedTest {
 
@@ -121,7 +121,7 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
     // ---- the mute witness: no COPYUID, no route, and NO new noise ------------------------------
 
     /**
-     * THE GUARD THAT MUST NOT MOVE. A server that reports no `COPYUID` loses the Undo, silently,
+     * The guard that must not MOVE.
      */
     @Test fun `a server reporting no COPYUID loses the undo in silence, as it always did`() {
         val store = RememberedNumbering()
@@ -136,7 +136,7 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
                 assertEquals("no COPYUID means no mapping", emptyMap<Long, Long>(), landed.uids)
                 assertNull("and no numbering to freeze", landed.destinationUidValidity)
 
-                // Nothing landed, so lastImapMove holds nothing for these ids — as it did before.
+                // Nothing landed, so lastImapMove holds nothing for these ids, as it did before.
                 val landings = emptyMap<String, ImapLoc>()
                 failure = runCatching {
                     routes = UidValidity.imapUndoRoutes(UIDS.map { idOf(it) to INBOX }) { landings[it] }
@@ -156,7 +156,7 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
     // ---- the routing decision itself, executed -------------------------------------------------
 
     /**
-     * THE NUMBERING IS PART OF THE ROUTE KEY. Two waves moved into the same Trash either side of
+     * The numbering is part of the route key.
      */
     @Test fun `two numberings for one folder are two move-backs, not one`() {
         val landings = mapOf(
@@ -200,7 +200,7 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
         )
     }
 
-    /** An id with no landing is dropped and takes nothing with it — its neighbours still travel. */
+    /** An id with no landing is dropped and takes nothing with it, its neighbours still travel. */
     @Test fun `an id with no landing is dropped without disturbing the others`() {
         val landings = mapOf("a" to ImapLoc(TRASH, 100L, 77L), "c" to ImapLoc(TRASH, 102L, 77L))
 
@@ -212,7 +212,7 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
         )
     }
 
-    /** A landing whose numbering is null still routes — and carries the null, which REFUSES at the
+    /** A landing whose numbering is null still routes, and carries the null, which refuses at the
      *  wire. Dropping it here instead would be the same outcome by a quieter road, but it would
      *  hide from the caller that the ids were ever asked for. */
     @Test fun `a landing with no numbering routes, carrying the nothing it has`() {
@@ -226,7 +226,7 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
     // ---- fixtures -----------------------------------------------------------------------------
 
     /**
-     * A server with two folders that state DIFFERENT numberings — the INBOX 42, the Trash 77 —
+     * A server with two folders that state different numberings, the INBOX 42, the Trash 77.
      */
     private fun twoFolders(): (String, String) -> String = { tag, line ->
         when {
@@ -256,7 +256,7 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
     }
 
     /**
-     * The `COPYUID` for the set of [line], and the numbering of the folder it is moving INTO:
+     * The `COPYUID` for the set of [line], and the numbering of the folder it is moving into:
      */
     private fun copyUid(line: String): String {
         val set = line.removePrefix("UID MOVE ").substringBefore(' ')
@@ -307,7 +307,7 @@ class UndoMovesUnderTheNumberingCopyUidStatedTest {
         const val SENT = "Sent"
         val UIDS = listOf(7L, 8L, 9L)
 
-        /** See the twin in [MoveNeedsTheNumberingStatedNowTest] — `ImapMailService` requires an
+        /** See the twin in [MoveNeedsTheNumberingStatedNowTest], `ImapMailService` requires an
          *  `OAuthTokenRefresher`, which requires an Android `Context`, and a password account
          *  never reads a field of it. */
         fun unusedTokenRefresher(): OAuthTokenRefresher {

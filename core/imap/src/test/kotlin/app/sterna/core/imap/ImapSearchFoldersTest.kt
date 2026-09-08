@@ -64,7 +64,7 @@ class ImapSearchFoldersTest {
         FakeImapServer { tag, line ->
             when {
                 line.startsWith("SELECT") -> selectResponse(tag)
-                // Both folders answer with the SAME uid — a mix-up would be invisible otherwise.
+                // Both folders answer with the same uid, a mix-up would be invisible otherwise.
                 line.startsWith("UID SEARCH") -> searchResponse(tag, listOf(11L))
                 line.startsWith("UID FETCH") -> fetchResponse(tag, uidsOf(line)) { false }
                 else -> ok(tag)
@@ -81,7 +81,7 @@ class ImapSearchFoldersTest {
     /** A folder with no match contributes nothing and costs no FETCH. */
     @Test
     fun `an empty folder is skipped without a fetch`() {
-        // The SEARCH line does not name a folder — the preceding SELECT does, so the scripted
+        // The SEARCH line does not name a folder, the preceding SELECT does, so the scripted
         // server tracks it, exactly like a real one.
         var selected = ""
         FakeImapServer { tag, line ->
@@ -105,7 +105,9 @@ class ImapSearchFoldersTest {
     }
 
     /**
-     * The cap counts KEPT messages, not examined ones. With one message in ten carrying a file,
+     * The cap counts kept messages, not examined ones. With one message in ten carrying a file,
+     * asking for 5 must walk enough candidates to find 5, not stop at the first batch and
+     * report 5 hits as if that were all there was.
      */
     @Test
     fun `the attachment filter fills the cap instead of truncating the scan`() {
@@ -131,7 +133,7 @@ class ImapSearchFoldersTest {
             assertTrue(messages.all { it.hasAttachment })
             // Newest (highest UID) first, and only multiples of ten survive the filter.
             assertEquals(listOf(300L, 290L, 280L, 270L, 260L), messages.map { it.uid })
-            // It had to look at more than it kept — but in batches, not one message at a time.
+            // It had to look at more than it kept, but in batches, not one message at a time.
             assertTrue("examined $fetched candidates", fetched in 6..100)
             // The cap was filled, so this IS the answer: nothing to warn the counter about.
             assertFalse(hits.single().incomplete)
@@ -194,11 +196,11 @@ class ImapSearchFoldersTest {
         FakeImapServer { tag, line ->
             when {
                 line.startsWith("SELECT") -> selectResponse(tag, exists = 300)
-                // Only a search CARRYING the key gets the short list; anything else gets the
+                // Only a search carrying the key gets the short list; anything else gets the
                 // whole folder, so a dropped key blows the fetch count wide open.
                 line.startsWith("UID SEARCH") ->
                     searchResponse(tag, if ("FLAGGED" in line) flaggedUids else (1L..300L).toList())
-                // Stars only where the server said there were stars — otherwise every message
+                // Stars only where the server said there were stars, otherwise every message
                 // would come back flagged and the assertion below could not fail.
                 line.startsWith("UID FETCH") -> fetchResponse(
                     tag,
@@ -266,14 +268,14 @@ class ImapSearchFoldersTest {
                     limit = 50,
                 ) { mailbox, _ -> failures += mailbox }
             }
-            // The good folder still answers, and the bad one is still in the result — as an empty
+            // The good folder still answers, and the bad one is still in the result, as an empty
             // entry marked incomplete. Dropping it entirely is what let the caller believe it had
             // searched "Broken" and found nothing there.
             assertEquals(listOf("Broken", "INBOX"), hits.map { it.mailbox })
             assertEquals(listOf("Broken"), failures)
             assertTrue(hits.first { it.mailbox == "Broken" }.incomplete)
             assertTrue(hits.first { it.mailbox == "Broken" }.messages.isEmpty())
-            // The witness: a folder that answered normally is NOT marked, or the flag would mean
+            // The witness: a folder that answered normally is not marked, or the flag would mean
             // nothing and every search would call itself partial.
             assertFalse(hits.first { it.mailbox == "INBOX" }.incomplete)
             assertEquals(listOf(4L), hits.first { it.mailbox == "INBOX" }.messages.map { it.uid })

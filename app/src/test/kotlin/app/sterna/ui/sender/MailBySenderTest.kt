@@ -18,12 +18,12 @@ class MailBySenderTest {
     private fun volume(email: String, total: Int, unread: Int = 0) =
         SenderVolume(email = email, name = null, total = total, unread = unread, latest = 0)
 
-    /** The account whose screen this is — one identity and one alias. */
+    /** The account whose screen this is, one identity and one alias. */
     private val own = listOf("alex.rivera@masto.top", "alex@alias.example")
 
     /**
-     * [senderMenuEntries] for an ordinary row — somebody else's address, on this account. The
-     * tests that are ABOUT the address call the decision directly, with theirs.
+     * [senderMenuEntries] for an ordinary row, somebody else's address, on this account. The
+     * tests that are about the address call the decision directly, with theirs.
      */
     private fun menu(
         canDelete: Boolean,
@@ -71,7 +71,7 @@ class MailBySenderTest {
     }
 
     @Test fun `a trash whose parent is missing names nothing`() {
-        // The folder cannot be named with certainty, so nothing is offered — rather than filing
+        // The folder cannot be named with certainty, so nothing is offered, rather than filing
         // future mail somewhere nobody chose.
         val trash = Mailbox(id = "m9", name = "Trash", role = "trash", parentId = "gone")
         assertNull(trashFilePath(listOf(trash)))
@@ -83,7 +83,7 @@ class MailBySenderTest {
         // The delete used to be withheld here (`canDeleteFrom`, now gone): with no bin, deleteAll
         // failed the whole batch. It resolves or creates one now, exactly as the single-message
         val noTrash = listOf(Mailbox(id = "m1", name = "Inbox", role = "inbox"))
-        // A bin the cache cannot name — its parent is missing — which is a perfectly good
+        // A bin the cache cannot name (its parent is missing) which is a perfectly good
         // destination for a move and no path a Sieve script can file into.
         val orphan = listOf(Mailbox(id = "m9", name = "Trash", role = "trash", parentId = "gone"))
         listOf(noTrash, orphan, emptyList()).forEach { folders ->
@@ -143,7 +143,7 @@ class MailBySenderTest {
 
     @Test fun `a read that failed keeps the entry`() {
         // Offline is not "unsupported". Hiding the entry here makes an unreachable server
-        // indistinguishable from an IMAP account — no word, no retry, and the difference is
+        // indistinguishable from an IMAP account, no word, no retry, and the difference is
         // never explained. Tapping it reads again and reports the failure honestly.
         assertTrue(
             "a read that failed is not an unsupported account: hiding the entry makes an " +
@@ -189,15 +189,15 @@ class MailBySenderTest {
 
     @Test fun `while it counts, the screen says it is counting`() {
         // The screen exists for a big cache, so the count is the slow part. Drawing the rows body
-        // over no rows leaves a blank page under a title for the whole scan — no name, no
-        // sentence, no spinner — and drawing the empty body claims the phone holds nothing from
+        // over no rows leaves a blank page under a title for the whole scan, no name, no
+        // sentence, no spinner, and drawing the empty body claims the phone holds nothing from
         // anyone, which is a count nobody has made yet.
         assertEquals(SenderScreenBody.LOADING, screenBody(MailBySenderUiState(loading = true)))
     }
 
     @Test fun `a count that could not be read is not the same as a count of nothing`() {
-        // The read can throw — a corrupt database, a cancelled disk read. Falling through to the
-        // empty body would print "no mail stored on this phone", which is a COUNT, and no count
+        // The read can throw, a corrupt database, a cancelled disk read. Falling through to the
+        // empty body would print "no mail stored on this phone", which is a count, and no count
         // was made. The error body says what happened and offers the read again.
         assertEquals(
             SenderScreenBody.FAILED,
@@ -231,7 +231,7 @@ class MailBySenderTest {
 
     @Test fun `a batch in flight greys the two writing entries out, it does not remove them`() {
         // The defect the greying replaces: with both entries taken away, every tap on the row's
-        // ⋮ during a batch opens an EMPTY 280 dp menu, with no word anywhere on the screen about
+        // ⋮ during a batch opens an empty 280 dp menu, with no word anywhere on the screen about
         // why. A greyed entry says "not now" and keeps the gesture where the finger left it.
         val entries = menu(canDelete = true, canBlock = true, blocked = false, working = true)
         assertEquals(
@@ -252,7 +252,7 @@ class MailBySenderTest {
         // The other half of the distinction, and the reason both cases cannot share a rendering:
         // canDelete/canBlock false mean "this account will never be able to do this" (no Trash,
         // IMAP, no Sieve, another script running). There is nothing to wait for, so there is
-        // nothing to grey out — and an entry that greys out forever reads as a bug.
+        // nothing to grey out, and an entry that greys out forever reads as a bug.
         assertEquals(
             "the search needs nothing of the account and never goes away",
             listOf(SenderAction.SEARCH),
@@ -276,6 +276,9 @@ class MailBySenderTest {
     @Test fun `the row that IS the account does not offer to file the account's own mail away`() {
         // Believed unreachable from this screen and it is not (banc-1.4.8.md § 5.3): the counting
         // query drops Sent, Drafts, Trash and Junk, so a message from oneself filed in an
+        // ordinary folder (sent to oneself, echoed back by a mailing list) is counted like any
+        // other and gets a row. That row was offering "send future mail from me to the Trash",
+        // and on this screen the entry writes at the first tap, with no dialog in between.
         assertEquals(
             "the account's own row keeps the two gestures that are about mail already here, and " +
                 "loses the one that is about mail to come",
@@ -298,7 +301,7 @@ class MailBySenderTest {
 
     @Test fun `a row with no address at all cannot be ruled on either`() {
         // The counting query already drops an empty fromEmail, so this is the belt to that
-        // brace: `FROM :is ""` is a rule about nobody that would sit in the script for ever.
+        // brace: `from :is ""` is a rule about nobody that would sit in the script for ever.
         assertEquals(
             listOf(SenderAction.SEARCH, SenderAction.DELETE),
             senderMenuEntries(true, true, false, false, "", own).map { it.action },
@@ -331,7 +334,7 @@ class MailBySenderTest {
 
     @Test fun `the rule comes before the delete, and the delete is last`() {
         // The aggregate excludes the Trash. Delete first and the sender's total falls to zero,
-        // its ROW DISAPPEARS, and the "never again" gesture — which lives on that row — becomes
+        // its row disappears, and the "never again" gesture (which lives on that row) becomes
         val entries = menu(canDelete = true, canBlock = true, blocked = false, working = false)
         assertEquals(
             "the rule must be offered BEFORE the delete that can take its row away, and the " +
@@ -352,8 +355,7 @@ class MailBySenderTest {
     // -- R2: something to look at, before anything is destroyed ---------------------------------
 
     @Test fun `every row offers to look, first`() {
-        // The most visible gap in the walk-through: one confirms a NUMBER and never a content.
-        // The entry needs nothing of the account — no Trash, no Sieve, no round trip — so it is
+        // The most visible gap in the walk-through: one confirms a number and never a content.
         listOf(true, false).forEach { canDelete ->
             listOf(true, false).forEach { canBlock ->
                 val entries = menu(canDelete, canBlock, blocked = false, working = false)
@@ -376,7 +378,7 @@ class MailBySenderTest {
     @Test fun `the deletion announces what the server confirmed it moved`() {
         // Not the batch that was sent (a partial failure is reported on its own, and counting
         // the whole batch would announce messages that never moved), and not the Undo's targets
-        // either: a message already in the Trash is not moved back, so it is not a target — and
+        // either: a message already in the Trash is not moved back, so it is not a target, and
         // it WAS deleted. Two ids succeed here and only one is restorable.
         val result = MailRepository.BulkResult(succeeded = setOf("a", "b"), failed = setOf("c"))
         assertEquals(2, deletedCount(result))
@@ -400,6 +402,7 @@ class MailBySenderTest {
 
     /**
      * The three cases as `confirmDelete` builds them: the batch it handed over is `ids`, and the
+     * rejected set is the `BulkResult`'s own, including the one it fabricates when `deleteAll`
      */
     private fun said(ids: List<String>, result: MailRepository.BulkResult) =
         deleteMessageRes(ids.size, result.failed.size)
@@ -448,7 +451,7 @@ class MailBySenderTest {
     // -- R4: saying why the rule gesture is missing -------------------------------------------------
 
     @Test fun `only the foreign script gets a note, and it names one`() {
-        // The one "no" that is invisible AND explicable. The other two are the Filters screen's
+        // The one "no" that is invisible and explicable. The other two are the Filters screen's
         // own silences: an IMAP account gets a "not supported" note over there and nothing here,
         // and an account with no nameable Trash is offered nothing rather than told about a
         // folder it does not have.
@@ -464,7 +467,7 @@ class MailBySenderTest {
     @Test fun `each no is told apart from the others`() {
         // The screen used to flatten all three into canBlock = false, which is why none of them
         // could be explained. Turning the holiday responder on activates a `vacation` script and
-        // switches Sterna's off — measured on Stalwart — so FOREIGN_SCRIPT is the common case,
+        // switches Sterna's off (measured on Stalwart) so FOREIGN_SCRIPT is the common case,
         // not the exotic one.
         assertEquals(
             BlockAvailability.FOREIGN_SCRIPT,
@@ -509,7 +512,7 @@ class MailBySenderTest {
     @Test fun `confirming the delete takes the dialog away as it starts the batch`() {
         // Both halves in one assertion because the missing half is invisible in review: a confirm
         // that raises `working` but leaves `pending` set keeps the dialog up over a batch already
-        // on its way, and its button then returns at the `working` guard — a second tap that does
+        // on its way, and its button then returns at the `working` guard, a second tap that does
         // nothing and says nothing, which is the defect this screen was audited for.
         val started = deleteStarted(
             MailBySenderUiState(pending = PendingDelete(volume("a@x", 3), listOf("m1", "m2"))),
@@ -523,7 +526,7 @@ class MailBySenderTest {
     @Test fun `the dialog counts the list it will delete, not the row it came from`() {
         // The row's total was read when the screen loaded; the ids are read when the dialog
         // opens. A message arriving in between makes them differ, and the dialog is the one that
-        // is right — so PendingDelete carries the ids and NOT the row's total, and a dialog that
+        // is right, so PendingDelete carries the ids and not the row's total, and a dialog that
         // cannot reach the stale number cannot print it.
         val row = volume("a@x", total = 3)
         val pending = PendingDelete(row, listOf("m1", "m2", "m3", "m4"))
@@ -531,10 +534,10 @@ class MailBySenderTest {
         assertEquals("a@x", pending.sender.email)
     }
 
-    // -- what the two refusals SAY ------------------------------------------------------------
+    // -- what the two refusals say ------------------------------------------------------------
 
     /**
-     * The two rules above pin WHICH string each refusal shows. Neither of them has ever looked
+     * The two rules above pin which string each refusal shows. Neither of them has ever looked
      */
     @Test fun `both refusals say only what is true in all three causes of the fold`() {
         val strings = englishStrings()
@@ -557,6 +560,7 @@ class MailBySenderTest {
 
     /**
      * `values/strings.xml`, name → text as the app renders it (`\'` is XML escaping, not part of
+     * the sentence).
      */
     private fun englishStrings(): Map<String, String> {
         val res = generateSequence(java.io.File("").absoluteFile) { it.parentFile }

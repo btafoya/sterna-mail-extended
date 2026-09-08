@@ -7,7 +7,7 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 
 /*
- * Emptying a draft the phone kept for a SERVER draft it has not managed to replace yet (#95 × #69),
+ * Emptying a draft the phone kept for a server draft it has not managed to replace yet (#95 × #69),
  * kept out of `ComposeViewModel` so a JVM test can run these decisions. A local row R names its server
  */
 
@@ -19,7 +19,7 @@ data class EmptiedLocalDraftPlan(
     /** The destroy to make durable, or null when nothing may be destroyed. */
     val order: MessageDestroyWorker.FolderDestroy?,
     /**
-     * True when the server copy is deliberately KEPT because this phone never read all of it — and
+     * True when the server copy is deliberately kept because this phone never read all of it, and
      * the screen has to say so, or the app quietly does the opposite of what was asked.
      */
     val tellServerCopyKept: Boolean,
@@ -47,7 +47,8 @@ fun planForEmptiedLocalDraft(
 }
 
 /**
- * Is the copy on the server KEPT by this gesture? Asked twice: the empty-save asks it afterwards to
+ * Is the copy on the server kept by this gesture? Asked twice: the empty-save asks it afterwards to
+ * draft it is taking away, and it is owed twice.
  */
 fun emptiedLocalDraftKeepsServerCopy(
     replacedServerDraftId: String?,
@@ -57,12 +58,13 @@ fun emptiedLocalDraftKeepsServerCopy(
 
 /**
  * Who gets the phone's own draft row back once a DELETION asked for is over (#95 × #127): the row to
+ * to put from `editing` back to `pending`, or null when nobody may have it.
  */
 fun localDraftLeaseAfterDelete(lease: String?, destroyed: Boolean): String? =
     if (destroyed) null else lease
 
 /**
- * Make the destroy of the server draft DURABLE, take it off the phone, say what was kept, and only
+ * Make the destroy of the server draft durable, take it off the phone, say what was kept, and only
  */
 suspend fun destroyThenConsumeEmptiedLocalDraft(
     localDraftId: String,
@@ -72,7 +74,7 @@ suspend fun destroyThenConsumeEmptiedLocalDraft(
     consume: suspend (String) -> Unit,
     tell: suspend () -> Unit,
 ) {
-    // The boundary, read BEFORE the shelter is entered: nothing destroyed yet, so a screen already
+    // The boundary, read before the shelter is entered: nothing destroyed yet, so a screen already
     // gone takes nothing with it and the draft survives on the phone.
     coroutineContext.ensureActive()
     withContext(NonCancellable) {
@@ -86,7 +88,8 @@ suspend fun destroyThenConsumeEmptiedLocalDraft(
 }
 
 /**
- * Whose credentials destroy the SERVER draft a reopened local row stands in front of: the account the
+ * Whose credentials destroy the server draft a reopened local row stands in front of: the account the
+ * the row was leased under ([leasedUnderAccountId]), or null when there is nobody to act for.
  */
 fun <T : Any> credentialsDestroyingReplacedServerDraft(
     leasedUnderAccountId: String?,

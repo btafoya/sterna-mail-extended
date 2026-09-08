@@ -18,7 +18,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * The OCTETS of `Identity/set` (RFC 8621 §6.4), read back from a mock server — never the source
+ * The octets of `Identity/set` (RFC 8621 §6.4), read back from a mock server, never the source
  */
 class CreatedIdentityOnTheWireTest {
 
@@ -75,7 +75,7 @@ class CreatedIdentityOnTheWireTest {
 
         val sent = body()
         assertEquals("i-new", id)
-        // Straight out of methodCalls[0][0], NOT through `call`: that helper selects the entry by
+        // Straight out of methodCalls[0][0], not through `call`: that helper selects the entry by
         // this very name, so asserting the name on its result is an assertion that cannot fail.
         val posted = sent["methodCalls"]!!.jsonArray[0].jsonArray
         assertEquals("Identity/set", posted[0].jsonPrimitive.content)
@@ -129,10 +129,10 @@ class CreatedIdentityOnTheWireTest {
             "message was ${e.message}",
             e.message!!.contains("E-mail address not configured for this account."),
         )
-        // And NOT the address. The screen names the refused address itself, in the user's
+        // And not the address. The screen names the refused address itself, in the user's
         // language (`settings_identity_not_created`), then shows this message beside it: carrying
         // it here too wrote it twice, the second time inside an English fragment shown in eight
-        // translations. Keep this a negative assertion — the duplication came back once already.
+        // translations. Keep this a negative assertion, the duplication came back once already.
         assertFalse("message was ${e.message}", e.message!!.contains("refused.alias@x.test"))
     }
 }

@@ -26,28 +26,28 @@ class RefusedMoveKeepsItsJargonOffTheScreenTest {
         assertTrue("the exception's own text reached the reader: <$text>", JARGON !in text)
     }
 
-    // -- the witnesses: the TEXT of every other failure is untouched ----------------------------
+    // -- the witnesses: the text of every other failure is untouched ----------------------------
 
     @Test fun `every other failure keeps the text it already showed`() {
         // The witness without which "report everything as status_action_failed" would pass: a
-        // dead network is what a bug report is made of, and it is not touched — on either surface.
+        // dead network is what a bug report is made of, and it is not touched, on either surface.
         // The reader now shows this transiently instead of replacing the message with it. The
-        // WORDS are what this witness holds; the surface moved on purpose, and only there.
+        // words are what this witness holds; the surface moved on purpose, and only there.
         val offline = IOException("""Unable to resolve host "imap.example.test"""")
         assertEquals("""Unable to resolve host "imap.example.test"""", readerActionFailureText(offline, ::named))
     }
 
     @Test fun `a move the server answered NO to keeps its echoed command`() {
         // The case this branch made frequent (07d2abd7): a failed UID MOVE is no longer answered
-        // with a destructive copy, it comes up here — carrying the command ImapClient echoes back.
-        // It is NOT a numbering refusal, so its text must survive whole; only the reader's surface
+        // with a destructive copy, it comes up here, carrying the command ImapClient echoes back.
+        // It is not a numbering refusal, so its text must survive whole; only the reader's surface
         // changed, and that is what kept "Could not load message: UID MOVE …" off the screen.
         val no = IOException("""UID MOVE 1234 "Junk" failed: NO [OVERQUOTA] Quota exceeded""")
         assertEquals("""UID MOVE 1234 "Junk" failed: NO [OVERQUOTA] Quota exceeded""", readerActionFailureText(no, ::named))
     }
 
     @Test fun `a failure carrying no text keeps the fallback it already had`() {
-        // Naming the class is what THIS site always did, and it is kept for that reason alone —
+        // Naming the class is what THIS site always did, and it is kept for that reason alone,
         // not to mirror the list, whose own answer is a resource for every failure and never a
         // fallback at all (`actionFailureMessage`). The two are no longer a pair.
         assertEquals("IOException", readerActionFailureText(IOException(), ::named))
@@ -63,7 +63,8 @@ class RefusedMoveKeepsItsJargonOffTheScreenTest {
     // -- the wiring, which nothing executable can reach -----------------------------------------
 
     /**
-     * SOURCE RULE — the reader's site, where the leak was worse: `MessageState.Error` REPLACES the
+     * Source rule, the reader's site, where the leak was worse: `MessageState.Error` replaces the
+     * open message with "Could not load message: <text>", over a message that had loaded fine.
      */
     @Test fun `the reader's actions never replace the message being read`() {
         val body = body(MESSAGE_VIEW_MODEL, "act")
@@ -97,7 +98,7 @@ class RefusedMoveKeepsItsJargonOffTheScreenTest {
     }
 
     /**
-     * SOURCE RULE — the clear, whose BODY nothing else watches.
+     * Source rule, the clear, whose body nothing else watches.
      */
     @Test fun `the transient word is really cleared, not merely cleared on paper`() {
         assertEquals(
@@ -109,7 +110,7 @@ class RefusedMoveKeepsItsJargonOffTheScreenTest {
     }
 
     /**
-     * SOURCE RULE — the channel is drawn, AND WHERE. A transient flow nobody collects is a refusal
+     * Source rule, the channel is drawn, and where. A transient flow nobody collects is a refusal
      */
     @Test fun `the reader draws the transient word where it survives the tap`() {
         val lines = codeLines(MESSAGE_SCREEN)
@@ -183,7 +184,7 @@ class RefusedMoveKeepsItsJargonOffTheScreenTest {
     }
 
     /** The declaration of `fun`/`val` [name] in [file] and its body, as text. Fails loudly when
-     *  the declaration is not found — a rename must break these rules, not satisfy them silently
+     *  the declaration is not found, a rename must break these rules, not satisfy them silently
      *  against an empty string. */
     private fun body(file: File, name: String): String {
         val lines = codeLines(file)
@@ -207,7 +208,7 @@ class RefusedMoveKeepsItsJargonOffTheScreenTest {
 
     private fun String.indentWidth() = length - trimStart().length
 
-    /** A string resource, as this test names them: the id itself, so an assertion pins WHICH
+    /** A string resource, as this test names them: the id itself, so an assertion pins which
      *  string was picked and not merely that one was. */
     private fun named(res: Int): String = "string:$res"
 

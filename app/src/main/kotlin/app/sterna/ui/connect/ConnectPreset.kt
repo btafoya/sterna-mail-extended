@@ -25,8 +25,8 @@ internal data class MailProvider(
 
 internal val MAIL_PROVIDERS = listOf(
     MailProvider("Gmail", "imap.gmail.com", "993", ConnectionSecurity.TLS, "smtp.gmail.com", "465", ConnectionSecurity.TLS, appPasswordUrl = "https://myaccount.google.com/apppasswords"),
-    // Outlook authenticates over IMAP/SMTP with OAuth (XOAUTH2) — Microsoft has disabled
-    // password IMAP — so this chip launches the OAuth flow rather than filling host/port.
+    // Outlook authenticates over IMAP/SMTP with OAuth (XOAUTH2), Microsoft has disabled
+    // password IMAP, so this chip launches the OAuth flow rather than filling host/port.
     MailProvider("Outlook", "outlook.office365.com", "993", ConnectionSecurity.TLS, "smtp.office365.com", "587", ConnectionSecurity.STARTTLS, oauth = true),
     MailProvider("Yahoo", "imap.mail.yahoo.com", "993", ConnectionSecurity.TLS, "smtp.mail.yahoo.com", "465", ConnectionSecurity.TLS),
     MailProvider("iCloud", "imap.mail.me.com", "993", ConnectionSecurity.TLS, "smtp.mail.me.com", "587", ConnectionSecurity.STARTTLS),
@@ -39,7 +39,7 @@ internal val MAIL_PROVIDERS = listOf(
     MailProvider("Proton Bridge", "127.0.0.1", "1143", ConnectionSecurity.STARTTLS, "127.0.0.1", "1025", ConnectionSecurity.STARTTLS),
 )
 
-/** The quick-setup state of the form: the selected provider (by name — chips are brand labels,
+/** The quick-setup state of the form: the selected provider (by name, chips are brand labels,
  *  never translated) plus the values it put in the server fields. */
 internal data class PresetForm(
     val selected: String? = null,
@@ -57,8 +57,8 @@ internal data class PresetForm(
      *  imap.x.tld here" and "she typed it" are the same non-blank string ([presetForAddress]). */
     val discoveredFor: String? = null,
 ) {
-    /** Whether the manual server block is on screen. Hidden under OAuth on purpose — host, port and
-     *  security mean nothing to XOAUTH2 — which was only safe once the chip could be disarmed. */
+    /** Whether the manual server block is on screen. Hidden under OAuth on purpose, host, port and
+     *  security mean nothing to XOAUTH2, which was only safe once the chip could be disarmed. */
     val serverFieldsVisible: Boolean get() = !oauth
 
     companion object {
@@ -198,7 +198,7 @@ internal fun stepToRender(
     }
 
 /** Where Back goes from [current]: the later steps return to the address, and Back from the address
- *  leaves the screen — `null`, said here rather than guessed at the call site. */
+ *  leaves the screen, `null`, said here rather than guessed at the call site. */
 internal fun stepBack(current: ConnectStep): ConnectStep? =
     if (current == ConnectStep.ADDRESS) null else ConnectStep.ADDRESS
 
@@ -220,7 +220,7 @@ internal fun shouldDiscoverImapSettings(
     isValidEmail(email) &&
     online
 
-/** The discovered settings written into the form — per side, atomically, so a hand-typed host is
+/** The discovered settings written into the form, per side, atomically, so a hand-typed host is
  *  never overwritten and never has a discovered port slid under it. The verdict's username is
  *  applied nowhere: the address field keeps what she typed (WYSIWYG). */
 internal fun presetFilledWith(

@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The unified unread total, BROKEN DOWN per account — the number a large widget cell shows one
+ * The unified unread total, broken down per account, the number a large widget cell shows one
  */
 class UnifiedUnreadByAccountTest {
 
@@ -14,7 +14,7 @@ class UnifiedUnreadByAccountTest {
     private fun imapOnly(vararg ids: String): (String) -> Boolean = { it in ids }
 
     /**
-     * Codeberg #121, executed. Two accounts on the same server are routinely handed the SAME
+     * Codeberg #121, executed. Two accounts on the same server are routinely handed the same
      */
     @Test fun `two accounts sharing a mailbox id each get their own number`() {
         val counts = unreadByAccountFrom(
@@ -36,7 +36,7 @@ class UnifiedUnreadByAccountTest {
     }
 
     /**
-     * The OTHER half of the same guard, and it had no witness at all: every other case here hands
+     * The other half of the same guard, and it had no witness at all: every other case here hands
      */
     @Test fun `an account's line is its inbox, not whichever folder Room listed first`() {
         val counts = unreadByAccountFrom(
@@ -58,14 +58,16 @@ class UnifiedUnreadByAccountTest {
     }
 
     /**
-     * The two halves of the app side by side. A JMAP inbox contributes the live Room aggregate —
+     * The two halves of the app side by side. A JMAP inbox contributes the live Room aggregate,
+     * the same one its drawer badge shows; an IMAP inbox the stored server counter, since its
+     * cache is a window and counting its rows would under-count silently.
      */
     @Test fun `an IMAP account contributes its stored counter, a JMAP account its live aggregate`() {
         val counts = unreadByAccountFrom(
             scopes = listOf("imap" to "INBOX", "jmap" to "inbox-1"),
             live = listOf(
                 MailboxUnread(accountId = "jmap", mailboxId = "inbox-1", count = 6),
-                // What the IMAP account's windowed cache holds — deliberately NOT its number.
+                // What the IMAP account's windowed cache holds, deliberately not its number.
                 MailboxUnread(accountId = "imap", mailboxId = "INBOX", count = 1),
             ),
             isImap = imapOnly("imap"),
@@ -81,7 +83,7 @@ class UnifiedUnreadByAccountTest {
     }
 
     /**
-     * An account with no inbox is ABSENT, never an entry worth 0. `UnifiedInbox.countedInboxes`
+     * An account with no inbox is absent, never an entry worth 0. `UnifiedInbox.countedInboxes`
      */
     @Test fun `an account that is not in the scopes is absent, not a zero`() {
         val counts = unreadByAccountFrom(
@@ -100,7 +102,7 @@ class UnifiedUnreadByAccountTest {
         assertEquals("and the map holds exactly the scoped accounts", 1, counts.size)
     }
 
-    /** A JMAP inbox Room has never aggregated is 0 — cached nothing, so nothing unread to show. */
+    /** A JMAP inbox Room has never aggregated is 0, cached nothing, so nothing unread to show. */
     @Test fun `a scoped inbox missing from the live aggregate counts zero`() {
         val counts = unreadByAccountFrom(
             scopes = listOf("a" to "ia"),
@@ -113,7 +115,8 @@ class UnifiedUnreadByAccountTest {
     }
 
     /**
-     * WHOLE LINES, never a `contains`: a substring rule is satisfied by every mutation that
+     * Whole lines, never a `contains`: a substring rule is satisfied by every mutation that
+     * LENGTHENS the line. This is the one claim the tests above cannot execute, `MailRepository`
      */
     @Test fun `the repository hands the decision the mode-appropriate aggregate and the store`() {
         val source = SourceText.read(

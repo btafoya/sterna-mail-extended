@@ -7,7 +7,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 
 /**
- * Sterna Mail's brand palette — the Arctic tern: a calm, cold base. The primary action colour is a
+ * Sterna Mail's brand palette, the Arctic tern: a calm, cold base. The primary action colour is a
+ * navy-teal). The primary action colour is a desaturated sea teal (not coral):
  */
 
 // --- Primary action: desaturated sea teal ---
@@ -106,7 +107,7 @@ val PelagicColorScheme = darkColorScheme(
 private const val PureBlackPull = 0.2f
 
 /**
- * The OLED variant of a DARK scheme: the page itself becomes true black — the pixels an OLED panel
+ * The OLED variant of a dark scheme: the page itself becomes true black, the pixels an OLED panel
  */
 internal fun ColorScheme.pulledToBlack(): ColorScheme = copy(
     background = Color.Black,

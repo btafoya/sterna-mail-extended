@@ -12,7 +12,7 @@ object AutocryptHeader {
     private const val LINE_LIMIT = 998
 
         /**
-         * [value] with `"\r\n "` inserted as often as RFC 5322 §2.1.1 requires, and no more — returned
+         * [value] with `"\r\n "` inserted as often as RFC 5322 §2.1.1 requires, and no more, returned
          */
     fun fold(value: String): String {
         val firstBudget = LINE_LIMIT - (NAME.length + 2) // "Autocrypt: "

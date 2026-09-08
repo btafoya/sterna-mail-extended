@@ -5,7 +5,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, same instrument and disclaimer as [CollapsedFoldersStoreWiringTest]: it reads
+ * Source lint, same instrument and disclaimer as [CollapsedFoldersStoreWiringTest]: it reads
  */
 class LinkedAccountMemoryStoreWiringTest {
 
@@ -67,7 +67,7 @@ class LinkedAccountMemoryStoreWiringTest {
     }
 
     /**
-     * The THIRD removal path, pinned like its sibling. `remove(id)` is what `dismissImport`
+     * The third removal path, pinned like its sibling. `remove(id)` is what `dismissImport`
      */
     @Test fun `remove forgets what it removes too, on the third removal path`() {
         assertEquals(
@@ -123,7 +123,11 @@ class LinkedAccountMemoryStoreWiringTest {
     }
 
     /**
-     * The write, pinned as hard as the read, and pinned for what it does NOT do: it writes its
+     * The write, pinned as hard as the read, and pinned for what it does not do: it writes its
+     * own key directly and never goes through [AccountBlobGate]. The gate exists to protect the
+     * account LIST; routing a comfort blob through it would let a memory that failed to decode
+     * refuse the write of `KEY_ACCOUNTS`, a convenience feature taking the user's accounts down
+     * with it. The `runCatching` is the other half of the same rule.
      */
     @Test fun `the memory is written outside the account blob's gate, and cannot throw`() {
         assertEquals(
@@ -145,7 +149,11 @@ class LinkedAccountMemoryStoreWiringTest {
     }
 
     /**
-     * [count] consecutive CODE lines of `AccountStore.kt` from the single one starting with
+     * [count] consecutive code lines of `AccountStore.kt` from the single one starting with
+     * [prefix], [before] lines earlier when the annotation above it is part of the rule. Comments
+     * and blank lines are dropped first, so no rule can be satisfied by prose; a prefix matching
+     * anything other than exactly one line returns a message, so an assertion never passes by
+     * matching nothing.
      */
     private fun block(prefix: String, count: Int, before: Int = 0, path: String = ACCOUNT_STORE): List<String> {
         val code = codeLines(path)

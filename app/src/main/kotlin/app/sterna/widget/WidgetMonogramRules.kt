@@ -7,7 +7,8 @@ import app.sterna.ui.components.monogramColor
 import app.sterna.ui.components.onAccentColor
 
 /**
- * The two decisions behind a widget badge, WITHOUT a single Android type — which is the point of the
+ * The two decisions behind a widget badge, without a single Android type, which is the point of the
+ * of the file.
  */
 
 /**
@@ -17,11 +18,13 @@ internal fun widgetMonogramArgb(monogram: RecentRowMonogram, ramps: List<ToneRam
     monogramColor(monogram.slot, ramps).toArgb()
 
 /**
- * The colour of the LETTER on a disc of [discArgb] — black or white by WCAG luminance, exactly as
+ * The colour of the LETTER on a disc of [discArgb], black or white by WCAG luminance, exactly as
+ * the in-app badge picks it ([onAccentColor]).
  */
 internal fun widgetMonogramLetterArgb(discArgb: Int): Int = onAccentColor(Color(discArgb)).toArgb()
 
 /**
- * What makes two badges THE SAME cached bitmap: the letter, the RESOLVED colour, and the side in
+ * What makes two badges the same cached bitmap: the letter, the resolved colour, and the side in
+ * pixels.
  */
 internal fun widgetMonogramKey(initial: String, argb: Int, side: Int): String = "$initial|$argb|$side"

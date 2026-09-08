@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [AutocryptHeader.fold], executed — the one piece of this volet that **no bench can measure**.
+ * [AutocryptHeader.fold], executed, the one piece of this volet that **no bench can measure**.
  */
 class AutocryptHeaderFoldTest {
 
@@ -91,7 +91,7 @@ class AutocryptHeaderFoldTest {
 
     @Test fun `the budget is octets, not characters`() {
         // An address is allowed non-ASCII (RFC 6532). Counting characters would let a line of
-        // 987 two-octet characters out at nearly 2 000 octets — legal-looking, and refused.
+        // 987 two-octet characters out at nearly 2 000 octets, legal-looking, and refused.
         val value = "é".repeat(900) + AutocryptKeys.ED25519
         headerLines(value).forEach { assertTrue("line of ${it.octets()} octets", it.octets() <= 998) }
         assertEquals(value, AutocryptHeader.fold(value).replace("\r\n ", ""))

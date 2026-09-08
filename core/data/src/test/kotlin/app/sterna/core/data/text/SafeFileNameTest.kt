@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Executes [safeFileName] against pairs written by hand — never by re-running the rule. What it
+ * Executes [safeFileName] against pairs written by hand, never by re-running the rule.
  */
 class SafeFileNameTest {
 

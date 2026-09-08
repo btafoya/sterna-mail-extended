@@ -4,6 +4,7 @@ import kotlinx.coroutines.CancellationException
 
 /**
  * [Result.getOrElse] for suspending work: `runCatching` treats [CancellationException] as an
+ * cancellation is re-thrown untouched.
  */
 inline fun <R, T : R> Result<T>.getOrElseUnlessCancelled(onFailure: (Throwable) -> R): R {
     val error = exceptionOrNull() ?: return getOrThrow()

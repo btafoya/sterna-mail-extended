@@ -7,12 +7,12 @@ import org.junit.Test
 import java.io.File
 
 /**
- * RESOURCE LINT. It reads the string resources as text, in all nine languages, and checks the two
+ * Resource lint. It reads the string resources as text, in all nine languages, and checks the two
  */
 class SenderVolumeCopyTest {
 
     /**
-     * The "already handled" entry may not say WHERE the mail goes.
+     * The "already handled" entry may not say where the mail goes.
      */
     @Test fun `the already-handled label does not name a destination folder`() {
         val offenders = locales().mapNotNull { dir ->
@@ -33,7 +33,7 @@ class SenderVolumeCopyTest {
     }
 
     /**
-     * The delete dialog and the header sentence must name the folders the DELIVERED clause
+     * The delete dialog and the header sentence must name the folders the delivered clause
      */
     @Test fun `both sentences name exactly the folders the delivered clause excludes`() {
         val expectedKeys = excludedFolderKeys()
@@ -59,13 +59,13 @@ class SenderVolumeCopyTest {
     }
 
     /**
-     * If the clause leaves snoozed mail out — it does — both sentences must say so.
+     * If the clause leaves snoozed mail out (it does) both sentences must say so.
      */
     @Test fun `the sentences mention snoozed mail exactly when the clause leaves it out`() {
         val excluded = "snoozed" in SENDER_VOLUME_SCOPE_SQL
         val offenders = locales().mapNotNull { dir ->
             val strings = stringsOf(dir)
-            // The app's own word for it, in this locale — the label of the list these messages
+            // The app's own word for it, in this locale, the label of the list these messages
             // are waiting in.
             val snoozed = strings.getValue("inbox_snoozed").lowercase()
             val silent = listOf("sender_volume_scope", "sender_volume_delete_body")
@@ -82,7 +82,7 @@ class SenderVolumeCopyTest {
     }
 
     /**
-     * The header's number counts ONE account, so its sentence has to say so.
+     * The header's number counts one account, so its sentence has to say so.
      */
     @Test fun `the cached count says the account is its scope`() {
         val offenders = locales().mapNotNull { dir ->
@@ -134,7 +134,7 @@ class SenderVolumeCopyTest {
             .associate { it.groupValues[1] to it.groupValues[2] }
 
     /**
-     * The string keys for the roles the DELIVERED clause excludes, read out of the clause.
+     * The string keys for the roles the delivered clause excludes, read out of the clause.
      */
     private fun excludedFolderKeys(): List<String> {
         val roles = Regex("""NOT IN \(([^)]*)\)""").find(SENDER_VOLUME_SCOPE_SQL)?.groupValues?.get(1)
@@ -162,8 +162,8 @@ class SenderVolumeCopyTest {
             "spam" to "folder_junk",
         )
 
-        /** Every folder the clause could name, spared or swept — so a sentence that names one it
-         *  does NOT spare is caught too. */
+        /** Every folder the clause could name, spared or swept, so a sentence that names one it
+         *  does not spare is caught too. */
         val FOLDER_LABEL_KEYS = listOf(
             "folder_inbox", "folder_archive", "folder_drafts", "folder_sent", "folder_junk", "folder_trash",
         )

@@ -9,14 +9,14 @@ import org.junit.Test
 import java.io.File
 
 /**
- * A fallback poll cycle that fetched nothing — or fetched an account without its inbox — must say
+ * A fallback poll cycle that fetched nothing (or fetched an account without its inbox) must say
  */
 class FallbackPollSaysWhatItSkippedTest {
 
     // --- an empty cycle: three failures and one choice, four sentences ---------------------------
     //
-    // The promise of the whole volet is here. `watched` is already the output of two SILENT filters
-    // — an unreadable blob makes AccountStore.accounts() answer an empty list, and allCredentials()
+    // The promise of the whole volet is here. `watched` is already the output of two silent filters,
+    // an unreadable blob makes AccountStore.accounts() answer an empty list, and allCredentials()
 
     /** The failure the blob gate knows about. It must not read as "this phone has no account". */
     @Test fun `an unreadable account blob is not reported as an empty install`() {
@@ -28,7 +28,7 @@ class FallbackPollSaysWhatItSkippedTest {
     }
 
     /**
-     * ORDER, and it is the whole reason the unreadable verdict is asked first: an unreadable blob
+     * Order, and it is the whole reason the unreadable verdict is asked first: an unreadable blob
      */
     @Test fun `the unreadable verdict wins over the empty count it also produces`() {
         assertNotEquals(
@@ -51,7 +51,7 @@ class FallbackPollSaysWhatItSkippedTest {
     }
 
     /**
-     * The third case, and the one no count could show before: accounts ARE stored, and not one
+     * The third case, and the one no count could show before: accounts are stored, and not one
      */
     @Test fun `stored accounts with no credentials read as a failure, not as a choice`() {
         assertEquals(
@@ -71,6 +71,8 @@ class FallbackPollSaysWhatItSkippedTest {
 
     /**
      * The four outcomes must be four sentences. Collapsing any two of them puts a failure and a
+     * choice (or a failure and an empty phone) behind the same words, which is the defect this
+     * volet exists for.
      */
     @Test fun `the four empty-cycle outcomes print four different sentences`() {
         val lines = listOf(
@@ -82,7 +84,7 @@ class FallbackPollSaysWhatItSkippedTest {
         assertEquals("two empty-cycle outcomes print the same sentence: $lines", 4, lines.toSet().size)
     }
 
-    // --- the per-account skips: what the code KNOWS, not what it hopes ---------------------------
+    // --- the per-account skips: what the code knows, not what it hopes ---------------------------
 
     /**
      * The JMAP case the `continue` is widest for: the account is skipped whole even with folders
@@ -106,7 +108,7 @@ class FallbackPollSaysWhatItSkippedTest {
 
     /**
      * The half-skip, IMAP: the fetch runs, and the INBOX is not in it. Until this line the trace was
-     * a successful fetch — the friendliest possible mark for a missed inbox.
+     * a successful fetch, the friendliest possible mark for a missed inbox.
      */
     @Test fun `an unfetched inbox says so even though the fetch ran`() {
         assertEquals(
@@ -158,6 +160,9 @@ class FallbackPollSaysWhatItSkippedTest {
 
     /**
      * Five sentences now share the worker's and the service's logcat, and none may be read as
+     * another: an arm that stopped the service, a cycle that polled nothing, a cycle that polled
+     * nothing because the storage failed, an account skipped whole, an account fetched without its
+     * inbox. Same account and same counts throughout, so only the wording can carry the difference.
      */
     @Test fun `none of the silent outcomes print the same sentence`() {
         val lines = listOf(
@@ -170,17 +175,17 @@ class FallbackPollSaysWhatItSkippedTest {
         assertEquals("two of the silent-outcome lines print the same sentence: $lines", 5, lines.toSet().size)
     }
 
-    // --- SOURCE RULE: the call sites, read whole ------------------------------------------------
+    // --- source rule: the call sites, read whole ------------------------------------------------
     //
     // Weakest tests of the file, and the reason is in the class KDoc: doWork cannot be run here.
-    // Whole statements, in order, never a substring — a `contains` check is blind to anything
+    // Whole statements, in order, never a substring, a `contains` check is blind to anything
     //
     // `Log.i`, never `Log.d`/`Log.v`: proguard-rules.pro strips those in the release build reporters
     // run. No Throwable argument either: a skip is a fact the app already knows, and Log's cause
     // chain prints the server and device IPs of an OkHttp ConnectException.
 
     /**
-     * The head of `doWork`, pinned as far as the loop. Four things ride on this window and each was
+     * The head of `doWork`, pinned as far as the loop.
      */
     @Test fun `an empty cycle names its cause, after reconciling the distributor`() {
         assertEquals(
@@ -268,7 +273,7 @@ class FallbackPollSaysWhatItSkippedTest {
     }
 
     /**
-     * The volet adds lines and nothing else. Every exit of `doWork` is a plain success — the early
+     * The volet adds lines and nothing else. Every exit of `doWork` is a plain success, the early
      */
     @Test fun `every exit of the worker is still a plain success, with both fetch calls intact`() {
         val statements = doWorkStatements()

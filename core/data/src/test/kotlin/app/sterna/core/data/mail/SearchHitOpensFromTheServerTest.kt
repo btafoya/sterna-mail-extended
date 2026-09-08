@@ -15,7 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * **A hit of a SERVER-side search opens** (#159), which until now it did not: the folder it lives
+ * **A hit of a server-side search opens** (#159), which until now it did not: the folder it lives
  */
 class SearchHitOpensFromTheServerTest {
 
@@ -34,8 +34,8 @@ class SearchHitOpensFromTheServerTest {
     }
 
     @Test fun aFolderWhoseNameHoldsColonsIsNotTruncated() {
-        // The id's own separator inside the folder name. Splitting on the FIRST ':' after the
-        // account, or on the last two, gives "INBOX" or "2024" here — a SELECT of a folder that
+        // The id's own separator inside the folder name. Splitting on the first ':' after the
+        // account, or on the last two, gives "INBOX" or "2024" here, a SELECT of a folder that
         // either does not exist or is somebody else's.
         assertEquals(
             "everything between the account and the trailing uid is the path, colons included",
@@ -73,9 +73,9 @@ class SearchHitOpensFromTheServerTest {
 
     @Test(timeout = 30_000)
     fun `the fetch selects the folder the id names and asks for the uid the id names`() {
-        // Not "a SELECT happened": WHICH folder and WHICH uid. Swap the two arguments at the
-        // declaration of the fetch and it still compiles — the SELECT would then name "4242" and
-        // the FETCH the folder — so the command lines the server RECEIVED are what is compared.
+        // Not "a SELECT happened": which folder and which uid. Swap the two arguments at the
+        // declaration of the fetch and it still compiles, the SELECT would then name "4242" and
+        // the FETCH the folder, so the command lines the server received are what is compared.
         folderHolding(uid = UID).use { server ->
             val entity = runBlocking { service().fetchById(credentials(server), ID) }
                 ?: error("the folder holds UID $UID; the fetch must bring its envelope back")
@@ -117,10 +117,10 @@ class SearchHitOpensFromTheServerTest {
 
     @Test(timeout = 30_000)
     fun `an id belonging to another account is refused before a single packet`() {
-        // THE partition, and it is load-bearing precisely because the cache read this fetch
+        // The partition, and it is load-bearing precisely because the cache read this fetch
         // stands in for carried it: `emailsByIds(credentials.id, …)` finds nothing for another
         //
-        // Reachable without contrivance: MessageViewModel opens with the CURRENT account whenever
+        // Reachable without contrivance: MessageViewModel opens with the current account whenever
         // the intent carries no account id, which is what a notification without
         // EXTRA_OPEN_ACCOUNT_ID gives it.
         folderHolding(uid = UID).use { server ->
@@ -159,13 +159,13 @@ class SearchHitOpensFromTheServerTest {
 
     @Test(timeout = 30_000)
     fun `a folder the server has renumbered refuses the fetch instead of answering a message`() {
-        // THE guard of #99, which is exactly why this fetch goes through `fetchByUid` and its
+        // The guard of #99, which is exactly why this fetch goes through `fetchByUid` and its
         // `onMailbox` rather than a bare session + SELECT. A UID belongs to a numbering: under a
-        // new UIDVALIDITY the same number names a DIFFERENT message, and handing it to the reader
+        // new UIDVALIDITY the same number names a different message, and handing it to the reader
         // shows one person's mail under another's header.
         //
-        // What this proves, exactly: the fixture PRELOADS the numbering (9), so the guard has
-        // something to compare against. #159's own case does NOT reach that state — the folder of
+        // What this proves, exactly: the fixture preloads the numbering (9), so the guard has
+        // something to compare against.
         val numbering = RememberedNumbering().apply { numbers["$ACCOUNT/$FOLDER"] = 9L }
         ScriptedImapServer { tag, line ->
             when {
@@ -192,10 +192,10 @@ class SearchHitOpensFromTheServerTest {
         }
     }
 
-    // ---- 4. the shape of openEmailImap — source text, the last resort ----------------------------
+    // ---- 4. the shape of openEmailImap, source text, the last resort ----------------------------
 
     /**
-     * THIS PART READS SOURCE TEXT, for [DraftReceiptWiringTest]'s reason and with its rules:
+     * This part reads source text, for [DraftReceiptWiringTest]'s reason and with its rules:
      */
     private fun openBody(): String = DaoQuerySource.mailFunctionBody("MailRepository", "openEmailImap")
 
@@ -211,8 +211,8 @@ class SearchHitOpensFromTheServerTest {
         codeLines(body).filter { needle in it }
 
     @Test fun theFirstThingTheOpenDoesIsRefuseAnIdThatIsNotAnImapMessage() {
-        // THE half that matters is the POSITION. This guard used to be third, and what stopped a
-        // `local-draft:` id from reaching the server was the cache miss above it — which now goes
+        // The half that matters is the position. This guard used to be third, and what stopped a
+        // `local-draft:` id from reaching the server was the cache miss above it, which now goes
         assertEquals(
             "the uid guard must be the FIRST code line of openEmailImap: " +
                 codeLines(openBody()).take(3),
@@ -247,7 +247,7 @@ class SearchHitOpensFromTheServerTest {
     }
 
     @Test fun theServerIsAskedWhenTheCacheHasNothingAndOnlyThen() {
-        // The CONDITION, which the three assertions above cannot see: they pin the call, the
+        // The condition, which the three assertions above cannot see: they pin the call, the
         // cache read and the absence of the old message, and every one of them survives
         assertEquals(
             "the server is the fallback for a cache MISS, never the first stop nor the answer to " +
@@ -258,7 +258,7 @@ class SearchHitOpensFromTheServerTest {
     }
 
     @Test fun openingAMessageFilesNoRowInTheEmailsTable() {
-        // We go and GET the envelope to show it; we do not file it. A row of a folder that was
+        // We go and get the envelope to show it; we do not file it. A row of a folder that was
         // never synced would be exposed to the next `reconcileMailbox` (which deletes what its walk
         val body = openBody()
         assertEquals(
@@ -271,7 +271,7 @@ class SearchHitOpensFromTheServerTest {
 
     // ---- the harness -----------------------------------------------------------------------------
 
-    /** A server whose [FOLDER] holds exactly [uid], under UIDVALIDITY 9. */
+    /** A server whose [folder] holds exactly [uid], under UIDVALIDITY 9. */
     private fun folderHolding(uid: Long) = ScriptedImapServer { tag, line ->
         when {
             line.startsWith("LOGIN") -> "$tag OK logged in\r\n"
@@ -325,13 +325,16 @@ class SearchHitOpensFromTheServerTest {
     private companion object {
         const val ACCOUNT = "acc1"
 
-        /** A folder a server-side search can hit and a sync has never walked — #159's whole case. */
+        /** A folder a server-side search can hit and a sync has never walked, #159's whole case. */
         const val FOLDER = "Archive/2024"
         const val UID = 4242L
         const val ID = "imap:acc1:Archive/2024:4242"
 
         /**
-         * An [OAuthTokenRefresher] that is never used and cannot be built — the same trick, and for
+         * An [OAuthTokenRefresher] that is never used and cannot be built, the same trick, and for
+         * the same reason, as [ImapDraftAppendGoesOutOnceTest]'s: the real service is required, it
+         * needs a refresher, and a refresher needs an Android `Context`. `freshAccessToken` returns
+         * at `credentials.oauth ?: return null` for a password account, so no field is ever read.
          */
         fun unusedTokenRefresher(): OAuthTokenRefresher {
             val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")

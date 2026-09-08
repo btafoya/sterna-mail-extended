@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * A destruction may only touch a line that is STILL THE LINE THAT WAS TICKED (Codeberg #99).
+ * A destruction may only touch a line that is still the line that was ticked (Codeberg #99).
  */
 class DestroyOnlyWhatWasTickedTest {
 
@@ -19,7 +19,7 @@ class DestroyOnlyWhatWasTickedTest {
         )
 
     /**
-     * THE DEFECT. The row was ticked while it belonged to numbering 42; it now belongs to 77, so
+     * The defect. The row was ticked while it belonged to numbering 42; it now belongs to 77, so
      * the envelope on screen is not the one that was ticked and the destroy may not have it.
      */
     @Test fun `a row whose numbering changed since the tick is not destroyed`() {
@@ -34,7 +34,7 @@ class DestroyOnlyWhatWasTickedTest {
     }
 
     /**
-     * THE INVERSE WITNESS, and it is not optional: without it "refuse everything" satisfies the
+     * The inverse witness, and it is not optional: without it "refuse everything" satisfies the
      * test above and no IMAP permanent delete ever goes through again.
      */
     @Test fun `a row still under the numbering it was ticked under is destroyed`() {
@@ -44,7 +44,7 @@ class DestroyOnlyWhatWasTickedTest {
     }
 
     /**
-     * G4, the expensive half. `uidValidity` is null on EVERY JMAP row, and a row evicted from
+     * G4, the expensive half.
      */
     @Test fun `an absent stamp passes, on either side and on both`() {
         val split = split(
@@ -61,7 +61,7 @@ class DestroyOnlyWhatWasTickedTest {
         assertEquals(emptyList<String>(), split.drifted.map { it.id })
     }
 
-    /** A mixed wave, cut in the middle, both halves in arrival order — `drifted` goes back into the
+    /** A mixed wave, cut in the middle, both halves in arrival order, `drifted` goes back into the
      *  selection and back on the screen, so its order is what the user sees. */
     @Test fun `a mixed wave is cut correctly and both halves keep the input order`() {
         val split = split(
@@ -77,7 +77,7 @@ class DestroyOnlyWhatWasTickedTest {
         assertEquals(listOf("d1", "d2", "d3"), split.drifted.map { it.id })
     }
 
-    /** The direction of the change says nothing: a numbering that went DOWN is still a numbering
+    /** The direction of the change says nothing: a numbering that went down is still a numbering
      *  the line did not have when it was ticked. */
     @Test fun `a numbering that went down is a drift too`() {
         val split = split(Row("down", ticked = 77L, now = 42L))
@@ -85,7 +85,7 @@ class DestroyOnlyWhatWasTickedTest {
         assertEquals(listOf("down"), split.drifted.map { it.id })
     }
 
-    /** Nothing in, nothing out — the ordinary shape of a delete with no destroy leg at all. */
+    /** Nothing in, nothing out, the ordinary shape of a delete with no destroy leg at all. */
     @Test fun `an empty wave splits into two empty halves`() {
         val split = split()
         assertEquals(emptyList<String>(), split.kept.map { it.id })

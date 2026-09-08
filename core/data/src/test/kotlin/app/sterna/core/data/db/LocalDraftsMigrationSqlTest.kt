@@ -14,6 +14,7 @@ import java.sql.SQLException
 
 /**
  * **v23 → v24** ([MIGRATION_23_24]): the `local_drafts` table (#95), where a draft saved without a
+ * network waits for one.
  */
 class LocalDraftsMigrationSqlTest {
     private lateinit var db: Connection
@@ -83,7 +84,7 @@ class LocalDraftsMigrationSqlTest {
             }
         } as SupportSQLiteDatabase
 
-    /** The published v15 schema, populated — the state a real install carries before any of this. */
+    /** The published v15 schema, populated, the state a real install carries before any of this. */
     private fun seedPublishedV15() {
         db.createStatement().use { st ->
             st.executeUpdate(publishedEmailsCreate)
@@ -111,7 +112,7 @@ class LocalDraftsMigrationSqlTest {
             )
             st.executeUpdate("INSERT INTO `email_bodies` VALUES ('e1', 'accA', '{}', '{}', 42)")
             // The user data a destructive fallback destroys: a snooze, and above all mail written
-            // and never sent — one row waiting in the outbox, one waiting for its hour.
+            // and never sent, one row waiting in the outbox, one waiting for its hour.
             st.executeUpdate("INSERT INTO `snoozed` VALUES ('e2', 'accA', 99999)")
             st.executeUpdate(
                 "INSERT INTO `outbox` (`accountId`, `recipients`, `subject`, `textBody`, " +
@@ -143,7 +144,7 @@ class LocalDraftsMigrationSqlTest {
     }
 
     /**
-     * A REAL v23 database: the published v15 schema, populated, then carried forward by the very
+     * A real v23 database: the published v15 schema, populated, then carried forward by the very
      */
     private fun seedV23() {
         seedPublishedV15()
@@ -181,7 +182,7 @@ class LocalDraftsMigrationSqlTest {
     }
 
     /**
-     * The DECLARED shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`.
+     * The declared shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`.
      */
     private fun columnShapes(table: String): Map<String, Triple<String, Int, String?>> {
         val shapes = mutableMapOf<String, Triple<String, Int, String?>>()
@@ -196,7 +197,7 @@ class LocalDraftsMigrationSqlTest {
         return shapes
     }
 
-    /** The primary-key columns of [table], in KEY order — `pk` is 1-based, not a boolean. */
+    /** The primary-key columns of [table], in key order, `pk` is 1-based, not a boolean. */
     private fun primaryKeyOf(table: String): List<String> {
         val key = mutableListOf<Pair<Int, String>>()
         db.createStatement().use { st ->
@@ -210,7 +211,7 @@ class LocalDraftsMigrationSqlTest {
         return key.sortedBy { it.first }.map { it.second }
     }
 
-    /** One local draft, written with plain SQL — the columns the entity declares non-null. */
+    /** One local draft, written with plain SQL, the columns the entity declares non-null. */
     private fun insertDraft(
         accountId: String,
         id: String,
@@ -246,8 +247,8 @@ class LocalDraftsMigrationSqlTest {
 
     @Test fun v23to24_declaresEveryColumnWithTheShapeTheEntityNeeds() {
         // Room compares affinity and nullability at open time (TableInfo.Column.equals). A single
-        // wrong one fails validateMigration on EVERY launch, and the only way out a user has is a
-        // reinstall — which destroys the outbox. No column carries a DEFAULT: the table is created
+        // wrong one fails validateMigration on every launch, and the only way out a user has is a
+        // reinstall, which destroys the outbox. No column carries a default: the table is created
         // empty, and the entity declares no @ColumnInfo(defaultValue = …) to compare one against.
         seedV23()
         migrate23to24()
@@ -296,9 +297,9 @@ class LocalDraftsMigrationSqlTest {
     }
 
     @Test fun v23to24_letsTwoAccountsHoldTheSameDraftId() {
-        // The key, EXECUTED rather than read: two accounts of one server mint ids in their own
-        // space (#31). Under a single-column key the second write REPLACES the first and one of the
-        // two users loses the text they typed — silently, since an upsert reports nothing.
+        // The key, executed rather than read: two accounts of one server mint ids in their own
+        // space (#31). Under a single-column key the second write replaces the first and one of the
+        // two users loses the text they typed, silently, since an upsert reports nothing.
         seedV23()
         migrate23to24()
 
@@ -323,8 +324,8 @@ class LocalDraftsMigrationSqlTest {
     }
 
     @Test fun v23to24_refusesADraftWithNoBodyAtAll() {
-        // NOT NULL, executed. The entity field is a non-null String: a NULL that the schema let in
-        // would be read back as a null into a `String`, which throws where the draft is opened —
+        // Not NULL, executed. The entity field is a non-null String: a NULL that the schema let in
+        // would be read back as a null into a `String`, which throws where the draft is opened,
         // and the text is unreachable either way. There is no "unknown body": an empty draft is ''.
         seedV23()
         migrate23to24()
@@ -344,7 +345,7 @@ class LocalDraftsMigrationSqlTest {
             "the engine refused for some other reason than the NOT NULL body: ${refused.message}",
             refused.message.orEmpty().contains("NOT NULL", ignoreCase = true),
         )
-        // …and an empty body is a perfectly good draft, which is why the column is NOT NULL and not
+        // …and an empty body is a perfectly good draft, which is why the column is not NULL and not
         // "required to be non-blank".
         insertDraft("accA", "local-draft:2", textBody = "")
         assertEquals(1, count("SELECT COUNT(*) FROM `local_drafts` WHERE `textBody` = ''"))
@@ -444,15 +445,15 @@ class LocalDraftsMigrationSqlTest {
     }
 
     /**
-     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
+     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from, the
      * annotation is not retained at runtime, so it cannot be read reflectively.
      */
     @Test fun theRegisteredMigrationsReachTheDeclaredSchemaVersion() {
         val reached = SternaDatabase.ALL_MIGRATIONS.filter { it.startVersion >= 15 }.maxOf { it.endVersion }
 
         // Bumping the version without registering its step is the destructive case: Room asks for a
-        // path to the declared version and, finding none, drops every table. The converse — a step
-        // registered while the version stays behind — is just as wrong: the step never runs, the
+        // path to the declared version and, finding none, drops every table. The converse, a step
+        // registered while the version stays behind, is just as wrong: the step never runs, the
         // entity declares a table the schema has not got, and validateMigration fails at open.
         assertEquals(
             "the registered chain stops at v$reached while the database declares v$SCHEMA_VERSION",

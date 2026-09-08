@@ -5,16 +5,16 @@ import android.view.KeyEvent
 /** What one tick of the body height poll decides (see [BodyReveal.step]). */
 internal sealed interface HeightPoll {
     /** The body's laid-out height is [px]: report it and stop polling. [settled] is `true` when two
-     *  consecutive readings agreed and `false` when the poll fell back to a guess — only a settled
+     *  consecutive readings agreed and `false` when the poll fell back to a guess, only a settled
      *  height may decide the bottom bar (see [BodyReveal.barVisible]). */
     data class Report(val px: Int, val settled: Boolean) : HeightPoll
 
-    /** Nothing conclusive yet — poll again. */
+    /** Nothing conclusive yet, poll again. */
     data object Retry : HeightPoll
 }
 
 /**
- * One report of the body's scroll geometry: how far it is scrolled and the RAW numbers it was read
+ * One report of the body's scroll geometry: how far it is scrolled and the raw numbers it was read
  */
 internal data class BodyMetrics(
     val scrollY: Int,
@@ -48,21 +48,21 @@ internal sealed interface ResizeProbe {
     /** The height changed: report the geometry now and stop. */
     data object Report : ResizeProbe
 
-    /** Unchanged so far — the relayout does not land in the same frame as the tap. Poll again. */
+    /** Unchanged so far, the relayout does not land in the same frame as the tap. Poll again. */
     data object Retry : ResizeProbe
 
-    /** Out of ticks with the height unchanged: stop, and report NOTHING. A tap that opened nothing is
+    /** Out of ticks with the height unchanged: stop, and report nothing. A tap that opened nothing is
      *  the common case, and reporting "nothing moved" would re-found the bar's remembered range on an
      *  arbitrary instant of a body that may still be laying out. */
     data object Done : ResizeProbe
 }
 
 /**
- * The message body is drawn by a WebView the reader keeps INVISIBLE until it has reported a laid-out
+ * The message body is drawn by a WebView the reader keeps invisible until it has reported a laid-out
  */
 internal object BodyReveal {
     /**
-     * One tick of the poll. [px] is this tick's reading of the content range, [last] the previous one,
+     * One tick of the poll.
      */
     fun step(px: Int, last: Int, maxSeen: Int, triesLeft: Int, viewHeightPx: Int): HeightPoll {
         if (px > 0 && px == last) return HeightPoll.Report(px, settled = true)
@@ -78,19 +78,21 @@ internal object BodyReveal {
         (contentRangePx - viewportPx).coerceAtLeast(0)
 
     /**
-     * Whether a reading of the content range MEASURED anything, or merely read the floor.
+     * Whether a reading of the content range measured anything, or merely read the floor.
      */
     fun rangeMeasured(rangePx: Int, viewportPx: Int, contentHeightPx: Int): Boolean =
         rangePx > viewportPx || (rangePx > 0 && contentHeightPx > 0)
 
     /**
      * Whether the Reply/Forward bar belongs on screen for a body scrolled to [scrollY] out of
+     * [maxScrollPx], with [thresholdPx] of tolerance (a few dp: a body one pixel short of its end,
+     * or a scroll range one pixel taller than the viewport, must not count as "there is more").
      */
     fun barVisible(scrollY: Int, maxScrollPx: Int, thresholdPx: Int): Boolean =
         maxScrollPx <= thresholdPx || scrollY >= maxScrollPx - thresholdPx
 
     /**
-     * Fold one report — a resting measurement or a live scroll — into the bar's [BarState].
+     * Fold one report, a resting measurement or a live scroll, into the bar's [BarState].
      */
     fun barAfterReport(prev: BarState, scrollY: Int, maxScrollPx: Int, thresholdPx: Int): BarState {
         val range = maxOf(prev.maxScrollPx, maxScrollPx)
@@ -104,7 +106,7 @@ internal object BodyReveal {
     }
 
     /**
-     * Fold in a report about a body that changed size UNDER THE READER'S OWN GESTURE — the same
+     * Fold in a report about a body that changed size under the reader's own gesture, the same
      */
     fun barAfterResize(prev: BarState, scrollY: Int, maxScrollPx: Int, thresholdPx: Int): BarState {
         val shrank = maxScrollPx < prev.maxScrollPx
@@ -114,6 +116,7 @@ internal object BodyReveal {
 
     /**
      * One tick of the resize probe: [now] is this tick's reading, [atGesture] the reading taken when
+     * the gesture began.
      */
     fun resizeStep(now: Int, atGesture: Int, last: Int, triesLeft: Int): ResizeProbe {
         if (now != atGesture && now == last) return ResizeProbe.Report
@@ -153,8 +156,8 @@ internal class BarReveal {
 
     /** The body's height poll finished. [resting] is the geometry it measured, null when it capped out
      *  and fell back to a guess: a fallback is not a measurement, so it decides nothing and the settle
-     *  poll has the last word. A SETTLED height can be just as empty — two agreeing readings of the
-     *  pre-layout floor — and is inert for the same reason. */
+     *  poll has the last word. A settled height can be just as empty, two agreeing readings of the
+     *  pre-layout floor, and is inert for the same reason. */
     fun bodyReady(resting: BodyMetrics?, thresholdPx: Int): Boolean {
         if (resting == null || !resting.measured) return shown
         return fold(resting.scrollY, resting.maxScrollPx, thresholdPx)
@@ -169,7 +172,7 @@ internal class BarReveal {
     }
 
     /**
-     * The document was REPLACED — the reader switched between the message's HTML and its text (#149) —
+     * The document was replaced: the reader switched between the message's HTML and its text (#149).
      */
     fun documentReplaced() {
         state = BarState()
@@ -177,7 +180,8 @@ internal class BarReveal {
     }
 
     /**
-     * The body RESIZED under the reader's gesture and the resize probe caught the new geometry. The
+     * The body resized under the reader's gesture and the resize probe caught the new geometry. The
+     * the quoted history, and the resize probe caught the new geometry. Returns [shown].
      */
     fun resized(m: BodyMetrics, thresholdPx: Int): Boolean {
         if (!m.measured) return shown

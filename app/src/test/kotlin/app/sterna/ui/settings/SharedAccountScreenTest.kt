@@ -9,7 +9,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The delegated-account settings screen (issue #31): the two pure rules that decide WHICH account
+ * The delegated-account settings screen (issue #31): the two pure rules that decide which account
  */
 class SharedAccountScreenTest {
 
@@ -51,7 +51,7 @@ class SharedAccountScreenTest {
     }
 
     /**
-     * THE GUARD OF THE BATCH, read as whole statements. The tests above execute [sharedAccountFor];
+     * The guard of the batch, read as whole statements. The tests above execute [sharedAccountFor];
      */
     @Test fun `the screen resolves its account through the shared-account guard`() {
         assertEquals(
@@ -65,7 +65,7 @@ class SharedAccountScreenTest {
     }
 
     /**
-     * What each row OPENS on: the value the account already holds, never a constant. A switch
+     * What each row opens on: the value the account already holds, never a constant. A switch
      */
     @Test fun `both rows open on the value the account already holds`() {
         assertEquals(
@@ -79,7 +79,7 @@ class SharedAccountScreenTest {
     }
 
     /**
-     * Read in ABSENCE over the SCREEN'S BODY — the composable's signature to the end of the file.
+     * Read in absence over the screen's body, the composable's signature to the end of the file.
      */
     @Test fun `the screen holds none of the writes that belong to a login`() {
         val found = FORBIDDEN.filter { it in screenBody() }
@@ -91,7 +91,10 @@ class SharedAccountScreenTest {
     }
 
     /**
-     * The colour section, statement by statement — whole lines, never a substring: a `contains` is
+     * The colour section, statement by statement, whole lines, never a substring: a `contains` is
+     * blind to any argument added to a line, which is the exact shape the defect would take
+     * (`setColor(account.loginKey(), argb)`). The account id the route was opened with is what both
+     * writes must carry.
      */
     @Test fun `the colour swatches write the shared account's own id`() {
         assertEquals(
@@ -116,7 +119,7 @@ class SharedAccountScreenTest {
     }
 
     /**
-     * The notifications section, same reading. Pins the toggle's write AND the whole condition of
+     * The notifications section, same reading.
      */
     @Test fun `the notifications toggle writes the shared account's own id and asks for all three`() {
         assertEquals(
@@ -149,7 +152,7 @@ class SharedAccountScreenTest {
 
     @Test fun `a delegated account whose login is gone keeps its own screen`() {
         // isShared only asks for a non-blank loginId, so an orphaned share is still a share. It
-        // must NOT fall back on the login editor: that screen writes a credential under
+        // must not fall back on the login editor: that screen writes a credential under
         // [StoredAccount.loginKey], i.e. under an id that names nothing here.
         val orphan = delegated().copy(loginId = "gone-uuid")
 
@@ -164,7 +167,7 @@ class SharedAccountScreenTest {
     }
 
     /**
-     * SOURCE LINT over the TWO entries into the settings graph, read as whole statements.
+     * Source lint over the two entries into the settings graph, read as whole statements.
      */
     @Test fun `both entries into the settings graph ask settingsRouteFor`() {
         assertEquals(
@@ -179,7 +182,7 @@ class SharedAccountScreenTest {
             ),
             statementsAfter(SETTINGS, START_DESTINATION_MARKER, 7),
         )
-        // The route is COMPUTED above and only handed over here: what the NavHost receives must be
+        // The route is computed above and only handed over here: what the NavHost receives must be
         // that frozen value, not a fresh expression re-evaluated on every recomposition (the graph
         // is keyed on it, and a share revoked while settings are open would rebuild it in place).
         assertEquals(
@@ -198,7 +201,9 @@ class SharedAccountScreenTest {
     }
 
     /**
-     * SOURCE LINT tying each ROUTE STRING to the composable that serves it, and to the argument it
+     * Source lint tying each route string to the composable that serves it, and to the argument it
+     * reads on the way, the one link in this batch that no executable test in this module can
+     * reach, and the one whose two failure modes are both silent.
      */
     @Test fun `the shared route opens the shared screen with the id it carries`() {
         assertEquals(
@@ -214,7 +219,7 @@ class SharedAccountScreenTest {
     }
 
     /**
-     * The BELT on the other route, pinned in BOTH branches (same reading, same limits as above):
+     * The belt on the other route, pinned in both branches (same reading, same limits as above):
      */
     @Test fun `the account route keeps a shared mailbox off the login editor`() {
         assertEquals(
@@ -239,8 +244,8 @@ class SharedAccountScreenTest {
     }
 
     /**
-     * The drawer's account chip, same reading: it hands over the id of the account being LOOKED
-     * AT, never a login's. Same limits as the lint above — this is text, not behaviour.
+     * The drawer's account chip, same reading: it hands over the id of the account being looked
+     * at, never a login's. Same limits as the lint above, this is text, not behaviour.
      */
     @Test fun `the drawer chip opens the account on screen, shared or not`() {
         assertEquals(
@@ -257,7 +262,9 @@ class SharedAccountScreenTest {
     // ---- the accounts list (volet 3) ----
 
     /**
-     * SOURCE LINT over the accounts list, read as whole statements: the list builds its rows with
+     * Source lint over the accounts list, read as whole statements: the list builds its rows with
+     * [StoredAccount.accountsScreenRows] and hands each row's own `underLogin` to the row's
+     * `indented` flag.
      */
     @Test fun `the accounts list draws the rows the ordering rule gives it`() {
         assertEquals(
@@ -278,7 +285,7 @@ class SharedAccountScreenTest {
     }
 
     /**
-     * SOURCE LINT over the INDENT ITSELF, in [AccountRow]'s own file — the other half of the lint
+     * Source lint over the indent itself, in [AccountRow]'s own file, the other half of the lint
      */
     @Test fun `a shared mailbox's row is drawn further from the left edge than its login`() {
         assertEquals(
@@ -340,7 +347,7 @@ class SharedAccountScreenTest {
         const val ACCOUNTS_LIST_MARKER =
             "// PINNED BY SharedAccountScreenTest \u2014 the accounts list, statement by statement"
 
-        /** The line the NavHost's own arguments start after — the first entry is right below it. */
+        /** The line the NavHost's own arguments start after, the first entry is right below it. */
         const val NAV_HOST_MARKER = "navController = nav,"
 
         const val START_DESTINATION_MARKER =
@@ -353,7 +360,7 @@ class SharedAccountScreenTest {
         const val ACCOUNT_CHIP_MARKER = ".graphicsLayer { translationX = accountOffset.value }"
 
         /**
-         * Doors a SCREEN can open, and what the user loses through each one — half a line apiece.
+         * Doors a screen can open, and what the user loses through each one, half a line apiece.
          */
         val FORBIDDEN = listOf(
             // Writes server, credential and identities under the LOGIN, for every mailbox grouped there.

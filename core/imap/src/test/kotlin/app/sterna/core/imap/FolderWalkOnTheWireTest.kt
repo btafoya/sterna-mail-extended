@@ -8,6 +8,7 @@ import org.junit.Test
 
 /**
  * The paginated folder walk against a scripted server on loopback: what really leaves the client,
+ * in what order, and what comes back page by page.
  */
 class FolderWalkOnTheWireTest {
 
@@ -96,16 +97,16 @@ class FolderWalkOnTheWireTest {
     }
 
     @Test fun `an unbounded window walks the folder to its first message`() {
-        // The IMAP half of a window bigger than the folder, ON THE WIRE — the twin of
+        // The IMAP half of a window bigger than the folder, on the wire, the twin of
         // `JmapClientTest.queryEmailsWindow_walksAWholeFolderWhenTheWindowIsUnbounded`.
         //
-        // What this closes: `folderWindowLowest(exists, minOf(limit, 1000))` — one line, at the
+        // What this closes: `folderWindowLowest(exists, minOf(limit, 1000))`, one line, at the
         // top of `walkFolder`, restoring the old cap for every IMAP account. Nothing else in the
         // repo sees it: this file never walked past `limit = 1000`, the decision test calls the
         // pure function directly, and the wiring lints all live in `core:data`, a layer above.
         //
         // The arithmetic that has to hold: `(exists - Int.MAX_VALUE + 1).coerceAtLeast(1)` is 1,
-        // not a wrapped negative — so the walk's floor is sequence 1 and the last request is
+        // not a wrapped negative, so the walk's floor is sequence 1 and the last request is
         // `1:200`.
         folder(exists = 1100).use { server ->
             val walked = walk(server, limit = Int.MAX_VALUE, pageSize = 200)
@@ -135,7 +136,7 @@ class FolderWalkOnTheWireTest {
 
     @Test fun `a fifty-message window is still one request, as it always was`() {
         // The unified refresh and the folder-list refresh pass small windows; pagination must be
-        // invisible to them — same single FETCH, and not even a NOOP.
+        // invisible to them, same single FETCH, and not even a NOOP.
         folder(exists = 1000).use { server ->
             walk(server, limit = 50, pageSize = 200)
 
@@ -147,7 +148,7 @@ class FolderWalkOnTheWireTest {
     @Test fun `each page is handed over before the next is asked for`() {
         // "Write each page as it lands" is only true if the pages land one at a time. If the walk
         // collected first and handed over afterwards, every page would arrive with all five
-        // requests already issued — which is the memory shape this volet exists to end.
+        // requests already issued, which is the memory shape this volet exists to end.
         folder(exists = 1000).use { server ->
             val walked = walk(server, limit = 1000, pageSize = 200)
 
@@ -178,8 +179,8 @@ class FolderWalkOnTheWireTest {
     }
 
     @Test fun `⭐ a one-page walk has no NOOP, so the FETCH response is the only detector`() {
-        // The reserve this closes. A 50-message window over a big folder — the unified refresh,
-        // a small folder, any account left on the default — is ONE request: no NOOP is ever sent.
+        // The reserve this closes. A 50-message window over a big folder, the unified refresh,
+        // a small folder, any account left on the default, is one request: no NOOP is ever sent.
         folder(exists = 1000, inFetch = "* 3 EXPUNGE\r\n").use { server ->
             val walked = walk(server, limit = 50, pageSize = 200)
 
@@ -276,14 +277,14 @@ class FolderWalkOnTheWireTest {
     }
 
     @Test fun `de-duplication is by UID and not by position`() {
-        // The same message at a different sequence number is the SAME message. A walk that
-        // de-duplicated on position would hand it over again — and, worse, a walk that de-
+        // The same message at a different sequence number is the same message. A walk that
+        // de-duplicated on position would hand it over again, and, worse, a walk that de-
         // duplicated on position would think it had seen a message it never fetched.
         folder(exists = 400, uidsFor = { range -> range.map { if (range.last == 400) it.toLong() else it + 200L } })
             .use { server ->
                 val walked = walk(server, limit = 400, pageSize = 200)
 
-                // The second request answered with UIDs 201..400 — every one already held.
+                // The second request answered with UIDs 201..400, every one already held.
                 assertEquals(listOf(200), walked.pages.map { it.size })
                 assertEquals((400L downTo 201L).toList(), walked.walk.uids)
             }
@@ -292,9 +293,9 @@ class FolderWalkOnTheWireTest {
     // -- the rules the walk must not have loosened ----------------------------------------------------
 
     @Test fun `a message flagged deleted stays out of every page, and out of the walk`() {
-        // HIDING IS NOT DELETING (Codeberg #99): the filter lives in the one FETCH funnel, and
+        // Hiding is not deleting (Codeberg #99): the filter lives in the one FETCH funnel, and
         // pagination must go through it. A walk that read the untagged lines itself would put
-        // those messages back in the list — and into the ids the cache is reconciled against.
+        // those messages back in the list, and into the ids the cache is reconciled against.
         folder(exists = 400, deleted = setOf(250L, 100L)).use { server ->
             val walked = walk(server, limit = 400, pageSize = 200)
 
@@ -309,7 +310,7 @@ class FolderWalkOnTheWireTest {
     @Test fun `a hidden message does not shorten the walk`() {
         // The step is counted in sequence positions, not in messages returned. Counting what came
         // back would leave the walk asking for the same slice for ever on a folder holding one
-        // hidden message — or, with a guard against that, stopping short of the window.
+        // hidden message, or, with a guard against that, stopping short of the window.
         folder(exists = 400, deleted = setOf(250L)).use { server ->
             walk(server, limit = 400, pageSize = 200)
 
@@ -319,7 +320,7 @@ class FolderWalkOnTheWireTest {
 
     @Test fun `a walk that fails mid-way throws, and never answers with what it had so far`() {
         // The red line, seen from the only place that can break it silently. Everything above
-        // this walk — `fullQueryWriteThrough`, and the DELETE at the end of it — treats "the walk
+        // this walk (`fullQueryWriteThrough`, and the DELETE at the end of it) treats "the walk
         var answered = 0
         FakeImapServer { tag, line ->
             when {

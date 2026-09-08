@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `MessageScreen.kt` as text and proves nothing about
+ * Source lint, not a behaviour test, it reads `MessageScreen.kt` as text and proves nothing about
  */
 class BodySpacerWiringTest {
 

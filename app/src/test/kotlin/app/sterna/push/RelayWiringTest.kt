@@ -35,7 +35,7 @@ class RelayWiringTest {
         )
     }
 
-    // -- the transport decision: only a REAL delivery moves an IMAP account off IDLE ----------
+    // -- the transport decision: only a real delivery moves an IMAP account off IDLE ----------
 
     @Test fun `the UnifiedPush arm of transportFor is the isActive line, whole`() {
         assertEquals(
@@ -54,7 +54,7 @@ class RelayWiringTest {
         )
     }
 
-    /** The negative half — `contains`, deliberately: it screens for what must be ABSENT. */
+    /** The negative half, `contains`, deliberately: it screens for what must be absent. */
     @Test fun `transportFor reads no address and no published state`() {
         val offenders = transportForBody().filter { line ->
             FORBIDDEN_IN_TRANSPORT.any { it in line }
@@ -614,7 +614,7 @@ class RelayWiringTest {
         blockOf(transportForBody(), "return when {", "PushController.transportFor")
 
     /**
-     * The lines of [body] that are NOT nested inside a `synchronized(this…) {` block.
+     * The lines of [body] that are not nested inside a `synchronized(this…) {` block.
      */
     private fun outsideTheMonitor(body: List<String>): List<String> {
         var depth = 0

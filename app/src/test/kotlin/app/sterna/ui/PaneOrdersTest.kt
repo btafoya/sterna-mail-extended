@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * [PaneOrders.emailOpen], run on the stacks `MainNavHost` can hand it — the routes are the REAL
+ * [PaneOrders.emailOpen], run on the stacks `MainNavHost` can hand it, the routes are the real
  */
 class PaneOrdersTest {
 
@@ -93,7 +93,7 @@ class PaneOrdersTest {
         /** The NavGraph's own entry, first in `currentBackStack`; the graph has no route, so null. */
         val GRAPH: String? = null
 
-        // Copied verbatim from SternaApp.kt's NavHost — the `composable(route = …)` declarations.
+        // Copied verbatim from SternaApp.kt's NavHost, the `composable(route = …)` declarations.
         const val INBOX = "inbox"
         const val MESSAGE = "message/{emailId}?accountId={accountId}&index={index}&src={src}&thread={thread}"
         const val COMPOSE = "compose?replyTo={replyTo}&mode={mode}&accountId={accountId}&restore={restore}" +

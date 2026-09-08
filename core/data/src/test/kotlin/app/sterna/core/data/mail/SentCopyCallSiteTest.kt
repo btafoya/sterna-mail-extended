@@ -5,7 +5,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT on the TWO ends of the Sent-folder copy, same instrument and same disclaimer as
+ * Source lint on the two ends of the Sent-folder copy, same instrument and same disclaimer as
+ * [SmtpSubmissionCallSiteTest]: it reads `MailRepository.performDelivery` and `ImapMailService.send`
  */
 class SentCopyCallSiteTest {
 

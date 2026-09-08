@@ -6,7 +6,10 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, and the twin of `OutboxParkWiringTest` — which stops at the 33rd line of
+ * Source lint, and the twin of `OutboxParkWiringTest`, which stops at the 33rd line of
+ * `doWork`, one line above the `catch` this pins. `OutboxWorker` is a `CoroutineWorker` reaching
+ * for `AppContainer`, and this module has neither Robolectric nor instrumented tests, so nothing we
+ * own can execute that `catch`.
  */
 class OutboxPermanentFailureWiringTest {
 
@@ -35,8 +38,8 @@ class OutboxPermanentFailureWiringTest {
                 "WorkManager back on a row that is parked:",
             listOf(
                 "} catch (t: Throwable) {",
-                // THE COUNT IS A GUARD, not bookkeeping. Written as `item.attemptCount + 1` a
-                // refused row is parked FAILED with 1 attempt, and OutboxLogic.stateAfterEdit then
+                // The count is a guard, not bookkeeping. Written as `item.attemptCount + 1` a
+                // refused row is parked failed with 1 attempt, and OutboxLogic.stateAfterEdit then
                 "val attempts = OutboxLogic.attemptsAfterFailure(item.attemptCount, t)",
                 // The message, and only the message. It is persisted in lastError and printed on
                 // screen; the exception's own text is the address plus the server's SMTP reply.

@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [identitiesToCreate] and [mayCreateIdentities] EXECUTED, never re-derived: every case below pins
+ * [identitiesToCreate] and [mayCreateIdentities] executed, never re-derived: every case below pins
  */
 class IdentitiesToCreateTest {
 
@@ -47,7 +47,8 @@ class IdentitiesToCreateTest {
     }
 
     /**
-     * THE case #172 died on, measured on the S7 on 2026-08-31: an account added minutes ago, its
+     * The case #172 died on, measured on the S7 on 2026-08-31: an account added minutes ago, its
+     * server identity list still empty, must still get its own address created.
      */
     @Test fun `a brand new address leaves when the read server list holds nothing`() {
         val before = account()
@@ -58,7 +59,7 @@ class IdentitiesToCreateTest {
     }
 
     /**
-     * The read FAILED (offline, dead DNS, a server that answered an error): null, and not one
+     * The read failed (offline, dead DNS, a server that answered an error): null, and not one
      */
     @Test fun `a server list that could not be read creates nothing`() {
         val before = account()
@@ -80,7 +81,7 @@ class IdentitiesToCreateTest {
     }
 
     /**
-     * The mirror image: an address the FRESH read holds, which the stored field does not. It must
+     * The mirror image: an address the fresh read holds, which the stored field does not. It must
      */
     @Test fun `an address the fresh read holds is not created, though the stored field lacks it`() {
         val before = account(storedServerIdentities = emptyList())
@@ -162,7 +163,7 @@ class IdentitiesToCreateTest {
     }
 
     /**
-     * Case and surrounding blanks are folded on BOTH sides of the comparison. Reading the addresses
+     * Case and surrounding blanks are folded on both sides of the comparison. Reading the addresses
      */
     @Test fun `a known address differing only in case or blanks is not re-created`() {
         val before = account()
@@ -188,10 +189,10 @@ class IdentitiesToCreateTest {
         assertEquals(listOf("Iris Work"), out.map { it.name })
     }
 
-    // ── the row the EDITOR makes up on a freshly added account ─────────────────────────
+    // ── the row the editor makes up on a freshly added account ─────────────────────────
 
     /**
-     * THE case this guard exists for. On an account with no manual identity stored, the account
+     * The case this guard exists for. On an account with no manual identity stored, the account
      */
     @Test fun `the row the editor makes up on a brand new account is not created`() {
         val before = account()
@@ -234,6 +235,8 @@ class IdentitiesToCreateTest {
 
     /**
      * The other side of the same condition, and the reason it is `before.identities.isEmpty()` and
+     * not something wider: once one manual identity is stored, the editor fabricates nothing, so a
+     * row carrying the login address was typed and must leave like any other.
      */
     @Test fun `the login address typed on an account that already has an identity is created`() {
         val before = account(identities = listOf(identity("c@x.test")))
@@ -248,7 +251,7 @@ class IdentitiesToCreateTest {
     }
 
     /**
-     * ...and the guard on it is `before.identities.isEmpty()` ALONE. Widening it with
+     * ...and the guard on it is `before.identities.isEmpty()` alone.
      */
     @Test fun `the typed login address leaves even when the frozen server field is empty`() {
         val before = account(identities = listOf(identity("c@x.test")), storedServerIdentities = emptyList())
@@ -322,7 +325,11 @@ class IdentitiesToCreateTest {
     }
 
     /**
-     * The pre-filter asks "if the server held NOTHING, would anything leave?" — never "does the
+     * The pre-filter asks "if the server held nothing, would anything leave?", never "does the
+     * stored list already have it?". That field is stale by construction, and a stale entry
+     * claiming the server holds this address would suppress the read itself: no request, no
+     * decision, and an address that never reaches the server, silently. The stale entry is exactly
+     * what V5 stopped trusting; it must not come back in through the pre-filter.
      */
     @Test fun `the pre-filter does not believe the stored server list`() {
         val before = account(storedServerIdentities = listOf(identity("brand.new@x.test")))
@@ -331,7 +338,11 @@ class IdentitiesToCreateTest {
     }
 
     /**
-     * The pre-filter is the SUPER-SET of the candidates: it answers "if the server held nothing,
+     * The pre-filter is the SUPER-set of the candidates: it answers "if the server held nothing,
+     * would anything leave?", and a server that holds something can only filter more. So whenever
+     * the real decision creates something, the pre-filter must have said yes, otherwise the read
+     * never happens and the create is lost, silently, which is the shipped defect wearing another
+     * hat.
      */
     @Test fun `whatever the real decision would create, the pre-filter lets through`() {
         val before = account(identities = listOf(identity("old@x.test")))

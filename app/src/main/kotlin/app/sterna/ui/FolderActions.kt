@@ -1,6 +1,6 @@
 package app.sterna.ui
 
-/** Folders that hold the user's OWN outgoing mail. Triage actions that only make sense on incoming
+/** Folders that hold the user's own outgoing mail. Triage actions that only make sense on incoming
  *  mail are hidden there (#82); a null or unknown role keeps them, the rule hiding them only where
  *  they are provably meaningless. */
 internal fun isOutgoingFolder(role: String?): Boolean =
@@ -10,7 +10,7 @@ private val OUTGOING_ROLES = setOf("drafts", "sent")
 
 /** Whether "Snooze" is worth offering in a folder (#82): a promise about mail you still intend to
  *  deal with, so on top of Drafts and Sent it is dropped in Spam and Trash. Deliberately narrower
- *  than hiding the whole incoming-only group there — "Not spam" is what the Spam folder is for. */
+ *  than hiding the whole incoming-only group there, "Not spam" is what the Spam folder is for. */
 internal fun canSnoozeIn(role: String?): Boolean =
     role?.trim()?.lowercase() !in NO_SNOOZE_ROLES
 
@@ -19,7 +19,7 @@ internal fun canSnoozeIn(role: String?): Boolean =
 private val NO_SNOOZE_ROLES = OUTGOING_ROLES + setOf("junk", "spam", "trash")
 
 /**
- * Whether a message should be shown by its RECIPIENTS ("To: …") instead of its sender — the one
+ * Whether a message should be shown by its recipients ("To: …") instead of its sender, the one
  */
 internal fun showsRecipients(role: String?, unified: Boolean, selfAuthored: Boolean): Boolean {
     val normalised = role?.trim()?.lowercase()
@@ -29,7 +29,8 @@ internal fun showsRecipients(role: String?, unified: Boolean, selfAuthored: Bool
 }
 
 /**
- * The same decision for a row INSIDE an unfolded conversation — the third surface, which used to
+ * The same decision for a row inside an unfolded conversation, the third surface. Given a rule of
+ * its own it would contradict the reader it opens (#115).
  */
 internal fun showsRecipientsInThread(
     accountId: String?,
@@ -43,7 +44,7 @@ internal fun showsRecipientsInThread(
 )
 
 /**
- * Whether a list row carries the "(Draft)" chip — two terms, one not always there and the other not
+ * Whether a list row carries the "(Draft)" chip, two terms, one not always there and the other not
  */
 internal fun showsDraftBadge(
     isDraft: Boolean,

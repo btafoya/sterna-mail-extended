@@ -11,8 +11,8 @@ class RecentLocalMoves(
 ) {
     private val movedAt = ConcurrentHashMap<EmailKey, Long>()
 
-    /** Record a self-move of [emailId] on [accountId], on server ack; for IMAP, with the id AT ITS
-     *  DESTINATION — an IMAP move changes the id. */
+    /** Record a self-move of [emailId] on [accountId], on server ack; for IMAP, with the id at its
+     *  destination, an IMAP move changes the id. */
     fun mark(accountId: String, emailId: String) {
         val now = clock()
         movedAt.entries.removeIf { now - it.value > ttlMs }

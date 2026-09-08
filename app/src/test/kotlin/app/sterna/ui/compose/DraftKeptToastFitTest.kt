@@ -6,17 +6,20 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE + RESOURCE LINT, NOT A BEHAVIOUR TEST — said first, because what it guards is a RENDERING
+ * Source + resource lint, not a behaviour test, said first, because what it guards is a rendering
  */
 class DraftKeptToastFitTest {
 
     /**
-     * 56 characters — the SAME number as
+     * 56 characters, the same number as
+     * [app.sterna.ui.connect.AccountToastFitTest.maxToastChars], and deliberately not a second
+     * derivation of it. Its three steps live in that file's KDoc and are quoted here only so this
+     * one can be read alone:
      */
     private val maxToastChars = 56
 
     /**
-     * FAIL CLOSED, first half: what is being measured is FOUND.
+     * Fail closed, first half: what is being measured is found.
      */
     @Test fun `the sentence a save that could not replace shows is found`() {
         val blocks = noticeBlocks()
@@ -39,7 +42,7 @@ class DraftKeptToastFitTest {
     }
 
     /**
-     * FAIL CLOSED, second half: the resources. An id the string map does not resolve is measured
+     * Fail closed, second half: the resources. An id the string map does not resolve is measured
      */
     @Test fun `the sentence resolves in the nine languages`() {
         val strings = locales().associate { it.name to stringsOf(it) }
@@ -58,7 +61,7 @@ class DraftKeptToastFitTest {
     }
 
     /**
-     * THE DEFECT: a two-line box, and a sentence longer than two lines.
+     * The defect: a two-line box, and a sentence longer than two lines.
      */
     @Test fun `the sentence is not too long for a toast`() {
         val strings = locales().associate { it.name to stringsOf(it) }
@@ -83,7 +86,7 @@ class DraftKeptToastFitTest {
     }
 
     /**
-     * THE OTHER HALF, and the one the plafond above cannot see: a sentence can FIT and still be
+     * The other half, and the one the plafond above cannot see: a sentence can fit and still be
      */
     @Test fun `the sentence keeps both of its propositions, in every language`() {
         val strings = locales().associate { it.name to stringsOf(it) }
@@ -147,7 +150,7 @@ class DraftKeptToastFitTest {
     // -- reading the sources and the resources ----------------------------------------------------
 
     /**
-     * What the READER sees, from what the XML holds: `\'`, `\"`, `\\` and `\n` are Android
+     * What the reader sees, from what the XML holds: `\'`, `\"`, `\\` and `\n` are Android
      */
     private fun unescaped(text: String): String {
         val out = StringBuilder()
@@ -232,7 +235,7 @@ class DraftKeptToastFitTest {
         val RESOURCE = Regex("""R\.string\.(\w+)""")
 
         /**
-         * A `<string>` with its text — attributes ALLOWED, as `TranslationParityTest` reads them.
+         * A `<string>` with its text, attributes allowed, as `TranslationParityTest` reads them.
          */
         val STRING = Regex("""<string\s+name="([^"]+)"[^>]*>(.*?)</string>""", RegexOption.DOT_MATCHES_ALL)
 

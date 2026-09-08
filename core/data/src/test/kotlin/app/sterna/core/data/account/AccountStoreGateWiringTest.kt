@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHAT THIS FILE IS WORTH, first, because it is easy to over-read. It proves the SHAPE of
+ * What this file is worth, first, because it is easy to over-read.
  */
 class AccountStoreGateWiringTest {
 
@@ -39,7 +39,7 @@ class AccountStoreGateWiringTest {
 
     @Test fun `accountsUnreadable re-reads storage before it answers`() {
         // The startup screen (RootState.AccountsUnreadable) is drawn from this one boolean, so a
-        // stale answer is a user held on an alert screen after the fixing update — or, the other
+        // stale answer is a user held on an alert screen after the fixing update, or, the other
         assertEquals(
             "accountsUnreadable() no longer re-reads the blob before reporting, so the startup " +
                 "routing runs on a flag left over from an earlier moment.",
@@ -114,7 +114,7 @@ class AccountStoreGateWiringTest {
 
     @Test fun `importAccounts decides with the shared account key, not a rule of its own`() {
         // The duplicate-account defect is one rule re-derived per creation route. importAccounts is
-        // the route that already had it right; it now CALLS AccountIdentity.kt instead of holding a
+        // the route that already had it right; it now calls AccountIdentity.kt instead of holding a
         // private copy, so V2 cannot fix the other routes against a different notion of "same
         // account". A local `fun key(...)` reappearing here is the defect coming back.
         assertEquals(
@@ -137,7 +137,10 @@ class AccountStoreGateWiringTest {
 
     @Test fun `both creation routes go through the one add-or-refresh helper`() {
         // The duplicate-account defect in one place: the two writing routes (six creation flows
-        // above them) resolve the account already stored under this identity and REFRESH it,
+        // above them) resolve the account already stored under this identity and refresh it,
+        // instead of minting a second record around a fresh UUID. It has to live here rather than
+        // in a ViewModel: the routes read the account list before their network validation and
+        // persist after it, so a guard up there leaves a window where two adds both see "absent".
         assertEquals(
             "AccountStore.addOrRefresh changed shape. Either the existing login is no longer " +
                 "resolved (adding the same mailbox twice puts a second identical line in " +
@@ -223,7 +226,11 @@ class AccountStoreGateWiringTest {
     }
 
     /**
-     * [count] consecutive CODE lines of `AccountStore.kt` from the single one starting with
+     * [count] consecutive code lines of `AccountStore.kt` from the single one starting with
+     * [prefix], trimmed. Comments and blank lines are dropped first, a mutation cannot hide in a
+     * comment, and pinning prose would make this file fail on every reword. A prefix that matches
+     * anything other than exactly one line returns a message instead, so an assertion can never
+     * pass by matching nothing.
      */
     private fun accountStoreBlock(prefix: String, count: Int): List<String> {
         val path = "core/data/src/main/kotlin/app/sterna/core/data/account/AccountStore.kt"

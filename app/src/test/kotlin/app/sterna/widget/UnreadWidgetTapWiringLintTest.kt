@@ -5,12 +5,14 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, same instrument and the same disclaimer as
+ * [UnreadWidgetPushWiringLintTest] next door. The decisions themselves are executed elsewhere:
  */
 class UnreadWidgetTapWiringLintTest {
 
     /**
-     * The `Intent` behind the widget's `PendingIntent` carries an ACTION of its own, and that is
+     * The `Intent` behind the widget's `PendingIntent` carries an action of its own, and that is
+     * not a nicety.
      */
     @Test fun `the widget's tap intent carries its own action, so it cannot collide with a notification's`() {
         assertEquals(
@@ -44,7 +46,7 @@ class UnreadWidgetTapWiringLintTest {
     }
 
     /**
-     * The tap target is SET on the shared `RemoteViews`, once, where the cell is drawn — the same
+     * The tap target is set on the shared `RemoteViews`, once, where the cell is drawn, the same
      */
     @Test fun `the drawn cell is given that tap target`() {
         assertEquals(
@@ -56,7 +58,7 @@ class UnreadWidgetTapWiringLintTest {
     }
 
     /**
-     * GUARD 1, and it is the reason the three existing extras are parsed inside this `if`.
+     * Guard 1, and it is the reason the three existing extras are parsed inside this `if`.
      */
     @Test fun `the widget's extra is only read on a real launch`() {
         assertEquals(
@@ -81,7 +83,8 @@ class UnreadWidgetTapWiringLintTest {
     }
 
     /**
-     * GUARD 2: the one-shot strip, belt to the guard above's braces. Whatever re-reads the
+     * Guard 2: the one-shot strip, belt to the guard above's braces. Whatever re-reads the
+     * retained intent later, it must no longer carry an order already carried out.
      */
     @Test fun `the widget's extra is stripped once consumed, on its own`() {
         assertEquals(
@@ -203,7 +206,9 @@ class UnreadWidgetTapWiringLintTest {
     }
 
     /**
-     * The rule of [app.sterna.ui.WidgetTapNavigation] names TWO routes, `inbox` and `message`,
+     * The rule of [app.sterna.ui.WidgetTapNavigation] names two routes, `inbox` and `message`,
+     * and its own test runs it against strings: nothing in that pair notices the day the graph
+     * renames either one, so the literals are pinned here against the graph.
      */
     @Test fun `the popped destination and the floor are still the graph's own routes`() {
         assertEquals(

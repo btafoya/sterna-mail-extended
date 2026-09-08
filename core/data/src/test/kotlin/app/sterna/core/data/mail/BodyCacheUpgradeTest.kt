@@ -9,26 +9,27 @@ import org.junit.Test
 import java.sql.DriverManager
 
 /**
- * The upgrade purge of the cached message bodies: ONCE per threshold crossed, and nothing on any
+ * The upgrade purge of the cached message bodies: once per threshold crossed, and nothing on any
  */
 class BodyCacheUpgradeTest {
 
     /**
-     * THE THRESHOLD ITSELF, written out as a literal — the parade `IncognitoImeOptionsTest`
+     * The threshold itself, written out as a literal, the parade `IncognitoImeOptionsTest`
      */
     @Test fun `the threshold is the release that needed it, by number`() {
         assertEquals(168, BODY_CACHE_PURGE_VERSION)
     }
 
     /**
-     * THE SECOND THRESHOLD, same parade, same reason. Every rule below is about the SHAPE of the
+     * The second threshold, same parade, same reason. Every rule below is about the shape of the
+     * decision and would stay green at any value; this is the only test that says which release.
      */
     @Test fun `the second threshold is the release that needs it, by number`() {
         assertEquals(170, BODY_CACHE_PURGE_VERSION_2)
     }
 
     /**
-     * Bare literal on both sides, like its two elders. 172 = the `versionCode` of the cut that
+     * Bare literal on both sides, like its two elders.
      */
     @Test fun `the third threshold is the release that needs it, by number`() {
         assertEquals(172, BODY_CACHE_PURGE_VERSION_3)
@@ -42,8 +43,8 @@ class BodyCacheUpgradeTest {
     }
 
     /**
-     * CROSSED, not equalled. Someone who skips the release that introduced the need — 1.4.6
-     * straight to 1.4.9 — still arrives with a cache written before it, and must purge once.
+     * Crossed, not equalled. Someone who skips the release that introduced the need, 1.4.6
+     * straight to 1.4.9, still arrives with a cache written before it, and must purge once.
      */
     @Test fun `jumping over the threshold purges on arrival`() {
         assertEquals(169, bodyCachePurgeVersion(purgedForVersion = 167, currentVersion = 169))
@@ -51,7 +52,7 @@ class BodyCacheUpgradeTest {
     }
 
     /**
-     * THE BUG. Every version bump used to purge, for ever: `currentVersion > purgedForVersion`.
+     * The bug. Every version bump used to purge, for ever: `currentVersion > purgedForVersion`.
      */
     @Test fun `a version bump that crosses no threshold never purges`() {
         assertNull(
@@ -63,7 +64,8 @@ class BodyCacheUpgradeTest {
     }
 
     /**
-     * THE DEFECT THIS SECOND THRESHOLD ANSWERS, in bare literals on both sides — no constant,
+     * The defect this second threshold answers, in bare literals on both sides, no constant,
+     * so moving the constant cannot keep this green.
      */
     @Test fun `the 1_4_9 install purges on arriving at the read-receipt release`() {
         assertEquals(
@@ -74,7 +76,7 @@ class BodyCacheUpgradeTest {
     }
 
     /**
-     * THE DEFECT THE THIRD THRESHOLD ANSWERS, in bare literals on both sides.
+     * The defect the third threshold answers, in bare literals on both sides.
      */
     @Test fun `the 1_5_1 install purges on arriving at the origin-sender release`() {
         assertEquals(
@@ -84,7 +86,7 @@ class BodyCacheUpgradeTest {
         )
     }
 
-    /** CROSSED, not equalled — for the third threshold too: 171 straight to 173 purges once. */
+    /** Crossed, not equalled, for the third threshold too: 171 straight to 173 purges once. */
     @Test fun `jumping over the third threshold purges on arrival`() {
         assertEquals(173, bodyCachePurgeVersion(purgedForVersion = 171, currentVersion = 173))
         assertEquals(300, bodyCachePurgeVersion(purgedForVersion = 171, currentVersion = 300))
@@ -97,14 +99,15 @@ class BodyCacheUpgradeTest {
         assertNull(bodyCachePurgeVersion(purgedForVersion = 172, currentVersion = 999))
     }
 
-    /** CROSSED, not equalled — for the second threshold too: 169 straight to 171 purges once. */
+    /** Crossed, not equalled, for the second threshold too: 169 straight to 171 purges once. */
     @Test fun `jumping over the second threshold purges on arrival`() {
         assertEquals(171, bodyCachePurgeVersion(purgedForVersion = 169, currentVersion = 171))
         assertEquals(200, bodyCachePurgeVersion(purgedForVersion = 169, currentVersion = 200))
     }
 
     /**
-     * Once per threshold. Having purged for 170, nothing purges again for 170 — at 170, at 171,
+     * Once per threshold. Having purged for 170, nothing purges again for 170, at 170, at 171,
+     * or ever.
      */
     @Test fun `the second threshold purges once and never again`() {
         assertNull(bodyCachePurgeVersion(purgedForVersion = 170, currentVersion = 170))
@@ -116,7 +119,7 @@ class BodyCacheUpgradeTest {
         )
     }
 
-    /** A fresh install lands past both thresholds and purges once — an empty cache, once. */
+    /** A fresh install lands past both thresholds and purges once, an empty cache, once. */
     @Test fun `a fresh install arriving at the second threshold purges exactly once`() {
         assertEquals(170, bodyCachePurgeVersion(purgedForVersion = 0, currentVersion = 170))
         assertNull(bodyCachePurgeVersion(purgedForVersion = 170, currentVersion = 170))
@@ -140,7 +143,7 @@ class BodyCacheUpgradeTest {
         )
     }
 
-    /** A build older than the threshold has nothing to do with it — it is not why the purge exists. */
+    /** A build older than the threshold has nothing to do with it, it is not why the purge exists. */
     @Test fun `a version bump below the threshold does nothing`() {
         assertNull(bodyCachePurgeVersion(purgedForVersion = 166, currentVersion = 167))
         assertNull(bodyCachePurgeVersion(purgedForVersion = 0, currentVersion = 167))

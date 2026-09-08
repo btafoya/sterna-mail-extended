@@ -30,7 +30,7 @@ enum class DraftOpenRoute {
     SERVER,
 }
 
-/** A decision, not a null check: on `draftId != null` a local id takes the SERVER path and fails. */
+/** A decision, not a null check: on `draftId != null` a local id takes the server path and fails. */
 fun draftOpenRoute(draftId: String?): DraftOpenRoute = when {
     draftId == null -> DraftOpenRoute.NONE
     draftId.startsWith(LOCAL_DRAFT_ID_PREFIX) -> DraftOpenRoute.LOCAL
@@ -64,7 +64,7 @@ data class LocalDraftPrefill(
 )
 
 /**
- * Read off the row and nothing else — the id names a row no server has heard of. `htmlBody` is read
+ * Read off the row and nothing else, the id names a row no server has heard of. `htmlBody` is read
  * first (#131); `requestReceipt` is not projected (stated debt D1).
  */
 fun localDraftPrefill(row: LocalDraftEntity): LocalDraftPrefill {
@@ -96,7 +96,7 @@ fun localDraftPrefill(row: LocalDraftEntity): LocalDraftPrefill {
 private fun localDraftMessageIds(column: String?): List<String> =
     column.orEmpty().split(" ").map { it.trim() }.filter { it.isNotEmpty() }
 
-/** Three answers (#95): a GONE row was consumed or thrown away, a BUSY one is whole and openable. */
+/** Three answers (#95): a gone row was consumed or thrown away, a BUSY one is whole and openable. */
 sealed interface LocalDraftEdit {
     data class Taken(val row: LocalDraftEntity) : LocalDraftEdit
 
@@ -115,7 +115,7 @@ fun localDraftMayBeTakenForEdit(state: LocalDraftState): Boolean = when (state) 
 }
 
 /**
- * Nothing but [giveLocalDraftEditBack] ever unsets `EDITING`, the startup sweep included. A refused
+ * Nothing but [giveLocalDraftEditBack] ever unsets `editing`, the startup sweep included. A refused
  * row is answered [LocalDraftEdit.Busy] and not written at all.
  */
 internal suspend fun takeLocalDraftEdit(
@@ -130,7 +130,7 @@ internal suspend fun takeLocalDraftEdit(
 }
 
 /**
- * The scope can die after Room wrote `EDITING` and before the caller resumed (#95), leaving the row
+ * The scope can die after Room wrote `editing` and before the caller resumed (#95), leaving the row
  */
 suspend fun takeLocalDraftEditOrGiveItBack(
     id: String,
@@ -141,7 +141,7 @@ suspend fun takeLocalDraftEditOrGiveItBack(
     val lease = try {
         take(id)
     } catch (cancelled: CancellationException) {
-        // The row may already be EDITING with nobody left to remember it.
+        // The row may already be editing with nobody left to remember it.
         withContext(NonCancellable) { giveBack(id) }
         throw cancelled
     }
@@ -151,7 +151,7 @@ suspend fun takeLocalDraftEditOrGiveItBack(
 }
 
 /**
- * The only way out of [LocalDraftState.EDITING], since a cold start cannot tell a row a restored
+ * The only way out of [LocalDraftState.Editing], since a cold start cannot tell a row a restored
  */
 internal suspend fun giveLocalDraftEditBack(
     id: String,
@@ -228,7 +228,7 @@ fun carriedDraftAccountId(
 data class AbandonPlan(
     val localDraftToRelease: String?,
     val outboxToRelease: Long?,
-    /** The outbox row to PARK instead. Never the same row as [outboxToRelease]: one row, one door. */
+    /** The outbox row to park instead. Never the same row as [outboxToRelease]: one row, one door. */
     val outboxToPark: Long?,
 )
 
@@ -250,13 +250,15 @@ fun abandonPlan(
 }
 
 /**
- * A save closes the composer without passing through `abandon`, having rewritten the row itself —
+ * A save closes the composer without passing through `abandon`, having rewritten the row itself,
+ * so the lease survives a save and dies on anything else.
  */
 fun localDraftLeaseAfterSave(lease: String?, saved: Boolean): String? =
     if (saved) lease else null
 
 /**
- * The row is the only copy of the text and [commit] creates the other one (#95), so consumed first,
+ * The row is the only copy of the text and [commit] creates the other one (#95), so consumed first
+ * would mean a window with no copy at all: commit, then consume.
  */
 suspend fun <T> commitThenConsumeLocalDraft(
     localDraftId: String?,

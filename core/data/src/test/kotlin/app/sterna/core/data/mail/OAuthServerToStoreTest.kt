@@ -27,7 +27,7 @@ class OAuthServerToStoreTest {
     }
 
     /**
-     * A 401/403 from a candidate says nothing about the bearer token this add already validated —
+     * A 401/403 from a candidate says nothing about the bearer token this add already validated,
      * the apex is often the organisation's website. Falling back, never failing.
      */
     @Test fun `a credentials rejection during discovery falls back too`() {

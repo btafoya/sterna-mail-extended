@@ -7,12 +7,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — the same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, the same instrument and the same disclaimer as
+ * every source lint in this tree: it reads the source as text and proves nothing about behaviour.
  */
 class RecentMailWidgetPaletteWiringLintTest {
 
     /**
-     * `setBackgroundResource`, NEVER `setBackgroundColor`.
+     * `setBackgroundResource`, never `setBackgroundColor`.
      */
     @Test fun `the drawn frame is painted from the palette, and keeps its rounded corner`() {
         assertEquals(
@@ -58,7 +59,7 @@ class RecentMailWidgetPaletteWiringLintTest {
     }
 
     /**
-     * The three texts of a row take the palette; the account dot does NOT.
+     * The three texts of a row take the palette; the account dot does not.
      */
     @Test fun `a served row takes its text colours from the palette, and its dot from the account`() {
         assertEquals(
@@ -135,7 +136,7 @@ class RecentMailWidgetPaletteWiringLintTest {
     }
 
     /**
-     * THE CARRIED PALETTE IS NULLABLE, and it is the same `null` [RecentMailWidgetFactory]
+     * The carried palette is nullable, and it is the same `null` [RecentMailWidgetFactory]
      */
     @Test fun `the palette carried beside the rows is optional, and null means the resources answer`() {
         assertEquals(
@@ -168,7 +169,9 @@ class RecentMailWidgetPaletteWiringLintTest {
     }
 
     /**
-     * THE ROWS AND THEIR COLOURS COME OUT OF ONE READ, and the whole body is pinned because the
+     * The rows and their colours come out of one read, and the whole body is pinned because the
+     * mutation is one line long: `palette = RecentMailWidgetDraw.drawing?.palette` reads perfectly
+     * well and is a second read.
      */
     @Test fun `the rows and the colours they are drawn in come from the same read`() {
         assertEquals(
@@ -207,7 +210,8 @@ class RecentMailWidgetPaletteWiringLintTest {
     }
 
     /**
-     * THE CACHE IS KEYED ON THE COLOUR IT ACTUALLY PAINTED — the one decision of this pane that
+     * The cache is keyed on the colour it actually painted, the one decision of this pane that
+     * no executed test can reach, because it is an argument and not a rule.
      */
     @Test fun `the badge is cached under the colour it was painted, and the cache is bounded in bytes`() {
         assertEquals(
@@ -242,7 +246,8 @@ class RecentMailWidgetPaletteWiringLintTest {
     }
 
     /**
-     * AND THE DISC ITSELF — the one place in this pane where a one-character mutation is
+     * And the disc itself, the one place in this pane where a one-character mutation is
+     * invisible to everything else.
      */
     @Test fun `the badge's letter is coloured against the disc it sits on, and centred on the font's metrics`() {
         assertEquals(

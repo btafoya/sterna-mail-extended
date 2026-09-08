@@ -11,10 +11,13 @@ import java.util.Base64
 
 /**
  * Codeberg #145: autistici/inventati's submission service answers every `AUTH LOGIN` with
+ * `535 5.7.8 Error: authentication failed: Invalid authentication mechanism: 'LOGIN'`, so mail sat
+ * in the outbox forever while K-9 sent fine on the same account. The client asked for a mechanism
+ * instead of picking one the server offers.
  */
 class SmtpAuthTest {
 
-    /** What the client wrote between its EHLO and its MAIL FROM: the whole AUTH dialogue. */
+    /** What the client wrote between its EHLO and its mail from: the whole AUTH dialogue. */
     private fun authDialogue(server: FakeSmtpServer): List<String> {
         val issued = server.issued()
         val start = issued.indexOfFirst { it.startsWith("EHLO") }
@@ -139,7 +142,7 @@ class SmtpAuthTest {
     @Test
     fun `every reply multi-line - the final line is still what expect compares`() {
         // The capability accumulator must not change what read() returns, nor leave a continuation
-        // line in the buffer: a desync here breaks EVERY send, not just authentication.
+        // line in the buffer: a desync here breaks every send, not just authentication.
         FakeSmtpServer(authLine = "AUTH PLAIN LOGIN", multiline = true).use { server ->
             send(server, subject = "multi line")
 
@@ -161,7 +164,7 @@ class SmtpAuthTest {
 }
 
 /**
- * The decision itself, executed — not re-derived by a test that then replays what it derived.
+ * The decision itself, executed, not re-derived by a test that then replays what it derived.
  * Arguments in, result out.
  */
 class SmtpAuthChoiceTest {
@@ -177,7 +180,7 @@ class SmtpAuthChoiceTest {
             listOf("PLAIN", "LOGIN"),
             advertisedAuthMechanisms(listOf(greeting, "250-AUTH=PLAIN LOGIN", "250 HELP")),
         )
-        // Case of the keyword and of the mechanisms, and the capability on the FINAL line.
+        // Case of the keyword and of the mechanisms, and the capability on the final line.
         assertEquals(
             listOf("PLAIN"),
             advertisedAuthMechanisms(listOf(greeting, "250 auth plain")),
@@ -220,7 +223,7 @@ class SmtpAuthChoiceTest {
 }
 
 /**
- * SOURCE LINT. No JVM test can reach the STARTTLS branch (it needs a certificate), so the rule
+ * Source lint. No JVM test can reach the STARTTLS branch (it needs a certificate), so the rule
  */
 class SmtpCapabilityOrderLintTest {
 
@@ -243,7 +246,7 @@ class SmtpCapabilityOrderLintTest {
     }
 
     /**
-     * The `clear()` stays counted over the WHOLE of `send()`, and that is the point of the test.
+     * The `clear()` stays counted over the whole of `send()`, and that is the point of the test.
      */
     @Test
     fun `each response resets the accumulator before reading`() {

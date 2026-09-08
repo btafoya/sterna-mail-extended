@@ -7,7 +7,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The read-receipt switch (#148) must travel in a settings backup like every other preference —
+ * The read-receipt switch (#148) must travel in a settings backup like every other preference,
+ * the same three checks as [SettingsBackupReplyBarTest]: this export is the only way a
+ * preference survives a reinstall.
  */
 class SettingsBackupReadReceiptTest {
 
@@ -32,8 +34,8 @@ class SettingsBackupReadReceiptTest {
     }
 
     @Test fun itIsCarriedAsTrueWhenExplicitlyOn() {
-        // The VALUE, not the key: the codec writes with encodeDefaults and explicitNulls, so an
-        // unset field is exported as `"askReadReceipt": null` and the key is always there — a
+        // The value, not the key: the codec writes with encodeDefaults and explicitNulls, so an
+        // unset field is exported as `"askReadReceipt": null` and the key is always there, a
         // `contains("askReadReceipt")` would be true of an export that had lost the setting.
         val encoded = SettingsBackupCodec.encode(SettingsBackup(askReadReceipt = true))
         assertTrue("exported: $encoded", encoded.contains("\"askReadReceipt\": true"))
@@ -42,7 +44,7 @@ class SettingsBackupReadReceiptTest {
     @Test fun aFileCarryingOnlyThisSwitchIsStillARecognisableBackup() {
         // isPlausible() is what stands between "an unrelated JSON file" and "import nothing,
         // silently". A field left out of it is a field that cannot, on its own, prove the file is
-        // ours — and the smallest export this app can produce is one someone made after touching
+        // ours, and the smallest export this app can produce is one someone made after touching
         // exactly one setting.
         assertTrue(SettingsBackup(askReadReceipt = true).isPlausible())
     }

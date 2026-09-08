@@ -14,8 +14,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * `ImapMailService.fetchIsDraft` RUN against a real service on a scripted socket: the flag comes
- * back from the SERVER, and the three answers stay three.
+ * `ImapMailService.fetchIsDraft` run against a real service on a scripted socket: the flag comes
+ * back from the server, and the three answers stay three.
  */
 class DraftFlagComesFromTheServerTest {
 

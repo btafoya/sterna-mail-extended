@@ -4,12 +4,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHAT THIS FILE IS WORTH, same caveat as [AccountStoreGateWiringTest]: it proves the SHAPE of
+ * What this file is worth, same caveat as [AccountStoreGateWiringTest]: it proves the shape of
+ * one method of `AccountStore.kt`, not its behaviour, by reading the shipped source and comparing
+ * whole trimmed lines. Nothing in this module can build an `AccountStore` (it needs a `Context` and
+ * the Keystore, no Robolectric here). The behaviour is executed next door by [PgpSignKeyResetTest].
  */
 class AccountStorePgpResetWiringTest {
 
     @Test fun `clearPgpSignKeys saves the mapped list, over the whole account list, under the lock`() {
-        // The block starts ONE LINE ABOVE the signature, on `@Synchronized`. Every mutator of
+        // The block starts one line above the signature, on `@Synchronized`. Every mutator of
         // this store carries it, and this one is a read-modify-write over the whole account list:
         assertEquals(
             "clearPgpSignKeys changed shape: it no longer stores withoutPgpSignKeys(accounts()) " +
@@ -27,8 +30,8 @@ class AccountStorePgpResetWiringTest {
     }
 
     @Test fun `setPgp writes the cached public key in the same copy as the key id`() {
-        // The cache is a fact about THAT key id. Written anywhere else — a second call, a later
-        // save — the two can be persisted apart, and a kill between them leaves an account
+        // The cache is a fact about that key id. Written anywhere else, a second call, a later
+        // save, the two can be persisted apart, and a kill between them leaves an account
         // announcing the previous key under the new id.
         assertEquals(
             "setPgp no longer writes pgpPublicKey immediately after pgpSignKeyId in the same " +
@@ -41,7 +44,7 @@ class AccountStorePgpResetWiringTest {
     @Test fun `setPgpPublicKey goes through the guarded write, under the lock`() {
         // Anchored one line above the signature, on @Synchronized, for the same reason as
         // clearPgpSignKeys: this is a read-modify-write of the whole account list, and it runs
-        // after a round-trip to another app — the window for a concurrent edit is wide.
+        // after a round-trip to another app, the window for a concurrent edit is wide.
         assertEquals(
             "setPgpPublicKey changed shape: it no longer stores withCachedPgpPublicKey(accounts(), " +
                 "id, signKeyId, publicKey) as a whole, or it lost @Synchronized. First case: the " +
@@ -62,7 +65,7 @@ class AccountStorePgpResetWiringTest {
     }
 
     /** Copy of [AccountStoreGateWiringTest]'s helper, plus [startingLinesEarlier] so a block can
-     *  begin above the line it is anchored on — annotations have no unique prefix of their own.
+     *  begin above the line it is anchored on, annotations have no unique prefix of their own.
      *  See its doc for why a prefix matching anything other than exactly one line returns a
      *  message rather than nothing. */
     private fun accountStoreBlock(

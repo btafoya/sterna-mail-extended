@@ -7,7 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 
 /**
- * The UIDVALIDITY last seen for one IMAP folder — whether cached UIDs still mean what they
+ * The UIDVALIDITY last seen for one IMAP folder, whether cached UIDs still mean what they
  */
 @Entity(tableName = "mailbox_uidvalidity", primaryKeys = ["accountId", "mailboxId"])
 data class MailboxUidValidityEntity(

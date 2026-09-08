@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The one decision behind the centred loading ring (#63), RUN — plus a source lint holding the two
+ * The one decision behind the centred loading ring (#63), run, plus a source lint holding the two
  */
 class LoadingRingTest {
 
@@ -34,10 +34,10 @@ class LoadingRingTest {
         )
     }
 
-    // -- 2. the composable asks the decision, and animates in ONE of its two branches -------------
+    // -- 2. the composable asks the decision, and animates in one of its two branches -------------
 
     /**
-     * SOURCE LINT. `LoadingRing` cannot be rendered here — no Robolectric and no
+     * Source lint. `LoadingRing` cannot be rendered here, no Robolectric and no
      */
     @Test fun `the composable routes through the decision, and animates only on null`() {
         assertBlock(
@@ -88,10 +88,14 @@ class LoadingRingTest {
         )
     }
 
-    // -- 3. the reader's TWO indicators ------------------------------------------------------------
+    // -- 3. the reader's two indicators ------------------------------------------------------------
 
     /**
      * One tap on a message shows these two in turn: the whole-screen one while the message is
+     * fetched, then the 24 dp one over the header while the body lays out. Either one left as a
+     * raw `CircularProgressIndicator` puts the unreadable fragment back on the very screen the
+     * reporter photographed, so both are pinned whole, never with `in`, which is blind to
+     * anything appended to the line.
      */
     @Test fun `the reader's fetch indicator is the app's ring`() {
         assertBlock(
@@ -129,7 +133,7 @@ class LoadingRingTest {
     // -- 4. the fourteen other converted sites -------------------------------------------------------
 
     /**
-     * SOURCE LINT, and the widest one: twenty sites now draw a [LoadingRing] instead of a raw
+     * Source lint, and the widest one: twenty sites now draw a [LoadingRing] instead of a raw
      */
     @Test fun `every converted loading indicator is still the app's ring`() {
         val damaged = RING_SITES.mapNotNull { site ->
@@ -155,7 +159,7 @@ class LoadingRingTest {
     // -- 5. the guard-rail: no full-size Material 3 indicator outside LoadingRing ---------------------
 
     /**
-     * The four tests below EXECUTE [fullSizeIndicatorSites] on synthetic sources. The table in §4
+     * The four tests below execute [fullSizeIndicatorSites] on synthetic sources. The table in §4
      */
     @Test fun `a bare indicator is a full-size site`() {
         assertEquals(
@@ -249,7 +253,9 @@ class LoadingRingTest {
     }
 
     /**
-     * SOURCE LINT, run over the whole of `app/src/main/kotlin/`. §4 pins the sites we know; this
+     * Source lint, run over the whole of `app/src/main/kotlin/`. §4 pins the sites we know; this
+     * one refuses the sites nobody has thought of yet, which is the only thing that closes the
+     * relapse.
      */
     @Test fun `no screen draws a full-size Material 3 indicator of its own`() {
         val root = repoRoot()
@@ -281,7 +287,9 @@ class LoadingRingTest {
     // -- helpers ------------------------------------------------------------------------------------
 
     /**
-     * Compares [expected] against the same number of consecutive CODE lines of [path], starting at
+     * Compares [expected] against the same number of consecutive code lines of [path], starting at
+     * the single line beginning with [prefix]. Whole trimmed lines, in order: a `contains` check
+     * cannot see anything appended to a line, and a per-line check cannot see a statement moved.
      */
     private fun assertBlock(path: String, prefix: String, expected: List<String>, why: String) {
         val code = codeLines(path)
@@ -291,7 +299,7 @@ class LoadingRingTest {
         assertEquals(why, expected, found)
     }
 
-    /** The file's lines, trimmed, without comments or blanks — a rule must not be met by prose. */
+    /** The file's lines, trimmed, without comments or blanks, a rule must not be met by prose. */
     private fun codeLines(path: String): List<String> =
         File(repoRoot(), path)
             // Not a bare readLines(): a pinned screen that gets renamed or deleted would die on a
@@ -330,11 +338,11 @@ class LoadingRingTest {
 
         private const val CALL = "CircularProgressIndicator("
 
-        /** `Modifier.size(20.dp)`, `.width(20.dp)`, `.height(20.dp)` — a size written out in dp. */
+        /** `Modifier.size(20.dp)`, `.width(20.dp)`, `.height(20.dp)`, a size written out in dp. */
         private val SIZE_CONSTRAINT = Regex("""\.(?:size|width|height)\(\s*(\d+(?:\.\d+)?)\s*\.dp\s*\)""")
 
         /**
-         * THE RULE, as a pure function: the 1-based line numbers of every full-size
+         * The rule, as a pure function: the 1-based line numbers of every full-size
          */
         fun fullSizeIndicatorSites(source: String): List<Int> {
             val code = codeMask(source)
@@ -403,7 +411,7 @@ class LoadingRingTest {
         }
 
         /**
-         * The fourteen converted sites nothing else holds. The six left out are held elsewhere and
+         * The fourteen converted sites nothing else holds.
          */
         val RING_SITES = listOf(
             RingSite(
@@ -416,7 +424,8 @@ class LoadingRingTest {
                 "the inbox's centred refresh indicator (a paging refresh, the one on the " +
                     "reporter's screenshot)",
                 // The condition gained `|| staleRows` (the stale-rows guard, RowsGuard.kt): the same
-                // ring, at the same place, now also REACHED when Paging is still presenting the
+                // ring, at the same place, now also reached when Paging is still presenting the
+                // previous folder's snapshot and nothing else is claiming the centre.
                 "refreshLoading || staleRows -> if (ringShowing) LoadingRing(Modifier.align(Alignment.Center)) else Unit",
             ),
             RingSite(

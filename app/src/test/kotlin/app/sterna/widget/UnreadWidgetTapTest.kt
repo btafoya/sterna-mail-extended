@@ -5,7 +5,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The tap's destination, RUN — not read as source, not recomputed here. Every expectation below is
+ * The tap's destination, run, not read as source, not recomputed here. Every expectation below is
+ * a literal [WidgetTapTarget], so a shipped rule whose arms were swapped or collapsed disagrees
+ * with this file instead of agreeing with it.
  */
 class UnreadWidgetTapTest {
 
@@ -34,7 +36,9 @@ class UnreadWidgetTapTest {
     }
 
     /**
-     * The arm the whole file exists for. Asserted on the VALUE returned, not on the absence of
+     * The arm the whole file exists for. Asserted on the value returned, not on the absence of
+     * one: "not UnifiedInbox" would be satisfied by anything at all, including a third arm nobody
+     * handles.
      */
     @Test fun `a single account opens the app as it is, never the unified inbox`() {
         assertEquals(

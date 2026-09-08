@@ -1,7 +1,11 @@
 package app.sterna.ui
 
 /**
- * How many panes the inbox host shows, decided on the window WIDTH alone — never on the
+ * How many panes the inbox host shows, decided on the window width alone, never on the
+ * orientation (#103). The two thresholds are Material 3's window size classes: 600 dp opens
+ * "Medium" (a phone in landscape is 640–914 dp, a small tablet upright 600–800 dp), where a list
+ * and a reader fit side by side; 1 200 dp opens "Large", where a permanent drawer fits too. A
+ * window under 600 dp gets the one-pane layout it has always had, to the pixel.
  */
 enum class PaneLayout { Narrow, Wide, Desk }
 
@@ -11,7 +15,7 @@ const val WIDE_MIN_WIDTH_DP = 600
 /** M3 "Large": list + reader + a permanent drawer (the drawer itself is a later slice, V6). */
 const val DESK_MIN_WIDTH_DP = 1200
 
-/** The width of the drawer sheet (`ModalDrawerSheet` in InboxScreen) — what a permanent drawer takes. */
+/** The width of the drawer sheet (`ModalDrawerSheet` in InboxScreen), what a permanent drawer takes. */
 const val DRAWER_SHEET_WIDTH_DP = 300
 
 /** Below this the list truncates sender and time on every row. */

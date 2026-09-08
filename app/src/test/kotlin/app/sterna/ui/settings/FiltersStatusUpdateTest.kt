@@ -7,7 +7,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [filtersStateWithStatus], executed. The filters screen carries three facts about the SERVER —
+ * [filtersStateWithStatus], executed. The filters screen carries three facts about the server,
+ * "your rules are not running", "another script is active", "there is a vacation script", and
+ * they must move together, from one read, or not at all.
  */
 class FiltersStatusUpdateTest {
 
@@ -21,7 +23,7 @@ class FiltersStatusUpdateTest {
     @Test
     fun `a read that failed leaves all three facts exactly as they were`() {
         // null is "I could not look", not "all clear". The case it protects: the responder has
-        // just been switched off, the server left no script active, the rules are dead — and the
+        // just been switched off, the server left no script active, the rules are dead, and the
         // read that would have said so failed. Blanking here erases the warning at the moment it
         // becomes true, and closes the Save button that is the way out.
         assertEquals(displayed, filtersStateWithStatus(state = displayed, status = null))
@@ -37,7 +39,7 @@ class FiltersStatusUpdateTest {
     fun `a read that succeeds replaces all three facts`() {
         // The half-refresh this closes: after a save only `rulesNotRunning` was read again, so the
         // red "another script is active" line stayed under a screen that had just made Sterna's
-        // script the active one — two halves of the screen describing two different moments.
+        // script the active one, two halves of the screen describing two different moments.
         val next = filtersStateWithStatus(
             state = displayed,
             status = FilterScriptStatus(
@@ -122,8 +124,8 @@ class FiltersStatusUpdateTest {
     @Test
     fun `a sterna script the rules read could not parse keeps the refusal up`() {
         // Volet D put "we could not read our own script" behind the same red line, because saving
-        // over it destroys content nobody managed to read. The script LIST cannot see that — it
-        // carries names and active flags — so a status read must not clear it.
+        // over it destroys content nobody managed to read. The script LIST cannot see that, it
+        // carries names and active flags, so a status read must not clear it.
         val next = filtersStateWithStatus(
             state = FiltersUiState(loading = false),
             status = FilterScriptStatus(scriptExists = true, scriptActive = true, enabledRuleCount = 1),
@@ -143,7 +145,7 @@ class FiltersStatusUpdateTest {
     }
 
     /**
-     * E2. The same read carries WHICH of the two refusals it is, all the way to the screen.
+     * E2. The same read carries which of the two refusals it is, all the way to the screen.
      */
     @Test
     fun `the unreadable script reaches the screen as a fact of its own`() {
@@ -157,7 +159,7 @@ class FiltersStatusUpdateTest {
         assertTrue("and its cause is now nameable", next.scriptUnreadable)
     }
 
-    /** The witness: a foreign active script is NOT an unreadable one, and must not borrow its line. */
+    /** The witness: a foreign active script is not an unreadable one, and must not borrow its line. */
     @Test
     fun `another active script alone does not claim our script is unreadable`() {
         val next = filtersStateWithStatus(

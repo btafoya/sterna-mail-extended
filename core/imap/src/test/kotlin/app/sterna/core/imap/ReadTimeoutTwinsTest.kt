@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT. The two `withReadTimeout` wrappers — one plain, one suspending — cannot call each
+ * Source lint. The two `withReadTimeout` wrappers (one plain, one suspending) cannot call each
  */
 class ReadTimeoutTwinsTest {
 

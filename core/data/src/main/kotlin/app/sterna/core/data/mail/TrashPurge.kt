@@ -39,7 +39,7 @@ object TrashPurge {
             .toList()
 
     /**
-     * The WHOLE folder as the server enumerates it, not merely the synced window; [cap] takes the
+     * The whole folder as the server enumerates it, not merely the synced window;
      */
     suspend fun imapSnapshotIds(
         accountId: String,
@@ -60,6 +60,7 @@ object TrashPurge {
 
     /**
      * A JMAP id does not change when the message changes folder, so one rescued out of the Trash by
+     * a move is left out: only ids the server files in [expectedMailboxId] alone are destroyable.
      */
     fun destroyableIds(
         requested: List<String>,
@@ -72,7 +73,7 @@ object TrashPurge {
     }
 
     /**
-     * What the server reported, or the numbering the CACHED ids belong to. Without that fallback
+     * What the server reported, or the numbering the cached ids belong to. Without that fallback
      * every offline "Empty trash" would produce an unverifiable order. Null destroys nothing.
      */
     fun snapshotUidValidity(observed: Long?, recorded: Long?): Long? =

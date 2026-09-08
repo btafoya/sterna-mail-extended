@@ -14,6 +14,7 @@ import java.sql.DriverManager
 
 /**
  * **v20 → v21** ([MIGRATION_20_21]): `emails` gains `ccJson` and `bccJson`, the recipients put in
+ * copy (see [EmailEntity.ccJson], [EmailEntity.bccJson]).
  */
 class CopiesMigrationSqlTest {
     private lateinit var db: Connection
@@ -81,7 +82,7 @@ class CopiesMigrationSqlTest {
             }
         } as SupportSQLiteDatabase
 
-    /** The published v15 schema, populated — the state a real install carries before any of this. */
+    /** The published v15 schema, populated, the state a real install carries before any of this. */
     private fun seedPublishedV15() {
         db.createStatement().use { st ->
             st.executeUpdate(publishedEmailsCreate)
@@ -108,8 +109,8 @@ class CopiesMigrationSqlTest {
                     "`hasAttachment`, `sortKey`) VALUES ('e2', 'accA', 'mb1', 'World', 1, 0, 0, 200)",
             )
             st.executeUpdate("INSERT INTO `email_bodies` VALUES ('e1', 'accA', '{}', '{}', 42)")
-            // The user data a destructive fallback destroys: a snooze, and above all a QUEUED
-            // outbox row — mail the user wrote and that has never left the phone.
+            // The user data a destructive fallback destroys: a snooze, and above all a queued
+            // outbox row, mail the user wrote and that has never left the phone.
             st.executeUpdate("INSERT INTO `snoozed` VALUES ('e2', 'accA', 99999)")
             st.executeUpdate(
                 "INSERT INTO `outbox` (`accountId`, `recipients`, `subject`, `textBody`, " +
@@ -141,7 +142,7 @@ class CopiesMigrationSqlTest {
     }
 
     /**
-     * A REAL v20 database: the published v15 schema, populated, then carried forward by the very
+     * A real v20 database: the published v15 schema, populated, then carried forward by the very
      */
     private fun seedV20() {
         seedPublishedV15()
@@ -176,7 +177,9 @@ class CopiesMigrationSqlTest {
     }
 
     /**
-     * The DECLARED shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`,
+     * The declared shape of each column: `type`, `notnull`, `dflt_value` from `PRAGMA table_info`,
+     * not just its name. Room's `TableInfo.Column.equals` compares the affinity, the nullability
+     * and the default, so a column of the right name and the wrong type fails `validateMigration`
      */
     private fun columnShapes(table: String): Map<String, Triple<String, Int, String?>> {
         val shapes = mutableMapOf<String, Triple<String, Int, String?>>()
@@ -299,7 +302,7 @@ class CopiesMigrationSqlTest {
         migrate20to21()
 
         // No backfill: the addresses are not held locally, so an old row is NULL until its next
-        // sync, and NULL decodes to "nobody in copy" — the answer this cache already gave.
+        // sync, and NULL decodes to "nobody in copy", the answer this cache already gave.
         assertEquals(2, count("SELECT COUNT(*) FROM `emails` WHERE `ccJson` IS NULL"))
         assertEquals(2, count("SELECT COUNT(*) FROM `emails` WHERE `bccJson` IS NULL"))
         assertEquals(
@@ -313,7 +316,7 @@ class CopiesMigrationSqlTest {
     }
 
     /**
-     * The four addressing columns are four distinct stores. Written with four DIFFERENT address
+     * The four addressing columns are four distinct stores. Written with four different address
      */
     @Test fun v20to21_theFourAddressColumnsStayFourSeparateStores() {
         seedV20()
@@ -353,10 +356,10 @@ class CopiesMigrationSqlTest {
         seedV20()
         migrate20to21()
 
-        // Room compares the AFFINITY, the nullability and the default at open time. A column of
+        // Room compares the affinity, the nullability and the default at open time. A column of
         // the right name and the wrong type throws
         // IllegalStateException("Migration didn't properly handle: emails …") on every launch,
-        // and the only way out for the user is to reinstall — the outbox lost by the side door.
+        // and the only way out for the user is to reinstall, the outbox lost by the side door.
         assertEquals(Triple("TEXT", 0, null), columnShapes("emails")["ccJson"])
         assertEquals(Triple("TEXT", 0, null), columnShapes("emails")["bccJson"])
         // The v17 column they are modelled on, as a witness that this is the shape Room expects.
@@ -406,7 +409,7 @@ class CopiesMigrationSqlTest {
     }
 
     /**
-     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from — the
+     * Reads [SCHEMA_VERSION], the constant `@Database(version = …)` itself is written from, the
      * annotation is not retained at runtime, so it cannot be read reflectively.
      */
     @Test fun theRegisteredMigrationsReachTheDeclaredSchemaVersion() {

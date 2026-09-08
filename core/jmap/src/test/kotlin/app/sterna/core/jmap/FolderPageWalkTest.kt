@@ -6,6 +6,7 @@ import org.junit.Test
 
 /**
  * The windowed folder walk's decision, executed rather than read: how big the next request is,
+ * and when there is no next request.
  */
 class FolderPageWalkTest {
 
@@ -21,7 +22,7 @@ class FolderPageWalkTest {
     }
 
     @Test fun theSecondRequestAsksForTheRestOfTheWindow() {
-        // ...and capping WITHOUT this second request would be a fresh defect: the window would
+        // ...and capping without this second request would be a fresh defect: the window would
         // silently drop from 1000 to 500 (to 100 on a server that advertises nothing).
         assertEquals(
             200,

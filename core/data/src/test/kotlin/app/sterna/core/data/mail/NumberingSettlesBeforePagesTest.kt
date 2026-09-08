@@ -17,7 +17,7 @@ class NumberingSettlesBeforePagesTest {
      * What the user has in front of them: the rows the list shows, and the body cache an open would
      */
     private class Screen {
-        /** A body cached under the OLD numbering, for the id the new page is about to show. */
+        /** A body cached under the old numbering, for the id the new page is about to show. */
         val bodies = linkedMapOf("imap:acc-1:INBOX:7" to "the message that used to be UID 7")
         val rows = mutableListOf<String>()
         var openedWhenFirstPageLanded: String? = null
@@ -47,9 +47,9 @@ class NumberingSettlesBeforePagesTest {
     }
 
     @Test fun `a body cached under the old numbering is gone before the first page is visible`() {
-        // The test of the reserve. With the settle after the walk, the row of the NEW message 7
-        // is on screen for the length of the walk while the body of the OLD message 7 is still in
-        // the cache — and opening it renders the wrong message under the right header.
+        // The test of the reserve. With the settle after the walk, the row of the new message 7
+        // is on screen for the length of the walk while the body of the old message 7 is still in
+        // the cache, and opening it renders the wrong message under the right header.
         val screen = Screen()
 
         run(screen, pages = listOf(listOf(id, "imap:acc-1:INBOX:8"), listOf("imap:acc-1:INBOX:5")))
@@ -65,7 +65,7 @@ class NumberingSettlesBeforePagesTest {
     @Test fun `the walk still runs, and its answer still comes back`() {
         // The witness: settling first must not become "settle instead of walking". A refusal here
         // would fail the whole inbox refresh over one renumbered folder, which is the guard
-        // `loadFolder` exists to keep — it compares and records, it never rejects.
+        // `loadFolder` exists to keep, it compares and records, it never rejects.
         val screen = Screen()
 
         val walked = run(screen, pages = listOf(listOf(id), listOf("imap:acc-1:INBOX:5")))

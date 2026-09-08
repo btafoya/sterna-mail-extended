@@ -63,7 +63,7 @@ class TrashPurgeImapSnapshotTest {
 
     @Test fun `a read that ran out of time falls back too`() = runTest {
         // The enumeration is bounded at the socket, so its deadline arrives as an ordinary
-        // IOException — indistinguishable, by design, from being offline.
+        // IOException, indistinguishable, by design, from being offline.
         assertEquals(syncedWindow, snapshot(serverUids = { throw SocketTimeoutException("budget") }))
     }
 

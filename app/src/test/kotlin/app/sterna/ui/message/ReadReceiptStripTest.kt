@@ -9,7 +9,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The read-receipt strip: WHEN there is one at all, WHAT it says, and the one property that
+ * The read-receipt strip: when there is one at all, what it says, and the one property that
+ * matters beyond looks, the three ordinary states are the same height.
  */
 class ReadReceiptStripTest {
 
@@ -23,7 +24,7 @@ class ReadReceiptStripTest {
     // -- 1. whether there is a strip at all ---------------------------------------------------------
 
     /**
-     * NO OFFER, NO STRIP — and no divider either. This is the state of very nearly every message
+     * NO offer, NO strip, and no divider either. This is the state of very nearly every message
      * ever opened in this app: the reader never turned the switch on, or nobody asked.
      */
     @Test fun `no question means no strip`() {
@@ -31,7 +32,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * THE SWITCH, EXECUTED THROUGH THE STRIP. The two functions are composed here rather than
+     * The switch, executed through the strip. The two functions are composed here rather than
      */
     @Test fun `a switch that is off, or not yet read, draws nothing`() {
         listOf(ReadReceiptSetting.OFF, ReadReceiptSetting.NOT_LOADED).forEach { setting ->
@@ -51,7 +52,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * SAYING NO SENDS NOTHING, AND THE STRIP GOES. The refusal is executed through the same two
+     * Saying NO sends nothing, and the strip goes. The refusal is executed through the same two
      */
     @Test fun `a refusal leaves no strip and nothing to send`() {
         val afterRefusal = offeredReadReceipt(
@@ -65,7 +66,7 @@ class ReadReceiptStripTest {
         assertNull(readReceiptStrip(afterRefusal, ReadReceiptState.Idle))
     }
 
-    /** The question, when there is one: the ASK shape, naming who would be told. */
+    /** The question, when there is one: the ask shape, naming who would be told. */
     @Test fun `a standing question is the ask shape, naming who would be told`() {
         assertEquals(
             ReadReceiptStrip(ReadReceiptStripBody.ASK, "sender@example.org"),
@@ -74,7 +75,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * Every address the sender named is shown, not just the first: the reader is deciding WHO gets
+     * Every address the sender named is shown, not just the first: the reader is deciding who gets
      * told, and a second address hidden behind a comma is a decision she was not asked for.
      */
     @Test fun `every address the header named is on the line`() {
@@ -89,7 +90,7 @@ class ReadReceiptStripTest {
     // -- 2. what it says once the reader has said yes ----------------------------------------------
 
     /**
-     * THE TEXT SHOWN IS THE TEXT THAT WAS QUEUED, not one this file could rebuild. The subject
+     * The text shown is the text that was queued, not one this file could rebuild. The subject
      */
     @Test fun `in the outbox, the strip names the row that was queued`() {
         val queued = ReadReceiptPreview(
@@ -103,7 +104,7 @@ class ReadReceiptStripTest {
         assertSame(queued.subject, strip?.named)
     }
 
-    /** In flight, and afterwards on failure, there is nothing to name — and the strip stays. */
+    /** In flight, and afterwards on failure, there is nothing to name, and the strip stays. */
     @Test fun `sending and failing draw a strip that names nothing`() {
         assertEquals(
             ReadReceiptStrip(ReadReceiptStripBody.SENDING, ""),
@@ -116,7 +117,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * There is NO "sent" — [ReadReceiptState] has four states and the strip has four shapes, one
+     * There is NO "sent", [ReadReceiptState] has four states and the strip has four shapes, one
      */
     @Test fun `every state of the receipt has exactly one shape`() {
         assertEquals(
@@ -141,7 +142,8 @@ class ReadReceiptStripTest {
     // -- 3. the height ---------------------------------------------------------------------------
 
     /**
-     * WHICH STATES ARE THE SAME ROW, IN LITERALS. This is the whole point of the enum: asking,
+     * Which states are the same row, in literals. This is the whole point of the enum: asking,
+     * sending and queueing are one shape, and only the failure may grow.
      */
     @Test fun `three of the four states are the same row, and only the failure may grow`() {
         assertEquals(
@@ -158,7 +160,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * And the failure is only ever reached AFTER a gesture: it cannot be the shape of a question.
+     * And the failure is only ever reached after a gesture: it cannot be the shape of a question.
      */
     @Test fun `the shape that may grow is never the one that asks`() {
         assertEquals(
@@ -168,7 +170,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * Which states act, and which may be refused — in literals, both ways.
+     * Which states act, and which may be refused, in literals, both ways.
      */
     @Test fun `the question and the failure act, and only the question can be refused`() {
         assertEquals(
@@ -182,7 +184,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * WHICH WORDS EACH STATE WEARS, by resource name, both the line and the button.
+     * Which words each state wears, by resource name, both the line and the button.
      */
     @Test fun `each state wears its own line and its own button label`() {
         assertEquals(
@@ -200,7 +202,7 @@ class ReadReceiptStripTest {
         )
     }
 
-    /** The two lines that carry a `%1$s`, and the two that do not — a mismatch is a crash or a
+    /** The two lines that carry a `%1$s`, and the two that do not, a mismatch is a crash or a
      *  blank. */
     @Test fun `only the two lines that name something are formatted`() {
         assertEquals(
@@ -216,7 +218,7 @@ class ReadReceiptStripTest {
     // -- 4. the strip as source: what no JVM test can run -------------------------------------------
 
     /**
-     * SOURCE LINT, NOT A MEASUREMENT. Compose is not run here; these rules read the strip as text
+     * Source lint, not a measurement. Compose is not run here; these rules read the strip as text
      */
     @Test fun `the strip stands on a button, with a height floor and no padding of its own`() {
         val strip = stripLines()
@@ -232,7 +234,7 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * EVERY COMPOSABLE THE STRIP MAY DRAW, IN ORDER — the rule written the other way round, so
+     * Every composable the strip may draw, in order, the rule written the other way round, so
      */
     @Test fun `the strip draws these composables and no others`() {
         val drawn = stripLines().mapNotNull { line -> DRAW_CALL.find(line)?.value }
@@ -267,7 +269,8 @@ class ReadReceiptStripTest {
     }
 
     /**
-     * THE BUTTON, and the two things about it that a swap makes invisible: it fires the SEND,
+     * The button, and the two things about it that a swap makes invisible: it fires the send,
+     * and it is drawn UNCONDITIONALLY, in every state, not only in those that can be pressed.
      */
     @Test fun `the one button is drawn in every state, and it sends`() {
         val strip = stripLines()
@@ -300,7 +303,7 @@ class ReadReceiptStripTest {
     }
 
     /** The refusal is its own callback. Wired to the other one, a reader saying no answers a
-     *  stranger — and no other rule in this file would see it. */
+     *  stranger, and no other rule in this file would see it. */
     @Test fun `the cross refuses and the button sends, and they are not the same callback`() {
         val strip = stripLines()
         assertEquals(
@@ -319,7 +322,7 @@ class ReadReceiptStripTest {
     // -- 5. the wiring, from the ViewModel to the row ----------------------------------------------
 
     /**
-     * THE PRESENCE OF THE ROW READS THE OFFER, and its divider goes with it.
+     * The presence of the row reads the offer, and its divider goes with it.
      */
     @Test fun `the header draws the strip on the decision, last, with its own divider`() {
         val header = headerLines().filterNot { it.startsWith("//") }
@@ -390,7 +393,7 @@ class ReadReceiptStripTest {
     // -- reading the source -------------------------------------------------------------------------
 
     /**
-     * The NAME of a string resource, so a swapped label fails with words rather than with two
+     * The name of a string resource, so a swapped label fails with words rather than with two
      * generated integers nobody can tell apart.
      */
     private fun nameOf(id: Int): String = R.string::class.java.fields
@@ -448,7 +451,7 @@ class ReadReceiptStripTest {
          *  with a name. */
         val DRAW_CALL = Regex("""^[A-Z]\w*\(""")
 
-        /** A strip being drawn: a line that STARTS with `FooStrip(`. */
+        /** A strip being drawn: a line that starts with `FooStrip(`. */
         val STRIP_CALL = Regex("""^[A-Z]\w*Strip\(""")
 
         /** The line beside the button: one line in the ordinary states, error-coloured on failure. */
@@ -468,7 +471,7 @@ class ReadReceiptStripTest {
             "disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,",
             "if (body == ReadReceiptStripBody.SENDING) {",
             "CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)",
-            // The label comes from the STATE, never from one fixed resource: a constant "Send"
+            // The label comes from the state, never from one fixed resource: a constant "Send"
             // greyed out beside "In the outbox: …" is a button lying about where things stand.
             "stringResource(body.button),",
         )
@@ -484,7 +487,8 @@ class ReadReceiptStripTest {
         )
 
         /**
-         * Every hand-over between the three levels, by name — `ConversationBody`'s and
+         * Every hand-over between the three levels, by name, `ConversationBody`'s and
+         * `MessageHeader`'s.
          */
         val NAMED_HANDOVERS = mapOf(
             "onSendReadReceipt = onSendReadReceipt," to 2,

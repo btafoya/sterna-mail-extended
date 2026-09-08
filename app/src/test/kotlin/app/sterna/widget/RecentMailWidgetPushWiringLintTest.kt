@@ -8,7 +8,10 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — the same instrument and the same disclaimer as
+ * Source lint, not a behaviour test, the same instrument and the same disclaimer as
+ * [UnreadWidgetPushWiringLintTest], and a separate file from [RecentMailWidgetWiringLintTest] for
+ * the same reason the counter has one: this pins the app-scoped collection, and the decision it
+ * collects is executed next door by [RecentMailWidgetPushTest].
  */
 class RecentMailWidgetPushWiringLintTest {
 
@@ -42,7 +45,7 @@ class RecentMailWidgetPushWiringLintTest {
     }
 
     /**
-     * The two widgets keep TWO collections, and this is the rule that says so out loud.
+     * The two widgets keep two collections, and this is the rule that says so out loud.
      */
     @Test fun `each widget has its own collection, and neither gate is the other's`() {
         val lines = kotlinLines(STERNA_APPLICATION)
@@ -62,7 +65,8 @@ class RecentMailWidgetPushWiringLintTest {
     }
 
     /**
-     * THE SEED, whole lines — the gate's third writer, and the one nothing else in this
+     * The seed, whole lines, the gate's third writer, and the one nothing else in this
+     * repository can reach.
      */
     @Test fun `the seed asks about THIS widget's cells, and reads the answer the right way round`() {
         assertEquals(
@@ -83,7 +87,7 @@ class RecentMailWidgetPushWiringLintTest {
     }
 
     /**
-     * The whole brace-balanced block that opens with [opener] and contains [marker] — the launch
+     * The whole brace-balanced block that opens with [opener] and contains [marker], the launch
      */
     private fun blockContaining(file: File, marker: String, opener: String): List<String> {
         val lines = kotlinLines(file)

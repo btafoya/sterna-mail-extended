@@ -4,8 +4,8 @@ import app.sterna.core.data.settings.NotificationContent
 
 /** What a mail notification is allowed to put on screen, per the notification-content setting (#25).
  *  Pure and resource-free, so the rule is unit-testable. Every path that posts a mail notification
- *  goes through here, the snooze wake-up (#84) included — it used to post with the defaults and
- *  showed sender and subject to a user who asked for neither. */
+ *  goes through here, the snooze wake-up (#84) included: posted with the defaults, it would show
+ *  sender and subject to a user who asked for neither. */
 object MailNotificationText {
 
     /** [title] is always shown; [text] is the collapsed line, [bigText] the expanded one, and null
@@ -22,7 +22,7 @@ object MailNotificationText {
         generic: String,
         preview: String? = null,
     ): Reveal = Reveal(
-        // A `when` rather than a test against NONE: with an `if`, a position added later takes the
+        // A `when` rather than a test against none: with an `if`, a position added later takes the
         // sender silently.
         title = when (content) {
             NotificationContent.BODY_PREVIEW,
@@ -31,9 +31,9 @@ object MailNotificationText {
             -> sender
             NotificationContent.NONE -> generic
         },
-        // The collapsed line NEVER carries the preview: Notifications.kt rebuilds the group summary
+        // The collapsed line never carries the preview: Notifications.kt rebuilds the group summary
         // by copying EXTRA_TITLE/EXTRA_TEXT off the live children, so it would come back on its own
-        // — lock screen included, in a line nobody can collapse.
+        // on the lock screen too, in a line nobody can collapse.
         text = when (content) {
             NotificationContent.BODY_PREVIEW,
             NotificationContent.SENDER_AND_SUBJECT,
@@ -42,7 +42,7 @@ object MailNotificationText {
             NotificationContent.NONE -> null
         },
         // The expanded line is the only place the body may show; with no usable preview it is the
-        // subject alone. The newline is the SEPARATOR — shapePreview flattens the preview, not this.
+        // subject alone. The newline is the separator, shapePreview flattens the preview, not this.
         bigText = when (content) {
             NotificationContent.BODY_PREVIEW ->
                 shapePreview(preview)?.let { "$subject\n$it" } ?: subject
@@ -66,12 +66,12 @@ object MailNotificationText {
     }
 
     /**
-     * One row of the latest-mail widget. Two lines and not three — there is no expanded state on a
+     * One row of the latest-mail widget.
      */
     data class WidgetRow(val primary: String, val secondary: String?, val namesSender: Boolean)
 
     /**
-     * What one row of the latest-mail widget may say, per the same setting and the app lock — no
+     * What one row of the latest-mail widget may say, per the same setting and the app lock, no
      */
     fun widgetRow(
         content: NotificationContent,
@@ -96,7 +96,7 @@ object MailNotificationText {
                 NotificationContent.SENDER_ONLY -> generic
                 NotificationContent.NONE -> null
             },
-            // The same exhaustive `when` a third time, and NOT `effective != NONE`: a position added
+            // The same exhaustive `when` a third time, and not `effective != none`: a position added
             // later would be given the sender's initial silently, and a name on a home screen cannot
             // be taken back.
             namesSender = when (effective) {
@@ -118,7 +118,7 @@ object MailNotificationText {
 
     /** A raw body opening made fit for one expanded notification line: every run of blank becomes one
      *  space, the ends are trimmed, and the rest is cut to [PREVIEW_MAX_CHARS] with nothing appended.
-     * Flatten THEN cap: a body starting with forty blank lines would otherwise spend its whole
+     * Flatten then cap: a body starting with forty blank lines would otherwise spend its whole
      *  allowance on nothing. */
     fun shapePreview(preview: String?): String? =
         preview?.replace(BLANK_RUN, " ")?.trim()?.take(PREVIEW_MAX_CHARS)?.takeIf { it.isNotEmpty() }

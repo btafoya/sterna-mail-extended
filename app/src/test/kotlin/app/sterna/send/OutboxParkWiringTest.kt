@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT. `OutboxWorker` is a `CoroutineWorker` reaching for `AppContainer` (Room,
+ * Source lint.
  */
 class OutboxParkWiringTest {
 
@@ -21,11 +21,11 @@ class OutboxParkWiringTest {
     }
 
     /**
-     * Pins THREE things in one sequence, because it is their ORDER that is the fix.
+     * Pins three things in one sequence, because it is their order that is the fix.
      */
     @Test fun `a delivery the worker finds already begun is parked, before anything else happens to it`() {
-        // THE ORDER IS THE FIX. The parking must run on the row as it was READ, before
-        // isReadyToSend, before the FAILED guard and before a single byte goes to the server.
+        // The order is the fix. The parking must run on the row as it was read, before
+        // isReadyToSend, before the failed guard and before a single byte goes to the server.
         val lines = linesOf(WORKER)
         assertEquals(
             "OutboxWorker.doWork must park the row it has just read BEFORE it asks whether the row " +
@@ -46,7 +46,7 @@ class OutboxParkWiringTest {
                 "val container = (applicationContext as android.app.Application).container",
                 "val repo = container.mailRepository",
                 "val item = repo.outboxItem(id) ?: return Result.success() // sent, cancelled or deleted",
-                // The row is written back with its OWN attemptCount and lastError. Nothing was
+                // The row is written back with its own attemptCount and lastError. Nothing was
                 // attempted and nothing failed here: bumping the count would spend a retry the user
                 // never used, and overwriting lastError would erase the reason of an earlier,
                 // genuine failure that is still printed on the row.
@@ -75,17 +75,17 @@ class OutboxParkWiringTest {
                 "repo.deleteOutbox(id)",
                 "return Result.success()",
                 "}",
-                // A BARE retry, alone in its arm: no updateOutboxState, no attemptCount + 1, no
-                // lastError. Nothing was attempted, so nothing may be spent or overwritten — and
+                // A bare retry, alone in its arm: no updateOutboxState, no attemptCount + 1, no
+                // lastError. Nothing was attempted, so nothing may be spent or overwritten, and
                 // MAX_ATTEMPTS counts deliveries, which this is not.
                 "return Result.retry()",
                 "}",
-                // SENDING, on the row, BEFORE the message leaves. This is the fact parkOnPickup
+                // Sending, on the row, before the message leaves. This is the fact parkOnPickup
                 // reads at the next pickup and the only proof this phone ever has that a delivery
                 "repo.updateOutboxState(id, OutboxState.SENDING, item.attemptCount, item.lastError)",
                 "return try {",
                 "repo.performSend(credentials, item)",
-                // and the row leaves the outbox only AFTER the send returned: deleted before, a
+                // and the row leaves the outbox only after the send returned: deleted before, a
                 // failure would have destroyed the only copy of the message.
                 "repo.deleteOutbox(id)",
                 "Result.success()",
@@ -102,7 +102,7 @@ class OutboxParkWiringTest {
     }
 
     /**
-     * Its own test, and the one that closes a window the block above cannot see through. That
+     * Its own test, and the one that closes a window the block above cannot see through.
      */
     @Test fun `the queued row is destroyed in two places, and nowhere else`() {
         assertEquals(
@@ -114,8 +114,8 @@ class OutboxParkWiringTest {
             listOf(
                 // 1. Proven departure: nothing can ever send this message again, so nothing is lost.
                 "repo.deleteOutbox(id)",
-                // 2. AFTER performSend returned. Moved above it, a throw would have destroyed the
-                // only copy — and the catch below would then retry a row that no longer exists.
+                // 2. After performSend returned. Moved above it, a throw would have destroyed the
+                // only copy, and the catch below would then retry a row that no longer exists.
                 "repo.deleteOutbox(id)",
             ),
             linesOf(WORKER).filter { "repo.deleteOutbox(" in it },

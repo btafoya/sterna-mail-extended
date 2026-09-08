@@ -1,7 +1,7 @@
 package app.sterna.ui.settings
 
 /**
- * When the filters screen may offer its Save button (#34). Save regenerates the script and makes it
+ * When the filters screen may offer its Save button (#34).
  */
 internal fun filtersSaveEnabled(saving: Boolean, dirty: Boolean, rulesNotRunning: Boolean): Boolean =
     !saving && (dirty || rulesNotRunning)
@@ -11,7 +11,7 @@ internal enum class FiltersSaveStep {
     /** Ask before writing: this save replaces a script nobody has read. */
     CONFIRM_OVERWRITE,
 
-    /** Nothing unseen is at stake — write. */
+    /** Nothing unseen is at stake, write. */
     WRITE,
 }
 

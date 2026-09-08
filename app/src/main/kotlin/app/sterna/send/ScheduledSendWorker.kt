@@ -20,7 +20,7 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
         val repo = container.mailRepository
         val row = repo.scheduledSend(id) ?: return Result.success() // already fired or cancelled
         val credentials = container.accountStore.credentials(row.accountId) ?: run {
-            // A `null` here is NOT proof that the account left, and this row is the ONLY copy of
+            // A `null` here is not proof that the account left, and this row is the only copy of
             // the message: `credentials` also answers null for a secret that will not decode, and an
             // unreadable blob makes `accounts()` empty. So the departure is proved first, in the one
             // place a JVM test can execute the rule.
@@ -33,7 +33,7 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
                 repo.deleteScheduledSend(id)
                 return Result.success()
             }
-            // Unproven ⇒ nothing is destroyed and nothing is written. retry() and not success():
+            // Unproven, so nothing is destroyed and nothing is written. retry() and not success():
             // the "Scheduled" screen is still announcing this send, so success() would leave the row
             return Result.retry()
         }
@@ -52,7 +52,7 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
                 bcc = row.bcc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
                 // A scheduled send of an edited draft (#63) still replaces the stored draft. The row
                 // carries no fidelity verdict, so the id IS the verdict: `scheduleSend` writes
-                // draftEmailId only when the body verdict is clean, and `false` here may say so ONLY
+                // draftEmailId only when the body verdict is clean, and `false` here may say so only
                 // because of that gate.
                 draftEmailId = row.draftEmailId,
                 // …and destroys it under the numbering the composer read it in, not one read at
@@ -70,11 +70,11 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
             if (runAttemptCount < MAX_ATTEMPTS) {
                 Result.retry()
             } else {
-                // Give up after retries — but notify instead of dropping it silently, and clear the
+                // Give up after retries, but notify instead of dropping it silently, and clear the
                 // now-overdue row. The banner names the message only as much as the
                 // notification-content setting allows.
                 //
-                // GUARDED: this read sits INSIDE the catch, and the DataStore has no corruption
+                // GUARDED: this read sits inside the catch, and the DataStore has no corruption
                 // handler, so a throw would escape doWork() and skip both the banner and the
                 // delete. An unreadable setting falls back to the quietest position.
                 val content = runCatching { container.settingsRepository.notificationContent.first() }

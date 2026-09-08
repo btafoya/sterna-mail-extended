@@ -5,7 +5,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — the instrument of [SubscribedFoldersSurfaceWiringTest],
+ * Source lint, not a behaviour test, the instrument of [SubscribedFoldersSurfaceWiringTest],
+ * pointed at the one thing a behaviour test cannot see: who reads
+ * `Mailbox.lostRoleClaim`, across every module.
  */
 class LostRoleClaimBordersTest {
 
@@ -36,7 +38,8 @@ class LostRoleClaimBordersTest {
     }
 
     /**
-     * The guard itself, whole lines. The sweep above sees the ONE line that names the field; this
+     * The guard itself, whole lines. The sweep above sees the one line that names the field; this
+     * sees what it sits in, five survivor families, or-ed, on the mailbox as it arrives.
      */
     @Test fun `the survivor test is the five families, OR-ed, and nothing else`() {
         assertEquals(
@@ -50,9 +53,9 @@ class LostRoleClaimBordersTest {
         )
     }
 
-    /** The reading of the mark has ONE caller, which is what its purity is there to buy:
+    /** The reading of the mark has one caller, which is what its purity is there to buy:
      * a second call site is a second answer to give the day they disagree. The declaration is
-     *  screened out by WHOLE-LINE equality, never by `contains`, which would also swallow a
+     *  screened out by whole-line equality, never by `contains`, which would also swallow a
      *  one-line `internal fun` that happens to call it. */
     @Test fun `the reading of the mark is called exactly once in the whole app`() {
         val declaration = "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt: " +
@@ -70,7 +73,7 @@ class LostRoleClaimBordersTest {
     }
 
     /**
-     * THE SEAM, and the one mutation everything else here misses. The two halves of this fix are
+     * The seam, and the one mutation everything else here misses.
      */
     @Test fun `the cache row reaches the crossing with its role untouched`() {
         assertEquals(
@@ -98,7 +101,7 @@ class LostRoleClaimBordersTest {
         }
         .sorted()
 
-    /** [count] consecutive code lines from the ONE line starting with [prefix]. */
+    /** [count] consecutive code lines from the one line starting with [prefix]. */
     private fun block(file: File, prefix: String, count: Int): List<String> {
         val lines = codeLines(file)
         val hits = lines.indices.filter { lines[it].startsWith(prefix) }
@@ -132,7 +135,7 @@ class LostRoleClaimBordersTest {
             File(root, "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt")
         }
 
-        /** EVERY module, not just `:app`: the field is declared in `:core:jmap`, filled in
+        /** Every module, not just `:app`: the field is declared in `:core:jmap`, filled in
          *  `:core:data` and read in `:app`, so a sweep of one module proves nothing about it. */
         val MAIN_SOURCES: List<File> by lazy {
             listOf(

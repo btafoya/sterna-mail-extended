@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The one decision behind "3 results" and "at least 3": may this search answer be shown as a TOTAL?
+ * The one decision behind "3 results" and "at least 3": may this search answer be shown as a total?
  */
 class SearchAnswerIsTotalTest {
 

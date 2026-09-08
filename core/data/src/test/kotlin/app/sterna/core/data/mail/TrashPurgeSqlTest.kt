@@ -82,7 +82,7 @@ class TrashPurgeSqlTest {
     }
 
     /**
-     * A message leaving its folder, run through the DAO's OWN statement
+     * A message leaving its folder, run through the DAO's own statement
      */
     private fun unlist(accountId: String, emailIds: List<String>) {
         val sql = PURGE_SNAPSHOT_UNLIST_SQL
@@ -95,7 +95,7 @@ class TrashPurgeSqlTest {
         }
     }
 
-    /** The purge loop: read a wave, destroy it, delete it, repeat — as [MailRepository.purgeSnapshot] does. */
+    /** The purge loop: read a wave, destroy it, delete it, repeat, as [MailRepository.purgeSnapshot] does. */
     private fun drain(purgeId: String, accountId: String = "accA", waveSize: Int = 2): List<String> {
         val destroyed = mutableListOf<String>()
         repeat(TrashPurge.MAX_WAVES) {
@@ -143,7 +143,7 @@ class TrashPurgeSqlTest {
     @Test fun aMessageFiledElsewhereDuringTheUndoWindowIsNotDestroyed() {
         // The user confirms with m1..m3 in Trash, then realises m2 must be kept: they open it and
         // move it to another folder. A JMAP id does not change when a message moves, so without
-        // the withdrawal the purge destroyed m2 IN THE FOLDER IT WAS JUST FILED INTO.
+        // the withdrawal the purge destroyed m2 in the folder it was just filed into.
         snapshot("p1", listOf("m1", "m2", "m3"))
 
         unlist("accA", listOf("m2"))
@@ -153,7 +153,7 @@ class TrashPurgeSqlTest {
 
     @Test fun aRescuedMessageLeavesEveryPendingConfirmationOfItsAccount() {
         // Two confirmations can be pending at once (Empty tapped again while the first is held
-        // back). The message left the folder — no confirmation may still claim it.
+        // back). The message left the folder, no confirmation may still claim it.
         snapshot("p1", listOf("m1", "m2"))
         snapshot("p2", listOf("m2", "m3"))
 
@@ -239,7 +239,7 @@ class TrashPurgeSqlTest {
             ps.setString(1, "accA"); ps.setString(2, "trash"); ps.executeUpdate()
         }
 
-        // Nothing left to destroy for the undone purge — the snapshot IS the order.
+        // Nothing left to destroy for the undone purge, the snapshot IS the order.
         assertEquals(emptyList<String>(), wave("p1"))
         assertEquals(listOf("m5"), wave("p2"))
         assertEquals(listOf("m7"), wave("p3", "accB"))

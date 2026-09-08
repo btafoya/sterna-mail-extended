@@ -29,10 +29,10 @@ sealed interface PushStatus {
      *  [unifiedPushMissing] is the second true fact: this account should be on UnifiedPush and is not. */
     data class Direct(val unifiedPushMissing: Boolean) : PushStatus
 
-    /** Bring-up in flight — UnifiedPush registration, or the direct connection (re)opening. */
+    /** Bring-up in flight, UnifiedPush registration, or the direct connection (re)opening. */
     data object Connecting : PushStatus
 
-    /** No live connection right now — the periodic worker checks every ~30 minutes. */
+    /** No live connection right now, the periodic worker checks every ~30 minutes. */
     data object Periodic : PushStatus
 
     /** Not in the watched set at all (A8): nothing touches it until the app is opened. Distinct
@@ -57,8 +57,8 @@ object PushController {
             // A linked sub-account holds no live push of its own (#31): the server never puts an
             // ACL-shared account's StateChanges on the login's EventSource.
             container.accountStore.account(credentials.id)?.isLinked == true -> Transport.PERIODIC
-            // Not gated on JMAP: an IMAP relay rides this too, but only once ACTIVE — a payload
-            // really arrived — or any distributor would trade IMAP IDLE for a dead endpoint.
+            // Not gated on JMAP: an IMAP relay rides this too, but only once active, a payload
+            // really arrived, or any distributor would trade IMAP IDLE for a dead endpoint.
             up.isActive(credentials.id) -> Transport.UNIFIED_PUSH
             batterySaver -> Transport.PERIODIC
             credentials.protocol == MailProtocol.JMAP -> Transport.EVENT_SOURCE
@@ -73,12 +73,12 @@ object PushController {
     }
 
     /** Whether [accountId] is in the push/worker watched set (A8). The notifications filter applies
-     *  AFTER this, so an account outside the set is looked at by nothing and reads NotWatched
+     *  after this, so an account outside the set is looked at by nothing and reads NotWatched
      *  rather than a 30-minute poll that never runs. */
     fun isWatched(accountId: String, currentId: String?, pushAllAccounts: Boolean): Boolean =
         pushAllAccounts || accountId == currentId
 
-    /** Whether the "not being watched" note is telling the truth (A8): it names ONE action, and
+    /** Whether the "not being watched" note is telling the truth (A8): it names one action, and
      *  that is the whole action only while [notificationsEnabled] is still on. */
     fun shouldShowUnwatchedNote(isLinked: Boolean, isWatched: Boolean, notificationsEnabled: Boolean): Boolean =
         !isLinked && !isWatched && notificationsEnabled
@@ -91,9 +91,9 @@ object PushController {
         else -> DirectLine.NO_DISTRIBUTOR
     }
 
-    /** What an arm ASKED FOR and what it came away with. [held], never "open": a handle is
+    /** What an arm asked for and what it came away with. [held], never "open": a handle is
      *  recorded before the server has answered, so what it rules out is an arm that never got that
-     *  far — offline, refused, a retired generation. */
+     *  far, offline, refused, a retired generation. */
     fun armSummary(accounts: Int, logins: Int, held: Int): String =
         "Push armed for $accounts account(s): $logins login connection(s) requested, $held held"
 
@@ -103,7 +103,7 @@ object PushController {
         "Push arm found nothing to watch: 0 of $candidates account(s) need a direct connection, stopping"
 
     /** An empty account list in the fallback cycle. Four facts arrive here and counting cannot
-     *  separate them, so this branches: [accountsUnreadable] is asked FIRST, an unreadable blob
+     *  separate them, so this branches: [accountsUnreadable] is asked first, an unreadable blob
      *  making `accounts()` answer empty, and [stored] then separates the genuinely empty install
      * from credentials that did not materialise. "For the watched set", not "for all of them". */
     fun nothingToPollLine(stored: Int, candidates: Int, accountsUnreadable: Boolean): String = when {
@@ -119,8 +119,8 @@ object PushController {
             "Fallback poll found nothing to fetch: 0 of $candidates watched account(s) have notifications on, cycle over"
     }
 
-    /** One account skipped whole — the widest of the worker's silent exits, since on JMAP
-     * `hasExtrasToPoll` is false by construction. "A handle is HELD", never "a connection is
+    /** One account skipped whole, the widest of the worker's silent exits, since on JMAP
+     * `hasExtrasToPoll` is false by construction. "A handle is held", never "a connection is
      *  open": a socket that died without telling us still answers true, and the line would assert
      *  the very thing under suspicion. [accountId] is the internal UUID, a logcat being public. */
     fun pollSkippedLine(accountId: String, protocol: MailProtocol, watchedFolders: Int): String =
@@ -160,7 +160,7 @@ object PushController {
             // A linked sub-account inherits the login's transport state, but the server never
             // pushes its changes there (#31).
             account?.isLinked == true -> PushStatus.Periodic
-            // An armed relay (#177) is tested ABOVE the UnifiedPush branch and above NotWatched:
+            // An armed relay (#177) is tested above the UnifiedPush branch and above NotWatched:
             // a POST on the relay address enqueues [PushFetchWorker], which gates on
             // notificationsEnabled alone, so an unwatched account with a relay really is woken.
             up.relayArmed(accountId) -> PushStatus.ViaRelay(up.relayLastDeliveryMillis(accountId))
@@ -189,7 +189,7 @@ object PushController {
         val accounts = watched.filter { store.notificationsEnabled(it.id) }
         // Kick the UnifiedPush state machine (no-op for IMAP or without a distributor).
         accounts.forEach { up.ensureRegistered(it) }
-        // An account counts as direct until UnifiedPush is fully ACTIVE, so bring-up never gaps
+        // An account counts as direct until UnifiedPush is fully active, so bring-up never gaps
         // delivery. In battery saver none is: the 30-minute worker carries the rest.
         val batterySaver = isBatterySaver(appContext)
         val direct = accounts.filter { transportFor(appContext, it, batterySaver).isDirect }
@@ -202,7 +202,7 @@ object PushController {
                 PushFetchWorker.enqueue(appContext, it.id, resetInbox = reset)
             }
         } else {
-        // Android 12+ can refuse a foreground-service start at the CALLER, before the service is
+        // Android 12+ can refuse a foreground-service start at the caller, before the service is
         // created, so the #98 guard in PushService.onCreate never sees it. Left to propagate it
         // crashes a retried trigger, i.e. a crash loop.
             try {

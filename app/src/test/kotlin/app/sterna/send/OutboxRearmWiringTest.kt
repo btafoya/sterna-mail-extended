@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT. `WorkManager` needs a `Context` and this module has neither Robolectric nor
+ * Source lint. `WorkManager` needs a `Context` and this module has neither Robolectric nor
  */
 class OutboxRearmWiringTest {
 
@@ -39,7 +39,7 @@ class OutboxRearmWiringTest {
                 "context: Context,",
                 "id: Long,",
                 "initialDelayMillis: Long = 0,",
-                // THE DEFAULT IS THE RULE. Only the startup re-arm may keep; every other caller
+                // The default is the rule. Only the startup re-arm may keep; every other caller
                 // carries the newest instant there is and must replace.
                 "keepExisting: Boolean = false,",
                 ") {",
@@ -57,8 +57,8 @@ class OutboxRearmWiringTest {
     }
 
     @Test fun `the startup re-arm books behind what is already there, never over it`() {
-        // THE WHOLE BLOCK, not the enqueue line alone: `keepExisting = true` is an ARGUMENT, and
-        // dropping it is the cheapest mutation of this volet — it compiles, it reads fine, and it
+        // The whole block, not the enqueue line alone: `keepExisting = true` is an argument, and
+        // dropping it is the cheapest mutation of this volet, it compiles, it reads fine, and it
         // restores the defect in full.
         val lines = linesOf(APPLICATION)
         assertEquals(
@@ -70,11 +70,14 @@ class OutboxRearmWiringTest {
                 "interrupted, at every cold start — and the exponential backoff of an offline send " +
                 "restarts from zero each time the app is opened:",
             listOf(
-                // ASSIGNED, not anonymous: `AppContainer.outboxRecovery` is the Job a composer
+                // Assigned, not anonymous: `AppContainer.outboxRecovery` is the Job a composer
                 // rebuilt after a process death joins before taking its row back by the id its
+                // route carries (`resumeOutboxRow`). An anonymous launch here leaves nothing to
+                // join, and the composer's take races the park below, the row it just took
+                // editing is parked failed under the open composer.
                 "outboxRecovery = appScope.launch {",
-                // PARKED, not reverted: a row left EDITING by a process death is parked FAILED
-                // with the interrupted-edit reason, and unfinished() below does not return FAILED,
+                // Parked, not reverted: a row left editing by a process death is parked failed
+                // with the interrupted-edit reason, and unfinished() below does not return failed,
                 // so the re-arm never books it. Requeued instead, it leaves on its own at 0 and the
                 // composer restored afterwards can send the same message twice.
                 "mailRepository.parkInterruptedOutboxEdits()",
@@ -89,11 +92,14 @@ class OutboxRearmWiringTest {
     }
 
     @Test fun `no other call site keeps what is already booked`() {
-        // This is the trap of the volet, and it is why the default stays REPLACE. `keepExisting`
+        // This is the trap of the volet, and it is why the default stays replace. `keepExisting`
         // spreading to the other two call sites is silent and total:
         //
-        // TWO lines now, not one: the scheduled-send queue got the same startup re-arm, for the
-        // same reason and with the same `keepExisting = true` (a REPLACE there cancels a
+        // Two lines now, not one: the scheduled-send queue got the same startup re-arm, for the
+        // same reason and with the same `keepExisting = true` (a replace there cancels a
+        // ScheduledSendWorker between its outbox deposit and its row deletion, and the message
+        // goes out twice, pinned by `ScheduledSendRearmWiringTest`). What this inventory closes
+        // is unchanged: no call site other than a startup re-arm keeps what is already booked.
         val application = linesOf(APPLICATION)
         assertEquals(
             "only a startup re-arm may keep an existing booking (see the two damages above):",

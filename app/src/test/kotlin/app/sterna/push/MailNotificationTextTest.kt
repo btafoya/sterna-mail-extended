@@ -59,7 +59,7 @@ class MailNotificationTextTest {
     }
 
     /**
-     * The rule the group summary depends on. [Notifications.updateGroupSummary] rebuilds the
+     * The rule the group summary depends on.
      */
     @Test fun `the preview never reaches the collapsed line`() {
         NotificationContent.entries.forEach { content ->
@@ -89,6 +89,9 @@ class MailNotificationTextTest {
 
     /**
      * A body arrives with the blank of the format it was written in: quoted-printable soft breaks,
+     * a plain-text part wrapped at 72 columns, tabs out of a signature. Every run of blank becomes
+     * one space, so the expanded line reads as a sentence instead of as a ragged column, and so the
+     * separator below is the only newline in it.
      */
     @Test fun `the preview is flattened to a single line`() {
         val raw = "Dear Alex,\n\nthe results\tare in.\r\n  Please call    the surgery."
@@ -106,6 +109,10 @@ class MailNotificationTextTest {
 
     /**
      * The cap, and where it is: in here, because the preview will come from two protocols and this
+     * pure function is their only shared crossing. Uncapped, a 4 000-character body travels whole
+     * in the notification's extras, where any authorised NotificationListenerService reads it, and
+     * where the shade shows a handful of lines of it anyway. 256 is what the server already returns
+     * as a preview on the other protocol, so two accounts side by side look alike.
      */
     @Test fun `the preview is capped at 256 characters, with nothing added`() {
         val body = "a".repeat(4_000)
@@ -198,7 +205,7 @@ class MailNotificationTextTest {
         )
     }
 
-    /** The stand-in is passed IN — this function resolves no resources — and only where a line shows. */
+    /** The stand-in is passed in (this function resolves no resources) and only where a line shows. */
     @Test fun `a blank subject falls back to the stand-in, and only where a line is shown`() {
         assertEquals(NO_SUBJECT, MailNotificationText.sendFailureLine(NotificationContent.BODY_PREVIEW, "", NO_SUBJECT))
         assertEquals(

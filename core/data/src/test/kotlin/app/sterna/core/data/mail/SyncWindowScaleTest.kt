@@ -12,11 +12,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The count scale the "Messages to sync" row offers — 100 / 1 000 / 10 000 — and what each of those
+ * The count scale the "Messages to sync" row offers (100 / 1 000 / 10 000) and what each of those
  */
 class SyncWindowScaleTest {
 
-    /** A server that admits 500 objects per `Email/get` — what Stalwart advertises on the bench. */
+    /** A server that admits 500 objects per `Email/get`, what Stalwart advertises on the bench. */
     private val serverPage = 500
 
     // -- what the picker offers, executed ----------------------------------------------------------
@@ -95,7 +95,7 @@ class SyncWindowScaleTest {
     }
 
     @Test fun `a window of ten thousand is twenty requests of five hundred, not one of ten thousand`() {
-        // The plumbing this volet relies on: the window is walked one SERVER page at a time and the
+        // The plumbing this volet relies on: the window is walked one server page at a time and the
         // pages are written as they land. Without it, 10 000 would have the memory profile of the
         // unbounded window that was just withdrawn.
         val sizing = folderSyncSizing(windowLimit = SyncWindow.COUNT_10000.limit, serverCapacity = serverPage)
@@ -144,9 +144,9 @@ class SyncWindowScaleTest {
 
     @Test fun `a background pass walks a deep folder in the server's pages, not in fifties`() {
         // The push/worker and unified passes carry a hard-coded 50, and until the sizing of the
-        // full-query branch was derived from the account they made every REQUEST ask for fifty. A
-        // 10 000-message window is then 200 sequential round trips instead of 20 — on the pass that
-        // runs FIRST after the setting changed, because the cursor has just fallen.
+        // full-query branch was derived from the account they made every request ask for fifty. A
+        // 10 000-message window is then 200 sequential round trips instead of 20, on the pass that
+        // runs first after the setting changed, because the cursor has just fallen.
         val sizing = fullQuerySizing(
             accountWindow = SyncWindow.COUNT_10000.limit,
             requestedByCaller = 50,
@@ -173,7 +173,7 @@ class SyncWindowScaleTest {
     // -- role 2: the retention floor --------------------------------------------------------------
 
     @Test fun `the floor of each offered window is that window, in rows kept`() {
-        // Every row is older than the cutoff and nothing is fresh or spared, so the ONLY thing
+        // Every row is older than the cutoff and nothing is fresh or spared, so the only thing
         // standing between this folder and the prune is the floor. 1 200 rows: the numbers on the
         // right are 1200 - the window, written out.
         val folder = agedRows(1200)
@@ -190,7 +190,7 @@ class SyncWindowScaleTest {
     }
 
     @Test fun `the floor really is a floor - the newest rows are the ones kept`() {
-        // Not just how many, WHICH: the floor keeps the newest N and the prune takes the rest.
+        // Not just how many, which: the floor keeps the newest N and the prune takes the rest.
         val evictions = retentionEvictions(agedRows(1200), CUTOFF, emptySet(), emptySet(), SyncWindow.COUNT_1000.limit)
         assertEquals(200, evictions.size)
         assertEquals(
@@ -202,7 +202,7 @@ class SyncWindowScaleTest {
     @Test fun `the floor is the window and NEVER the size of a request`() {
         // Codeberg #110, and the trap folderSyncSizing exists for: the two numbers are handed
         // out by the same function and one of them is capped. Capping the other makes the prune
-        // delete, seconds after the refresh, mail the user asked to keep — under the 10 000 window
+        // delete, seconds after the refresh, mail the user asked to keep, under the 10 000 window
         // it would keep the server's 500 and evict the other 9 500.
         val sizing = folderSyncSizing(windowLimit = SyncWindow.COUNT_10000.limit, serverCapacity = serverPage)
         val folder = agedRows(1200)
@@ -223,7 +223,7 @@ class SyncWindowScaleTest {
     @Test fun `the reconcile still cuts its deletes into batches SQLite will bind`() {
         // The keep set of a full query is now up to 10 000 ids, and the complement is computed once
         // against all of it before being cut up (`reconcileEvictions`). 999 bound variables is the
-        // ceiling below Android 12 — Codeberg #29, the bug where a big window threw before the sync
+        // ceiling below Android 12, Codeberg #29, the bug where a big window threw before the sync
         // cursor was stored and the folder never synced again.
         val cached = (1..12_000).map { "c$it" }
         val batches = reconcileEvictions(cached, keepIds = emptySet(), spareIds = emptySet())
@@ -239,11 +239,14 @@ class SyncWindowScaleTest {
         retentionEvictions(folder, CUTOFF, emptySet(), emptySet(), keepNewest).size
 
     /** What a walk driven by [nextWindowPageLimit] did: what it asked for, what came back, and the
-     *  total it accumulated. Decides nothing — the limits come from the shipped function. */
+     *  total it accumulated. Decides nothing, the limits come from the shipped function. */
     private data class Walked(val requested: List<Int>, val returned: List<Int>, val fetched: Int)
 
     /**
      * Walk a folder of [folder] messages with a window of [target], one page at a time, exactly as
+     * `JmapClient.queryEmailsWindow` loops. Fails loudly rather than hanging if the walk does not
+     * terminate: a missing stop condition is an infinite loop, not a wrong number, and a test that
+     * hung would be read as an infrastructure hiccup.
      */
     private fun walk(folder: Int, target: Int, pageSize: Int = serverPage): Walked {
         val requested = mutableListOf<Int>()
@@ -272,7 +275,7 @@ class SyncWindowScaleTest {
         return Walked(requested, returned, fetched)
     }
 
-    /** [count] cached rows, all dated well before [CUTOFF] — nothing but the floor can save them.
+    /** [count] cached rows, all dated well before [CUTOFF], nothing but the floor can save them.
      *  `m1` is the oldest, `m$count` the newest. */
     private fun agedRows(count: Int): List<EmailRetentionRow> =
         (1..count).map { EmailRetentionRow(id = "m$it", sortKey = it.toLong()) }

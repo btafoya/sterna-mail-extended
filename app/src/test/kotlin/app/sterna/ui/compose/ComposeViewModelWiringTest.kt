@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — it reads `ComposeViewModel.kt` as text and proves nothing
+ * Source lint, not a behaviour test, it reads `ComposeViewModel.kt` as text and proves nothing
  */
 class ComposeViewModelWiringTest {
 
@@ -49,7 +49,8 @@ class ComposeViewModelWiringTest {
 
     @Test fun `the reopened draft's prefill is handed the cached row, account-scoped`() {
         // The behaviour lives in draftFieldsOf, which is pure and executed by ComposeTextTest; what
-        // no test here can see is whether this class still FEEDS it the cached row. Without the
+        // no test here can see is whether this class still feeds it the cached row. Without the
+        // second argument the fallback is simply never armed, and every recipient test stays green.
         val body = prepareBody().replace(Regex("""\s+"""), " ")
         assertTrue(
             "prepare() must build the draft prefill as draftFieldsOf(draft, _editingDraft.value): " +
@@ -75,7 +76,7 @@ class ComposeViewModelWiringTest {
     }
 
     /**
-     * Who a reply is addressed to is decided in ONE place, [replyRecipient] /
+     * Who a reply is addressed to is decided in one place, [replyRecipient] /
      */
     @Test fun `the composer asks the one function who a reply answers`() {
         val body = bodyOf("buildPrefill")
@@ -93,7 +94,9 @@ class ComposeViewModelWiringTest {
     }
 
     /**
-     * The queued row a composer was editing is DESTROYED by `consumeEditingOutbox` —
+     * The queued row a composer was editing is destroyed by `consumeEditingOutbox`,
+     * which takes the row and its staged attachment directory: on a save that reached nothing
+     * (KEPT_ON_DEVICE) that removes the only copy the user can still see.
      */
     @Test fun `the queued row is dropped only for a draft that really reached the server`() {
         val body = bodyOf("saveDraft")
@@ -131,7 +134,7 @@ class ComposeViewModelWiringTest {
     }
 
     /**
-     * THE WHOLE BODY, line by line and in order — a filter on one name is blind to the mutation
+     * The whole body, line by line and in order, a filter on one name is blind to the mutation
      */
     @Test fun `the whole of saveDraft, statement by statement`() {
         val body = bodyOf("saveDraft")
@@ -142,7 +145,7 @@ class ComposeViewModelWiringTest {
                 "submit block itself (not nested in a condition) and must come before the consume. " +
                 "Body was:\n$body",
             listOf(
-                // FIRST, and above everything that writes: a queued row reopened by Outbox →
+                // First, and above everything that writes: a queued row reopened by Outbox →
                 // Edit and redrawn empty over a resume slot that lost the body is saved as an empty
                 "if (lostBodySaveDestroysQueuedRow(bodyWasLost = composerBodyWasLost, body = body.text, holdsQueuedRow = editingOutboxId != null)) {",
                 "_notices.tryEmit(R.string.compose_body_lost_reopen_draft)",
@@ -155,24 +158,31 @@ class ComposeViewModelWiringTest {
                 "if (!hasDraftContent(to, cc, bcc, subject, body.text)) {",
                 "val original = editingDraftId",
                 "val originalUidValidity = editingDraftUidValidity",
-                // …and the ACCOUNT both were read from, captured with them: the expunge below is
-                // addressed to it, never to `credentials()` — the account of the identity the
+                // …and the account both were read from, captured with them: the expunge below is
+                // addressed to it, never to `credentials()`, the account of the identity the
                 // "From" picker is showing, and that picker covers every account (#31 × #63).
                 "val originalAccountId = editingDraftAccountId",
-                // The close that accompanies a deletion hands the phone's own row to NOBODY —
-                // abandon() would otherwise put it back PENDING and re-arm its upload, sending the
+                // The close that accompanies a deletion hands the phone's own row to nobody,
+                // abandon() would otherwise put it back pending and re-arm its upload, sending the
+                // pre-edit text of the draft just emptied up to the server (#95 × #69), and it is
+                // said as an argument. Said by blanking `editingLocalDraftId` first, as it was, a
+                // submit() that failed left the row editing with nobody left to release it: no
+                // upload worker will touch it again before the next cold start.
                 "abandon(emptying = true, body = body.text)",
                 "if (original == null) {",
                 "_state.value = ComposeState.Done",
                 // A `local-draft:` id names nothing repo.discardDraft can destroy: under IMAP
                 // numbering it answers an empty list, so the emptied draft survived and went up on
+                // the next network while the screen closed as a success. And the row is not taken
+                // away on its own either: while it exists it masks the server draft it replaces, so
+                // consuming it alone brings that draft back with its pre-edit text (#95 × #69).
                 "} else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {",
                 "submit(to) { _, _ -> destroyReplacedServerDraft(original) }",
                 "} else {",
-                // And the server route reads the SAME verdict the local one does: a draft this
+                // And the server route reads the same verdict the local one does: a draft this
                 // composer never read whole keeps its server copy and the screen says so
                 "submit(to) { _, _ ->",
-                // The account is resolved by a LOCAL FUN and not into a val up front: a
+                // The account is resolved by a local fun and not into a val up front: a
                 // lossy draft keeps its copy whatever the account says, and resolving an account
                 "fun destroyingCredentials(): AccountCredentials =",
                 "credentialsDestroyingEmptiedServerDraft(",
@@ -181,7 +191,7 @@ class ComposeViewModelWiringTest {
                 "lookup = { store.credentials(it) },",
                 ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
                 // The second term of the guard, and the whole correction: the addressing
-                // of the copy about to be expunged, PROVEN empty or not proven at all. Read under
+                // of the copy about to be expunged, proven empty or not proven at all. Read under
                 "val addressingIsProvenEmpty = !editingDraftLossy &&",
                 "repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
                 "if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {",
@@ -195,16 +205,15 @@ class ComposeViewModelWiringTest {
                 "}",
                 "submit(to) { credentials, recipients ->",
                 "val identity = selectedIdentity()",
-                // What the save REPLACES is one answer — the id frozen at the open with the
-                // numbering it belongs to — and it is withheld WHOLE when that pair was read under
+                // What the save replaces is one answer, the id frozen at the open with the
+                // numbering it belongs to, and it is withheld whole when that pair was read under
                 "val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)",
                 ".unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)",
                 "val outcome = repo.saveDraft(",
-                // The text part is `toPlainText(body)` and NOT `body.text` (#131): a list is
+                // The text part is `toPlainText(body)` and not `body.text` (#131): a list is
                 // written `- ` / `1. ` there and a link is written `label <url>`, so a recipient
                 "credentials, recipients, subject, toPlainText(body),",
-                // The styling as a SECOND part, from the one pure function every route uses:
-                // null for a body with no styling, so a plain draft is written EXACTLY as it was
+                // The styling as a second part, from the one pure function every route uses:
                 "html = draftHtmlToSave(body),",
                 "cc = parseAddrs(cc), bcc = parseAddrs(bcc),",
                 "inReplyTo = inReplyTo, references = references,",
@@ -217,7 +226,7 @@ class ComposeViewModelWiringTest {
                 // weigh. Passing `editingDraftLossy` here too refuses an erasure the user made on
                 // purpose on every reopened HTML draft, in silence.
                 "composerBodyWasLost = composerBodyWasLost,",
-                // …and the EMPTINESS of what was typed, which travels apart from the text since
+                // …and the emptiness of what was typed, which travels apart from the text since
                 // the text is derived (#131). `toPlainText(body)` of an empty body carrying one
                 "typedBodyIsBlank = body.text.isBlank(),",
                 "fromName = identity?.name, fromEmail = identity?.email,",
@@ -235,7 +244,7 @@ class ComposeViewModelWiringTest {
     }
 
     /**
-     * And the park has to SURVIVE the screen going away — the whole body again, for the same
+     * And the park has to survive the screen going away, the whole body again, for the same
      */
     @Test fun `the park outlives the screen, like abandon does`() {
         val body = bodyOf("parkEditingOutbox")
@@ -256,7 +265,7 @@ class ComposeViewModelWiringTest {
     }
 
     /**
-     * And the park of an INTERRUPTED EDIT has to survive the screen going away too — `abandon`
+     * And the park of an interrupted edit has to survive the screen going away too, `abandon`
      */
     @Test fun `the interrupted edit is parked through appScope, like the release`() {
         val body = codeOf(bodyOf("abandon"))
@@ -285,7 +294,7 @@ class ComposeViewModelWiringTest {
     /** The body of `fun prepare(`, braces balanced, comments cut. */
     private fun prepareBody(): String = bodyOf("prepare")
 
-    /** [body]'s code lines, trimmed and blanks dropped — the shape the whole-body rules compare. */
+    /** [body]'s code lines, trimmed and blanks dropped, the shape the whole-body rules compare. */
     private fun codeOf(body: String): List<String> =
         body.lines().map { it.trim() }.filter { it.isNotEmpty() }
 

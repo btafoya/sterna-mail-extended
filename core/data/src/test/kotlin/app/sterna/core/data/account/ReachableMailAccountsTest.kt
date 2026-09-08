@@ -63,7 +63,7 @@ class ReachableMailAccountsTest {
     }
 
     // An account can legitimately expose no mailbox to this login. That is a served answer, not a
-    // refusal, so counting mailboxes is NOT the rule.
+    // refusal, so counting mailboxes is not the rule.
     @Test fun probeThatSucceededWithNoMailboxAtAllIsKept() {
         val kept = retainReachableMailAccounts(
             discovered = listOf(primary, shared),
@@ -92,7 +92,7 @@ class ReachableMailAccountsTest {
     }
 
     // Shaped like what the probe really produces: JmapClient.getMailboxes reports an HTTP failure
-    // as a message only — no httpCode, no errorType (JmapClientTest pins that). A fixture carrying
+    // as a message only, no httpCode, no errorType (JmapClientTest pins that). A fixture carrying
     // httpCode = 429 would be evidence no server ever hands this rule.
     @Test fun rateLimitIsKept() {
         val kept = retainReachableMailAccounts(
@@ -175,7 +175,7 @@ class ReachableMailAccountsTest {
     }
 
     // A session listing nothing at all is not evidence of anything (AccountStore.kt: "never prune
-    // on evidence that weak") — and there is no head to keep either.
+    // on evidence that weak"), and there is no head to keep either.
     @Test fun anEmptySessionStaysEmpty() {
         assertEquals(
             emptyList<DiscoveredMailAccount>(),

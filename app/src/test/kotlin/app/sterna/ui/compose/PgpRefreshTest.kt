@@ -5,7 +5,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * What the padlock settles on when the composer re-checks OpenPGP (#35), and — the part that was
+ * What the padlock settles on when the composer re-checks OpenPGP (#35), and, the part that was
+ * missing, what it owes the user when it has to give a mode up.
  */
 class PgpRefreshTest {
     private fun refresh(
@@ -47,7 +48,7 @@ class PgpRefreshTest {
 
     @Test fun theSecondCheckOfTheSameDropSaysNothingMore() {
         // The composer re-checks once a restored mode is back in place, so the drop can be examined
-        // twice. The first check took the mode to OFF; the second finds OFF and adds nothing, which
+        // twice. The first check took the mode to off; the second finds off and adds nothing, which
         // is what keeps the explanation to a single message.
         val first = refresh(PgpMode.ENCRYPT, available = false)
         assertEquals(PgpDropReason.NO_PROVIDER, first.dropped)
@@ -58,6 +59,8 @@ class PgpRefreshTest {
     //
     // Reopening a signed/encrypted message runs two checks around one restore, and which of them
     // lands first is not fixed: with the provider merely unreachable the first check waits for it
+    // and resumes after the restore, while with OpenPGP absent from the account it short-circuits
+    // and finishes before. That is what made the padlock survive or vanish by accident of timing.
 
     /** Replay a run of checks over [start], returning the mode left and every reason given aloud. */
     private fun checks(start: PgpMode, times: Int): Pair<PgpMode, List<PgpDropReason>> {
@@ -72,13 +75,13 @@ class PgpRefreshTest {
     }
 
     @Test fun theRestoreLandingBeforeBothChecksEndsUpOffAndSaysSoOnce() {
-        // The restore put ENCRYPT back first; both checks then run against it.
+        // The restore put encrypt back first; both checks then run against it.
         assertEquals(PgpMode.OFF to listOf(PgpDropReason.NO_PROVIDER), checks(PgpMode.ENCRYPT, times = 2))
     }
 
     @Test fun theRestoreLandingBetweenTheTwoChecksEndsUpTheSameWay() {
         // The first check finished on an untouched composer and had nothing to report; the restore
-        // then put ENCRYPT back, and only the second check sees it.
+        // then put encrypt back, and only the second check sees it.
         val (afterFirst, saidFirst) = checks(PgpMode.OFF, times = 1)
         assertEquals(emptyList<PgpDropReason>(), saidFirst)
         assertEquals(PgpMode.OFF, afterFirst)

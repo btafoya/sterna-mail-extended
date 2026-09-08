@@ -9,7 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The per-sender "future mail to Trash" gesture, EXECUTED: the rule it writes, the composition
+ * The per-sender "future mail to Trash" gesture, executed: the rule it writes, the composition
  */
 class SenderBlockTest {
 
@@ -43,7 +43,7 @@ class SenderBlockTest {
     }
 
     @Test fun `composing ADDS the rule to the ones already there`() {
-        // saveFilterRules rewrites the WHOLE script, so "add a rule" is really "save everything
+        // saveFilterRules rewrites the whole script, so "add a rule" is really "save everything
         // plus one". Getting this wrong does not add a filter: it deletes every filter.
         val next = withBlockRule(existing, "news@example.com", "Trash")
         assertEquals(4, next.size)
@@ -59,9 +59,9 @@ class SenderBlockTest {
     }
 
     @Test fun `a FROM IS rule counts as present whatever it does with the mail`() {
-        // Deliberately broad, and it must stay broad: two FROM/IS rules on one address compile to
-        // two sequential `if`s, so BOTH act on the same message. We refuse to stack a rule on top
-        // of an existing one whatever its target — including one that is currently disabled,
+        // Deliberately broad, and it must stay broad: two from/IS rules on one address compile to
+        // two sequential `if`s, so both act on the same message. We refuse to stack a rule on top
+        // of an existing one whatever its target, including one that is currently disabled,
         // which the user can switch back on in the filter editor at any moment.
         val elsewhere = FilterRule(name = "boss", field = RuleField.FROM, match = RuleMatch.IS, value = "boss@example.com", moveTo = "Work")
         val disabled = FilterRule(name = "old", enabled = false, field = RuleField.FROM, match = RuleMatch.IS, value = "old@example.com", moveTo = "Trash")
@@ -72,10 +72,10 @@ class SenderBlockTest {
     }
 
     @Test fun `a CONTAINS rule or another field is not this rule`() {
-        // "@family.example" as a CONTAINS would catch news@family.example, but it is not the
+        // "@family.example" as a contains would catch news@family.example, but it is not the
         // rule this gesture writes, and treating it as one would silently refuse to act.
         assertFalse(alreadyBlocked(existing, "news@family.example"))
-        assertFalse(alreadyBlocked(existing, "list@example.com")) // a TO/IS rule, not FROM
+        assertFalse(alreadyBlocked(existing, "list@example.com")) // a to/IS rule, not a from rule
         assertFalse(alreadyBlocked(emptyList(), "news@example.com"))
     }
 
@@ -84,7 +84,7 @@ class SenderBlockTest {
     @Test fun `no rule may be aimed at one of the account's own addresses`() {
         // The defect this function exists for (banc-1.4.8.md § 4, R6): the gesture was offered on
         // a message the account itself sent, and the rule it would have written files the
-        // account's OWN mail into the Trash, marked read, for ever.
+        // account's own mail into the Trash, marked read, for ever.
         val own = listOf("alex.rivera@masto.top", "alex@alias.example")
         assertFalse(blockableSender("alex.rivera@masto.top", own))
         assertFalse("an alias is just as much oneself", blockableSender("alex@alias.example", own))
@@ -103,7 +103,7 @@ class SenderBlockTest {
     }
 
     @Test fun `an address that is not one is no rule at all`() {
-        // A From: carrying only a display name maps to email = "" (EmailMapper). `FROM :is ""`
+        // A From: carrying only a display name maps to email = "" (EmailMapper). `from :is ""`
         // matches nothing and can never be read back as anything; it would sit in the account's
         // script for good.
         assertFalse(blockableSender("", listOf("me@example.com")))
@@ -112,7 +112,7 @@ class SenderBlockTest {
     }
 
     @Test fun `an account whose identities are unknown still rules on other senders`() {
-        // The list is read from the store, so it is never legitimately empty — but an empty list
+        // The list is read from the store, so it is never legitimately empty, but an empty list
         // must degrade to "cannot say this is me", not to "nothing can be ruled".
         assertTrue(blockableSender("news@example.com", emptyList()))
     }
@@ -168,7 +168,7 @@ class SenderBlockTest {
     }
 
     @Test fun `an account running its own Sieve script is left alone`() = runBlocking {
-        // Saving does not just write Sterna's script, it ACTIVATES it — which switches off
+        // Saving does not just write Sterna's script, it activates it, which switches off
         // whatever script the account was running. The filter editor warns about that in red
         var saved: List<FilterRule>? = null
         val outcome = addBlockRule(

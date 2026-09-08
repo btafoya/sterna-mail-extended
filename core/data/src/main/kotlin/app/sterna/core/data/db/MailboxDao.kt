@@ -32,16 +32,16 @@ interface MailboxDao {
     @Query("SELECT id FROM mailboxes WHERE accountId = :accountId AND role = :role LIMIT 1")
     suspend fun idForRole(accountId: String, role: String): String?
 
-    /** Each account's cached Sent-role folder, reactively — seen as soon as it first syncs. */
+    /** Each account's cached Sent-role folder, reactively, seen as soon as it first syncs. */
     @Query("SELECT accountId, id FROM mailboxes WHERE accountId IN (:accountIds) AND role = 'sent' ORDER BY accountId, id")
     fun observeSentMailboxes(accountIds: List<String>): Flow<List<AccountMailboxId>>
 
-    /** Every cached (account, folder) → role of the given accounts, reactively — needed for unfolded conversations
+    /** Every cached (account, folder) → role of the given accounts, reactively, needed for unfolded conversations
      *  spanning other folders (#115). */
     @Query("SELECT accountId, id, role FROM mailboxes WHERE accountId IN (:accountIds) AND role IS NOT NULL")
     fun observeRoles(accountIds: List<String>): Flow<List<AccountMailboxRole>>
 
-    /** Id of the account's folder whose lowercased name is one of [names] — finds an archive folder when the server set
+    /** Id of the account's folder whose lowercased name is one of [names], finds an archive folder when the server set
      *  no `archive` role. */
     @Query(
         "SELECT id FROM mailboxes WHERE accountId = :accountId AND LOWER(name) IN (:names) " +
@@ -69,16 +69,16 @@ interface MailboxDao {
     )
     suspend fun adjustCounts(accountId: String, id: String, totalDelta: Int, unreadDelta: Int)
 
-    /** Every cached folder id of one account, input to [replaceAll]'s purge; binds ONE variable whatever the list size
+    /** Every cached folder id of one account, input to [replaceAll]'s purge; binds one variable whatever the list size
      *  (#142). */
     @Query("SELECT id FROM mailboxes WHERE accountId = :accountId")
     suspend fun idsForAccount(accountId: String): List<String>
 
-    /** Drop folders from the cache (drawer) — e.g. while a folder delete awaits its undo window. */
+    /** Drop folders from the cache (drawer), e.g. while a folder delete awaits its undo window. */
     @Query("DELETE FROM mailboxes WHERE accountId = :accountId AND id IN (:ids)")
     suspend fun deleteByIds(accountId: String, ids: List<String>)
 
-    /** Replaces ONE account's folder rows; purges BY ID in batches, not `id NOT IN (:keepIds)` (#142); upsert BEFORE
+    /** Replaces one account's folder rows; purges by ID in batches, not `id not in (:keepIds)` (#142); upsert before
      *  purge. */
     @Transaction
     suspend fun replaceAll(accountId: String, mailboxes: List<MailboxEntity>) {

@@ -4,12 +4,12 @@ import app.sterna.core.jmap.model.EmailBodyPart
 import java.io.File
 
 /**
- * Taking a queued message out of the outbox to edit it (#70). The row stays QUEUED-adjacent,
+ * Taking a queued message out of the outbox to edit it (#70).
  */
 object OutboxEdit {
     /**
-     * Stages [attachments] into [stagingDir] as composer parts. THROWS if bytes can't be read,
-     * rather than dropping silently — the durable dir is untouched, so nothing is lost.
+     * Stages [attachments] into [stagingDir] as composer parts. Throws if bytes can't be read,
+     * rather than dropping silently, the durable dir is untouched, so nothing is lost.
      */
     fun take(attachments: List<OutboxAttachment>, stagingDir: File): List<EmailBodyPart> =
         attachments.map { a ->

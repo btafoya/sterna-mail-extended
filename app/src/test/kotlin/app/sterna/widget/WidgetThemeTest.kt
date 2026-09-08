@@ -12,13 +12,13 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
- * The widget follows the theme the APP is on, not the one the system is on.
+ * The widget follows the theme the app is on, not the one the system is on.
  */
 class WidgetThemeTest {
 
     /**
      * The measured defect, 17/08 at the bench: system in dark + app forced to light and the cell
-     * stayed dark. That is the `LIGHT` row below, and it is the reason this rule exists at all.
+     * stayed dark. That is the `light` row below, and it is the reason this rule exists at all.
      */
     @Test fun `an app forced to light is light whatever the system is on`() {
         assertEquals(
@@ -50,8 +50,8 @@ class WidgetThemeTest {
     }
 
     /**
-     * `SYSTEM` is the only arm that may read the system, and it is where the widget used to be
-     * right by accident — for one setting out of three.
+     * `system` is the only arm that may read the system, and it is where the widget used to be
+     * right by accident, for one setting out of three.
      */
     @Test fun `an app following the system takes the system's answer`() {
         assertEquals(
@@ -109,7 +109,7 @@ class WidgetThemeTest {
         )
     }
 
-    /** Pure black is a DARK-theme setting; `applyPureBlack` guards that, and the widget inherits the guard. */
+    /** Pure black is a dark-theme setting; `applyPureBlack` guards that, and the widget inherits the guard. */
     @Test fun `pure black is inert in light theme`() {
         assertEquals(
             "pure black must not touch a light theme: leaving it on and switching the app to " +
@@ -127,7 +127,7 @@ class WidgetThemeTest {
     // ---- the tones a home-screen badge is painted in ----
 
     /**
-     * THE BADGE TONES ARE NOT A PALETTE, AND THEY ARE NEVER NULL — the difference that makes
+     * The badge tones are not a palette, and they are never NULL, the difference that makes
      */
     @Test fun `the badge tones are the light scheme's three accent families`() {
         assertEquals(
@@ -156,7 +156,7 @@ class WidgetThemeTest {
     }
 
     /**
-     * AS MANY RAMPS AS [MONOGRAM_FAMILIES], on every theme. That count is the modulus
+     * As many ramps as [MONOGRAM_FAMILIES], on every theme. That count is the modulus
      */
     @Test fun `every theme offers a badge exactly as many families as a slot is cut from`() {
         assertEquals(
@@ -173,7 +173,7 @@ class WidgetThemeTest {
     }
 
     /**
-     * The badges must FOLLOW the theme: light and dark cannot hand back the same six colours, or a
+     * The badges must follow the theme: light and dark cannot hand back the same six colours, or a
      * dark home screen would wear the light scheme's pastel badges.
      */
     @Test fun `a light badge and a dark badge are not the same colour`() {
@@ -187,7 +187,7 @@ class WidgetThemeTest {
     }
 
     /**
-     * PINNED AS A FACT, NOT AS A DESIGN: pure black changes NOTHING about a badge today.
+     * Pinned as a fact, not as a design: pure black changes nothing about a badge today.
      */
     @Test fun `pure black leaves a badge's tones untouched, because it never touches a container role`() {
         assertEquals(
@@ -213,7 +213,7 @@ class WidgetThemeTest {
     }
 
     /**
-     * THE DECISION THIS PANE TURNS ON, executed here on every combination of the three settings.
+     * The decision this pane turns on, executed here on every combination of the three settings.
      */
     @Test fun `only a system theme with no pure black and no Material You lets the resources answer`() {
         val measured = ThemeMode.entries.flatMap { mode ->

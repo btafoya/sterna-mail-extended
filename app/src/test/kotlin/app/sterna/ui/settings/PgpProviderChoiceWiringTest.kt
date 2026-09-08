@@ -4,13 +4,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHAT THIS FILE IS WORTH. It proves the SHAPE of the two `AccountsViewModel` methods behind the
+ * What this file is worth.
  */
 class PgpProviderChoiceWiringTest {
 
     @Test fun `discovery runs off the main thread and publishes both values together`() {
         // The two assignments are consecutive and come after every suspension in the method.
         // Move `_pgpProviders.value = installed` above the resolution and the row is drawn, with
+        // two providers to choose from, while nothing is in use yet.
         assertEquals(
             "refreshPgpAvailable changed shape. Either the package-manager query left " +
                 "Dispatchers.IO (it is a binder round trip, and viewModelScope is the main " +
@@ -38,8 +39,8 @@ class PgpProviderChoiceWiringTest {
 
     @Test fun `picking a provider persists it first, then erases keys only on a real switch`() {
         // The order is an arbitration (WYSIWYG): between the two writes, what is displayed must
-        // already be what is used. And what is in use is re-read from storage inside the coroutine
-        // — never `_pgpProviderInUse.value`, which is screen state and can still be null.
+        // already be what is used. And what is in use is re-read from storage inside the coroutine,
+        // never `_pgpProviderInUse.value`, which is screen state and can still be null.
         assertEquals(
             "setPgpProvider changed shape. Either the choice is no longer persisted, or what is " +
                 "in use is no longer re-read from storage (reading screen state destroys every " +
@@ -64,7 +65,7 @@ class PgpProviderChoiceWiringTest {
         )
     }
 
-    /** [count] consecutive CODE lines of `AccountsViewModel.kt` from the single one starting with
+    /** [count] consecutive code lines of `AccountsViewModel.kt` from the single one starting with
      *  [prefix], trimmed, comments and blanks dropped. A prefix matching anything other than
      *  exactly one line returns a message, so an assertion can never pass by matching nothing. */
     private fun block(prefix: String, count: Int): List<String> {

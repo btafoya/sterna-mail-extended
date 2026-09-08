@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The cache row an IMAP folder becomes ([imapMailboxEntity]), EXECUTED — the one place that turns
+ * The cache row an IMAP folder becomes ([imapMailboxEntity]), executed, the one place that turns
  */
 class UnelectedTrashIsMarkedTest {
 
@@ -48,7 +48,7 @@ class UnelectedTrashIsMarkedTest {
         assertEquals("acc-1", row.accountId)
         assertEquals("Shared/team/Trash", row.id)
         assertEquals("Trash", row.name)
-        // 6 * 1000 + 3: the `else` rank, where a role-less folder already sat — a folder that lost
+        // 6 * 1000 + 3: the `else` rank, where a role-less folder already sat, a folder that lost
         // its claim must not jump to the trash's place in the drawer.
         assertEquals(6003, row.sortOrder)
         assertEquals(0, row.totalEmails)
@@ -62,6 +62,8 @@ class UnelectedTrashIsMarkedTest {
 
     /**
      * The mark and the source that excludes it are one decision in two files, in two modules that
+     * do not depend on each other. This is where they meet: what [imapMailboxEntity] writes must
+     * be what [NOT_SEARCHED_ROLES] holds, or the row is marked and searched anyway.
      */
     @Test fun whatIsMarkedIsWhatTheSearchSourceExcludes() {
         val drawer = listOf(
@@ -74,7 +76,7 @@ class UnelectedTrashIsMarkedTest {
     }
 
     /**
-     * And the shipped listings go through it — BOTH of them. The construction used to be written
+     * And the shipped listings go through it, both of them. The construction used to be written
      */
     @Test fun bothImapFolderListingsBuildTheirRowsInTheOnePlace() {
         val source = DaoQuerySource.mailSource("ImapMailService")

@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * What the ENLARGED cell says, RUN — not read as source, and never recomputed here. Every
+ * What the enlarged cell says, run, not read as source, and never recomputed here. Every
  */
 class UnreadWidgetAccountRowsTest {
 
@@ -19,7 +19,10 @@ class UnreadWidgetAccountRowsTest {
         )
 
     /**
-     * Three accounts, three DIFFERENT figures, none of them the total and none of them equal to
+     * Three accounts, three different figures, none of them the total and none of them equal to
+     * another: a rule that handed every line the total (12), or the first account's figure, or a
+     * count taken from the wrong key would all still produce three lines, and only distinct values
+     * tell those apart.
      */
     @Test fun `three accounts each get their own line, in the app's order, with their own figure`() {
         val accounts = listOf(
@@ -44,7 +47,7 @@ class UnreadWidgetAccountRowsTest {
         )
     }
 
-    /** The order is the ACCOUNTS' order, and the map's iteration order changes nothing. */
+    /** The order is the accounts' order, and the map's iteration order changes nothing. */
     @Test fun `the lines follow the accounts, not the order the figures arrived in`() {
         assertEquals(
             "the breakdown is a Map and its iteration order is nobody's decision. The lines must " +
@@ -92,7 +95,7 @@ class UnreadWidgetAccountRowsTest {
     }
 
     /**
-     * Two accounts, ONE known inbox — and the answer is the total, not a single line.
+     * Two accounts, one known inbox, and the answer is the total, not a single line.
      */
     @Test fun `two accounts with only one known inbox fall back to the total`() {
         assertEquals(
@@ -108,7 +111,7 @@ class UnreadWidgetAccountRowsTest {
     }
 
     /**
-     * And the absent account gets NO line, not a line at zero — asserted where there ARE two
+     * And the absent account gets NO line, not a line at zero, asserted where there are two
      */
     @Test fun `an account absent from the breakdown gets no line at all, never a zero`() {
         assertEquals(
@@ -129,7 +132,7 @@ class UnreadWidgetAccountRowsTest {
     }
 
     /**
-     * The name is `StoredAccount.label()` — the word the drawer shows — and that is what makes the
+     * The name is `StoredAccount.label()` (the word the drawer shows) and that is what makes the
      * app-lock guard above necessary: with no `accountName`, `label()` IS the mail address.
      */
     @Test fun `the line's name is the account's label, which falls back to its address`() {

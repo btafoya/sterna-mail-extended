@@ -23,6 +23,6 @@ object Snoozes {
     }
 
     // The account is part of the name: email ids can collide between same-server accounts
-    // (issue #31), and a colliding name would let one account's snooze REPLACE the other's.
+    // (issue #31), and a colliding name would let one account's snooze replace the other's.
     private fun workName(accountId: String, emailId: String) = "snooze-$accountId-$emailId"
 }

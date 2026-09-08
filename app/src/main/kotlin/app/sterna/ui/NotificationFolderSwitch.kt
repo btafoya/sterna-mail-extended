@@ -1,15 +1,15 @@
 package app.sterna.ui
 
 /**
- * Which folder the list behind should show when a new-mail notification is opened — the folder half
+ * Which folder the list behind should show when a new-mail notification is opened, the folder half
  */
 object NotificationFolderSwitch {
 
     /**
-     * The folder to show, or null to leave the list where it is. Null in four cases: the
+     * The folder to show, or null to leave the list where it is.
      */
     /*
-     * A FIFTH case, judged by the caller and not here: a folder the account's "show subscribed
+     * A fifth case, judged by the caller and not here: a folder the account's "show subscribed
      * folders only" setting hides (#174). The answer below is a folder id, and whether one may be
      */
     fun resolve(

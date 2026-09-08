@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Which folder a JMAP delete falls back on when NO folder carries the `trash` role — the decision
+ * Which folder a JMAP delete falls back on when NO folder carries the `trash` role, the decision
  */
 class TrashFolderByNameTest {
 
@@ -71,9 +71,9 @@ class TrashFolderByNameTest {
     }
 
     @Test fun `no folder the user reads may ever be taken for a bin`() {
-        // The rule that a table can only lose to by GROWING: slip "sent" (or "archive", or "junk")
+        // The rule that a table can only lose to by growing: slip "sent" (or "archive", or "junk")
         // into the names and every other test here stays green while deleted mail is moved into
-        // the user's Sent folder — visible, and undone by nothing. Run, name by name.
+        // the user's Sent folder, visible, and undone by nothing. Run, name by name.
         val stolen = listOf(
             // inbox
             "INBOX", "Posteingang", "Bandeja de entrada", "Boîte de réception", "Входящие",
@@ -84,7 +84,7 @@ class TrashFolderByNameTest {
             "Archive", "Archives", "Archiv", "Archivio", "Archiwum", "Arquivo", "Архив",
             // drafts
             "Drafts", "Entwürfe", "Brouillons", "Bozze", "Concepten", "Rascunhos", "Черновики",
-            // junk — a bin that is really the spam folder is filtered out of every list, and many
+            // junk, a bin that is really the spam folder is filtered out of every list, and many
             // servers empty it on a timer: mail deleted there is mail destroyed on a schedule
             "Junk", "Spam", "Junk E-mail", "Courrier indésirable", "Posta indesiderata",
             "Correo no deseado", "Lixo eletrônico", "Спам",

@@ -9,6 +9,7 @@ import org.junit.Test
 
 /**
  * The "send later" menu is built from [schedulePresetsAt], which is handed the instant instead of
+ * reading the clock: the 6 PM boundary is otherwise unplayable without moving the bench's clock.
  */
 class SchedulePresetsTest {
     private val utc = ZoneId.of("UTC")
@@ -31,7 +32,7 @@ class SchedulePresetsTest {
             ),
             got.map { it.first },
         )
-        // Each instant is pinned, not just the labels: "this evening" is TODAY 6 PM.
+        // Each instant is pinned, not just the labels: "this evening" is today 6 PM.
         assertEquals(millis(utc, 11), got[0].second)
         assertEquals(millis(utc, 18), got[1].second)
         assertEquals(millis(utc, 8, day = 19), got[2].second)
@@ -78,12 +79,12 @@ class SchedulePresetsTest {
     }
 
     @Test fun theZoneArgumentDecidesNotTheJvmDefault() {
-        // 16:00 UTC on this summer date is 18:00 in Paris (UTC+2). The SAME instant therefore
+        // 16:00 UTC on this summer date is 18:00 in Paris (UTC+2). The same instant therefore
         // still offers "this evening" read in UTC, and no longer offers it read in Paris.
         val instant = millis(utc, 16)
         assertTrue(presets(utc, instant).any { it.first == SchedulePreset.THIS_EVENING })
         assertFalse(presets(paris, instant).any { it.first == SchedulePreset.THIS_EVENING })
-        // And the evening offered in Paris earlier in the day is 18:00 PARIS = 16:00 UTC.
+        // And the evening offered in Paris earlier in the day is 18:00 paris = 16:00 UTC.
         val parisMorning = presets(paris, millis(paris, 10))
         assertEquals(millis(paris, 18), parisMorning.first { it.first == SchedulePreset.THIS_EVENING }.second)
         assertEquals(millis(utc, 16), parisMorning.first { it.first == SchedulePreset.THIS_EVENING }.second)

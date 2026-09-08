@@ -19,7 +19,7 @@ sealed interface HostProbe {
     data object NoAnswer : HostProbe
 }
 
-/** A session WITHOUT a mail account is not a mail server: some servers hand one to anyone (#137). */
+/** A session without a mail account is not a mail server: some servers hand one to anyone (#137). */
 fun probeOfSession(session: JmapSession): HostProbe =
     if (session.mailAccountId() != null) HostProbe.Usable else HostProbe.NoAnswer
 
@@ -47,7 +47,8 @@ suspend fun probeHost(fetchSession: suspend () -> JmapSession): HostProbe =
 const val JMAP_DISCOVERY_BUDGET_MS = 10_000L
 
 /**
- * The host of LOWEST RANK that yielded a usable session, not the fastest: the chosen host is
+ * The host of lowest rank that yielded a usable session, not the fastest: the chosen host is
+ * the one the domain ranked first, however long it took to answer.
  */
 suspend fun discoverJmapAmong(
     hosts: List<String>,
@@ -81,7 +82,7 @@ suspend fun discoverJmapAmong(
 }
 
 /**
- * Null while a pending rank could still outrank the best answer. Only RANK 0, the domain the reader
+ * Null while a pending rank could still outrank the best answer. Only rank 0, the domain the reader
  */
 private fun verdictOnceSettled(
     hosts: List<String>,
@@ -118,7 +119,7 @@ private fun verdictAtBudget(
 }
 
 /**
- * Only ever asked about a host the app guessed ([oauthHostWasGuessed]). The stored host is half of
+ * Only ever asked about a host the app guessed ([oauthHostWasGuessed]).
  */
 fun oauthServerToStore(discovered: MailRepository.DiscoveryResult, documentHost: String): String =
     (discovered as? MailRepository.DiscoveryResult.Found)?.server?.takeIf { it.isNotBlank() }

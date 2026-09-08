@@ -6,7 +6,7 @@ import org.unifiedpush.android.connector.data.PushEndpoint
 import org.unifiedpush.android.connector.data.PushMessage
 
 /**
- * Entry point for distributor events (the connector's abstract PushService — imported
+ * Entry point for distributor events (the connector's abstract PushService, imported
  */
 class UnifiedPushReceiver : org.unifiedpush.android.connector.PushService() {
 

@@ -7,7 +7,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The three decisions a stored rich body rests on (#131), EXECUTED — what a save writes, what a
+ * The three decisions a stored rich body rests on (#131), executed, what a save writes, what a
+ * reopen reads, and what an HTML body costs.
  */
 class DraftRichBodyTest {
 
@@ -24,7 +25,7 @@ class DraftRichBodyTest {
         assertNull(draftHtmlToSave(RichBody.plain("")))
     }
 
-    /** Multiple lines and an ampersand: still plain, so still nothing — the text column holds it. */
+    /** Multiple lines and an ampersand: still plain, so still nothing, the text column holds it. */
     @Test fun `a plain body with newlines and entities still stores no html`() {
         assertNull(draftHtmlToSave(RichBody.plain("one & two\nthree")))
     }
@@ -66,7 +67,7 @@ class DraftRichBodyTest {
         assertEquals(emptyMap<Inline, List<Span>>(), reopened.ranges)
     }
 
-    /** An attribute on a tag we DO know is still not ours: the parser is strict on purpose. */
+    /** An attribute on a tag we do know is still not ours: the parser is strict on purpose. */
     @Test fun `a tag of ours carrying an attribute is still foreign`() {
         val reopened = richBodyFrom("""<b style="x">hello</b>""") { "hello" }
         assertEquals("hello", reopened.text)
@@ -74,7 +75,7 @@ class DraftRichBodyTest {
     }
 
     /**
-     * The fallback is a LAMBDA, and it is not called when the html parses. It matters: on the
+     * The fallback is a lambda, and it is not called when the html parses. It matters: on the
      * server route it runs `originalPlainText`, which walks the message's parts.
      */
     @Test fun `the text fallback is not even read when the html parses`() {
@@ -108,8 +109,9 @@ class DraftRichBodyTest {
     }
 
     @Test fun `an html part that says nothing is lossy, and it is the one that loses data`() {
-        // THE defect this rule exists for, and it is a destroy. `fromHtml("")` answers an EMPTY
-        // body — not null — and so do a space, a tab and a lone `<br>`. Read as "it parses, so the
+        // The defect this rule exists for, and it is a destroy. `fromHtml("")` answers an empty
+        // body (not null) and so do a space, a tab and a lone `<br>`. Read as "it parses, so the
+        // draft is faithful", such a part opens the composer blank (the text part is never read)
         for (html in listOf("", " ", "\t", "<br>")) {
             assertTrue(
                 "an html part carrying no text is PRESENT but says nothing — an unknown, and an " +
@@ -131,7 +133,7 @@ class DraftRichBodyTest {
     }
 
     @Test fun `an html part reduced to structure we cannot read is lossy`() {
-        // `<p>` is not a tag this parser knows, so the whole body is refused — an html part
+        // `<p>` is not a tag this parser knows, so the whole body is refused, an html part
         // reduced to structure we cannot read is an unknown, and an unknown keeps the original.
         assertTrue(draftHtmlIsLossy("<p></p>"))
     }

@@ -6,16 +6,16 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 
 /**
- * Date bounds live in the DEVICE's time zone, not UTC.
+ * Date bounds live in the device's time zone, not UTC.
  */
 fun searchAfterBound(pickedUtcMillis: Long, zone: ZoneId = ZoneId.systemDefault()): Long =
     pickedDay(pickedUtcMillis).atStartOfDay(zone).toInstant().toEpochMilli()
 
-/** The "before" day is INCLUSIVE: the bound is the last millisecond of that local day. */
+/** The "before" day is inclusive: the bound is the last millisecond of that local day. */
 fun searchBeforeBound(pickedUtcMillis: Long, zone: ZoneId = ZoneId.systemDefault()): Long =
     pickedDay(pickedUtcMillis).plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
 
-/** The local day a stored bound stands for — what the panel and the folded summary display. */
+/** The local day a stored bound stands for, what the panel and the folded summary display. */
 fun searchBoundDay(boundMillis: Long, zone: ZoneId = ZoneId.systemDefault()): LocalDate =
     Instant.ofEpochMilli(boundMillis).atZone(zone).toLocalDate()
 

@@ -6,11 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * What a move brings back about the SOURCE folder: which of the UIDs handed in are proved to have
+ * What a move brings back about the source folder: which of the UIDs handed in are proved to have
  */
 class MoveConfirmsWhatLeftTheSourceTest {
 
-    /** Every `UID SEARCH UID …` the client sent — the identity probe, and nothing else. */
+    /** Every `UID SEARCH UID …` the client sent, the identity probe, and nothing else. */
     private fun FakeImapServer.probes(): List<String> = issued().filter { it.startsWith("UID SEARCH UID ") }
 
     /**
@@ -22,7 +22,7 @@ class MoveConfirmsWhatLeftTheSourceTest {
             .map { it.substringBefore(" \"") }
 
     /**
-     * The common case (Stalwart, Dovecot): a COPYUID that names the whole set. It is an
+     * The common case (Stalwart, Dovecot): a COPYUID that names the whole set.
      */
     @Test fun `a COPYUID naming the whole chunk confirms it, with no probe after the move`() {
         FakeImapServer { tag, line ->
@@ -48,7 +48,7 @@ class MoveConfirmsWhatLeftTheSourceTest {
     }
 
     /**
-     * THE WITNESS. A server that answers the `UID MOVE` with a bare `OK` (no UIDPLUS, so no
+     * The witness. A server that answers the `UID MOVE` with a bare `OK` (no UIDPLUS, so no
      */
     @Test fun `a bare OK and a silent probe confirm the whole chunk`() {
         var afterTheMove = false
@@ -82,7 +82,7 @@ class MoveConfirmsWhatLeftTheSourceTest {
     }
 
     /**
-     * A UID the source still names AFTER the move did not move: the server moved the other two
+     * A UID the source still names after the move did not move: the server moved the other two
      */
     @Test fun `a UID that still answers the probe is not confirmed gone`() {
         var afterTheMove = false
@@ -114,7 +114,7 @@ class MoveConfirmsWhatLeftTheSourceTest {
     }
 
     /**
-     * THE INVARIANT OF THIS VOLET. UID 1 had ALREADY left the source BEFORE the `UID MOVE` went
+     * The invariant of this volet. UID 1 had already left the source before the `UID MOVE` went
      */
     @Test fun `a UID already gone before the move is not confirmed gone`() {
         var afterTheMove = false
@@ -182,7 +182,7 @@ class MoveConfirmsWhatLeftTheSourceTest {
     }
 
     /**
-     * A refused probe AFTER the move leaves the question unanswered — and that is all it does.
+     * A refused probe after the move leaves the question unanswered, and that is all it does.
      */
     @Test fun `a refused probe confirms nothing and does not fail the move`() {
         var afterTheMove = false
@@ -210,6 +210,8 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * And a refused probe drops the COPYUID keys with it: half a verdict about a chunk is not a
+     * verdict. Upstairs, "confirmed gone" is what licenses forgetting a row, so under-confirming
+     * costs a stale line the next sync repairs, and over-confirming costs the line itself.
      */
     @Test fun `a refused probe confirms nothing even where COPYUID named some`() {
         var afterTheMove = false
@@ -234,14 +236,17 @@ class MoveConfirmsWhatLeftTheSourceTest {
     }
 
     /**
-     * The whole selection had ALREADY left the folder — every one of these UIDs was moved or
+     * The whole selection had already left the folder, every one of these UIDs was moved or
+     * destroyed from another client since the list was drawn. The `UID MOVE` is a no-op for all
+     * three and the server answers a bare `OK`; the probe before names nothing, the probe after
+     * names nothing either. Nothing is confirmed.
      */
     @Test fun `a source that names none of the set before the move confirms nothing`() {
         FakeImapServer { tag, line ->
             when {
                 line.startsWith("SELECT") -> selectResponse(tag, exists = 3)
                 line.startsWith("UID MOVE") -> "$tag OK moved\r\n"
-                // Empty BOTH times, and answered rather than refused: they had all already left.
+                // Empty both times, and answered rather than refused: they had all already left.
                 line.startsWith("UID SEARCH") -> searchResponse(tag, emptyList())
                 else -> ok(tag)
             }
@@ -298,7 +303,7 @@ class MoveConfirmsWhatLeftTheSourceTest {
     }
 
     /**
-     * The copy fallback must NEVER be probed AFTER its `UID COPY`. It leaves the originals in
+     * The copy fallback must never be probed after its `UID COPY`.
      */
     @Test fun `the copy fallback is never probed after the copy and answers with its own COPYUID`() {
         var afterTheMove = false
@@ -330,7 +335,7 @@ class MoveConfirmsWhatLeftTheSourceTest {
     }
 
     /**
-     * And where the fallback's COPYUID says nothing, nothing is confirmed — still without a probe
+     * And where the fallback's COPYUID says nothing, nothing is confirmed, still without a probe
      */
     @Test fun `a copy fallback with no COPYUID confirms nothing, and still does not probe`() {
         var afterTheMove = false
@@ -361,6 +366,9 @@ class MoveConfirmsWhatLeftTheSourceTest {
 
     /**
      * A move too big for one command is several chunks, and each chunk gets its own verdict by
+     * its own route, the first answers with a covering COPYUID and is never probed after, the
+     * second answers bare and is. Each has its own observation before, naming its own set. The
+     * union of the two verdicts is the report.
      */
     @Test fun `every chunk of a long move contributes its own verdict`() {
         val all = (1L..250L).toList()
@@ -407,7 +415,7 @@ class MoveConfirmsWhatLeftTheSourceTest {
     }
 
     /**
-     * A probe's answer must be read WHOLE — BOTH of them. A server may split a long `SEARCH`
+     * A probe's answer must be read whole, both of them. A server may split a long `SEARCH`
      */
     @Test fun `a split SEARCH answer with untagged noise is read whole`() {
         val all = (1L..12L).toList()
@@ -445,7 +453,11 @@ class MoveConfirmsWhatLeftTheSourceTest {
     }
 
     /**
-     * And the same truncation on the observation taken BEFORE falls the other way, which is
+     * And the same truncation on the observation taken before falls the other way, which is
+     * why the two readings can share one command with no cap: the server names only 1 and 2 while
+     * 3 is in fact there too, and after the move nothing answers at all. 3 is a presence never
+     * observed, so it is not confirmed, a stale row the next sync repairs, instead of a row and
+     * an FTS entry destroyed.
      */
     @Test fun `a truncated answer before the move under-confirms rather than over-confirms`() {
         var afterTheMove = false

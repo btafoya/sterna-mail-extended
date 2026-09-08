@@ -4,14 +4,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHERE THE FROZEN NUMBERING IS PLUGGED INTO THE READ — the source-text half of
+ * Where the frozen numbering is PLUGGED into the read, the source-text half of
+ * [ReadUnderTheNumberingItWasTickedUnderTest], and the twin of [ImapMoveUnderNumberingTest] for the
+ * gesture that reads rather than moves (#99, #189).
  */
 class RawSourceReadUnderNumberingTest {
 
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
-    /** The code lines of [text] — comments dropped, whitespace normalised. Whole lines: the
+    /** The code lines of [text], comments dropped, whitespace normalised. Whole lines: the
      *  assertions compare them, never search inside them. */
     private fun codeLinesOf(text: String): List<String> =
         text.lines().map { it.replace(Regex("""\s+"""), " ").trim() }
@@ -25,7 +27,7 @@ class RawSourceReadUnderNumberingTest {
         codeLinesOf(text).filter { needle.containsMatchIn(it) }
 
     /**
-     * Any mention of a numbering, under any spelling — the needle [ImapMoveUnderNumberingTest]
+     * Any mention of a numbering, under any spelling, the needle [ImapMoveUnderNumberingTest]
      */
     private val anyNumbering = Regex("(?i)(numbering|validity|frozen|recorded)")
 
@@ -46,7 +48,9 @@ class RawSourceReadUnderNumberingTest {
     }
 
     /**
-     * THE THREE USES, AND THEY ARE ALL THE POINT. `fetchRawSource` must spend what it was
+     * The three uses, and they are all the point. `fetchRawSource` must spend what it was
+     * frozen three times: once to skip the cache (a four-entry LRU keyed `accountId:emailId`, which
+     * holds no numbering and would answer before any SELECT), once on the decision (`Frozen(null)`
      */
     @Test fun `the fetch skips the cache AND goes out under the numbering it was handed`() {
         val body = bodyOf("fetchRawSource")
@@ -69,7 +73,8 @@ class RawSourceReadUnderNumberingTest {
     }
 
     /**
-     * The cache is READ through the decision and nowhere else — a closed list over the whole file,
+     * The cache is read through the decision and nowhere else, a closed list over the whole file,
+     * anchored on the field rather than on one call shape.
      */
     @Test fun `the raw-source cache is read through the decision, and nowhere else`() {
         assertEquals(
@@ -86,8 +91,7 @@ class RawSourceReadUnderNumberingTest {
             ),
             codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "rawSourceCache"),
         )
-        // AND THE ANCHOR IS THE TYPE, NOT THE NAME — the hole the rule above still had. Every
-        // line of it names the FIELD, so a SECOND `android.util.LruCache` under any other name,
+        // And the anchor is the type, not the name, the hole the rule above still had.
         assertEquals(
             "the in-memory caches of MailRepository, whole and in order. A third one is a reader " +
                 "nobody has decided the numbering of — and if it holds message source, it answers " +
@@ -101,7 +105,7 @@ class RawSourceReadUnderNumberingTest {
     }
 
     /**
-     * And the three whole-message FETCHes of the file, pinned together: ONE carries a frozen
+     * And the three whole-message FETCHes of the file, pinned together: one carries a frozen
      */
     @Test fun `exactly one whole-message fetch carries a frozen numbering`() {
         assertEquals(

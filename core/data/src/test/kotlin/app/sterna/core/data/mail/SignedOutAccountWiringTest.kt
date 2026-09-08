@@ -5,14 +5,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST. The decision and its consequence are EXECUTED by
+ * Source lint, not a behaviour test. The decision and its consequence are executed by
+ * [SignedOutAccountStopsWritingTest]; `MailRepository` needs Room, an Android `Context` and a live
+ * session, so what is read here is only the plug, as whole lines.
  */
 class SignedOutAccountWiringTest {
 
     private val guard = "checkAccountStillConfigured"
 
     /**
-     * The function's body, trimmed, WITHOUT its comment and blank lines: every rule below is about
+     * The function's body, trimmed, without its comment and blank lines: every rule below is about
      */
     private fun lines(function: String): List<String> =
         DaoQuerySource.mailFunctionBody("MailRepository", function).lines()
@@ -45,7 +47,7 @@ class SignedOutAccountWiringTest {
 
     @Test fun `the JMAP page write asks first, with the walk's own account id`() {
         // Pinned as a block rather than as two present lines: the order is the whole property. The
-        // guard AFTER the upsert would let each page land and only then refuse the next one, which
+        // guard after the upsert would let each page land and only then refuse the next one, which
         // is a page of ghosts per sign-out instead of none.
         assertEquals(
             "the JMAP writePage of syncMailbox is no longer, line for line, what this was written " +
@@ -62,7 +64,7 @@ class SignedOutAccountWiringTest {
     }
 
     @Test fun `syncMailbox refuses to start for an account that is gone, before it reads a cursor`() {
-        // The entry check refuses to START and covers nothing after itself — the branches below
+        // The entry check refuses to start and covers nothing after itself, the branches below
         // each ask again. It is still worth its line: it spares a session, a folder list and a
         // walk for an account that is already gone when the sync begins.
         val body = lines("syncMailbox")
@@ -77,14 +79,14 @@ class SignedOutAccountWiringTest {
         assertTrue("syncMailbox no longer resolves its cursor key / delta branch — renamed?", key >= 0 && delta >= 0)
         assertTrue("the entry check now runs after the cursor is read", entry < key)
         assertTrue("the entry check now runs inside or after the delta branch", entry < delta)
-        // It must stay BELOW the blank-id refusal: a blank id is a caller's bug and has to be
+        // It must stay below the blank-id refusal: a blank id is a caller's bug and has to be
         // reported as one, not as an account that was signed out (#121).
         val blank = body.indexOfFirst { it.startsWith("require(localAccountId.isNotBlank())") }
         assertTrue("the blank-id guard of #121 is gone from syncMailbox", blank >= 0)
         assertTrue("the sign-out check now shadows the blank-id guard", blank < entry)
     }
 
-    // -- the JMAP delta branch: guarded at its WRITES, not only at its entry -------------------------
+    // -- the JMAP delta branch: guarded at its writes, not only at its entry -------------------------
 
     @Test fun `the delta asks again once the server has answered, before it evicts or stores a cursor`() {
         // Two round-trips (emailQueryChanges, emailChanges) separate the entry check from here, and
@@ -144,11 +146,11 @@ class SignedOutAccountWiringTest {
     // -- the background watched-folder pass: read whole, then written whole -------------------------
 
     @Test fun `the watched-folder pass asks again between the network read and its grouped write`() {
-        // A pass that does NOT write page by page (its JMAP twin below is the other one):
+        // A pass that does not write page by page (its JMAP twin below is the other one):
         // `loadWatchedFolders` returns
         //
         // Pinned with its neighbours on both sides, because the guard line is verbatim the entry
-        // check a few lines above it: what is asserted is WHERE this one is, between the pruning of
+        // check a few lines above it: what is asserted is where this one is, between the pruning of
         // missing watches and the write, not merely that the file contains the call.
         assertEquals(
             "the IMAP branch of refreshAccountFolders no longer asks whether the account still " +
@@ -189,10 +191,10 @@ class SignedOutAccountWiringTest {
 
     @Test fun `the same pass asks again on its JMAP side, immediately before the folder-list write`() {
         // The IMAP half of this function has been guarded twice since #121 and the JMAP half not
-        // at all, and the two are NOT symmetrical by accident of reachability: `targets` is never
+        // at all, and the two are not symmetrical by accident of reachability: `targets` is never
         //
-        // Pinned as a block from the end of the refresh loop through the return, because WHERE is
-        // the whole property: one line lower — below `replaceAll` — the folders are already
+        // Pinned as a block from the end of the refresh loop through the return, because where is
+        // the whole property: one line lower (below `replaceAll`) the folders are already
         // written and the refusal only skips the `return`.
         assertEquals(
             "the JMAP branch of refreshAccountFolders no longer asks whether the account still " +
@@ -227,15 +229,15 @@ class SignedOutAccountWiringTest {
         )
     }
 
-    // -- the reply's un-archive: a SERVER move, then a local re-file --------------------------------
+    // -- the reply's un-archive: a server move, then a local re-file --------------------------------
 
     @Test fun `the un-archive refuses to start for an account that is gone, before it even connects`() {
         // Not "just" an entry check that spares a session, which is why it is worth its own line
-        // ahead of `connect`: everything below it leads to `client.move`, a write on the SERVER
+        // ahead of `connect`: everything below it leads to `client.move`, a write on the server
         //
         // Pinned as a block, between the early return and the connect: below the connect it stops
         // sparing anything, and above the early return it would throw for IMAP accounts and empty
-        // thread sets — paths that never write at all.
+        // thread sets, paths that never write at all.
         assertEquals(
             "unarchiveThreadsOnReply no longer asks whether the account still exists before it " +
                 "connects. Everything below that line ends in a SERVER move for an account the " +
@@ -258,7 +260,7 @@ class SignedOutAccountWiringTest {
         // in this phone's database. `connect` is fetchSession + jmapAccountIdFor +
         //
         // Pinned from the recently-mutated marks so the block states the order that matters: the
-        // marks and the #99 rescue stay AHEAD of the guard (they protect the rows during the very
+        // marks and the #99 rescue stay ahead of the guard (they protect the rows during the very
         assertEquals(
             "unarchiveThreadsOnReply no longer asks whether the account still exists immediately " +
                 "before client.move. The entry check is a session and several round-trips behind " +
@@ -302,7 +304,7 @@ class SignedOutAccountWiringTest {
 
     @Test fun `the un-archive still rescues from the destroy list and marks before the server call`() {
         // The two neighbours the new guards must not have displaced. #99 is exceptionless (whatever
-        // moves leaves the destroy list), and the recently-mutated marks have to be set BEFORE the
+        // moves leaves the destroy list), and the recently-mutated marks have to be set before the
         // move so a sync firing mid-move cannot evict the rows: pushed below the second guard they
         // would stop protecting anything during the very window that guard exists for.
         val body = lines("unarchiveThreadsOnReply")
@@ -326,7 +328,7 @@ class SignedOutAccountWiringTest {
 
     @Test fun `refresh rethrows the refusal instead of writing the folder list under a dead id`() {
         // The hole a counter-expertise found: `runCatching { syncMailbox(...) }` absorbs the
-        // guard's refusal like any other failure, and `refresh` then writes the WHOLE folder list
+        // guard's refusal like any other failure, and `refresh` then writes the whole folder list
         // under credentials.id. `MailboxDao` calls that table the place an orphan appears earliest.
         val swallow = indexOf(
             "refresh",
@@ -347,10 +349,11 @@ class SignedOutAccountWiringTest {
 
     @Test fun `the unified pass skips the signed-out account instead of abandoning the whole pass`() {
         // WYSIWYG: letting the cancellation out leaves InboxViewModel with refreshing = true and
-        // nothing to reset it (the list is only re-pointed when the CURRENT account was the one
+        // nothing to reset it (the list is only re-pointed when the current account was the one
         //
-        // And WHAT the line claims is delegated to [accountGoneCause], executed by
+        // And what the line claims is delegated to [accountGoneCause], executed by
         // [AccountGoneCauseTest]: the guards read the store with `accounts()`, which answers an
+        // unreadable blob with an empty list.
         assertEquals(
             "the AccountGoneException arm of refreshAllInboxes is no longer, line for line, what " +
                 "this was written against — it must stay ABOVE the cancellation catch, it must " +
@@ -374,8 +377,8 @@ class SignedOutAccountWiringTest {
 
     @Test fun `no guard anywhere in MailRepository is wrapped in something that swallows it`() {
         // The previous version of this test asked for `checkAccountStillConfigured` and a
-        // `runCatching` on the SAME LINE, which a multi-line `try { … } catch` walks straight past.
-        // This one asks what actually matters: which blocks are still OPEN at the guard.
+        // `runCatching` on the same line, which a multi-line `try { … } catch` walks straight past.
+        // This one asks what actually matters: which blocks are still open at the guard.
         val body = DaoQuerySource.mailSource("MailRepository").lines()
         val sites = body.indices.filter { body[it].trim().startsWith("$guard(") }
         assertEquals(
@@ -398,8 +401,8 @@ class SignedOutAccountWiringTest {
     }
 
     @Test fun `MailRepository does not re-declare the guard under its own name`() {
-        // A lint that pins CALL SITES and not what they BIND TO is blind to shadowing, and this
-        // file is where that costs the most: `AccountStillConfigured.kt` is in the SAME PACKAGE, so
+        // A lint that pins call sites and not what they bind to is blind to shadowing, and this
+        // file is where that costs the most: `AccountStillConfigured.kt` is in the same package, so
         //
         // It is the same family of blindness as the hole this file was extended for: what is not
         // pinned is invisible. So the declaration itself is pinned, once, for all thirteen sites.
@@ -419,7 +422,7 @@ class SignedOutAccountWiringTest {
     }
 
     // The guard's enclosure is asked of [openBlocksAt], which used to be a private member here
-    // and now lives in `SourceBlocks.kt` — the IMAP commands that carry a numbering need the same
+    // and now lives in `SourceBlocks.kt`, the IMAP commands that carry a numbering need the same
     // answer, and a second copy of a block walker drifts from the first in silence.
 
     @Test fun `the refusal is still a cancellation, in the shipped declaration`() {

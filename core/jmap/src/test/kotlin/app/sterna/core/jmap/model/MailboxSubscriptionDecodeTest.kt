@@ -7,7 +7,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * `Mailbox.isSubscribed` (RFC 8621 §2) decoded with the SHIPPING [JmapClient.DefaultJson], not a
+ * `Mailbox.isSubscribed` (RFC 8621 §2) decoded with the shipping [JmapClient.DefaultJson], not a
+ * local `Json {}`, the point is what the real client does with a real server's answer.
  */
 class MailboxSubscriptionDecodeTest {
     private val json: Json = JmapClient.DefaultJson

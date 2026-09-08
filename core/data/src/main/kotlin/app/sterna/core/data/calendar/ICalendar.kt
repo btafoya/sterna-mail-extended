@@ -9,6 +9,8 @@ import java.time.format.DateTimeFormatter
 
 /**
  * A single parsed calendar event (the first VEVENT of an iCalendar object), reduced to the
+ * fields the in-app invite card needs. Times are epoch milliseconds (UTC); [allDay] events
+ * are anchored to midnight in the device time zone.
  */
 data class ParsedEvent(
     val title: String?,
@@ -22,19 +24,19 @@ data class ParsedEvent(
     /** True when the event carries an RRULE (it repeats); we don't expand the rule. */
     val recurs: Boolean,
     val description: String?,
-    /** VCALENDAR METHOD (REQUEST, CANCEL, …) in upper case, if present. */
+    /** VCALENDAR method (request, cancel, …) in upper case, if present. */
     val method: String?,
-    /** VEVENT STATUS (CONFIRMED, CANCELLED, …) in upper case, if present. */
+    /** VEVENT STATUS (confirmed, cancelled, …) in upper case, if present. */
     val status: String?,
-    /** VEVENT UID — the invite's stable identity; a REPLY must echo it. */
+    /** VEVENT UID, the invite's stable identity; a reply must echo it. */
     val uid: String? = null,
-    /** VEVENT SEQUENCE (revision counter); defaults to 0 when absent. */
+    /** VEVENT sequence (revision counter); defaults to 0 when absent. */
     val sequence: Int = 0,
-    /** Organizer e-mail (mailto: stripped), needed as the REPLY recipient. */
+    /** Organizer e-mail (mailto: stripped), needed as the reply recipient. */
     val organizerEmail: String? = null,
     /** Organizer display name (CN) on its own, if any. */
     val organizerCn: String? = null,
-    /** Verbatim (post-unfolding) property lines so a REPLY can echo them exactly. */
+    /** Verbatim (post-unfolding) property lines so a reply can echo them exactly. */
     val rawUid: String? = null,
     val rawDtStart: String? = null,
     val rawDtEnd: String? = null,
@@ -42,7 +44,7 @@ data class ParsedEvent(
     /** Every ATTENDEE on the event, so we can find "our" entry and reuse its CN. */
     val attendees: List<Attendee> = emptyList(),
 ) {
-    /** A cancellation, whether signalled by the transport METHOD or the event STATUS. */
+    /** A cancellation, whether signalled by the transport method or the event STATUS. */
     val cancelled: Boolean get() = method == "CANCEL" || status == "CANCELLED"
 }
 
@@ -51,12 +53,14 @@ data class Attendee(val email: String, val cn: String?, val raw: String)
 
 /**
  * A small, dependency-free RFC 5545 reader. It unfolds, finds the first VEVENT, and pulls the
+ * properties the invite card uses. It is deliberately defensive: any malformed input, unknown
+ * time zone, or unparseable date yields a graceful fallback or a null result, never an exception.
  */
 object ICalendar {
 
     /**
      * Largest .ics we will read (1 MiB). Real invitations are a few kilobytes; a huge one is
-     * either broken or hostile, and reading it buys nothing — the card is skipped instead.
+     * either broken or hostile, and reading it buys nothing, the card is skipped instead.
      */
     const val MAX_SOURCE_CHARS = 1024 * 1024
 
@@ -85,7 +89,7 @@ object ICalendar {
 
             fun first(name: String) = event.firstOrNull { it.name == name }
 
-            // An event with no usable start can't be placed on a calendar — treat as unusable.
+            // An event with no usable start can't be placed on a calendar, treat as unusable.
             val startLine = first("DTSTART") ?: return null
             val start = parseDate(startLine.value, startLine.params) ?: return null
 
@@ -135,7 +139,7 @@ object ICalendar {
         val name: String,
         val params: Map<String, String>,
         val value: String,
-        /** The verbatim unfolded source line, kept so a REPLY can echo it exactly. */
+        /** The verbatim unfolded source line, kept so a reply can echo it exactly. */
         val raw: String,
     )
 
@@ -143,6 +147,7 @@ object ICalendar {
 
     /**
      * RFC 5545 unfolding: join a continuation line (CRLF/LF followed by space/tab) back onto the
+     * previous logical line, dropping the break and the one leading space.
      */
     private fun unfold(raw: String): List<String> {
         val out = ArrayList<String>()
@@ -167,7 +172,7 @@ object ICalendar {
         return out
     }
 
-    /** Split one content line into NAME, params, and VALUE (value starts at the first unquoted colon). */
+    /** Split one content line into name, params, and value (value starts at the first unquoted colon). */
     private fun parseLine(line: String): Line? {
         if (line.isBlank()) return null
         var colon = -1
@@ -216,6 +221,8 @@ object ICalendar {
 
     /**
      * Convert a DTSTART/DTEND value to epoch millis. Handles UTC (`…Z`), zoned (`TZID=`),
+     * all-day (`value=date` / bare yyyymmdd → midnight in the system zone) and floating
+     * (no zone → system local time). Returns null on anything it can't read.
      */
     private fun parseDate(rawValue: String, params: Map<String, String>): Dated? {
         val v = rawValue.trim()
@@ -259,7 +266,7 @@ object ICalendar {
 
     // ---- Text --------------------------------------------------------------------------------
 
-    /** Unescape an iCalendar TEXT value: \\n → newline, \\, \; \\\\ → the literal character. */
+    /** Unescape an iCalendar text value: `\\n` becomes a newline, `\\,` `\\;` and `\\\\` the literal character. */
     private fun unescapeText(s: String): String {
         if (!s.contains('\\')) return s
         val sb = StringBuilder(s.length)
@@ -294,13 +301,13 @@ object ICalendar {
     private fun cnOf(line: Line): String? =
         line.params["CN"]?.trim()?.takeIf { it.isNotBlank() }
 
-    // ---- REPLY (iTIP) generation ------------------------------------------------------------
+    // ---- reply (iTIP) generation ------------------------------------------------------------
 
     private val UTC_STAMP =
         DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(ZoneOffset.UTC)
 
     /**
-     * Build a minimal iTIP REPLY (RFC 5546) VCALENDAR for [event], echoing UID/ORGANIZER/DTSTART/
+     * Build a minimal iTIP reply (RFC 5546) VCALENDAR for [event], echoing UID/ORGANIZER/DTSTART/
      */
     fun buildReply(
         event: ParsedEvent,
@@ -347,7 +354,7 @@ object ICalendar {
         return if (v.any { it == ',' || it == ';' || it == ':' }) "\"$v\"" else v
     }
 
-    /** Escape an iCalendar TEXT value: backslash, newline, comma and semicolon. */
+    /** Escape an iCalendar text value: backslash, newline, comma and semicolon. */
     private fun escapeText(s: String): String = s
         .replace("\\", "\\\\")
         .replace("\n", "\\n")

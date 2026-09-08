@@ -36,7 +36,7 @@ internal fun xoauth2Payload(username: String, accessToken: String): String {
 data class ImapFolder(
     /** The display leaf, decoded and stripped of bidi/control characters. Never sent back. */
     val name: String,
-        /** The mailbox path in UNICODE, decoded from modified UTF-7 (Codeberg #101) — the app's
+        /** The mailbox path in Unicode, decoded from modified UTF-7 (Codeberg #101), the app's
          *  identifier for the folder, re-encoded at the socket, so it must stay a faithful decoding:
          *  nothing is filtered out of it. */
     val path: String,
@@ -47,7 +47,7 @@ data class ImapFolder(
          * The role this folder CLAIMED and did not get, another folder of the same listing carrying
          */
     val unelectedRole: String? = null,
-        /** What the server answered about this folder's subscription (`LSUB` / `LIST (SUBSCRIBED)`),
+        /** What the server answered about this folder's subscription (`LSUB` / `LIST (subscribed)`),
          *  and nothing else. `true` when we do not know: a listing read without asking says nothing
          *  about it, and the unknown must never hide a folder. */
     val isSubscribed: Boolean = true,
@@ -66,12 +66,12 @@ data class ImapMessage(
     val fromName: String?,
     val fromEmail: String?,
     val to: List<ImapAddress>,
-        /** Envelope `Reply-To` (index 4): where the SENDER said to answer, empty when the header is
-         *  absent. Not a preference — a list or a `no-reply@` sender said the From is not read.
+        /** Envelope `Reply-To` (index 4): where the sender said to answer, empty when the header is
+         *  absent. Not a preference, a list or a `no-reply@` sender said the From is not read.
          *  Persisted like [to], the cache row being all an offline reply ever sees. */
     val replyTo: List<ImapAddress> = emptyList(),
         /** Envelope `Cc` (index 6): the people a "reply to all" has to keep. Persisted like [to],
-         *  because the cache row is all a reopened draft and an offline reply-all ever see — an
+         *  because the cache row is all a reopened draft and an offline reply-all ever see, an
          *  address that stops here is one they cannot address. */
     val cc: List<ImapAddress> = emptyList(),
         /**
@@ -84,7 +84,7 @@ data class ImapMessage(
     val flagged: Boolean,
     val answered: Boolean,
         /** The `\Deleted` flag: the server has been told this message is to go, and only an EXPUNGE
-         *  (from any client) removes it. Sterna never shows such a message — see
+         *  (from any client) removes it. Sterna never shows such a message, see
          *  [ImapSession.messages], the one place that acts on this. */
     val deleted: Boolean = false,
     val hasAttachment: Boolean,
@@ -92,12 +92,12 @@ data class ImapMessage(
     val inReplyTo: String?,
         /** The raw value of the `References` header, unfolded onto one line (RFC 5322 §2.2.3), or null.
          *  The ENVELOPE carries `In-Reply-To` and `Message-ID` but not this one, so every list fetch
-         * asks for it as `BODY.PEEK[HEADER.FIELDS (REFERENCES)]`. Raw and whole: nothing here reads
-         *  it, it is carried so a thread rebuilt on the client can be rooted at its FIRST id. */
+         * asks for it as `body.PEEK[header.Fields (references)]`. Raw and whole: nothing here reads
+         *  it, it is carried so a thread rebuilt on the client can be rooted at its first id. */
     val references: String? = null,
         /** Where this message's readable text is, per the BODYSTRUCTURE that came with the envelope,
          * or null when it has no `text/…` part. Additive and nullable: nothing that lists, searches
-         *  or restores reads it. Kept ONLY so a later read — the notification preview — can name a
+         *  or restores reads it. Kept only so a later read (the notification preview) can name a
          *  section without asking the server to describe the message twice. */
     val textPart: ImapTextPart? = null,
 )
@@ -108,13 +108,14 @@ data class ImapMailboxStatus(
     val uidValidity: Long,
     val uidNext: Long,
         /**
-         * Whether [exists] is a number THE SERVER STATED, or merely the value it is initialised to.
+         * Whether [exists] is a number the server stated, or merely the value it is initialised to.
          */
     val existsObserved: Boolean = false,
 )
 
     /**
-     * What a move reported about where the mail landed — the answer to `UID MOVE`, or to the
+     * What a move reported about where the mail landed, the answer to `UID MOVE`, or to the
+     * `UID COPY` it falls back to.
      */
 data class ImapMoved(
     val uids: Map<Long, Long>,
@@ -122,7 +123,7 @@ data class ImapMoved(
     val confirmedGone: Set<Long>,
 ) {
     companion object {
-            /** Nothing moved, nothing stated, nothing proved — what a caller answers when the move never went out. */
+            /** Nothing moved, nothing stated, nothing proved, what a caller answers when the move never went out. */
         val NONE = ImapMoved(emptyMap(), null, emptySet())
     }
 }

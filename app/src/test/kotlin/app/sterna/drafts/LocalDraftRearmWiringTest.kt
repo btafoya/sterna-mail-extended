@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT. `AppContainer` builds Room, WorkManager and a `Context`, and a `CoroutineWorker`
+ * Source lint. `AppContainer` builds Room, WorkManager and a `Context`, and a `CoroutineWorker`
  */
 class LocalDraftRearmWiringTest {
 
@@ -22,7 +22,7 @@ class LocalDraftRearmWiringTest {
 
     @Test fun `startup re-arms the drafts the phone is still holding, one account at a time`() {
         // Two orders in one block, and both matter:
-        //  - the rescue runs BEFORE the scheduling, or a row stranded in UPLOADING by a process
+        //  - the rescue runs before the scheduling, or a row stranded in UPLOADING by a process
         val lines = linesOf(APPLICATION)
         assertEquals(
             "AppContainer must re-arm the local drafts at startup, exactly as it re-arms the outbox:",
@@ -45,9 +45,9 @@ class LocalDraftRearmWiringTest {
     }
 
     @Test fun `the save itself can book a draft's upload, through the seam the outbox uses`() {
-        // Without this line `LocalDraftUploads.enqueue` has exactly two callers — the startup
-        // re-arm and the worker re-booking itself — so a draft saved with no network leaves the
-        // phone only after the app has DIED and started again. The row is written and the backoff
+        // Without this line `LocalDraftUploads.enqueue` has exactly two callers, the startup
+        // re-arm and the worker re-booking itself, so a draft saved with no network leaves the
+        // phone only after the app has died and started again. The row is written and the backoff
         // is armed, and nothing is ever attached to it. That is the promise of the volet, unkept.
         val lines = linesOf(APPLICATION)
         assertEquals(
@@ -97,11 +97,11 @@ class LocalDraftRearmWiringTest {
     }
 
     @Test fun `the worker gives up on nothing and deletes nothing`() {
-        // THE difference with OutboxWorker, and the reason this is a second worker rather than a
+        // The difference with OutboxWorker, and the reason this is a second worker rather than a
         // flag on that one: no MAX_ATTEMPTS, no parked state, and above all no delete. A draft
         val lines = linesOf(WORKER)
         // And the re-booking goes through `uploadLocalDraftRebooking`, which is not decoration:
-        // when WorkManager STOPS this worker mid-upload the coroutine is cancelled, every
+        // when WorkManager stops this worker mid-upload the coroutine is cancelled, every
         assertEquals(
             "the worker must read BOTH halves of the row's key from the data it was given, ask the " +
                 "repository for the verdict, and hand the re-booking decision the queue — " +
@@ -113,14 +113,14 @@ class LocalDraftRearmWiringTest {
                 "val container = (applicationContext as android.app.Application).container",
                 "val credentials = container.accountStore.credentials(accountId) ?: return Result.success()",
                 "uploadLocalDraftRebooking(",
-                // A CLOCK, not an instant. `nowMillis = System.currentTimeMillis()` is an
-                // argument, so it is read BEFORE the attempt — and the attempt may now take up to
+                // A clock, not an instant. `nowMillis = System.currentTimeMillis()` is an
+                // argument, so it is read before the attempt, and the attempt may now take up to
                 // a minute. The re-booking would then carry that minute on top of the row's own
                 // backoff, and the slower the link the later the draft comes back.
                 "now = { System.currentTimeMillis() },",
                 "upload = { container.mailRepository.uploadLocalDraft(credentials, id) },",
-                // BOTH arguments handed on, in this order. Dropping the second — or hard-coding
-                // it — is what makes a stopped worker's booking REPLACE the retry WorkManager just
+                // Both arguments handed on, in this order. Dropping the second, or hard-coding
+                // it, is what makes a stopped worker's booking replace the retry WorkManager just
                 // armed for it, i.e. a 30 s delay to the resumption it was meant to guarantee.
                 "rebook = { delay, onlyIfNothingBooked ->",
                 "LocalDraftUploads.enqueue(applicationContext, accountId, id, delay, onlyIfNothingBooked)",

@@ -36,7 +36,7 @@ fun mailOAuthCandidates(email: String): List<String> {
 suspend fun discoverOAuthAmong(
     candidates: List<String>,
     /** Defaulted on purpose, and production passes nothing, so the shipped budget lives in one
-     *  place — [OAUTH_DISCOVERY_BUDGET_MS]. */
+     *  place, [OAUTH_DISCOVERY_BUDGET_MS]. */
     budgetMs: Long = OAUTH_DISCOVERY_BUDGET_MS,
     discover: suspend (String) -> OAuthMetadata?,
 ): Pair<String, OAuthMetadata>? {

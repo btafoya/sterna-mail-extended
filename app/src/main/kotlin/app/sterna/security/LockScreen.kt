@@ -35,7 +35,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import app.sterna.R
 
-/** The combined authenticators we prompt with: biometric, falling back to PIN/pattern/password. */
+/** The combined authenticators we prompt with: biometric, falling back to pin/pattern/password. */
 private const val AUTHENTICATORS = BIOMETRIC_STRONG or DEVICE_CREDENTIAL
 
 /** Whether the device can satisfy an app-lock prompt (a biometric or a screen lock is set up). */
@@ -44,6 +44,8 @@ fun canAuthenticate(context: Context): Boolean =
 
 /**
  * Full-screen lock shown over the app while [AppLock] reports locked. Prompts the
+ * device biometric (with pin/pattern/password fallback) on appearance; a button
+ * lets the user retry if they dismiss it.
  */
 @Composable
 fun LockScreen(onUnlocked: () -> Unit) {
@@ -66,7 +68,7 @@ fun LockScreen(onUnlocked: () -> Unit) {
 
     LaunchedEffect(Unit) { authenticate() }
 
-    // While locked, BACK leaves the app (like Home) rather than navigating the
+    // While locked, back leaves the app (like Home) rather than navigating the
     // hidden UI underneath.
     BackHandler(enabled = true) { activity?.moveTaskToBack(true) }
 

@@ -75,6 +75,8 @@ class CancellationTest {
 
     /**
      * The #129 shape: the sub-account probe stores its Result instead of unwrapping it, so a
+     * swallowed cancellation would be filed as "this account failed, so keep it" and the reconcile
+     * would go on to write for a connect() that was stopped.
      */
     @Test fun aKeptCancellationIsRethrownInsteadOfBeingFiledAsAFailedProbe() {
         var filed: Result<List<String>>? = null

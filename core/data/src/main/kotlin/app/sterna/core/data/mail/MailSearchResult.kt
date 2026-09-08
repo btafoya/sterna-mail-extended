@@ -2,8 +2,8 @@ package app.sterna.core.data.mail
 
 import app.sterna.core.jmap.model.Email
 
-/** What a search answered. [complete] is false when it stopped before seeing everything — a full
- *  page, a scan cap, a failed account — and the screen then says "at least N", never a total. */
+/** What a search answered. [complete] is false when it stopped before seeing everything, a full
+ *  page, a scan cap, a failed account, and the screen then says "at least N", never a total. */
 data class MailSearchResult(
     val emails: List<Email>,
     val complete: Boolean = true,

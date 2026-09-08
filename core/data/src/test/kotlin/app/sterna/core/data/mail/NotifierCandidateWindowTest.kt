@@ -13,7 +13,7 @@ import java.sql.DriverManager
 import java.time.Instant
 
 /**
- * The agreement between the two ends of a notification pass: what the read REMEMBERS has to cover
+ * The agreement between the two ends of a notification pass: what the read remembers has to cover
  */
 class NotifierCandidateWindowTest {
     private lateinit var db: Connection
@@ -22,7 +22,7 @@ class NotifierCandidateWindowTest {
         const val MINUTE = 60L * 1000
         const val HOUR = 60 * MINUTE
         const val DAY = 24 * HOUR
-        /** A fixed "now" — a clock-derived one would make the ages of the bench rows drift. */
+        /** A fixed "now", a clock-derived one would make the ages of the bench rows drift. */
         const val NOW = 1_800_000_000_000L
         /** More rows than the cap, inside the age floor: what makes the cap observable at all. */
         const val BURST = 600
@@ -48,11 +48,11 @@ class NotifierCandidateWindowTest {
 
     @After fun tearDown() = db.close()
 
-    /** One cached row, aged [ageMs] under [NOW], mapped by the shipped mapper. */
+    /** One cached row, aged [ageMs] under [now], mapped by the shipped mapper. */
     private fun row(id: String, ageMs: Long): EmailEntity =
         Email(id = id, receivedAt = Instant.ofEpochMilli(NOW - ageMs).toString()).toEntity("acc", "inbox")
 
-    /** A row the server dated in a way nothing can parse — the notifier is lenient about these. */
+    /** A row the server dated in a way nothing can parse, the notifier is lenient about these. */
     private fun undatedRow(id: String): EmailEntity =
         Email(id = id, receivedAt = null).toEntity("acc", "inbox")
 
@@ -92,7 +92,7 @@ class NotifierCandidateWindowTest {
         ),
     )
 
-    /** The shipped baseline read, executed — the same floor, no cap. */
+    /** The shipped baseline read, executed, the same floor, no cap. */
     private fun baseline(): List<String> = exec(
         "idsReceivedSince",
         listOf("accountId" to "acc", "mailboxId" to "inbox", "since" to notifyCandidateFloor(NOW)),
@@ -126,7 +126,7 @@ class NotifierCandidateWindowTest {
         val rows = fillFolder()
         val remembered = baseline().toSet()
         // Several plausible previous passes: minutes ago (live push), and a device whose push has
-        // been dead for a fortnight — the age floor is measured from THAT pass, not from now.
+        // been dead for a fortnight, the age floor is measured from that pass, not from now.
         listOf(0L, HOUR, 3 * DAY, 14 * DAY).forEach { sincePass ->
             val floor = notifyFloor(NOW - sincePass)
             rows.filter { announceableAt(it.receivedAt, floor) }.forEach {
@@ -153,8 +153,8 @@ class NotifierCandidateWindowTest {
     }
 
     @Test fun `an old message the baseline leaves out cannot come back as new mail`() {
-        // The baseline is REPLACED each pass, so a row it drops is forgotten. It may only be
-        // dropped once the age floor refuses it as well — otherwise the next pass announces mail
+        // The baseline is replaced each pass, so a row it drops is forgotten. It may only be
+        // dropped once the age floor refuses it as well, otherwise the next pass announces mail
         // from months ago, and unarchives its thread on the server.
         val rows = fillFolder()
         val remembered = baseline().toSet()
@@ -206,8 +206,8 @@ class NotifierCandidateWindowTest {
 
     @Test fun `the read's floor only ever moves forward`() {
         // Why the baseline's bound is an instant and not "the newest N rows": a row count slides
-        // DOWN as rows above it are deleted, so a message can leave the read set and come back
-        // into it — and a message that comes back is no longer in the baseline, which is a false
+        // down as rows above it are deleted, so a message can leave the read set and come back
+        // into it, and a message that comes back is no longer in the baseline, which is a false
         // notification and a server-side unarchive. An instant cannot do that.
         assertTrue(notifyCandidateFloor(NOW) < notifyCandidateFloor(NOW + MINUTE))
         assertEquals(NOW - NOTIFY_CANDIDATE_WINDOW_MS, notifyCandidateFloor(NOW))

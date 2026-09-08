@@ -5,7 +5,7 @@ import java.io.InputStream
 
 /** Imports account setup from a K-9 Mail / Thunderbird-for-Android `.k9s` export (Apache-2.0).
  *  Carries NO secrets: every imported account lands inert until re-authenticated through
- *  Sterna. Only IMAP is supported — others reported as skips, never silently dropped; a single
+ *  Sterna. Only IMAP is supported, others reported as skips, never silently dropped; a single
  *  malformed account never aborts the whole import. */
 object K9SettingsImporter {
 
@@ -61,7 +61,7 @@ object K9SettingsImporter {
         val authType = when (incoming.childText("authentication-type").uppercase()) {
             "XOAUTH2" -> AuthType.OAUTH
             "EXTERNAL" -> return AccountOutcome.Skipped(K9SkipReason.EXTERNAL_AUTH)
-            else -> AuthType.BASIC // PLAIN, CRAM_MD5, LOGIN, AUTOMATIC, missing…
+            else -> AuthType.BASIC // PLAIN, CRAM_MD5, LOGIN, automatic, missing…
         }
 
         val username = incoming.childText("username")
@@ -127,8 +127,8 @@ object K9SettingsImporter {
     }
 
     /** Maps K-9's `<connection-security>` onto ours, falling back to encrypted [fallback] for
-     * anything unrecognised. Falling back to NONE would configure the account in the clear
-     *  — a wrong encrypted guess fails visibly, a wrong NONE guess succeeds and leaks. */
+     * anything unrecognised. Falling back to none would configure the account in the clear
+     *  (a wrong encrypted guess fails visibly, a wrong none guess succeeds and leaks). */
     private fun connectionSecurity(
         raw: String,
         fallback: ConnectionSecurity = ConnectionSecurity.TLS,
@@ -164,7 +164,7 @@ object K9SettingsImporter {
 data class K9ImportResult(
     val accounts: List<StoredAccount>,
     val skipped: List<K9Skip>,
-    /** Labels of imported accounts whose connection security wasn't stated in terms we map — a
+    /** Labels of imported accounts whose connection security wasn't stated in terms we map, a
      *  safe guess (TLS in, STARTTLS out) rather than confirmed. */
     val securityUnverified: List<String> = emptyList(),
 )

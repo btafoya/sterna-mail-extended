@@ -30,7 +30,7 @@ class PushWatchTest {
         assertFalse(PushController.isWatched("a", currentId = null, pushAllAccounts = false))
     }
 
-    // --- the unwatched note promises ONE action, so it may only appear when one is enough ---------
+    // --- the unwatched note promises one action, so it may only appear when one is enough ---------
     //
     // Same issue A8, one step further into the screen. The note under the toggle says "turn on Push
     // for all accounts" and nothing else, which is the whole truth only while this account's own
@@ -46,7 +46,7 @@ class PushWatchTest {
         )
     }
 
-    /** The defect: two actions needed, one promised — the note lies, so it stays away. */
+    /** The defect: two actions needed, one promised, the note lies, so it stays away. */
     @Test fun `an unwatched account whose own toggle is off is not promised a one-step fix`() {
         assertFalse(
             PushController.shouldShowUnwatchedNote(
@@ -77,7 +77,7 @@ class PushWatchTest {
         )
     }
 
-    /** The parameter ORDER, which the named calls above are blind to: three arguments of one type. */
+    /** The parameter order, which the named calls above are blind to: three arguments of one type. */
     @Test fun `the unwatched note reads its arguments in the declared order`() {
         assertTrue(PushController.shouldShowUnwatchedNote(false, false, true))
         assertFalse(PushController.shouldShowUnwatchedNote(false, true, false))
@@ -115,13 +115,13 @@ class PushWatchTest {
         )
     }
 
-    /** The parameter ORDER, which the named calls above are blind to: two booleans of one type. */
+    /** The parameter order, which the named calls above are blind to: two booleans of one type. */
     @Test fun `the direct line reads its arguments in the declared order`() {
         assertEquals(DirectLine.NO_DISTRIBUTOR, PushController.directLine(true, false))
         assertEquals(DirectLine.PLAIN, PushController.directLine(false, true))
     }
 
-    /** SOURCE RULE, and the weakest test of this section: it reads the screen as text, not as code. */
+    /** Source rule, and the weakest test of this section: it reads the screen as text, not as code. */
     @Test fun `the notifications section leaves the toggle live and asks the note for all three`() {
         assertEquals(
             listOf(
@@ -199,9 +199,9 @@ class PushWatchTest {
     // Same account-vs-connection confusion as above, on the other side of the app: the 30-minute
     // safety poll (issue #11) used to read the service's process-wide isRunning flag. The service
     //
-    // What these tests pin is the RULE, not the wiring. The rule did not exist before the fix, so
+    // What these tests pin is the rule, not the wiring. The rule did not exist before the fix, so
     // saying they "fail on the old tree" would be meaningless; what they do is fix the decision so
-    // that reverting it to the old one — poll only when no service is up — turns the first test red.
+    // that reverting it to the old one (poll only when no service is up) turns the first test red.
     // The worker's call site is not covered here (see the class KDoc).
 
     @Test fun `a service with no open connection for this account still polls its inbox`() {
@@ -226,7 +226,7 @@ class PushWatchTest {
         assertFalse(hasExtrasToPoll(isImap = true, watchedFolders = emptySet()))
     }
 
-    /** A JMAP EventSource covers the watched extras itself — polling them again is waste. */
+    /** A JMAP EventSource covers the watched extras itself, polling them again is waste. */
     @Test fun `JMAP watched extras are left to the EventSource`() {
         assertFalse(hasExtrasToPoll(isImap = false, watchedFolders = setOf("f1")))
     }
@@ -260,7 +260,7 @@ class PushWatchTest {
         )
     }
 
-    /** Witness: a background arm never reseeds — not the current account, not in the unified view. */
+    /** Witness: a background arm never reseeds, not the current account, not in the unified view. */
     @Test fun `a background arm never reseeds the account on screen`() {
         assertFalse(
             shouldResetBaseline("a", userInitiated = false, currentAccountId = "a", unifiedInbox = false),
@@ -301,10 +301,10 @@ class PushWatchTest {
         assertTrue(seedsSilently(resetBaselines = true, isInbox = true, hasBaseline = true))
     }
 
-    // --- the arm's log line says what it GOT, not only what it asked for -------------------------
+    // --- the arm's log line says what it got, not only what it asked for -------------------------
     //
     // The line the service writes at the end of an arm is read as evidence when a "push is dead"
-    // report comes in. It used to count the login GROUPS it intended to connect, so it announced
+    // report comes in. It used to count the login groups it intended to connect, so it announced
 
     @Test fun `the arm line carries accounts, requested logins and held connections in their places`() {
         assertEquals(
@@ -352,7 +352,7 @@ class PushWatchTest {
     }
 
     /**
-     * The parameter ORDER, which every test above is blind to: they all pass named arguments, so
+     * The parameter order, which every test above is blind to: they all pass named arguments, so
      */
     @Test fun `the arm line reads its arguments in the declared order`() {
         assertEquals(
@@ -362,7 +362,7 @@ class PushWatchTest {
     }
 
     /**
-     * SOURCE RULE, and the weakest test here: the three arguments the service hands to [PushController.armSummary].
+     * Source rule, and the weakest test here: the three arguments the service hands to [PushController.armSummary].
      */
     @Test fun `the service logs the arm summary with accounts, groups and open connections`() {
         val source = File(
@@ -388,7 +388,7 @@ class PushWatchTest {
     //
     // The expected sentences are written out literally: rebuilding them with the same expression as
     // the functions under test would make this file a copy of the code. Both generations are
-    // DIFFERENT numbers on purpose — with gen == current, dropping either one of them from the
+    // different numbers on purpose, with gen == current, dropping either one of them from the
     // sentence would still print the right text and nothing here would notice.
 
     @Test fun `the abandoned arm line names the login and both generations`() {
@@ -406,7 +406,7 @@ class PushWatchTest {
     }
 
     /**
-     * The two renouncements are different events — one never opened anything, the other gave up a scheduled retry.
+     * The two renouncements are different events, one never opened anything, the other gave up a scheduled retry.
      */
     @Test fun `the two abandonments do not print the same sentence`() {
         assertNotEquals(
@@ -416,7 +416,7 @@ class PushWatchTest {
     }
 
     /**
-     * SOURCE RULE, same weakness and same reason as the armSummary one above: [PushService] cannot
+     * Source rule, same weakness and same reason as the armSummary one above: [PushService] cannot
      */
     @Test fun `the service logs the arm it abandons at the generation guard`() {
         assertEquals(
@@ -436,7 +436,7 @@ class PushWatchTest {
     }
 
     /**
-     * Same rule for the delayed retry, and here the WHOLE body is pinned: the retry's guard has no
+     * Same rule for the delayed retry, and here the whole body is pinned: the retry's guard has no
      */
     @Test fun `the service logs the reconnect it abandons`() {
         assertEquals(
@@ -465,8 +465,8 @@ class PushWatchTest {
     }
 
     /**
-     * The third way an arm ends with nothing — no connection, nothing rescheduled, and the service
-     * gone — which used not to print even the summary line. Pinned the same way, body and all.
+     * The third way an arm ends with nothing, no connection, nothing rescheduled, and the service
+     * gone, which used not to print even the summary line. Pinned the same way, body and all.
      */
     @Test fun `the service says when an arm finds nothing to watch`() {
         assertEquals(
@@ -503,11 +503,11 @@ class PushWatchTest {
     // --- issue #130: a stale arm must not overwrite the live handle, and a stale close must
     // --- still retract its own entry ---------------------------------------------------------
     //
-    // The arm's generation guard is read ONCE, at the top of watch(), and what follows it is a full
-    // baseline pass over the group — tens of seconds on a real mailbox. A concurrent onStartCommand
+    // The arm's generation guard is read once, at the top of watch(), and what follows it is a full
+    // baseline pass over the group, tens of seconds on a real mailbox. A concurrent onStartCommand
     //
     // The retraction is the part with a trap in it, which is why it is a pure function executed here
-    // rather than read. A close callback is ASYNCHRONOUS: close() returns at once and the callback
+    // rather than read. A close callback is asynchronous: close() returns at once and the callback
 
     /** Stands in for a connection handle. A data class on purpose: see the identity test below. */
     private data class Handle(val name: String)
@@ -539,7 +539,7 @@ class PushWatchTest {
     }
 
     /**
-     * The same "nothing stored" case with an EMPTY slot, the common one in production: the arm has not stored its handle yet.
+     * The same "nothing stored" case with an empty slot, the common one in production: the arm has not stored its handle yet.
      */
     @Test fun `nothing stored and nothing under the key reports nothing removed`() {
         val connections = mutableMapOf<String, Handle>()
@@ -549,7 +549,7 @@ class PushWatchTest {
     }
 
     /**
-     * The pairing is by IDENTITY, not by equals: two handles that compare equal are still two
+     * The pairing is by identity, not by equals: two handles that compare equal are still two
      */
     @Test fun `an equal but different handle does not retract the entry`() {
         val live = Handle("same")
@@ -577,13 +577,13 @@ class PushWatchTest {
         assertEquals(1, connections.size)
     }
 
-    // The ONE new line of this fix, pinned literally like the two abandonments above. Both
-    // generations are DIFFERENT numbers on purpose: with gen == current, dropping either from the
+    // The one new line of this fix, pinned literally like the two abandonments above. Both
+    // generations are different numbers on purpose: with gen == current, dropping either from the
     // sentence would still print the right text and nothing here would notice.
     //
-    // There is deliberately no line in onClosed. That path fires on EVERY arm (reconnectAll closes
+    // There is deliberately no line in onClosed. That path fires on every arm (reconnectAll closes
     // every socket before it re-arms), so a line there would print once per healthy arm while being
-    // unable to tell the race apart from a routine re-arm — the silence the section above this file's
+    // unable to tell the race apart from a routine re-arm, the silence the section above this file's
     // reconnect tests already argued for, and it stands.
 
     @Test fun `the dropped handle line names the login, both generations and the missing retry`() {
@@ -606,7 +606,7 @@ class PushWatchTest {
     }
 
     /**
-     * SOURCE RULE, same weakness and same reason as the ones above: [PushService] is an Android
+     * Source rule, same weakness and same reason as the ones above: [PushService] is an Android
      */
     @Test fun `the arm checks the generation after storing, and takes its handle back out`() {
         assertEquals(
@@ -636,7 +636,7 @@ class PushWatchTest {
     }
 
     /**
-     * The other half, same rule: onClosed retracts ITS OWN entry — the call is read whole, so a slip
+     * The other half, same rule: onClosed retracts its own entry, the call is read whole, so a slip
      */
     @Test fun `a connection that dies retracts its own entry, whatever its generation`() {
         assertEquals(
@@ -666,7 +666,7 @@ class PushWatchTest {
     }
 
     /**
-     * SOURCE RULE — same weakness and same reason as the ones above, and it closes the WINDOW they
+     * Source rule, same weakness and same reason as the ones above, and it closes the window they
      */
     @Test fun `the arm reads the unified flag itself, and hands it to the baseline decision`() {
         val watch = pushServiceStatementsOf(WATCH_SIGNATURE)

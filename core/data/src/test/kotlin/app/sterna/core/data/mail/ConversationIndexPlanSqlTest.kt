@@ -98,7 +98,7 @@ class ConversationIndexPlanSqlTest {
         get() = conversationSql(scopeCount = 1, sort = SortOrder.DATE_DESC, unreadOnly = false)
 
     /**
-     * The form the reported gesture REALLY emits. A folder view on an account whose Sent folder is
+     * The form the reported gesture really emits.
      */
     private val sqlWithSentFolder: String
         get() = conversationSql(
@@ -109,14 +109,14 @@ class ConversationIndexPlanSqlTest {
         )
 
     /**
-     * The plan rows of [sql], one string each, with the leading `SEARCH`/`SEARCH TABLE` removed so
-     * the assertion pins the ALIAS, the INDEX and the CONSTRAINED COLUMNS — not SQLite's wording.
+     * The plan rows of [sql], one string each, with the leading `SEARCH`/`SEARCH table` removed so
+     * the assertion pins the alias, the index and the constrained columns, not SQLite's wording.
      */
     private fun plan(): List<String> = planOf(sql, listOf("accA", "inbox", "accA", "inbox", "accA", "inbox"))
 
     /**
      * The plan of [query], bound with [args]. Bind sites, in order: the in-view sub-query `g`, the
-     * chip-count sub-query `c` (plus one extra pair per Sent alternative), then the outer WHERE.
+     * chip-count sub-query `c` (plus one extra pair per Sent alternative), then the outer where.
      */
     private fun planOf(query: String, args: List<String>): List<String> {
         val rows = mutableListOf<String>()
@@ -156,7 +156,7 @@ class ConversationIndexPlanSqlTest {
     }
 
     /**
-     * The representative join — `e.accountId = g.gacc AND e.sortKey = g.maxKey` under the outer
+     * The representative join, `e.accountId = g.gacc and e.sortKey = g.maxKey` under the outer
      */
     @Test fun theRepresentativeJoinUsesAllThreeColumns() {
         applyTheRegisteredIndexStep()
@@ -176,12 +176,14 @@ class ConversationIndexPlanSqlTest {
 
     /**
      * The same proof on the form the gesture actually emits. A folder view whose account has a
+     * resolved Sent folder passes `sentMailboxCount = 1`, and the chip-count sub-query `c` then
+     * scopes on a disjunction of two (account, folder) pairs rather than on one.
      */
     @Test fun theFormWithAResolvedSentFolderStillReachesTheRepresentativeThroughAllThreeColumns() {
         applyTheRegisteredIndexStep()
         val plan = planOf(
             sqlWithSentFolder,
-            // g, then c with its Sent alternative, then the outer WHERE.
+            // g, then c with its Sent alternative, then the outer where.
             listOf("accA", "inbox", "accA", "inbox", "accA", "sent", "accA", "inbox"),
         )
 

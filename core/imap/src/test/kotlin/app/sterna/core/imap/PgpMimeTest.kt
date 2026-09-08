@@ -31,7 +31,7 @@ class PgpMimeTest {
         val env = MimeParser.detectCrypto(raw)
         assertNotNull(env)
         assertEquals(CryptoKind.PGP_SIGNED, env!!.kind)
-        // THE invariant: what the verifier extracts is byte-identical to what was signed.
+        // The invariant: what the verifier extracts is byte-identical to what was signed.
         assertEquals(payload, env.signedEntityRaw)
         assertTrue(env.signatureArmor!!.contains("BEGIN PGP SIGNATURE"))
     }
@@ -42,7 +42,7 @@ class PgpMimeTest {
         // signature is computed over. A bare CR here is signed, so a conforming relay that
         // straightens the line changes the message and the recipient reads "invalid signature".
         //
-        // The other tests of this file sign a 10-byte body — under the 57-byte wrap threshold,
+        // The other tests of this file sign a 10-byte body, under the 57-byte wrap threshold,
         // so the encoder emits no separator and there is nothing to get wrong. That is exactly
         // how the defect stayed invisible here.
         val long = "The quick brown fox jumps over the lazy dog, and keeps on jumping until this " +

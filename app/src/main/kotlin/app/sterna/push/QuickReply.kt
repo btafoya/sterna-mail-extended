@@ -10,7 +10,7 @@ sealed interface QuickReplyOutcome {
     /** Nothing was typed: nothing to queue, nothing to give back, and the notification stays. */
     data object Ignore : QuickReplyOutcome
 
-    /** Queue it in the Outbox — durable, retried, visible, editable. */
+    /** Queue it in the Outbox, durable, retried, visible, editable. */
     data class Send(val to: String, val subject: String, val body: String) : QuickReplyOutcome
 
     /** Nobody to answer: give the text back to the user instead of dropping it. */
@@ -26,7 +26,7 @@ sealed interface QuickReplyAct {
 }
 
 /**
- * The decision AFTER the attempt, and the one that has to be a function: which way round these two
+ * The decision after the attempt, and the one that has to be a function: which way round these two
  */
 fun quickReplyAct(outcome: QuickReplyOutcome, queued: Boolean): QuickReplyAct = when (outcome) {
     QuickReplyOutcome.Ignore -> QuickReplyAct.DoNothing

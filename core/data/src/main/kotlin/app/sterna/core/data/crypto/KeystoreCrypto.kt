@@ -40,7 +40,7 @@ internal object KeystoreCrypto {
         return cipher.doFinal(ciphertext)
     }
 
-    /** Remove the shared key — call on a full account reset so leftover ciphertext is unrecoverable. */
+    /** Remove the shared key, call on a full account reset so leftover ciphertext is unrecoverable. */
     fun deleteKey() {
         runCatching { KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }.deleteEntry(KEY_ALIAS) }
     }

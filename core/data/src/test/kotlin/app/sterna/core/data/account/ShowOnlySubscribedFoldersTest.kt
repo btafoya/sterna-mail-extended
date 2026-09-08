@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The "show only subscribed folders" setting (#174), EXECUTED: the two decisions `AccountStore`
+ * The "show only subscribed folders" setting (#174), executed: the two decisions `AccountStore`
  */
 class ShowOnlySubscribedFoldersTest {
 

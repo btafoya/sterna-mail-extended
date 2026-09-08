@@ -16,6 +16,8 @@ internal object DaoQuerySource {
 
     /**
      * One statement a DAO function issues: which `@Query` function carried it, its [sql], and
+     * whether the calling line wraps it in a `runCatching`, i.e. whether the shipped code lets
+     * that statement fail without taking the rest of the path down with it.
      */
     data class DaoStatement(
         val function: String,
@@ -31,6 +33,9 @@ internal object DaoQuerySource {
 
     /**
      * [DaoPath] for `EmailDao.[functionName]`: its own `@Query` when it has one, otherwise the
+     * statements of the functions its body calls, following a call into a composed function of the
+     * same DAO, so a path split into "the transactional pair" plus "what to do when it fails" is
+     * replayed whole.
      */
     fun emailDaoPath(functionName: String): DaoPath = emailDaoPath(functionName, mutableSetOf())
 
@@ -77,8 +82,8 @@ internal object DaoQuerySource {
         return DaoPath(main, fallback, atomic)
     }
 
-    /** Every statement `EmailDao.[functionName]` can issue, nominal path and fallback alike — for
-     *  the rules that ask WHAT a path touches rather than in which order or under which guard. */
+    /** Every statement `EmailDao.[functionName]` can issue, nominal path and fallback alike, for
+     *  the rules that ask what a path touches rather than in which order or under which guard. */
     fun emailDaoStatements(functionName: String): List<DaoStatement> =
         emailDaoPath(functionName).let { it.main + it.fallback }
 
@@ -88,7 +93,7 @@ internal object DaoQuerySource {
     private fun declarationOf(source: String, functionName: String): MatchResult? =
         Regex("""\bfun\s+(<[^>()]*>\s*)?$functionName\s*\(""").find(source)
 
-    /** Whether [daoName] declares a `fun [functionName]` with a block body — a composed path a
+    /** Whether [daoName] declares a `fun [functionName]` with a block body, a composed path a
      *  replay can follow, as opposed to an abstract `@Query` or a function that does not exist. */
     private fun hasBody(daoName: String, functionName: String): Boolean {
         val source = daoSource(daoName)
@@ -97,7 +102,7 @@ internal object DaoQuerySource {
     }
 
     /**
-     * Whether `[daoName].[functionName]` carries `@Transaction` — a replay of a composed path has
+     * Whether `[daoName].[functionName]` carries `@Transaction`, a replay of a composed path has
      */
     fun isTransactional(daoName: String, functionName: String): Boolean {
         val source = daoSource(daoName)
@@ -120,14 +125,16 @@ internal object DaoQuerySource {
         )
 
     /**
-     * The whole source text of a file of the `mail` package ([fileName] without its `.kt`) — for
+     * The whole source text of a file of the `mail` package ([fileName] without its `.kt`), for
+     * the rare check that is about the file rather than one function: "no call of this shape
+     * anywhere", which no per-function lookup can state.
      */
     fun mailSource(fileName: String): String =
         sources.getOrPut("mail/$fileName") { locate("$MAIL_DIR$fileName.kt").readText() }
 
     /**
      * The SQL of the `@Query` annotating `fun [functionName]` in `EmailDao`, with Room's named
-     * parameters left in place (`:accountId`, …) — [bindOrder] turns them into positional `?`.
+     * parameters left in place (`:accountId`, …), [bindOrder] turns them into positional `?`.
      */
     fun emailDaoQuery(functionName: String): String = daoQuery("EmailDao", functionName)
 
@@ -189,15 +196,18 @@ internal object DaoQuerySource {
     }
 
     /**
-     * A Kotlin string template surviving in an extracted statement — see [queryOrNull]. Only
+     * A Kotlin string template surviving in an extracted statement, see [queryOrNull]. Only
      */
     private val INTERPOLATION = Regex("""\$\{?[A-Za-z_]""")
 
-    /** A function declaration — what tells an annotation apart from the one before it. */
+    /** A function declaration, what tells an annotation apart from the one before it. */
     private val DECLARATION = Regex("""\bfun\s+\w+\s*\(""")
 
     /**
      * The same query with Room's named parameters replaced by positional `?`, plus the order the
+     * caller must bind them in, the order the names appear in the statement. [listParams] gives
+     * the length of each collection parameter (Room expands `in (:ids)` into that many `?`), and
+     * a name listed there contributes that many binds in a row.
      */
     fun bindOrder(sql: String, listParams: Map<String, Int> = emptyMap()): Pair<String, List<String>> {
         val names = Regex(":([A-Za-z_][A-Za-z0-9_]*)").findAll(sql).map { it.groupValues[1] }.toList()
@@ -217,6 +227,9 @@ internal object DaoQuerySource {
 
     /**
      * Index of the `{` opening the body of the function whose parameter list starts at [paren],
+     * or -1 when the function has no block body. Walks the parameter list to its closing `)` (it may
+     * span lines), then accepts only a `{` on that same line, anything else means no body, so a
+     * lookup can never wander off and hand back some later function's braces.
      */
     private fun bodyBrace(source: String, paren: Int): Int {
         var depth = 0
@@ -231,7 +244,7 @@ internal object DaoQuerySource {
         return -1
     }
 
-    /** The block-body `{` on the line starting at [from], or -1 — see [bodyBrace]. */
+    /** The block-body `{` on the line starting at [from], or -1, see [bodyBrace]. */
     private fun braceOnLineOf(source: String, from: Int): Int {
         val eol = source.indexOf('\n', from).let { if (it < 0) source.length else it }
         val brace = source.substring(from, eol).indexOf('{')
@@ -269,7 +282,8 @@ internal object DaoQuerySource {
     }
 
     /**
-     * The text of `const val [name]` in [daoName] — string literals and other constants of the
+     * The text of `const val [name]` in [daoName], string literals and other constants of the
+     * same file joined by `+`, resolved recursively.
      */
     private fun constantText(daoName: String, name: String, functionName: String): String {
         val source = daoSource(daoName)
@@ -318,6 +332,8 @@ internal object DaoQuerySource {
 
     /**
      * [relative] resolved from the test's working directory (Gradle runs a module's tests with the
+     * module directory as CWD, so both the repo root and `core/data` must work), walking up until
+     * the file turns up.
      */
     private fun locate(relative: String): File {
         val fromModule = relative.substringAfter("core/data/")

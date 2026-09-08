@@ -11,12 +11,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The red line of the full-query sync, EXECUTED: pages are written as they land, and the DELETE
+ * The red line of the full-query sync, executed: pages are written as they land, and the DELETE
  */
 class FullQueryWriteThroughTest {
 
     /**
-     * One folder as this path leaves it — a cache of ids, a recently-mutated spare set that MOVES
+     * One folder as this path leaves it, a cache of ids, a recently-mutated spare set that MOVES
      */
     private class Folder(cached: List<String> = emptyList()) {
         val cache = LinkedHashSet(cached)
@@ -29,7 +29,7 @@ class FullQueryWriteThroughTest {
             cache += page
         }
 
-        /** The shipped reconcile, applied: complement against the WHOLE keep set, then evict. */
+        /** The shipped reconcile, applied: complement against the whole keep set, then evict. */
         suspend fun reconcile(keepIds: Set<String>, spareIds: List<String>, evictableIds: Set<String>?) {
             reconciledKeepIds = keepIds
             reconciledSpare = spareIds
@@ -45,6 +45,7 @@ class FullQueryWriteThroughTest {
 
     /**
      * A walk that hands [pages] over one at a time and then answers with every id it handed over,
+     * or (when [failAfter] pages have been handed over) throws [failWith] instead of finishing.
      */
     private fun walkOf(
         pages: List<List<String>>,
@@ -68,7 +69,7 @@ class FullQueryWriteThroughTest {
         )
     }
 
-    /** Three pages, so a MIDDLE one exists — a one-page fixture cannot tell "the whole walk" from
+    /** Three pages, so a middle one exists, a one-page fixture cannot tell "the whole walk" from
      *  "the last page" and would prove nothing. */
     private val threePages = listOf(listOf("n1", "n2"), listOf("mid1", "mid2"), listOf("z1"))
     private val allThree = listOf("n1", "n2", "mid1", "mid2", "z1")
@@ -76,9 +77,9 @@ class FullQueryWriteThroughTest {
     // -- the red line ---------------------------------------------------------------------------
 
     @Test fun `a walk cut off in the middle deletes NOTHING, and keeps the pages it did write`() {
-        // THE test of this volet. The network drops after two of three pages. Everything the
-        // cache held before must still be there — including "stale", which no page names and
-        // which a reconcile would have deleted — and the two pages received must be there too.
+        // The test of this volet. The network drops after two of three pages. Everything the
+        // cache held before must still be there, including "stale", which no page names and
+        // which a reconcile would have deleted, and the two pages received must be there too.
         val folder = Folder(cached = listOf("stale", "older"))
         val boom = java.io.IOException("connection reset")
 
@@ -166,11 +167,11 @@ class FullQueryWriteThroughTest {
         assertTrue("stale" in folder.cache)
     }
 
-    // -- the reconcile, when the walk DID finish ---------------------------------------------------
+    // -- the reconcile, when the walk did finish ---------------------------------------------------
 
     @Test fun `a finished walk reconciles once, against every page, not the last one`() {
-        // "mid2" is cached AND named by the middle page. Reconciling against the last page alone
-        // would evict it; against the whole walk it stays. "stale" is named by no page and goes —
+        // "mid2" is cached and named by the middle page. Reconciling against the last page alone
+        // would evict it; against the whole walk it stays. "stale" is named by no page and goes,
         // which is what makes this a reconcile and not a no-op.
         val folder = Folder(cached = listOf("mid2", "stale"))
 
@@ -198,9 +199,9 @@ class FullQueryWriteThroughTest {
 
     @Test fun `the recently-mutated spare is read at the reconcile, not before the walk`() {
         // The 45 s protection window against a walk that takes minutes. "undone" is a row the
-        // user restored WHILE the walk was running: it is in the cache, in no page, and in the
+        // user restored while the walk was running: it is in the cache, in no page, and in the
         // spare set only from page 2 onwards. A spare set read at the entry is empty, and the
-        // reconcile deletes the restored row — undoing, one function later, the Undo.
+        // reconcile deletes the restored row, undoing, one function later, the Undo.
         val folder = Folder(cached = listOf("undone"))
 
         runBlocking {
@@ -260,8 +261,8 @@ class FullQueryWriteThroughTest {
 
     @Test fun `the retention prune spares every page of the walk, not just the last (#110)`() {
         // The consequence, executed against the shipped prune. Every row is older than the cutoff
-        // and the floor keeps none, so the ONLY thing between this folder and an empty list is
-        // freshIds — and freshIds is the value this function returns. Answering with the last
+        // and the floor keeps none, so the only thing between this folder and an empty list is
+        // freshIds, and freshIds is the value this function returns. Answering with the last
         // page would delete, in the same refresh, four of the five messages the server just sent.
         val folder = Folder()
         val walked = runBlocking {
@@ -275,7 +276,7 @@ class FullQueryWriteThroughTest {
             )
         }
 
-        // The rows the PRUNE sees are the five the walk WROTE, stated independently of what this
+        // The rows the prune sees are the five the walk wrote, stated independently of what this
         // function answered. Deriving them from `walked.ids` would shrink both sides of the
         // comparison together and the assertion below would hold whatever came back.
         assertEquals("the fixture did not write what it says it wrote", allThree.toSet(), folder.cache)

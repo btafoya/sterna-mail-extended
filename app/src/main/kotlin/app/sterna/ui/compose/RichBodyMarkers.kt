@@ -11,12 +11,13 @@ import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.Span
 
 /**
- * What the body field DRAWS in front of a list's lines (#131): `• ` on every line of a bullet block,
+ * What the body field draws in front of a list's lines (#131): `• ` on every line of a bullet block,
+ * block, `1. `, `2. `… on a numbered one, the numbering starting again at 1 for each block.
  */
 fun markedText(text: AnnotatedString, blocks: List<Block>): TransformedText {
-    // FIRST LINE, and that is the whole of it: a body with no list is handed straight back with
+    // First line, and that is the whole of it: a body with no list is handed straight back with
     // the identity mapping, so nothing is walked. Placed after `lineStarts`, this "free" path
-    // scanned every character and allocated a list per line on every recomposition — on a 324 kB
+    // scanned every character and allocated a list per line on every recomposition, on a 324 kB
     // reply, in a field whose smoothness is #5, #6 and #26.
     if (blocks.isEmpty()) return TransformedText(text, OffsetMapping.Identity)
     val starts = lineStarts(text.text)
@@ -36,7 +37,7 @@ fun markedText(text: AnnotatedString, blocks: List<Block>): TransformedText {
 }
 
 /**
- * THE body field's one and only `VisualTransformation`, carrying BOTH halves (#131): the inline styling
+ * The body field's one and only `VisualTransformation`, carrying both halves (#131): the inline styling
  */
 fun bodyTransformation(rich: RichBody, linkColor: Color): VisualTransformation =
     object : VisualTransformation {
@@ -45,7 +46,7 @@ fun bodyTransformation(rich: RichBody, linkColor: Color): VisualTransformation =
     }
 
 /**
- * The list kind covering EVERY line the selection touches, or null — what the two list buttons show
+ * The list kind covering every line the selection touches, or null, what the two list buttons show
  */
 fun listKindAt(body: RichBody, selection: Span): BlockKind? {
     val starts = lineStarts(body.text)
@@ -85,7 +86,7 @@ private class MarkerOffsets(
         for (l in starts.indices) it[l + 1] = it[l] + markers[l].length
     }
 
-    /** Where each line starts in the TRANSFORMED text (its marker included). */
+    /** Where each line starts in the transformed text (its marker included). */
     private val transformedStarts: List<Int> = starts.mapIndexed { l, s -> s + before[l] }
 
     override fun originalToTransformed(offset: Int): Int {

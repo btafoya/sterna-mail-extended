@@ -15,12 +15,12 @@ internal enum class InboxBackAction {
     /** A folder other than the Inbox is open: back returns to the Inbox. */
     SHOW_INBOX,
 
-    /** Nothing left to undo on this screen — the system handles it. */
+    /** Nothing left to undo on this screen, the system handles it. */
     LEAVE_APP,
 }
 
 /** The single Back rule of the list screen: modes are peeled off innermost first (#103). The
- *  drawer is not part of this — `ModalNavigationDrawer` registers its own handling and wins, under
+ *  drawer is not part of this, `ModalNavigationDrawer` registers its own handling and wins, under
  *  1 200 dp only; above, it is permanent and never "open". */
 internal fun inboxBackAction(
     selectionActive: Boolean,

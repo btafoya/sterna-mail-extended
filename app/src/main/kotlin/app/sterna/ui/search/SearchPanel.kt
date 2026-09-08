@@ -8,6 +8,7 @@ fun searchPanelTakes(offsetPx: Float, panelHeightPx: Float, delta: Float): Float
 
 /**
  * A released drag lands the advanced-filter panel on one side or the other: this is that decision,
+ * and the only copy of it.
  */
 fun searchPanelSettlesOpen(offsetPx: Float, panelHeightPx: Float, velocity: Float): Boolean = when {
     // A flick decides first: honouring the halfway line over it would make a deliberate throw stop

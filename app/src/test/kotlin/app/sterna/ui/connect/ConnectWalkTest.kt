@@ -13,7 +13,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The add-account walk's decisions, EXECUTED with pinned arguments and expected values written out
+ * The add-account walk's decisions, executed with pinned arguments and expected values written out
  */
 class ConnectWalkTest {
 
@@ -28,7 +28,7 @@ class ConnectWalkTest {
     private val foundVerdict = DiscoveryVerdict(email, found)
     private val notFoundVerdict = DiscoveryVerdict(email, MailAutoconfigResult.NotFound)
 
-    /** A server that signs this account in without a password — the drivable answer (#55). */
+    /** A server that signs this account in without a password, the drivable answer (#55). */
     private val deviceFlow = OAuthMetadata(
         issuer = "https://example.org",
         tokenEndpoint = "https://example.org/token",
@@ -46,7 +46,7 @@ class ConnectWalkTest {
     private val oauthNothing = OAuthDiscovery(email, null)
     private val oauthElsewhere = OAuthDiscovery("alex@autre.tld", "mail.autre.tld" to deviceFlow)
 
-    // ---- verdictFor: a verdict is about ONE address ----
+    // ---- verdictFor: a verdict is about one address ----
 
     @Test fun `a verdict answers for its own address`() {
         assertSame(found, verdictFor(foundVerdict, email))
@@ -209,7 +209,7 @@ class ConnectWalkTest {
         )
     }
 
-    // ---- addressAdvance and the OAuth answer: it decides WHERE, never WHETHER (#55) ----
+    // ---- addressAdvance and the OAuth answer: it decides where, never whether (#55) ----
 
     @Test fun `a domain served over OAuth without autoconfig leads to the credentials step`() {
         assertEquals(
@@ -264,7 +264,7 @@ class ConnectWalkTest {
         )
     }
 
-    // ---- awaitedAnswer: how the address step's wait ends — and that it ALWAYS can ----
+    // ---- awaitedAnswer: how the address step's wait ends, and that it ALWAYS can ----
 
     @Test fun `a verdict landing while nothing is awaited carries nobody off the step`() {
         assertEquals(
@@ -622,7 +622,9 @@ class ConnectWalkTest {
 }
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * [ConnectStatusWiringTest]: `ConnectScreen` is a composable and this module has neither
+ * Robolectric nor instrumented tests, so nothing here can be composed. What [clearingIsDue]
  */
 class ConnectWalkRotationWiringTest {
 
@@ -702,7 +704,7 @@ class ConnectWalkRotationWiringTest {
     // -- reading the file ---------------------------------------------------------------------
 
     /**
-     * The block opened by [opener] must contain EXACTLY [statements], raw and in order — comments
+     * The block opened by [opener] must contain exactly [statements], raw and in order, comments
      */
     private fun assertSeamBody(opener: String, statements: List<String>, why: String) {
         val lines = source().lines()
@@ -725,7 +727,7 @@ class ConnectWalkRotationWiringTest {
         )
     }
 
-    /** [run] must appear in [SCREEN] as consecutive RAW lines (indentation included), exactly once. */
+    /** [run] must appear in [screen] as consecutive raw lines (indentation included), exactly once. */
     private fun assertRawRun(run: List<String>, why: String) {
         val lines = source().lines()
         val hits = (0..(lines.size - run.size)).count { lines.subList(it, it + run.size) == run }

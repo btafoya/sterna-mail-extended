@@ -28,6 +28,7 @@ import org.openintents.openpgp.util.OpenPgpServiceConnection
 
 /**
  * [PgpEngine] backed by an installed OpenPGP provider over the openpgp-api bound service; which
+ * package that is comes from [PgpProviders], the only place naming any.
  */
 class OpenKeychainPgpEngine(
     context: Context,
@@ -39,7 +40,7 @@ class OpenKeychainPgpEngine(
     private var connection: OpenPgpServiceConnection? = null
 
     /** The package [connection] is bound to; null when nothing is bound. Reused connections are
-     *  only ever reused for THIS package — see [PgpProviders.bindingReusable]. */
+     *  only ever reused for THIS package, see [PgpProviders.bindingReusable]. */
     private var boundPackage: String? = null
 
     private suspend fun service(): IOpenPgpService2? = bindMutex.withLock {
@@ -80,9 +81,9 @@ class OpenKeychainPgpEngine(
         bound
     }
 
-    // The bind attempt IS the availability test. A package-manager probe over a literal list of
-    // OpenKeychain packages used to sit in front of it, answering false on a device whose provider
-    // was something else while service() would happily have bound it.
+    // The bind attempt is the availability test. A package-manager probe over a literal list of
+    // OpenKeychain packages answers false on a device whose provider is something else, while
+    // service() would happily have bound it.
     override suspend fun isAvailable(): Boolean =
         withContext(Dispatchers.IO) { service() != null }
 
@@ -128,7 +129,7 @@ class OpenKeychainPgpEngine(
         (interactionResult?.let { Intent(it) } ?: Intent()).setAction(action)
 
     /**
-     * The Intent for a [PgpApiRequest] — the ONE place a pure request becomes an Android object.
+     * The Intent for a [PgpApiRequest], the one place a pure request becomes an Android object.
      */
     private fun intentFor(spec: PgpApiRequest, interactionResult: Intent?): Intent =
         request(spec.action, interactionResult).apply {
@@ -162,6 +163,7 @@ class OpenKeychainPgpEngine(
 
     /**
      * ACTION_GET_KEY: the provider streams the public key to the output stream, which is why this is
+     * is the one read here that collects output.
      */
     override suspend fun getPublicKey(
         keyId: Long,
@@ -176,7 +178,7 @@ class OpenKeychainPgpEngine(
     }
 
     /**
-     * ACTION_UPDATE_AUTOCRYPT_PEER: the provider files [keyData] in its PUBLIC keyring under
+     * ACTION_UPDATE_AUTOCRYPT_PEER: the provider files [keyData] in its public keyring under
      */
     override suspend fun updateAutocryptPeer(
         peerId: String,

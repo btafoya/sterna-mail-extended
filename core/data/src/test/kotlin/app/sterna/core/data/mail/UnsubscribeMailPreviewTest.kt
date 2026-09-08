@@ -18,7 +18,7 @@ class UnsubscribeMailPreviewTest {
             null,
         )!!
 
-        // MAIL, not OPEN_PAGE: this is the gesture two taps reach by default.
+        // Mail, not OPEN_PAGE: this is the gesture two taps reach by default.
         assertEquals(UnsubscribeAction.MAIL, options.preferredAction())
 
         val preview = unsubscribePreview(options.mailto!!)
@@ -32,8 +32,8 @@ class UnsubscribeMailPreviewTest {
     }
 
     /**
-     * The two texts cannot come apart, over every shape a `mailto:` can take — including the two
-     * that have no text at all, where the fallbacks ARE what is sent and so are what is shown.
+     * The two texts cannot come apart, over every shape a `mailto:` can take, including the two
+     * that have no text at all, where the fallbacks are what is sent and so are what is shown.
      */
     @Test fun `the preview is, field for field, what the mail carries`() {
         val fixtures = listOf(
@@ -55,6 +55,8 @@ class UnsubscribeMailPreviewTest {
 
     /**
      * The empty case, pinned on its own: a bare `mailto:` sends the fixed English subject and an
+     * empty body, so that is what the dialog shows. Not "nothing to show" and not a friendlier
+     * sentence invented for the occasion, the dialog's whole job is to be the outgoing mail.
      */
     @Test fun `a bare mailto previews the fixed subject and an empty body`() {
         val preview = unsubscribePreview(MailtoUnsubscribe("leave@list.example.com"))
@@ -64,7 +66,7 @@ class UnsubscribeMailPreviewTest {
         assertEquals(UNSUBSCRIBE_SUBJECT, preview.subject)
     }
 
-    /** The sender's subject wins over the default — the case the default would hide. */
+    /** The sender's subject wins over the default, the case the default would hide. */
     @Test fun `the sender's own subject and body are the preview when the uri carries them`() {
         val preview = unsubscribePreview(
             MailtoUnsubscribe("leave@list.example.com", subject = "unsubscribe abc", body = "token=xyz"),

@@ -15,7 +15,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * **What a REAL [ImapMailService] puts on the wire for a draft** (#95), executed against a
+ * **What a real [ImapMailService] puts on the wire for a draft** (#95), executed against a
+ * scripted server on loopback, because the two defects here are invisible above the socket.
  */
 class ImapDraftAppendGoesOutOnceTest {
 
@@ -23,7 +24,7 @@ class ImapDraftAppendGoesOutOnceTest {
 
     @Test(timeout = 30_000)
     fun `an APPEND the server refuses leaves the bytes on the wire exactly once`() {
-        // The server TAKES the message and then refuses — the reachable shape of the defect. A
+        // The server takes the message and then refuses, the reachable shape of the defect. A
         // tagged NO, a link that dies after the payload, a read timeout: the client cannot tell
         // them apart, and in all three the server may well be holding the draft already.
         ScriptedImapServer { tag, line ->
@@ -52,7 +53,7 @@ class ImapDraftAppendGoesOutOnceTest {
 
     @Test(timeout = 30_000)
     fun `every other caller keeps the one reconnect it has always had`() {
-        // The witness. The fix is per-CALL, not a change of the reconnect policy: a stale pooled
+        // The witness. The fix is per-call, not a change of the reconnect policy: a stale pooled
         // connection that dies on the first command must still cost a reconnect and not an error.
         ScriptedImapServer { tag, line ->
             when {
@@ -75,8 +76,7 @@ class ImapDraftAppendGoesOutOnceTest {
 
     @Test(timeout = 30_000)
     fun `the draft is found by enumerating the folder, and no HEADER key is ever sent`() {
-        // THE test of this volet. The bench measurement behind it: Stalwart answers an EMPTY
-        // `* SEARCH` to every shape of `HEADER "Message-ID"` — naked, bracketed, substring, on a
+        // The test of this volet.
         ScriptedImapServer { tag, line ->
             when {
                 line.startsWith("LOGIN") -> "$tag OK logged in\r\n"
@@ -127,7 +127,7 @@ class ImapDraftAppendGoesOutOnceTest {
                     "* 3 EXISTS\r\n* OK [UIDVALIDITY 9] ok\r\n$tag OK [READ-WRITE] selected\r\n"
                 line.startsWith("UID SEARCH ALL") -> "* SEARCH 4 9\r\n$tag OK search completed\r\n"
                 line.startsWith("UID FETCH") ->
-                    // The second one CONTAINS our id and is a different message all the same.
+                    // The second one contains our id and is a different message all the same.
                     envelope(4, "<older@example.org>") +
                         envelope(9, "<x-$MESSAGE_ID>") +
                         "$tag OK fetch completed\r\n"
@@ -186,12 +186,12 @@ class ImapDraftAppendGoesOutOnceTest {
         }
     }
 
-    // ---- 3. a Drafts folder DEEPER than the lookup reads --------------------------------------------
+    // ---- 3. a Drafts folder deeper than the lookup reads --------------------------------------------
 
     @Test(timeout = 60_000)
     fun `a draft a few from the newest is found in a folder deeper than the lookup cap`() {
-        // THE cap, executed rather than described. Every other fixture here scripts a folder of
-        // two or three UIDs, i.e. one no cap ≥ 3 can ever truncate: the constant could be set to
+        // The cap, executed rather than described. Every other fixture here scripts a folder of
+        // two or three UIDs, i.e.
         val total = ImapMailService.DRAFT_LOOKUP_SCAN + DEEPER_BY
         val ours = (total - OURS_FROM_NEWEST + 1).toLong()
         deepDraftsFolder(total, ours).use { server ->
@@ -225,7 +225,7 @@ class ImapDraftAppendGoesOutOnceTest {
                     "${server.issued()}",
                 there,
             )
-            // The ARGUMENT the answer rests on: what the client actually asked the server for.
+            // The argument the answer rests on: what the client actually asked the server for.
             val fetched = server.issued("UID FETCH").single().let(::uidsNamedBy)
             assertEquals(
                 "the fetch names as many UIDs as the lookup is allowed to read, no more and no " +
@@ -298,12 +298,14 @@ class ImapDraftAppendGoesOutOnceTest {
 
         /**
          * How much deeper than [ImapMailService.DRAFT_LOOKUP_SCAN] the deep fixture's folder goes,
+         * and how far back from the newest our copy sits in it. Neither is derived from the cap:
          */
         const val DEEPER_BY = 7
         const val OURS_FROM_NEWEST = 7
 
         /**
-         * An [OAuthTokenRefresher] that is never used and cannot be built — the same trick, and for
+         * An [OAuthTokenRefresher] that is never used and cannot be built, the same trick, and for
+         * the same reason, as `DestroyNeedsTheNumberingStatedNowTest`'s (whose companion is private):
          */
         fun unusedTokenRefresher(): OAuthTokenRefresher {
             val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")

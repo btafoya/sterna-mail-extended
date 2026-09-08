@@ -14,10 +14,10 @@ import java.sql.DriverManager
  * [app.sterna.core.data.db.EmailDao.observeMessageUnreadCounts]): per (accountId, mailboxId),
  * the number of unread threads (conversation mode) or unread messages (flat mode), with the
  * list's not-snoozed filter, and cross-checks the thread aggregate against [conversationSql]'s
- * bold rows — the badge must equal what the list shows.
+ * bold rows, the badge must equal what the list shows.
  *
  * The two aggregates are read out of the shipped DAO by [DaoQuerySource], not retyped, so changing
- * the DAO's SQL changes this test's SQL with it — a retyped copy would keep passing against a
+ * the DAO's SQL changes this test's SQL with it, a retyped copy would keep passing against a
  * query the drawer no longer runs.
  */
 class UnreadBadgeSqlTest {
@@ -111,7 +111,7 @@ class UnreadBadgeSqlTest {
     }
 
     @Test fun threadBadgeCountsUnreadThreadsNotMessages() {
-        // T1 has TWO unread members in the inbox → one bold row, so the badge says 1, not 2.
+        // T1 has two unread members in the inbox → one bold row, so the badge says 1, not 2.
         insert("m1", threadId = "T1", seen = 0, sortKey = 100)
         insert("m2", threadId = "T1", seen = 0, sortKey = 200)
         insert("r1", threadId = "T2", seen = 1, sortKey = 300) // all-read thread → no badge
@@ -123,7 +123,7 @@ class UnreadBadgeSqlTest {
 
     @Test fun readingANonTopMemberInItsFolderClearsThatFolderBadge() {
         // The saga's critical cell: a conversation in Trash whose top message is read but an
-        // older member is unread — the Trash row is bold, the badge must say 1, and reading
+        // older member is unread, the Trash row is bold, the badge must say 1, and reading
         // the non-top member must clear both.
         insert("old", threadId = "T1", seen = 0, sortKey = 100, mailbox = "trash")
         insert("top", threadId = "T1", seen = 1, sortKey = 200, mailbox = "trash")
@@ -137,11 +137,11 @@ class UnreadBadgeSqlTest {
     }
 
     @Test fun threadBadgeIsFolderScoped() {
-        // T1: read member in the Inbox, unread member filed in Trash — only Trash badges it (the
-        // Inbox row is not bold: its in-folder part is read). T2 is unread on BOTH sides, and it is
+        // T1: read member in the Inbox, unread member filed in Trash, only Trash badges it (the
+        // Inbox row is not bold: its in-folder part is read). T2 is unread on both sides, and it is
         // what makes the folder scope legible in the numbers: the two folders must disagree.
         //
-        // Without it the case survived dropping `mailboxId` from the aggregate's inner GROUP BY —
+        // Without it the case survived dropping `mailboxId` from the aggregate's inner group by,
         // the saga's regression, one badge for the whole thread instead of one per folder. SQLite
         // hands a bare mailboxId back from an arbitrary row of the group, and it happened to pick
         // the one the assertion named. No arrangement of one row per group can produce {1, 2}.
@@ -156,10 +156,10 @@ class UnreadBadgeSqlTest {
     }
 
     @Test fun snoozedUnreadIsExcludedFromBothBadges() {
-        // The two are in DIFFERENT folders, so the aggregates say WHICH one survives and not merely
+        // The two are in different folders, so the aggregates say which one survives and not merely
         // how many: with both in the Inbox the counts are symmetric, and reversing the comparison
-        // (`until > now` → `<`) — hiding every message whose snooze has EXPIRED and badging the ones
-        // still asleep — read exactly the same, 1 and 1.
+        // (`until > now` → `<`), hiding every message whose snooze has EXPIRED and badging the ones
+        // still asleep, read exactly the same, 1 and 1.
         insert("z1", threadId = null, seen = 0, sortKey = 100) // snoozed into the future → hidden
         insert("z2", threadId = null, seen = 0, sortKey = 200, mailbox = "archive") // expired → visible
         snooze("z1", untilMillis = Long.MAX_VALUE)
@@ -187,7 +187,7 @@ class UnreadBadgeSqlTest {
     }
 
     @Test fun snoozeInOneAccountKeepsTheSiblingAccountsBadge() {
-        // Sub-accounts of one login (issue #31) can mint the SAME email id: account A
+        // Sub-accounts of one login (issue #31) can mint the same email id: account A
         // snoozing its "e1" must clear only its own badge, not account B's.
         insert("e1", threadId = null, seen = 0, sortKey = 100, accountId = "accA")
         insert("e1", threadId = null, seen = 0, sortKey = 200, accountId = "accB")

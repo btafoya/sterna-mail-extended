@@ -3,7 +3,8 @@ package app.sterna.core.imap
 import java.io.File
 
 /**
- * Hands a JVM test the body of a function **as it is written in the shipped source** — the
+ * Hands a JVM test the body of a function **as it is written in the shipped source**, the
+ * `core:imap` sibling of `core:data`'s `DaoQuerySource`, cut down to the one thing needed here.
  */
 internal object ImapSource {
 
@@ -16,6 +17,8 @@ internal object ImapSource {
 
     /**
      * The block body of `fun [functionName]` in [fileName] (without its `.kt`), braces included,
+     * trimmed line by line. Fails loudly when the function is renamed or loses its body, rather
+     * than quietly reporting that nothing changed.
      */
     fun functionBody(fileName: String, functionName: String): List<String> {
         val text = source(fileName)
@@ -48,7 +51,7 @@ internal object ImapSource {
     }
 
     /**
-     * The declaration of `fun [functionName]` in [fileName] — from the `fun` keyword to the closing
+     * The declaration of `fun [functionName]` in [fileName], from the `fun` keyword to the closing
      */
     fun functionSignature(fileName: String, functionName: String): List<String> {
         val text = source(fileName)

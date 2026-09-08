@@ -5,7 +5,8 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * EXECUTES the three decisions the public-key cache is made of. Expectations are written by hand —
+ * Executes the three decisions the public-key cache is made of. Expectations are written by hand,
+ * never by calling the rule under test.
  */
 class PgpPublicKeyCacheTest {
 
@@ -31,8 +32,8 @@ class PgpPublicKeyCacheTest {
 
     @Test fun `a long key carries no line break, whatever its length`() {
         // The mutation this catches is `getMimeEncoder()`, which folds at 76 columns with CRLF.
-        // It looks identical for a short key and breaks every real one — a real minimized key runs
-        // to a few hundred bytes — and a folded value cannot go into a message header.
+        // It looks identical for a short key and breaks every real one, a real minimized key runs
+        // to a few hundred bytes, and a folded value cannot go into a message header.
         val encoded = pgpPublicKeyCacheValue(ByteArray(600) { it.toByte() })
         assertEquals("the encoded key was wrapped: $encoded", -1, encoded.indexOf('\n'))
         assertEquals(-1, encoded.indexOf('\r'))
@@ -66,7 +67,7 @@ class PgpPublicKeyCacheTest {
     @Test fun `an account already tried in this composer is not tried again`() {
         // The composer re-arbitrates PGP on opening, on restore and on every From change. With no
         // provider installed the read fails every time, and without this it fails every time
-        // AGAIN, behind a screen someone is typing on.
+        // again, behind a screen someone is typing on.
         assertNull(pgpPublicKeyBackfill(account("a"), setOf("a")))
         assertEquals("another account is still fetched", "b", pgpPublicKeyBackfill(account("b"), setOf("a")))
     }
@@ -85,7 +86,7 @@ class PgpPublicKeyCacheTest {
 
     @Test fun `a key id that moved under the read refuses the write`() {
         // The provider was thinking while the user chose another key (or switched OpenPGP app,
-        // which empties every cache). Writing here files the OLD key's bytes under the NEW id, and
+        // which empties every cache). Writing here files the old key's bytes under the new id, and
         // the account then announces a key it cannot sign with.
         val after = withCachedPgpPublicKey(
             listOf(account("a", keyId = 0x99L)),

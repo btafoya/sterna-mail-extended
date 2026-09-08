@@ -10,24 +10,24 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
-/** What "all inboxes" MEANS, computed once so nothing derives it by hand. READ-ONLY, over
- *  [AccountStore.accountsFlow]'s last PUBLISHED list, so an undecodable blob leaves the count where it was. */
+/** What "all inboxes" means, computed once so nothing derives it by hand. Read-only, over
+ *  [AccountStore.accountsFlow]'s last published list, so an undecodable blob leaves the count where it was. */
 internal object UnifiedInbox {
 
     /** One inbox that counts: its scope and the stored counter it contributes on its own. */
     data class CountedInbox(val scope: Pair<String, String>, val storedUnread: Int)
 
     /** Inboxes of every account synced at least once (`inboxId == null` skipped). The scope
-     *  is a PAIR, never a bare folder id (#121): two accounts can share a mailbox id. */
+     *  is a pair, never a bare folder id (#121): two accounts can share a mailbox id. */
     fun countedInboxes(accounts: List<StoredAccount>): List<CountedInbox> =
         accounts.mapNotNull { a -> a.inboxId?.let { CountedInbox(a.id to it, a.unread) } }
 
-    /** The (account id, inbox id) pairs the counter is asked for — [countedInboxes] projected. */
+    /** The (account id, inbox id) pairs the counter is asked for, [countedInboxes] projected. */
     fun scopes(accounts: List<StoredAccount>): List<Pair<String, String>> =
         countedInboxes(accounts).map { it.scope }
 
-    /** Unified unread total, BROKEN DOWN per account. Keyed on [countedInboxes], not bare
-     *  scopes: the STORED COUNTER must be in the key (a flat read no Room invalidation wakes). */
+    /** Unified unread total, broken down per account. Keyed on [countedInboxes], not bare
+     *  scopes: the stored counter must be in the key (a flat read no Room invalidation wakes). */
     @OptIn(ExperimentalCoroutinesApi::class)
     fun unreadByAccount(
         accounts: Flow<List<StoredAccount>>,
@@ -38,7 +38,7 @@ internal object UnifiedInbox {
         .map { counted -> counted.map { it.scope } }
         .flatMapLatest(unreadFor)
 
-    /** "All inboxes (N)": every counted inbox's share of [unreadByAccount], ADDED. No entry is 0. */
+    /** "All inboxes (N)": every counted inbox's share of [unreadByAccount], added. No entry is 0. */
     fun total(byAccount: Map<String, Int>): Int = byAccount.values.sum()
 
     /** [unreadByAccount]'s sibling for the home screen. Carries [RecentInbox], not bare rows,

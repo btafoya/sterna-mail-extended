@@ -6,7 +6,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The widget's label, RUN — not read as source, not recomputed here. Every expectation below is a
+ * The widget's label, run, not read as source, not recomputed here. Every expectation below is a
+ * literal `UnreadWidgetState`, so a shipped rule whose arms were swapped or dropped disagrees with
+ * this file instead of agreeing with it.
  */
 class UnreadWidgetContentTest {
 
@@ -19,7 +21,7 @@ class UnreadWidgetContentTest {
     )
 
     /**
-     * The number is drawn ONCE. The drawer's "(N)" form is right in the drawer, where the row
+     * The number is drawn once. The drawer's "(N)" form is right in the drawer, where the row
      */
     @Test fun `two accounts with unread mail wear the bare label, not the counted one`() {
         assertEquals(
@@ -41,7 +43,7 @@ class UnreadWidgetContentTest {
     }
 
     /**
-     * The arm the whole file exists for. Asserted on the VALUE returned, not on the absence of a
+     * The arm the whole file exists for. Asserted on the value returned, not on the absence of a
      * word: "not All inboxes" would be satisfied by anything at all, including an empty label.
      */
     @Test fun `a single account is named by its own inbox, never by All inboxes`() {

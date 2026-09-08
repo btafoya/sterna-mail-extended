@@ -1,7 +1,7 @@
 package app.sterna.ui
 
 /**
- * What happens to a message that is open when the WINDOW changes width (#103).
+ * What happens to a message that is open when the window changes width (#103).
  */
 object PaneConversion {
 
@@ -14,7 +14,7 @@ object PaneConversion {
     }
 
     /**
-     * An anchor on a narrow window: it goes back to being a route. Two panes keep it — there the
+     * An anchor on a narrow window: it goes back to being a route. Two panes keep it, there the
      * anchor IS the reader, and navigating would stack a full-screen copy of it over itself.
      */
     fun paneToReader(twoPanes: Boolean, hasAnchor: Boolean): Boolean = !twoPanes && hasAnchor

@@ -5,7 +5,11 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and disclaimer as
+ * Source lint, not a behaviour test, same instrument and disclaimer as
+ * [app.sterna.ui.connect.OAuthRedirectManifestTest]. A widget declaration is not code this module
+ * can run: `res/xml`, the merged manifest and the build script only mean anything inside a build,
+ * and there is no Robolectric here. What is held below is what a build would not complain about
+ * and what nobody would notice on screen.
  */
 class UnreadWidgetDeclarationTest {
 
@@ -54,7 +58,7 @@ class UnreadWidgetDeclarationTest {
     }
 
     /**
-     * AND THE TEST LABEL IS INSIDE `if (testApp)` — WHICH THE RULE ABOVE CANNOT SEE.
+     * And the test label is inside `if (testApp)`, which the rule above cannot see.
      */
     @Test fun `the test app's label lives INSIDE the testApp gate, not merely somewhere in the build`() {
         assertEquals(
@@ -76,7 +80,7 @@ class UnreadWidgetDeclarationTest {
     }
 
     /**
-     * Both layouts must have text in them, and NOT the same text.
+     * Both layouts must have text in them, and not the same text.
      */
     @Test fun `the picker preview advertises the widget, and the runtime layout says the app is waking up`() {
         assertEquals(
@@ -113,7 +117,7 @@ class UnreadWidgetDeclarationTest {
     }
 
     /**
-     * THE OTHER HALF OF THE RULE ABOVE, and on its own it looks like its opposite.
+     * The other half of the rule above, and on its own it looks like its opposite.
      */
     @Test fun `neither layout of the enlarged cell carries any text of its own`() {
         assertEquals(
@@ -132,7 +136,11 @@ class UnreadWidgetDeclarationTest {
     }
 
     /**
-     * THE WHOLE BODY OF `draw`, LINE BY LINE — and it is the only thing standing between this
+     * The whole body of `draw`, line by line, and it is the only thing standing between this
+     * widget and any of the mutations below. Nothing in this module renders: there is no
+     * Robolectric, `android.util.SizeF` is a stub that throws, and `draw` wants an `Application`,
+     * its container and the widget manager. Every decision it takes is therefore reachable only as
+     * text, and each of these lines was silently mutable before this rule existed:
      */
     @Test fun `the draw decides the total, the lock and the size map exactly once each`() {
         assertEquals(
@@ -261,7 +269,8 @@ class UnreadWidgetDeclarationTest {
     }
 
     /**
-     * The weight goes to the NAME, and only to the name — the one line of the row layout that
+     * The weight goes to the name, and only to the name, the one line of the row layout that
+     * decides what survives a narrow screen.
      */
     @Test fun `the enlarged row gives its weight to the name, so the figure is never what is cut`() {
         assertEquals(
@@ -284,7 +293,10 @@ class UnreadWidgetDeclarationTest {
     }
 
     /**
-     * The file's lines, comments removed WHOLE — an `<!-- … -->` block is cut out before the split,
+     * The file's lines, comments removed whole, an `<!-- … -->` block is cut out before the split,
+     * and a `//` line is dropped. Without that, every rule below also matches the prose written to
+     * explain it: the first run of this file failed on its own comment quoting the attribute it
+     * pins.
      */
     private fun codeLines(file: File): List<String> = file.readText()
         .replace(XML_COMMENT, "")
@@ -293,7 +305,7 @@ class UnreadWidgetDeclarationTest {
         .filter { it.isNotBlank() && !it.startsWith("//") }
 
     /**
-     * The whole brace-balanced block that opens with [opener] and contains [marker] — so a rule can
+     * The whole brace-balanced block that opens with [opener] and contains [marker], so a rule can
      */
     private fun blockContaining(file: File, marker: String, opener: String): List<String> {
         val lines = codeLines(file)
@@ -338,7 +350,7 @@ class UnreadWidgetDeclarationTest {
         val GRADLE: File by lazy { File(ROOT, "app/build.gradle.kts") }
 
         /**
-         * EVERY widget declaration the app ships, both resource directories, found rather than
+         * Every widget declaration the app ships, both resource directories, found rather than
          */
         val INFO_FILES: List<File> by lazy {
             listOf("xml", "xml-v31")
@@ -350,13 +362,15 @@ class UnreadWidgetDeclarationTest {
                 .sortedBy { "${it.parentFile.name}/${it.name}" }
         }
 
-        /** The COUNTER's Android 12+ declaration — the preview rule below is about that widget. */
+        /** The counter's Android 12+ declaration, the preview rule below is about that widget. */
         val INFO_V31: File by lazy {
             INFO_FILES.first { it.parentFile.name == "xml-v31" && it.name == "appwidget_info_unread.xml" }
         }
 
         /**
-         * Pinned whole, `suspend` INCLUDED. The keyword is what buys the colour read: dropped, the
+         * Pinned whole, `suspend` included. The keyword is what buys the colour read: dropped, the
+         * three DataStore `first()` calls have nowhere to happen and the cell goes back to the
+         * colours `res/values-night` froze into it (#117).
          */
         const val DRAW_SIGNATURE =
             "suspend fun draw(app: Application, ids: IntArray, unreadByAccount: Map<String, Int>) {"
@@ -372,14 +386,14 @@ class UnreadWidgetDeclarationTest {
             File(ROOT, "app/src/main/kotlin/app/sterna/widget/UnreadWidgetDraw.kt")
         }
 
-        /** Where the size rule that can be RUN lives — the constants behind the ventilated entry. */
+        /** Where the size rule that can be run lives, the constants behind the ventilated entry. */
         val WIDGET_CONTENT: File by lazy {
             File(ROOT, "app/src/main/kotlin/app/sterna/widget/UnreadWidgetContent.kt")
         }
 
         val ROW_LAYOUT: File by lazy { layout("widget_unread_account_row") }
 
-        /** The counter's ENLARGED layout and its row — the two the launcher only ever gets filled in. */
+        /** The counter's enlarged layout and its row, the two the launcher only ever gets filled in. */
         val ENLARGED_LAYOUTS: List<File> by lazy {
             listOf(layout("widget_unread_accounts"), layout("widget_unread_account_row"))
         }

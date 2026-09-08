@@ -6,6 +6,7 @@ import org.junit.Test
 
 /**
  * The RFC 2971 `ID` command as it really leaves the client, driven against a scripted server on
+ * loopback.
  */
 class IdOnTheWireTest {
 
@@ -29,20 +30,22 @@ class IdOnTheWireTest {
     }
 
     /**
-     * Every `ID` line received, whole. Matched on the VERB and not on a prefix of the arguments,
+     * Every `ID` line received, whole. Matched on the verb and not on a prefix of the arguments,
+     * so an `ID NIL` (the anonymous form NetEase accepts and still refuses to serve) is caught
+     * by the tests that require no ID at all.
      */
     private fun FakeImapServer.idLines(): List<String> =
         issued().filter { it.substringBefore(' ') == "ID" }
 
     /**
-     * The verbs of every line received, LOGIN and AUTHENTICATE included — the ORDER witness.
+     * The verbs of every line received, LOGIN and AUTHENTICATE included, the order witness.
      */
     private fun FakeImapServer.verbs(): List<String> =
         commands.toList().map { it.substringBefore(' ') }
 
     /**
      * The fix itself: a server that says it knows ID is told the client's name and version, after
-     * the login and before the first SELECT — the window NetEase judges.
+     * the login and before the first SELECT, the window NetEase judges.
      */
     @Test
     fun `a server advertising ID is told the name and version, after login and before SELECT`() {
@@ -56,7 +59,7 @@ class IdOnTheWireTest {
     }
 
     /**
-     * The guard. A server that PUBLISHED its capability list and put no ID in it gets none, and
+     * The guard. A server that published its capability list and put no ID in it gets none, and
      * the session is exactly the one it has always been.
      */
     @Test
@@ -100,7 +103,7 @@ class IdOnTheWireTest {
     }
 
     /**
-     * A version string carrying CR/LF sends NOTHING. `quote` refuses the newline, the refusal
+     * A version string carrying CR/LF sends nothing. `quote` refuses the newline, the refusal
      */
     @Test
     fun `a version carrying a newline sends no ID and no injected command`() {
@@ -133,7 +136,9 @@ class IdOnTheWireTest {
     }
 
     /**
-     * The other half of the question being PUT: a server that volunteered nothing and answers the
+     * The other half of the question being put: a server that volunteered nothing and answers the
+     * question without ID in it is not named. Presuming it would understand the command is exactly
+     * what RFC 2971 §3 says a client must not do.
      */
     @Test
     fun `a mute server whose answer has no ID is asked and then left alone`() {
@@ -147,7 +152,8 @@ class IdOnTheWireTest {
     }
 
     /**
-     * What the session KEEPS of the question above: nothing. It is put by hand —
+     * What the session keeps of the question above: nothing. It is put by hand,
+     * and never cached.
      */
     @Test
     fun `asking for the ID capability leaves the session cache cold`() {

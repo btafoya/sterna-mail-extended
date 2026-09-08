@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The move-to-folder picker's filter field (#182), EXECUTED — never re-derived here: every case
+ * The move-to-folder picker's filter field (#182), executed, never re-derived here: every case
  * below spells out the expected rows literally, so inverting the shipped rule turns one red.
  */
 class FolderFilterTest {
@@ -55,8 +55,8 @@ class FolderFilterTest {
     }
 
     @Test fun `the input order is kept, matches scattered and out of alphabetical order`() {
-        // "Alpha" matches on its PATH only and sits BEFORE "Zeta-work", which matches on its
-        // NAME — the weaker match first, on purpose. Any "best match first" scorer pulls "z"
+        // "Alpha" matches on its path only and sits before "Zeta-work", which matches on its
+        // name, the weaker match first, on purpose. Any "best match first" scorer pulls "z"
         // to the front; a plain filter cannot. (A stable sort with the name match already
         // leading is a mutation that survives, which is how this list came to be in this order.)
         val rows = listOf(
@@ -91,7 +91,8 @@ class FolderFilterTest {
     }
 
     /**
-     * What this pins is that the rows come out CARRYING their folder and their painted path —
+     * What this pins is that the rows come out carrying their folder and their painted path,
+     * not that the screen then taps the right one: [MoveFilterWiringLintTest] stands there.
      */
     @Test fun `a surviving row still carries its own mailbox and its own path`() {
         val rows = listOf(

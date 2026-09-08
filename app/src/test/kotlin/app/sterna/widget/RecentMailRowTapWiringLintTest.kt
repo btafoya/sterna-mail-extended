@@ -10,12 +10,12 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — the tap pane's half of what no JVM test can run. What a row
+ * Source lint, not a behaviour test, the tap pane's half of what no JVM test can run. What a row
  */
 class RecentMailRowTapWiringLintTest {
 
     /**
-     * THE TEMPLATE'S ACTION IS LOAD-BEARING, and it is the same trap the counter's `tapIntent`
+     * The template's action is load-bearing, and it is the same trap the counter's `tapIntent`
      */
     @Test fun `the row template names an explicit component, its own action, and is deliberately mutable`() {
         assertEquals(
@@ -49,6 +49,9 @@ class RecentMailRowTapWiringLintTest {
 
     /**
      * The template is set on the LIST, inside the per-cell loop that builds the `RemoteViews`, and
+     * before that `RemoteViews` is sent. A template attached anywhere else, or not at all, is a
+     * widget whose rows are drawn and swallow every touch, which is exactly what this branch
+     * shipped in its previous pane.
      */
     @Test fun `the drawn cell hands the list its template`() {
         assertEquals(
@@ -62,7 +65,7 @@ class RecentMailRowTapWiringLintTest {
     }
 
     /**
-     * EXTRAS AND NOTHING ELSE, which is what makes the mutable template above acceptable.
+     * Extras and nothing else, which is what makes the mutable template above acceptable.
      */
     @Test fun `a row's fill-in intent carries extras and nothing else`() {
         assertEquals(
@@ -82,7 +85,7 @@ class RecentMailRowTapWiringLintTest {
     }
 
     /**
-     * Every served row is given its own fill-in, on the row's ROOT view — not on one of its
+     * Every served row is given its own fill-in, on the row's root view, not on one of its
      * TextViews, or a cell would only react on the sender's name and read as broken.
      */
     @Test fun `every served row is given its own fill-in, on its root view`() {
@@ -93,8 +96,8 @@ class RecentMailRowTapWiringLintTest {
             functionBody(SERVICE, "override fun getViewAt(position: Int): RemoteViews")
                 .filter { it.startsWith("views.setOnClickFillInIntent(") },
         )
-        // AND THE WHOLE FUNCTION, not merely that one line. The filter above proves a line is
-        // PRESENT and says nothing about the others — which was harmless while this factory held
+        // And the whole function, not merely that one line. The filter above proves a line is
+        // present and says nothing about the others, which was harmless while this factory held
         assertEquals(
             "RecentMailWidgetFactory.getViewAt is pinned whole. Only `item.drawn` may reach a " +
                 "setTextViewText, and `item.tap` may reach nothing but the fill-in — under the " +
@@ -167,7 +170,7 @@ class RecentMailRowTapWiringLintTest {
             ),
             functionBody(SERVICE, "override fun getViewAt(position: Int): RemoteViews"),
         )
-        // AND THE ONE LINE getViewAt DELEGATES. Extracting the badge keeps the function above
+        // And the one line getViewAt delegates. Extracting the badge keeps the function above
         // short, and it would also move the lock's promise out of everything this file pins: the
         // whole of "a locked row wears no face" is `row.monogram ?: return null`, three lines down
         // where nothing looks. Both guards are pinned here, in order.
@@ -200,7 +203,7 @@ class RecentMailRowTapWiringLintTest {
     }
 
     /**
-     * THE TWO WIDGETS MUST NOT SHARE A REQUEST CODE, and this rule reads the two NUMBERS rather
+     * The two widgets must not share a request code, and this rule reads the two numbers rather
      */
     @Test fun `the two widgets' request codes, and their actions, are different things`() {
         assertNotEquals(
@@ -221,6 +224,8 @@ class RecentMailRowTapWiringLintTest {
 
     /**
      * The integer a `private const val … = <n>` declares, read from the source. Fails loudly when
+     * the declaration is gone: a rename must redden this rule rather than satisfy it against
+     * nothing.
      */
     private fun requestCode(file: File, declaration: String): Int {
         val line = kotlinLines(file).singleOrNull { it.startsWith(declaration) }

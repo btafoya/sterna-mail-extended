@@ -4,12 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * [composerMaySendBody], EXECUTED — the decision itself, not the text that contains it.
+ * [composerMaySendBody], executed, the decision itself, not the text that contains it.
  */
 class LostBodySendTest {
 
     /**
-     * THE DEFECT, in one line: the composer lost its text, nothing was retyped, and the tap that
+     * The defect, in one line: the composer lost its text, nothing was retyped, and the tap that
      * follows consumes the only copy of a draft the server has never seen.
      */
     @Test fun `a composer that lost its body and holds nothing may not send`() {
@@ -38,7 +38,7 @@ class LostBodySendTest {
     }
 
     /**
-     * THE OTHER HALF, and the one a rule written on the flag alone would lose: the flag is raised
+     * The other half, and the one a rule written on the flag alone would lose: the flag is raised
      */
     @Test fun `a body typed back after the loss sends`() {
         assertEquals(
@@ -68,8 +68,8 @@ class LostBodySendTest {
     }
 
     /**
-     * The whole truth table in one place, as a list of literals — so that a change to the condition
-     * has to move a VALUE here, and cannot hide in the shape of one of the cases above.
+     * The whole truth table in one place, as a list of literals, so that a change to the condition
+     * has to move a value here, and cannot hide in the shape of one of the cases above.
      */
     @Test fun `the truth table, whole`() {
         val cases = listOf(
@@ -90,10 +90,14 @@ class LostBodySendTest {
         )
     }
 
-    // -- what the refusal SAYS, executed too -----------------------------------------------------
+    // -- what the refusal says, executed too -----------------------------------------------------
 
     /**
-     * THE SECOND DEFECT, and it was in the shipped sentence, not in the condition: refused on the
+     * The second defect, and it was in the shipped sentence, not in the condition: refused on the
+     * route this guard exists to protect, the app said "Type it again.", and following that
+     * instruction is the one action that destroys the text. Three characters make the body
+     * non-blank, the guard opens, `commitThenConsumeLocalDraft` deletes the row that still holds
+     * the last body that reached the disk, and the message leaves as the signature.
      */
     @Test fun `a composer holding a stored draft is told to reopen it, not to retype`() {
         assertEquals(
@@ -107,7 +111,7 @@ class LostBodySendTest {
     }
 
     /**
-     * And the term is ALL THREE stores, which is why this case exists on its own: a SERVER draft
+     * And the term is all three stores, which is why this case exists on its own: a server draft
      */
     @Test fun `a stored draft is a stored draft, wherever it is stored`() {
         assertEquals(
@@ -120,7 +124,7 @@ class LostBodySendTest {
     }
 
     /**
-     * …and "type it again" stays RIGHT where it is true: a composer that never held a draft has
+     * …and "type it again" stays right where it is true: a composer that never held a draft has
      */
     @Test fun `a composer holding no draft at all is told to retype`() {
         assertEquals(
@@ -132,7 +136,7 @@ class LostBodySendTest {
     }
 
     /**
-     * The wording is asked only of a send that is REFUSED. `null` is the send going on, and it must
+     * The wording is asked only of a send that is refused. `null` is the send going on, and it must
      */
     @Test fun `an accepted send has nothing to say`() {
         assertEquals(null, lostBodySendWording(bodyWasLost = true, body = "typed again", holdsStoredDraft = true))
@@ -147,7 +151,9 @@ class LostBodySendTest {
     }
 
     /**
-     * The whole table of the wording, literals again — the eight corners of three booleans, with
+     * The whole table of the wording, literals again, the eight corners of three booleans, with
+     * the blank readings beside them. Inverting the `holdsStoredDraft` branch, or answering a
+     * wording where the send is accepted, has to move a value here.
      */
     @Test fun `the wording table, whole`() {
         val cases = listOf(
@@ -176,10 +182,10 @@ class LostBodySendTest {
             },
         )
     }
-    // -- and what a SAVE would destroy, executed too ----------------------------------------------
+    // -- and what a save would destroy, executed too ----------------------------------------------
 
     /**
-     * THE DEFECT THIS TIME, and it was reached by the CAUTIOUS gesture: a queued message
+     * The defect this time, and it was reached by the cautious gesture: a queued message
      */
     @Test fun `saving an empty composer over a queued row destroys it`() {
         assertEquals(
@@ -202,7 +208,7 @@ class LostBodySendTest {
     }
 
     /**
-     * FIRST TERM ALONE WOULD BE A TRAP: the lost-body flag is raised once and never lowered, so
+     * First term alone would be a trap: the lost-body flag is raised once and never lowered, so
      */
     @Test fun `a body typed back after the loss saves`() {
         assertEquals(
@@ -215,7 +221,7 @@ class LostBodySendTest {
     }
 
     /**
-     * …and the body is read WHOLE, never a first line of it. A message retyped starting with a
+     * …and the body is read whole, never a first line of it.
      */
     @Test fun `a body typed back below a blank first line saves`() {
         assertEquals(
@@ -228,7 +234,7 @@ class LostBodySendTest {
     }
 
     /**
-     * SECOND TERM ALONE would refuse a deliberate emptying: a queued message whose text the user
+     * Second term alone would refuse a deliberate emptying: a queued message whose text the user
      * removed on purpose is still saveable as a draft, and nothing about it was lost.
      */
     @Test fun `an empty body nobody lost saves, queued row or not`() {
@@ -242,7 +248,7 @@ class LostBodySendTest {
     }
 
     /**
-     * THIRD TERM, and the reason it is not written wider: with no queued row behind the screen
+     * Third term, and the reason it is not written wider: with no queued row behind the screen
      */
     @Test fun `a save that has no queued row behind it destroys nothing`() {
         assertEquals(
@@ -256,7 +262,7 @@ class LostBodySendTest {
     }
 
     /**
-     * The whole table, literals again — the eight corners of three booleans with the blank readings
+     * The whole table, literals again, the eight corners of three booleans with the blank readings
      */
     @Test fun `the save table, whole`() {
         val cases = listOf(
@@ -287,10 +293,10 @@ class LostBodySendTest {
         )
     }
 
-    // -- and what CLOSING does to the queued row, executed too ------------------------------------
+    // -- and what closing does to the queued row, executed too ------------------------------------
 
     /**
-     * THE DEFECT THIS TIME, and it was reached by following the app's own advice. The send route
+     * The defect this time, and it was reached by following the app's own advice. The send route
      */
     @Test fun `closing a composer that lost its body and holds nothing parks the queued row`() {
         assertEquals(
@@ -302,7 +308,7 @@ class LostBodySendTest {
         )
     }
 
-    /** …and whitespace is not text here either — the same reading as the send and the save. */
+    /** …and whitespace is not text here either, the same reading as the send and the save. */
     @Test fun `a blank body over a lost one parks the queued row too`() {
         assertEquals(true, closingParksQueuedRow(bodyWasLost = true, body = " "))
         assertEquals(
@@ -315,6 +321,8 @@ class LostBodySendTest {
 
     /**
      * The flag alone would be a trap: it is never lowered, so a rule on it alone would park the
+     * row on every close after a loss, including "Discard changes" over a message she has retyped,
+     * which today gives the row back whole (#70) and must go on doing so.
      */
     @Test fun `a body typed back after the loss goes back to the queue on close, as before`() {
         assertEquals(
@@ -342,7 +350,7 @@ class LostBodySendTest {
     }
 
     /**
-     * The whole table, literals again — the four corners with the blank readings beside them. TRUE
+     * The whole table, literals again, the four corners with the blank readings beside them. TRUE
      */
     @Test fun `the close table, whole`() {
         val cases = listOf(

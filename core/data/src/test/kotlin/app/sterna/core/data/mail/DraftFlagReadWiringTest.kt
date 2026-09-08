@@ -4,8 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * THIS TEST READS SOURCE TEXT — the last resort, taken for the reason DraftAddressingWiringTest
- * names: `MailRepository` cannot be built in a JVM test. The decision it feeds is EXECUTED next
+ * This test reads source text, the last resort, taken for the reason DraftAddressingWiringTest
+ * names: `MailRepository` cannot be built in a JVM test. The decision it feeds is executed next
  * door, in DraftFlagIsCarriedTest; what only the text can show is that the repository asks the
  * server, on the message it was asked about, and hands every unknown to that decision.
  */

@@ -3,7 +3,7 @@ package app.sterna.core.imap
 import java.io.InputStream
 
     /**
-     * Streaming parser for IMAP server responses. Reads one response at a time and returns it as a
+     * Streaming parser for IMAP server responses.
      */
 internal class ImapParser(private val input: InputStream) {
     private var peeked = NONE
@@ -127,7 +127,7 @@ internal class ImapParser(private val input: InputStream) {
          * Consume one atom off the stream, appending it to [into] when a caller wants it built.
          */
     private fun consumeAtom(into: StringBuilder?) {
-        var seen = 0 // chars consumed so far — a `[` is a section only after at least one
+        var seen = 0 // chars consumed so far, a `[` is a section only after at least one
         var inSection = false
         var depth = 0 // parentheses opened inside the brackets and not yet closed
         while (true) {
@@ -152,7 +152,7 @@ internal class ImapParser(private val input: InputStream) {
     private companion object {
         const val NONE = -2
 
-        /** Largest IMAP literal we will buffer in memory (32 MiB) — covers real messages
+        /** Largest IMAP literal we will buffer in memory (32 MiB), covers real messages
          *  and attachments while refusing absurd attacker-announced sizes. */
         const val MAX_LITERAL = 32 * 1024 * 1024
     }

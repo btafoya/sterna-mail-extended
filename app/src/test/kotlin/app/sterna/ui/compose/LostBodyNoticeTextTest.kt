@@ -6,17 +6,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * RESOURCE LINT — what the two sentences of a refused send are ALLOWED TO SAY, in the nine
+ * Resource lint, what the two sentences of a refused send are allowed to say, in the nine
  */
 class LostBodyNoticeTextTest {
 
     /**
      * 56 characters, the plafond [DraftKeptToastFitTest] derives and
+     * [app.sterna.ui.connect.AccountToastFitTest] owns: a `Toast` on Android 12+ is two lines
+     * beside the app icon, hard. Both sentences below are shown that way (`_notices` →
+     * `Toast.makeText(context, res, …)`), so both are held to it.
      */
     private val maxToastChars = 56
 
     /**
-     * FAIL CLOSED. A rule that reads its subject can read NOTHING — a key renamed, a `<string>` tag
+     * Fail closed. A rule that reads its subject can read nothing, a key renamed, a `<string>` tag
      */
     @Test fun `both sentences resolve in the nine languages`() {
         val strings = localeStrings()
@@ -42,7 +45,8 @@ class LostBodyNoticeTextTest {
     }
 
     /**
-     * THE MUTATION, refused: neither sentence may claim the message is SAFE, SAVED, KEPT or
+     * The mutation, refused: neither sentence may claim the message is safe, saved, kept or
+     * recovered.
      */
     @Test fun `neither sentence claims the text is safe, saved or recovered`() {
         val offenders = localeStrings().entries.sortedBy { it.key }.flatMap { (locale, texts) ->
@@ -83,7 +87,7 @@ class LostBodyNoticeTextTest {
     }
 
     /**
-     * The ENGLISH, whole, by equality — because it is the source the eight others are translated
+     * The ENGLISH, whole, by equality, because it is the source the eight others are translated
      */
     @Test fun `the English of both sentences is the one that was reviewed`() {
         assertEquals(
@@ -100,7 +104,7 @@ class LostBodyNoticeTextTest {
 
     // -- reading the resources -------------------------------------------------------------------
 
-    /** The nine locales' strings, as the READER sees them. */
+    /** The nine locales' strings, as the reader sees them. */
     private fun localeStrings(): Map<String, Map<String, String>> =
         locales().associate { dir ->
             dir.name to STRING.findAll(File(dir, "strings.xml").readText())
@@ -175,7 +179,7 @@ class LostBodyNoticeTextTest {
             "values-ru" to listOf("сохран", "безопасн", "восстанов"),
         )
 
-        /** A `<string>` with its text, attributes allowed — the pattern [DraftKeptToastFitTest]
+        /** A `<string>` with its text, attributes allowed, the pattern [DraftKeptToastFitTest]
          *  uses, and it says why a stricter one goes blind in silence. */
         val STRING = Regex("""<string\s+name="([^"]+)"[^>]*>(.*?)</string>""", RegexOption.DOT_MATCHES_ALL)
 

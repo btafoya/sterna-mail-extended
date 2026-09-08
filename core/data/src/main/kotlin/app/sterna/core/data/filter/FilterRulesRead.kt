@@ -3,7 +3,7 @@ package app.sterna.core.data.filter
 import app.sterna.core.data.mail.FilterRulesState
 
 /**
- * What reading an account's server-side filters answers — the decision behind
+ * What reading an account's server-side filters answers, the decision behind
  */
 fun loadedFilterRules(sternaScript: String?, otherActiveScript: Boolean): FilterRulesState.Loaded {
     val parsed = sternaScript?.let { SieveCodec.parseRulesOrNull(it) }

@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT. `WorkManager` needs a `Context` and this module has neither Robolectric nor
+ * Source lint. `WorkManager` needs a `Context` and this module has neither Robolectric nor
  */
 class ScheduledSendRearmWiringTest {
 
@@ -40,9 +40,9 @@ class ScheduledSendRearmWiringTest {
                 "context: Context,",
                 "id: Long,",
                 // NO default: `enqueue(ctx, id)` must not compile. Made optional, dropping
-                // the argument at the composer's call site sends every scheduled message AT ONCE.
+                // the argument at the composer's call site sends every scheduled message at once.
                 "initialDelayMillis: Long,",
-                // THE DEFAULT IS THE RULE. Only the startup re-arm may keep; every other caller
+                // The default is the rule. Only the startup re-arm may keep; every other caller
                 // carries the newest instant the user just picked and must replace.
                 "keepExisting: Boolean = false,",
                 ") {",
@@ -59,8 +59,8 @@ class ScheduledSendRearmWiringTest {
     }
 
     @Test fun `the startup re-arms every scheduled row, behind what is already there`() {
-        // THE WHOLE BLOCK, not the enqueue line alone: `keepExisting = true` is an ARGUMENT, and
-        // dropping it is the cheapest mutation of this volet — it compiles, it reads fine, and it
+        // The whole block, not the enqueue line alone: `keepExisting = true` is an argument, and
+        // dropping it is the cheapest mutation of this volet, it compiles, it reads fine, and it
         // turns the safety net into the double-send described above. The `runCatching` is pinned
         // with it: an unreadable row would otherwise take the whole startup coroutine down.
         val lines = linesOf(APPLICATION)
@@ -87,8 +87,7 @@ class ScheduledSendRearmWiringTest {
                 before = 2, size = 6,
             ),
         )
-        // AND THE BLOCK IS STILL INSIDE `init {`. The assertion above proves the six lines exist
-        // in the file, never that anything runs them: lifted verbatim into a `private fun` that
+        // And the block is still inside `init {`.
         val initAt = lines.indexOf("init {")
         val reArmAt = lines.indexOf("scheduledSendJobs(mailRepository.scheduledSends(), System.currentTimeMillis())")
         assertTrue("the re-arm must sit inside AppContainer's `init {`, which is what runs it", initAt in 0 until reArmAt)
@@ -119,7 +118,7 @@ class ScheduledSendRearmWiringTest {
 
     @Test fun `the scheduled-send worker names no policy of its own`() {
         // The worker's only defence against firing twice is `repo.scheduledSend(id) ?: return
-        // Result.success()`. It books nothing and must keep booking nothing: a KEEP or a REPLACE
+        // Result.success()`. It books nothing and must keep booking nothing: a keep or a replace
         // appearing in there would mean the fire path had started to re-book itself, and every
         // reasoning above about who may keep would be out of date without a line changing here.
         assertEquals(

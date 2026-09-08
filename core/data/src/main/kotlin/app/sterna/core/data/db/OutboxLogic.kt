@@ -14,16 +14,20 @@ import kotlinx.coroutines.flow.flow
  * when an item is due to send, what happens after a failed attempt, and how the badge counts.
  */
 object OutboxLogic {
-    /** Auto-retry attempts before an item is parked as FAILED for manual handling. */
+    /** Auto-retry attempts before an item is parked as failed for manual handling. */
     const val MAX_ATTEMPTS = 5
 
     /**
      * The `lastError` a row carries when its edit was INTERRUPTED. A sentinel, translated at
+     * empty body and parked the row rather than queue it (`MailRepository.parkInterruptedOutboxEdit`).
      */
     const val EDIT_INTERRUPTED = "edit-interrupted"
 
     /**
-     * The `lastError` a row carries when its delivery could not be ARMED (`armOrNote`): the row is
+     * The `lastError` a row carries when its delivery could not be armed (`armOrNote`): the row is
+     * payload is staged, and the scheduler threw (`armOrNote`, called at the tail of
+     * `MailRepository.enqueueSend`). The row stays queued or held (arming is not queueing) and it
+     * is this token that tells the Outbox screen why nothing has moved yet.
      */
     const val NOT_ARMED = "not-armed"
 
@@ -33,7 +37,7 @@ object OutboxLogic {
     const val NOT_ARMED_LEGACY_PREFIX = "Queued, but delivery could not be armed:"
 
     /**
-     * A HELD item is due once its undo window has passed; QUEUED is always due. A scheduled send
+     * A held item is due once its undo window has passed; queued is always due. A scheduled send
      */
     fun isReadyToSend(state: OutboxState, notBeforeMillis: Long, now: Long): Boolean = when (state) {
         OutboxState.HELD -> now >= notBeforeMillis
@@ -46,18 +50,18 @@ object OutboxLogic {
     }
 
     /**
-     * The state the send worker must PARK the row it has just read in, or null when the delivery
+     * The state the send worker must park the row it has just read in, or null when the delivery
      */
     fun parkOnPickup(state: OutboxState): OutboxState? = when (state) {
         OutboxState.SENDING -> OutboxState.INTERRUPTED
-        // Nothing begun, nothing to park. FAILED, KEPT_AS_DRAFT, EDITING and INTERRUPTED are
+        // Nothing begun, nothing to park. Failed, KEPT_AS_DRAFT, editing and INTERRUPTED are
         // already parked, and re-parking would overwrite what they say.
         OutboxState.HELD, OutboxState.QUEUED, OutboxState.FAILED,
         OutboxState.KEPT_AS_DRAFT, OutboxState.EDITING, OutboxState.INTERRUPTED,
         -> null
     }
 
-    /** After a failed attempt: retry while under the cap, otherwise give up (park as FAILED). */
+    /** After a failed attempt: retry while under the cap, otherwise give up (park as failed). */
     fun shouldRetry(attemptCount: Int): Boolean = attemptCount < MAX_ATTEMPTS
 
     /**
@@ -70,14 +74,14 @@ object OutboxLogic {
     }
 
     /**
-     * How many attempts the row is written back with — on a PERMANENT refusal the CAP, not
+     * How many attempts the row is written back with, on a permanent refusal the cap, not
      */
     fun attemptsAfterFailure(previousAttempts: Int, failure: Throwable): Int =
         if (failure is JmapException && failure.permanent) maxOf(MAX_ATTEMPTS, previousAttempts + 1)
         else previousAttempts + 1
 
     /**
-     * The state a reopened item returns to once its edit ends. An item whose auto-retry was
+     * The state a reopened item returns to once its edit ends.
      */
     fun stateAfterEdit(attemptCount: Int): OutboxState =
         if (attemptCount >= MAX_ATTEMPTS) OutboxState.FAILED else OutboxState.QUEUED
@@ -93,7 +97,7 @@ object OutboxLogic {
             }
 
     /**
-     * What goes in [OutboxEntity.pgpMode] for a message being queued — a string, deliberately not
+     * What goes in [OutboxEntity.pgpMode] for a message being queued, a string, deliberately not
      */
     fun outboxPgpModeName(mode: PgpMode?): String? = when (mode) {
         null, PgpMode.OFF -> null
@@ -102,7 +106,7 @@ object OutboxLogic {
     }
 
     /**
-     * Whether a row's pre-built entity is one the composer could not produce again — the single
+     * Whether a row's pre-built entity is one the composer could not produce again, the single
      */
     fun isUnreplayablePrebuiltEntity(pgpMode: String?, entityPath: String?): Boolean =
         entityPath != null && pgpMode == null
@@ -113,7 +117,7 @@ object OutboxLogic {
     const val BADGE_GRACE_MILLIS = 30_000L
 
     /**
-     * Items shown on the badge. FAILED counts at once; anything still on its way counts only
+     * Items shown on the badge. Failed counts at once; anything still on its way counts only
      */
     fun activeCount(items: List<OutboxBadgeItem>, now: Long): Int = items.count { countsAt(it, now) }
 
@@ -121,7 +125,7 @@ object OutboxLogic {
     private fun countsAt(item: OutboxBadgeItem, now: Long): Boolean = when (item.state) {
         // An item open in the composer (#70) is being handled right now, not waiting to send.
         OutboxState.EDITING -> false
-        // All three count at once: none is on its way anywhere. KEPT_AS_DRAFT is not an alarm — it
+        // All three count at once: none is on its way anywhere. KEPT_AS_DRAFT is not an alarm, it
         // is the only thing on screen saying where that message went (#95), which is why it counts
         // here while staying off the failure banner.
         OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT, OutboxState.INTERRUPTED -> true
@@ -130,19 +134,19 @@ object OutboxLogic {
     }
 
     /**
-     * Whether a row is one the Outbox screen lists — everything except a row open in the composer.
+     * Whether a row is one the Outbox screen lists, everything except a row open in the composer.
      * The single predicate behind both `MailRepository.outboxFlow` and [queuedCount].
      */
     fun isWaitingInOutbox(state: OutboxState): Boolean = state != OutboxState.EDITING
 
     /**
-     * Messages sitting in the Outbox right now, with NO grace at all — deliberately not
+     * Messages sitting in the Outbox right now, with NO grace at all, deliberately not
      */
     fun queuedCount(items: List<OutboxBadgeItem>): Int = items.count { isWaitingInOutbox(it.state) }
 
     /**
      * When the badge must next be recomputed on its own: the earliest counting threshold still
-     * ahead. FAILED already counts and EDITING never does, so neither has a wake-up to schedule.
+     * ahead. Failed already counts and editing never does, so neither has a wake-up to schedule.
      */
     fun nextBadgeChange(items: List<OutboxBadgeItem>, now: Long): Long? = items
         .filter { countsOnlyAfterTheGrace(it.state) }
@@ -151,13 +155,13 @@ object OutboxLogic {
         .minOrNull()
 
     /**
-     * Whether a row's place on the badge still depends on the clock — the only rows with a wake-up
+     * Whether a row's place on the badge still depends on the clock, the only rows with a wake-up
      * to schedule. Exhaustive rather than a list of `!=` so a new state has to answer out loud.
      */
     private fun countsOnlyAfterTheGrace(state: OutboxState): Boolean = when (state) {
         OutboxState.HELD, OutboxState.QUEUED, OutboxState.SENDING -> true
-        // These four are already settled: FAILED, KEPT_AS_DRAFT and INTERRUPTED count from the
-        // first emission, EDITING never counts. See [countsAt].
+        // These four are already settled: failed, KEPT_AS_DRAFT and INTERRUPTED count from the
+        // first emission, editing never counts. See [countsAt].
         OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT, OutboxState.EDITING,
         OutboxState.INTERRUPTED,
         -> false
@@ -165,7 +169,7 @@ object OutboxLogic {
 
     /**
      * The badge count over time. Room re-emits on every outbox change, and each emission schedules
-     * exactly one wake-up ([nextBadgeChange]) — no polling, nothing to reset.
+     * exactly one wake-up ([nextBadgeChange]), no polling, nothing to reset.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     fun badgeCount(
@@ -185,7 +189,7 @@ object OutboxLogic {
         .distinctUntilChanged()
 
     /**
-     * Whether one row is what the Inbox's "Some messages didn't send" banner is about — a genuine
+     * Whether one row is what the Inbox's "Some messages didn't send" banner is about, a genuine
      */
     fun needsFailureBanner(state: OutboxState): Boolean = when (state) {
         OutboxState.FAILED -> true

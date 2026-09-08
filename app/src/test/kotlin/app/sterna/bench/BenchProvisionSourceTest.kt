@@ -5,13 +5,13 @@ import org.junit.Test
 import java.io.File
 
 /**
- * A source lint over the bench provisioning entry points — every directory of [BENCH_DIRS], i.e.
+ * A source lint over the bench provisioning entry points, every directory of [BENCH_DIRS], i.e.
  */
 class BenchProvisionSourceTest {
 
     @Test
     fun failsLoudlyWhenThereIsNothingToRead() {
-        // EACH directory must yield something, never the two of them together: benchShared holds
+        // Each directory must yield something, never the two of them together: benchShared holds
         // one small file today, so a total count would stay comfortably above zero while the
         // receiver's own directory vanished.
         val silent = BENCH_DIRS.filter { ktFilesUnder(it).isEmpty() }
@@ -133,7 +133,7 @@ class BenchProvisionSourceTest {
 
     private companion object {
         /**
-         * EVERY directory that ends up in the bench APK. `src/testApp/kotlin` is the receiver;
+         * Every directory that ends up in the bench APK. `src/testApp/kotlin` is the receiver;
          */
         val BENCH_DIRS = listOf("app/src/testApp/kotlin", "app/src/benchShared/kotlin")
 
@@ -154,7 +154,7 @@ class BenchProvisionSourceTest {
          */
         val FORBIDDEN: List<Pair<String, Regex>> = listOf(
             // Any add-ish call on anything that looks like an account store or the repository.
-            // `\w*[Aa]dd\w*` on purpose: addOAuth, readdImportedAccount, addOAuthAccount — a rule
+            // `\w*[Aa]dd\w*` on purpose: addOAuth, readdImportedAccount, addOAuthAccount, a rule
             // that only knew the names already written was the hole this closes.
             "creates an account behind the ViewModel" to
                 Regex("""\b(accountStore|store|repo|mailRepository|container)\s*\.\s*\w*[Aa]dd\w*\s*\("""),
@@ -171,14 +171,13 @@ class BenchProvisionSourceTest {
                 Regex("""setServerIdentities\s*\("""),
             "rewrites a stored secret" to Regex("""updatePassword\s*\(|updateOAuthTokens\s*\(|writePassword\s*\("""),
             "moves the current account under the user" to Regex("""setCurrent\s*\("""),
-            // INVERTED RULE, and the reason ALLOWED_LINES exists: EVERY read of an intent extra
+            // Inverted rule, and the reason ALLOWED_LINES exists: every read of an intent extra
             // is forbidden, and the two legitimate ones are pinned below, whole. Listing secret
-            // WORDS instead ("password|token|…") only ever caught the names someone had thought
-            // of — `getStringExtra("pass")` walked straight through.
+            // words instead ("password|token|…") only ever caught the names someone had thought
+            // of, `getStringExtra("pass")` walked straight through.
             "reads a broadcast extra" to Regex("""\bget\w*Extra\s*\("""),
             "names an extra after a secret" to Regex("""(?i)EXTRA_\w*(PASSWORD|PASSWD|PWD|SECRET|TOKEN|PASS|CRED|KEY)"""),
-            // SECOND INVERTED RULE, and it is inverted for the same reason as the extras above:
-            // EVERY line that opens or alters a file is forbidden, and the legitimate ones are
+            // Second inverted rule, and it is inverted for the same reason as the extras above:
             "touches a file" to Regex(
                 """\bFile\s*\(|\bFile(OutputStream|Writer)\s*\(|\bFiles\s*\.|""" +
                     """\b(writeText|writeBytes|appendText|appendBytes|outputStream|bufferedWriter""" +
@@ -188,15 +187,15 @@ class BenchProvisionSourceTest {
         )
 
         /**
-         * Lines exempted from [FORBIDDEN], compared whole and trimmed. Each entry is a promise that
+         * Lines exempted from [FORBIDDEN], compared whole and trimmed.
          */
         val ALLOWED_LINES: List<String> = listOf(
             "val specPath = intent.getStringExtra(EXTRA_SPEC)",
             "val outPath = intent.getStringExtra(EXTRA_OUT)",
             // The two file lines the bench is allowed to have, and no others: the spec handle it
-            // reads, and the ONE report write, the one that sits behind isBenchOutPathAllowed().
-            // Any third line that opens a file — even an innocent-looking one right beside this
-            // write — is a second, unjudged door to the same truncation.
+            // reads, and the one report write, the one that sits behind isBenchOutPathAllowed().
+            // Any third line that opens a file, even an innocent-looking one right beside this
+            // write, is a second, unjudged door to the same truncation.
             "val file = File(specPath)",
             "else -> runCatching { File(out).writeText(text) }.onFailure {",
         )
@@ -217,6 +216,10 @@ class BenchProvisionSourceTest {
 
         /**
          * The two lines that keep the report inside `/data/local/tmp`: the judgement, and the
+         * write it guards. Both pinned with their argument, the same `out` must be judged and
+         * written, otherwise a mutation judges one string and truncates another. Whole-line
+         * equality like everything else here: appending anything to either line turns this red,
+         * which is the moment someone re-reads what is being written and where.
          */
         val OUT_PATH_GUARD_LINES: List<String> = listOf(
             "!isBenchOutPathAllowed(out) -> Log.e(",

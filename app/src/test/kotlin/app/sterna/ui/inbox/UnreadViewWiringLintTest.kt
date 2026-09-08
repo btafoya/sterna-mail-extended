@@ -5,7 +5,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — read this before trusting it.
+ * Source lint, not a behaviour test, read this before trusting it.
  */
 class UnreadViewWiringLintTest {
 
@@ -118,7 +118,7 @@ class UnreadViewWiringLintTest {
     }
 
     /**
-     * SOURCE LINT, and the rule the one above cannot be: it pins WHERE THE VALUES COME FROM.
+     * Source lint, and the rule the one above cannot be: it pins where the values come from.
      */
     @Test
     fun `the badge is folded in from the unread scope, and the state reads the folded flow`() {
@@ -165,7 +165,7 @@ class UnreadViewWiringLintTest {
     }
 
     /**
-     * The delegation above is only worth what the NAME resolves to. Kotlin resolves a member
+     * The delegation above is only worth what the name resolves to. Kotlin resolves a member
      */
     @Test
     fun `the ViewModel declares no isAtInbox of its own`() {
@@ -185,7 +185,7 @@ class UnreadViewWiringLintTest {
     }
 
     /**
-     * The last link, and the only one: `InboxScreen.kt` is where `atInbox` is READ. Everything
+     * The last link, and the only one: `InboxScreen.kt` is where `atInbox` is read. Everything
      */
     @Test
     fun `the screen asks the back rule the right question, and binds its answer`() {
@@ -305,7 +305,7 @@ class UnreadViewWiringLintTest {
             .map { callAt(block, it.range.first) }
             .toList()
 
-    /** Every `if` condition of [block] that mentions the unread VIEW, each one whole. */
+    /** Every `if` condition of [block] that mentions the unread view, each one whole. */
     private fun viewConditions(block: String): List<String> =
         ifConditions(block).filter { Regex("""\bunreadView\b""").containsMatchIn(it) }
 
@@ -383,12 +383,15 @@ class UnreadViewWiringLintTest {
     }
 
     /**
-     * [file] as ONE line of code: comments taken out, runs of whitespace collapsed — so a call the
+     * [file] as one line of code: comments taken out, runs of whitespace collapsed, so a call the
+     * formatter spreads over eight lines reads like one written on a line. Same scanner as
+     * `UnifiedTitleWiringLintTest`'s, and for the same reason: a `//` inside a string literal is not
+     * a comment, and a line starting with `*` is not always a comment either.
      */
     private fun codeText(file: File): String = strippedLines(file).joinToString(" ")
         .replace(Regex("""\s+"""), " ").trim()
 
-    /** The same source, comments removed, but kept LINE BY LINE for the whole-line rules. */
+    /** The same source, comments removed, but kept line by line for the whole-line rules. */
     private fun codeLines(file: File): List<String> = strippedLines(file)
 
     private fun strippedLines(file: File): List<String> {
@@ -431,7 +434,7 @@ class UnreadViewWiringLintTest {
     }
 
     companion object {
-        /** The drawer entry, argument by argument — the gabarit of the unified one, its own view. */
+        /** The drawer entry, argument by argument, the gabarit of the unified one, its own view. */
         private val EXPECTED_ENTRY_ARGUMENTS = listOf(
             "icon = { Icon(Icons.Filled.MarkEmailUnread, contentDescription = null) }",
             "label = { Text(unreadLabel) }",
@@ -440,7 +443,7 @@ class UnreadViewWiringLintTest {
             "modifier = Modifier.padding(horizontal = 12.dp)",
         )
 
-        /** No count, no number — the unified entry's rule, on this entry's own count. */
+        /** No count, no number, the unified entry's rule, on this entry's own count. */
         private const val EXPECTED_COUNT_CONDITION = "ui.unreadViewCount > 0"
 
         private val EXPECTED_LABEL_CALLS = listOf(
@@ -456,9 +459,9 @@ class UnreadViewWiringLintTest {
             "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed), showRefreshIndicator = showing)",
             "unreadView = base.unreadView,",
             "unreadView = sel is Sel.Unread,",
-            // The placeholder `state` starts on, below `}.stateIn(` — a SECOND SITE of the line
+            // The placeholder `state` starts on, below `}.stateIn(`, a second site of the line
             // above, and what the reader sees until the first emission. Left out it took the
-            // field's default `false`, so a RESTORED unread view opened on the folder arm of the
+            // field's default `false`, so a restored unread view opened on the folder arm of the
             // title. Its own rule is `RestoredHeaderWiringLintTest`'s; here it must merely exist.
             "unreadView = selection.value is Sel.Unread,",
             "unreadViewCount = base.unreadViewCount,",
@@ -470,9 +473,9 @@ class UnreadViewWiringLintTest {
 
         /** The three declarations the badge travels through, whole. */
         private val EXPECTED_STATE_LINES = listOf(
-            // The fold gained a FIFTH flow, the refresh indicator's visibility (#178): the
-            // display of the tern is derived, and the truth `refreshing` — carried by baseState
-            // above, untouched — is what still empties the centre of the screen (#63).
+            // The fold gained a fifth flow, the refresh indicator's visibility (#178): the
+            // display of the tern is derived, and the truth `refreshing`, carried by baseState
+            // above, untouched, is what still empties the centre of the screen (#63).
             "private val badgedState = combine(baseState, unreadScopes, currentAccountId, showOnlySubscribed, indicatorShowing) { base, scopes, accountId, onlySubscribed, showing ->",
             "private val baseState = combine(mailboxes, selection, meta, status, unifiedUnread) { mailboxes, sel, meta, status, unifiedUnread ->",
             "val state: StateFlow<MailUi> = combine(badgedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->",
@@ -491,7 +494,7 @@ class UnreadViewWiringLintTest {
         )
 
         /**
-         * The screen's whole use of the Back rule: the question, then the four handlers. The
+         * The screen's whole use of the Back rule: the question, then the four handlers.
          */
         private val EXPECTED_BACK_ACTION_LINES = listOf(
             "val backAction = inboxBackAction(selectionActive, detailOpen = detail != null && pane.anchor != null, ui.searching, ui.atInbox)",

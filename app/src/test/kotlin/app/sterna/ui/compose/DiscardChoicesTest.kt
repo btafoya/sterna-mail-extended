@@ -57,7 +57,7 @@ class DiscardChoicesTest {
         // The #35 defect, run on the values the screen actually holds. Open a saved draft, clear
         // the subject and the body, tap the X, tap "Save draft": ComposeViewModel.saveDraft asks
         // draftHasContent, gets false, and calls repo.discardDraft on the message it was opened
-        // with — the copy in Drafts is destroyed by the button that promised to save it.
+        // with, the copy in Drafts is destroyed by the button that promised to save it.
         val emptied = draftHasContent(
             to = "", cc = "", bcc = "", subject = "", body = "   ", hasAttachment = false,
         )
@@ -72,7 +72,7 @@ class DiscardChoicesTest {
     }
 
     @Test fun theDialogOffersASaveExactlyWhenTheToolbarDoes() {
-        // The equivalence this test is named after, on BOTH of the toolbar's two conditions, run
+        // The equivalence this test is named after, on both of the toolbar's two conditions, run
         // from the toolbar's own functions rather than restated here:
         val filled = listOf(
             Triple("", "", "hello") to true,

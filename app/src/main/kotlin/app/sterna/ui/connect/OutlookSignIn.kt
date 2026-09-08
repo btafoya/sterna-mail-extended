@@ -38,7 +38,7 @@ sealed interface OutlookOutcome {
 }
 
 /**
- * App-scoped driver for the Outlook (Microsoft) OAuth device flow. Runs start → poll → add-account
+ * App-scoped driver for the Outlook (Microsoft) OAuth device flow: start, poll, then add the account.
  */
 class OutlookSignIn(
     private val repo: MailRepository,

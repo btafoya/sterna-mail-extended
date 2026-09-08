@@ -6,7 +6,7 @@ import org.junit.Test
 import java.net.SocketTimeoutException
 
 /**
- * Enumerating a WHOLE folder, driven against a scripted server on loopback (Codeberg #99).
+ * Enumerating a whole folder, driven against a scripted server on loopback (Codeberg #99).
  */
 class AllUidsTest {
 
@@ -66,6 +66,8 @@ class AllUidsTest {
 
     /**
      * The cap is applied while parsing, and the connection survives it: the ids past the cap are
+     * consumed off the wire instead of being left there. If they were not, the very next command
+     * would read the leftovers as its own answer.
      */
     @Test
     fun `a capped enumeration keeps the head and leaves the stream usable`() {
@@ -126,7 +128,9 @@ class AllUidsTest {
     }
 
     /**
-     * A server that refuses the search must FAIL, not answer "nothing here": the caller turns a
+     * A server that refuses the search must fail, not answer "nothing here": the caller turns a
+     * failure into its cached fallback, whereas a silent empty list would be read as an empty
+     * Trash and destroy nothing while claiming success.
      */
     @Test
     fun `a server refusing the search fails instead of reporting an empty folder`() {
@@ -153,7 +157,7 @@ class AllUidsTest {
         FakeImapServer { tag, line ->
             when {
                 line.startsWith("SELECT") -> selectResponse(tag, exists = 3)
-                // Never answers in time — a black-holed network, a wedged server.
+                // Never answers in time, a black-holed network, a wedged server.
                 line.startsWith("UID SEARCH") -> { Thread.sleep(1_200); searchResponse(tag, listOf(1L)) }
                 else -> ok(tag)
             }
@@ -184,7 +188,7 @@ class AllUidsTest {
             server.session().use { session ->
                 session.select("Trash")
                 session.withReadTimeout(300) { session.allUids(cap) }
-                // A 700 ms answer AFTER the bounded operation: it must still be waited for, not
+                // A 700 ms answer after the bounded operation: it must still be waited for, not
                 // cut off by a 300 ms timeout the enumeration left behind on the socket.
                 assertEquals(3, session.select("Trash").exists)
             }
@@ -231,7 +235,7 @@ class AllUidsTest {
         }
     }
 
-    /** A genuinely empty Trash is an empty list and not an error — nothing to destroy. */
+    /** A genuinely empty Trash is an empty list and not an error, nothing to destroy. */
     @Test
     fun `an empty trash enumerates to nothing`() {
         FakeImapServer { tag, line ->

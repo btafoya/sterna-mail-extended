@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * RESOURCE LINT, NOT A BEHAVIOUR TEST. It reads the shipped strings as text and holds the four
+ * Resource lint, not a behaviour test. It reads the shipped strings as text and holds the four
  */
 class PgpProviderNamingTest {
 
@@ -74,6 +74,9 @@ class PgpProviderNamingTest {
 
     /**
      * The other half of the periphery, and the half a "make it agnostic" pass is likeliest to
+     * sweep away by mistake: the install button may name OpenKeychain, and must, because tapping
+     * it opens OpenKeychain's F-Droid page and nothing else. Relabel it "Get an OpenPGP app" and
+     * the button offers a choice it does not give; point the URL elsewhere and the label lies.
      */
     @Test
     fun `the install button names the one app it really installs, in every language`() {
@@ -97,6 +100,8 @@ class PgpProviderNamingTest {
 
     /**
      * The other direction of the same pair, in its own test on purpose: as a second assertion in
+     * the test above, a mutation of the label hid a mutation of the link, the first failure ends
+     * the method, and the second guard was never seen to fire.
      */
     @Test
     fun `the install button opens the page of the app it names`() {
@@ -122,6 +127,7 @@ class PgpProviderNamingTest {
     private companion object {
         /**
          * The app names these four labels may not carry. OpenKeychain is the one they used to
+         * demand; PGPony is the other provider this project knows exists, and "install PGPony"
          */
         val FORBIDDEN = listOf("OpenKeychain", "PGPony")
         const val SUBTITLE = "settings_pgp_enable_subtitle"

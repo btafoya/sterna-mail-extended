@@ -9,7 +9,7 @@ internal fun replyBarVisible(enabled: Boolean, bodyReady: Boolean, wantsBar: Boo
     enabled && bodyReady && wantsBar
 
 /**
- * The bar's assumed height before it has been measured, in dp — a first frame laid out with no
+ * The bar's assumed height before it has been measured, in dp, a first frame laid out with no
  * reserve has its last lines covered the moment the bar reveals.
  */
 internal const val REPLY_BAR_FALLBACK_DP = 76f
@@ -18,7 +18,7 @@ internal const val REPLY_BAR_FALLBACK_DP = 76f
 internal const val REPLY_BAR_CLEARANCE_DP = 4f
 
 /**
- * How much blank the BODY reserves under itself for that bar, in device pixels.
+ * How much blank the body reserves under itself for that bar, in device pixels.
  */
 internal fun bodyBottomInsetPx(
     enabled: Boolean,

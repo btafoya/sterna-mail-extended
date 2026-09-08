@@ -19,7 +19,8 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * The styling of a SAVED DRAFT on the JMAP wire (#131) — the octets that leave, read back from a
+ * The styling of a saved DRAFT on the JMAP wire (#131), the octets that leave, read back from a
+ * mock server, never the source that produced them.
  */
 class DraftHtmlOnTheWireTest {
 

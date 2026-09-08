@@ -3,10 +3,11 @@ package app.sterna.ui.compose
 /*
  * Rules for sending, saving or closing a composer whose body was lost, kept out of
  * `ComposeViewModel` so a JVM test can run them: nothing in this module can instantiate an
+ * Android view model.
  */
 
 /**
- * May this composer send THIS body? Refused only where both terms hold: the text was lost AND
+ * May this composer send THIS body?
  */
 internal fun composerMaySendBody(bodyWasLost: Boolean, body: String): Boolean =
     !(bodyWasLost && body.isBlank())
@@ -39,7 +40,7 @@ internal fun lostBodySendWording(
 }
 
 /**
- * Would THIS save destroy the queued row — the only store a save can take away?
+ * Would THIS save destroy the queued row, the only store a save can take away?
  */
 internal fun lostBodySaveDestroysQueuedRow(
     bodyWasLost: Boolean,
@@ -48,7 +49,7 @@ internal fun lostBodySaveDestroysQueuedRow(
 ): Boolean = holdsQueuedRow && !composerMaySendBody(bodyWasLost, body)
 
 /**
- * Does CLOSING this composer park the queued row rather than give it back to the queue? When true,
+ * Does closing this composer park the queued row rather than give it back to the queue?
  */
 internal fun closingParksQueuedRow(bodyWasLost: Boolean, body: String): Boolean =
     !composerMaySendBody(bodyWasLost, body)

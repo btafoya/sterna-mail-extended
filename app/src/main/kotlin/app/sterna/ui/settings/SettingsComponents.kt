@@ -327,7 +327,7 @@ fun AccountRow(
 }
 
 /**
- * A read-only value the user has to carry out of the app — today the relay push address (#177).
+ * A read-only value the user has to carry out of the app, today the relay push address (#177).
  */
 @Composable
 fun SettingCopyableRow(

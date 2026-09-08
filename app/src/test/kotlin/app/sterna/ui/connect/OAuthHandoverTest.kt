@@ -15,7 +15,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * OAuth as a RESULT rather than a choice: what the credentials step asks for once the server has
+ * OAuth as a result rather than a choice: what the credentials step asks for once the server has
  */
 class OAuthHandoverDecisionTest {
 
@@ -37,7 +37,7 @@ class OAuthHandoverDecisionTest {
         authorizationEndpoint = "https://example.org/authorize",
         deviceAuthorizationEndpoint = "https://example.org/device",
     )
-    /** OAuth advertised, and no grant this app can drive — a real case (`connect_oauth_flow_unsupported`). */
+    /** OAuth advertised, and no grant this app can drive, a real case (`connect_oauth_flow_unsupported`). */
     private val noUsableGrant = OAuthMetadata(
         issuer = "https://example.org",
         tokenEndpoint = "https://example.org/token",
@@ -240,7 +240,7 @@ class OAuthHandoverDecisionTest {
         )
     }
 
-    // ---- handoverStarted: for WHICH address a hand-over was started ----
+    // ---- handoverStarted: for which address a hand-over was started ----
 
     @Test fun `a hand-over is started for an address, not for the screen`() {
         assertTrue(
@@ -333,7 +333,7 @@ class OAuthDiscoveryIsBoundedTest {
     /** The real candidate order of `Jmap.autodiscoverHosts("someone@example.org")`. */
     private val hosts = listOf("example.org", "mail.example.org", "jmap.example.org", "api.example.org")
 
-    /** A delay no budget here survives — the shape of the ~200 s four silent hosts cost. */
+    /** A delay no budget here survives, the shape of the ~200 s four silent hosts cost. */
     private val hangs = 200_000L
 
     private val budget = 10_000L
@@ -350,7 +350,7 @@ class OAuthDiscoveryIsBoundedTest {
     )
 
     /**
-     * Answers [answers] after the stated virtual delay, and records which hosts were ASKED. Hosts in
+     * Answers [answers] after the stated virtual delay, and records which hosts were asked. Hosts in
      * [deaf] ignore cancellation while they wait, like the blocking call the real probe makes.
      */
     private class Bench(
@@ -395,7 +395,7 @@ class OAuthDiscoveryIsBoundedTest {
         val bench = Bench(
             answers = mapOf(
                 // The organisation's website, behind an SSO portal: it publishes an OAuth document,
-                // and it is the FIRST candidate. This is the production case chooseOAuthHost exists
+                // and it is the first candidate. This is the production case chooseOAuthHost exists
                 // for, and the one the budget must not quietly undo.
                 "example.org" to (100L to codeFlow),
                 "mail.example.org" to (300L to deviceFlow),
@@ -492,7 +492,11 @@ class OAuthDiscoveryIsBoundedTest {
 }
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * [ImapDiscoveryWiringTest]: `ConnectViewModel` is an `AndroidViewModel` on the app container and
+ * `ConnectScreen` is a composable, and this module has neither Robolectric nor instrumented tests,
+ * so neither can be run here. The decisions are executed above; what is held here is that the
+ * screen and the ViewModel run those decisions, with those arguments.
  */
 class OAuthHandoverWiringTest {
 
@@ -684,7 +688,7 @@ class OAuthHandoverWiringTest {
 
     // -- reading the files -------------------------------------------------------------------------
 
-    /** Exactly one line of [path] whose TRIMMED text equals [pinned] — 0 or 2+ both fail. */
+    /** Exactly one line of [path] whose trimmed text equals [pinned], 0 or 2+ both fail. */
     private fun assertPinnedLine(path: String, pinned: String, why: String) {
         val hits = source(path).lines().count { it.trim() == pinned }
         assertEquals(

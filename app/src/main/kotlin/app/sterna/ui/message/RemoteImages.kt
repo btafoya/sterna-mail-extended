@@ -4,7 +4,7 @@ import androidx.annotation.StringRes
 import app.sterna.R
 
 /**
- * Whether a message body asks for anything the reader's WebView will refuse to load — the question
+ * Whether a message body asks for anything the reader's WebView will refuse to load, the question
  */
 internal fun hasRemoteRefs(html: String?): Boolean {
     if (html.isNullOrEmpty()) return false
@@ -39,7 +39,7 @@ internal fun imagesStripPresent(plainText: Boolean, senderAllowed: Boolean, html
     !plainText && !senderAllowed && hasRemoteRefs(html)
 
 /**
- * What the images strip SAYS, and whether it can still be pressed.
+ * What the images strip says, and whether it can still be pressed.
  */
 internal enum class ImagesStripBody(@StringRes val label: Int) {
     /** The pictures are held back: the button is live and offers to fetch them. */
@@ -49,7 +49,7 @@ internal enum class ImagesStripBody(@StringRes val label: Int) {
     SHOWN(R.string.message_images_shown),
     ;
 
-    /** Whether the strip still has something to unblock — the button's `enabled`. */
+    /** Whether the strip still has something to unblock, the button's `enabled`. */
     val acts: Boolean get() = this == ACTION
 }
 

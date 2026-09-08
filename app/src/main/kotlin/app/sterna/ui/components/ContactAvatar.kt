@@ -15,7 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.sterna.contacts.ContactPhotos
 
-/** The avatar slot's size — the same for a photo and for a monogram, so rows never resize. */
+/** The avatar slot's size, the same for a photo and for a monogram, so rows never resize. */
 val ContactAvatarSize = 40.dp
 
 /**

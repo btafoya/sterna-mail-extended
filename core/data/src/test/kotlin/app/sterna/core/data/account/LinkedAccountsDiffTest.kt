@@ -69,7 +69,7 @@ class LinkedAccountsDiffTest {
     }
 
     // The device-validated regression: the server revoked every delegation, so the fresh session
-    // lists ONLY the login's own account — the sub-account must still be pruned, not kept forever.
+    // lists only the login's own account, the sub-account must still be pruned, not kept forever.
     @Test fun sessionShrunkToTheLoginAlonePrunesEverySubAccount() {
         val diff = diffLinkedAccounts(
             login(),
@@ -95,7 +95,7 @@ class LinkedAccountsDiffTest {
     }
 
     // Self-healing for the pre-lock write race: two records tracking the same server account
-    // are duplicates — the oldest survives, the extra one is pruned, and nothing is re-added.
+    // are duplicates, the oldest survives, the extra one is pruned, and nothing is re-added.
     @Test fun duplicateRecordForALiveAccountIsPrunedKeepingTheOldest() {
         val diff = diffLinkedAccounts(
             login(),
@@ -129,7 +129,7 @@ class LinkedAccountsDiffTest {
         assertEquals(emptyList<DiscoveredMailAccount>(), diff.toAdd)
     }
 
-    // A duplicated AND revoked account: both records must go, each exactly once.
+    // A duplicated and revoked account: both records must go, each exactly once.
     @Test fun duplicateOfARevokedAccountPrunesBothRecordsOnce() {
         val diff = diffLinkedAccounts(
             login(),
@@ -145,7 +145,7 @@ class LinkedAccountsDiffTest {
     // ---- the probe governs admission, never eviction ----
 
     /**
-     * The destruction this fix exists for: the server STILL LISTS the shared mailbox, one
+     * The destruction this fix exists for: the server still lists the shared mailbox, one
      */
     @Test fun stillListedSubAccountRefusedByTheProbeIsNeitherPrunedNorReAdded() {
         val diff = diffLinkedAccounts(
@@ -173,7 +173,7 @@ class LinkedAccountsDiffTest {
         assertEquals(emptyList<DiscoveredMailAccount>(), diff.toAdd)
     }
 
-    /** Gone from the session AND refused by the probe: still one prune, on the session's evidence. */
+    /** Gone from the session and refused by the probe: still one prune, on the session's evidence. */
     @Test fun subAccountAbsentFromTheSessionAndRefusedByTheProbeIsPruned() {
         val diff = diffLinkedAccounts(
             login(),
@@ -187,7 +187,8 @@ class LinkedAccountsDiffTest {
     }
 
     /**
-     * The reporter's configuration, naked (#129): a login whose ONLY non-primary candidate is the
+     * The reporter's configuration, naked (#129): a login whose only non-primary candidate is the
+     * refused calendar-only share, nothing tracked yet. Nothing to add, and nothing to prune either.
      */
     @Test fun `refused sole candidate is neither added nor pruned`() {
         val diff = diffLinkedAccounts(
@@ -223,7 +224,7 @@ class LinkedAccountsDiffTest {
 
     /**
      * Admission (#129): the calendar-only share the server refuses is never minted, while the
-     * candidate whose probe was served is — and so is one nobody probed (doubt goes to keeping).
+     * candidate whose probe was served is, and so is one nobody probed (doubt goes to keeping).
      */
     @Test fun newCandidateRefusedByTheProbeIsNotAdded() {
         val diff = diffLinkedAccounts(

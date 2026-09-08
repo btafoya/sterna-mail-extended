@@ -16,7 +16,7 @@ class ReadFailureTextTest {
 
     @Test fun unavailableMessageGetsATranslatedSentence() {
         // #159: the text this exception carries names the account UUID, the folder and the uid,
-        // in English. It must not reach the screen — the resource REPLACES it.
+        // in English. It must not reach the screen, the resource replaces it.
         val t = MessageUnavailableException(
             "Message imap:acc-4f1e:Archive/2024:4242 is not in the cache and the server did not return it.",
         )
@@ -30,12 +30,12 @@ class ReadFailureTextTest {
     }
 
     @Test fun anyOtherFailureKeepsItsTechnicalText() {
-        // null = "no sentence of ours", i.e. `t.message` survives — what a bug report needs.
+        // null = "no sentence of ours", i.e. `t.message` survives, what a bug report needs.
         assertNull(readFailureStringRes(IllegalStateException("Not an IMAP message.")))
     }
 
     @Test fun theSentenceIsDeclaredInEveryLanguage() {
-        // A German reader is the one who reported this. Name the languages that are MISSING it,
+        // A German reader is the one who reported this. Name the languages that are missing it,
         // in one assertion, so a forgotten file says which.
         val expected = listOf("values", "values-de", "values-es", "values-fr", "values-it",
             "values-nl", "values-pl", "values-pt", "values-ru")
@@ -49,7 +49,7 @@ class ReadFailureTextTest {
     }
 
     /**
-     * SOURCE RULE — the branching, which nothing executable holds.
+     * Source rule, the branching, which nothing executable holds.
      */
     @Test fun theScreenGoesThroughTheDecision() {
         val expected = listOf(
@@ -67,7 +67,7 @@ class ReadFailureTextTest {
     }
 
     /**
-     * SOURCE RULE — the throwable, which now reaches nobody.
+     * Source rule, the throwable, which now reaches nobody.
      */
     @Test fun theFailureToOpenIsWrittenDown() {
         val logged = codeLines(functionBody("fun load(")).filter {

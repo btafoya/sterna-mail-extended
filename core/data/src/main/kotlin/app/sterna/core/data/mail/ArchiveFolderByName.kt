@@ -3,7 +3,7 @@ package app.sterna.core.data.mail
 import app.sterna.core.jmap.model.Mailbox
 
 /** Lowercased folder names that denote an archive: the names servers carry across Sterna's
- *  locales, never the app's own labels. One list for both questions — where the Archive button
+ *  locales, never the app's own labels. One list for both questions, where the Archive button
  *  files mail, and whether the folder lists may hide it (#174). `lowercase()` with no argument. */
 val ARCHIVE_FOLDER_NAMES = listOf(
     "archive", "archives", "archived",

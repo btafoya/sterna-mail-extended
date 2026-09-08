@@ -10,7 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * A full re-query must not delete the mail that arrives WHILE it runs (Codeberg #165).
+ * A full re-query must not delete the mail that arrives while it runs (Codeberg #165).
  */
 class ReconcileSparesWhatArrivedDuringTheWalkTest {
 
@@ -65,6 +65,8 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
 
     /**
      * A walk that hands [pages] over one at a time and answers with every id it handed over, or
+     * throws [failWith] instead of finishing its [failAfter]th page. [between] runs after each page
+     * has been written: that is where a third party gets to touch the folder mid-walk.
      */
     private fun walkOf(
         pages: List<List<String>>,
@@ -88,7 +90,7 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
     private val threePages = listOf(listOf("n1", "n2"), listOf("mid1", "mid2"), listOf("z1"))
     private val allThree = setOf("n1", "n2", "mid1", "mid2", "z1")
 
-    /** The push/worker write, injected after the SECOND page — mid-walk, above the anchor. */
+    /** The push/worker write, injected after the second page, mid-walk, above the anchor. */
     private fun arrivesAfterPage2(folder: Folder, id: String): suspend (Int) -> Unit =
         { i -> if (i == 1) folder.thirdPartyWrites(id) }
 
@@ -111,9 +113,9 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
     // -- the volet ------------------------------------------------------------------------------
 
     @Test fun `mail that lands DURING the walk survives the reconcile at the end`() {
-        // THE test of this volet. The push socket files "arrived-1" into this folder while the
-        // walk sits between its second and third page. No page names it — the walk pages by anchor
-        // and never goes back up — so an unbounded reconcile deletes it, and the cursor stored
+        // The test of this volet. The push socket files "arrived-1" into this folder while the
+        // walk sits between its second and third page. No page names it, the walk pages by anchor
+        // and never goes back up, so an unbounded reconcile deletes it, and the cursor stored
         // right afterwards means it never comes back. It is the newest message in the folder.
         val folder = Folder(cached = listOf("older"))
 
@@ -133,7 +135,6 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
 
     @Test fun `a row that commits between the bound and the reconcile's own read survives too`() {
         // The half a keep set cannot cover, and the reason this fix is a bound. `reconcileMailbox`
-        // is @Transaction and `reconcileMailboxRows` re-reads the folder itself (`idsForMailbox`),
         val folder = Folder(cached = listOf("older"))
         folder.duringReconcile = { folder.thirdPartyWrites("commits-during-reconcile") }
 
@@ -170,9 +171,9 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
     }
 
     @Test fun `an unbounded reconcile is exactly the old behaviour — the witness for the bound`() {
-        // null means NO BOUND, and this is what that costs: the same fixture as the test above,
+        // null means NO bound, and this is what that costs: the same fixture as the test above,
         // with the bound withheld, loses the message that arrived during the walk. It is stated
-        // here so nobody has to take on trust that the bound is what saves it — and so that
+        // here so nobody has to take on trust that the bound is what saves it, and so that
         // `imapWriteThrough` passing null on an unnamed folder is a known cost and not a fix.
         val folder = Folder(cached = listOf("stale"))
 
@@ -202,7 +203,7 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
     // -- the bound, as an argument ------------------------------------------------------------------
 
     @Test fun `the reconcile is handed the folder as it stood BEFORE the walk, as its bound`() {
-        // Not "the folder is intact" — the ARGUMENT. A folder can end up intact for reasons that
+        // Not "the folder is intact", the argument. A folder can end up intact for reasons that
         // have nothing to do with this volet (an empty keep set is refused elsewhere, a spare set
         val folder = Folder(cached = listOf("stale", "mid2"))
 
@@ -219,8 +220,8 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
     // -- keepIds null: nothing at all ---------------------------------------------------------------
 
     @Test fun `a keep set refused with null reconciles nothing, and the folder is read exactly once`() {
-        // A muted `Email/get`: the walk returned, listed nothing, and the server DID say the query
-        // had results — [reconcilableWindowIds] answers null, which means DO NOT RECONCILE AT ALL.
+        // A muted `Email/get`: the walk returned, listed nothing, and the server did say the query
+        // had results, [reconcilableWindowIds] answers null, which means do not reconcile at all.
         // One read of the folder and no more: a second one, taken at the reconcile, would be the
         // snapshot this whole volet exists to stop anyone from bounding with.
         val folder = Folder(cached = listOf("kept1", "kept2"))
@@ -264,10 +265,10 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
         assertTrue("the row that arrived during the interrupted walk was deleted", "arrived-1" in folder.cache)
     }
 
-    // -- the other direction: a row that LEFT during the walk ---------------------------------------
+    // -- the other direction: a row that left during the walk ---------------------------------------
 
     @Test fun `a row removed by somebody else during the walk is not resurrected`() {
-        // The bound is a filter on what the reconcile READS, so it can neither delete a row that is
+        // The bound is a filter on what the reconcile reads, so it can neither delete a row that is
         // already gone nor bring one back. Stated because "the folder as it stood before the walk"
         // names rows that may no longer exist by the time it is used.
         val folder = Folder(cached = listOf("departed-1", "stale"))

@@ -62,8 +62,8 @@ object Jmap {
     }
 
         /** Candidate server hosts to probe when autodiscovering the JMAP server for an email address
-         *  (RFC 8620 §2.2). The email domain comes first — its `/.well-known/jmap` typically redirects
-         *  to the real session endpoint — then the conventional `mail.`/`jmap.`/`api.` subdomains.
+         *  (RFC 8620 §2.2). The email domain comes first, its `/.well-known/jmap` typically redirects
+         *  to the real session endpoint, then the conventional `mail.`/`jmap.`/`api.` subdomains.
          *  Empty for a malformed address. */
     fun autodiscoverHosts(email: String): List<String> {
         val domain = email.substringAfter('@', "").trim().lowercase().removeSuffix(".")

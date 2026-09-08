@@ -52,8 +52,8 @@ class CreatedMailboxIsSubscribedTest {
     }
 
     /**
-     * T4 — the property really leaves, inside `create.new`, and it is the boolean `true`. Read as
-     * a JSON boolean, so the string `"true"` — which a server rejects — does not pass either.
+     * T4, the property really leaves, inside `create.new`, and it is the boolean `true`. Read as
+     * a JSON boolean, so the string `"true"` (which a server rejects) does not pass either.
      */
     @Test fun `the created mailbox is asked to be subscribed`() = runBlocking {
         server.enqueue(created())
@@ -67,7 +67,7 @@ class CreatedMailboxIsSubscribedTest {
     }
 
     /**
-     * T5a — a plain folder: adding the property must not have moved `name`, nor invented a `role`
+     * T5a, a plain folder: adding the property must not have moved `name`, nor invented a `role`
      */
     @Test fun `a folder with no role and no parent still sends name alone`() = runBlocking {
         server.enqueue(created())
@@ -82,7 +82,7 @@ class CreatedMailboxIsSubscribedTest {
         assertEquals(setOf("name", "isSubscribed"), new.keys)
     }
 
-    /** T5b — and a nested Archive keeps carrying both of them, alongside the new property. */
+    /** T5b, and a nested Archive keeps carrying both of them, alongside the new property. */
     @Test fun `a nested folder with a role still sends role and parentId`() = runBlocking {
         server.enqueue(created())
         val session = JmapSession(apiUrl = server.url("/jmap/api/").toString())

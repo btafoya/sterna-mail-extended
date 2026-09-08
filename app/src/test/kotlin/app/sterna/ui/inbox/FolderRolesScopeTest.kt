@@ -14,7 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHEN the (account, folder) → role map is re-read (#115).
+ * When the (account, folder) → role map is re-read (#115).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class FolderRolesScopeTest {
@@ -33,7 +33,7 @@ class FolderRolesScopeTest {
         "c" to mapOf(("c" to "fc") to "archive"),
     )
 
-    /** Which id sets the map was opened for, in order — the observable behaviour under test. */
+    /** Which id sets the map was opened for, in order, the observable behaviour under test. */
     private val asked = mutableListOf<List<String>>()
 
     private fun roles(ids: List<String>): Flow<Map<Pair<String, String>, String>> {
@@ -85,8 +85,8 @@ class FolderRolesScopeTest {
     @Test
     fun `a write that leaves the accounts the same does not re-open the map`() {
         // The other half of "do not replace one snapshot with another": the store republishes its
-        // whole list on every write — an inbox id learned, an unread counter moved, identities
-        // refreshed — and re-subscribing to Room on each of those would trade a stale map for a
+        // whole list on every write, an inbox id learned, an unread counter moved, identities
+        // refreshed, and re-subscribing to Room on each of those would trade a stale map for a
         // storm. The set of accounts is what the map is keyed by, and the only thing it follows.
         runTest {
             val accounts = MutableStateFlow(listOf(account("a")))

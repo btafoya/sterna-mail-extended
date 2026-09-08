@@ -7,7 +7,10 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * Source lint, not a behaviour test, same instrument and same disclaimer as
+ * [app.sterna.ui.NavHostSourceRulesTest]: it reads sources as text. It proves nothing about what a
+ * keyboard receives. What the interceptor DOES is executed in [IncognitoInterceptorTest], and the
+ * bit it adds in [IncognitoImeOptionsTest]; this file only checks where the request is made.
  */
 class ComposeScreenIncognitoTest {
 
@@ -34,8 +37,8 @@ class ComposeScreenIncognitoTest {
     // --- placement: nor more ---------------------------------------------------------------------
 
     @Test fun `the wrapper is used exactly once in the whole application`() {
-        // Counted over every main source, so wrapping SternaApp in MainActivity — which would make
-        // search, settings and account setup incognito without touching a line of this package —
+        // Counted over every main source, so wrapping SternaApp in MainActivity, which would make
+        // search, settings and account setup incognito without touching a line of this package,
         // is a failure here and not a silent widening.
         val uses = wrapperUses().map { (file, line) -> "$file:${line + 1}" }
         assertEquals(
@@ -54,7 +57,7 @@ class ComposeScreenIncognitoTest {
             "$file:${line + 1} does not wrap the composer",
             block.any { "$COMPOSER_FUN(" in lines[it] },
         )
-        // The witnesses, named one by one: these are the screens the composer's rule must NOT
+        // The witnesses, named one by one: these are the screens the composer's rule must not
         // reach. Search is the one the bench check leans on.
         val caught = OFF_LIMITS.filter { screen -> block.any { screen in lines[it] } }
         assertTrue(
@@ -90,7 +93,7 @@ class ComposeScreenIncognitoTest {
     }
 
     @Test fun `the field-bearing helpers are the composer's own`() {
-        // Pins WHICH composables the guarantee reaches, not merely that some set is reached: the
+        // Pins which composables the guarantee reaches, not merely that some set is reached: the
         // subject and the recipient rows live in private composables, covered only because
         // ComposeScreen is what calls them.
         val reached = reachableFrom(composeScreen, COMPOSER_FUN)
@@ -101,13 +104,13 @@ class ComposeScreenIncognitoTest {
     // --- the one line of the wrapper a test cannot execute ---------------------------------------
 
     @Test fun `the delegate fills the EditorInfo before the flag is added`() {
-        // ORDER IS THE WHOLE CORRECTNESS of createInputConnection: the wrapped request WRITES
-        // outAttributes.imeOptions. Add the bit first and the delegate overwrites it — a fix that
+        // Order is the whole correctness of createInputConnection: the wrapped request writes
+        // outAttributes.imeOptions. Add the bit first and the delegate overwrites it, a fix that
         // runs and does nothing. It cannot be executed: calling createInputConnection needs a real
         // EditorInfo and this module mocks no framework class.
         //
-        // Comments are stripped and each anchor is required to be UNIQUE before the two are
-        // compared: otherwise a comment quoting either line — this file's own explanations do —
+        // Comments are stripped and each anchor is required to be unique before the two are
+        // compared: otherwise a comment quoting either line (this file's own explanations do)
         // would move the anchor and let the inversion back in.
         val code = wrapperFile.filterNot { it.isComment() }
         val delegate = code.indicesOf(DELEGATE_CALL)
@@ -165,7 +168,7 @@ class ComposeScreenIncognitoTest {
     }
 
     @Test fun `a second wrapper in the same file is seen`() {
-        // What indexOfFirst used to miss: a wrapper added AFTER the composer's one, in the very
+        // What indexOfFirst used to miss: a wrapper added after the composer's one, in the very
         // file the rule reads.
         assertEquals(2, wrapperBlocks(FIXTURE_TWO_WRAPPERS).size)
     }
@@ -178,7 +181,7 @@ class ComposeScreenIncognitoTest {
 
     // --- the decisions ---------------------------------------------------------------------------
 
-    /** Every `ComposeScreen(` CALL in the app's main sources, as (path relative to kotlin/, line). */
+    /** Every `ComposeScreen(` call in the app's main sources, as (path relative to kotlin/, line). */
     private fun callSites(): List<Pair<String, Int>> = mainSourceLines { file, lines ->
         lines.indices
             .filter { "$COMPOSER_FUN(" in lines[it] }
@@ -187,7 +190,7 @@ class ComposeScreenIncognitoTest {
             .map { file to it }
     }
 
-    /** Every `IncognitoKeyboard {` USE in the app's main sources. */
+    /** Every `IncognitoKeyboard {` use in the app's main sources. */
     private fun wrapperUses(): List<Pair<String, Int>> = mainSourceLines { file, lines ->
         lines.indices.filter { WRAPPER in lines[it] && !lines[it].isComment() }.map { file to it }
     }
@@ -196,7 +199,7 @@ class ComposeScreenIncognitoTest {
         NavHostSourceRulesTest.mainSources().flatMap { of(relative(it), it.readLines()) }
 
     /**
-     * 1-based line numbers of the [FIELD] call sites of a file that [root] does NOT compose:
+     * 1-based line numbers of the [field] call sites of a file that [root] does not compose:
      * neither written in [root] itself, nor in a function [root] reaches by call.
      */
     private fun fieldsOutside(lines: List<String>, root: String): List<Int> {
@@ -234,7 +237,7 @@ class ComposeScreenIncognitoTest {
         }.toMap()
     }
 
-    /** EVERY `IncognitoKeyboard {` block of a file, not merely the first one. */
+    /** Every `IncognitoKeyboard {` block of a file, not merely the first one. */
     private fun wrapperBlocks(lines: List<String>): List<IntRange> =
         lines.indices
             .filter { WRAPPER in lines[it] && !lines[it].isComment() }

@@ -5,13 +5,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHICH arguments `MailRepository` hands the Autocrypt import at each of its three call sites, and
+ * Which arguments `MailRepository` hands the Autocrypt import at each of its three call sites, and
+ * that the JMAP read still asks the server for nothing new.
  */
 class AutocryptImportWiringTest {
 
     private val source = DaoQuerySource.mailSource("MailRepository")
 
-    /** The argument text of every `importAutocryptKey(…)` CALL (the declaration excluded). */
+    /** The argument text of every `importAutocryptKey(…)` call (the declaration excluded). */
     private fun callArguments(): List<String> {
         val out = mutableListOf<String>()
         var at = source.indexOf(NAME)
@@ -46,7 +47,7 @@ class AutocryptImportWiringTest {
                 // JMAP, the inbox prefetch: one grouped read, each message judged on its own.
                 "headers.map { it.name to it.value }, email.from.firstOrNull()?.email, { email.receivedAt }",
                 // IMAP, on opening: the headers come off the source that had to be fetched
-                // anyway, and the date off the SERVER (INTERNALDATE) — never `envelope.receivedAt`,
+                // anyway, and the date off the server (INTERNALDATE), never `envelope.receivedAt`,
                 // which here is the message's own `Date:` header and is the sender's to choose.
                 "headers, envelope.from.firstOrNull()?.email, { autocryptInternalDate(credentials, mailboxId, uid, headers) }",
             ),
@@ -55,7 +56,7 @@ class AutocryptImportWiringTest {
     }
 
     @Test fun `the IMAP side reads rawHeaders, and the same list feeds both readers`() {
-        // `MimeParser.headerOf` is a MAP: it keeps the LAST `Autocrypt` of a message carrying
+        // `MimeParser.headerOf` is a map: it keeps the last `Autocrypt` of a message carrying
         // two, and the rule that ignores such a message could then never see the second one.
         assertEquals(
             listOf(
@@ -67,8 +68,8 @@ class AutocryptImportWiringTest {
     }
 
     @Test fun `the IMAP date comes from the server, and is only asked for when there is a key`() {
-        // The whole block, line for line — never `contains("INTERNALDATE")`. Two mutations this
-        // has to catch, and both make the code LONGER or merely REORDER it:
+        // The whole block, line for line, never `contains("INTERNALDATE")`. Two mutations this
+        // has to catch, and both make the code longer or merely reorder it:
         assertEquals(
             listOf(
                 "private suspend fun autocryptInternalDate(",
@@ -131,7 +132,7 @@ class AutocryptImportWiringTest {
     }
 
     @Test fun `the JMAP header read still asks for nothing new`() {
-        // A server that refuses ONE requested property rejects the WHOLE Email/get, and then no
+        // A server that refuses one requested property rejects the whole Email/get, and then no
         // message opens at all on that account. The header read already returns every field, so
         // this feature adds no property anywhere.
         assertEquals(
@@ -140,7 +141,7 @@ class AutocryptImportWiringTest {
         )
     }
 
-    /** [count] CONSECUTIVE code lines of [path] from the single one starting with [prefix]; a prefix
+    /** [count] consecutive code lines of [path] from the single one starting with [prefix]; a prefix
      *  matching anything but exactly one line returns a message, so nothing passes by matching
      *  nothing. Comments and blank lines are dropped, the rest trimmed. */
     private fun block(path: String, prefix: String, count: Int): List<String> {

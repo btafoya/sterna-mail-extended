@@ -54,7 +54,7 @@ class SenderVolumeSqlTest {
             )
         }
         // Every account in this file has the same folder layout, one folder per role plus two
-        // untyped ones — so a test only has to say which folder a message sits in.
+        // untyped ones, so a test only has to say which folder a message sits in.
         listOf("acc", "other").forEach { account ->
             folder(account, "inbox", "Inbox", "inbox")
             folder(account, "sent", "Sent", "sent")
@@ -65,9 +65,9 @@ class SenderVolumeSqlTest {
             folder(account, "archive", "Archive", "archive")
             folder(account, "untyped", "Projects", null)
         }
-        // …plus ONE folder id that means different things in the two accounts: this account's
+        // …plus one folder id that means different things in the two accounts: this account's
         // Sent folder, the sibling's untyped one. Without it, dropping the account scope from the
-        // sub-query is invisible — both accounts' "sent" would be a Sent folder either way, and a
+        // sub-query is invisible, both accounts' "sent" would be a Sent folder either way, and a
         // mutation nothing can distinguish reads as coverage.
         folder("acc", "shared", "Outgoing", "sent")
         folder("other", "shared", "Projects", null)
@@ -149,7 +149,7 @@ class SenderVolumeSqlTest {
 
     @Test fun `two spellings differing by a non-ASCII capital are TWO lines`() {
         // Pinned rather than endured: SQLite's lower() is ASCII-only, so "É" is not folded onto
-        // "é" and these are two groups. Kotlin's lowercase() IS Unicode-aware, so anything that
+        // "é" and these are two groups.
         insert("m1", from = "Éric@example.com")
         insert("m2", from = "éric@example.com")
         val rows = volumes()
@@ -167,14 +167,14 @@ class SenderVolumeSqlTest {
         insert("m3", from = "real@example.com")
         assertEquals(listOf("real@example.com"), volumes().map { it.email })
         // …and so the header total, which is the sum of the lines, is 1 and not 3. That is the
-        // reason it is computed from the lines instead of a COUNT(*) of the cache.
+        // reason it is computed from the lines instead of a count(*) of the cache.
         assertEquals(1, volumes().sumOf { it.total })
     }
 
     // -- which folders are counted --------------------------------------------------------------
 
     @Test fun `each outgoing or discarded folder is excluded, one by one`() {
-        // Folder by folder, so a shortened exclusion list names WHICH folder came back.
+        // Folder by folder, so a shortened exclusion list names which folder came back.
         listOf("sent", "drafts", "trash", "junk", "spam").forEach { role ->
             db.createStatement().use { it.executeUpdate("DELETE FROM emails") }
             insert("in", from = "a@example.com", mailbox = "inbox")
@@ -189,8 +189,8 @@ class SenderVolumeSqlTest {
     }
 
     @Test fun `a folder the server did not type is counted`() {
-        // `role NOT IN (…)` is NULL — hence false — for a NULL role, so without the explicit
-        // `role IS NULL OR` an untyped folder vanishes. On a server that types nothing, that
+        // `role not in (…)` is NULL (hence false) for a NULL role, so without the explicit
+        // `role is NULL or` an untyped folder vanishes. On a server that types nothing, that
         // folder is the inbox and the screen counts zero messages.
         insert("m1", from = "a@example.com", mailbox = "untyped")
         assertEquals(1, volumes().single().total)
@@ -213,8 +213,8 @@ class SenderVolumeSqlTest {
     @Test fun `a folder id another account types differently stays excluded here`() {
         // "shared" is THIS account's Sent folder and the sibling's untyped one. The folder
         // exclusion has to be resolved inside the acting account: read across accounts, the
-        // sibling's row makes the id look countable and the user's own Sent folder — her own
-        // address — walks back into the screen.
+        // sibling's row makes the id look countable and the user's own Sent folder, her own
+        // address, walks back into the screen.
         insert("mine", from = "me@example.com", mailbox = "shared", accountId = "acc")
         insert("theirs", from = "me@example.com", mailbox = "shared", accountId = "other")
         assertEquals(emptyList<Vol>(), volumes("acc"))
@@ -234,7 +234,7 @@ class SenderVolumeSqlTest {
 
     @Test fun `a message snoozed into the future is neither counted nor deleted`() {
         // She put it aside on purpose: it is in no list and in no unread badge. Counting it here
-        // would be the single place it comes back — and since the clause is shared, the delete
+        // would be the single place it comes back, and since the clause is shared, the delete
         // would carry off mail she cannot see anywhere.
         insert("here", from = "a@example.com", seen = 0)
         insert("later", from = "a@example.com", seen = 0)
@@ -310,7 +310,7 @@ class SenderVolumeSqlTest {
     @Test fun `the ids handed to the delete are exactly the ones counted`() {
         // Several senders, several folders, one excluded folder and a sibling account in the
         // way: for every line on screen, the delete acts on exactly as many messages as the line
-        // announced — no more (a folder it should not touch) and no fewer (a case it missed).
+        // announced, no more (a folder it should not touch) and no fewer (a case it missed).
         insert("a1", from = "A@example.com", mailbox = "inbox")
         insert("a2", from = "a@EXAMPLE.com", mailbox = "archive")
         insert("a3", from = "a@example.com", mailbox = "sent") // not counted, not deleted
@@ -337,7 +337,7 @@ class SenderVolumeSqlTest {
 
     @Test fun `both shipped statements carry the same scope clause`() {
         // Read from the annotations, constant resolved: the two statements must contain the
-        // shared clause TEXT, not two clauses that happen to agree today.
+        // shared clause text, not two clauses that happen to agree today.
         val counting = DaoQuerySource.emailDaoQuery("senderVolumes")
         val deleting = DaoQuerySource.emailDaoQuery("senderMessageIds")
         assertTrue(
@@ -348,7 +348,7 @@ class SenderVolumeSqlTest {
             "the id statement no longer contains the shared scope clause:\n$deleting",
             SENDER_VOLUME_SCOPE_SQL in deleting,
         )
-        // And the annotations are still those constants, not inlined copies of them — otherwise
+        // And the annotations are still those constants, not inlined copies of them, otherwise
         // the constants could be edited (and this file's SQLite runs with them) while the app
         // executes something else.
         assertEquals(SENDER_VOLUMES_SQL, counting)

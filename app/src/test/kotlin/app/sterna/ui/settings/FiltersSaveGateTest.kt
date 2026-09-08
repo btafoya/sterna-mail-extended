@@ -6,7 +6,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The Save button of the filters screen, as plain logic so it can be executed rather than read —
+ * The Save button of the filters screen, as plain logic so it can be executed rather than read,
+ * the same treatment as [pendingExitStep] and for the same reason: a rule about when a screen
+ * may act.
  */
 class FiltersSaveGateTest {
 
@@ -20,7 +22,7 @@ class FiltersSaveGateTest {
     }
 
     @Test fun `stopped rules may be saved back even though nothing was edited`() {
-        // THE POINT. This is the state the return from holiday leaves the account in: the screen
+        // The point. This is the state the return from holiday leaves the account in: the screen
         // says the rules are not being applied, and Save is what re-activates the script. Greying
         // it out is telling the truth and locking the door.
         assertTrue(
@@ -31,8 +33,8 @@ class FiltersSaveGateTest {
     }
 
     @Test fun `saving over a script this app could not read asks first`() {
-        // THE OVERWRITE. Save regenerates the whole `sterna` script from the list on screen, and
-        // over an unreadable script that list is EMPTY because nothing could be read out of it: one
+        // The overwrite. Save regenerates the whole `sterna` script from the list on screen, and
+        // over an unreadable script that list is empty because nothing could be read out of it: one
         // tap replaces a hand-written `fileinto` with nothing, on the server, with no way back.
         assertEquals(
             "an unreadable script must send Save through a confirmation, not straight to the write",
@@ -49,7 +51,7 @@ class FiltersSaveGateTest {
 
     @Test fun `the confirmation is a step added, never a door closed`() {
         // Measured: scriptUnreadable and rulesNotRunning cannot both be true (FilterScriptStatus
-        // returns null on `enabledRuleCount == 0`, and an unreadable script yields no rule). This
+        // returns null on `enabledRuleCount == 0`, and an unreadable script yields no rule).
         assertEquals(FiltersSaveStep.CONFIRM_OVERWRITE, filtersSaveStep(scriptUnreadable = true))
         assertTrue(
             "an unreadable script must not grey out Save — that would state the problem and lock " +

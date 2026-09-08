@@ -77,7 +77,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** TEST BUILD ONLY, set back to false before integrating: the welcome and the contacts priming then
+/** Test build only, set back to false before integrating: the welcome and the contacts priming then
  *  appear on every launch regardless of their real gating. */
 const val FORCE_ONBOARDING_PREVIEW = false
 
@@ -120,7 +120,7 @@ class RootViewModel(application: Application) : AndroidViewModel(application) {
         val current = accountStore.currentId()?.takeIf { accountStore.credentials(it) != null }
             ?: accountStore.accounts().firstOrNull { accountStore.credentials(it.id) != null }?.id
         if (current != null && accountStore.currentId() != current) accountStore.setCurrent(current)
-        // Seeded here, and BEFORE the arm: `unifiedInboxVisible` mirrors the list's selection and
+        // Seeded here, and before the arm: `unifiedInboxVisible` mirrors the list's selection and
         // on a cold start there is no list yet, so left at false a launch reopening on "All inboxes"
         // (#179) reseeds fewer accounts than it should. Before, not "inside this call": on the
         // direct branch the flag is read later, on the service's own coroutine.
@@ -130,7 +130,7 @@ class RootViewModel(application: Application) : AndroidViewModel(application) {
         _state.value = RootRoute.resolve(current, accountStore.accountsUnreadable())
     }
 
-    /** Whether the view the app REOPENS on is the unified inbox — asked before the list is composed,
+    /** Whether the view the app reopens on is the unified inbox, asked before the list is composed,
      * by the push arm and by the account switch a notification asks for. It is the memory's
      *  answer, not the screen's: a live list always overrules it. */
     fun restoredUnifiedView(): Boolean = restoredSelection(accountStore) is Sel.Unified
@@ -179,7 +179,7 @@ fun SternaApp(
                 false -> WelcomeScreen(onDone = viewModel::markWelcomeSeen)
                 true -> ConnectScreen(onConnected = viewModel::refresh, firstRun = true)
             }
-            // Deliberately not gated on hasSeenWelcome — this is not a first run.
+            // Deliberately not gated on hasSeenWelcome, this is not a first run.
             RootState.AccountsUnreadable -> AccountsUnreadableScreen()
             // No key(accountId): switching updates currentAccountId in place, so the drawer's
             // carousel stays open across it.
@@ -229,7 +229,7 @@ private fun MainNavHost(
     onUnifiedOpenConsumed: () -> Unit = {},
 ) {
     val nav = rememberNavController()
-    // The window WIDTH decides whether a reading pane sits beside the list (#103), never the
+    // The window width decides whether a reading pane sits beside the list (#103), never the
     // orientation. null = one pane.
     val panes = paneSplit(LocalConfiguration.current.screenWidthDp)
     // A tapped mailto: opens the composer prefilled (#15), consumed at once so a recomposition
@@ -237,7 +237,7 @@ private fun MainNavHost(
     LaunchedEffect(pendingMailto) {
         val m = pendingMailto ?: return@LaunchedEffect
         onMailtoConsumed()
-        // unguarded: a single consumption, not a repeatable tap — dropping it would lose the
+        // unguarded: a single consumption, not a repeatable tap. Dropping it would lose the
         // user's action rather than de-duplicate it. See navigateOnce's KDoc.
         nav.navigate(
             "compose?to=${Uri.encode(m.to)}&cc=${Uri.encode(m.cc)}&bcc=${Uri.encode(m.bcc)}" +
@@ -247,7 +247,7 @@ private fun MainNavHost(
     // The inbox's own ViewModel, so the notification path can ask what the list behind shows.
     // Deliberately not remembered and not collected as state, so it neither subscribes this host to
     // every list update nor caches a stale answer. Null until the NavHost has composed its start
-    // destination — NOT a moment where the answer is known to be "a plain folder" (#179).
+    // destination, not a moment where the answer is known to be "a plain folder" (#179).
     val listHostEntry = runCatching { nav.getBackStackEntry("inbox") }.getOrNull()
     val listViewModel: InboxViewModel? = listHostEntry?.let { viewModel(it) }
     // The folder half of the same rule (#91), handed to the list rather than applied here: the
@@ -276,7 +276,7 @@ private fun MainNavHost(
         // Wide window with the list on screen: the reading pane (#103); anywhere else the reader
         // stacks. [PaneOrders] owns that verdict: do not inline it.
         when (PaneOrders.emailOpen(panes != null, nav.currentBackStack.value.map { it.destination.route })) {
-            // unguarded: a single consumption, and it can arrive mid-transition — adding the guard
+            // unguarded: a single consumption, and it can arrive mid-transition. Adding the guard
             // here could lose the opening of a notification the user just tapped.
             EmailOpenOrder.Navigate -> nav.navigate(
                 "message/${Uri.encode(target.emailId)}?accountId=${Uri.encode(target.accountId.orEmpty())}",
@@ -297,8 +297,8 @@ private fun MainNavHost(
         // what is in it, and must not depend on which effect lands first (#103).
         list.showFolderFromNotification(target.accountId.orEmpty(), target.mailboxId.orEmpty(), target.emailId)
     }
-    // Declared AFTER the folder effect so the folder switch lands first. remember, never
-    // rememberSaveable — same reason as [heldUnifiedOpen] below.
+    // Declared after the folder effect so the folder switch lands first. remember, never
+    // rememberSaveable, same reason as [heldUnifiedOpen] below.
     LaunchedEffect(pendingPaneOpen, listViewModel) {
         val anchor = pendingPaneOpen ?: return@LaunchedEffect
         val list = listViewModel ?: return@LaunchedEffect
@@ -313,9 +313,9 @@ private fun MainNavHost(
     // re-derives the unified scopes, rewrites the header meta and refreshes, where "just move the
     // selection" leaves the previous folder's name over a stale list.
     //
-    // The order is CONSUMED FIRST and held until the list exists: [listViewModel] is looked up
+    // The order is consumed first and held until the list exists: [listViewModel] is looked up
     // imperatively, so on a cold start an effect that returned would return for good. remember,
-    // NEVER rememberSaveable — a held `true` surviving a rotation would re-navigate over whatever
+    // never rememberSaveable, a held `true` surviving a rotation would re-navigate over whatever
     // the user is reading. While held this is the only copy.
     var heldUnifiedOpen by remember { mutableStateOf(false) }
     LaunchedEffect(pendingUnifiedOpen, heldUnifiedOpen, listViewModel) {
@@ -330,13 +330,13 @@ private fun MainNavHost(
                 heldUnifiedOpen = false
                 val list = listViewModel ?: return@LaunchedEffect
                 list.selectUnified()
-                // selectUnified() moves the list, a destination BELOW whatever is on screen, so the
-                // reader is unwound too — and only the reader. The whole stack is handed over:
+                // selectUnified() moves the list, a destination below whatever is on screen, so the
+                // reader is unwound too, and only the reader. The whole stack is handed over:
                 // popBackStack("inbox") drops everything above the list, taking search results or a
                 // live draft with it. [WidgetTapNavigation] owns that verdict.
                 val stack = nav.currentBackStack.value.map { it.destination.route }
                 if (WidgetTapNavigation.from(stack) == WidgetTapReturn.BackToList) {
-                    // unguarded: a one-shot order, already consumed above — navigateOnce's
+                    // unguarded: a one-shot order, already consumed above. navigateOnce's
                     // de-duplication would drop it on a mid-transition tap rather than protect
                     // anything. Same reason as the mailto: and notification effects above.
                     nav.popBackStack("inbox", inclusive = false)
@@ -383,7 +383,7 @@ private fun MainNavHost(
                     if (panes != null) inboxViewModel.openInPane(anchor)
                     else entry.navigateOnce { nav.navigate(anchor.toRoute(Uri::encode)) }
                 },
-                // A message tapped inside an expanded conversation reads in the context of THAT
+                // A message tapped inside an expanded conversation reads in the context of that
                 // conversation, so the reader stops at its ends (#13). The key travels
                 // account-qualified, a bare thread id having let the reader page over the sibling
                 // account's homonymous conversation (#92).
@@ -451,7 +451,7 @@ private fun MainNavHost(
                 navArgument("thread") { type = NavType.StringType; nullable = true; defaultValue = null },
             ),
             // A short soft cross-fade on open and close, unless [NavFadeGuard] has latched after a
-            // fade-window crash (#10) or reduced motion is on — symmetrically, so there is no
+            // fade-window crash (#10) or reduced motion is on, symmetrically, so there is no
             // half-animated open/close (#100).
             enterTransition = {
                 if (messageFadeDisabled || !motionEnabled) EnterTransition.None else fadeIn(tween(200))
@@ -467,8 +467,8 @@ private fun MainNavHost(
             // The conversation key exactly as the route carries it; [threadKey] below is decoded.
             val threadArg = entry.arguments?.getString("thread")?.let { Uri.decode(it) }?.ifBlank { null }
             // The other half of the width conversion (#103): a rotation restores this reader full
-            // screen over a list that is now two panes wide. The reader is NOT composed on this
-            // pass: a second MessageViewModel would settle the message twice — a read receipt
+            // screen over a list that is now two panes wide. The reader is not composed on this
+            // pass: a second MessageViewModel would settle the message twice, a read receipt
             // offered twice, a second decryption, a message marked read from a screen nobody saw.
             val stack = remember(entry) { nav.currentBackStack.value.map { it.destination.route } }
             if (PaneConversion.readerToPane(panes != null, stack)) {
@@ -563,7 +563,7 @@ private fun MainNavHost(
                 navArgument("replyTo") { type = NavType.StringType; nullable = true; defaultValue = null },
                 // A saved draft reopened for editing (#63).
                 navArgument("draftId") { type = NavType.StringType; nullable = true; defaultValue = null },
-                // A queued row reopened by Outbox → Edit (#70), the twin of draftId: the id rides in
+                // A queued row reopened by Edit from the Outbox (#70), the twin of draftId: the id rides in
                 // the route, which is what Android restores after a process death.
                 navArgument("outboxId") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("mode") { type = NavType.StringType; nullable = true; defaultValue = null },
@@ -590,7 +590,7 @@ private fun MainNavHost(
                     onDone = { entry.navigateOnce { nav.popBackStack("inbox", inclusive = false) } },
                     onCancel = { entry.navigateOnce { nav.popBackStack() } },
                     // A single pop, like onCancel: the Drafts list is where the "Message deleted /
-                    // Undo" snackbar has to appear. The draft is TAKEN inside the guard (#127):
+                    // Undo" snackbar has to appear. The draft is taken inside the guard (#127):
                     // takeEditingDraft() hands the row over exactly once, so consuming it outside
                     // meant a tap the guard drops threw the draft away without deleting anything.
                     onDeleteDraft = { take ->

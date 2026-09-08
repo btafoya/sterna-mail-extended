@@ -11,7 +11,8 @@ import java.io.File
 class SettingChoiceDialogScrollTest {
 
     /**
-     * G1 — the scroll is on THE `Column` of the `text` slot, pinned by WHOLE-LINE equality on the
+     * G1, the scroll is on the `Column` of the `text` slot, pinned by whole-line equality on the
+     * slot's opening line.
      */
     @Test fun `the option list scrolls instead of being crushed against the bottom`() {
         val slot = choiceSlot()
@@ -43,7 +44,7 @@ class SettingChoiceDialogScrollTest {
     }
 
     /**
-     * G2 — nothing beside the scroll may bound the list again.
+     * G2, nothing beside the scroll may bound the list again.
      */
     @Test fun `nothing else pins the option list back to a fixed height`() {
         val slot = choiceSlot()

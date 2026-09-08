@@ -4,11 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * WHAT THE BODY FETCHES ACTUALLY PUT ON THE WIRE — the three of them, line for line.
+ * What the body fetches actually put on the wire, the three of them, line for line.
  */
 class BodyPeekOnTheWireTest {
 
-    /** A FETCH answer carrying [body] for [item] (`BODY[1]<0>`, `BODY[2]`, `BODY[]`). */
+    /** A FETCH answer carrying [body] for [item] (`body[1]<0>`, `body[2]`, `body[]`). */
     private fun bodyResponse(tag: String, item: String, body: String): String =
         "* 1 FETCH (UID 7 $item {${body.length}}\r\n$body)\r\n$tag OK fetched\r\n"
 
@@ -65,7 +65,7 @@ class BodyPeekOnTheWireTest {
     }
 
     /**
-     * THE UNPROVEN CLAIM, proven: a PARTIAL fetch has never been made by this app, and the code
+     * The unproven claim, proven: a partial fetch has never been made by this app, and the code
      */
     @Test fun `the partial answer is recognised, and its octets come back`() {
         var fetched: String? = null
@@ -77,7 +77,7 @@ class BodyPeekOnTheWireTest {
     }
 
     /**
-     * "At most 8 KiB" must be TRUE, not merely REQUESTED. `<0.8192>` is a request; nothing above
+     * "At most 8 KiB" must be TRUE, not merely requested. `<0.8192>` is a request; nothing above
      */
     @Test fun `an over-long answer is cut to the bound the client asked for`() {
         val huge = "A".repeat(20_000)
@@ -102,7 +102,7 @@ class BodyPeekOnTheWireTest {
     }
 
     /**
-     * A server that answers something else must yield NOTHING. The item list opens with `UID 7`,
+     * A server that answers something else must yield nothing.
      */
     @Test fun `a FETCH with no body item yields nothing at all`() {
         var fetched: String? = null
@@ -114,7 +114,7 @@ class BodyPeekOnTheWireTest {
     }
 
     /**
-     * `BODY[] NIL` — the item is THERE and names nothing. `ImapParser` tokenises NIL as a Kotlin
+     * `body[] NIL`, the item is there and names nothing. `ImapParser` tokenises NIL as a Kotlin
      */
     @Test fun `a source answered as BODY NIL yields nothing`() {
         var fetched: String? = null

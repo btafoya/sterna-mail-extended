@@ -2,6 +2,7 @@ package app.sterna.core.data.text
 
 /**
  * [name] proposed to the picker for an attachment: sanitised like [safeFileName], but with its
+ * extension kept.
  */
 fun attachmentFileName(name: String?): String {
     val raw = name.orEmpty().trim()

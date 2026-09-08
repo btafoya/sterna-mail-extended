@@ -21,7 +21,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * A chip and its unfold must still agree A MINUTE AFTER the row was opened.
+ * A chip and its unfold must still agree A minute after the row was opened.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ThreadMemberStreamTest {
@@ -30,7 +30,7 @@ class ThreadMemberStreamTest {
     private class Cache {
         val rows = MutableStateFlow<List<Email>>(emptyList())
 
-        /** Reads that were opened — a subscription per (thread, scope), as Room would give. */
+        /** Reads that were opened, a subscription per (thread, scope), as Room would give. */
         var opened = 0
 
         /** `EmailDao.cachedThreadEmails`: one account, these folders, this thread, newest first. */
@@ -40,14 +40,14 @@ class ThreadMemberStreamTest {
         }
 
         /**
-         * The chip: the same messages, counted rather than listed — the shipped SQL's `c`
+         * The chip: the same messages, counted rather than listed, the shipped SQL's `c`
          * sub-query for one thread (`conversationSql`, exercised for real in core:data).
          */
         fun chip(scope: ListScope, key: ThreadKey): Int =
             members(rows.value, key.accountId.orEmpty(), scope.folders(key.accountId), key.threadId).size
 
         /**
-         * The message the collapsed row draws: the shipped SQL's `g` sub-query — MAX(sortKey) over
+         * The message the collapsed row draws: the shipped SQL's `g` sub-query, MAX(sortKey) over
          */
         fun representative(scope: ListScope, key: ThreadKey): Email? =
             members(rows.value, key.accountId.orEmpty(), scope.viewedMailboxIds, key.threadId).firstOrNull()
@@ -107,7 +107,9 @@ class ThreadMemberStreamTest {
     }
 
     /**
-     * What the screen currently holds, kept up to date by a collection running beside the test —
+     * What the screen currently holds, kept up to date by a collection running beside the test,
+     * the [InboxViewModel] collector in other words. Unconfined, so an emission lands the moment
+     * the table or the scope is written.
      */
     private fun TestScope.draw(flow: () -> Flow<Map<ThreadKey, List<Email>>>): MutableStateFlow<Map<ThreadKey, List<Email>>> {
         val out = MutableStateFlow<Map<ThreadKey, List<Email>>>(emptyMap())
@@ -119,7 +121,7 @@ class ThreadMemberStreamTest {
 
     @Test fun `a Sent folder resolved after the row was opened is listed under it`() = runTest {
         // A fresh install: the folder cache has not synced yet, so the chip and the unfold both
-        // start on the smaller, honest conversation — two messages. Then the first folder sync
+        // start on the smaller, honest conversation, two messages. Then the first folder sync
         // lands and the resolution grows the chip to three.
         val cache = Cache().apply { anAnsweredThread() }
         val expanded = MutableStateFlow(setOf(key))
@@ -132,7 +134,7 @@ class ThreadMemberStreamTest {
 
         // The row is still open when the Sent folder finally resolves.
         val onceSynced = ListScope(listOf("inbox"), listOf("accA" to "sentbox"))
-        // The witness: the reading the old code kept — taken when the row opened, and kept.
+        // The witness: the reading the old code kept, taken when the row opened, and kept.
         val snapshotAtUnfold = drawn.value[key].orEmpty()
 
         scope.value = onceSynced
@@ -160,8 +162,8 @@ class ThreadMemberStreamTest {
         advanceUntilIdle()
 
         assertEquals(4, cache.chip(scope.value, key))
-        // in3 is newer than in2, so it becomes the message the ROW draws, and what goes beneath is
-        // the rest of the conversation — in2 included, se1 first, nothing twice.
+        // in3 is newer than in2, so it becomes the message the row draws, and what goes beneath is
+        // the rest of the conversation, in2 included, se1 first, nothing twice.
         assertEquals(listOf("in3", "se1", "in2", "in1"), cache.screen(scope.value, drawn.value))
     }
 
@@ -186,8 +188,8 @@ class ThreadMemberStreamTest {
         assertTrue("the displaced representative must still be listed: $onScreen", "in2" in onScreen)
         assertEquals("one row plus its members must come to the chip", cache.chip(scope.value, key), onScreen.size)
 
-        // The witness: the same reading, subtracted with the representative recorded at the tap —
-        // in3 drawn on the row AND listed under it, in2 gone, and the count still 4, which is
+        // The witness: the same reading, subtracted with the representative recorded at the tap,
+        // in3 drawn on the row and listed under it, in2 gone, and the count still 4, which is
         // exactly why this survived a chip that had just been made truthful.
         val stale = listOf("in3") +
             ConversationExpansion.membersBelow(drawn.value[key].orEmpty(), recordedAtUnfold).map { it.id }
@@ -198,7 +200,7 @@ class ThreadMemberStreamTest {
 
     @Test fun `a representative that leaves the folder hands its row to the next message`() = runTest {
         // Opened from the conversation and archived from the reader: the row must fall back on the
-        // newest message left, and list the others once each — not keep subtracting a message the
+        // newest message left, and list the others once each, not keep subtracting a message the
         // folder no longer holds and show one member too many under a chip that has already
         // dropped it.
         val cache = Cache().apply { anAnsweredThread() }
@@ -215,7 +217,7 @@ class ThreadMemberStreamTest {
 
     @Test fun `a member that leaves the viewed folders leaves the unfolded list`() = runTest {
         // Deleted from another client, or by this one: the conversation is folder-scoped, so the
-        // member belongs to Trash's conversation now — and the chip has already stopped counting it.
+        // member belongs to Trash's conversation now, and the chip has already stopped counting it.
         val cache = Cache().apply { anAnsweredThread() }
         val scope = MutableStateFlow(ListScope(listOf("inbox"), listOf("accA" to "sentbox")))
         val drawn = draw { stream(cache, MutableStateFlow(setOf(key)), scope) }
@@ -230,7 +232,7 @@ class ThreadMemberStreamTest {
 
     @Test fun `folding and unfolding again reads the conversation, it does not replay it`() = runTest {
         // The old members map was only ever emptied on a folder or account change, so a row folded
-        // and opened again showed whatever was loaded the first time — however old.
+        // and opened again showed whatever was loaded the first time, however old.
         val cache = Cache().apply { anAnsweredThread() }
         val expanded = MutableStateFlow(setOf(key))
         val scope = MutableStateFlow(ListScope(listOf("inbox"), listOf("accA" to "sentbox")))
@@ -252,7 +254,7 @@ class ThreadMemberStreamTest {
 
     @Test fun `a conversation of another account keeps its own Sent folder in the unified list`() = runTest {
         // #92, on the live path: two accounts, one thread id, one Sent folder each. Each row must
-        // be read with ITS account's folders, whichever account is current.
+        // be read with its account's folders, whichever account is current.
         val cache = Cache()
         cache.put(mail("a1", "inbox", "2026-07-01T09:00:00Z"))
         cache.put(mail("aSent", "sentA", "2026-07-01T10:00:00Z"))
@@ -266,7 +268,7 @@ class ThreadMemberStreamTest {
         assertEquals(listOf("a1", "aSent"), cache.screen(scope.value, drawn.value))
         assertEquals(listOf("b1", "bSent"), cache.screen(scope.value, drawn.value, keyB))
 
-        // The witness: scoped to A's Sent folder alone, B's row would list nothing — so the two
+        // The witness: scoped to A's Sent folder alone, B's row would list nothing, so the two
         // rows are genuinely being read with different folders and not with one pooled set.
         val onlyA = ListScope(listOf("inbox"), listOf("accA" to "sentA"))
         assertEquals(1, cache.chip(onlyA, keyB))
@@ -320,8 +322,11 @@ class ThreadMemberStreamTest {
     // -- a snooze hides a member, and stops hiding it by itself ------------------------------
 
     @Test fun `a snoozed member leaves the unfolded row and comes back when the snooze lapses`() = runTest {
-        // The chip's SQL excludes snoozed messages, so the list beneath it must too — and, because
-        // the snooze is a row in another table, the unfold has to WATCH that table: the members are
+        // The chip's SQL excludes snoozed messages, so the list beneath it must too, and, because
+        // the snooze is a row in another table, the unfold has to watch that table: the members are
+        // read from `emails` alone and nothing there changes when a snooze starts or ends. The
+        // reader's report was the second half: the chip came back up at the due date and the
+        // message never came back under the row.
         val cache = Cache().apply { anAnsweredThread() }
         val scope = MutableStateFlow(ListScope(listOf("inbox"), listOf("accA" to "sentbox")))
         val snoozed = MutableStateFlow(emptySet<EmailKey>())
@@ -379,7 +384,7 @@ class ThreadMemberStreamTest {
 
     @Test fun `a mask comes down after a call that removed nothing at all`() = runTest {
         // "Snooze" from the selection bar: it writes a date and leaves the message where it is, so
-        // the mask was the only thing keeping it off the screen — and it kept it off for good,
+        // the mask was the only thing keeping it off the screen, and it kept it off for good,
         // past the due date the chip had already counted it back in. The mask now ends with the
         // call, and what hides the message afterwards is the snooze, which ends by itself.
         val cache = Cache().apply { anAnsweredThread() }
@@ -463,7 +468,7 @@ class ThreadMemberStreamTest {
     // -- the two repository queries the whole unfold rests on --------------------------------
 
     /**
-     * Neither of the next two cases pins the shipped code — they are WITNESSES, and they are here
+     * Neither of the next two cases pins the shipped code, they are WITNESSES, and they are here
      */
     @Test fun `an emptied member query lists nothing under a chip that still counts three`() = runTest {
         val cache = Cache().apply { anAnsweredThread() }
@@ -481,7 +486,7 @@ class ThreadMemberStreamTest {
         advanceUntilIdle()
 
         assertEquals(3, cache.chip(scope.value, key))
-        // The row draws its representative — the paging query is a different reading — and under
+        // The row draws its representative (the paging query is a different reading) and under
         // it, nothing. A chip of 3 over an unfold of 1, with no test in this repository failing.
         assertEquals(listOf("in2"), cache.screen(scope.value, drawn.value))
         assertEquals(0, cache.opened)
@@ -494,7 +499,7 @@ class ThreadMemberStreamTest {
         val drawn = draw { stream(cache, MutableStateFlow(setOf(key)), scope, flowOf(emptySet())) }
         advanceUntilIdle()
 
-        // in1 IS snoozed as far as the rest of the app is concerned — the chip's SQL leaves it out.
+        // in1 IS snoozed as far as the rest of the app is concerned, the chip's SQL leaves it out.
         val chipExcludingSnoozed = cache.chip(scope.value, key) - 1
         assertEquals(2, chipExcludingSnoozed)
         assertEquals(3, cache.screen(scope.value, drawn.value).size)
@@ -562,7 +567,7 @@ class ThreadMemberStreamTest {
         assertEquals(listOf("inbox"), scope.folders("accC"))
         assertEquals(emptyList<String>(), ListScope().folders("accA"))
 
-        // And a scope that resolves nothing still lists the folder on screen — the smaller, honest
+        // And a scope that resolves nothing still lists the folder on screen, the smaller, honest
         // conversation both sides then show.
         val cache = Cache().apply { anAnsweredThread() }
         assertEquals(listOf("in2", "in1"), cache.read("accA", ListScope(listOf("inbox")).folders("accA"), "T1").first().map { it.id })

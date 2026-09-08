@@ -30,7 +30,7 @@ class ImapIdleConnection(
             // Connection error or closed mid-IDLE; handled by onClosed below.
         } finally {
             runCatching { session?.close() }
-            if (running) onClosed() // dropped unexpectedly — let the owner reconnect
+            if (running) onClosed() // dropped unexpectedly, let the owner reconnect
         }
     }
 

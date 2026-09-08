@@ -37,7 +37,7 @@ class UnsavedExitTest {
 
     @Test fun aRefusedSaveStaysOnTheScreen() {
         // The server said no (or the dates are back to front): the edits are still unwritten, and
-        // leaving here would lose them exactly as the missing guard did — with the error out of
+        // leaving here would lose them exactly as the missing guard did, with the error out of
         // sight, which would read as a success.
         assertEquals(
             PendingExit.STAY,

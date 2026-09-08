@@ -33,9 +33,9 @@ class PgpArmorIsCrlfTest {
 
     @Test
     fun `an entity already queued on disk is repaired at the delivery seam`() {
-        // The case a fix in PgpMime alone does NOT cover: this entity was built by an older
+        // The case a fix in PgpMime alone does not cover: this entity was built by an older
         // version, written to files/outbox/<id>/prebuilt-entity.mime, and is read back verbatim.
-        // Nothing will ever rebuild it — the seam is the only place left to make it conforming.
+        // Nothing will ever rebuild it, the seam is the only place left to make it conforming.
         val queued = "Content-Type: multipart/encrypted; boundary=\"B\"\r\n\r\n--B\n" +
             String(bareLfArmor("MESSAGE"), Charsets.US_ASCII) + "--B--\n"
 
@@ -48,8 +48,8 @@ class PgpArmorIsCrlfTest {
     @Test
     fun `a signed entity crosses the delivery seam with its signed bytes intact`() {
         // The property the whole change puts at risk, and the only test that exercises it end to
-        // end: canonicalising AT THE SEAM must not disturb the octets the signature covers.
-        // A long body on purpose — the base64 is folded, so the signed payload is many lines and
+        // end: canonicalising at the seam must not disturb the octets the signature covers.
+        // A long body on purpose, the base64 is folded, so the signed payload is many lines and
         // there are separators to get wrong.
         val payload = PgpMime.signablePayload(OutgoingMime.buildBodyEntity(pgpMessage().copy(body = LONG_BODY)))
         val entity = PgpMime.wrapSigned(payload, bareLfArmor("SIGNATURE"), "pgp-sha256", "BND_SEAM")
@@ -69,8 +69,7 @@ class PgpArmorIsCrlfTest {
 
     @Test
     fun `a bare CR inside signed bytes crosses the seam untouched`() {
-        // The one thing canonicalisation must NOT tidy up. An entity signed before dee4a346
-        // and still sitting in the outbox contains "\r\r\n" INSIDE the octets the signature was
+        // The one thing canonicalisation must not tidy up.
         val queued = "Content-Type: text/plain\r\n\r\nsigned line one\r\r\nsigned line two\r\n"
 
         val mime = OutgoingMime.build(pgpMessage().copy(prebuiltEntity = queued))
@@ -101,7 +100,7 @@ class PgpArmorIsCrlfTest {
 }
 
 /**
- * The lines of a provider armor, as literals — the ONE description of the fixture, from which both
+ * The lines of a provider armor, as literals, the one description of the fixture, from which both
  */
 internal fun armorLines(kind: String): List<String> = buildList {
     add("-----BEGIN PGP $kind-----")
@@ -120,7 +119,7 @@ internal fun bareLfArmor(kind: String): ByteArray =
 internal fun expectedCrlfArmor(kind: String): String =
     armorLines(kind).joinToString(separator = "\r\n", postfix = "\r\n")
 
-/** Every `\n` that is not preceded by `\r` — what a hardened relay counts and refuses. */
+/** Every `\n` that is not preceded by `\r`, what a hardened relay counts and refuses. */
 internal fun bareLfOffsets(s: String): List<Int> =
     s.indices.filter { s[it] == '\n' && (it == 0 || s[it - 1] != '\r') }
 
@@ -135,7 +134,7 @@ internal fun assertNoBareLf(what: String, s: String) {
 }
 
 /**
- * The WHOLE armor, byte for byte, as one CRLF block — not a line-by-line search.
+ * The whole armor, byte for byte, as one CRLF block, not a line-by-line search.
  */
 internal fun assertArmorIsIntact(kind: String, produced: String) {
     val expected = expectedCrlfArmor(kind)

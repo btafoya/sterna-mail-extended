@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * EXECUTES the choice of what an [AccountGoneException] is allowed to claim, and pins the sentence
+ * Executes the choice of what an [AccountGoneException] is allowed to claim, and pins the sentence
  */
 class AccountGoneCauseTest {
 

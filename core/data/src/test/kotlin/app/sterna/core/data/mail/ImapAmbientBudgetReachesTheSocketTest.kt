@@ -19,7 +19,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
- * **That the budget installed on the COROUTINE actually reaches the socket** (#95) — a real
+ * **That the budget installed on the coroutine actually reaches the socket** (#95), a real
  */
 class ImapAmbientBudgetReachesTheSocketTest {
 
@@ -27,7 +27,7 @@ class ImapAmbientBudgetReachesTheSocketTest {
     fun `an APPEND under an ambient budget gives up on a mute server, in the budget`() {
         muteServer().use { server ->
             // On a thread of its own, exactly as the witness below, and for the same reason: what
-            // is under test is whether this call COMES BACK. Made on the test's own thread, a
+            // is under test is whether this call comes back. Made on the test's own thread, a
             // budget that never reached the socket would park the suite on the socket too and be
             // reported, minutes later, as a timeout rather than as the assertion it is.
             val outcome = appendOnItsOwnThread(server) { ImapReadBudget(BUDGET_MS) }
@@ -56,12 +56,12 @@ class ImapAmbientBudgetReachesTheSocketTest {
 
     @Test(timeout = 30_000)
     fun `the witness - without the element the same call never comes back`() {
-        // THE witness, and without it the test above proves nothing: a server that answered
+        // The witness, and without it the test above proves nothing: a server that answered
         // quickly, an APPEND that failed for another reason, or a budget that was never consulted
-        // would all produce the same green. So: the same server, the same call, no context element
-        // — and it must NOT return.
+        // would all produce the same green. So: the same server, the same call, no context element,
+        // and it must not return.
         //
-        // Bounded on the TEST side only, and it has to be: there is no bound on the app side,
+        // Bounded on the test side only, and it has to be: there is no bound on the app side,
         // which is the whole point. The call is made on a daemon thread that is knowingly left
         muteServer().use { server ->
             val outcome = appendOnItsOwnThread(server) { EmptyCoroutineContext }
@@ -83,7 +83,7 @@ class ImapAmbientBudgetReachesTheSocketTest {
     }
 
     /**
-     * `appendDraft` against [server] under [context], on a DAEMON thread.
+     * `appendDraft` against [server] under [context], on a daemon thread.
      */
     private fun appendOnItsOwnThread(
         server: ScriptedImapServer,
@@ -93,9 +93,9 @@ class ImapAmbientBudgetReachesTheSocketTest {
         Thread {
             outcome.thrown = runCatching {
                 runBlocking {
-                    // NOTHING is passed to appendDraft: it names no budget, and it cannot — the
+                    // Nothing is passed to appendDraft: it names no budget, and it cannot, the
                     // same call serves the interactive save. The bound, when there is one, is on
-                    // the CONTEXT, exactly as MailRepository.uploadLocalDraft installs it.
+                    // the context, exactly as MailRepository.uploadLocalDraft installs it.
                     withContext(context()) { service().appendDraft(credentials(server), DRAFTS, message()) }
                 }
             }.exceptionOrNull()
@@ -105,7 +105,7 @@ class ImapAmbientBudgetReachesTheSocketTest {
     }
 
     /**
-     * A server that greets, logs in, takes the `APPEND` literal — and then answers NOTHING.
+     * A server that greets, logs in, takes the `APPEND` literal, and then answers nothing.
      */
     private fun muteServer() = ScriptedImapServer { tag, line ->
         when {
@@ -140,6 +140,8 @@ class ImapAmbientBudgetReachesTheSocketTest {
 
         /**
          * Short on purpose: the shipped value is a minute ([LOCAL_DRAFT_UPLOAD_BUDGET_MS]) and a
+         * test that waited it out would be a minute of bench time per run. What is under test is
+         * that the number reaches the socket, not which number it is.
          */
         const val BUDGET_MS = 500
 

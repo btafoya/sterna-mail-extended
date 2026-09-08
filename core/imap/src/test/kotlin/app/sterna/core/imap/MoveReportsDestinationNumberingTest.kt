@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * What a move brings back about the folder the mail LANDED in — the numbering `COPYUID` states
+ * What a move brings back about the folder the mail landed in, the numbering `COPYUID` states
  */
 class MoveReportsDestinationNumberingTest {
 
@@ -34,7 +34,7 @@ class MoveReportsDestinationNumberingTest {
         }
     }
 
-    /** The single-message move is written over the plural, and must answer both halves too — it
+    /** The single-message move is written over the plural, and must answer both halves too, it
      *  is the one "delete" takes on an account with a Trash. */
     @Test fun `a single-message move reports the destination's numbering as well`() {
         FakeImapServer { tag, line ->
@@ -80,7 +80,9 @@ class MoveReportsDestinationNumberingTest {
     }
 
     /**
-     * THE GUARD THAT MUST NOT MOVE: a server reporting no COPYUID at all. The move happened,
+     * The guard that must not MOVE: a server reporting no COPYUID at all. The move happened,
+     * the mapping is empty, and the numbering is nothing, which upstairs means the id gets no
+     * Undo entry and the Undo of it is lost in silence, exactly as before. Turning "no COPYUID"
      */
     @Test fun `a server that reports no COPYUID states no numbering either`() {
         FakeImapServer { tag, line ->
@@ -128,7 +130,7 @@ class MoveReportsDestinationNumberingTest {
     }
 
     /**
-     * A move too big for one command is several `UID MOVE`s, so several COPYUIDs — all naming one
+     * A move too big for one command is several `UID MOVE`s, so several COPYUIDs, all naming one
      * destination folder. Agreeing, they state one numbering, and that is the answer.
      */
     @Test fun `several chunks agreeing on a numbering state that one numbering`() {
@@ -145,7 +147,10 @@ class MoveReportsDestinationNumberingTest {
     }
 
     /**
-     * And chunks that DISAGREE state nothing: the destination was renumbered in the middle of the
+     * And chunks that disagree state nothing: the destination was renumbered in the middle of the
+     * move, so no single number is true of the whole mapping. Null refuses everywhere it is later
+     * opposed, which is the only safe answer, an Undo that cannot say which numbering its UIDs
+     * belong to must not go out under either of them.
      */
     @Test fun `chunks disagreeing about the numbering state none`() {
         var seen = 0
@@ -169,7 +174,7 @@ class MoveReportsDestinationNumberingTest {
         }
     }
 
-    /** Enough UIDs to span several `UID MOVE` chunks — the same span [ExpungeTest] uses. */
+    /** Enough UIDs to span several `UID MOVE` chunks, the same span [ExpungeTest] uses. */
     private val manyUids = (1L..450L).toList()
 
     /** A server that answers each `UID MOVE` chunk with a COPYUID mapping the set onto itself, and

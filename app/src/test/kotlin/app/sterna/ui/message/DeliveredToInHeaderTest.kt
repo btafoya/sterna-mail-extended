@@ -5,7 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * [deliveredToInHeader], EXECUTED — whether the open message's header gets a third line naming
+ * [deliveredToInHeader], executed, whether the open message's header gets a third line naming
  */
 class DeliveredToInHeaderTest {
 
@@ -24,7 +24,9 @@ class DeliveredToInHeaderTest {
     }
 
     /**
-     * THE trap this guard exists for. `accountAddresses(identities, username)` is
+     * The trap this guard exists for. `accountAddresses(identities, username)` is
+     * `identities.map { it.email } + listOfNotNull(username)`, and its own comment says the
+     * duplicates are deliberate, every other caller asks "is X in this list", never "how many".
      */
     @Test fun `one address listed twice is still one address`() {
         assertNull(deliveredToInHeader("moi@ex.test", listOf("moi@ex.test", "moi@ex.test"), false))
@@ -59,6 +61,8 @@ class DeliveredToInHeaderTest {
 
     /**
      * The spelling the message used is the spelling shown. Case folding is how two entries are
+     * counted; it is never how one is displayed, the reader is being told which of her own
+     * addresses a correspondent wrote to, and that is her address as it was written.
      */
     @Test fun `the delivered address keeps its own spelling`() {
         assertEquals(
@@ -69,21 +73,23 @@ class DeliveredToInHeaderTest {
 
     /**
      * Only entries that look like an address are counted. An identity may carry an empty or
-     * non-address e-mail, and two distinct STRINGS are not two addresses.
+     * non-address e-mail, and two distinct strings are not two addresses.
      */
     @Test fun `an entry with no at-sign is not a second address`() {
         assertNull(deliveredToInHeader("theo@ex.test", listOf("theo@ex.test", "theo"), false))
     }
 
     /**
-     * THE reason this parameter is the IDENTITY list and not `accountAddresses`. Shared hosting
+     * The reason this parameter is the identity list and not `accountAddresses`. Shared hosting
      */
     @Test fun `a login that is a different address is not in this list at all`() {
         assertNull(deliveredToInHeader("moi@mondomaine.tld", listOf("moi@mondomaine.tld"), false))
     }
 
     /**
-     * An outgoing message has no arrival. Sent and Drafts are shown by their RECIPIENTS, and
+     * An outgoing message has no arrival. Sent and Drafts are shown by their recipients, and
+     * `receivingAddress` scans To+Cc without knowing the folder, so mail you addressed or copied
+     * to one of your own addresses would be captioned "Received at" though nobody received it.
      */
     @Test fun `the reader's own message never gets an arrival line`() {
         assertNull(deliveredToInHeader("alias@ex.test", twoAddresses, true))
@@ -95,7 +101,9 @@ class DeliveredToInHeaderTest {
     }
 
     /**
-     * The label asserts the address is YOURS. Today's only caller cannot produce anything else,
+     * The label asserts the address is yours. Today's only caller cannot produce anything else,
+     * but a raw `Delivered-To` header (the obvious next source) can, and it must not be shown
+     * under this label.
      */
     @Test fun `an address that is not one of yours gets no line`() {
         assertNull(deliveredToInHeader("tiers@ailleurs.test", listOf("moi@ex.test", "alias@ex.test"), false))
