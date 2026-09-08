@@ -15,8 +15,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -168,7 +170,7 @@ fun SternaApp(
         return
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         when (val s = state) {
             RootState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                 LoadingRing()
@@ -350,8 +352,8 @@ private fun MainNavHost(
     // rememberMotionEnabled() is @Composable, so it is captured here and read inside the transition
     // lambdas, which do not run in a composable context.
     val motionEnabled = rememberMotionEnabled()
-    // Instant transitions by default: the cross-fade sticks on the bare window background during
-    // rapid back/forth navigation. The message route opts back into a soft fade.
+    // Instant transitions by default; the message route is the one that opts into a soft fade.
+    // A fade composites over the app background painted at the root, never the window background.
     NavHost(
         navController = nav,
         startDestination = "inbox",
