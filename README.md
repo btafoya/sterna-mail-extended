@@ -191,8 +191,9 @@ confirmation, and release builds are reproducible and checked by F-Droid
 against the published source.
 
 AI coding assistants are part of that toolchain. They do not decide what Sterna
-does and they do not review their own output. Nothing reaches a release without
-being read, built and tested by a human who is accountable for it.
+does. What guards the quality is the pipeline they work inside: automated tests,
+mutation checks, an independent review pass and a hands-on run on a device,
+scaled to what each change touches.
 
 ## ☕ Support
 
