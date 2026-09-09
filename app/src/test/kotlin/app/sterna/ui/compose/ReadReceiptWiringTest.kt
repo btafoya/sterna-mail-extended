@@ -106,7 +106,7 @@ class ReadReceiptWiringTest {
             "the server copy of the draft must say what would be sent (the header is written into " +
                 "it); a draft saved without it describes a different message",
             "requestReceipt",
-            callsOf(body, "repo.saveDraft(").single()["requestReceipt"],
+            callsOf(body, "repo.drafts.saveDraft(").single()["requestReceipt"],
         )
     }
 

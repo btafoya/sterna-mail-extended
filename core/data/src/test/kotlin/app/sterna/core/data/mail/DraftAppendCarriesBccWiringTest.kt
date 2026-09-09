@@ -42,7 +42,7 @@ class DraftAppendCarriesBccWiringTest {
     @Test
     fun `the repository names the blind-copy type nowhere, so its submitted bytes keep the default`() {
         assertEquals(
-            "no line of MailRepository or MailSender may name BlindCopies. The OutgoingMime.build " +
+            "no line of MailRepository, MailDrafts or MailSender may name BlindCopies. The OutgoingMime.build " +
                 "of the send path is the " +
                 "pre-built JMAP path, and those bytes are handed to importAndSendEmail and " +
                 "submitted as they are: BlindCopies.WRITTEN there writes a Bcc: header into a " +
@@ -55,6 +55,7 @@ class DraftAppendCarriesBccWiringTest {
                 "nothing, and this very assertion stayed green.\nFound:",
             emptyList<String>(),
             codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "BlindCopies") +
+                codeLinesNaming(DaoQuerySource.mailSource("MailDrafts"), "BlindCopies") +
                 codeLinesNaming(DaoQuerySource.mailSource("MailSender"), "BlindCopies"),
         )
     }

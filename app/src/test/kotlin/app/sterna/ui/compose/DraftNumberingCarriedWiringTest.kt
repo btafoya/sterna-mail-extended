@@ -316,7 +316,7 @@ class DraftNumberingCarriedWiringTest {
 
         /** The read-time freeze `DraftNumberingFreezeWiringTest` owns; pinned here as the only other write. */
         private const val FREEZE =
-            "editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)"
+            "editingDraftUidValidity = repo.drafts.recordedUidValidityForDraft(credentials, draftId)"
 
         /** Not a write: the named argument each send site hands `sendDraftTarget`. */
         private const val HANDED_OVER = "editingDraftUidValidity = editingDraftUidValidity,"

@@ -6,11 +6,11 @@ import org.junit.Test
 
 /**
  * This test reads source text, the last resort, as [DraftAddressingWiringTest] does and for the
- * same reason: `MailRepository` needs Room, a `Context` and a socket, so no JVM test can build one.
+ * same reason: these paths need Room, a `Context` and a socket, so no JVM test can build one.
  */
 class LocalDraftSaveWiringTest {
 
-    private fun bodyOf(function: String): String = DaoQuerySource.mailFunctionBody("MailRepository", function)
+    private fun bodyOf(function: String): String = DaoQuerySource.mailFunctionBody("MailDrafts", function)
 
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }
@@ -43,7 +43,7 @@ class LocalDraftSaveWiringTest {
                 .any { it in line }
         }
         assertEquals(
-            "MailRepository.saveDraft must reach the network only through uploadDraft, which " +
+            "MailDrafts.saveDraft must reach the network only through uploadDraft, which " +
                 "saveDraftLocalFirst calls AFTER the row is written:",
             emptyList<String>(), network,
         )
@@ -52,7 +52,7 @@ class LocalDraftSaveWiringTest {
     @Test fun `the save is assembled out of the functions the tests execute`() {
         val body = codeOf(bodyOf("saveDraft"))
         val at = body.indexOfFirst { it == "val target = localDraftTarget(" }
-        assertTrue("MailRepository.saveDraft no longer looks its row up with localDraftTarget", at >= 0)
+        assertTrue("MailDrafts.saveDraft no longer looks its row up with localDraftTarget", at >= 0)
         assertEquals(
             "⛔ the row a save lands on must be looked up by BOTH keys, with the REAL statements: " +
                 "`forServerDraft = { null }`, or dropping the second lookup, mints a fresh row on " +
@@ -106,7 +106,7 @@ class LocalDraftSaveWiringTest {
         // about. Handed `null`, a failed staging rolls back a row a PREVIOUS save wrote, i.e.
         val body = codeOf(bodyOf("saveDraft"))
         val at = body.indexOfFirst { it == "return saveDraftLocalFirst(" }
-        assertTrue("MailRepository.saveDraft no longer calls saveDraftLocalFirst( — follow it", at >= 0)
+        assertTrue("MailDrafts.saveDraft no longer calls saveDraftLocalFirst( — follow it", at >= 0)
         assertEquals(
             "the adapters handed to the orchestration are what LocalDraftSaveTest stands in for. " +
                 "`upsert = { }`, a stage that returns emptyList() or `record = { _, _ -> }` leave " +
@@ -169,7 +169,7 @@ class LocalDraftSaveWiringTest {
         // on the entity, and the entity is what both uploads read).
         val body = codeOf(bodyOf("saveDraft"))
         val at = body.indexOfFirst { it == "val row = localDraftRow(" }
-        assertTrue("MailRepository.saveDraft no longer builds its row with localDraftRow", at >= 0)
+        assertTrue("MailDrafts.saveDraft no longer builds its row with localDraftRow", at >= 0)
         assertEquals(
             "every argument here carries a value from the composer to what goes out on the wire. " +
                 "A literal, a default or a condition ANDed onto one of them is a field silently " +
@@ -214,9 +214,9 @@ class LocalDraftSaveWiringTest {
     }
 
     @Test fun `saveDraft gives the composer's own loss no default, so a new call site cannot forget it`() {
-        val declaration = declarationOf("MailRepository", "saveDraft")
+        val declaration = declarationOf("MailDrafts", "saveDraft")
         assertTrue(
-            "MailRepository.saveDraft must declare `composerBodyWasLost: Boolean` with NO default " +
+            "MailDrafts.saveDraft must declare `composerBodyWasLost: Boolean` with NO default " +
                 "value. A `= false` there is silent: the next save path written (a save on leave, " +
                 "an incoming share, a worker) compiles without saying anything, and the first time " +
                 "it runs from a composer that came back from a parcel without its body it writes " +
@@ -295,7 +295,7 @@ class LocalDraftSaveWiringTest {
         // is resolved in exactly one place and that no draft path ever names `outboxFilesDir`.
         // An outbox item's staged bytes die with the send; a draft's wait as long as the draft
         // does. One directory for both is one purge away from an amputated draft.
-        val source = DaoQuerySource.mailSource("MailRepository")
+        val source = DaoQuerySource.mailSource("MailDrafts")
         assertEquals(
             "the draft staging tree must be resolved in one place, from its own field",
             listOf(

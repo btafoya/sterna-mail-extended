@@ -12,6 +12,9 @@ class DraftReceiptWiringTest {
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
+    private fun draftBodyOf(function: String): String =
+        DaoQuerySource.mailFunctionBody("MailDrafts", function)
+
     /** The code lines of [body] naming [needle], comments dropped, so prose can neither satisfy
      *  a rule nor break one. Whole lines: the assertions compare them, never search inside them. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
@@ -41,7 +44,7 @@ class DraftReceiptWiringTest {
                 "val receiptIsCarried = draftReceiptRequestIsCarried(",
                 "val receiptIsCarried = draftReceiptRequestIsCarried(",
             ),
-            codeLinesNaming(bodyOf("uploadDraft"), "draftReceiptRequestIsCarried("),
+            codeLinesNaming(draftBodyOf("uploadDraft"), "draftReceiptRequestIsCarried("),
         )
     }
 
@@ -50,7 +53,7 @@ class DraftReceiptWiringTest {
             "what the replacement asks for is the value being saved — a literal here makes the " +
                 "guard answer the same thing for every draft",
             listOf("replacement = requestReceipt,", "replacement = requestReceipt,"),
-            codeLinesNaming(bodyOf("uploadDraft"), "replacement = requestReceipt"),
+            codeLinesNaming(draftBodyOf("uploadDraft"), "replacement = requestReceipt"),
         )
     }
 
@@ -62,7 +65,7 @@ class DraftReceiptWiringTest {
                 "originalRequested = { id -> imapDraftReceiptRequested(credentials, id) },",
                 "originalRequested = { id -> jmapDraftReceiptRequested(ctx, id) },",
             ),
-            codeLinesNaming(bodyOf("uploadDraft"), "originalRequested ="),
+            codeLinesNaming(draftBodyOf("uploadDraft"), "originalRequested ="),
         )
     }
 
@@ -76,7 +79,7 @@ class DraftReceiptWiringTest {
                 "receiptRequestIsCarried = receiptIsCarried,",
                 "receiptRequestIsCarried = receiptIsCarried,",
             ),
-            codeLinesNaming(bodyOf("uploadDraft"), "receiptRequestIsCarried"),
+            codeLinesNaming(draftBodyOf("uploadDraft"), "receiptRequestIsCarried"),
         )
     }
 
@@ -86,7 +89,7 @@ class DraftReceiptWiringTest {
      * Not a closed list of the bail-outs, and deliberately: an assertion that pins how many
      */
     @Test fun everyBailOutOfTheImapReadAnswersUnknownAndNeverANo() {
-        val body = bodyOf("imapDraftReceiptRequested")
+        val body = draftBodyOf("imapDraftReceiptRequested")
         val bailOuts = codeLinesNaming(body, "?: return")
         assertTrue("the read must have bail-outs at all: $body", bailOuts.isNotEmpty())
         assertEquals(
@@ -111,7 +114,7 @@ class DraftReceiptWiringTest {
     }
 
     @Test fun theJmapReadTreatsARefusingServerAsUnknown() {
-        val body = bodyOf("jmapDraftReceiptRequested")
+        val body = draftBodyOf("jmapDraftReceiptRequested")
         // Whole lines, arguments included: a prefix match is blind to every mutation that
         // lengthens the line, reading some other account, or some other id.
         assertEquals(

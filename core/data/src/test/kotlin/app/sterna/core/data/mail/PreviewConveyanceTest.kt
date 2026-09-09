@@ -132,16 +132,19 @@ class PreviewConveyanceTest {
             codeLinesNaming(source, "imap.fetchPreview("),
         )
         assertEquals(
-            "with no default to forget — a defaulted deadline is soTimeout = 0, i.e. none. Two " +
-                "such parameters in this file now, both no-default by design: the preview " +
-                "passthrough's own, and imapDraftAddressing's (the draft-proof read, whose SEND " +
-                "caller passes SEND_PROOF_BUDGET_MS and whose SAVE caller passes " +
-                "ImapBudget.NO_BUDGET explicitly — see SendDraftDestructionWiringTest).",
+            "with no default to forget — a defaulted deadline is soTimeout = 0, i.e. none. Three " +
+                "such parameters across the two files, all no-default by design: the preview " +
+                "passthrough's own, the repository's hand-over to MailDrafts, and " +
+                "imapDraftAddressing's own (the draft-proof read, whose SEND caller passes " +
+                "SEND_PROOF_BUDGET_MS and whose SAVE caller passes ImapBudget.NO_BUDGET " +
+                "explicitly — see SendDraftDestructionWiringTest).",
             listOf(
                 "budgetMs: Int,",
-                "override suspend fun imapDraftAddressing(credentials: AccountCredentials, emailId: String, budgetMs: Int): Set<String>? {",
+                "budgetMs: Int,",
+                "suspend fun imapDraftAddressing(credentials: AccountCredentials, emailId: String, budgetMs: Int): Set<String>? {",
             ),
-            codeLinesNaming(source, "budgetMs: Int"),
+            codeLinesNaming(source, "budgetMs: Int") +
+                codeLinesNaming(DaoQuerySource.mailSource("MailDrafts"), "budgetMs: Int"),
         )
         assertEquals(
             "and the numbering read, which is the only trace a refused SELECT leaves behind (#99)",

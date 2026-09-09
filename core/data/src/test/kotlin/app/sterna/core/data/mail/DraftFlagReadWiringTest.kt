@@ -5,9 +5,9 @@ import org.junit.Test
 
 /**
  * This test reads source text, the last resort, taken for the reason DraftAddressingWiringTest
- * names: `MailRepository` cannot be built in a JVM test. The decision it feeds is executed next
- * door, in DraftFlagIsCarriedTest; what only the text can show is that the repository asks the
- * server, on the message it was asked about, and hands every unknown to that decision.
+ * names: the read needs a live IMAP session. The decision it feeds is executed next door, in
+ * DraftFlagIsCarriedTest; what only the text can show is that `MailDrafts` asks the server, on
+ * the message it was asked about, and hands every unknown to that decision.
  */
 class DraftFlagReadWiringTest {
 
@@ -27,7 +27,7 @@ class DraftFlagReadWiringTest {
                 "return draftFlagIsCarried(credentials.protocol, draft.isDraft) { imapDraftFlag(credentials, draft, uidValidity) }",
                 "}",
             ),
-            codeLines(DaoQuerySource.mailFunctionBody("MailRepository", "carriesDraftFlag")),
+            codeLines(DaoQuerySource.mailFunctionBody("MailDrafts", "carriesDraftFlag")),
         )
     }
 
@@ -40,7 +40,7 @@ class DraftFlagReadWiringTest {
                 "a destroy. The body rule below cannot see this — it reads the body, not the " +
                 "signature — so the ban lives here.",
             listOf("suspend fun carriesDraftFlag(credentials: AccountCredentials, draft: Email, uidValidity: Long?): Boolean {"),
-            DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }
+            DaoQuerySource.mailSource("MailDrafts").lines().map { it.trim() }
                 .filter { it.contains("fun carriesDraftFlag(") },
         )
     }
@@ -61,7 +61,7 @@ class DraftFlagReadWiringTest {
                 "return imap.fetchIsDraft(credentials, mailboxId, uid, uidValidity)",
                 "}",
             ),
-            codeLines(DaoQuerySource.mailFunctionBody("MailRepository", "imapDraftFlag")),
+            codeLines(DaoQuerySource.mailFunctionBody("MailDrafts", "imapDraftFlag")),
         )
     }
 }

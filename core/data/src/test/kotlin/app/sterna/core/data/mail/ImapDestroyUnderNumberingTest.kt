@@ -15,6 +15,9 @@ class ImapDestroyUnderNumberingTest {
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
+    private fun draftBodyOf(function: String): String =
+        DaoQuerySource.mailFunctionBody("MailDrafts", function)
+
     /** The code lines of [body] naming [needle], comments dropped. Whole lines: the assertions
      *  compare them, never search inside them. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
@@ -166,7 +169,7 @@ class ImapDestroyUnderNumberingTest {
      * replacing one that was re-saved, expunges a single id straight from the folder it names.
      */
     @Test fun `discarding a draft opposes the numbering frozen when its id was read`() {
-        val body = bodyOf("destroyDraft")
+        val body = draftBodyOf("destroyDraft")
         assertEquals(
             "the decision the held-back destroy runs must be handed the FROZEN parameter, never a " +
                 "value this path went and looked up: nothing to oppose licenses nothing, and the " +
@@ -180,7 +183,7 @@ class ImapDestroyUnderNumberingTest {
                 "server states. Left out, the destroy arrives carrying nothing and the guard below " +
                 "has only the fallback to compare with itself — which is the defect entire",
             listOf(
-                "imapDestroyGroup(credentials, folder, destroyable, mutableSetOf(), mutableSetOf(), frozenUidValidity)",
+                "host.imapDestroyGroup(credentials, folder, destroyable, mutableSetOf(), mutableSetOf(), frozenUidValidity)",
             ),
             codeLinesNaming(body, "imapDestroyGroup("),
         )
@@ -195,7 +198,7 @@ class ImapDestroyUnderNumberingTest {
             "?: mailboxDao.idForRole(credentials.id, \"drafts\")",
         )
         listOf("destroyDraft", "recordedUidValidityForDraft").forEach { function ->
-            val body = bodyOf(function)
+            val body = draftBodyOf(function)
             assertEquals(
                 "$function must resolve the draft's folder account-scoped (#31) and identically on " +
                     "both sides of the freeze",
@@ -206,8 +209,8 @@ class ImapDestroyUnderNumberingTest {
         assertEquals(
             "and the accessor must answer with the numbering recorded for THAT folder — the " +
                 "repository's own protocol-guarded read, which is null on JMAP",
-            listOf("return recordedUidValidity(credentials, folder)"),
-            codeLinesNaming(bodyOf("recordedUidValidityForDraft"), "recordedUidValidity("),
+            listOf("return host.recordedUidValidity(credentials, folder)"),
+            codeLinesNaming(draftBodyOf("recordedUidValidityForDraft"), "recordedUidValidity("),
         )
     }
 
@@ -215,7 +218,7 @@ class ImapDestroyUnderNumberingTest {
      * And it must refuse without a word on screen.
      */
     @Test fun `a draft the server will not confirm the numbering of is refused in silence`() {
-        val body = bodyOf("destroyDraft")
+        val body = draftBodyOf("destroyDraft")
         assertEquals(
             "the draft path must swallow the two numbering refusals AND NOTHING ELSE, each caught " +
                 "BY TYPE. `ImapNumberingUnconfirmed` is the server stating no UIDVALIDITY at all; " +
@@ -238,7 +241,7 @@ class ImapDestroyUnderNumberingTest {
                 "renumbering catch. Wrapping the destroy itself in one — the shape that reads as " +
                 "harmless — hides a transport failure just as `catch (t: Throwable)` would, and " +
                 "closes the composer over a draft that comes back on the next sync. Body was:\n$body",
-            listOf("runCatching { refresh(credentials, folder) }"),
+            listOf("runCatching { host.refreshMailbox(credentials, folder) }"),
             codeLinesNaming(body, "runCatching"),
         )
         assertEquals(
@@ -254,7 +257,8 @@ class ImapDestroyUnderNumberingTest {
                 "NumberingToOppose.Refuse -> throw ImapNumberingUnconfirmed(mb, null)",
                 "} catch (unconfirmed: ImapNumberingUnconfirmed) {",
             ),
-            codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "ImapNumberingUnconfirmed"),
+            codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "ImapNumberingUnconfirmed") +
+                codeLinesNaming(DaoQuerySource.mailSource("MailDrafts"), "ImapNumberingUnconfirmed"),
         )
     }
 
@@ -262,15 +266,16 @@ class ImapDestroyUnderNumberingTest {
      * The numbering arrives on this path; it is never read on it. A local read, including one
      */
     @Test fun `the destroy path never looks the numbering up for itself`() {
-        listOf("destroyAll", "imapDestroyGroup", "destroyDraft", "discardDraft", "finishDraftSave")
-            .forEach { function ->
-                assertEquals(
-                    "$function must take the frozen numbering as a parameter and read nothing: what " +
-                        "it could read is the numbering of the renumbering it must refuse (#99)",
-                    emptyList<String>(),
-                    codeLinesNaming(bodyOf(function), "recordedUidValidity"),
-                )
-            }
+        val paths = listOf("destroyAll", "imapDestroyGroup").map { it to bodyOf(it) } +
+            listOf("destroyDraft", "discardDraft", "finishDraftSave").map { it to draftBodyOf(it) }
+        paths.forEach { (function, body) ->
+            assertEquals(
+                "$function must take the frozen numbering as a parameter and read nothing: what " +
+                    "it could read is the numbering of the renumbering it must refuse (#99)",
+                emptyList<String>(),
+                codeLinesNaming(body, "recordedUidValidity"),
+            )
+        }
     }
 
     /**
@@ -286,7 +291,7 @@ class ImapDestroyUnderNumberingTest {
                 "$function must have a BLOCK body: an expression body silently drops it out of " +
                     "every source rule in this file, starting with the one forbidding it to read a " +
                     "numbering for itself",
-                runCatching { bodyOf(function) }.isSuccess,
+                runCatching { draftBodyOf(function) }.isSuccess,
             )
         }
     }
@@ -304,7 +309,8 @@ class ImapDestroyUnderNumberingTest {
                 // The declaration itself, pinned whole: the signature is part of the contract.
                 "suspend fun recordedUidValidityForDraft(credentials: AccountCredentials, emailId: String): Long? {",
             ),
-            codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "recordedUidValidityForDraft("),
+            codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "recordedUidValidityForDraft(") +
+                codeLinesNaming(DaoQuerySource.mailSource("MailDrafts"), "recordedUidValidityForDraft("),
         )
     }
 
@@ -312,7 +318,7 @@ class ImapDestroyUnderNumberingTest {
      * The two hand-overs of `uploadDraft` (`saveDraft`'s upload half since #95), the IMAP branch
      */
     @Test fun `re-saving hands on the numbering the composer froze, on both protocols`() {
-        val body = bodyOf("uploadDraft")
+        val body = draftBodyOf("uploadDraft")
         assertEquals(
             "both branches of uploadDraft must hand `finishDraftSave` the parameter the composer " +
                 "froze — twice, identically: the IMAP branch destroys the replaced original by " +
@@ -327,7 +333,7 @@ class ImapDestroyUnderNumberingTest {
      * The inverse witness for the new accessor, twin of "the accessor really asks IMAP" below.
      */
     @Test fun `the freezing accessor answers a real number for an IMAP account`() {
-        val body = bodyOf("recordedUidValidityForDraft")
+        val body = draftBodyOf("recordedUidValidityForDraft")
         assertEquals(
             "the accessor must refuse JMAP (`!=`) and answer the folder's recorded numbering for " +
                 "everything else. `==` there reads as a typo and turns the guard into a blanket " +
@@ -335,7 +341,7 @@ class ImapDestroyUnderNumberingTest {
             listOf(
                 "if (credentials.protocol != MailProtocol.IMAP) return null",
                 "?: return null",
-                "return recordedUidValidity(credentials, folder)",
+                "return host.recordedUidValidity(credentials, folder)",
             ),
             codeLinesNaming(body, "return"),
         )
@@ -345,7 +351,7 @@ class ImapDestroyUnderNumberingTest {
      * WYSIWYG on the refusal. `onMailbox` invalidates the folder before raising
      */
     @Test fun `a refused discard leaves the drafts list telling the truth`() {
-        val body = bodyOf("destroyDraft")
+        val body = draftBodyOf("destroyDraft")
         assertEquals(
             "the renumbering catch must re-read the folder, best-effort: the refusal is silent, so " +
                 "the list is the only thing that can tell the user anything, and it must not keep " +
@@ -353,8 +359,8 @@ class ImapDestroyUnderNumberingTest {
                 "`runCatching` because a refusal that then fails to refresh is still a refusal — " +
                 "letting the reload throw would turn a silent, harmless refusal into the " +
                 "\"could not save\" banner it exists to avoid. Body was:\n$body",
-            listOf("runCatching { refresh(credentials, folder) }"),
-            codeLinesNaming(body, "refresh("),
+            listOf("runCatching { host.refreshMailbox(credentials, folder) }"),
+            codeLinesNaming(body, "refreshMailbox("),
         )
     }
 

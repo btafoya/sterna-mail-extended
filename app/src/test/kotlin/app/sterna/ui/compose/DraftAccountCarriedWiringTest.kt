@@ -96,7 +96,7 @@ class DraftAccountCarriedWiringTest {
     @Test fun `re-saving a draft under another account replaces nothing there`() {
         val body = bodyOf(COMPOSE_VIEW_MODEL, "saveDraft")
         assertEquals(
-            "`repo.saveDraft` is handed `credentials` — the identity on show — and CREATES the new " +
+            "`repo.drafts.saveDraft` is handed `credentials` — the identity on show — and CREATES the new " +
                 "copy there while ordering the old one destroyed under the same account. For a " +
                 "draft opened elsewhere that order leaves for a server that never issued the id, " +
                 "so the pair is withheld and the original stays where the user can still see it.",
@@ -113,7 +113,7 @@ class DraftAccountCarriedWiringTest {
             ),
             linesNaming(body, "SendDraftTarget(", "unlessDraftBelongsElsewhere("),
         )
-        val save = callsOf(body, "repo.saveDraft(").single()
+        val save = callsOf(body, "repo.drafts.saveDraft(").single()
         assertEquals(
             "the id the save replaces must come out of the guarded answer. `editingDraftId` here " +
                 "is the defect: a draft of A destroyed under B, and on IMAP that is a number in " +

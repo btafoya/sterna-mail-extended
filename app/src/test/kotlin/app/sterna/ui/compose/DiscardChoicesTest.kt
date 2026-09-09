@@ -56,7 +56,7 @@ class DiscardChoicesTest {
     @Test fun anEmptiedDraftIsNotOfferedASaveThatWouldDeleteIt() {
         // The #35 defect, run on the values the screen actually holds. Open a saved draft, clear
         // the subject and the body, tap the X, tap "Save draft": ComposeViewModel.saveDraft asks
-        // draftHasContent, gets false, and calls repo.discardDraft on the message it was opened
+        // draftHasContent, gets false, and calls repo.drafts.discardDraft on the message it was opened
         // with, the copy in Drafts is destroyed by the button that promised to save it.
         val emptied = draftHasContent(
             to = "", cc = "", bcc = "", subject = "", body = "   ", hasAttachment = false,

@@ -957,7 +957,7 @@ class InboxViewModel(
             selectedMailboxId = selection.map { (it as? Sel.Folder)?.id },
             folderRoles = folderRoles,
             unreadOnly = unreadOnly,
-            localDrafts = { accountId -> repo.observeLocalDrafts(accountId) },
+            localDrafts = { accountId -> repo.drafts.observeLocalDrafts(accountId) },
         ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LocalDraftRows())
 
     /**

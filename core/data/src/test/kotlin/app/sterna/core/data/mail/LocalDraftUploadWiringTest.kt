@@ -42,9 +42,9 @@ class LocalDraftUploadWiringTest {
     @Test fun `a deferred upload records its failure on the row, and consumes it only on success`() {
         // The whole body, in order. Three ways to break it that all compile:
         //  - `discard` moved out of the success path (or into a `finally`): the typed text is gone
-        val body = codeOf(DaoQuerySource.mailFunctionBody("MailRepository", "uploadLocalDraft"))
+        val body = codeOf(DaoQuerySource.mailFunctionBody("MailDrafts", "uploadLocalDraft"))
         assertEquals(
-            "MailRepository.uploadLocalDraft must hand uploadLocalDraftOnce the REAL store — the " +
+            "MailDrafts.uploadLocalDraft must hand uploadLocalDraftOnce the REAL store — the " +
                 "row by both halves of its key, the shipped upload, the shipped discard and the " +
                 "shipped recordAttempt:",
             listOf(
@@ -84,9 +84,9 @@ class LocalDraftUploadWiringTest {
         // written, the backoff was armed, and no timer was ever attached to it.
         //
         // The seam is the outbox's, copied: the data layer books work without knowing WorkManager.
-        val source = DaoQuerySource.mailSource("MailRepository")
+        val source = DaoQuerySource.mailSource("MailDrafts")
         assertEquals(
-            "MailRepository must hold a scheduler seam and use it at save time, with the delay the " +
+            "MailDrafts must hold a scheduler seam and use it at save time, with the delay the " +
                 "attempt just wrote — `schedule = { }`, or a 0 delay, is either a draft that never " +
                 "leaves or a retry storm against a server that is refusing. The third line is the " +
                 "SAME promise at the other end (#95, reopen): the work item booked for a draft may " +
@@ -106,7 +106,7 @@ class LocalDraftUploadWiringTest {
     @Test fun `the IMAP upload asks before it appends, and every guard behind it still stands`() {
         // The whole IMAP branch, in order, because two separate things have to hold at once:
         //  - the APPEND sits behind `appendDraftUnlessAlreadyThere`, fed by the real search
-        val body = DaoQuerySource.mailFunctionBody("MailRepository", "uploadDraft")
+        val body = DaoQuerySource.mailFunctionBody("MailDrafts", "uploadDraft")
         val to = body.indexOf("return outcome")
         assertTrue("uploadDraft no longer holds an IMAP branch ending in `return outcome`", to > 0)
         assertEquals(
@@ -163,7 +163,7 @@ class LocalDraftUploadWiringTest {
                 "),",
                 "frozenUidValidity = replacesUidValidity,",
                 ")",
-                "runCatching { refresh(credentials, drafts) }",
+                "runCatching { host.refreshMailbox(credentials, drafts) }",
                 "return outcome",
             ),
             codeOf(body.substring(0, to + "return outcome".length)),
@@ -173,7 +173,7 @@ class LocalDraftUploadWiringTest {
     @Test fun `every destroy guard is told whether the replacement actually went out`() {
         // The line that re-opens the defect, and it is one word: `replacementWentOut = true` on
         // the IMAP branch.
-        val upload = DaoQuerySource.mailFunctionBody("MailRepository", "uploadDraft")
+        val upload = DaoQuerySource.mailFunctionBody("MailDrafts", "uploadDraft")
         assertEquals(
             "the APPEND's answer must be CAUGHT, not dropped: a bare call is the defect itself",
             listOf("val wentOut = appendDraftUnlessAlreadyThere("),
@@ -227,7 +227,7 @@ class LocalDraftUploadWiringTest {
                 "replacementWentOut = savedId != null,",
                 "replacementWentOut = true,",
             ),
-            codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "replacementWentOut =") +
+            codeLinesNaming(DaoQuerySource.mailSource("MailDrafts"), "replacementWentOut =") +
                 codeLinesNaming(DaoQuerySource.mailSource("DraftSave"), "replacementWentOut ="),
         )
     }
@@ -271,7 +271,7 @@ class LocalDraftUploadWiringTest {
     }
 
     @Test fun `the one place every IMAP call passes reads the budget its coroutine carries`() {
-        // The other half of the wiring above: `MailRepository.uploadLocalDraft` installing an
+        // The other half of the wiring above: `MailDrafts.uploadLocalDraft` installing an
         // [ImapReadBudget] is worth nothing unless `runWithRetry` looks for it. The decision itself
         // ([ImapBudget.effective]) is executed by ImapBudgetTest; this pins that it is asked, with
         // the caller's budget and the ambient one, and that the answer becomes the deadline.
@@ -336,7 +336,7 @@ class LocalDraftUploadWiringTest {
     @Test fun `the startup re-arm reads the queue through the shipped statements`() {
         // Read over the whole file: these three are one-liners, and what has to be pinned is the
         // arguments each hands the DAO, not that a call of that name exists somewhere.
-        val source = DaoQuerySource.mailSource("MailRepository")
+        val source = DaoQuerySource.mailSource("MailDrafts")
         assertEquals(
             "the accounts to re-arm come from the DAO's own DISTINCT, never from a caller's list",
             listOf("suspend fun accountsWithLocalDrafts(): List<String> = localDraftDao.accountsWithDrafts()"),

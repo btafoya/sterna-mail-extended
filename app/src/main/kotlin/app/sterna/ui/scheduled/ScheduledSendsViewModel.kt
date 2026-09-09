@@ -58,7 +58,7 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                         )
                     },
                     saveDraft = { creds, d ->
-                        repo.saveDraft(
+                        repo.drafts.saveDraft(
                             credentials = creds,
                             to = d.to,
                             subject = d.subject,

@@ -65,8 +65,8 @@ class LocalDraftReopenWiringTest {
                 "it blocks on the connect timeout while the user looks at an empty composer. " +
                 "Repository calls found were:",
             listOf(
-                "take = { repo.takeLocalDraftForEdit(credentials.id, it) },",
-                "giveBack = { runCatching { repo.releaseLocalDraftEdit(credentials.id, it) } },",
+                "take = { repo.drafts.takeLocalDraftForEdit(credentials.id, it) },",
+                "giveBack = { runCatching { repo.drafts.releaseLocalDraftEdit(credentials.id, it) } },",
             ),
             functionBody(COMPOSE_VIEW_MODEL, "private suspend fun prepareLocalDraft(").filter { "repo." in it },
         )
@@ -93,12 +93,12 @@ class LocalDraftReopenWiringTest {
             listOf(
                 "val lease = takeLocalDraftEditOrGiveItBack(",
                 "id = id,",
-                "take = { repo.takeLocalDraftForEdit(credentials.id, it) },",
+                "take = { repo.drafts.takeLocalDraftForEdit(credentials.id, it) },",
                 "arm = { taken ->",
                 "editingLocalDraftAccountId = credentials.id",
                 "_editingLocalDraftId.value = taken.id",
                 "},",
-                "giveBack = { runCatching { repo.releaseLocalDraftEdit(credentials.id, it) } },",
+                "giveBack = { runCatching { repo.drafts.releaseLocalDraftEdit(credentials.id, it) } },",
                 ")",
             ),
             body.subList(at, at + 9),
@@ -175,12 +175,12 @@ class LocalDraftReopenWiringTest {
                 "}",
                 "val lease = takeLocalDraftEditOrGiveItBack(",
                 "id = id,",
-                "take = { repo.takeLocalDraftForEdit(credentials.id, it) },",
+                "take = { repo.drafts.takeLocalDraftForEdit(credentials.id, it) },",
                 "arm = { taken ->",
                 "editingLocalDraftAccountId = credentials.id",
                 "_editingLocalDraftId.value = taken.id",
                 "},",
-                "giveBack = { runCatching { repo.releaseLocalDraftEdit(credentials.id, it) } },",
+                "giveBack = { runCatching { repo.drafts.releaseLocalDraftEdit(credentials.id, it) } },",
                 ")",
                 "val row = when (lease) {",
                 "LocalDraftEdit.Gone -> {",
@@ -420,7 +420,7 @@ class LocalDraftReopenWiringTest {
             listOf(
                 "val account = editingLocalDraftAccountId ?: return",
                 "_editingLocalDraftId.value = null",
-                "repo.consumeLocalDraft(account, id)",
+                "repo.drafts.consumeLocalDraft(account, id)",
             ),
             functionBody(COMPOSE_VIEW_MODEL, "private suspend fun consumeEditingLocalDraft("),
         )
@@ -544,7 +544,7 @@ class LocalDraftReopenWiringTest {
         val emptied = save.subList(from, to)
         assertEquals(
             "⛔ the emptied-draft branch, whole and in order (#69 × #95). Three things it must get " +
-                "right, and all three were wrong: `repo.discardDraft` on a `local-draft:` id " +
+                "right, and all three were wrong: `repo.drafts.discardDraft` on a `local-draft:` id " +
                 "destroys NOTHING (destroyableUnderNumbering answers an empty list for an id no " +
                 "server issued) while the screen closes as a success; the phone's own row must be " +
                 "given back to NOBODY on this close, since abandon() hands it back PENDING and " +
@@ -580,11 +580,11 @@ class LocalDraftReopenWiringTest {
                 // The second term of the guard, and the whole correction: the addressing
                 // of the copy about to be expunged, proven empty or not proven at all. Read under
                 "val addressingIsProvenEmpty = !editingDraftLossy &&",
-                "repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
+                "repo.drafts.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
                 "if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {",
                 "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
                 "} else {",
-                "repo.discardDraft(destroyingCredentials(), original, originalUidValidity)",
+                "repo.drafts.discardDraft(destroyingCredentials(), original, originalUidValidity)",
                 "}",
                 "}",
                 "}",
@@ -638,14 +638,14 @@ class LocalDraftReopenWiringTest {
                 "val plan = planForEmptiedLocalDraft(",
                 "replacedServerDraftId = serverDraft,",
                 "replacedServerDraftUidValidity = replacedServerDraftUidValidity,",
-                "mailboxId = serverDraft?.let { repo.draftMailboxOf(credentials, it) },",
+                "mailboxId = serverDraft?.let { repo.drafts.draftMailboxOf(credentials, it) },",
                 "bodyIsLossy = editingDraftLossy,",
                 // The second keeping term, read here for the same reason `mailboxId` is: it
                 // takes a server read, and the decision stays pure. Under the account the row was
                 // leased under. `= true` written here is the emptying destroying a Cc this phone
                 // never managed to read, which is #63 on the gesture that leaves no duplicate.
                 "addressingIsProvenEmpty = serverDraft != null && !editingDraftLossy &&",
-                "repo.emptiedDraftAddressingIsProvenEmpty(credentials, serverDraft),",
+                "repo.drafts.emptiedDraftAddressingIsProvenEmpty(credentials, serverDraft),",
                 ")",
                 "destroyThenConsumeEmptiedLocalDraft(",
                 "localDraftId = localDraftId,",
@@ -826,7 +826,7 @@ class LocalDraftReopenWiringTest {
      */
     @Test fun `the draft's destroy folder is decided by the pure function, fed both answers`() {
         assertEquals(
-            "MailRepository.draftMailboxOf, whole: the two account-scoped Room reads (ids collide " +
+            "MailDrafts.draftMailboxOf, whole: the two account-scoped Room reads (ids collide " +
                 "between two accounts of one server, #31) handed to draftDestroyFolder. Body was:",
             listOf(
                 "suspend fun draftMailboxOf(credentials: AccountCredentials, emailId: String): String? =",
@@ -835,7 +835,7 @@ class LocalDraftReopenWiringTest {
                 "draftsRoleMailboxId = mailboxDao.idForRole(credentials.id, \"drafts\"),",
                 ")",
             ),
-            expressionBodyOf(MAIL_REPOSITORY, "suspend fun draftMailboxOf("),
+            expressionBodyOf(MAIL_DRAFTS, "suspend fun draftMailboxOf("),
         )
     }
 
@@ -939,7 +939,7 @@ class LocalDraftReopenWiringTest {
                 "val account = editingLocalDraftAccountId ?: return",
                 "_editingLocalDraftId.value = null",
                 "appScope.launch {",
-                "runCatching { repo.releaseLocalDraftEdit(account, id) }",
+                "runCatching { repo.drafts.releaseLocalDraftEdit(account, id) }",
                 ".onFailure { android.util.Log.w(\"SternaCompose\", \"couldn't release the edited local draft\", it) }",
                 "}",
             ),
@@ -1141,8 +1141,8 @@ class LocalDraftReopenWiringTest {
         }
 
         /** Another module's source, read as text on purpose: the gesture crosses the seam. */
-        val MAIL_REPOSITORY: File by lazy {
-            repoFile("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt")
+        val MAIL_DRAFTS: File by lazy {
+            repoFile("core/data/src/main/kotlin/app/sterna/core/data/mail/MailDrafts.kt")
         }
 
         private fun repoFile(path: String): File =

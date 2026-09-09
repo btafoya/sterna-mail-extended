@@ -109,16 +109,17 @@ class RawSourceReadUnderNumberingTest {
      */
     @Test fun `exactly one whole-message fetch carries a frozen numbering`() {
         assertEquals(
-            "the file's whole-message FETCHes, whole and in order. The one inside fetchRawSource " +
-                "carries the numbering its caller froze; the two others carry none because their " +
-                "callers froze none. A new one on this list is a read nobody has decided the " +
-                "numbering of.",
+            "the whole-message FETCHes of both files, whole and in order. The one inside " +
+                "fetchRawSource carries the numbering its caller froze; the two others carry none " +
+                "because their callers froze none. A new one on this list is a read nobody has " +
+                "decided the numbering of.",
             listOf(
                 "val raw = imap.fetchSource(credentials, mailboxId, uid)",
                 "imap.fetchSource(credentials, mailboxId, uid, numbering)",
                 "val raw = imap.fetchSource(credentials, cached.mailboxId, uid)",
             ),
-            codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "imap.fetchSource("),
+            codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "imap.fetchSource(") +
+                codeLinesNaming(DaoQuerySource.mailSource("MailDrafts"), "imap.fetchSource("),
         )
     }
 }

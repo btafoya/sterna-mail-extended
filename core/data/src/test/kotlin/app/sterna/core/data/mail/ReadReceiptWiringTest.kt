@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The read receipt (RFC 8098) inside [MailRepository]: the queued row → the four writes.
+ * The read receipt (RFC 8098) inside [MailDrafts] and [MailSender]: the queued row → the four writes.
  */
 class ReadReceiptWiringTest {
 
@@ -169,7 +169,7 @@ class ReadReceiptWiringTest {
     // --- reading the source ---------------------------------------------------------------------
 
     private fun bodyOf(function: String): String =
-        DaoQuerySource.mailFunctionBody("MailRepository", function)
+        DaoQuerySource.mailFunctionBody("MailDrafts", function)
 
     private fun sendBodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailSender", function)

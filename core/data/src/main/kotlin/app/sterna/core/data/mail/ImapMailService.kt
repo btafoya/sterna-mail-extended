@@ -364,7 +364,7 @@ open class ImapMailService(
      * APPEND a draft (\Draft flag) into Drafts. `retryOnFailure = false` is the point: a replay
      * appends a second copy before the deferred loop, which alone de-duplicates by id, can see it.
      */
-    suspend fun appendDraft(credentials: AccountCredentials, draftsMailbox: String, message: OutgoingMessage) =
+    open suspend fun appendDraft(credentials: AccountCredentials, draftsMailbox: String, message: OutgoingMessage) =
         withSession(credentials, retryOnFailure = false) {
             it.append(draftsMailbox, OutgoingMime.build(message, BlindCopies.WRITTEN), "\\Draft")
         }
@@ -696,7 +696,7 @@ open class ImapMailService(
      * The cc+bcc of one message, off the envelope, `null` when it is not there. Read from the
      * server: the cache row has no cc/bcc column, so "none" and "never loaded" would look alike.
      */
-    suspend fun ccAndBccOf(
+    open suspend fun ccAndBccOf(
         credentials: AccountCredentials,
         mailboxId: String,
         uid: Long,

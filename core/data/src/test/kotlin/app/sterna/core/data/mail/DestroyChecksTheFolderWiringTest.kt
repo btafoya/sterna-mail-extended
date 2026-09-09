@@ -12,6 +12,9 @@ class DestroyChecksTheFolderWiringTest {
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
 
+    private fun draftBodyOf(function: String): String =
+        DaoQuerySource.mailFunctionBody("MailDrafts", function)
+
     /** The code lines of [body] naming [needle], comments dropped, so prose can neither satisfy
      *  a rule nor break one. Whole lines: the assertions compare them, never search inside them. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
@@ -34,7 +37,7 @@ class DestroyChecksTheFolderWiringTest {
      * The door the fix of #122 left open: the destroy of one draft. `destroyDraft`'s JMAP branch
      */
     @Test fun aDraftIsDestroyedThroughTheSameCheck_neverStraightOnTheWire() {
-        val body = bodyOf("destroyDraft")
+        val body = draftBodyOf("destroyDraft")
         assertEquals(
             "destroyDraft's JMAP branch must destroy through `destroyAll`, naming the DRAFT'S OWN " +
                 "folder (`draftMailboxOf`, i.e. the cached row's mailbox else the Drafts role) so " +
@@ -42,7 +45,7 @@ class DestroyChecksTheFolderWiringTest {
                 "destroyed in its new folder. Whole line, arguments included: handing `null`, the " +
                 "Drafts role alone, or a folder read from anywhere else is the defect back. " +
                 "Body was:\n$body",
-            listOf("destroyAll(credentials, listOf(emailId), draftMailboxOf(credentials, emailId))"),
+            listOf("host.destroyAll(credentials, listOf(emailId), draftMailboxOf(credentials, emailId))"),
             codeLinesNaming(body, "destroyAll("),
         )
         assertEquals(

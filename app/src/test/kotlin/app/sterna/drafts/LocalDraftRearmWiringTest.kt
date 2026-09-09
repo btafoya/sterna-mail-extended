@@ -29,18 +29,18 @@ class LocalDraftRearmWiringTest {
             listOf(
                 "appScope.launch {",
                 "runCatching {",
-                "mailRepository.accountsWithLocalDrafts().forEach { accountId ->",
-                "mailRepository.revertUnfinishedLocalDrafts(accountId)",
+                "mailRepository.drafts.accountsWithLocalDrafts().forEach { accountId ->",
+                "mailRepository.drafts.revertUnfinishedLocalDrafts(accountId)",
                 "localDraftUploadJobs(",
                 "accountId,",
-                "mailRepository.localDraftsAwaitingUpload(accountId),",
+                "mailRepository.drafts.localDraftsAwaitingUpload(accountId),",
                 "System.currentTimeMillis(),",
                 ").forEach { LocalDraftUploads.enqueue(appContext, it.accountId, it.id, it.delayMillis) }",
                 "}",
                 "}.onFailure { Log.w(\"Sterna\", \"local-draft re-arm failed; retried next start\", it) }",
                 "}",
             ),
-            blockAt(lines, "mailRepository.accountsWithLocalDrafts().forEach { accountId ->", before = 2, size = 12),
+            blockAt(lines, "mailRepository.drafts.accountsWithLocalDrafts().forEach { accountId ->", before = 2, size = 12),
         )
     }
 
@@ -54,13 +54,13 @@ class LocalDraftRearmWiringTest {
             "the data layer must be handed a way to book a draft's upload, exactly as it is handed " +
                 "one to book a send (`mailRepository.sending.outboxScheduler`):",
             listOf(
-                "mailRepository.localDraftScheduler = LocalDraftScheduler { accountId, id, delay ->",
+                "mailRepository.drafts.localDraftScheduler = LocalDraftScheduler { accountId, id, delay ->",
                 "LocalDraftUploads.enqueue(appContext, accountId, id, delay)",
                 "}",
             ),
             blockAt(
                 lines,
-                "mailRepository.localDraftScheduler = LocalDraftScheduler { accountId, id, delay ->",
+                "mailRepository.drafts.localDraftScheduler = LocalDraftScheduler { accountId, id, delay ->",
                 before = 0, size = 3,
             ),
         )
@@ -118,7 +118,7 @@ class LocalDraftRearmWiringTest {
                 // a minute. The re-booking would then carry that minute on top of the row's own
                 // backoff, and the slower the link the later the draft comes back.
                 "now = { System.currentTimeMillis() },",
-                "upload = { container.mailRepository.uploadLocalDraft(credentials, id) },",
+                "upload = { container.mailRepository.drafts.uploadLocalDraft(credentials, id) },",
                 // Both arguments handed on, in this order. Dropping the second, or hard-coding
                 // it, is what makes a stopped worker's booking replace the retry WorkManager just
                 // armed for it, i.e. a 30 s delay to the resumption it was meant to guarantee.

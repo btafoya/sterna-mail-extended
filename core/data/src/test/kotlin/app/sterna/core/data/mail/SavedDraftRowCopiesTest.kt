@@ -106,12 +106,12 @@ class SavedDraftRowCopiesTest {
     @Test fun `the upload hands the trimmed copies to the cache write`() {
         // Moved by #95: the two protocol branches live in `uploadDraft`, which `saveDraft` runs
         // only after the draft is durable on the phone. The copies now come off the row.
-        val body = DaoQuerySource.mailFunctionBody("MailRepository", "uploadDraft")
+        val body = DaoQuerySource.mailFunctionBody("MailDrafts", "uploadDraft")
             .lines().map { it.trim() }.filter { it.isNotEmpty() }
         val at = body.indexOfFirst { it.startsWith("cacheSavedDraft(") }
 
         assertTrue(
-            "MailRepository.saveDraft no longer calls cacheSavedDraft( — either the optimistic " +
+            "MailDrafts.uploadDraft no longer calls cacheSavedDraft( — either the optimistic " +
                 "Drafts row is gone, or this lint must follow it",
             at >= 0,
         )
@@ -148,7 +148,7 @@ class SavedDraftRowCopiesTest {
      * The second hop: what `cacheSavedDraft` forwards to the row builder it upserts.
      */
     @Test fun `the cache write forwards both copy fields to the row builder`() {
-        val body = DaoQuerySource.mailFunctionBody("MailRepository", "cacheSavedDraft")
+        val body = DaoQuerySource.mailFunctionBody("MailDrafts", "cacheSavedDraft")
             .lines().map { it.trim() }.filter { it.isNotEmpty() }
         val at = body.indexOfFirst { it.startsWith("emailDao.upsertAll(") }
 

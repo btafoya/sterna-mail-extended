@@ -40,7 +40,7 @@ class QueuedDraftKeepsItsStylingTest {
     }
 
     @Test fun `the JMAP draft create is handed the row's own html`() {
-        val upload = DaoQuerySource.mailFunctionBody("MailRepository", "uploadDraft")
+        val upload = DaoQuerySource.mailFunctionBody("MailDrafts", "uploadDraft")
 
         assertEquals(
             "`uploadDraft` must hand `client.saveDraft` the ROW's html, whole and exactly once. " +

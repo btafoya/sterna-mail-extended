@@ -18,7 +18,7 @@ class ComposeDeleteWiringTest {
         assertTrue(
             "the compose route must delegate onDeleteDraft to inboxViewModel.delete(email) — the " +
                 "move to the Trash, with the Undo the list offers. Anything that destroys outright " +
-                "(repo.discardDraft, a destroy call) makes \"Delete\" mean two different things in " +
+                "(repo.drafts.discardDraft, a destroy call) makes \"Delete\" mean two different things in " +
                 "one app, and the destructive one has no way back. Handler was:\n$handler",
             "inboxViewModel.delete(email)" in handler.replace(Regex("""\s+"""), " "),
         )

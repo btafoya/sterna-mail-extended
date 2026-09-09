@@ -155,11 +155,11 @@ class DraftVerdictWiringTest {
                 "a literal, or `draft.isDraft` inlined at the call site, answers `true` for every " +
                 "IMAP message, since an IMAP row carries no keywords: exactly the message the " +
                 "whole leg exists to spare. Body was:\n" + code.joinToString("\n"),
-            listOf("val flaggedDraft = repo.carriesDraftFlag(credentials, draft, editingDraftUidValidity)"),
+            listOf("val flaggedDraft = repo.drafts.carriesDraftFlag(credentials, draft, editingDraftUidValidity)"),
             code.filter { "carriesDraftFlag" in it && it.startsWith("val ") },
         )
         val fetched = code.indexOf("val draft = repo.fetchEmail(credentials, draftId)")
-        val read = code.indexOf("val flaggedDraft = repo.carriesDraftFlag(credentials, draft, editingDraftUidValidity)")
+        val read = code.indexOf("val flaggedDraft = repo.drafts.carriesDraftFlag(credentials, draft, editingDraftUidValidity)")
         val computed = code.indexOf("val lossy = reopenedDraftIsLossy(")
         assertTrue(
             "…after the draft has been read, so the read is put about a message that exists, and " +
@@ -167,7 +167,7 @@ class DraftVerdictWiringTest {
                 code.joinToString("\n"),
             fetched >= 0 && fetched < read && read < computed,
         )
-        val frozen = code.indexOf("editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)")
+        val frozen = code.indexOf("editingDraftUidValidity = repo.drafts.recordedUidValidityForDraft(credentials, draftId)")
         assertTrue(
             "⛔ AND THE NUMBERING MUST BE FROZEN BEFORE THE READ CONSUMES IT. Slide this one line " +
                 "below the read and the field is still its `null` default, so `fetchIsDraft` is " +

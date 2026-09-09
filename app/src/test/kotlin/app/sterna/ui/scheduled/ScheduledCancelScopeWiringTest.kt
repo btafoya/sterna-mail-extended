@@ -53,7 +53,7 @@ class ScheduledCancelScopeWiringTest {
      * Every argument, by name and by value, in one comparison.
      */
     @Test fun `every field of the row reaches saveDraft, by name and by value`() {
-        val save = callsOf(bodyOf(VIEW_MODEL, "cancel"), "repo.saveDraft(").single()
+        val save = callsOf(bodyOf(VIEW_MODEL, "cancel"), "repo.drafts.saveDraft(").single()
 
         assertEquals(
             mapOf(

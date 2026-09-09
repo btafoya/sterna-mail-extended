@@ -171,7 +171,7 @@ class ComposeViewModelWiringTest {
                 "abandon(emptying = true, body = body.text)",
                 "if (original == null) {",
                 "_state.value = ComposeState.Done",
-                // A `local-draft:` id names nothing repo.discardDraft can destroy: under IMAP
+                // A `local-draft:` id names nothing repo.drafts.discardDraft can destroy: under IMAP
                 // numbering it answers an empty list, so the emptied draft survived and went up on
                 // the next network while the screen closed as a success. And the row is not taken
                 // away on its own either: while it exists it masks the server draft it replaces, so
@@ -193,11 +193,11 @@ class ComposeViewModelWiringTest {
                 // The second term of the guard, and the whole correction: the addressing
                 // of the copy about to be expunged, proven empty or not proven at all. Read under
                 "val addressingIsProvenEmpty = !editingDraftLossy &&",
-                "repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
+                "repo.drafts.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
                 "if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {",
                 "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
                 "} else {",
-                "repo.discardDraft(destroyingCredentials(), original, originalUidValidity)",
+                "repo.drafts.discardDraft(destroyingCredentials(), original, originalUidValidity)",
                 "}",
                 "}",
                 "}",
@@ -209,7 +209,7 @@ class ComposeViewModelWiringTest {
                 // numbering it belongs to, and it is withheld whole when that pair was read under
                 "val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)",
                 ".unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)",
-                "val outcome = repo.saveDraft(",
+                "val outcome = repo.drafts.saveDraft(",
                 // The text part is `toPlainText(body)` and not `body.text` (#131): a list is
                 // written `- ` / `1. ` there and a link is written `label <url>`, so a recipient
                 "credentials, recipients, subject, toPlainText(body),",

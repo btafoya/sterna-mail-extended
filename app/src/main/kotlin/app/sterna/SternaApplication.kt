@@ -106,7 +106,7 @@ class AppContainer(context: Context) {
         mailRepository.sending.outboxScheduler = OutboxScheduler { id, delay -> Outbox.enqueue(appContext, id, delay) }
         // The same for a draft the server could not be given (#95): the save books the deferred
         // upload itself. Without this the only bookings were the startup re-arm and the worker's.
-        mailRepository.localDraftScheduler = LocalDraftScheduler { accountId, id, delay ->
+        mailRepository.drafts.localDraftScheduler = LocalDraftScheduler { accountId, id, delay ->
             LocalDraftUploads.enqueue(appContext, accountId, id, delay)
         }
         // A linked sub-account pruned on reconcile (#31) drops its notification baselines too,
@@ -160,11 +160,11 @@ class AppContainer(context: Context) {
         // lost. Measured, on IMAP and on JMAP. Per account, and the rescue before the scheduling.
         appScope.launch {
             runCatching {
-                mailRepository.accountsWithLocalDrafts().forEach { accountId ->
-                    mailRepository.revertUnfinishedLocalDrafts(accountId)
+                mailRepository.drafts.accountsWithLocalDrafts().forEach { accountId ->
+                    mailRepository.drafts.revertUnfinishedLocalDrafts(accountId)
                     localDraftUploadJobs(
                         accountId,
-                        mailRepository.localDraftsAwaitingUpload(accountId),
+                        mailRepository.drafts.localDraftsAwaitingUpload(accountId),
                         System.currentTimeMillis(),
                     ).forEach { LocalDraftUploads.enqueue(appContext, it.accountId, it.id, it.delayMillis) }
                 }

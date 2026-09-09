@@ -72,12 +72,12 @@ class MailRepositoryLogsThroughASeamTest {
         // The rule matches the call and the import, not the qualified name: an import, aliased or
         // not, followed by a bare `Log.i(` is what a fully qualified needle reads as absence.
         assertEquals(
-            "MailRepository must not call android.util.Log: the stub android.jar of a JVM unit " +
+            "MailRepository, MailSender and MailDrafts must not call android.util.Log: the stub android.jar of a JVM unit " +
                 "test throws 'not mocked' on every one of them, so a single call turns a test of " +
                 "the path around it into a test of the logger. Route the line through logInfo / " +
                 "logWarn, whose production binding lives in DataFactory.create.",
             emptyList<String>(),
-            (codeLinesOf(REPOSITORY) + codeLinesOf(SENDER))
+            (codeLinesOf(REPOSITORY) + codeLinesOf(SENDER) + codeLinesOf(DRAFTS))
                 .filter { LOG_CALL.containsMatchIn(it) || LOG_IMPORT.containsMatchIn(it) },
         )
     }
@@ -215,6 +215,9 @@ class MailRepositoryLogsThroughASeamTest {
 
         /** The send half of the repository, held to the same ban on the platform logger. */
         val SENDER: String by lazy { DaoQuerySource.mailSource("MailSender") }
+
+        /** And the draft half, which a JVM test now enters as far as the wire. */
+        val DRAFTS: String by lazy { DaoQuerySource.mailSource("MailDrafts") }
 
         val FACTORY: String by lazy {
             repoFile("core/data/src/main/kotlin/app/sterna/core/data/DataFactory.kt").readText()

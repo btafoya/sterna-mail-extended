@@ -24,7 +24,7 @@ class LocalDraftUploadWorker(context: Context, params: WorkerParameters) : Corou
         // executed by a JVM test. What is left here is the store, the queue, and a clock.
         uploadLocalDraftRebooking(
             now = { System.currentTimeMillis() },
-            upload = { container.mailRepository.uploadLocalDraft(credentials, id) },
+            upload = { container.mailRepository.drafts.uploadLocalDraft(credentials, id) },
             rebook = { delay, onlyIfNothingBooked ->
                 LocalDraftUploads.enqueue(applicationContext, accountId, id, delay, onlyIfNothingBooked)
             },

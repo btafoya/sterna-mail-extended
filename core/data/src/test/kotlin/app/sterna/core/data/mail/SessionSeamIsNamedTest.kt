@@ -30,8 +30,10 @@ class SessionSeamIsNamedTest {
         )
     }
 
+    /** Both files: the drafts were handed the session through the seam, never a second one. */
     private fun mentions(symbol: String): List<String> =
-        DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }
+        (DaoQuerySource.mailSource("MailRepository").lines() + DaoQuerySource.mailSource("MailDrafts").lines())
+            .map { it.trim() }
             .filter { Regex("""\b$symbol\b""").containsMatchIn(it) }
 
     /**
@@ -128,9 +130,11 @@ class SessionSeamIsNamedTest {
                 """cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("trash" to byName), ctx.mailboxes)""",
                 "private suspend fun createTrashFolder(ctx: JmapAccountSession): String {",
                 """cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("trash" to id), ctx.mailboxes)""",
-                "private suspend fun jmapDraftReceiptRequested(ctx: JmapAccountSession, emailId: String): Boolean? {",
                 "override suspend fun jmapSession(credentials: AccountCredentials): JmapAccountSession {",
                 "return JmapAccountSession(credentials, session, accountId, auth, roles, mailboxes).also { cachedSession = it }",
+                // MailDrafts, which only ever receives one through the seam.
+                "suspend fun jmapSession(credentials: AccountCredentials): MailRepository.JmapAccountSession",
+                "private suspend fun jmapDraftReceiptRequested(ctx: MailRepository.JmapAccountSession, emailId: String): Boolean? {",
             ),
             mentions("JmapAccountSession"),
         )

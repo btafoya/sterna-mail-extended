@@ -66,11 +66,11 @@ class EmptiedServerDraftWiringTest {
                 // The second term of the guard, and the whole correction: the addressing
                 // of the copy about to be expunged, proven empty or not proven at all. Read under
                 "val addressingIsProvenEmpty = !editingDraftLossy &&",
-                "repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
+                "repo.drafts.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
                 "if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {",
                 "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
                 "} else {",
-                "repo.discardDraft(destroyingCredentials(), original, originalUidValidity)",
+                "repo.drafts.discardDraft(destroyingCredentials(), original, originalUidValidity)",
                 "}",
                 "}",
             ),
@@ -108,11 +108,11 @@ class EmptiedServerDraftWiringTest {
 
     @Test fun `the expunge exists nowhere else in the composer, so nothing goes round the guard`() {
         assertEquals(
-            "⛔ exactly one `repo.discardDraft(` in this class, the one under the guard. A second " +
+            "⛔ exactly one `repo.drafts.discardDraft(` in this class, the one under the guard. A second " +
                 "call — a helper, an early return \"to be safe\" — is a second way out that reads " +
                 "no verdict at all, and every test above stays green. Lines were:",
-            listOf("repo.discardDraft(destroyingCredentials(), original, originalUidValidity)"),
-            codeLines(codeOf(COMPOSE_VIEW_MODEL.readText())).filter { "repo.discardDraft(" in it },
+            listOf("repo.drafts.discardDraft(destroyingCredentials(), original, originalUidValidity)"),
+            codeLines(codeOf(COMPOSE_VIEW_MODEL.readText())).filter { "repo.drafts.discardDraft(" in it },
         )
     }
 

@@ -973,8 +973,8 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         references = draft.references
                         // The numbering the draft's id belongs to, frozen here and read below against
                         // the flag: unopposed, a renumbering makes that uid name a different message.
-                        editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)
-                        val flaggedDraft = repo.carriesDraftFlag(credentials, draft, editingDraftUidValidity)
+                        editingDraftUidValidity = repo.drafts.recordedUidValidityForDraft(credentials, draftId)
+                        val flaggedDraft = repo.drafts.carriesDraftFlag(credentials, draft, editingDraftUidValidity)
                         // The account is not frozen here: it is armed at the entry, beside the id it
                         // describes. On this line it would be frozen only on the paths that reach it.
                         val lossy = reopenedDraftIsLossy(
@@ -1168,7 +1168,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // row stayed editing and the draft reached the server only after the next cold start (#95).
         val lease = takeLocalDraftEditOrGiveItBack(
             id = id,
-            take = { repo.takeLocalDraftForEdit(credentials.id, it) },
+            take = { repo.drafts.takeLocalDraftForEdit(credentials.id, it) },
             // Remembered synchronously, and before any field is written: the back gesture can arrive
             // at the very next frame. Both halves, because ids collide between two accounts of one
             // server (#31) and an unscoped release hands another account's open row to the worker.
@@ -1176,7 +1176,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 editingLocalDraftAccountId = credentials.id
                 _editingLocalDraftId.value = taken.id
             },
-            giveBack = { runCatching { repo.releaseLocalDraftEdit(credentials.id, it) } },
+            giveBack = { runCatching { repo.drafts.releaseLocalDraftEdit(credentials.id, it) } },
         )
         val row = when (lease) {
             // The row is gone, the worker consumed it between the list being drawn and the tap, or
@@ -1260,12 +1260,12 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             replacedServerDraftId = serverDraft,
             // Frozen when the row was written, carried, never re-read (#99).
             replacedServerDraftUidValidity = replacedServerDraftUidValidity,
-            mailboxId = serverDraft?.let { repo.draftMailboxOf(credentials, it) },
+            mailboxId = serverDraft?.let { repo.drafts.draftMailboxOf(credentials, it) },
             bodyIsLossy = editingDraftLossy,
             // Read here, like `mailboxId` above, because establishing it means asking the server while
             // the decision stays pure, under the account the row was leased under.
             addressingIsProvenEmpty = serverDraft != null && !editingDraftLossy &&
-                repo.emptiedDraftAddressingIsProvenEmpty(credentials, serverDraft),
+                repo.drafts.emptiedDraftAddressingIsProvenEmpty(credentials, serverDraft),
         )
         destroyThenConsumeEmptiedLocalDraft(
             localDraftId = localDraftId,
@@ -1333,7 +1333,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private suspend fun consumeEditingLocalDraft(id: String) {
         val account = editingLocalDraftAccountId ?: return
         _editingLocalDraftId.value = null
-        repo.consumeLocalDraft(account, id)
+        repo.drafts.consumeLocalDraft(account, id)
     }
 
     /**
@@ -1380,7 +1380,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         val account = editingLocalDraftAccountId ?: return
         _editingLocalDraftId.value = null
         appScope.launch {
-            runCatching { repo.releaseLocalDraftEdit(account, id) }
+            runCatching { repo.drafts.releaseLocalDraftEdit(account, id) }
                 .onFailure { android.util.Log.w("SternaCompose", "couldn't release the edited local draft", it) }
         }
     }
@@ -1766,7 +1766,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             if (original == null) {
                 _state.value = ComposeState.Done
             } else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {
-                // Not repo.discardDraft: for an id no server ever issued the IMAP route destroys
+                // Not repo.drafts.discardDraft: for an id no server ever issued the IMAP route destroys
                 // nothing, and the screen closed as a success while the emptied draft went up on the next
                 submit(to) { _, _ -> destroyReplacedServerDraft(original) }
             } else {
@@ -1784,11 +1784,11 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     // Not a decision taken here, the decision is the function below, and this is the
                     // term it reads. `!editingDraftLossy &&` skips a server read whose answer cannot
                     val addressingIsProvenEmpty = !editingDraftLossy &&
-                        repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)
+                        repo.drafts.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)
                     if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {
                         _notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)
                     } else {
-                        repo.discardDraft(destroyingCredentials(), original, originalUidValidity)
+                        repo.drafts.discardDraft(destroyingCredentials(), original, originalUidValidity)
                     }
                 }
             }
@@ -1802,7 +1802,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // and nothing at all when that pair was read under another account (#31 × #63). Unlike every
             val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)
                 .unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)
-            val outcome = repo.saveDraft(
+            val outcome = repo.drafts.saveDraft(
                 // `toPlainText(body)` and never `body.text` (#131): the text part is the alternative
                 // a client with no HTML shows, and it is the one plain-text answer the send already
                 // uses. `body.text` here stores a draft whose text part has the list markers nowhere

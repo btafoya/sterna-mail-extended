@@ -27,7 +27,7 @@ class DraftAddressingWiringTest {
             "uploadDraft must put the question to draftAddressingIsCarried — the pure function a " +
                 "test can execute — not to a predicate written inline where nothing reaches it",
             listOf("val addressingIsCarried = draftAddressingIsCarried("),
-            codeLinesNaming(bodyOf("MailRepository", "uploadDraft"), "draftAddressingIsCarried("),
+            codeLinesNaming(bodyOf("MailDrafts", "uploadDraft"), "draftAddressingIsCarried("),
         )
     }
 
@@ -48,7 +48,7 @@ class DraftAddressingWiringTest {
                 "replacement = requestReceipt,",
                 "replacement = requestReceipt,",
             ),
-            codeLinesNaming(bodyOf("MailRepository", "uploadDraft"), "replacement ="),
+            codeLinesNaming(bodyOf("MailDrafts", "uploadDraft"), "replacement ="),
         )
     }
 
@@ -64,7 +64,7 @@ class DraftAddressingWiringTest {
                 "i.e. no destroy. Only the SEND path, which holds the message in RAM while it " +
                 "reads, carries a deadline written at its call site.",
             listOf("originalAddressing = { id -> imapDraftAddressing(credentials, id, ImapBudget.NO_BUDGET) },"),
-            codeLinesNaming(bodyOf("MailRepository", "uploadDraft"), "originalAddressing ="),
+            codeLinesNaming(bodyOf("MailDrafts", "uploadDraft"), "originalAddressing ="),
         )
     }
 
@@ -80,14 +80,14 @@ class DraftAddressingWiringTest {
                 "addressingIsCarried = addressingIsCarried,",
                 "addressingIsCarried = true,",
             ),
-            codeLinesNaming(bodyOf("MailRepository", "uploadDraft"), "addressingIsCarried"),
+            codeLinesNaming(bodyOf("MailDrafts", "uploadDraft"), "addressingIsCarried"),
         )
     }
 
     @Test fun anAddressingThatCannotBeReadReturnsUnknownAndNotAnEmptySet() {
         // `?: return emptySet()` here is a purged cache row, or an id whose UID is gone, passing
         // itself off as "this draft had no copied parties", and the original is destroyed.
-        val body = bodyOf("MailRepository", "imapDraftAddressing")
+        val body = bodyOf("MailDrafts", "imapDraftAddressing")
         assertEquals(
             "every bail-out of imapDraftAddressing must answer null (unknown, keep the " +
                 "original) — never an empty set, which reads as 'nothing to lose'",
@@ -138,7 +138,7 @@ class DraftAddressingWiringTest {
                 "return true",
                 "}",
             ),
-            codeLines(bodyOf("MailRepository", "emptiedDraftAddressingIsProvenEmpty")),
+            codeLines(bodyOf("MailDrafts", "emptiedDraftAddressingIsProvenEmpty")),
         )
     }
 

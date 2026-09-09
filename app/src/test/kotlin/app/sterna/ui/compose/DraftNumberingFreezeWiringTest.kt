@@ -126,7 +126,7 @@ class DraftNumberingFreezeWiringTest {
                 "composer\". WHAT THE READER LOSES: draft D of account A reopened, link dead, her " +
                 "text still on screen; she switches \"From\" to account B (the picker covers " +
                 "every account and resets nothing) and taps Save. The guard waves D through, " +
-                "`repo.saveDraft(B, …, replacesEmailId = D)` reaches `forServerDraft(B, D)`, and " +
+                "`repo.drafts.saveDraft(B, …, replacesEmailId = D)` reaches `forServerDraft(B, D)`, and " +
                 "server draft ids collide between two accounts of one server (#31) — B's own " +
                 "pending draft is overwritten in place by A's text, the only copy of it. Body " +
                 "was:\n" + prepare.joinToString("\n"),
@@ -222,11 +222,11 @@ class DraftNumberingFreezeWiringTest {
             "and the discard call must be handed that captured value — nothing else, and no `null` " +
                 "placeholder: `null` destroys nothing, so an emptied draft would come back on the " +
                 "next sync. Body was:\n${save.joinToString("\n")}",
-            listOf("repo.discardDraft(destroyingCredentials(), original, originalUidValidity)"),
-            save.filter { "repo.discardDraft(" in it },
+            listOf("repo.drafts.discardDraft(destroyingCredentials(), original, originalUidValidity)"),
+            save.filter { "repo.drafts.discardDraft(" in it },
         )
         assertEquals(
-            "re-saving an opened draft destroys the server copy it replaces, so repo.saveDraft must " +
+            "re-saving an opened draft destroys the server copy it replaces, so repo.drafts.saveDraft must " +
                 "carry the frozen numbering for it too, under its own named argument. Passing " +
                 "editingDraftId's numbering read afresh here is the defect this fix closes. It now " +
                 "travels inside the pair the account guard is asked on (⛔ pinned right below, or " +
@@ -298,7 +298,7 @@ class DraftNumberingFreezeWiringTest {
     companion object {
         private const val REMEMBER_ID = "editingDraftId = draftId"
         private const val FREEZE =
-            "editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)"
+            "editingDraftUidValidity = repo.drafts.recordedUidValidityForDraft(credentials, draftId)"
         private const val FREEZE_ACCOUNT = "editingDraftAccountId = credentials()?.id"
 
         private const val COMPOSE_VIEW_MODEL_PATH =
