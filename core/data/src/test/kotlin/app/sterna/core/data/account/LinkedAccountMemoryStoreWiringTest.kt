@@ -107,7 +107,7 @@ class LinkedAccountMemoryStoreWiringTest {
         assertEquals(
             "AccountStore.linkedMemory lost its runCatching, or no longer falls back to an EMPTY " +
                 "map. This blob is written by a build the user may later downgrade from, and it " +
-                "is decoded on every connect: a throw here would take down reconcileLinkedAccounts " +
+                "is decoded on every jmapSession: a throw here would take down reconcileLinkedAccounts " +
                 "itself, which is the code path that MAINTAINS the account list. An unreadable " +
                 "memory must cost exactly today's behaviour — a re-granted share minted from the " +
                 "constructor — and nothing more.",

@@ -36,10 +36,10 @@ class LocalDraftSaveWiringTest {
     @Test fun `saveDraft itself touches no network at all`() {
         // The point of the volet, stated where it can rot: every byte that leaves goes through
         // uploadDraft, which is reached only after the row is durable. A single `imap.` or
-        // `connect(` back in this body is the old order restored.
+        // `jmapSession(` back in this body is the old order restored.
         val body = codeOf(bodyOf("saveDraft"))
         val network = body.filter { line ->
-            listOf("imap.", "client.", "connect(", "jmapDraftAttachments(", "imapDraftAttachments(")
+            listOf("imap.", "client.", "jmapSession(", "jmapDraftAttachments(", "imapDraftAttachments(")
                 .any { it in line }
         }
         assertEquals(

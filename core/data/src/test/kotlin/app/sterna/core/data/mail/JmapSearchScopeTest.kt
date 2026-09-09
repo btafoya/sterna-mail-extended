@@ -139,7 +139,7 @@ class JmapSearchScopeTest {
         val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt").readText()
         val start = source.indexOf("suspend fun search(credentials: AccountCredentials")
         check(start >= 0) { "MailRepository no longer declares search(credentials, query, limit)" }
-        val jmap = source.indexOf("val ctx = connect(credentials)", start)
+        val jmap = source.indexOf("val ctx = jmapSession(credentials)", start)
         check(jmap > start) { "MailRepository.search no longer connects before its JMAP branch" }
         val end = source.indexOf("suspend fun search(accounts:", jmap)
         check(end > jmap) { "MailRepository no longer declares the unified search(accounts, …) after it" }

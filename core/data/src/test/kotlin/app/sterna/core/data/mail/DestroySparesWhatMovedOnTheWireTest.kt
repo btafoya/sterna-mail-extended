@@ -79,7 +79,7 @@ class DestroySparesWhatMovedOnTheWireTest {
     }
 
     /**
-     * Routed on the method the body asks for, never on arrival order: `connect` walks Session,
+     * Routed on the method the body asks for, never on arrival order: `jmapSession` walks Session,
      * Identity/get and Mailbox/get before the check's Email/get, and a queue of canned answers
      * would silently hand the wrong one to the wrong call the day that order changes.
      */

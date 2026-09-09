@@ -94,25 +94,25 @@ class DeleteResolvesOrCreatesTrashWiringTest {
         )
     }
 
-    @Test fun `a trash learned by name or created is written back into the context`() {
+    @Test fun `a trash learned by name or created is written back into the cached session`() {
         assertEquals(
             "a name match must be cached into the role map, or every message of a bulk delete " +
                 "re-runs the whole resolution. Whole line: the map must gain `trash`, and the " +
                 "account's own mailboxes must survive the rebuild",
             listOf(
-                "context = Context(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, " +
+                "cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, " +
                     """ctx.rolesToMailboxId + ("trash" to byName), ctx.mailboxes)""",
             ),
-            codeLinesNaming(bodyOf("trashMailboxId"), "context = Context("),
+            codeLinesNaming(bodyOf("trashMailboxId"), "cachedSession = JmapAccountSession("),
         )
         assertEquals(
             "⛔ and a CREATED folder above all: without this line every message of a bulk delete " +
                 "tries to create its own Trash and the account fills up with them",
             listOf(
-                "context = Context(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, " +
+                "cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, " +
                     """ctx.rolesToMailboxId + ("trash" to id), ctx.mailboxes)""",
             ),
-            codeLinesNaming(bodyOf("createTrashFolder"), "context = Context("),
+            codeLinesNaming(bodyOf("createTrashFolder"), "cachedSession = JmapAccountSession("),
         )
     }
 

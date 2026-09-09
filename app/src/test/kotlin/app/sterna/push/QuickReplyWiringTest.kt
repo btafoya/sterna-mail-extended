@@ -150,7 +150,7 @@ class QuickReplyWiringTest {
             .toList()
         assertEquals(
             "⛔ both of these resolve the Trash over the SOCKET (roleMailboxId: an IMAP LIST, a " +
-                "JMAP connect()). A broadcast receiver has ~10 s of goAsync for everything it " +
+                "JMAP session). A broadcast receiver has ~10 s of goAsync for everything it " +
                 "does, and a reachable-but-silent server spends all of it — the process is then " +
                 "killed mid-action. Every question this package asks about a folder is answered " +
                 "from the local caches or not asked at all",

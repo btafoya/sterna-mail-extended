@@ -88,20 +88,20 @@ class ForbiddenSubAccountWiringTest {
     }
 
     /**
-     * The add-flow entry point reuses the cached context's session and its auth, so surfacing
+     * The add-flow entry point reuses the cached session and its auth, so surfacing
      * sub-accounts right after an add costs no token work and no second session fetch.
      */
-    @Test fun `the after-add path reuses the cached context's own auth`() {
+    @Test fun `the after-add path reuses the cached session's own auth`() {
         assertBody(
             "reconcileLinkedAccountsAfterAdd",
             """
             {
             runCatching {
             val credentials = accountStore.credentials(id) ?: return
-            val cached = context
+            val cached = cachedSession
             ?.takeIf { it.credentials.server == credentials.server && it.credentials.username == credentials.username }
             ?: return
-            // The cached context's own auth, so the #129 probe costs no token work of its own.
+            // The cached session's own auth, so the #129 probe costs no token work of its own.
             reconcileLinkedAccounts(credentials, cached.session, cached.auth)
             }.rethrowIfCancelled()
             }
@@ -112,18 +112,18 @@ class ForbiddenSubAccountWiringTest {
     /**
      * Order, not the whole body: the mention list below sees only the text and its rank, so moving
      */
-    @Test fun `connect reconciles the linked accounts before it uses the session`() {
-        val lines = bodyLines("connect")
+    @Test fun `the session accessor reconciles the linked accounts before it uses the session`() {
+        val lines = bodyLines("jmapSession")
         val reconcile = lines.indexOf("reconcileLinkedAccounts(credentials, session, auth)")
         val use = lines.indexOfFirst { "client.getMailboxes(" in it }
         assertTrue(
-            "connect() no longer calls reconcileLinkedAccounts(credentials, session, auth) — that " +
+            "jmapSession() no longer calls reconcileLinkedAccounts(credentials, session, auth) — that " +
                 "call is what makes the #129 filter and the #31 prune run at all.",
             reconcile >= 0,
         )
-        assertTrue("connect() no longer calls client.getMailboxes( — read the new body.", use >= 0)
+        assertTrue("jmapSession() no longer calls client.getMailboxes( — read the new body.", use >= 0)
         assertTrue(
-            "the reconcile now sits BELOW connect()'s own getMailboxes: the session is used before " +
+            "the reconcile now sits BELOW jmapSession()'s own getMailboxes: the session is used before " +
                 "the sub-accounts are reconciled.",
             reconcile < use,
         )
@@ -137,7 +137,7 @@ class ForbiddenSubAccountWiringTest {
             .filter { Regex("""\breconcileLinkedAccounts\(""").containsMatchIn(it) }
         assertEquals(
             "a call to MailRepository.reconcileLinkedAccounts was added, removed or given other " +
-                "arguments. The connect() one is what makes the fix run at all (#129) and what " +
+                "arguments. The jmapSession() one is what makes the fix run at all (#129) and what " +
                 "makes revocations prune (#31); the after-add one is what the add flow shows.",
             listOf(
                 "private suspend fun reconcileLinkedAccounts(",

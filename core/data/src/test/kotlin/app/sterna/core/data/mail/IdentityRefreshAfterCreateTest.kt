@@ -19,7 +19,7 @@ class IdentityRefreshAfterCreateTest {
         assertEquals(
             "MailRepository.createIdentity no longer re-reads the server's identities after the " +
                 "creation was confirmed. Without that line the new address is stored nowhere the " +
-                "screen reads: `connect` hands back its CACHED context, so the next Identity/get " +
+                "screen reads: `jmapSession` hands back its CACHED session, so the next Identity/get " +
                 "only happens at the following cold start — the app restart of #172. The order is " +
                 "part of the rule: the re-read sits AFTER the client call, which throws on a " +
                 "notCreated refusal, so a refused address costs no second round trip and leaves " +
@@ -49,9 +49,9 @@ class IdentityRefreshAfterCreateTest {
         )
     }
 
-    @Test fun `connect still refreshes, at the same place in its sequence`() {
+    @Test fun `the session accessor still refreshes, at the same place in its sequence`() {
         assertEquals(
-            "the refresh moved or changed arguments inside MailRepository.connect. It must stay " +
+            "the refresh moved or changed arguments inside MailRepository.jmapSession. It must stay " +
                 "between the linked-account reconcile and the mailbox fetch, reading with the JMAP " +
                 "account id and writing under credentials.id — the two are both String and a swap " +
                 "compiles. Codeberg #32 rides on this line: the server is authoritative for the " +
@@ -70,7 +70,7 @@ class IdentityRefreshAfterCreateTest {
             "MailRepository.refreshServerIdentities changed shape. It must read the list from the " +
                 "server (Identity/get) and store THAT, never a list built locally; it must write " +
                 "under the local account id and read under the JMAP one; and it must stay inside " +
-                "runCatching, because `connect` calls it and a failed read must not break signing " +
+                "runCatching, because `jmapSession` calls it and a failed read must not break signing " +
                 "in.",
             listOf(
                 "private suspend fun refreshServerIdentities(",
@@ -93,8 +93,8 @@ class IdentityRefreshAfterCreateTest {
         assertEquals(
             "MailRepository.serverIdentities changed shape. It is the read #172 was missing: " +
                 "`StoredAccount.serverIdentities` is written only by refreshServerIdentities, which " +
-                "only `connect` calls, and neither adding an account nor Test connection nor a sync " +
-                "opens a connect — so on a freshly added account the stored list stayed empty " +
+                "only `jmapSession` calls, and neither adding an account nor Test connection nor a sync " +
+                "opens a session — so on a freshly added account the stored list stayed empty " +
                 "because nobody read it, and identitiesToCreate refused to post against an unread " +
                 "list, for good. Three things are pinned: IMAP THROWS (there is no Identity/get " +
                 "behind it, and a silent empty answer would make a bypassing caller look like it " +
@@ -107,7 +107,7 @@ class IdentityRefreshAfterCreateTest {
                 "if (credentials.protocol == MailProtocol.IMAP) {",
                 "throw IllegalStateException(\"Identity/get is JMAP-only; an IMAP alias is local\")",
                 "}",
-                "val ctx = connect(credentials)",
+                "val ctx = jmapSession(credentials)",
                 "val identities = storedServerIdentities(client.getIdentities(ctx.session, ctx.accountId, ctx.auth))",
                 "accountStore.setServerIdentities(credentials.id, identities)",
                 "return identities",

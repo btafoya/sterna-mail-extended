@@ -49,7 +49,7 @@ class MoveToAccountWiringTest {
                 "val uid = imap.appendBytes(target, targetMailboxId, bytes, imapFlagsOf(from.keywords), internalDateOf(from.receivedAt))",
                 "return uid?.let { ImapMailService.emailId(target.id, targetMailboxId, it) }",
                 "}",
-                "val ctx = connect(target)",
+                "val ctx = jmapSession(target)",
                 """val blobId = client.uploadBlob(ctx.session, ctx.accountId, bytes, "message/rfc822", ctx.auth).blobId""",
                 "return client.importEmail(ctx.session, ctx.accountId, ctx.auth, blobId, setOf(targetMailboxId), jmapKeywordsOf(from.keywords), from.receivedAt)",
                 "}",

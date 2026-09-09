@@ -233,9 +233,9 @@ class SignedOutAccountWiringTest {
 
     @Test fun `the un-archive refuses to start for an account that is gone, before it even connects`() {
         // Not "just" an entry check that spares a session, which is why it is worth its own line
-        // ahead of `connect`: everything below it leads to `client.move`, a write on the server
+        // ahead of `jmapSession`: everything below it leads to `client.move`, a write on the server
         //
-        // Pinned as a block, between the early return and the connect: below the connect it stops
+        // Pinned as a block, between the early return and the session: below it the guard stops
         // sparing anything, and above the early return it would throw for IMAP accounts and empty
         // thread sets, paths that never write at all.
         assertEquals(
@@ -245,7 +245,7 @@ class SignedOutAccountWiringTest {
             listOf(
                 "if (threadIds.isEmpty() || credentials.protocol == MailProtocol.IMAP) return emptyList()",
                 "$guard(credentials.id, accountStore.accounts().map { it.id })",
-                "val ctx = connect(credentials)",
+                "val ctx = jmapSession(credentials)",
             ),
             block(
                 "unarchiveThreadsOnReply",
@@ -257,7 +257,7 @@ class SignedOutAccountWiringTest {
 
     @Test fun `the server move asks one last time, on the far side of the session`() {
         // The widest window of the three, and the only write of the whole file that does not land
-        // in this phone's database. `connect` is fetchSession + jmapAccountIdFor +
+        // in this phone's database. `jmapSession` is fetchSession + jmapAccountIdFor +
         //
         // Pinned from the recently-mutated marks so the block states the order that matters: the
         // marks and the #99 rescue stay ahead of the guard (they protect the rows during the very
@@ -277,7 +277,7 @@ class SignedOutAccountWiringTest {
     }
 
     @Test fun `the re-file asks again once the server has answered the move`() {
-        // The entry check is no proxy for this one: `connect` plus the `Email/set` move are several
+        // The entry check is no proxy for this one: `jmapSession` plus the `Email/set` move are several
         // round-trips wide, and a sign-out landing inside that window leaves `upsertAll` writing
         //
         // Pinned from the move's own `getOrNull` so the guard is fixed on the far side of the

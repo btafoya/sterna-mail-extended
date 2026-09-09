@@ -80,7 +80,7 @@ class AccountsStateTest {
         }
         runCurrent()
 
-        // Every connect reconciles, and the usual outcome is "nothing changed", rebuilt list
+        // Every jmapSession reconciles, and the usual outcome is "nothing changed", rebuilt list
         // objects, equal contents. Re-emitting those would recompose the drawer for nothing.
         state.publish(listOf(login, shared("sub-1")))
         state.publish(listOf(login, shared("sub-1")))

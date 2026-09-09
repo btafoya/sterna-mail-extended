@@ -322,7 +322,7 @@ class LocalDraftSaveTest {
     }
 
     @Test fun `a JMAP save whose very first call is the network keeps the draft just the same`() = runTest {
-        // The JMAP branch opens with connect(), so on that protocol the throw comes from the first
+        // The JMAP branch opens with jmapSession(), so on that protocol the throw comes from the first
         // line of the upload rather than from an APPEND. The row is written before either.
         val outcome = save(upload = { error("Couldn't reach the server: connect failed") })
 

@@ -395,7 +395,7 @@ class ConnectPrimingWiringTest {
                 "the #129 diff a session of possibly the other auth family, over a login that " +
                 "already has sub-accounts — and eviction there deletes a real shared mailbox with " +
                 "its cache. Nothing is lost by the gate: the call is an optimisation and the " +
-                "connect() hook reconciles anyway. Found:\n" + offenders.joinToString("\n"),
+                "jmapSession() hook reconciles anyway. Found:\n" + offenders.joinToString("\n"),
             emptyList<String>(), offenders,
         )
     }

@@ -924,7 +924,7 @@ class MailRepository(
      * baselines. Set by the app layer at startup.
      */
     var onAccountPruned: ((String) -> Unit)? = null
-    private class Context(
+    internal class JmapAccountSession(
         val credentials: AccountCredentials,
         val session: JmapSession,
         val accountId: String,
@@ -935,7 +935,7 @@ class MailRepository(
     )
 
     @Volatile
-    private var context: Context? = null
+    private var cachedSession: JmapAccountSession? = null
 
     /**
      * App-layer teardown for a folder the server has renumbered (#99). Without it the next push pass diffs
@@ -1230,7 +1230,7 @@ class MailRepository(
         if (emailIds.isEmpty() || credentials.protocol == MailProtocol.IMAP) return emptyList()
         val confirmed = confirmedDepartures(emailIds, mailboxId) { ids ->
             // Inside the supplier: a pass with nothing to confirm never even opens a session.
-            val ctx = connect(credentials)
+            val ctx = jmapSession(credentials)
             client.mailboxIdsOf(ctx.session, ctx.accountId, ids, ctx.auth)
         }
         if (confirmed.size != emailIds.size) {
@@ -1423,7 +1423,7 @@ class MailRepository(
                         if (entities.isNotEmpty()) emailDao.upsertAll(entities)
                         entities.size to exists
                     } else {
-                        val ctx = connect(credentials)
+                        val ctx = jmapSession(credentials)
                         // Anchor on the oldest cached representative rather than an absolute offset:
                         // the anchor doesn't shift when new mail arrives, so no page is skipped or
                         // duplicated. It overlaps at worst, which upsert-only insertion makes harmless.
@@ -1566,7 +1566,7 @@ class MailRepository(
             emailDao.unreadKeys(credentials.id, mailboxId, UNREAD_RESOLVE_MAX).map { it.id }
         if (credentials.protocol == MailProtocol.IMAP) return cached()
         return runCatching {
-            val ctx = connect(credentials)
+            val ctx = jmapSession(credentials)
             val ids = mutableListOf<String>()
             while (ids.size < UNREAD_RESOLVE_MAX) {
                 val page = client.queryEmailIds(
@@ -1601,7 +1601,7 @@ class MailRepository(
         if (credentials.protocol == MailProtocol.IMAP) return
         val now = System.currentTimeMillis()
         if (!force && now - (lastIndexAt[credentials.id] ?: 0L) < INDEX_TTL_MS) return
-        val ctx = runCatching { connect(credentials) }.getOrNull() ?: return
+        val ctx = runCatching { jmapSession(credentials) }.getOrNull() ?: return
         // Don't crawl Trash/Junk into the index: same role source as searchableFolderIds, excluded
         // server-side.
         val excluded = excludedSearchFolderIds(mailboxDao.searchOrder(credentials.id))
@@ -1674,7 +1674,7 @@ class MailRepository(
                     )
                     continue
                 }
-                val resolved = resolve(credentials)
+                val resolved = resolveJmapAccount(credentials)
                 val inbox = resolved.mailboxes.firstOrNull { it.role == "inbox" }
                     ?: resolved.mailboxes.firstOrNull()
                     ?: continue
@@ -1732,8 +1732,8 @@ class MailRepository(
     }
 
     /**
-     * Build JMAP auth for [credentials]: Bearer for API-token accounts (the token lives in the password slot)
-     * and for OAuth (refreshing within 60 s of expiry), Basic otherwise.
+     * Build JMAP auth for [credentials], the token half of the session seam [jmapAccountIdFor] completes:
+     * Bearer for API-token accounts (token in the password slot), OAuth refreshed within 60 s of expiry, Basic otherwise.
      */
     private suspend fun jmapAuth(credentials: AccountCredentials): JmapAuth {
         if (credentials.authType == AuthType.API_TOKEN) return BearerAuth(credentials.password)
@@ -2047,7 +2047,7 @@ class MailRepository(
         val accountId = jmapAccountIdFor(credentials, session)
 
         val mailboxes = client.getMailboxes(session, accountId, auth)
-        context = Context(
+        cachedSession = JmapAccountSession(
             credentials = credentials,
             session = session,
             accountId = accountId,
@@ -2158,7 +2158,7 @@ class MailRepository(
      */
     suspend fun openEmail(credentials: AccountCredentials, emailId: String, markRead: Boolean = true): Email {
         if (credentials.protocol == MailProtocol.IMAP) return openEmailImap(credentials, emailId, markRead)
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val email = client.getEmail(ctx.session, ctx.accountId, emailId, ctx.auth)
         if (markRead && !email.isSeen) {
             // Through setRead, never inline: it also nudges the drawer count, protects the id from
@@ -2184,7 +2184,7 @@ class MailRepository(
             return OriginRead(email.originalSender, succeeded = true)
         }
         return try {
-            val ctx = connect(credentials)
+            val ctx = jmapSession(credentials)
             val headers = client.getEmailHeaders(ctx.session, ctx.accountId, emailId, ctx.auth)
                 .map { it.name to it.value }
             // Autocrypt rides on the read already happening: no second round trip.
@@ -2237,7 +2237,7 @@ class MailRepository(
     /**
      * The same read for many messages, keyed by id: one grouped `Email/get`, best effort, cancellation
      */
-    private suspend fun originalSendersOf(ctx: Context, emails: List<Email>): Map<String, String?>? = try {
+    private suspend fun originalSendersOf(ctx: JmapAccountSession, emails: List<Email>): Map<String, String?>? = try {
         val byId = client.getEmailsHeaders(ctx.session, ctx.accountId, emails.map { it.id }, ctx.auth)
         for (email in emails) {
             val headers = byId[email.id] ?: continue
@@ -2401,7 +2401,7 @@ class MailRepository(
             val raw = fetchRawSource(credentials, email, emailId)
             return MimeParser.rawHeaders(raw).map { (name, value) -> EmailHeader(name, value) }
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         return client.getEmailHeaders(ctx.session, ctx.accountId, emailId, ctx.auth)
     }
 
@@ -2461,7 +2461,7 @@ class MailRepository(
             imap.fetchSource(credentials, mailboxId, uid, numbering)
         } else {
             val blobId = email.blobId ?: error("Message has no blob id.")
-            val ctx = connect(credentials)
+            val ctx = jmapSession(credentials)
             // ISO-8859-1, like the IMAP branch: a raw source is a byte container, one char per octet.
             client.downloadBlob(ctx.session, ctx.accountId, blobId, "message/rfc822", "message.eml", ctx.auth)
                 .toString(Charsets.ISO_8859_1)
@@ -2682,7 +2682,7 @@ class MailRepository(
             val already = emailBodyDao.cachedIds(credentials.id, newest).toSet()
             val missing = newest.filter { it !in already }
             if (missing.isEmpty()) return
-            val ctx = connect(credentials)
+            val ctx = jmapSession(credentials)
             val emails = client.getEmailsWithBody(ctx.session, ctx.accountId, missing, ctx.auth)
             // The origin header (#160) is posed here too, not only in `openEmail`. `?: return`, a window
             // whose origin read failed is not persisted, or those bodies would say "no origin" for good.
@@ -2705,7 +2705,7 @@ class MailRepository(
             adjustFolderUnreadOnRead(credentials.id, mailboxId, wasSeen, seen)
             return
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val newState = try {
             client.setSeen(ctx.session, ctx.accountId, emailId, seen, ctx.auth)
         } catch (e: JmapException) {
@@ -2727,7 +2727,7 @@ class MailRepository(
             emailIds.forEach { runCatching { setRead(credentials, it, seen) } }
             return
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         // The chunk is the server's own limit, so [JmapClient.move] never has to re-split it.
         emailIds.chunked(ctx.session.setBatchSize()).forEach { chunk ->
             // Captured before the write so only real transitions nudge the counters (#46). Chunked again
@@ -2774,7 +2774,7 @@ class MailRepository(
             emailDao.setFlagged(credentials.id, emailId, flagged)
             return
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val mb = emailDao.mailboxOf(credentials.id, emailId)
         val newState = try {
             client.setKeyword(ctx.session, ctx.accountId, emailId, "\$flagged", flagged, ctx.auth)
@@ -2822,7 +2822,7 @@ class MailRepository(
             adjustCountsForRemoval(listOfNotNull(row), dest)
             return dest
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val mb = row?.mailboxId ?: emailDao.mailboxOf(credentials.id, emailId)
         val target = archiveMailboxId(ctx) ?: ctx.rolesToMailboxId["all"] ?: createArchiveFolder(ctx)
         if (mb == target) return null // already in the archive/all folder, nothing to do
@@ -2846,7 +2846,7 @@ class MailRepository(
      *  with no Trash is not a destroy, [delete] resolves-or-creates the bin, so `true` erases it (#23). */
     suspend fun deleteWouldDestroy(credentials: AccountCredentials, email: Email): Boolean {
         val trash = if (credentials.protocol == MailProtocol.IMAP) imapRoleFolder(credentials, "trash")
-        else trashMailboxId(connect(credentials))
+        else trashMailboxId(jmapSession(credentials))
         return deleteDestroysMessage(trash, email.mailboxId)
     }
 
@@ -2933,7 +2933,7 @@ class MailRepository(
             adjustCountsForRemoval(listOfNotNull(moved), targetMailboxId)
             return targetMailboxId
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val mb = moved?.mailboxId ?: emailDao.mailboxOf(credentials.id, emailId)
         val newState = try {
             client.move(ctx.session, ctx.accountId, emailId, targetMailboxId, ctx.auth)
@@ -3056,7 +3056,7 @@ class MailRepository(
 
     /** JMAP: move every id to [target], then drop the local rows. Only ids the server confirmed are
      *  dropped; anything else keeps its row and lands in [BulkResult.failed]. */
-    private suspend fun jmapMoveAll(ctx: Context, emailIds: List<String>, target: String): BulkResult {
+    private suspend fun jmapMoveAll(ctx: JmapAccountSession, emailIds: List<String>, target: String): BulkResult {
         val localAccountId = ctx.credentials.id
         val rows = byIdsChunked(emailIds) { chunk -> emailDao.emailsByIds(localAccountId, chunk) }
         return runCatching { client.move(ctx.session, ctx.accountId, emailIds, target, ctx.auth) }
@@ -3076,7 +3076,7 @@ class MailRepository(
 
     /** JMAP: destroy every id, then drop the confirmed rows. A failed request throws rather than marking
      *  ids failed; the worker replays the list and an already-destroyed id returns `notFound`. */
-    private suspend fun jmapDestroyAll(ctx: Context, emailIds: List<String>): BulkResult {
+    private suspend fun jmapDestroyAll(ctx: JmapAccountSession, emailIds: List<String>): BulkResult {
         val localAccountId = ctx.credentials.id
         val rows = byIdsChunked(emailIds) { chunk -> emailDao.emailsByIds(localAccountId, chunk) }
         val result = client.destroy(ctx.session, ctx.accountId, emailIds, ctx.auth)
@@ -3144,7 +3144,7 @@ class MailRepository(
             }
             return BulkResult(succeeded, failed, dest = dest)
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val target = archiveMailboxId(ctx) ?: ctx.rolesToMailboxId["all"] ?: createArchiveFolder(ctx)
         return jmapMoveAll(ctx, emailIds, target)
     }
@@ -3156,7 +3156,7 @@ class MailRepository(
         if (threadIds.isEmpty() || credentials.protocol == MailProtocol.IMAP) return emptyList()
         // Below the early return (which writes nothing anywhere), above the session (#121).
         checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val inbox = ctx.rolesToMailboxId["inbox"] ?: return emptyList()
         val archive = archiveMailboxId(ctx) ?: ctx.rolesToMailboxId["all"] ?: return emptyList()
         if (archive == inbox) return emptyList()
@@ -3210,7 +3210,7 @@ class MailRepository(
             }
             return BulkResult(succeeded, failed, dest = targetMailboxId)
         }
-        return jmapMoveAll(connect(credentials), emailIds, targetMailboxId)
+        return jmapMoveAll(jmapSession(credentials), emailIds, targetMailboxId)
     }
 
     /** Delete a whole selection (one account): move everything to Trash. Like [delete] it never destroys
@@ -3238,8 +3238,8 @@ class MailRepository(
             }
             return BulkResult(succeeded, failed, dest = trash)
         }
-        val ctx = connect(credentials)
-        // Role, then name, then a creation; the id is written back into the context, so one bin per batch.
+        val ctx = jmapSession(credentials)
+        // Role, then name, then a creation; the id is written back into the cached session, so one bin per batch.
         val trash = trashMailboxId(ctx) ?: createTrashFolder(ctx)
         return jmapMoveAll(ctx, emailIds, trash)
     }
@@ -3266,7 +3266,7 @@ class MailRepository(
             }
             return BulkResult(succeeded, failed)
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val stillThere = idsStillOnlyIn(ctx, emailIds, expectedMailboxId)
         val spared = emailIds.toSet() - stillThere.toSet()
         // One line for the whole wave: a server that never reports `mailboxIds` spares everything for
@@ -3288,7 +3288,7 @@ class MailRepository(
      *  ones a destroy may touch (#122). Deliberately unguarded: a failed location read throws and the
      *  worker retries; falling back on [emailIds] would bring the data loss back whole. */
     private suspend fun idsStillOnlyIn(
-        ctx: Context,
+        ctx: JmapAccountSession,
         emailIds: List<String>,
         expectedMailboxId: String?,
     ): List<String> {
@@ -3338,10 +3338,10 @@ class MailRepository(
     }
 
     /** A role's mailbox id for a specific account. On JMAP it comes from that account's own connection
-     *  context, not the folder cache, which holds nothing for an account never listed. */
+     *  session, not the folder cache, which holds nothing for an account never listed. */
     private suspend fun roleMailboxId(credentials: AccountCredentials, role: String): String? =
         if (credentials.protocol == MailProtocol.IMAP) imapRoleFolder(credentials, role)
-        else connect(credentials).rolesToMailboxId[role]
+        else jmapSession(credentials).rolesToMailboxId[role]
 
     /** The first matching [roles] in a specific IMAP account, by listing it (see [roleMailboxId]). */
     private suspend fun imapRoleFolder(credentials: AccountCredentials, vararg roles: String): String? {
@@ -3424,7 +3424,7 @@ class MailRepository(
             }
             imap.createFolder(credentials, path)
         } else {
-            val ctx = connect(credentials)
+            val ctx = jmapSession(credentials)
             client.createMailbox(ctx.session, ctx.accountId, name.trim(), role = null, ctx.auth, parentId = parentId)
         }
         refreshMailboxes(credentials)
@@ -3444,7 +3444,7 @@ class MailRepository(
             refreshMailboxes(credentials)
             return newPath
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         client.renameMailbox(ctx.session, ctx.accountId, mailboxId, newName.trim(), ctx.auth)
         refreshMailboxes(credentials)
         return mailboxId
@@ -3464,7 +3464,7 @@ class MailRepository(
                 .ifEmpty { listOf(mailboxId) } // already gone server-side: still clean up locally
             targets.forEach { runCatching { imap.deleteFolder(credentials, it) } }
         } else {
-            val ctx = connect(credentials)
+            val ctx = jmapSession(credentials)
             val childrenOf = client.getMailboxes(ctx.session, ctx.accountId, ctx.auth).groupBy { it.parentId }
             val ordered = mutableListOf<String>()
             fun visit(id: String) { // post-order: children before their parent
@@ -3505,22 +3505,22 @@ class MailRepository(
             mailboxDao.replaceAll(credentials.id, load.mailboxes)
             return
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         mailboxDao.replaceAll(credentials.id, client.getMailboxes(ctx.session, ctx.accountId, ctx.auth).map { it.toEntity(credentials.id) })
     }
 
     /** The account's archive folder id: by JMAP `archive` role, else by a recognised name, cached into
-     *  the context's role map so a bulk archive resolves it once. */
-    private suspend fun archiveMailboxId(ctx: Context): String? {
+     *  the cached session's role map so a bulk archive resolves it once. */
+    private suspend fun archiveMailboxId(ctx: JmapAccountSession): String? {
         ctx.rolesToMailboxId["archive"]?.let { return it }
         // THIS account's own folders by name, not the global mailbox cache, otherwise archiving a
         // non-current account's message would target the current account's Archive id, a silent no-op.
         val byName = archiveFolderByName(ctx.mailboxes) ?: return null
-        context = Context(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("archive" to byName), ctx.mailboxes)
+        cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("archive" to byName), ctx.mailboxes)
         return byName
     }
 
-    private suspend fun createArchiveFolder(ctx: Context): String {
+    private suspend fun createArchiveFolder(ctx: JmapAccountSession): String {
         // Many servers reject a client-set special-use role: fall back to a plain folder, then an existing one.
         val id = runCatching {
             client.createMailbox(ctx.session, ctx.accountId, "Archive", "archive", ctx.auth)
@@ -3532,21 +3532,21 @@ class MailRepository(
                 ?: archiveFolderByName(mbs)
                 ?: throw err
         }
-        context = Context(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("archive" to id), ctx.mailboxes)
+        cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("archive" to id), ctx.mailboxes)
         return id
     }
 
     /** The account's Trash folder id: by JMAP `trash` role, else by a recognised bin name. JMAP only.
      *  No `all` fallback: "all mail" is not an acceptable bin. */
-    private suspend fun trashMailboxId(ctx: Context): String? {
+    private suspend fun trashMailboxId(ctx: JmapAccountSession): String? {
         ctx.rolesToMailboxId["trash"]?.let { return it }
         // THIS account's own folders, not the global mailbox cache, see [archiveMailboxId].
         val byName = trashFolderByName(ctx.mailboxes) ?: return null
-        context = Context(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("trash" to byName), ctx.mailboxes)
+        cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("trash" to byName), ctx.mailboxes)
         return byName
     }
 
-    private suspend fun createTrashFolder(ctx: Context): String {
+    private suspend fun createTrashFolder(ctx: JmapAccountSession): String {
         // Many servers reject a client-set special-use role: plain folder, then an existing bin; else throw.
         val id = runCatching {
             client.createMailbox(ctx.session, ctx.accountId, "Trash", "trash", ctx.auth)
@@ -3558,7 +3558,7 @@ class MailRepository(
                 ?: trashFolderByName(mbs)
                 ?: throw err
         }
-        context = Context(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("trash" to id), ctx.mailboxes)
+        cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("trash" to id), ctx.mailboxes)
         return id
     }
 
@@ -3605,7 +3605,7 @@ class MailRepository(
             return targets.map { it.emailId }.toSet() - restored
         }
         // JMAP: ids are stable across moves, so one Email/set per source folder, then a re-fetch.
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         targets.groupBy { it.sourceMailboxId }.forEach { (source, group) ->
             val result = runCatching {
                 client.move(ctx.session, ctx.accountId, group.map { it.emailId }, source, ctx.auth)
@@ -3678,7 +3678,7 @@ class MailRepository(
             adjustCountsForRemoval(listOfNotNull(row), trash)
             return trash
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val mb = row?.mailboxId ?: emailDao.mailboxOf(credentials.id, emailId)
         val trash = trashMailboxId(ctx) ?: createTrashFolder(ctx)
         val newState = try {
@@ -3716,7 +3716,7 @@ class MailRepository(
                     val uid = imap.appendBytes(target, targetMailboxId, bytes, imapFlagsOf(from.keywords), internalDateOf(from.receivedAt))
                     return uid?.let { ImapMailService.emailId(target.id, targetMailboxId, it) }
                 }
-                val ctx = connect(target)
+                val ctx = jmapSession(target)
                 val blobId = client.uploadBlob(ctx.session, ctx.accountId, bytes, "message/rfc822", ctx.auth).blobId
                 return client.importEmail(ctx.session, ctx.accountId, ctx.auth, blobId, setOf(targetMailboxId), jmapKeywordsOf(from.keywords), from.receivedAt)
             }
@@ -3766,7 +3766,7 @@ class MailRepository(
             )
         } else {
             runCatching {
-                val ctx = connect(credentials)
+                val ctx = jmapSession(credentials)
                 // Ids-only, paged: the purge photo needs identifiers, not bodies. Chaining an Email/get of up to
                 // SNAPSHOT_MAX threw on a server enforcing maxObjectsInGet, dropping the whole thing (#99).
                 val collected = mutableListOf<String>()
@@ -3873,7 +3873,7 @@ class MailRepository(
                 complete = imapSearchComplete(known, hits.complete, hits.messages.size, limit),
             )
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         // Exclude Trash/Junk server-side too, so JMAP matches the IMAP walk. The raw folder list is kept:
         // an empty cache excludes nothing, and that answer must not come back wearing a total.
         val cachedFolders = mailboxDao.searchOrder(credentials.id)
@@ -3932,7 +3932,7 @@ class MailRepository(
     /** Fetch an email (with body) without marking it read, used to build replies/forwards. */
     suspend fun fetchEmail(credentials: AccountCredentials, emailId: String): Email {
         if (credentials.protocol == MailProtocol.IMAP) return openEmailImap(credentials, emailId, markRead = false)
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         return client.getEmail(ctx.session, ctx.accountId, emailId, ctx.auth)
     }
 
@@ -3948,7 +3948,7 @@ class MailRepository(
 
     /** All emails in a conversation (lightweight, no body). */
     suspend fun threadEmails(credentials: AccountCredentials, threadId: String): List<Email> {
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         return client.getThreadEmails(ctx.session, ctx.accountId, threadId, ctx.auth)
     }
 
@@ -4034,7 +4034,7 @@ class MailRepository(
     /** Drop in-memory sync bookkeeping; call after clearing the cache, or sync reads stale state. */
     fun resetSyncState() {
         syncStates.clear()
-        context = null
+        cachedSession = null
     }
 
     /** Drop one account's sync cursors; the full-query branch sizes itself on the account. */
@@ -4046,21 +4046,21 @@ class MailRepository(
     suspend fun disconnectImap(accountId: String) = imap.disconnect(accountId)
 
     suspend fun hasArchiveFolder(credentials: AccountCredentials): Boolean =
-        archiveMailboxId(connect(credentials)) != null
+        archiveMailboxId(jmapSession(credentials)) != null
 
-    private class Resolved(
+    private class ResolvedJmapAccount(
         val session: JmapSession,
         val accountId: String,
         val auth: JmapAuth,
         val mailboxes: List<Mailbox>,
     )
 
-    private suspend fun resolve(credentials: AccountCredentials): Resolved {
+    private suspend fun resolveJmapAccount(credentials: AccountCredentials): ResolvedJmapAccount {
         val auth = jmapAuth(credentials)
         val session = client.fetchSession(Jmap.sessionUrlFor(credentials.server), auth)
         val accountId = jmapAccountIdFor(credentials, session)
         val mailboxes = client.getMailboxes(session, accountId, auth)
-        return Resolved(session, accountId, auth, mailboxes)
+        return ResolvedJmapAccount(session, accountId, auth, mailboxes)
     }
 
     private fun jmapAccountIdFor(credentials: AccountCredentials, session: JmapSession): String =
@@ -4104,10 +4104,10 @@ class MailRepository(
     suspend fun reconcileLinkedAccountsAfterAdd(id: String) {
         runCatching {
             val credentials = accountStore.credentials(id) ?: return
-            val cached = context
+            val cached = cachedSession
                 ?.takeIf { it.credentials.server == credentials.server && it.credentials.username == credentials.username }
                 ?: return
-            // The cached context's own auth, so the #129 probe costs no token work of its own.
+            // The cached session's own auth, so the #129 probe costs no token work of its own.
             reconcileLinkedAccounts(credentials, cached.session, cached.auth)
         }.rethrowIfCancelled()
     }
@@ -4158,7 +4158,7 @@ class MailRepository(
                 )
             }
         }
-        val resolved = resolve(credentials)
+        val resolved = resolveJmapAccount(credentials)
         val inbox = resolved.mailboxes.firstOrNull { it.role == "inbox" }
             ?: resolved.mailboxes.firstOrNull()
             ?: error("No mailboxes found.")
@@ -4201,7 +4201,7 @@ class MailRepository(
         return refreshes
     }
 
-    // ---- JMAP PushSubscription (issue #17), session-level and context-free ----
+    // ---- JMAP PushSubscription (issue #17), session-level and cache-free ----
 
     suspend fun createPushSubscription(credentials: AccountCredentials, subscription: PushSubscription): PushSubscription {
         val auth = jmapAuth(credentials)
@@ -4246,7 +4246,7 @@ class MailRepository(
         if (credentials.protocol == MailProtocol.IMAP) {
             return imap.openIdle(credentials, onChanged = onChanged, onClosed = onClosed)
         }
-        val resolved = resolve(credentials)
+        val resolved = resolveJmapAccount(credentials)
         val watched = watchedJmapAccountIds.ifEmpty { setOf(resolved.accountId) }
         return client.openEventSource(
             session = resolved.session,
@@ -4525,7 +4525,7 @@ class MailRepository(
             runCatching { refresh(credentials, drafts) }
             return outcome
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val recipients = localDraftAddresses(row.toAddresses).map { EmailAddress(email = it) }
         // The composer's chosen identity, then the stored ones, then the signed-in address, never
         // a live Identity/get, which is member-only and refused on a sub-account (issue #31).
@@ -4611,7 +4611,7 @@ class MailRepository(
     }
 
     /** The same for a JMAP draft; a server refusing the header property answers unknown, not "no". */
-    private suspend fun jmapDraftReceiptRequested(ctx: Context, emailId: String): Boolean? {
+    private suspend fun jmapDraftReceiptRequested(ctx: JmapAccountSession, emailId: String): Boolean? {
         val email = client.getEmail(ctx.session, ctx.accountId, emailId, ctx.auth)
         return receiptRequestedInProperty(
             header = email.dispositionNotificationTo,
@@ -5085,7 +5085,7 @@ class MailRepository(
                 disposition = a.disposition ?: "attachment", cid = a.cid,
             )
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val recipients = to.map { EmailAddress(email = it) }
         require(recipients.isNotEmpty()) { "Add at least one recipient." }
         val ccAddrs = ccTrimmed.map { EmailAddress(email = it) }
@@ -5331,7 +5331,7 @@ class MailRepository(
             val section = part.partId ?: error("Attachment has no section.")
             return imap.fetchAttachment(credentials, mb, uid, section, part.encoding)
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val blobId = part.blobId ?: error("Attachment has no blob.")
         return client.downloadBlob(
             ctx.session, ctx.accountId, blobId, part.type, part.name, ctx.auth, maxBytes,
@@ -5346,7 +5346,7 @@ class MailRepository(
         disposition: String = "attachment",
         cid: String? = null,
     ): EmailBodyPart {
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         // Blobs are account-scoped, and a sub-account's outgoing Email is created under the
         // LOGIN's account (see performSend). Upload where the send will reference it.
         val uploadAccountId = ctx.session.mailAccountId() ?: ctx.accountId
@@ -5364,14 +5364,14 @@ class MailRepository(
     /** The server-side vacation responder; Unsupported for IMAP and without the capability. */
     suspend fun loadVacation(credentials: AccountCredentials): VacationState {
         if (credentials.protocol == MailProtocol.IMAP) return VacationState.Unsupported
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val response = client.getVacationResponse(ctx.session, ctx.accountId, ctx.auth)
             ?: return VacationState.Unsupported
         return VacationState.Loaded(response)
     }
 
     suspend fun saveVacation(credentials: AccountCredentials, vacation: VacationResponse): VacationResponse {
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         return client.setVacationResponse(ctx.session, ctx.accountId, ctx.auth, vacation)
     }
 
@@ -5380,7 +5380,7 @@ class MailRepository(
         if (credentials.protocol == MailProtocol.IMAP) {
             throw IllegalStateException("Identity/get is JMAP-only; an IMAP alias is local")
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val identities = storedServerIdentities(client.getIdentities(ctx.session, ctx.accountId, ctx.auth))
         accountStore.setServerIdentities(credentials.id, identities)
         return identities
@@ -5391,10 +5391,10 @@ class MailRepository(
         if (credentials.protocol == MailProtocol.IMAP) {
             throw IllegalStateException("Identity/set is JMAP-only; an IMAP alias is local")
         }
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         // Named, not positional: a swap compiles silently and posts the display name as address.
         val created = client.createIdentity(ctx.session, ctx.accountId, name = name, email = email, auth = ctx.auth)
-        // #172: `connect` hands back a cached context, so nothing re-reads Identity/get until the
+        // #172: `jmapSession` hands back a cached session, so nothing re-reads Identity/get until the
         // next cold start. Re-read here, only once the server has confirmed the creation.
         refreshServerIdentities(ctx.session, ctx.accountId, credentials.id, ctx.auth)
         return created
@@ -5404,7 +5404,7 @@ class MailRepository(
     suspend fun loadQuotas(credentials: AccountCredentials): List<Quota> {
         if (credentials.protocol == MailProtocol.IMAP) return emptyList()
         return runCatching {
-            val ctx = connect(credentials)
+            val ctx = jmapSession(credentials)
             client.getQuotas(ctx.session, ctx.accountId, ctx.auth)
         }.getOrDefault(emptyList())
     }
@@ -5412,7 +5412,7 @@ class MailRepository(
     /** The account's Sterna-managed Sieve rules; Unsupported for IMAP and without the capability. */
     suspend fun loadFilterRules(credentials: AccountCredentials): FilterRulesState {
         if (credentials.protocol == MailProtocol.IMAP) return FilterRulesState.Unsupported
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         if (!ctx.session.capabilities.containsKey(app.sterna.core.jmap.Jmap.SIEVE_CAPABILITY)) {
             return FilterRulesState.Unsupported
         }
@@ -5435,7 +5435,7 @@ class MailRepository(
     suspend fun loadFilterScriptStatus(credentials: AccountCredentials): FilterScriptStatus? {
         if (credentials.protocol == MailProtocol.IMAP) return FilterScriptStatus()
         return runCatching {
-            val ctx = connect(credentials)
+            val ctx = jmapSession(credentials)
             if (!ctx.session.capabilities.containsKey(app.sterna.core.jmap.Jmap.SIEVE_CAPABILITY)) {
                 return@runCatching FilterScriptStatus()
             }
@@ -5467,7 +5467,7 @@ class MailRepository(
 
     /** Compile [rules] to Sieve, validate server-side, then save and activate. Throws on refusal. */
     suspend fun saveFilterRules(credentials: AccountCredentials, rules: List<FilterRule>) {
-        val ctx = connect(credentials)
+        val ctx = jmapSession(credentials)
         val script = SieveCodec.generate(rules)
         val blob = client.uploadBlob(
             ctx.session, ctx.accountId, script.toByteArray(Charsets.UTF_8), "application/sieve", ctx.auth,
@@ -5482,8 +5482,8 @@ class MailRepository(
         )
     }
 
-    private suspend fun connect(credentials: AccountCredentials): Context {
-        context?.let { if (it.credentials == credentials) return it }
+    private suspend fun jmapSession(credentials: AccountCredentials): JmapAccountSession {
+        cachedSession?.let { if (it.credentials == credentials) return it }
         val auth = jmapAuth(credentials)
         val session = client.fetchSession(Jmap.sessionUrlFor(credentials.server), auth)
         val accountId = jmapAccountIdFor(credentials, session)
@@ -5491,7 +5491,7 @@ class MailRepository(
         refreshServerIdentities(session, accountId, credentials.id, auth)
         val mailboxes = client.getMailboxes(session, accountId, auth)
         val roles = mailboxes.mapNotNull { mb -> mb.role?.let { it to mb.id } }.toMap()
-        return Context(credentials, session, accountId, auth, roles, mailboxes).also { context = it }
+        return JmapAccountSession(credentials, session, accountId, auth, roles, mailboxes).also { cachedSession = it }
     }
 
     /** Best-effort (#32). [accountId] is the JMAP account, [localAccountId] the record. */

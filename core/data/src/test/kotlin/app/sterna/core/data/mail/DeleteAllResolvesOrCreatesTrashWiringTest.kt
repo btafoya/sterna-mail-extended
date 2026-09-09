@@ -64,7 +64,7 @@ class DeleteAllResolvesOrCreatesTrashWiringTest {
                 "}",
                 "return BulkResult(succeeded, failed, dest = trash)",
                 "}",
-                "val ctx = connect(credentials)",
+                "val ctx = jmapSession(credentials)",
                 "val trash = trashMailboxId(ctx) ?: createTrashFolder(ctx)",
                 "return jmapMoveAll(ctx, emailIds, trash)",
                 "}",

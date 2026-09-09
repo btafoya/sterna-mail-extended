@@ -33,7 +33,7 @@ class DeleteWouldDestroyWiringTest {
             listOf(
                 "{",
                 """val trash = if (credentials.protocol == MailProtocol.IMAP) imapRoleFolder(credentials, "trash")""",
-                "else trashMailboxId(connect(credentials))",
+                "else trashMailboxId(jmapSession(credentials))",
                 "return deleteDestroysMessage(trash, email.mailboxId)",
                 "}",
             ),

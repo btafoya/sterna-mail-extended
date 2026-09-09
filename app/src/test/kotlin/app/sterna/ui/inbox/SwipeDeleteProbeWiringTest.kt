@@ -107,7 +107,7 @@ class SwipeDeleteProbeWiringTest {
         }
         assertEquals(
             "every one of $forbidden resolves the Trash over the SOCKET (an IMAP LIST, or a whole " +
-                "JMAP connect() in All inboxes), and this is the path a finger waits on — one " +
+                "JMAP session in All inboxes), and this is the path a finger waits on — one " +
                 "probe per member on a thread. deleteSelected may still ask them, these two may not",
             emptyList<String>(),
             offenders,

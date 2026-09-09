@@ -62,7 +62,7 @@ class CachedTrashMailboxIdWiringTest {
 
     @Test fun `answering costs no socket, which is the whole point of this one`() {
         val body = bodyOf("cachedTrashMailboxId")
-        listOf("connect(", "imapRoleFolder(", "roleMailboxId(", "client.").forEach { reach ->
+        listOf("jmapSession(", "imapRoleFolder(", "roleMailboxId(", "client.").forEach { reach ->
             assertEquals(
                 "cachedTrashMailboxId must not name $reach — deleteWouldDestroy already asks the " +
                     "server, and this one exists so a finger on a row waits on no IMAP LIST and " +
