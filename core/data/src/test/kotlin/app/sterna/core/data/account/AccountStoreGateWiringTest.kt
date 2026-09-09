@@ -28,12 +28,12 @@ class AccountStoreGateWiringTest {
             "accounts() no longer decodes through AccountBlobGate — whatever flag saveAccounts " +
                 "guards on is then stale, or never set at all.",
             listOf(
-                "fun accounts(): List<StoredAccount> {",
+                "override fun accounts(): List<StoredAccount> {",
                 "migrateIfNeeded()",
                 "return gate.read(prefs.getString(KEY_ACCOUNTS, null))",
                 "}",
             ),
-            accountStoreBlock("fun accounts(): List<StoredAccount> {", 4),
+            accountStoreBlock("override fun accounts(): List<StoredAccount> {", 4),
         )
     }
 
@@ -44,12 +44,12 @@ class AccountStoreGateWiringTest {
             "accountsUnreadable() no longer re-reads the blob before reporting, so the startup " +
                 "routing runs on a flag left over from an earlier moment.",
             listOf(
-                "fun accountsUnreadable(): Boolean {",
+                "override fun accountsUnreadable(): Boolean {",
                 "accounts()",
                 "return gate.blobUnreadable",
                 "}",
             ),
-            accountStoreBlock("fun accountsUnreadable(): Boolean {", 4),
+            accountStoreBlock("override fun accountsUnreadable(): Boolean {", 4),
         )
     }
 
@@ -192,7 +192,7 @@ class AccountStoreGateWiringTest {
                 "host, the same mailbox added by password and then by OAuth makes two accounts " +
                 "(#55) — and the two keys coincide then, so nothing else goes red.",
             listOf(
-                "documentHost: String = \"\",",
+                "documentHost: String,",
                 "): String {",
                 "val id = UUID.randomUUID().toString()",
                 "val account = StoredAccount(",
@@ -200,7 +200,7 @@ class AccountStoreGateWiringTest {
                 "server = server.trim(),",
                 "username = username.trim(),",
             ),
-            accountStoreBlock("documentHost: String = \"\",", 7),
+            accountStoreBlock("documentHost: String,", 7),
         )
     }
 

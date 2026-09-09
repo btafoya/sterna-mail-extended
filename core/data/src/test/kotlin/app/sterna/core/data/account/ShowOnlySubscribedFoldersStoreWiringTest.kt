@@ -15,8 +15,8 @@ class ShowOnlySubscribedFoldersStoreWiringTest {
                 "stays green; and an id it cannot resolve must read as false — hiding folders for " +
                 "an account whose record was not found is how mail disappears from the folder list " +
                 "with nobody having asked.",
-            listOf("fun showOnlySubscribedFolders(id: String): Boolean = showOnlySubscribedFoldersOf(account(id))"),
-            block("fun showOnlySubscribedFolders(", 1),
+            listOf("override fun showOnlySubscribedFolders(id: String): Boolean = showOnlySubscribedFoldersOf(account(id))"),
+            block("override fun showOnlySubscribedFolders(", 1),
         )
     }
 

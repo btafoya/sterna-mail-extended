@@ -10,7 +10,7 @@ import androidx.paging.RemoteMediator
 import androidx.paging.map
 import androidx.sqlite.db.SimpleSQLiteQuery
 import app.sterna.core.data.account.AccountCredentials
-import app.sterna.core.data.account.AccountStore
+import app.sterna.core.data.account.AccountStorage
 import app.sterna.core.data.account.AuthType
 import app.sterna.core.data.account.DiscoveredMailAccount
 import app.sterna.core.data.account.MailEndpoint
@@ -883,7 +883,7 @@ class MailRepository(
     private val scheduledSendDao: ScheduledSendDao,
     private val snoozedDao: SnoozedDao,
     private val recentContactDao: RecentContactDao,
-    private val accountStore: AccountStore,
+    private val accountStore: AccountStorage,
     private val outboxDao: OutboxDao,
     /** The frozen destroy list of a confirmed Empty trash (#99). */
     private val purgeSnapshotDao: PurgeSnapshotDao,
@@ -904,6 +904,8 @@ class MailRepository(
     private val settings: SettingsRepository? = null,
     /** Persisted sync cursors (null in tests): deltas survive process death (issue #17). */
     private val syncStateStore: SyncStateStore? = null,
+    private val logInfo: (String, String, Throwable?) -> Unit = { _, _, _ -> },
+    private val logWarn: (String, String, Throwable?) -> Unit = { _, _, _ -> },
 ) {
     /**
      * Schedules the WorkManager job that delivers an outbox item. Set by the app layer at startup: the data
@@ -1068,11 +1070,12 @@ class MailRepository(
                 // Every eviction the spare skipped; a `destroy` here is the one-shot loss [deltaEvictions] documents.
                 val spared = sparedEvictions(queryChanges.removed, added, changes.destroyed, isProtected)
                 if (spared.isNotEmpty()) {
-                    android.util.Log.i(
+                    logInfo(
                         "MailSync",
                         "spared $localAccountId/$mailboxId: ${spared.size} not evicted " +
                             "(locally mutated < ${RECENT_MUTATION_MS}ms ago): " +
                             spared.joinToString { (id, reason) -> "$id ${reason.log}" },
+                        null,
                     )
                 }
                 val cachedIds = emailDao.idsForMailbox(localAccountId, mailboxId).toSet()
@@ -1090,10 +1093,11 @@ class MailRepository(
                     changes.newState != stored.emailState
                 val vanishedFromMailbox = queryChanges.removed.any { it !in added }
                 val claim = ghostSweeps.claim(localAccountId, mailboxId, stateAdvanced, vanishedFromMailbox)
-                android.util.Log.i(
+                logInfo(
                     "MailSync",
                     "incremental $localAccountId/$mailboxId: +${toFetch.size} -${toDelete.size} " +
                         "moved=${toRemove.size - toDelete.size} spared=${spared.size} sweep=${claim.reason}",
+                    null,
                 )
                 val swept = if (claim.sweep) {
                     val ghosts = pruneGhostRows(session, accountId, auth, mailboxId, localAccountId)
@@ -1130,12 +1134,13 @@ class MailRepository(
             spareIds = { recentlyMutatedIds(localAccountId) },
             reconcile = { _, keepIds, spare, evictable -> emailDao.reconcileMailbox(localAccountId, mailboxId, keepIds, spare, evictableIds = evictable) },
         )
-        android.util.Log.i(
+        logInfo(
             "MailSync",
             "full query $mailboxId: ${walked.ids.size} emails " +
                 "(window ${full.windowTarget} in pages of ${full.pageSize}, " +
                 "asked for ${sizing.windowTarget} in pages of ${sizing.pageSize}) " +
                 "reconcile=${fullQueryReconcileReason(walked)}",
+            null,
         )
         val queryState = walked.queryState
         val emailState = walked.emailState
@@ -1169,10 +1174,11 @@ class MailRepository(
         // The index survives this, hence `evictFromCacheKeepingIndex`: every id here belongs to a
         // message the server still has. Chunked because the ids go into an `in (...)`.
         gone.chunked(MAX_CHANGES).forEach { emailDao.evictFromCacheKeepingIndex(accountId, it) }
-        android.util.Log.i(
+        logInfo(
             "MailSync",
             "retention $accountId/$mailboxId: pruned ${gone.size}, " +
                 "spared ${freshIds?.size ?: -1} fetched + floor $keepNewest",
+            null,
         )
     }
 
@@ -1203,12 +1209,13 @@ class MailRepository(
         val ghosts = ghostEvictions(cached, notFound)
         if (ghosts.isNotEmpty()) pruneServerGone(localAccountId, ghosts)
         if (notFound == null) {
-            android.util.Log.i("MailSync", "ghost sweep $localAccountId/$mailboxId: failed over ${cached.size} cached")
+            logInfo("MailSync", "ghost sweep $localAccountId/$mailboxId: failed over ${cached.size} cached", null)
             return null
         }
-        android.util.Log.i(
+        logInfo(
             "MailSync",
             "ghost sweep $localAccountId/$mailboxId: -${ghosts.size} of ${cached.size} cached",
+            null,
         )
         return ghosts
     }
@@ -1227,10 +1234,11 @@ class MailRepository(
             client.mailboxIdsOf(ctx.session, ctx.accountId, ids, ctx.auth)
         }
         if (confirmed.size != emailIds.size) {
-            android.util.Log.i(
+            logInfo(
                 "MailSync",
                 "banner departures ${credentials.id}/$mailboxId: ${confirmed.size} of " +
                     "${emailIds.size} confirmed gone by the server",
+                null,
             )
         }
         return confirmed
@@ -1684,7 +1692,7 @@ class MailRepository(
                 // mid-pass: not a failure (nothing goes into [failures], so no offline banner for a
                 // deliberate gesture) and not a reason to abandon the accounts after it. Letting the
                 // cancellation out would leave `InboxViewModel.refresh` spinning for ever.
-                android.util.Log.i(
+                logInfo(
                     "MailRepository",
                     "unified refresh: ${accountGoneCause(credentials.id, accountStore.accountsUnreadable(), passKind = "walk")}, skipped",
                     gone,
@@ -1695,7 +1703,7 @@ class MailRepository(
             } catch (t: Throwable) {
                 // One account failing must not sink the unified view, nor vanish without trace (#92).
                 failures += t
-                android.util.Log.w("MailRepository", "unified refresh: account ${credentials.id} failed", t)
+                logWarn("MailRepository", "unified refresh: account ${credentials.id} failed", t)
             }
         }
         return UnifiedRefreshResult(results, failures)
@@ -1851,7 +1859,7 @@ class MailRepository(
         }
         // Said out loud: the account is written under the host we wanted to improve, so #55 stands.
         if (guessedHost && server == host) {
-            android.util.Log.w("MailRepository", "OAuth add: nothing autodiscovered for $host; stored as-is (#55)")
+            logWarn("MailRepository", "OAuth add: nothing autodiscovered for $host; stored as-is (#55)", null)
         }
         // Asked before the store writes: addOAuth refreshes the login already stored under this
         // identity. On both keys this route has written, in the order the store resolves them.
@@ -2185,7 +2193,7 @@ class MailRepository(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
-            android.util.Log.w("MailRepository", "origin header of $emailId unreadable", failure)
+            logWarn("MailRepository", "origin header of $emailId unreadable", failure)
             OriginRead(header = null, succeeded = false)
         }
     }
@@ -2220,7 +2228,7 @@ class MailRepository(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
-            android.util.Log.w("MailRepository", "INTERNALDATE unreadable; no Autocrypt key imported", failure)
+            logWarn("MailRepository", "INTERNALDATE unreadable; no Autocrypt key imported", failure)
             null
         }
         return millis?.let { java.time.Instant.ofEpochMilli(it).toString() }
@@ -2239,7 +2247,7 @@ class MailRepository(
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (failure: Throwable) {
-        android.util.Log.w("MailRepository", "origin headers of ${emails.size} prefetched messages unreadable", failure)
+        logWarn("MailRepository", "origin headers of ${emails.size} prefetched messages unreadable", failure)
         // null, never emptyMap(): an empty map would be cached as "none of them carries one".
         null
     }
@@ -3264,10 +3272,11 @@ class MailRepository(
         // One line for the whole wave: a server that never reports `mailboxIds` spares everything for
         // ever, in silence, and that is indistinguishable from a guard doing its job.
         if (spared.isNotEmpty()) {
-            android.util.Log.i(
+            logInfo(
                 "MailSync",
                 "destroy spared ${credentials.id}/$expectedMailboxId: ${spared.size} of " +
                     "${emailIds.size} not in that folder alone: ${spared.joinToString()}",
+                null,
             )
         }
         if (stillThere.isEmpty()) return BulkResult(emptySet(), spared)
@@ -3907,10 +3916,11 @@ class MailRepository(
                         // Cancellation is not a failure and must keep propagating, runCatching catches it too.
                         if (error is CancellationException) throw error
                         // The account id is a local UUID; this is the only trace a dropped account leaves.
-                        android.util.Log.w(
+                        logWarn(
                             "MailSearch",
                             "account ${credentials.id} dropped from unified search: " +
                                 "${error.javaClass.simpleName}: ${error.message}",
+                            null,
                         )
                     }.getOrDefault(MailSearchResult(emptyList(), complete = false))
                 }
@@ -4856,7 +4866,7 @@ class MailRepository(
         // queued" about a message in the Outbox and a quick reply goes out twice. The failure goes
         // on the row as OutboxLogic.NOT_ARMED, lastError only, never its state.
         return armOrNote(id, holdMs, outboxScheduler) { note ->
-            android.util.Log.w("MailRepository", "outbox $id: $note")
+            logWarn("MailRepository", "outbox $id: $note", null)
             outboxDao.byId(id)?.let { outboxDao.update(it.copy(lastError = OutboxLogic.NOT_ARMED)) }
         }
     }

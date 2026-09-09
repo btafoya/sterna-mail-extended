@@ -56,11 +56,11 @@ class CollapsedFoldersStoreWiringTest {
                 "that no longer exists, silently.",
             listOf(
                 "@Synchronized",
-                "fun replaceCollapsedFolder(id: String, oldId: String, newId: String, delimiter: String = \"/\") {",
+                "override fun replaceCollapsedFolder(id: String, oldId: String, newId: String, delimiter: String) {",
                 "saveAccounts(withRenamedCollapsedFolder(accounts(), id, oldId, newId, delimiter))",
                 "}",
             ),
-            block("fun replaceCollapsedFolder(", 3, before = 1),
+            block("override fun replaceCollapsedFolder(", 3, before = 1),
         )
     }
 
@@ -78,6 +78,20 @@ class CollapsedFoldersStoreWiringTest {
                 "accountStore.replaceCollapsedFolder(credentials.id, mailboxId, newPath, delim)",
             ),
             block("accountStore.replaceWatchedFolder(credentials.id", 2, path = MAIL_REPOSITORY),
+        )
+    }
+
+    @Test fun `the watched-folder re-key leaves the delimiter to the interface default`() {
+        assertEquals(
+            "MailRepository.rekeyWatchedFolders no longer omits the delimiter. It is the only " +
+                "production call that still takes the default AccountStorage declares, so naming " +
+                "another one here is invisible everywhere else: hand it '.' and the prefix test " +
+                "in replaceWatchedFolder stops recognising descendants, so a watched sub-folder " +
+                "silently stops being watched the first time its parent is renamed on IMAP. The " +
+                "whole line is pinned, never a prefix count, which is blind to every mutation " +
+                "that lengthens the line.",
+            listOf("runCatching { accountStore.replaceWatchedFolder(accountId, stored, path) }"),
+            block("runCatching { accountStore.replaceWatchedFolder(", 1, path = MAIL_REPOSITORY),
         )
     }
 

@@ -14,8 +14,8 @@ class UploadSentCopyStoreWiringTest {
                 "true fallback. Answering a constant makes the whole setting inert while every " +
                 "other test stays green; falling back to false stops archiving sent mail for every " +
                 "account whose record predates the field.",
-            listOf("fun uploadSentCopy(id: String): Boolean = account(id)?.uploadSentCopy ?: true"),
-            block("fun uploadSentCopy(", 1),
+            listOf("override fun uploadSentCopy(id: String): Boolean = account(id)?.uploadSentCopy ?: true"),
+            block("override fun uploadSentCopy(", 1),
         )
     }
 

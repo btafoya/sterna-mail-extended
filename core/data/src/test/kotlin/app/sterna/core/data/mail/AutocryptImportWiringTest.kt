@@ -84,7 +84,7 @@ class AutocryptImportWiringTest {
                 "} catch (cancelled: CancellationException) {",
                 "throw cancelled",
                 "} catch (failure: Throwable) {",
-                "android.util.Log.w(\"MailRepository\", \"INTERNALDATE unreadable; no Autocrypt key imported\", failure)",
+                "logWarn(\"MailRepository\", \"INTERNALDATE unreadable; no Autocrypt key imported\", failure)",
                 "null",
                 "}",
                 "return millis?.let { java.time.Instant.ofEpochMilli(it).toString() }",

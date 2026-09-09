@@ -1,7 +1,7 @@
 package app.sterna.core.data
 
 import android.content.Context
-import app.sterna.core.data.account.AccountStore
+import app.sterna.core.data.account.AccountStorage
 import app.sterna.core.data.db.SternaDatabase
 import app.sterna.core.data.mail.ImapMailService
 import app.sterna.core.data.mail.LOCAL_DRAFT_FILES_DIR
@@ -28,7 +28,7 @@ object DataFactory {
     fun create(
         context: Context,
         client: JmapClient,
-        accountStore: AccountStore,
+        accountStore: AccountStorage,
         pgpEngine: PgpEngine? = null,
         settings: SettingsRepository? = null,
         /**
@@ -68,6 +68,12 @@ object DataFactory {
                 pgpEngine = pgpEngine,
                 settings = settings,
                 syncStateStore = SyncStateStore(appContext),
+                logInfo = { tag, message, error ->
+                    if (error == null) android.util.Log.i(tag, message) else android.util.Log.i(tag, message, error)
+                },
+                logWarn = { tag, message, error ->
+                    if (error == null) android.util.Log.w(tag, message) else android.util.Log.w(tag, message, error)
+                },
             ),
             storageRepository = StorageRepository(
                 appContext, database.emailDao(), database.emailFtsDao(), database.emailBodyDao(),

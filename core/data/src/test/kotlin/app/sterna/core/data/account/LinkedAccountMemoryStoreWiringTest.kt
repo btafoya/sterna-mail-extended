@@ -23,7 +23,7 @@ class LinkedAccountMemoryStoreWiringTest {
                 "account blob is lost with whatever it carried.",
             listOf(
                 "@Synchronized",
-                "fun reconcileLinkedAccounts(",
+                "override fun reconcileLinkedAccounts(",
                 "loginId: String,",
                 "discovered: List<DiscoveredMailAccount>,",
                 "probes: Map<String, Result<*>>,",
@@ -44,7 +44,7 @@ class LinkedAccountMemoryStoreWiringTest {
                 "return diff.prunedIds",
                 "}",
             ),
-            block("fun reconcileLinkedAccounts(", 20, before = 1),
+            block("override fun reconcileLinkedAccounts(", 20, before = 1),
         )
     }
 

@@ -150,7 +150,7 @@ class OAuthAddIdentityWiringTest {
                 "host — #55 as it was, with nothing anywhere to say so.",
             listOf(
                 "if (guessedHost && server == host) {",
-                """android.util.Log.w("MailRepository", "OAuth add: nothing autodiscovered for ${'$'}host; stored as-is (#55)")""",
+                """logWarn("MailRepository", "OAuth add: nothing autodiscovered for ${'$'}host; stored as-is (#55)", null)""",
                 "}",
             ),
         )

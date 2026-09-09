@@ -1,7 +1,7 @@
 package app.sterna.core.data.mail
 
 import app.sterna.core.data.account.AccountCredentials
-import app.sterna.core.data.account.AccountStore
+import app.sterna.core.data.account.AccountStorage
 import app.sterna.core.jmap.OAuthClient
 
 /**
@@ -10,7 +10,7 @@ import app.sterna.core.jmap.OAuthClient
  */
 class OAuthTokenRefresher(
     private val oauthClient: OAuthClient,
-    private val accountStore: AccountStore,
+    private val accountStore: AccountStorage,
 ) {
     /** A fresh access token for [credentials], or null when it isn't an OAuth account. */
     suspend fun freshAccessToken(credentials: AccountCredentials): String? {

@@ -160,7 +160,7 @@ internal class AccountsState(initial: List<StoredAccount>) {
 /**
  * Persists one or more accounts. Metadata is JSON; each password is encrypted via [KeystoreCrypto]
  */
-class AccountStore(context: Context) {
+class AccountStore(context: Context) : AccountStorage {
     private val prefs = context.applicationContext
         .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true }
@@ -182,13 +182,13 @@ class AccountStore(context: Context) {
     /**
      * The account list as a live value, for screens that display it. The prefs blob is per-process
      */
-    val accountsFlow: StateFlow<List<StoredAccount>> get() = live.flow
+    override val accountsFlow: StateFlow<List<StoredAccount>> get() = live.flow
 
     /**
      * The stored accounts, or an empty list, including when the blob could not be decoded. The
      * this is called from the constructor and from 62 sites that all handle a list and nothing else.
      */
-    fun accounts(): List<StoredAccount> {
+    override fun accounts(): List<StoredAccount> {
         migrateIfNeeded()
         return gate.read(prefs.getString(KEY_ACCOUNTS, null))
     }
@@ -200,12 +200,12 @@ class AccountStore(context: Context) {
      * since it answers both cases with an empty list. Public because the startup routing lives in
      * the `app` module, and the gate is `internal` to this one.
      */
-    fun accountsUnreadable(): Boolean {
+    override fun accountsUnreadable(): Boolean {
         accounts()
         return gate.blobUnreadable
     }
 
-    fun currentId(): String? {
+    override fun currentId(): String? {
         val list = accounts()
         val current = prefs.getString(KEY_CURRENT, null)
         return when {
@@ -261,7 +261,7 @@ class AccountStore(context: Context) {
      * Add a JMAP account authenticated via OAuth and make it current. The refresh token is encrypted
      */
     @Synchronized
-    fun addOAuth(
+    override fun addOAuth(
         server: String,
         username: String,
         accountName: String,
@@ -270,14 +270,14 @@ class AccountStore(context: Context) {
         accessExpiresAtMillis: Long,
         tokenEndpoint: String,
         clientId: String,
-        protocol: MailProtocol = MailProtocol.JMAP,
-        imapHost: String = "",
-        imapPort: Int = 993,
-        imapSecurity: ConnectionSecurity = ConnectionSecurity.TLS,
-        smtpHost: String = "",
-        smtpPort: Int = 587,
-        smtpSecurity: ConnectionSecurity = ConnectionSecurity.STARTTLS,
-        documentHost: String = "",
+        protocol: MailProtocol,
+        imapHost: String,
+        imapPort: Int,
+        imapSecurity: ConnectionSecurity,
+        smtpHost: String,
+        smtpPort: Int,
+        smtpSecurity: ConnectionSecurity,
+        documentHost: String,
     ): String {
         val id = UUID.randomUUID().toString()
         val account = StoredAccount(
@@ -333,7 +333,7 @@ class AccountStore(context: Context) {
      * one (some servers don't rotate it). No-op for unknown ids.
      */
     @Synchronized
-    fun updateOAuthTokens(id: String, accessToken: String, refreshToken: String, accessExpiresAtMillis: Long) {
+    override fun updateOAuthTokens(id: String, accessToken: String, refreshToken: String, accessExpiresAtMillis: Long) {
         // Tokens live on the login record; a refresh triggered by any sub-account updates the login
         // so every sub-account sharing that login observes the fresh access token.
         val loginId = account(id)?.loginKey() ?: return
@@ -346,7 +346,7 @@ class AccountStore(context: Context) {
     }
 
     /** Look up a single stored account by id. */
-    fun account(id: String): StoredAccount? = accounts().firstOrNull { it.id == id }
+    override fun account(id: String): StoredAccount? = accounts().firstOrNull { it.id == id }
 
     /**
      * Update the editable server settings for an account, preserving its id and inbox metadata.
@@ -402,7 +402,7 @@ class AccountStore(context: Context) {
     /** Sending identities for an account (null id = current); never empty. A linked sub-account
      *  whose own address is unknown falls back to its LOGIN's identities: sends route through the
      *  login's submission anyway (#31), and offering them openly beats a silently wrong From. */
-    fun identities(accountId: String?): List<StoredIdentity> {
+    override fun identities(accountId: String?): List<StoredIdentity> {
         val account = (accountId?.let { account(it) } ?: currentAccount()) ?: return emptyList()
         return account.resolvedIdentities().ifEmpty {
             account.loginId?.let { account(it)?.resolvedIdentities() }.orEmpty()
@@ -420,7 +420,7 @@ class AccountStore(context: Context) {
      * id is unknown or the list is unchanged. Manual [identities] are left untouched.
      */
     @Synchronized
-    fun setServerIdentities(accountId: String, identities: List<StoredIdentity>) {
+    override fun setServerIdentities(accountId: String, identities: List<StoredIdentity>) {
         val current = account(accountId) ?: return
         if (current.serverIdentities == identities) return
         saveAccounts(accounts().map { if (it.id == accountId) it.copy(serverIdentities = identities) else it })
@@ -469,7 +469,7 @@ class AccountStore(context: Context) {
     }
 
     /** Whether the app files a copy of a sent message in the account's Sent folder (defaults to true). */
-    fun uploadSentCopy(id: String): Boolean = account(id)?.uploadSentCopy ?: true
+    override fun uploadSentCopy(id: String): Boolean = account(id)?.uploadSentCopy ?: true
 
     /** Enable/disable the app's Sent-folder copy for an account. No-op if the id is unknown. */
     @Synchronized
@@ -481,7 +481,7 @@ class AccountStore(context: Context) {
      * Whether this account's folder lists hide the folders it is not subscribed to on the server
      * (#174). Defaults to false, including for an unknown id, see [showOnlySubscribedFoldersOf].
      */
-    fun showOnlySubscribedFolders(id: String): Boolean = showOnlySubscribedFoldersOf(account(id))
+    override fun showOnlySubscribedFolders(id: String): Boolean = showOnlySubscribedFoldersOf(account(id))
 
     /** Store the account's subscribed-folders-only choice. No-op if the id is unknown. */
     @Synchronized
@@ -494,7 +494,7 @@ class AccountStore(context: Context) {
 
     /** Add/remove a folder from the account's watched set. No-op if the id is unknown. */
     @Synchronized
-    fun setFolderWatched(id: String, folderId: String, watched: Boolean) {
+    override fun setFolderWatched(id: String, folderId: String, watched: Boolean) {
         saveAccounts(
             accounts().map {
                 if (it.id == id) {
@@ -528,7 +528,7 @@ class AccountStore(context: Context) {
      * on the spot. No-op for JMAP ids, which are stable across renames.
      */
     @Synchronized
-    fun replaceCollapsedFolder(id: String, oldId: String, newId: String, delimiter: String = "/") {
+    override fun replaceCollapsedFolder(id: String, oldId: String, newId: String, delimiter: String) {
         saveAccounts(withRenamedCollapsedFolder(accounts(), id, oldId, newId, delimiter))
     }
 
@@ -537,7 +537,7 @@ class AccountStore(context: Context) {
      * watched children of [oldId]. No-op for JMAP ids, which are stable across renames.
      */
     @Synchronized
-    fun replaceWatchedFolder(id: String, oldId: String, newId: String, delimiter: String = "/") {
+    override fun replaceWatchedFolder(id: String, oldId: String, newId: String, delimiter: String) {
         saveAccounts(
             accounts().map { account ->
                 if (account.id == id) {
@@ -640,7 +640,7 @@ class AccountStore(context: Context) {
 
     fun load(): AccountCredentials? = currentId()?.let { credentials(it) }
 
-    fun credentials(id: String): AccountCredentials? {
+    override fun credentials(id: String): AccountCredentials? {
         val list = accounts()
         val account = list.firstOrNull { it.id == id } ?: return null
         // A linked sub-account borrows its login's encrypted secret and OAuth tokens: the secret
@@ -689,13 +689,13 @@ class AccountStore(context: Context) {
     // ---- linked sub-accounts (issue #31) ----
 
     /** Sub-accounts linked to [loginId] (they share its credential). Empty for a standalone login. */
-    fun linkedAccounts(loginId: String): List<StoredAccount> = accounts().filter { it.loginId == loginId }
+    override fun linkedAccounts(loginId: String): List<StoredAccount> = accounts().filter { it.loginId == loginId }
 
     /**
      * Reconcile the sub-accounts linked to [loginId] against the mail accounts its JMAP session
      */
     @Synchronized
-    fun reconcileLinkedAccounts(
+    override fun reconcileLinkedAccounts(
         loginId: String,
         discovered: List<DiscoveredMailAccount>,
         probes: Map<String, Result<*>>,
@@ -792,9 +792,9 @@ class AccountStore(context: Context) {
      *  live. Optionally corrects the username to the provider's canonical address. Returns false
      *  for an unknown id. */
     @Synchronized
-    fun attachOAuth(
+    override fun attachOAuth(
         id: String,
-        username: String? = null,
+        username: String?,
         accessToken: String,
         refreshToken: String,
         accessExpiresAtMillis: Long,
@@ -859,7 +859,7 @@ class AccountStore(context: Context) {
     // [accountName] is the server-derived name; deliberately not written back here so a user-chosen
     // display name is never clobbered by a sync. A blank name falls back to the address via label().
     @Synchronized
-    fun saveInboxMeta(mailboxId: String, mailboxName: String, @Suppress("UNUSED_PARAMETER") accountName: String, unread: Int) {
+    override fun saveInboxMeta(mailboxId: String, mailboxName: String, @Suppress("UNUSED_PARAMETER") accountName: String, unread: Int) {
         val id = currentId() ?: return
         saveAccounts(
             accounts().map {
@@ -885,7 +885,7 @@ class AccountStore(context: Context) {
     /** (account id, inbox id) pairs across every account, for reads that must stay account-scoped
      *  even when same-server accounts' mailbox ids collide. The rule itself is [UnifiedInbox.scopes].
      * No bare-id twin exists any more (it was #121 waiting for a caller). */
-    fun allInboxScopes(): List<Pair<String, String>> = UnifiedInbox.scopes(accounts())
+    override fun allInboxScopes(): List<Pair<String, String>> = UnifiedInbox.scopes(accounts())
 
     /** Combined unread count across every account, for the unified-inbox header. */
     fun totalUnreadCount(): Int = accounts().sumOf { it.unread }
@@ -894,7 +894,7 @@ class AccountStore(context: Context) {
      * Mirror a drawer-count nudge into the stored inbox snapshot. The JMAP unified header no longer
      */
     @Synchronized
-    fun adjustInboxUnread(accountId: String, mailboxId: String, delta: Int) {
+    override fun adjustInboxUnread(accountId: String, mailboxId: String, delta: Int) {
         if (delta == 0) return
         val list = accounts()
         if (list.none { it.id == accountId && it.inboxId == mailboxId }) return
@@ -911,7 +911,7 @@ class AccountStore(context: Context) {
 
     /** Record a specific account's inbox id/name/unread (used by the unified refresh fan-out). */
     @Synchronized
-    fun saveInboxMetaFor(accountId: String, mailboxId: String, mailboxName: String, @Suppress("UNUSED_PARAMETER") accountName: String, unread: Int) {
+    override fun saveInboxMetaFor(accountId: String, mailboxId: String, mailboxName: String, @Suppress("UNUSED_PARAMETER") accountName: String, unread: Int) {
         saveAccounts(
             accounts().map {
                 if (it.id == accountId) {

@@ -361,7 +361,7 @@ class SignedOutAccountWiringTest {
                 "it must keep calling its own pass a WALK.",
             listOf(
                 "} catch (gone: AccountGoneException) {",
-                "android.util.Log.i(",
+                "logInfo(",
                 "\"MailRepository\",",
                 "\"unified refresh: \${accountGoneCause(credentials.id, accountStore.accountsUnreadable(), " +
                     "passKind = \"walk\")}, skipped\",",

@@ -40,7 +40,7 @@ class ArmingWiringTest {
                 "screen: the Outbox prints a waiting row's reason as a complement " +
                 "(outboxShowsWaitingReason), so that string would read 'Queued, but delivery " +
                 "could not be armed: …' in eight locales that are not English. The sentinel is " +
-                "translated at display time; `note` keeps its life in the Log.w beside it, which " +
+                "translated at display time; `note` keeps its life in the warning beside it, which " +
                 "is where it was written to be read. " +
                 "And NOTHING else changes: updateOutboxState would overwrite the state, turning a " +
                 "HELD row (scheduled send, undo window) into a QUEUED one that leaves at once.",
@@ -86,13 +86,13 @@ class ArmingWiringTest {
                 "durable and the caller has been told it is queued, so anything added here acts on " +
                 "a message the user believes is on its way. A destroy slipped in would take the " +
                 "text away silently — a quick reply's text exists nowhere else. The two lines are " +
-                "a PAIR and neither may take the other's string: Log.w carries `note`, the " +
+                "a PAIR and neither may take the other's string: the warning carries `note`, the " +
                 "diagnostic English, into logcat; the row takes OutboxLogic.NOT_ARMED, the " +
                 "sentinel the screen translates. Swapping them puts English on screen in eight " +
                 "locales, or a token nobody can debug from in the bug report.",
             listOf(
                 "return armOrNote(id, holdMs, outboxScheduler) { note ->",
-                "android.util.Log.w(\"MailRepository\", \"outbox \$id: \$note\")",
+                "logWarn(\"MailRepository\", \"outbox \$id: \$note\", null)",
                 "outboxDao.byId(id)?.let { outboxDao.update(it.copy(lastError = OutboxLogic.NOT_ARMED)) }",
                 "}",
                 "}",
