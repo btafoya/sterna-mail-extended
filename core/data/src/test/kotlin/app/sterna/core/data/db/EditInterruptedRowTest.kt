@@ -184,7 +184,7 @@ class EditInterruptedRowTest {
                 "outboxDao.parkAllEditingAsInterrupted(OutboxLogic.MAX_ATTEMPTS, OutboxLogic.EDIT_INTERRUPTED)",
                 "}",
             ),
-            codeLines(DaoQuerySource.mailFunctionBody("MailRepository", "parkInterruptedOutboxEdits")),
+            codeLines(DaoQuerySource.mailFunctionBody("MailSender", "parkInterruptedOutboxEdits")),
         )
     }
 
@@ -206,7 +206,7 @@ class EditInterruptedRowTest {
                 "else outboxDao.parkEditingAsInterrupted(id, OutboxLogic.MAX_ATTEMPTS, OutboxLogic.EDIT_INTERRUPTED)",
                 "}",
             ),
-            codeLines(DaoQuerySource.mailFunctionBody("MailRepository", "parkInterruptedOutboxEdit")),
+            codeLines(DaoQuerySource.mailFunctionBody("MailSender", "parkInterruptedOutboxEdit")),
         )
     }
 

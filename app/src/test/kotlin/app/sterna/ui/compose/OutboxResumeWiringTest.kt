@@ -18,7 +18,7 @@ class OutboxResumeWiringTest {
                 "with the id its route carries. It goes through resumeOutboxRow WITH " +
                 "app.container.outboxRecovery — taken before that Job is done, the row it just " +
                 "marked EDITING is parked FAILED under the open composer by the startup sweep. It " +
-                "takes the row through repo.takeOutboxForEdit, the same door as Outbox → Edit, " +
+                "takes the row through repo.sending.takeOutboxForEdit, the same door as Outbox → Edit, " +
                 "which refuses SENDING/EDITING/encrypted rows and stages the attachments. And it " +
                 "binds through bindQueuedRow with the CURRENT identities, so the send identity, " +
                 "the attachments, the PGP mode and the draft being replaced come back — a bind " +
@@ -27,7 +27,7 @@ class OutboxResumeWiringTest {
             listOf(
                 "val app = getApplication<Application>()",
                 "val draft = resumeOutboxRow(id, app.container.outboxRecovery) { rowId ->",
-                "runCatching { repo.takeOutboxForEdit(rowId, File(app.cacheDir, \"outgoing\")) }",
+                "runCatching { repo.sending.takeOutboxForEdit(rowId, File(app.cacheDir, \"outgoing\")) }",
                 ".onFailure { android.util.Log.w(\"SternaCompose\", \"couldn't resume the outbox item \$rowId\", it) }",
                 ".getOrNull()",
                 "} ?: return",

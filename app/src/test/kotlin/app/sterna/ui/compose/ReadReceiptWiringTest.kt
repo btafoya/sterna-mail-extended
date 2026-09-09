@@ -1,6 +1,6 @@
 package app.sterna.ui.compose
 
-import app.sterna.core.data.mail.MailRepository
+import app.sterna.core.data.mail.MailSender
 import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.send.composeDraftOf
 import org.junit.Assert.assertEquals
@@ -15,7 +15,7 @@ class ReadReceiptWiringTest {
 
     // --- 1. executed: reopening a queued message for editing ------------------------------------
 
-    private fun outboxDraft(requestReceipt: Boolean) = MailRepository.OutboxDraft(
+    private fun outboxDraft(requestReceipt: Boolean) = MailSender.OutboxDraft(
         to = "bob@example.org",
         cc = "",
         bcc = "",
@@ -75,7 +75,7 @@ class ReadReceiptWiringTest {
                 "parameter has a default) is a message that asks for no receipt while the box was " +
                 "ticked — the send disagreeing with the screen.",
             "args.requestReceipt",
-            callsOf(body, "repo.enqueueSend(").single()["requestReceipt"],
+            callsOf(body, "repo.sending.enqueueSend(").single()["requestReceipt"],
         )
     }
 
@@ -158,7 +158,7 @@ class ReadReceiptWiringTest {
             "ScheduledSendWorker is the hand-over from the scheduled table to the outbox: `false` " +
                 "here drops the request hours after the user asked, with nothing to show for it",
             "row.requestReceipt",
-            callsOf(body, "repo.enqueueSend(").single()["requestReceipt"],
+            callsOf(body, "repo.sending.enqueueSend(").single()["requestReceipt"],
         )
     }
 

@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
 class ScheduledSendsViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = application.container.mailRepository
 
-    val items = repo.scheduledSendsFlow().stateIn(
+    val items = repo.sending.scheduledSendsFlow().stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList<ScheduledSendEntity>(),
@@ -46,7 +46,7 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
             val report = try {
                 cancelScheduledSend(
                     id = id,
-                    row = { repo.scheduledSend(it) },
+                    row = { repo.sending.scheduledSend(it) },
                     credentials = { app.container.accountStore.credentials(it) },
                     // A `null` from `credentials` is not proof: the store answers null for an
                     // unreadable secret too, and an unreadable blob makes `accounts()` empty. Both
@@ -92,7 +92,7 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                         )
                     },
                     dropWorker = { ScheduledSends.cancel(app, it) },
-                    deleteRow = { repo.deleteScheduledSend(it) },
+                    deleteRow = { repo.sending.deleteScheduledSend(it) },
                 )
             } finally {
                 inFlight.remove(id)

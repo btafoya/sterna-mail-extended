@@ -228,7 +228,7 @@ class InboxViewModel(
     val restoredDraft: StateFlow<SendOutbox.ComposeDraft?> = outbox.restored
 
     /** Discreet badge: outbox items that failed, or that are still waiting a while after sending. */
-    val outboxCount: StateFlow<Int> = repo.outboxActiveCount().stateIn(
+    val outboxCount: StateFlow<Int> = repo.sending.outboxActiveCount().stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = 0,
@@ -237,7 +237,7 @@ class InboxViewModel(
     /** The count on the overflow menu's Outbox entry: what is in the Outbox now, with no delay
      *  (#70). Not [outboxCount], whose grace exists because the dot is always in view; during that
      *  grace the dot is absent while this reads 1. */
-    val outboxQueuedCount: StateFlow<Int> = repo.outboxQueuedCount().stateIn(
+    val outboxQueuedCount: StateFlow<Int> = repo.sending.outboxQueuedCount().stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = 0,
@@ -246,7 +246,7 @@ class InboxViewModel(
     /** Whether any outbox item is parked as failed (drives the failure banner). Through
      *  [OutboxLogic.needsFailureBanner], never by testing a state here: a row saved as a draft on
      *  the phone (#95) is listed and counted, but nothing failed. */
-    val outboxHasFailures: StateFlow<Boolean> = repo.outboxFlow()
+    val outboxHasFailures: StateFlow<Boolean> = repo.sending.outboxFlow()
         .map { items -> items.any { OutboxLogic.needsFailureBanner(it.state) } }
         .stateIn(
             scope = viewModelScope,

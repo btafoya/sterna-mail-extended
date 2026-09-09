@@ -6,18 +6,18 @@ import org.junit.Test
 
 /**
  * Source lint on the two ends of the Sent-folder copy, same instrument and same disclaimer as
- * [SmtpSubmissionCallSiteTest]: it reads `MailRepository.performDelivery` and `ImapMailService.send`
+ * [SmtpSubmissionCallSiteTest]: it reads `MailSender.performDelivery` and `ImapMailService.send`
  */
 class SentCopyCallSiteTest {
 
-    private val body = DaoQuerySource.mailFunctionBody("MailRepository", "performDelivery")
+    private val body = DaoQuerySource.mailFunctionBody("MailSender", "performDelivery")
         .lines().map { it.trim() }.filter { it.isNotEmpty() }
 
     @Test
     fun `the IMAP delivery routes its Sent folder through the setting`() {
         val at = body.indexOfFirst { it.startsWith("imap.send(") }
         assertTrue(
-            "MailRepository.performDelivery no longer calls imap.send( — if the delivery moved, " +
+            "MailSender.performDelivery no longer calls imap.send( — if the delivery moved, " +
                 "this lint moves with it rather than staying green over a path nobody runs:\n" +
                 body.joinToString("\n"),
             at >= 0,

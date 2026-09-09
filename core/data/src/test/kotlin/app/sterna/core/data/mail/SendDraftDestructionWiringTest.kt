@@ -9,17 +9,17 @@ import org.junit.Test
 class SendDraftDestructionWiringTest {
 
     private fun bodyOf(function: String): String =
-        DaoQuerySource.mailFunctionBody("MailRepository", function)
+        DaoQuerySource.mailFunctionBody("MailSender", function)
 
     /**
      * The parameter lines of `fun [function](`, comments dropped and trimmed, the declaration,
      * which is where the defaults live and which [bodyOf] cannot see at all.
      */
     private fun declarationLinesOf(function: String): List<String> {
-        val lines = DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }
+        val lines = DaoQuerySource.mailSource("MailSender").lines().map { it.trim() }
         val from = lines.indexOfFirst { Regex("""^(suspend )?fun $function\($""").matches(it) }
         check(from >= 0) {
-            "MailRepository has no multi-line 'fun $function(' — renamed, or the signature was " +
+            "MailSender has no multi-line 'fun $function(' — renamed, or the signature was " +
                 "folded onto one line, which would hide this rule rather than break it"
         }
         val to = lines.drop(from + 1).indexOfFirst { it.startsWith("):") }
@@ -116,7 +116,7 @@ class SendDraftDestructionWiringTest {
                 "mutex is held — NOT the wait for that mutex, which nothing bounds. The expiry " +
                 "surfaces as a SocketTimeoutException, which " +
                 "the draftAddressingIsCarried wrapper reads as unknown: no destroy, message sent.",
-            listOf("originalAddressing = { id -> imapDraftAddressing(credentials, id, SEND_PROOF_BUDGET_MS) },"),
+            listOf("originalAddressing = { id -> host.imapDraftAddressing(credentials, id, SEND_PROOF_BUDGET_MS) },"),
             codeLinesNaming(body, "originalAddressing ="),
         )
         assertEquals(
@@ -124,7 +124,7 @@ class SendDraftDestructionWiringTest {
                 "bounded reads (JMAP_DISCOVERY_BUDGET_MS = 10 s) — losing the definition, or " +
                 "inlining a 0 (= ImapBudget.NO_BUDGET = block for ever), reopens the window",
             listOf("private const val SEND_PROOF_BUDGET_MS = 10_000"),
-            DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }
+            DaoQuerySource.mailSource("MailSender").lines().map { it.trim() }
                 .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
                 .filter { "SEND_PROOF_BUDGET_MS =" in it },
         )
@@ -142,7 +142,7 @@ class SendDraftDestructionWiringTest {
                 "carries (#99) and never one read here.",
             listOf(
                 "item.draftEmailId?.let {",
-                "runCatching { destroyDraft(credentials, it, item.draftUidValidity) }",
+                "runCatching { host.destroyDraft(credentials, it, item.draftUidValidity) }",
             ),
             destroy,
         )

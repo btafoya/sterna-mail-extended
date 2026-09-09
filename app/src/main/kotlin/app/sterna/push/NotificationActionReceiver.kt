@@ -127,7 +127,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         outcome: QuickReplyOutcome.Send,
     ) {
         val fetched = fetchWithinBudget(repo, credentials, emailId)
-        repo.enqueueSend(
+        repo.sending.enqueueSend(
             credentials = credentials,
             to = listOf(outcome.to),
             subject = outcome.subject,

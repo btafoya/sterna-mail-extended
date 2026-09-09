@@ -579,7 +579,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             return
         }
         viewModelScope.launch {
-            val recent = repo.suggestContacts(token, 6)
+            val recent = repo.sending.suggestContacts(token, 6)
             // The address book is a content-provider query: off the main thread, since this runs on
             // every keystroke while the keyboard needs it.
             val device = if (contactsEnabled.value) {
@@ -836,7 +836,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private suspend fun resumeOutboxEdit(id: Long) {
         val app = getApplication<Application>()
         val draft = resumeOutboxRow(id, app.container.outboxRecovery) { rowId ->
-            runCatching { repo.takeOutboxForEdit(rowId, File(app.cacheDir, "outgoing")) }
+            runCatching { repo.sending.takeOutboxForEdit(rowId, File(app.cacheDir, "outgoing")) }
                 .onFailure { android.util.Log.w("SternaCompose", "couldn't resume the outbox item $rowId", it) }
                 .getOrNull()
         } ?: return
@@ -1357,7 +1357,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             editingOutboxId = null
             _editingOutbox.value = false
             appScope.launch {
-                runCatching { repo.releaseOutboxEdit(id) }
+                runCatching { repo.sending.releaseOutboxEdit(id) }
                     .onFailure { android.util.Log.w("SternaCompose", "couldn't release the edited outbox item", it) }
             }
         }
@@ -1367,7 +1367,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             editingOutboxId = null
             _editingOutbox.value = false
             appScope.launch {
-                runCatching { repo.parkInterruptedOutboxEdit(id) }
+                runCatching { repo.sending.parkInterruptedOutboxEdit(id) }
                     .onFailure { android.util.Log.w("SternaCompose", "couldn't park the interrupted outbox item", it) }
             }
         }
@@ -1392,7 +1392,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         val id = editingOutboxId ?: return
         editingOutboxId = null
         _editingOutbox.value = false
-        runCatching { repo.deleteOutbox(id) }
+        runCatching { repo.sending.deleteOutbox(id) }
     }
 
     /**
@@ -1403,7 +1403,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         editingOutboxId = null
         _editingOutbox.value = false
         appScope.launch {
-            runCatching { repo.parkOutboxEdit(id, state) }
+            runCatching { repo.sending.parkOutboxEdit(id, state) }
                 .onFailure { android.util.Log.w("SternaCompose", "couldn't park the edited outbox item", it) }
         }
     }
@@ -1508,7 +1508,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 val id = commitThenConsumeLocalDraft(
                     localDraftId = _editingLocalDraftId.value,
                     commit = {
-                        repo.enqueueSend(
+                        repo.sending.enqueueSend(
                             credentials, recipients, subject, textBody, replyTo, refs,
                             attachments, htmlBody, identity?.name, identity?.email, ccList, bccList,
                             holdMs = SendOutbox.HOLD_MS,
@@ -1577,7 +1577,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     // Undo within the window: drop the queued row so nothing is sent and nothing stays
                     // parked. Delete the row first, then cancel its worker; should the cancel be a
                     // no-op, a later run finds no row and exits.
-                    repo.deleteOutbox(id)
+                    repo.sending.deleteOutbox(id)
                     Outbox.cancel(app, id)
                 }
                 _state.value = ComposeState.Done
@@ -1653,7 +1653,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 commitThenConsumeLocalDraft(
                     localDraftId = _editingLocalDraftId.value,
                     commit = {
-                        val id = repo.insertScheduledSend(
+                        val id = repo.sending.insertScheduledSend(
                             ScheduledSendEntity(
                                 accountId = credentials.id,
                                 recipients = recipients.joinToString(","),

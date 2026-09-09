@@ -77,7 +77,8 @@ class MailRepositoryLogsThroughASeamTest {
                 "the path around it into a test of the logger. Route the line through logInfo / " +
                 "logWarn, whose production binding lives in DataFactory.create.",
             emptyList<String>(),
-            codeLinesOf(REPOSITORY).filter { LOG_CALL.containsMatchIn(it) || LOG_IMPORT.containsMatchIn(it) },
+            (codeLinesOf(REPOSITORY) + codeLinesOf(SENDER))
+                .filter { LOG_CALL.containsMatchIn(it) || LOG_IMPORT.containsMatchIn(it) },
         )
     }
 
@@ -174,7 +175,7 @@ class MailRepositoryLogsThroughASeamTest {
         assertEquals(
             "an outbox item that could not be armed stays a WARNING (#70)",
             listOf("logWarn(\"MailRepository\", \"outbox \$id: \$note\", null)"),
-            codeLinesNaming(REPOSITORY, "outbox \$id: "),
+            codeLinesNaming(SENDER, "outbox \$id: "),
         )
     }
 
@@ -211,6 +212,9 @@ class MailRepositoryLogsThroughASeamTest {
         val LOG_IMPORT = Regex("""^import\s+android\.util\.(\*|Log)(\s|$)""")
 
         val REPOSITORY: String by lazy { DaoQuerySource.mailSource("MailRepository") }
+
+        /** The send half of the repository, held to the same ban on the platform logger. */
+        val SENDER: String by lazy { DaoQuerySource.mailSource("MailSender") }
 
         val FACTORY: String by lazy {
             repoFile("core/data/src/main/kotlin/app/sterna/core/data/DataFactory.kt").readText()

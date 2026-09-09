@@ -139,7 +139,7 @@ class PreviewConveyanceTest {
                 "ImapBudget.NO_BUDGET explicitly — see SendDraftDestructionWiringTest).",
             listOf(
                 "budgetMs: Int,",
-                "private suspend fun imapDraftAddressing(credentials: AccountCredentials, emailId: String, budgetMs: Int): Set<String>? {",
+                "override suspend fun imapDraftAddressing(credentials: AccountCredentials, emailId: String, budgetMs: Int): Set<String>? {",
             ),
             codeLinesNaming(source, "budgetMs: Int"),
         )

@@ -103,7 +103,7 @@ class AppContainer(context: Context) {
             app.sterna.push.PushController.apply(appContext, userInitiated = false)
         }
         // Let the data layer arm the delivery worker from any send call site (compose, RSVP, …).
-        mailRepository.outboxScheduler = OutboxScheduler { id, delay -> Outbox.enqueue(appContext, id, delay) }
+        mailRepository.sending.outboxScheduler = OutboxScheduler { id, delay -> Outbox.enqueue(appContext, id, delay) }
         // The same for a draft the server could not be given (#95): the save books the deferred
         // upload itself. Without this the only bookings were the startup re-arm and the worker's.
         mailRepository.localDraftScheduler = LocalDraftScheduler { accountId, id, delay ->
@@ -141,8 +141,8 @@ class AppContainer(context: Context) {
             // First park any row stranded in editing by a process death (#70): failed, visible and
             // reopenable, so only a gesture makes it leave. Requeued here it would go out at 0
             // while the restored composer holds the same text, twice.
-            mailRepository.parkInterruptedOutboxEdits()
-            mailRepository.unfinishedOutbox().forEach { item ->
+            mailRepository.sending.parkInterruptedOutboxEdits()
+            mailRepository.sending.unfinishedOutbox().forEach { item ->
                 val delay = (item.notBeforeMillis - System.currentTimeMillis()).coerceAtLeast(0)
                 Outbox.enqueue(appContext, item.id, delay, keepExisting = true)
             }
@@ -183,7 +183,7 @@ class AppContainer(context: Context) {
         // deletes the row, not in one transaction, so a replace between them sends it twice.
         appScope.launch {
             runCatching {
-                scheduledSendJobs(mailRepository.scheduledSends(), System.currentTimeMillis())
+                scheduledSendJobs(mailRepository.sending.scheduledSends(), System.currentTimeMillis())
                     .forEach { ScheduledSends.enqueue(appContext, it.id, it.delayMillis, keepExisting = true) }
             }.onFailure { Log.w("Sterna", "scheduled-send re-arm failed; retried next start", it) }
         }

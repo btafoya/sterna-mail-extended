@@ -19,14 +19,14 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         if (id < 0) return Result.success()
         val container = (applicationContext as android.app.Application).container
         val repo = container.mailRepository
-        val item = repo.outboxItem(id) ?: return Result.success() // sent, cancelled or deleted
+        val item = repo.sending.outboxItem(id) ?: return Result.success() // sent, cancelled or deleted
 
         // A delivery this row was already in the middle of, whose run never came back: park it, do
         // not start it again. Written back with its own attemptCount and lastError, nothing was
         // attempted here. This runs on the row as read, ahead of every other question: below
         // isReadyToSend it is dead code, below the delivery it fires on a message just sent twice.
         OutboxLogic.parkOnPickup(item.state)?.let { parked ->
-            repo.updateOutboxState(id, parked, item.attemptCount, item.lastError)
+            repo.sending.updateOutboxState(id, parked, item.attemptCount, item.lastError)
             return Result.success()
         }
 
@@ -50,7 +50,7 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             )
             if (departed) {
                 // Nothing can ever deliver this message again: the row goes, as it always has.
-                repo.deleteOutbox(id)
+                repo.sending.deleteOutbox(id)
                 return Result.success()
             }
             // Unproven, so nothing is destroyed, and nothing is written on the row: no state, no
@@ -58,10 +58,10 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             return Result.retry()
         }
 
-        repo.updateOutboxState(id, OutboxState.SENDING, item.attemptCount, item.lastError)
+        repo.sending.updateOutboxState(id, OutboxState.SENDING, item.attemptCount, item.lastError)
         return try {
-            repo.performSend(credentials, item)
-            repo.deleteOutbox(id)
+            repo.sending.performSend(credentials, item)
+            repo.sending.deleteOutbox(id)
             Result.success()
         } catch (t: Throwable) {
             val attempts = OutboxLogic.attemptsAfterFailure(item.attemptCount, t)
@@ -70,7 +70,7 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             // parked at once (#183), the message being already in Sent and each auto-retry adding a
             // copy there. `stateAfterFailure` is where that rule is executed by a JVM test.
             val next = OutboxLogic.stateAfterFailure(attempts, t)
-            repo.updateOutboxState(id, next, attempts, error)
+            repo.sending.updateOutboxState(id, next, attempts, error)
             if (next == OutboxState.QUEUED) Result.retry() else Result.failure()
         }
     }

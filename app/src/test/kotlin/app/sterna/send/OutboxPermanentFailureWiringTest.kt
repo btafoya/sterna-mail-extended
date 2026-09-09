@@ -45,7 +45,7 @@ class OutboxPermanentFailureWiringTest {
                 // screen; the exception's own text is the address plus the server's SMTP reply.
                 "val error = t.message ?: t.javaClass.simpleName",
                 "val next = OutboxLogic.stateAfterFailure(attempts, t)",
-                "repo.updateOutboxState(id, next, attempts, error)",
+                "repo.sending.updateOutboxState(id, next, attempts, error)",
                 "if (next == OutboxState.QUEUED) Result.retry() else Result.failure()",
                 "}",
             ),

@@ -256,7 +256,7 @@ class ComposeViewModelWiringTest {
                 "editingOutboxId = null",
                 "_editingOutbox.value = false",
                 "appScope.launch {",
-                "runCatching { repo.parkOutboxEdit(id, state) }",
+                "runCatching { repo.sending.parkOutboxEdit(id, state) }",
                 ".onFailure { android.util.Log.w(\"SternaCompose\", \"couldn't park the edited outbox item\", it) }",
                 "}",
             ),
@@ -273,14 +273,14 @@ class ComposeViewModelWiringTest {
         check(at >= 0) { "abandon() no longer parks 'plan.outboxToPark' — did the plan lose its field? Body was:\n$body" }
         assertEquals(
             "abandon() must take the parked row's id off the plan, clear the lease synchronously, " +
-                "and write through appScope with repo.parkInterruptedOutboxEdit — never " +
+                "and write through appScope with repo.sending.parkInterruptedOutboxEdit — never " +
                 "viewModelScope, and never releaseOutboxEdit. Body was:\n$body",
             listOf(
                 "plan.outboxToPark?.let { id ->",
                 "editingOutboxId = null",
                 "_editingOutbox.value = false",
                 "appScope.launch {",
-                "runCatching { repo.parkInterruptedOutboxEdit(id) }",
+                "runCatching { repo.sending.parkInterruptedOutboxEdit(id) }",
                 ".onFailure { android.util.Log.w(\"SternaCompose\", \"couldn't park the interrupted outbox item\", it) }",
                 "}",
                 "}",

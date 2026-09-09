@@ -9,7 +9,7 @@ import org.junit.Test
 class ArmingWiringTest {
 
     private fun bodyOf(function: String): String =
-        DaoQuerySource.mailFunctionBody("MailRepository", function)
+        DaoQuerySource.mailFunctionBody("MailSender", function)
 
     /** The code lines of [body] naming [needle], comments dropped, so prose can neither satisfy
      *  a rule nor break one. Whole lines: the assertions compare them, never search inside them. */

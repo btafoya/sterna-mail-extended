@@ -3467,7 +3467,7 @@ internal fun bodyCanTravel(travel: Int, minTravel: Int): Boolean = travel >= min
 /**
  * The "Original sender" line of the participants panel: the address to show, or null for no line at
  * all (#160). [headerValue] is `Email.originalSender`; [from] is the `From`, which this never
- * replaces. The address is parsed on `MailRepository.parseAddress`'s rule, restated here rather than
+ * replaces. The address is parsed on `MailSender.parseAddress`'s rule, restated here rather than
  * widening the repository's surface.
  *
  * A plain function and not a branch inside the composable: R8 has already inlined a small

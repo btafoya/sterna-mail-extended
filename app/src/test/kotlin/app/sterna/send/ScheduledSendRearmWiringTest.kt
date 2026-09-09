@@ -76,20 +76,20 @@ class ScheduledSendRearmWiringTest {
             listOf(
                 "appScope.launch {",
                 "runCatching {",
-                "scheduledSendJobs(mailRepository.scheduledSends(), System.currentTimeMillis())",
+                "scheduledSendJobs(mailRepository.sending.scheduledSends(), System.currentTimeMillis())",
                 ".forEach { ScheduledSends.enqueue(appContext, it.id, it.delayMillis, keepExisting = true) }",
                 "}.onFailure { Log.w(\"Sterna\", \"scheduled-send re-arm failed; retried next start\", it) }",
                 "}",
             ),
             blockAt(
                 lines,
-                "scheduledSendJobs(mailRepository.scheduledSends(), System.currentTimeMillis())",
+                "scheduledSendJobs(mailRepository.sending.scheduledSends(), System.currentTimeMillis())",
                 before = 2, size = 6,
             ),
         )
         // And the block is still inside `init {`.
         val initAt = lines.indexOf("init {")
-        val reArmAt = lines.indexOf("scheduledSendJobs(mailRepository.scheduledSends(), System.currentTimeMillis())")
+        val reArmAt = lines.indexOf("scheduledSendJobs(mailRepository.sending.scheduledSends(), System.currentTimeMillis())")
         assertTrue("the re-arm must sit inside AppContainer's `init {`, which is what runs it", initAt in 0 until reArmAt)
         assertEquals(
             "no function declaration may sit between `init {` and the re-arm: one there means the " +
@@ -117,7 +117,7 @@ class ScheduledSendRearmWiringTest {
     }
 
     @Test fun `the scheduled-send worker names no policy of its own`() {
-        // The worker's only defence against firing twice is `repo.scheduledSend(id) ?: return
+        // The worker's only defence against firing twice is `repo.sending.scheduledSend(id) ?: return
         // Result.success()`. It books nothing and must keep booking nothing: a keep or a replace
         // appearing in there would mean the fire path had started to re-book itself, and every
         // reasoning above about who may keep would be out of date without a line changing here.

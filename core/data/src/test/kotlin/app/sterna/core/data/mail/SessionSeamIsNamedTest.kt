@@ -113,7 +113,7 @@ class SessionSeamIsNamedTest {
                 "construction site is a second session opened behind the accessor's back; read the " +
                 "new line before updating this.",
             listOf(
-                "internal class JmapAccountSession(",
+                "class JmapAccountSession(",
                 "private var cachedSession: JmapAccountSession? = null",
                 "cachedSession = JmapAccountSession(",
                 "private suspend fun originalSendersOf(ctx: JmapAccountSession, emails: List<Email>): Map<String, String?>? = try {",
@@ -129,7 +129,7 @@ class SessionSeamIsNamedTest {
                 "private suspend fun createTrashFolder(ctx: JmapAccountSession): String {",
                 """cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("trash" to id), ctx.mailboxes)""",
                 "private suspend fun jmapDraftReceiptRequested(ctx: JmapAccountSession, emailId: String): Boolean? {",
-                "private suspend fun jmapSession(credentials: AccountCredentials): JmapAccountSession {",
+                "override suspend fun jmapSession(credentials: AccountCredentials): JmapAccountSession {",
                 "return JmapAccountSession(credentials, session, accountId, auth, roles, mailboxes).also { cachedSession = it }",
             ),
             mentions("JmapAccountSession"),

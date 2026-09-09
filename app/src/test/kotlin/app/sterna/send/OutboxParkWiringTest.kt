@@ -45,13 +45,13 @@ class OutboxParkWiringTest {
                 "if (id < 0) return Result.success()",
                 "val container = (applicationContext as android.app.Application).container",
                 "val repo = container.mailRepository",
-                "val item = repo.outboxItem(id) ?: return Result.success() // sent, cancelled or deleted",
+                "val item = repo.sending.outboxItem(id) ?: return Result.success() // sent, cancelled or deleted",
                 // The row is written back with its own attemptCount and lastError. Nothing was
                 // attempted and nothing failed here: bumping the count would spend a retry the user
                 // never used, and overwriting lastError would erase the reason of an earlier,
                 // genuine failure that is still printed on the row.
                 "OutboxLogic.parkOnPickup(item.state)?.let { parked ->",
-                "repo.updateOutboxState(id, parked, item.attemptCount, item.lastError)",
+                "repo.sending.updateOutboxState(id, parked, item.attemptCount, item.lastError)",
                 // success(), not retry(): there is nothing left to attempt. A retry would bring
                 // WorkManager back on a row that is now parked, forever.
                 "return Result.success()",
@@ -72,7 +72,7 @@ class OutboxParkWiringTest {
                 "accountStillListed = container.accountStore.accounts().any { it.id == item.accountId },",
                 ")",
                 "if (departed) {",
-                "repo.deleteOutbox(id)",
+                "repo.sending.deleteOutbox(id)",
                 "return Result.success()",
                 "}",
                 // A bare retry, alone in its arm: no updateOutboxState, no attemptCount + 1, no
@@ -82,12 +82,12 @@ class OutboxParkWiringTest {
                 "}",
                 // Sending, on the row, before the message leaves. This is the fact parkOnPickup
                 // reads at the next pickup and the only proof this phone ever has that a delivery
-                "repo.updateOutboxState(id, OutboxState.SENDING, item.attemptCount, item.lastError)",
+                "repo.sending.updateOutboxState(id, OutboxState.SENDING, item.attemptCount, item.lastError)",
                 "return try {",
-                "repo.performSend(credentials, item)",
+                "repo.sending.performSend(credentials, item)",
                 // and the row leaves the outbox only after the send returned: deleted before, a
                 // failure would have destroyed the only copy of the message.
-                "repo.deleteOutbox(id)",
+                "repo.sending.deleteOutbox(id)",
                 "Result.success()",
             ),
             blockAt(lines, "override suspend fun doWork(): Result {", before = 0, size = 33),
@@ -113,12 +113,12 @@ class OutboxParkWiringTest {
                 "above `return try {` compiles and loses it on the first network failure",
             listOf(
                 // 1. Proven departure: nothing can ever send this message again, so nothing is lost.
-                "repo.deleteOutbox(id)",
+                "repo.sending.deleteOutbox(id)",
                 // 2. After performSend returned. Moved above it, a throw would have destroyed the
                 // only copy, and the catch below would then retry a row that no longer exists.
-                "repo.deleteOutbox(id)",
+                "repo.sending.deleteOutbox(id)",
             ),
-            linesOf(WORKER).filter { "repo.deleteOutbox(" in it },
+            linesOf(WORKER).filter { "repo.sending.deleteOutbox(" in it },
         )
     }
 

@@ -113,10 +113,10 @@ class PrebuiltEntityTest {
     // ---- the call sites, read out of the shipped source: a last resort --------------------------
 
     /**
-     * Source lint, not a behaviour test, `MailRepository` needs Room, a `Context` and a socket, so
+     * Source lint, not a behaviour test, `MailSender`'s host needs Room, a `Context` and a socket, so
      */
     @Test fun `both protocols route on the entity, never on the pgp mode`() {
-        val source = repositorySource()
+        val source = senderSource()
         val lines = source.lines().map { it.trim() }
 
         assertTrue(
@@ -145,7 +145,7 @@ class PrebuiltEntityTest {
         assertTrue(
             "the guard at the state flip must ask about the row's own mode and entity path",
             "val unreplayable = OutboxLogic.isUnreplayablePrebuiltEntity(item.pgpMode, item.pgpEntityPath)"
-                in repositorySource().lines().map { it.trim() },
+                in senderSource().lines().map { it.trim() },
         )
         assertTrue(
             "…and so must the guard behind the button",
@@ -154,7 +154,7 @@ class PrebuiltEntityTest {
                     .readText().lines().map { it.trim() },
         )
         listOf(
-            "if (!OutboxLogic.canEdit(item.pgpMode, item.state, unreplayable)) return null" to repositorySource(),
+            "if (!OutboxLogic.canEdit(item.pgpMode, item.state, unreplayable)) return null" to senderSource(),
             "if (OutboxLogic.canEdit(item.pgpMode, item.state, unreplayable)) {" to
                 locate("app/src/main/kotlin/app/sterna/ui/outbox/OutboxScreen.kt").readText(),
         ).forEach { (line, source) ->
@@ -171,7 +171,7 @@ class PrebuiltEntityTest {
      * argument at the one call site that needs `false` and nothing anywhere goes red.
      */
     @Test fun `the contacts list is taught through the one decision function`() {
-        val lines = repositorySource().lines().map { it.trim() }
+        val lines = senderSource().lines().map { it.trim() }
 
         assertTrue(
             "the addresses learned must come from recipientsToLearn, not straight from the row",
@@ -183,8 +183,8 @@ class PrebuiltEntityTest {
         )
     }
 
-    private fun repositorySource(): String =
-        locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt").readText()
+    private fun senderSource(): String =
+        locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailSender.kt").readText()
 
     /** [relative] resolved from the test's working directory, walking up. */
     private fun locate(relative: String): File {

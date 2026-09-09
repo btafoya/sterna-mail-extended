@@ -15,9 +15,9 @@ class OutboxCountWiringTest {
     // -- the repository: two flows over one table, which must not become one -----------------
 
     @Test fun `the menu's count is counted straight off the rows, with no clock in the way`() {
-        val body = body(MAIL_REPOSITORY, "outboxQueuedCount")
+        val body = body(MAIL_SENDER, "outboxQueuedCount")
         assertTrue(
-            "MailRepository.outboxQueuedCount must map $BADGE_ITEMS through OutboxLogic.queuedCount " +
+            "MailSender.outboxQueuedCount must map $BADGE_ITEMS through OutboxLogic.queuedCount " +
                 "— the count with no grace, which is what #70 asked for. Body was:\n$body",
             QUEUED_COUNT.containsMatchIn(body),
         )
@@ -40,18 +40,18 @@ class OutboxCountWiringTest {
         // The other direction of the same edit, and the one that reopens #82: the dot sits on the
         // toolbar button and is in the field of view whether or not the user went looking, so a
         // send that goes out fine must never draw the eye to nothing.
-        val body = body(MAIL_REPOSITORY, "outboxActiveCount")
+        val body = body(MAIL_SENDER, "outboxActiveCount")
         assertTrue(
-            "MailRepository.outboxActiveCount must stay on OutboxLogic.badgeCount — the count that " +
+            "MailSender.outboxActiveCount must stay on OutboxLogic.badgeCount — the count that " +
                 "waits out BADGE_GRACE_MILLIS before it lights the dot (#82). Body was:\n$body",
             "OutboxLogic.badgeCount(" in body && "queuedCount" !in body,
         )
     }
 
     @Test fun `the list and the count filter the same table through the same predicate`() {
-        val body = body(MAIL_REPOSITORY, "outboxFlow")
+        val body = body(MAIL_SENDER, "outboxFlow")
         assertTrue(
-            "MailRepository.outboxFlow must be $ALL_ROWS filtered by OutboxLogic.isWaitingInOutbox " +
+            "MailSender.outboxFlow must be $ALL_ROWS filtered by OutboxLogic.isWaitingInOutbox " +
                 "and by NOTHING ELSE. The number the menu announces is meant to be, by " +
                 "construction, the number of lines this list will show; a second exclusion here " +
                 "(FAILED, say) leaves every count test green while the menu reads 2 and the screen " +
@@ -66,17 +66,17 @@ class OutboxCountWiringTest {
     @Test fun `the ViewModel keeps the two counts on their own repository flows`() {
         val dot = body(INBOX_VIEW_MODEL, "outboxCount")
         assertTrue(
-            "InboxViewModel.outboxCount — the dot — must come from repo.outboxActiveCount(). " +
+            "InboxViewModel.outboxCount — the dot — must come from repo.sending.outboxActiveCount(). " +
                 "Body was:\n$dot",
-            "repo.outboxActiveCount(" in dot && "outboxQueuedCount" !in dot,
+            "repo.sending.outboxActiveCount(" in dot && "outboxQueuedCount" !in dot,
         )
         val menu = body(INBOX_VIEW_MODEL, "outboxQueuedCount")
         assertTrue(
             "InboxViewModel.outboxQueuedCount — the menu entry — must come from " +
-                "repo.outboxQueuedCount(). Collapsing it onto outboxActiveCount() here reverts #70 " +
+                "repo.sending.outboxQueuedCount(). Collapsing it onto outboxActiveCount() here reverts #70 " +
                 "one layer above the repository, where the rules on MailRepository cannot see it. " +
                 "Body was:\n$menu",
-            "repo.outboxQueuedCount(" in menu && "outboxActiveCount" !in menu,
+            "repo.sending.outboxQueuedCount(" in menu && "outboxActiveCount" !in menu,
         )
     }
 
@@ -255,7 +255,7 @@ class OutboxCountWiringTest {
         private const val APP_SOURCES = "app/src/main/kotlin"
         private const val INBOX_VIEW_MODEL_PATH = "$APP_SOURCES/app/sterna/ui/inbox/InboxViewModel.kt"
         private const val INBOX_SCREEN_PATH = "$APP_SOURCES/app/sterna/ui/inbox/InboxScreen.kt"
-        private const val REPOSITORY_PATH = "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt"
+        private const val SENDER_PATH = "core/data/src/main/kotlin/app/sterna/core/data/mail/MailSender.kt"
 
         /** Repo root, walked up from the module's working directory, the rules read both modules. */
         private val root: File by lazy {
@@ -269,6 +269,6 @@ class OutboxCountWiringTest {
 
         private val INBOX_VIEW_MODEL: File by lazy { File(root, INBOX_VIEW_MODEL_PATH) }
         private val INBOX_SCREEN: File by lazy { File(root, INBOX_SCREEN_PATH) }
-        private val MAIL_REPOSITORY: File by lazy { File(root, REPOSITORY_PATH) }
+        private val MAIL_SENDER: File by lazy { File(root, SENDER_PATH) }
     }
 }

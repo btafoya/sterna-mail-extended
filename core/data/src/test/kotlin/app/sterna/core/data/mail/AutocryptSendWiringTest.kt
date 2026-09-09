@@ -5,11 +5,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Which arguments `MailRepository` hands [app.sterna.core.data.account.autocryptHeaderValue] at each
+ * Which arguments `MailSender` hands [app.sterna.core.data.account.autocryptHeaderValue] at each
  */
 class AutocryptSendWiringTest {
 
-    private val source = DaoQuerySource.mailSource("MailRepository")
+    private val source = DaoQuerySource.mailSource("MailSender")
 
     /** The argument text of every `autocryptHeaderValue(…)` call, whitespace collapsed. */
     private fun callArguments(): List<String> {

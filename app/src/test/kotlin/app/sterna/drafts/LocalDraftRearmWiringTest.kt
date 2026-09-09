@@ -52,7 +52,7 @@ class LocalDraftRearmWiringTest {
         val lines = linesOf(APPLICATION)
         assertEquals(
             "the data layer must be handed a way to book a draft's upload, exactly as it is handed " +
-                "one to book a send (`mailRepository.outboxScheduler`):",
+                "one to book a send (`mailRepository.sending.outboxScheduler`):",
             listOf(
                 "mailRepository.localDraftScheduler = LocalDraftScheduler { accountId, id, delay ->",
                 "LocalDraftUploads.enqueue(appContext, accountId, id, delay)",

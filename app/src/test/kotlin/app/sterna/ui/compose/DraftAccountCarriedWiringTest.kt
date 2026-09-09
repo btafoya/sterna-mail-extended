@@ -45,7 +45,7 @@ class DraftAccountCarriedWiringTest {
         assertEquals(
             "the row must be written off that guarded answer, and nothing else",
             "sendTarget.emailId",
-            callsOf(body, "repo.enqueueSend(").single()["draftEmailId"],
+            callsOf(body, "repo.sending.enqueueSend(").single()["draftEmailId"],
         )
         assertEquals(
             "…and so must the record the UNDO WINDOW reopens from: it is restored into " +

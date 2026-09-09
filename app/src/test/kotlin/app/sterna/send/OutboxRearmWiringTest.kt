@@ -80,14 +80,14 @@ class OutboxRearmWiringTest {
                 // with the interrupted-edit reason, and unfinished() below does not return failed,
                 // so the re-arm never books it. Requeued instead, it leaves on its own at 0 and the
                 // composer restored afterwards can send the same message twice.
-                "mailRepository.parkInterruptedOutboxEdits()",
-                "mailRepository.unfinishedOutbox().forEach { item ->",
+                "mailRepository.sending.parkInterruptedOutboxEdits()",
+                "mailRepository.sending.unfinishedOutbox().forEach { item ->",
                 "val delay = (item.notBeforeMillis - System.currentTimeMillis()).coerceAtLeast(0)",
                 "Outbox.enqueue(appContext, item.id, delay, keepExisting = true)",
                 "}",
                 "}",
             ),
-            blockAt(lines, "mailRepository.parkInterruptedOutboxEdits()", before = 1, size = 7),
+            blockAt(lines, "mailRepository.sending.parkInterruptedOutboxEdits()", before = 1, size = 7),
         )
     }
 
@@ -111,10 +111,10 @@ class OutboxRearmWiringTest {
         )
         assertEquals(
             "the scheduler seam carries send and Retry, the newest instant there is — it replaces:",
-            listOf("mailRepository.outboxScheduler = OutboxScheduler { id, delay -> Outbox.enqueue(appContext, id, delay) }"),
+            listOf("mailRepository.sending.outboxScheduler = OutboxScheduler { id, delay -> Outbox.enqueue(appContext, id, delay) }"),
             blockAt(
                 application,
-                "mailRepository.outboxScheduler = OutboxScheduler { id, delay -> Outbox.enqueue(appContext, id, delay) }",
+                "mailRepository.sending.outboxScheduler = OutboxScheduler { id, delay -> Outbox.enqueue(appContext, id, delay) }",
                 before = 0, size = 1,
             ),
         )

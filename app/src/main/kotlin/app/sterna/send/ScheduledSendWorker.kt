@@ -18,7 +18,7 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
         if (id < 0) return Result.success()
         val container = (applicationContext as android.app.Application).container
         val repo = container.mailRepository
-        val row = repo.scheduledSend(id) ?: return Result.success() // already fired or cancelled
+        val row = repo.sending.scheduledSend(id) ?: return Result.success() // already fired or cancelled
         val credentials = container.accountStore.credentials(row.accountId) ?: run {
             // A `null` here is not proof that the account left, and this row is the only copy of
             // the message: `credentials` also answers null for a secret that will not decode, and an
@@ -30,7 +30,7 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
             )
             if (departed) {
                 // Nothing can ever send this message again: the row goes, as it always has.
-                repo.deleteScheduledSend(id)
+                repo.sending.deleteScheduledSend(id)
                 return Result.success()
             }
             // Unproven, so nothing is destroyed and nothing is written. retry() and not success():
@@ -38,7 +38,7 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
             return Result.retry()
         }
         return try {
-            repo.enqueueSend(
+            repo.sending.enqueueSend(
                 credentials = credentials,
                 to = row.recipients.split(",").map { it.trim() }.filter { it.isNotEmpty() },
                 subject = row.subject,
@@ -64,7 +64,7 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
                 // that only lived on the scheduled row would be lost.
                 requestReceipt = row.requestReceipt,
             )
-            repo.deleteScheduledSend(id)
+            repo.sending.deleteScheduledSend(id)
             Result.success()
         } catch (_: Throwable) {
             if (runAttemptCount < MAX_ATTEMPTS) {
@@ -80,7 +80,7 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
                 val content = runCatching { container.settingsRepository.notificationContent.first() }
                     .getOrDefault(NotificationContent.NONE)
                 Notifications.notifySendFailed(applicationContext, row.subject, content)
-                repo.deleteScheduledSend(id)
+                repo.sending.deleteScheduledSend(id)
                 Result.success()
             }
         }

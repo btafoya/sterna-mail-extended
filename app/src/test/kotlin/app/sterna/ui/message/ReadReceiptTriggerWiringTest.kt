@@ -286,10 +286,10 @@ class ReadReceiptTriggerWiringTest {
         assertEquals(
             "`sendReadReceipt` is the irreversible end of this work: what it queues leaves the " +
                 "device and tells a stranger a person read their mail. It is declared in " +
-                "MailRepository, called from the reader, and named by the screen that wires the " +
+                "MailSender, called from the reader, and named by the screen that wires the " +
                 "strip's button — and nowhere else. A background receiver, a worker or a sync " +
                 "path naming it at all is the short-circuit this rule exists for.",
-            listOf("MailRepository.kt", "MessageScreen.kt", "MessageViewModel.kt"),
+            listOf("MailSender.kt", "MessageScreen.kt", "MessageViewModel.kt"),
             naming,
         )
     }
@@ -319,7 +319,7 @@ class ReadReceiptTriggerWiringTest {
             MESSAGE_VIEW_MODEL,
             listOf(
                 "readReceiptSendOutcome(",
-                "repo.sendReadReceipt(",
+                "repo.sending.sendReadReceipt(",
                 "credentials = credentials,",
                 "receiptTo = pending.receiptTo,",
                 "originalSubject = pending.originalSubject,",

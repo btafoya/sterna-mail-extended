@@ -19,14 +19,14 @@ object OutboxLogic {
 
     /**
      * The `lastError` a row carries when its edit was INTERRUPTED. A sentinel, translated at
-     * empty body and parked the row rather than queue it (`MailRepository.parkInterruptedOutboxEdit`).
+     * empty body and parked the row rather than queue it (`MailSender.parkInterruptedOutboxEdit`).
      */
     const val EDIT_INTERRUPTED = "edit-interrupted"
 
     /**
      * The `lastError` a row carries when its delivery could not be armed (`armOrNote`): the row is
      * payload is staged, and the scheduler threw (`armOrNote`, called at the tail of
-     * `MailRepository.enqueueSend`). The row stays queued or held (arming is not queueing) and it
+     * `MailSender.enqueueSend`). The row stays queued or held (arming is not queueing) and it
      * is this token that tells the Outbox screen why nothing has moved yet.
      */
     const val NOT_ARMED = "not-armed"
@@ -135,7 +135,7 @@ object OutboxLogic {
 
     /**
      * Whether a row is one the Outbox screen lists, everything except a row open in the composer.
-     * The single predicate behind both `MailRepository.outboxFlow` and [queuedCount].
+     * The single predicate behind both `MailSender.outboxFlow` and [queuedCount].
      */
     fun isWaitingInOutbox(state: OutboxState): Boolean = state != OutboxState.EDITING
 

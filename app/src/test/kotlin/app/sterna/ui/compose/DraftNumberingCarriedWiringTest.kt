@@ -1,6 +1,6 @@
 package app.sterna.ui.compose
 
-import app.sterna.core.data.mail.MailRepository
+import app.sterna.core.data.mail.MailSender
 import app.sterna.send.composeDraftOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -14,7 +14,7 @@ class DraftNumberingCarriedWiringTest {
 
     // --- 1. executed: reopening a queued message for editing ------------------------------------
 
-    private fun outboxDraft(draftUidValidity: Long?) = MailRepository.OutboxDraft(
+    private fun outboxDraft(draftUidValidity: Long?) = MailSender.OutboxDraft(
         to = "bob@example.org",
         cc = "",
         bcc = "",
@@ -70,14 +70,14 @@ class DraftNumberingCarriedWiringTest {
                 "ever — and anything READ here instead is the number recorded after a renumbering, " +
                 "which is the defect this branch closes.",
             "sendTarget.uidValidity",
-            callsOf(body, "repo.enqueueSend(").single()["draftUidValidity"],
+            callsOf(body, "repo.sending.enqueueSend(").single()["draftUidValidity"],
         )
         assertEquals(
             "…beside the id it belongs to, OUT OF THE SAME ANSWER: the pair is one decision, and " +
                 "an id from one place beside a numbering from another expunges a UID under a " +
                 "UIDVALIDITY it does not belong to, i.e. another message of Drafts (#95 × #99)",
             "sendTarget.emailId",
-            callsOf(body, "repo.enqueueSend(").single()["draftEmailId"],
+            callsOf(body, "repo.sending.enqueueSend(").single()["draftEmailId"],
         )
         assertEquals(SEND_TARGET, callsOf(body, "sendDraftTarget(").single())
     }
@@ -123,7 +123,7 @@ class DraftNumberingCarriedWiringTest {
                 "after the user wrote the mail. `null` here re-opens the defect for every " +
                 "scheduled send while every other rule in this suite stays green",
             "row.draftUidValidity",
-            callsOf(body, "repo.enqueueSend(").single()["draftUidValidity"],
+            callsOf(body, "repo.sending.enqueueSend(").single()["draftUidValidity"],
         )
     }
 

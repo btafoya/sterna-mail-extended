@@ -11,7 +11,7 @@ import java.io.File
 class DraftVerdictWiringTest {
 
     @Test fun `the send hands the verdict to the queue beside the id`() {
-        val call = callsOf(bodyOf(COMPOSE_VIEW_MODEL, "sendInternal"), "repo.enqueueSend(").single()
+        val call = callsOf(bodyOf(COMPOSE_VIEW_MODEL, "sendInternal"), "repo.sending.enqueueSend(").single()
         assertEquals(
             "the id of the draft being replaced must still ride the queue — dropping it leaves a " +
                 "stale duplicate in Drafts after every faithful send — through the decision that " +
@@ -325,7 +325,7 @@ class DraftVerdictWiringTest {
             "sendTarget.emailId",
             callsOf(bodyOf(COMPOSE_VIEW_MODEL, "scheduleSend"), "ScheduledSendEntity(").single()["draftEmailId"],
         )
-        val fired = callsOf(bodyOf(SCHEDULED_SEND_WORKER, "doWork"), "repo.enqueueSend(").single()
+        val fired = callsOf(bodyOf(SCHEDULED_SEND_WORKER, "doWork"), "repo.sending.enqueueSend(").single()
         assertEquals("row.draftEmailId", fired["draftEmailId"])
         assertEquals(
             "the worker may answer `false` ONLY because scheduleSend gated the id above: an id on " +

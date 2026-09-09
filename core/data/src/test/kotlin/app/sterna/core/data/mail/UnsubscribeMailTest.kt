@@ -105,11 +105,11 @@ class UnsubscribeMailTest {
         }
     }
 
-    /** The body of `MailRepository.sendUnsubscribeMail`, from its signature to the next block. */
+    /** The body of `MailSender.sendUnsubscribeMail`, from its signature to the next block. */
     private fun sendUnsubscribeMailBody(): String {
-        val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt").readText()
+        val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailSender.kt").readText()
         val start = source.indexOf("suspend fun sendUnsubscribeMail(")
-        check(start >= 0) { "MailRepository no longer declares sendUnsubscribeMail(...)" }
+        check(start >= 0) { "MailSender no longer declares sendUnsubscribeMail(...)" }
         val end = listOf("\n    // ----", "\n    /**")
             .mapNotNull { source.indexOf(it, start).takeIf { at -> at > start } }
             .minOrNull()

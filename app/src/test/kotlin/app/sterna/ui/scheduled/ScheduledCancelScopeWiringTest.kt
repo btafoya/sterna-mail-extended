@@ -39,14 +39,14 @@ class ScheduledCancelScopeWiringTest {
             ),
             call.keys,
         )
-        assertEquals("{ repo.scheduledSend(it) }", call["row"])
+        assertEquals("{ repo.sending.scheduledSend(it) }", call["row"])
         assertEquals(
             "the account of the ROW: this screen is not filtered by account and shows none",
             "{ app.container.accountStore.credentials(it) }",
             call["credentials"],
         )
         assertEquals("{ ScheduledSends.cancel(app, it) }", call["dropWorker"])
-        assertEquals("{ repo.deleteScheduledSend(it) }", call["deleteRow"])
+        assertEquals("{ repo.sending.deleteScheduledSend(it) }", call["deleteRow"])
     }
 
     /**

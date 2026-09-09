@@ -35,7 +35,7 @@ class ScheduledSendFireWiringTest {
             listOf(
                 // The idempotence guard the arm below sits under: a row already fired or cancelled
                 // is gone, and this worker must then do nothing at all.
-                "val row = repo.scheduledSend(id) ?: return Result.success() // already fired or cancelled",
+                "val row = repo.sending.scheduledSend(id) ?: return Result.success() // already fired or cancelled",
                 "val credentials = container.accountStore.credentials(row.accountId) ?: run {",
                 // Both halves, handed to the one place a JVM test can execute the rule. Dropping
                 // the first one makes an unreadable blob read as "every account left at once".
@@ -44,7 +44,7 @@ class ScheduledSendFireWiringTest {
                 "accountStillListed = container.accountStore.accounts().any { it.id == row.accountId },",
                 ")",
                 "if (departed) {",
-                "repo.deleteScheduledSend(id)",
+                "repo.sending.deleteScheduledSend(id)",
                 "return Result.success()",
                 "}",
                 "return Result.retry()",
@@ -70,14 +70,14 @@ class ScheduledSendFireWiringTest {
                 "order. Anything else destroys a message the user is still waiting to see leave",
             listOf(
                 // 1. Proven departure: nothing can ever send it, so nothing is being lost.
-                "repo.deleteScheduledSend(id)",
+                "repo.sending.deleteScheduledSend(id)",
                 // 2. After enqueueSend returned, the outbox now holds the copy. Moved above the
                 // enqueue, a throw would leave neither a scheduled row nor an outbox item.
-                "repo.deleteScheduledSend(id)",
+                "repo.sending.deleteScheduledSend(id)",
                 // 3. Retries exhausted, and only after the banner has named the failure (#57).
-                "repo.deleteScheduledSend(id)",
+                "repo.sending.deleteScheduledSend(id)",
             ),
-            linesOf(WORKER).filter { "repo.deleteScheduledSend(" in it },
+            linesOf(WORKER).filter { "repo.sending.deleteScheduledSend(" in it },
         )
     }
 
@@ -86,8 +86,8 @@ class ScheduledSendFireWiringTest {
      */
     @Test fun `only the proven-departure arm may destroy the row before the hand-over`() {
         val lines = linesOf(WORKER)
-        val handOver = lines.indexOfFirst { it == "repo.enqueueSend(" }
-        assertTrue("no line reads exactly 'repo.enqueueSend(' any more", handOver >= 0)
+        val handOver = lines.indexOfFirst { it == "repo.sending.enqueueSend(" }
+        assertTrue("no line reads exactly 'repo.sending.enqueueSend(' any more", handOver >= 0)
 
         assertEquals(
             "⛔ a destruction of the scheduled row now stands between the account check and " +
@@ -95,7 +95,7 @@ class ScheduledSendFireWiringTest {
                 "holds it, a throw from enqueueSend loses it outright — the catch retries, the " +
                 "next run finds no row and returns success(), and the user is told nothing at all",
             1,
-            lines.take(handOver).count { "repo.deleteScheduledSend(" in it },
+            lines.take(handOver).count { "repo.sending.deleteScheduledSend(" in it },
         )
     }
 

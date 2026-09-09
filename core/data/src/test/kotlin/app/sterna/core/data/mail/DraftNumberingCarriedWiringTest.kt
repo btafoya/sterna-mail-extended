@@ -63,7 +63,7 @@ class DraftNumberingCarriedWiringTest {
                 "READ here is the numbering a sync recorded after a renumbering, which the guard " +
                 "then compares with itself, calls SAME, and expunges UIDs that now name other " +
                 "messages in Drafts. Body was:\n$body",
-            listOf("runCatching { destroyDraft(credentials, it, item.draftUidValidity) }"),
+            listOf("runCatching { host.destroyDraft(credentials, it, item.draftUidValidity) }"),
             codeLinesNaming(body, "destroyDraft("),
         )
         assertEquals(
@@ -135,13 +135,13 @@ class DraftNumberingCarriedWiringTest {
     // --- reading the source ---------------------------------------------------------------------
 
     private fun bodyOf(function: String): String =
-        DaoQuerySource.mailFunctionBody("MailRepository", function)
+        DaoQuerySource.mailFunctionBody("MailSender", function)
 
     /** The text from `fun [function](` to the `)` closing its parameter list. */
     private fun declarationOf(function: String): String {
-        val code = codeOf(DaoQuerySource.mailSource("MailRepository"))
+        val code = codeOf(DaoQuerySource.mailSource("MailSender"))
         val at = Regex("""\bfun\s+$function\s*\(""").find(code)
-            ?: error("MailRepository declares no 'fun $function(' — did it get renamed?")
+            ?: error("MailSender declares no 'fun $function(' — did it get renamed?")
         val open = code.indexOf('(', at.range.first)
         return code.substring(open, matchingParen(code, open) + 1)
     }

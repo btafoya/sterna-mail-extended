@@ -1,6 +1,6 @@
 package app.sterna.send
 
-import app.sterna.core.data.mail.MailRepository
+import app.sterna.core.data.mail.MailSender
 import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.Link
@@ -63,7 +63,7 @@ class SendOutbox(private val scope: CoroutineScope) {
         /**
          * Set only when the draft came out of the outbox (#70): the id of the queued row, which
          * stays in the queue marked editing while this composer holds it. Closing the composer
-         * gives it back ([MailRepository.releaseOutboxEdit]); sending/saving/deleting consumes it.
+         * gives it back ([MailSender.releaseOutboxEdit]); sending/saving/deleting consumes it.
          */
         val editingOutboxId: Long? = null,
         /** Whether the message asks for a read receipt (RFC 8098), so an undone send reopens asking. */
@@ -125,7 +125,7 @@ class SendOutbox(private val scope: CoroutineScope) {
 /**
  * The composer draft a queued outbox item is reopened with (#70), as a pure function so a JVM test
  */
-internal fun composeDraftOf(draft: MailRepository.OutboxDraft): SendOutbox.ComposeDraft {
+internal fun composeDraftOf(draft: MailSender.OutboxDraft): SendOutbox.ComposeDraft {
     // The row's html first, its text as the fallback (#131): a queued message this app styled
     // reopens exactly as it was written, while a forward's html and an imported HTML signature do
     val rich = richBodyFrom(draft.htmlBody) { draft.body }

@@ -9,7 +9,7 @@ import org.junit.Test
  */
 class DeleteOutboxWiringTest {
 
-    private fun bodyOf(function: String): String = DaoQuerySource.mailFunctionBody("MailRepository", function)
+    private fun bodyOf(function: String): String = DaoQuerySource.mailFunctionBody("MailSender", function)
 
     private fun codeOf(body: String): List<String> =
         body.lines().map { it.trim() }
@@ -19,7 +19,7 @@ class DeleteOutboxWiringTest {
      *  [codeOf], so the KDoc that names [outboxFilesDir] to say a draft is not stored there does
      *  not answer for the code. */
     private fun fileLinesNaming(needle: String): List<String> =
-        codeOf(DaoQuerySource.mailSource("MailRepository")).filter { needle in it }
+        codeOf(DaoQuerySource.mailSource("MailSender")).filter { needle in it }
 
     @Test fun `consuming an outbox item takes its row AND its staged directory`() {
         // The order is part of the guard: the Room row goes first, so a crash between the two

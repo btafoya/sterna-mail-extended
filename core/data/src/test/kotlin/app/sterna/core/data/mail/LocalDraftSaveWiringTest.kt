@@ -342,7 +342,7 @@ class LocalDraftSaveWiringTest {
                 "if (row.state != OutboxState.EDITING) return",
                 "outboxDao.setState(id, state)",
             ),
-            codeOf(bodyOf("parkOutboxEdit")).drop(1).dropLast(1),
+            codeOf(DaoQuerySource.mailFunctionBody("MailSender", "parkOutboxEdit")).drop(1).dropLast(1),
         )
     }
 }

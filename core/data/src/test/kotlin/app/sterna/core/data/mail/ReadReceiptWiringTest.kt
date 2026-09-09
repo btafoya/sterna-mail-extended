@@ -64,7 +64,7 @@ class ReadReceiptWiringTest {
     // --- 2. read as source text: the four writes still ask the row ------------------------------
 
     @Test fun `the SMTP send asks the queued row for its receipt`() {
-        val calls = callsOf(bodyOf("performDelivery"), "outgoing(")
+        val calls = callsOf(sendBodyOf("performDelivery"), "outgoing(")
         assertTrue("performDelivery no longer builds an OutgoingMessage — did the path move?", calls.size >= 2)
         assertEquals(
             "every OutgoingMessage performDelivery builds must carry the ROW's answer: this one " +
@@ -76,7 +76,7 @@ class ReadReceiptWiringTest {
 
     @Test fun `the one builder of every raw write puts its parameter on the message, whole`() {
         // The consumer, not the callers.
-        val calls = callsOf(bodyOf("outgoing"), "OutgoingMessage(")
+        val calls = callsOf(sendBodyOf("outgoing"), "OutgoingMessage(")
         assertEquals("outgoing() must still build exactly one OutgoingMessage", 1, calls.size)
         assertEquals(
             "the OutgoingMessage must carry the `requestReceipt` PARAMETER and nothing else: a " +
@@ -88,7 +88,7 @@ class ReadReceiptWiringTest {
     }
 
     @Test fun `the structured JMAP send asks the queued row for its receipt`() {
-        val calls = callsOf(bodyOf("performDelivery"), "client.sendEmail(")
+        val calls = callsOf(sendBodyOf("performDelivery"), "client.sendEmail(")
         assertEquals("performDelivery must still submit through client.sendEmail", 1, calls.size)
         assertEquals(
             "Email/set must be told what the row asked for; `false` here is a send that asks nothing",
@@ -101,7 +101,7 @@ class ReadReceiptWiringTest {
         // The mute path. The raw bytes are built by the same `outgoing(` above and imported
         // verbatim, so this states that the PGP branch's own build is one of the calls the first
         // test covers, and that it is the last of them, i.e. inside the `pgpEntity != null` branch.
-        val body = bodyOf("performDelivery")
+        val body = sendBodyOf("performDelivery")
         val calls = callsOf(body, "outgoing(")
         assertTrue("the PGP branch must still build the raw message itself", calls.size >= 2)
         assertTrue(
@@ -147,7 +147,7 @@ class ReadReceiptWiringTest {
                 "function the tests above EXECUTE. Inlining the mapping back here puts it out of " +
                 "reach of every JVM test, which is how a field gets dropped unnoticed.",
             listOf("val draft = outboxDraftOf(item, attachments)"),
-            codeOf(bodyOf("takeOutboxForEdit")).lines().map { it.trim() }
+            codeOf(sendBodyOf("takeOutboxForEdit")).lines().map { it.trim() }
                 .filter { "outboxDraftOf(" in it },
         )
     }
@@ -161,7 +161,7 @@ class ReadReceiptWiringTest {
                 "requestReceipt = item.requestReceipt,",
                 "requestReceipt = item.requestReceipt,",
             ),
-            codeOf(bodyOf("performDelivery")).lines().map { it.trim() }
+            codeOf(sendBodyOf("performDelivery")).lines().map { it.trim() }
                 .filter { it.startsWith("requestReceipt") },
         )
     }
@@ -170,6 +170,9 @@ class ReadReceiptWiringTest {
 
     private fun bodyOf(function: String): String =
         DaoQuerySource.mailFunctionBody("MailRepository", function)
+
+    private fun sendBodyOf(function: String): String =
+        DaoQuerySource.mailFunctionBody("MailSender", function)
 
     /**
      * The arguments of every `[call]…)` in [body], as name → value expression. Positional arguments

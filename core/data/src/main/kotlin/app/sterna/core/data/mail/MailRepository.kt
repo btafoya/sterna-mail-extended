@@ -19,7 +19,6 @@ import app.sterna.core.data.account.OAuthCredentials
 import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.data.account.UnifiedInbox
 import app.sterna.core.data.account.accountKeyOf
-import app.sterna.core.data.account.autocryptHeaderValue
 import app.sterna.core.data.account.resolveExistingLogin
 import app.sterna.core.data.account.resolveExistingLoginAmong
 import app.sterna.core.data.filter.FilterRule
@@ -29,8 +28,6 @@ import app.sterna.core.data.filter.VACATION_SCRIPT_NAME
 import app.sterna.core.data.filter.enabledRuleCount
 import app.sterna.core.data.filter.loadedFilterRules
 import app.sterna.core.data.db.AccountMailboxRole
-import app.sterna.core.data.unsubscribe.UnsubscribeClient
-import app.sterna.core.data.unsubscribe.UnsubscribeResult
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
 import app.sterna.core.data.db.EmailBodyDao
@@ -39,25 +36,17 @@ import app.sterna.core.data.db.LocalDraftDao
 import app.sterna.core.data.db.LocalDraftEntity
 import app.sterna.core.data.db.LocalDraftState
 import app.sterna.core.data.db.MailboxUidValidityDao
-import app.sterna.core.data.db.OutboxAttachment
-import app.sterna.core.data.db.OutboxAttachments
 import app.sterna.core.data.db.OutboxDao
-import app.sterna.core.data.db.OutboxEdit
 import app.sterna.core.data.db.OutboxEntity
 import app.sterna.core.data.db.OutboxLogic
-import app.sterna.core.data.db.OutboxLogic.outboxPgpModeName
-import app.sterna.core.data.db.OutboxState
 import app.sterna.core.data.db.PurgeSnapshotDao
 import app.sterna.core.data.db.RECENT_EMAIL_ROW_COLUMNS
 import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.db.ScheduledSendDao
-import app.sterna.core.data.db.ScheduledSendEntity
 import app.sterna.core.data.db.SnoozedDao
 import app.sterna.core.data.db.SnoozedEntity
 import app.sterna.core.data.db.SnoozedListRow
-import app.sterna.core.data.db.ContactRow
 import app.sterna.core.data.db.RecentContactDao
-import app.sterna.core.data.db.RecentContactEntity
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.MailboxIdRole
@@ -90,7 +79,6 @@ import app.sterna.core.imap.decodeMailboxPath
 import app.sterna.core.imap.MimeBody
 import app.sterna.core.imap.MimeParser
 import app.sterna.core.imap.OutgoingAttachment
-import app.sterna.core.imap.OutgoingMessage
 import app.sterna.core.imap.OutgoingMime
 import app.sterna.core.data.pgp.PgpDecrypted
 import app.sterna.core.data.pgp.PgpMode
@@ -107,7 +95,6 @@ import app.sterna.core.jmap.model.JmapSession
 import app.sterna.core.jmap.model.PushSubscription
 import app.sterna.core.jmap.model.Quota
 import app.sterna.core.jmap.model.SearchQuery
-import app.sterna.core.jmap.model.SubmissionEnvelope
 import app.sterna.core.jmap.model.VacationResponse
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -141,7 +128,7 @@ internal const val MAX_CHANGES = 200
  *  read-after-write delay on a move-back, or the next reconcile prunes the message. */
 private const val RECENT_MUTATION_MS = 45_000L
 
-private const val PAGE_SIZE = 50
+internal const val PAGE_SIZE = 50
 
 /** The per-id SetError type meaning the id does not exist in the account (RFC 8620 §5.3). Action
  *  paths receiving it prune the cached row. */
@@ -160,11 +147,6 @@ private const val PREFETCH_COUNT = 20
 
 /** Max cached message bodies kept per account (LRU); bounds on-device storage. */
 private const val BODY_CACHE_CAP = 100
-
-/** Wall-clock budget for the IMAP envelope read the send path makes before it may destroy the draft
- *  a message was edited from. It bounds the connect and the reads, not the wait for the account's
- *  IMAP mutex, which nothing bounds. Expiry throws, read as "could not be established". */
-private const val SEND_PROOF_BUDGET_MS = 10_000
 
 /** The same budget for the emptying gestures, before they may destroy the server copy of a draft
  *  judged empty. Bounded rather than [ImapBudget.NO_BUDGET]: this gesture is reached when there is
@@ -325,7 +307,7 @@ internal fun formatFromAddress(name: String?, email: String?): String? = when {
 internal fun outboxDraftOf(
     item: OutboxEntity,
     attachments: List<EmailBodyPart>,
-): MailRepository.OutboxDraft = MailRepository.OutboxDraft(
+): MailSender.OutboxDraft = MailSender.OutboxDraft(
     to = item.recipients.split(",").joinToString(", ") { it.trim() },
     cc = item.cc?.split(",")?.joinToString(", ") { it.trim() }.orEmpty(),
     bcc = item.bcc?.split(",")?.joinToString(", ") { it.trim() }.orEmpty(),
@@ -452,7 +434,7 @@ fun requireAttachmentBytes(emailId: String, partKey: String, bytes: ByteArray) {
 }
 
 /** Run [stage], persisting an outbox item's payload after its row is inserted, and, if it throws,
- *  [rollback] the row: an orphan would be re-armed by [MailRepository.unfinishedOutbox] and sent
+ *  [rollback] the row: an orphan would be re-armed by [MailSender.unfinishedOutbox] and sent
  *  amputated (#70). */
 internal suspend fun <T> stageOrRollback(rollback: suspend () -> Unit, stage: suspend () -> T): T =
     try {
@@ -499,7 +481,7 @@ internal data class OutboxPayload(
     val redactBody: Boolean,
 )
 
-/** The two decisions [MailRepository.enqueueSend] makes about a pre-built entity. Storing the
+/** The two decisions [MailSender.enqueueSend] makes about a pre-built entity. Storing the
  *  entity depends on the entity and nothing else; blanking the row still depends on the mode, and
  *  must: only ciphertext may not be kept in the clear at rest. */
 internal fun outboxPayload(prebuiltEntity: String?, pgpMode: PgpMode?): OutboxPayload =
@@ -880,18 +862,18 @@ class MailRepository(
     private val emailBodyDao: EmailBodyDao,
     private val mailboxDao: MailboxDao,
     private val imap: ImapMailService,
-    private val scheduledSendDao: ScheduledSendDao,
+    scheduledSendDao: ScheduledSendDao,
     private val snoozedDao: SnoozedDao,
-    private val recentContactDao: RecentContactDao,
+    recentContactDao: RecentContactDao,
     private val accountStore: AccountStorage,
-    private val outboxDao: OutboxDao,
+    outboxDao: OutboxDao,
     /** The frozen destroy list of a confirmed Empty trash (#99). */
     private val purgeSnapshotDao: PurgeSnapshotDao,
     /** Drafts written on the phone and not yet on the server (#95). */
     private val localDraftDao: LocalDraftDao,
     /** The folder numbering each mailbox was last seen under, frozen when a draft is saved over another (#99). */
     private val mailboxUidValidityDao: MailboxUidValidityDao,
-    private val outboxFilesDir: java.io.File,
+    outboxFilesDir: java.io.File,
     /**
      * Where a local draft's attachment bytes are staged. Its own tree, not [outboxFilesDir]: an outbox item's
      * files die with the send, a draft's wait as long as the draft does.
@@ -906,12 +888,21 @@ class MailRepository(
     private val syncStateStore: SyncStateStore? = null,
     private val logInfo: (String, String, Throwable?) -> Unit = { _, _, _ -> },
     private val logWarn: (String, String, Throwable?) -> Unit = { _, _, _ -> },
-) {
-    /**
-     * Schedules the WorkManager job that delivers an outbox item. Set by the app layer at startup: the data
-     * module cannot reference the worker.
-     */
-    var outboxScheduler: OutboxScheduler? = null
+) : MailSendHost {
+    /** Everything the app sends, held apart from what it reads; see [MailSender]. */
+    val sending: MailSender = MailSender(
+        client = client,
+        imap = imap,
+        mailboxDao = mailboxDao,
+        emailDao = emailDao,
+        accountStore = accountStore,
+        outboxDao = outboxDao,
+        scheduledSendDao = scheduledSendDao,
+        recentContactDao = recentContactDao,
+        outboxFilesDir = outboxFilesDir,
+        host = this,
+        logWarn = logWarn,
+    )
 
     /**
      * The same seam for a draft the server could not be given (#95): [saveDraft] books the deferred upload
@@ -924,7 +915,7 @@ class MailRepository(
      * baselines. Set by the app layer at startup.
      */
     var onAccountPruned: ((String) -> Unit)? = null
-    internal class JmapAccountSession(
+    class JmapAccountSession(
         val credentials: AccountCredentials,
         val session: JmapSession,
         val accountId: String,
@@ -1019,14 +1010,14 @@ class MailRepository(
      * What one [syncMailbox] pass brought back: [fetchedIds], spared by the retention prune (#110), and
      * [departedIds], the only ground for cancelling a banner (#134).
      */
-    internal data class MailboxSync(
+    data class MailboxSync(
         val fetchedIds: List<String>,
         val departedIds: List<String>,
     )
 
     /** Both paths report what they fetched: an id fetched and not reported is deleted by the
      *  retention prune in the same cycle (#110). See [MailboxSync]. */
-    private suspend fun syncMailbox(
+    override suspend fun syncMailbox(
         session: JmapSession,
         accountId: String,
         auth: JmapAuth,
@@ -3350,33 +3341,6 @@ class MailRepository(
         return null
     }
 
-    // ---- recipient suggestions ----
-
-    /** Record people we send to, so they surface in recipient autocomplete next time. */
-    suspend fun rememberRecipients(addresses: List<String>) {
-        val now = System.currentTimeMillis()
-        addresses.map { it.trim() }.filter { it.contains('@') }.distinctBy { it.lowercase() }.forEach { addr ->
-            val (name, email) = parseAddress(addr)
-            recentContactDao.upsert(RecentContactEntity(email = email.lowercase(), name = name, lastSeen = now))
-        }
-    }
-
-    /** Deduped recipient suggestions for [query]: people we've sent to, plus cached senders. */
-    suspend fun suggestContacts(query: String, limit: Int = 6): List<ContactRow> {
-        val q = query.trim()
-        if (q.isEmpty()) return emptyList()
-        return (recentContactDao.search(q, limit) + emailDao.suggestSenders(q, limit))
-            .filter { it.email.contains('@') }
-            .distinctBy { it.email.lowercase() }
-            .take(limit)
-    }
-
-    private fun parseAddress(s: String): Pair<String?, String> {
-        val m = Regex("^(.*?)<([^>]+)>").find(s.trim())
-        return if (m != null) m.groupValues[1].trim().ifBlank { null } to m.groupValues[2].trim()
-        else null to s.trim()
-    }
-
     // ---- snooze ----
 
     /** Snooze a message until [until] (hidden from lists; re-appears at that time). */
@@ -4256,40 +4220,6 @@ class MailRepository(
         )
     }
 
-    /** SMTP OutgoingMessage from compose fields (IMAP). [requestReceipt] has no default. */
-    private fun outgoing(
-        credentials: AccountCredentials,
-        recipients: List<String>,
-        subject: String,
-        body: String,
-        inReplyTo: List<String> = emptyList(),
-        references: List<String> = emptyList(),
-        html: String? = null,
-        fromName: String? = null,
-        fromEmail: String? = null,
-        cc: List<String> = emptyList(),
-        bcc: List<String> = emptyList(),
-        requestReceipt: Boolean,
-    ): OutgoingMessage {
-        val from = formatFromAddress(fromName, fromEmail) ?: credentials.username
-        // The read receipt is addressed to this `from` string, so the check below covers it.
-        requireSingleLineAddresses(listOf(from) + recipients + cc + bcc)
-        return OutgoingMessage(
-            from = from,
-            to = recipients,
-            cc = cc,
-            bcc = bcc,
-            subject = subject,
-            body = body,
-            html = html,
-            inReplyTo = inReplyTo.firstOrNull(),
-            references = references.joinToString(" ").ifBlank { null },
-            messageId = newMessageId(credentials.username),
-            dateMillis = System.currentTimeMillis(),
-            requestReceipt = requestReceipt,
-        )
-    }
-
     /**
      * Save a draft, on the phone first, then on the server, always (#95). A failed upload keeps
      */
@@ -4596,7 +4526,7 @@ class MailRepository(
     }
 
     /** An IMAP draft's cc+bcc as the server holds it; `null` is the unknown that keeps it. */
-    private suspend fun imapDraftAddressing(credentials: AccountCredentials, emailId: String, budgetMs: Int): Set<String>? {
+    override suspend fun imapDraftAddressing(credentials: AccountCredentials, emailId: String, budgetMs: Int): Set<String>? {
         val cached = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull() ?: return null
         val uid = ImapMailService.uidOf(emailId) ?: return null
         return imap.ccAndBccOf(credentials, cached.mailboxId, uid, budgetMs)
@@ -4616,22 +4546,6 @@ class MailRepository(
         return receiptRequestedInProperty(
             header = email.dispositionNotificationTo,
             serverRefusesProperty = client.refusesReceiptHeader(ctx.session),
-        )
-    }
-
-    /** Whether the send provably carries the addressing of the draft it destroys; unknown forbids. */
-    private suspend fun sendCarriesDraftAddressing(
-        credentials: AccountCredentials,
-        replacesEmailId: String,
-        cc: List<String>,
-        bcc: List<String>,
-    ): Boolean {
-        if (credentials.protocol != MailProtocol.IMAP) return true
-        return draftAddressingIsCarried(
-            replacesEmailId = replacesEmailId,
-            replacement = draftReplacementAddressing(cc, bcc),
-            // Bounded, unlike the save's twin read: this runs before the outbox row is inserted.
-            originalAddressing = { id -> imapDraftAddressing(credentials, id, SEND_PROOF_BUDGET_MS) },
         )
     }
 
@@ -4741,7 +4655,7 @@ class MailRepository(
      * [frozenUidValidity] is the numbering the caller froze when it read [emailId], nothing here
      * reads one; even a local `val` shadowing it hands the guard a POST-renumbering number.
      */
-    private suspend fun destroyDraft(
+    override suspend fun destroyDraft(
         credentials: AccountCredentials,
         emailId: String,
         frozenUidValidity: Long?,
@@ -4772,549 +4686,6 @@ class MailRepository(
         destroyAll(credentials, listOf(emailId), draftMailboxOf(credentials, emailId))
     }
 
-    // ---- outbox (persistent send queue) ----
-
-    /** The single send path: queue in the outbox and arm the worker; [holdMs] > 0 HELDs it. */
-    suspend fun enqueueSend(
-        credentials: AccountCredentials,
-        to: List<String>,
-        subject: String,
-        body: String,
-        inReplyTo: List<String> = emptyList(),
-        references: List<String> = emptyList(),
-        attachments: List<EmailBodyPart> = emptyList(),
-        htmlBody: String? = null,
-        fromName: String? = null,
-        fromEmail: String? = null,
-        cc: List<String> = emptyList(),
-        bcc: List<String> = emptyList(),
-        holdMs: Long = 0,
-        pgpMode: PgpMode? = null,
-        /** A complete MIME entity replacing the body byte for byte. Not conditional on [pgpMode]. */
-        prebuiltEntity: String? = null,
-        draftEmailId: String? = null,
-        /**
-         * The IMAP numbering [draftEmailId] was read under, frozen by whoever read it (#99). No
-         * default: the destroy happens days later, and `null` there means "destroy nothing".
-         */
-        draftUidValidity: Long?,
-        /** Whether the composer could not reproduce the draft (#63). An unknown answers `true`. */
-        bodyIsLossy: Boolean = true,
-        /** Ask for a read receipt (RFC 8098), per message; persisted so the worker still asks. */
-        requestReceipt: Boolean = false,
-        /** Teach these addresses to the contact suggestions. False for a receipt, [recipientsToLearn]. */
-        learnRecipients: Boolean = true,
-    ): Long {
-        val recipients = to.map { it.trim() }.filter { it.isNotEmpty() }
-        require(recipients.isNotEmpty()) { "Add at least one recipient." }
-        val ccTrimmed = cc.map { it.trim() }.filter { it.isNotEmpty() }
-        val bccTrimmed = bcc.map { it.trim() }.filter { it.isNotEmpty() }
-        recipientsToLearn(recipients + ccTrimmed + bccTrimmed, learnRecipients)
-            .takeIf { it.isNotEmpty() }
-            ?.let { runCatching { rememberRecipients(it) } }
-
-        // performSend destroys whatever draft id this row carries, so the id is written only when
-        // the outgoing message provably reproduces the draft it replaces.
-        val replaceableDraftId =
-            replaceableDraftIdOrNull(draftEmailId, attachments.size, bodyIsLossy) { id ->
-                sendCarriesDraftAddressing(credentials, id, ccTrimmed, bccTrimmed)
-            }
-
-        // An encrypted payload replaces the plaintext at rest, and both halves of that are
-        // [outboxPayload]'s: headers on the row, ciphertext in a file, attachments in the entity.
-        val payload = outboxPayload(prebuiltEntity, pgpMode)
-        val encrypted = payload.redactBody
-        val now = System.currentTimeMillis()
-        val held = holdMs > 0
-        val id = outboxDao.insert(
-            OutboxEntity(
-                accountId = credentials.id,
-                recipients = recipients.joinToString(","),
-                cc = ccTrimmed.joinToString(",").ifBlank { null },
-                bcc = bccTrimmed.joinToString(",").ifBlank { null },
-                subject = subject,
-                textBody = if (encrypted) "" else body,
-                htmlBody = if (encrypted) null else htmlBody,
-                fromName = fromName,
-                fromEmail = fromEmail,
-                inReplyTo = inReplyTo.joinToString(" ").ifBlank { null },
-                references = references.joinToString(" ").ifBlank { null },
-                attachmentsJson = "[]",
-                createdAtMillis = now,
-                notBeforeMillis = now + holdMs,
-                state = if (held) OutboxState.HELD else OutboxState.QUEUED,
-                pgpMode = outboxPgpModeName(pgpMode),
-                draftEmailId = replaceableDraftId,
-                draftUidValidity = draftUidValidity,
-                requestReceipt = requestReceipt,
-            ),
-        )
-        // Staging runs after the insert (it needs the id), and a throw must roll the row back: an
-        // orphan with attachmentsJson "[]" is re-armed at startup and sent amputated (#70).
-        stageOrRollback(rollback = { deleteOutbox(id) }) {
-            if (payload.entityFile != null) {
-                val dir = java.io.File(outboxFilesDir, id.toString()).apply { mkdirs() }
-                val entityFile = java.io.File(dir, PREBUILT_ENTITY_FILE).apply { writeText(payload.entityFile) }
-                outboxDao.byId(id)?.let { outboxDao.update(it.copy(pgpEntityPath = entityFile.absolutePath)) }
-            } else {
-                val durable = persistAttachments(id, attachments)
-                outboxDao.byId(id)?.let { outboxDao.update(it.copy(attachmentsJson = OutboxAttachments.encode(durable))) }
-            }
-        }
-        // The row is durable and its payload staged, so the send IS queued, and arming is not
-        // queueing. A scheduler that throws must not be relayed, or the caller hears "nothing was
-        // queued" about a message in the Outbox and a quick reply goes out twice. The failure goes
-        // on the row as OutboxLogic.NOT_ARMED, lastError only, never its state.
-        return armOrNote(id, holdMs, outboxScheduler) { note ->
-            logWarn("MailRepository", "outbox $id: $note", null)
-            outboxDao.byId(id)?.let { outboxDao.update(it.copy(lastError = OutboxLogic.NOT_ARMED)) }
-        }
-    }
-
-    private fun persistAttachments(id: Long, attachments: List<EmailBodyPart>): List<OutboxAttachment> {
-        if (attachments.isEmpty()) return emptyList()
-        val dir = java.io.File(outboxFilesDir, id.toString()).apply { mkdirs() }
-        return attachments.mapNotNull { part ->
-            when {
-                part.blobId != null -> OutboxAttachment(
-                    kind = OutboxAttachments.KIND_JMAP_BLOB,
-                    blobId = part.blobId, type = part.type, name = part.name, size = part.size,
-                    cid = part.cid, disposition = part.disposition,
-                )
-                part.partId != null -> {
-                    val sourcePath = part.partId!!
-                    // Refuse rather than drop an unreadable attachment: it would send amputated.
-                    val bytes = runCatching { java.io.File(sourcePath).readBytes() }.getOrNull()
-                        ?: error("Couldn't read the attachment ${part.name ?: sourcePath} to queue it.")
-                    val safe = (part.name ?: "attachment").replace(Regex("[^A-Za-z0-9._-]"), "_")
-                    val dest = java.io.File(dir, "${System.nanoTime()}-$safe").apply { writeBytes(bytes) }
-                    OutboxAttachment(
-                        kind = OutboxAttachments.KIND_IMAP_FILE,
-                        path = dest.absolutePath, type = part.type, name = part.name, size = bytes.size.toLong(),
-                        cid = part.cid, disposition = part.disposition,
-                    )
-                }
-                else -> null
-            }
-        }
-    }
-
-    /** Outbox rows for the list, through [OutboxLogic.isWaitingInOutbox] so the counts agree. */
-    fun outboxFlow(): Flow<List<OutboxEntity>> =
-        outboxDao.observeAll().map { rows -> rows.filter { OutboxLogic.isWaitingInOutbox(it.state) } }
-
-    /** Failed items plus those waiting past their undo window, see [OutboxLogic.activeCount]. */
-    fun outboxActiveCount(): Flow<Int> = OutboxLogic.badgeCount(outboxDao.observeBadgeItems())
-
-    /** How many messages are in the Outbox right now, no grace period, unlike [outboxActiveCount]. */
-    fun outboxQueuedCount(): Flow<Int> =
-        outboxDao.observeBadgeItems().map { OutboxLogic.queuedCount(it) }
-
-    suspend fun outboxItem(id: Long): OutboxEntity? = outboxDao.byId(id)
-
-    suspend fun unfinishedOutbox(): List<OutboxEntity> = outboxDao.unfinished()
-
-    suspend fun updateOutboxState(id: Long, state: OutboxState, attemptCount: Int, lastError: String?) {
-        outboxDao.updateState(id, state, attemptCount, lastError, System.currentTimeMillis())
-    }
-
-    suspend fun deleteOutbox(id: Long) {
-        outboxDao.delete(id)
-        runCatching { java.io.File(outboxFilesDir, id.toString()).deleteRecursively() }
-    }
-
-    /** Re-queue for an immediate retry; `notBeforeMillis` is also the anchor the badge counts from. */
-    suspend fun retryOutbox(id: Long) {
-        val item = outboxDao.byId(id) ?: return
-        val now = System.currentTimeMillis()
-        outboxDao.update(item.copy(state = OutboxState.QUEUED, attemptCount = 0, lastError = null, notBeforeMillis = now))
-        outboxScheduler?.schedule(id, 0)
-    }
-
-    /** Fields to reopen a queued/failed item in compose (#70); the row is not deleted ([outboxId]). */
-    data class OutboxDraft(
-        val to: String,
-        val cc: String,
-        val bcc: String,
-        val subject: String,
-        val body: String,
-        /** The queued row's `text/html` part (#131). No default; it is the send's html. */
-        val htmlBody: String?,
-        val fromAccountId: String?,
-        val fromEmail: String?,
-        val attachments: List<EmailBodyPart>,
-        val inReplyTo: List<String>,
-        val references: List<String>,
-        /** The PGP mode the item was queued with (#35/#70): a signed/encrypted item reopens as such. */
-        val pgpMode: String?,
-        /** The saved draft the item was edited from (#63), kept so re-sending still replaces it. */
-        val draftEmailId: String? = null,
-        /** The numbering [draftEmailId] was frozen under (#99). No default: the row is its home. */
-        val draftUidValidity: Long?,
-        val outboxId: Long,
-        /** Whether the queued item asks for a read receipt. No default: the row is its only home. */
-        val requestReceipt: Boolean,
-    )
-
-    /** Mark the row editing (#70); it stays, so a process death costs the edit and not the mail. */
-    suspend fun takeOutboxForEdit(id: Long, stagingDir: java.io.File): OutboxDraft? {
-        val item = outboxDao.byId(id) ?: return null
-        // State guard at the choke point (#70): editing on a sending row races updateOutboxState.
-        val unreplayable = OutboxLogic.isUnreplayablePrebuiltEntity(item.pgpMode, item.pgpEntityPath)
-        if (!OutboxLogic.canEdit(item.pgpMode, item.state, unreplayable)) return null
-        // Stage attachments before changing state: `OutboxEdit.take` throws on an unreadable one,
-        // and a throw must leave the row still queued and deliverable.
-        val attachments = OutboxEdit.take(OutboxAttachments.decode(item.attachmentsJson), stagingDir)
-        val draft = outboxDraftOf(item, attachments)
-        outboxDao.setState(id, OutboxState.EDITING)
-        return draft
-    }
-
-    /** Give a message taken out with [takeOutboxForEdit] back to the queue unchanged (#70). */
-    suspend fun releaseOutboxEdit(id: Long) {
-        val row = outboxDao.byId(id) ?: return
-        if (row.state != OutboxState.EDITING) return
-        // A failed item reopened then closed untouched must not restart on its own (#70).
-        val next = OutboxLogic.stateAfterEdit(row.attemptCount)
-        outboxDao.setState(id, next)
-        if (next != OutboxState.QUEUED) return
-        // Held or scheduled items keep whatever is left of their wait; everything else goes now.
-        outboxScheduler?.schedule(id, (row.notBeforeMillis - System.currentTimeMillis()).coerceAtLeast(0))
-    }
-
-    /**
-     * Park a row taken out with [takeOutboxForEdit] in [state] instead of giving it back to the queue.
-     */
-    suspend fun parkOutboxEdit(id: Long, state: OutboxState) {
-        val row = outboxDao.byId(id) ?: return
-        if (row.state != OutboxState.EDITING) return
-        outboxDao.setState(id, state)
-    }
-
-    /**
-     * Park a row whose edit was INTERRUPTED, or fail it once its attempts are exhausted.
-     */
-    suspend fun parkInterruptedOutboxEdit(id: Long) {
-        val row = outboxDao.byId(id) ?: return
-        if (row.state != OutboxState.EDITING) return
-        if (row.attemptCount >= OutboxLogic.MAX_ATTEMPTS) outboxDao.setState(id, OutboxState.FAILED)
-        else outboxDao.parkEditingAsInterrupted(id, OutboxLogic.MAX_ATTEMPTS, OutboxLogic.EDIT_INTERRUPTED)
-    }
-
-    /**
-     * Startup recovery (#70): park every row stranded in editing by a process death, failed past its attempts.
-     */
-    suspend fun parkInterruptedOutboxEdits() {
-        outboxDao.revertEditingExhaustedToFailed(OutboxLogic.MAX_ATTEMPTS)
-        outboxDao.parkAllEditingAsInterrupted(OutboxLogic.MAX_ATTEMPTS, OutboxLogic.EDIT_INTERRUPTED)
-    }
-
-    /** Actually deliver one outbox item (no queue indirection); exceptions propagate to the worker. */
-    suspend fun performSend(credentials: AccountCredentials, item: OutboxEntity) {
-        performDelivery(credentials, item)
-        // Delivered: the draft this item replaces (#63) leaves Drafts, best-effort and after
-        // success. The numbering is carried by the row, never looked up here (#99); on JMAP it is
-        // null, that branch opposing the folder instead (#122).
-        item.draftEmailId?.let {
-            runCatching { destroyDraft(credentials, it, item.draftUidValidity) }
-        }
-    }
-
-    private suspend fun performDelivery(credentials: AccountCredentials, item: OutboxEntity) {
-        val to = item.recipients.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-        val subject = item.subject
-        val body = item.textBody
-        val htmlBody = item.htmlBody
-        val fromName = item.fromName
-        val fromEmail = item.fromEmail
-        val inReplyTo = item.inReplyTo?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
-        val references = item.references?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
-        val ccTrimmed = item.cc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
-        val bccTrimmed = item.bcc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
-        val stored = OutboxAttachments.decode(item.attachmentsJson)
-
-        // A pre-built entity (PGP/MIME, or an RFC 8098 receipt), read once above the fork: what
-        // sends the message verbatim is the entity, never the PGP mode.
-        val prebuiltEntity = prebuiltEntityAt(item.pgpEntityPath) { path ->
-            runCatching { java.io.File(path).readText() }.getOrNull()
-        }
-
-        val sendingAccount = accountStore.account(credentials.id)
-
-        if (credentials.protocol == MailProtocol.IMAP) {
-            val recipients = to
-            require(recipients.isNotEmpty()) { "Add at least one recipient." }
-            val outAttachments = stored.mapNotNull { a ->
-                val path = a.path ?: return@mapNotNull null
-                // Refuse rather than deliver amputated: the item stays in the outbox with its error.
-                val bytes = runCatching { java.io.File(path).readBytes() }.getOrNull()
-                    ?: error("Couldn't read the attachment ${a.name ?: path} to send it.")
-                val inline = a.disposition.equals("inline", ignoreCase = true) && !a.cid.isNullOrBlank()
-                OutgoingAttachment(
-                    a.name ?: "attachment", a.type ?: "application/octet-stream", bytes,
-                    cid = a.cid, inline = inline,
-                )
-            }
-            val message = outgoing(
-                credentials, recipients, subject, body, inReplyTo, references, htmlBody,
-                fromName, fromEmail, ccTrimmed, bccTrimmed,
-                requestReceipt = item.requestReceipt,
-            ).copy(
-                attachments = if (prebuiltEntity != null) emptyList() else outAttachments,
-                prebuiltEntity = prebuiltEntity,
-                autocryptHeader = autocryptHeaderValue(
-                    sendingAccount,
-                    fromEmail?.takeIf { it.isNotBlank() } ?: credentials.username,
-                ),
-            )
-            // The Sent copy is a second write, and some servers file it themselves;
-            // sentMailboxToUpload decides which folder (if any) reaches the APPEND.
-            imap.send(
-                credentials,
-                message,
-                sentMailboxToUpload(
-                    accountStore.uploadSentCopy(credentials.id),
-                    mailboxDao.idForRole(credentials.id, "sent"),
-                ),
-            )
-            return
-        }
-        val attachments = stored.map { a ->
-            EmailBodyPart(
-                blobId = a.blobId, type = a.type, size = a.size, name = a.name,
-                disposition = a.disposition ?: "attachment", cid = a.cid,
-            )
-        }
-        val ctx = jmapSession(credentials)
-        val recipients = to.map { EmailAddress(email = it) }
-        require(recipients.isNotEmpty()) { "Add at least one recipient." }
-        val ccAddrs = ccTrimmed.map { EmailAddress(email = it) }
-        val bccAddrs = bccTrimmed.map { EmailAddress(email = it) }
-
-        // Delegated sub-account (issue #31): member-only methods are refused on the shared account,
-        // but a submission created on the LOGIN's account with the delegated address in From is
-        // accepted; the Sent copy is re-filed into the sub-account's own Sent below.
-        val submissionAccountId = ctx.session.mailAccountId() ?: ctx.accountId
-        val onBehalf = submissionAccountId != ctx.accountId
-
-        val serverIdentities = client.getIdentities(ctx.session, submissionAccountId, ctx.auth)
-        // Which identity to submit under, and whether the envelope must be named (issue #172), is
-        // [SubmissionIdentity]'s rule; null means no server identity at all.
-        val choice = SubmissionIdentity.choose(fromEmail, serverIdentities, onBehalf)
-            ?: error("This account has no sending identity.")
-        val identity = choice.identity
-        // Trimmed like the envelope below: untrimmed, From: " a@b " faces an `a@b` mail from.
-        val from = if (!fromEmail.isNullOrBlank()) EmailAddress(name = fromName, email = fromEmail.trim())
-        else EmailAddress(name = identity.name, email = identity.email)
-        // rcptTo carries to + cc + bcc: RFC 8621 §7.5 makes both envelope fields mandatory.
-        val envelope = choice.envelopeMailFrom?.let {
-            SubmissionEnvelope(
-                mailFrom = it,
-                rcptTo = (recipients + ccAddrs + bccAddrs).map { a -> a.email },
-            )
-        }
-        // Mailbox ids are per-account: an on-behalf send files in the login's account, so its
-        // roles must come from there.
-        val submissionRoles = if (onBehalf) {
-            client.getMailboxes(ctx.session, submissionAccountId, ctx.auth)
-                .mapNotNull { mb -> mb.role?.let { it to mb.id } }.toMap()
-        } else {
-            ctx.rolesToMailboxId
-        }
-        val draftsId = submissionRoles["drafts"]
-            ?: submissionRoles["sent"]
-            ?: error("This account has no Drafts or Sent folder.")
-        val sentId = submissionRoles["sent"] ?: draftsId
-
-        val sentEmailId = if (prebuiltEntity != null) {
-            // A pre-built entity must reach the wire byte-exact, the bytes the signature covers
-            // do not survive re-encoding from Email/set fields.
-            val raw = OutgoingMime.build(
-                outgoing(
-                    credentials, to, subject, "", inReplyTo, references, null,
-                    from.name ?: fromName, from.email, ccTrimmed, bccTrimmed,
-                    requestReceipt = item.requestReceipt,
-                ).copy(
-                    prebuiltEntity = prebuiltEntity,
-                    autocryptHeader = autocryptHeaderValue(sendingAccount, from.email),
-                ),
-            )
-            client.importAndSendEmail(
-                session = ctx.session,
-                accountId = submissionAccountId,
-                auth = ctx.auth,
-                identityId = identity.id,
-                rawMessage = raw.toByteArray(Charsets.UTF_8),
-                draftMailboxId = draftsId,
-                sentMailboxId = sentId,
-                envelope = envelope,
-            )
-        } else {
-            client.sendEmail(
-                session = ctx.session,
-                accountId = submissionAccountId,
-                auth = ctx.auth,
-                identityId = identity.id,
-                from = from,
-                to = recipients,
-                cc = ccAddrs,
-                bcc = bccAddrs,
-                subject = subject,
-                textBody = body,
-                htmlBody = htmlBody,
-                draftMailboxId = draftsId,
-                sentMailboxId = sentId,
-                inReplyTo = inReplyTo,
-                references = references,
-                attachments = attachments,
-                requestReceipt = item.requestReceipt,
-                autocryptHeader = autocryptHeaderValue(sendingAccount, from.email),
-                envelope = envelope,
-            )
-        }
-
-        // On-behalf: move the Sent copy into the sub-account's own Sent, best-effort after the
-        // send stands, a failed copy leaves the message in the login's Sent.
-        val ownSentId = ctx.rolesToMailboxId["sent"]
-        if (onBehalf && sentEmailId != null && ownSentId != null) {
-            runCatching {
-                client.copyEmailToAccount(
-                    session = ctx.session,
-                    auth = ctx.auth,
-                    fromAccountId = submissionAccountId,
-                    toAccountId = ctx.accountId,
-                    emailId = sentEmailId,
-                    mailboxId = ownSentId,
-                )
-            }
-        }
-        // Pull the Sent copy into the cache at once (best-effort): the list counts a thread from
-        // the cache, so an un-cached reply leaves the conversation looking single.
-        runCatching {
-            val sizing = folderSyncSizing(PAGE_SIZE, ctx.session.getBatchSize())
-            if (onBehalf) {
-                ownSentId?.let { syncMailbox(ctx.session, ctx.accountId, ctx.auth, it, sizing, credentials.id) }
-            } else {
-                syncMailbox(ctx.session, ctx.accountId, ctx.auth, sentId, sizing, credentials.id)
-            }
-        }
-    }
-
-    /** iTIP reply through the outbox; the decisive signal is the in-body method:reply line. */
-    suspend fun sendCalendarReply(
-        credentials: AccountCredentials,
-        organizerEmail: String,
-        subject: String,
-        textBody: String,
-        replyIcs: ByteArray,
-    ) {
-        require(organizerEmail.isNotBlank()) { "The invite has no organizer to reply to." }
-        val attachment = if (credentials.protocol == MailProtocol.IMAP) {
-            // No blob store for IMAP, stage the bytes as a temp file enqueueSend copies durably.
-            val file = java.io.File.createTempFile("sterna-reply", ".ics").apply { writeBytes(replyIcs) }
-            EmailBodyPart(
-                partId = file.absolutePath,
-                type = "text/calendar; method=REPLY; charset=utf-8",
-                size = replyIcs.size.toLong(),
-                name = "invite.ics",
-                disposition = "attachment",
-            )
-        } else {
-            uploadAttachment(credentials, replyIcs, "text/calendar", "invite.ics")
-        }
-        // The account's own identity: a sub-account's reply submits through its login (issue #31).
-        val identity = accountStore.identities(credentials.id).firstOrNull()
-        enqueueSend(
-            credentials = credentials,
-            to = listOf(organizerEmail),
-            subject = subject,
-            body = textBody,
-            attachments = listOf(attachment),
-            fromName = identity?.name,
-            fromEmail = identity?.email,
-            // An invitation reply replaces no draft: nothing to freeze, nothing to destroy.
-            draftUidValidity = null,
-        )
-    }
-
-    // ---- unsubscribe (RFC 2369 / RFC 8058) ----
-
-    private val unsubscribeClient by lazy { UnsubscribeClient() }
-
-    /**
-     * RFC 8058 one-click unsubscribe: one POST, no `Authorization` header, [UnsubscribeClient]
-     * exists so this cannot inherit the account's credentials.
-     */
-    suspend fun unsubscribeOneClick(url: String, isOnline: () -> Boolean): UnsubscribeResult =
-        unsubscribeClient.oneClick(url, isOnline)
-
-    /** Queue the `mailto:` unsubscribe through the outbox; [UNSUBSCRIBE_SUBJECT] is untranslated. */
-    suspend fun sendUnsubscribeMail(
-        credentials: AccountCredentials,
-        mailto: MailtoUnsubscribe,
-    ) {
-        val identity = accountStore.identities(credentials.id).firstOrNull()
-        val mail = unsubscribeMail(mailto, identity?.name, identity?.email)
-        enqueueSend(
-            credentials = credentials,
-            to = mail.to,
-            subject = mail.subject,
-            body = mail.body,
-            fromName = mail.fromName,
-            fromEmail = mail.fromEmail,
-            draftUidValidity = null,
-        )
-    }
-
-    /**
-     * Queue the RFC 8098 read receipt answering [receiptTo]. Nothing calls this yet: a receipt
-     * tells a stranger when their mail was opened, never sent without the reader saying so.
-     */
-    suspend fun sendReadReceipt(
-        credentials: AccountCredentials,
-        receiptTo: List<String>,
-        originalSubject: String?,
-        originalMessageId: String?,
-        deliveredTo: String? = null,
-    ): ReadReceiptPreview? {
-        val identity = receiptIdentity(accountStore.identities(credentials.id), deliveredTo)
-        val mail = readReceiptMail(
-            receiptTo = receiptTo,
-            originalSubject = originalSubject,
-            originalMessageId = originalMessageId,
-            identityName = identity?.name,
-            identityEmail = identity?.email,
-            deliveredTo = deliveredTo,
-            accountAddress = credentials.username,
-            // Drawn here, never inside the builder: a random number makes bytes no test can pin.
-            boundary = "----sterna_mdn_${java.util.UUID.randomUUID().toString().replace("-", "")}",
-        ) ?: return null
-        enqueueSend(
-            credentials = credentials,
-            to = mail.to,
-            subject = mail.subject,
-            body = mail.body,
-            fromName = mail.fromName,
-            fromEmail = mail.fromEmail,
-            prebuiltEntity = mail.prebuiltEntity,
-            learnRecipients = mail.learnRecipients,
-            draftUidValidity = null,
-        )
-        return mail.preview()
-    }
-
-    // ---- scheduled send ----
-
-    suspend fun insertScheduledSend(entity: ScheduledSendEntity): Long = scheduledSendDao.insert(entity)
-
-    suspend fun scheduledSend(id: Long): ScheduledSendEntity? = scheduledSendDao.byId(id)
-
-    suspend fun deleteScheduledSend(id: Long) = scheduledSendDao.delete(id)
-
-    suspend fun scheduledSends(): List<ScheduledSendEntity> = scheduledSendDao.all()
-
-    fun scheduledSendsFlow(): Flow<List<ScheduledSendEntity>> = scheduledSendDao.observeAll()
-
     /** The bytes of an attachment part; [maxBytes] is the ceiling this caller accepts. */
     suspend fun downloadAttachment(
         credentials: AccountCredentials,
@@ -5338,13 +4709,13 @@ class MailRepository(
         )
     }
 
-    suspend fun uploadAttachment(
+    override suspend fun uploadAttachment(
         credentials: AccountCredentials,
         bytes: ByteArray,
         type: String?,
         name: String?,
-        disposition: String = "attachment",
-        cid: String? = null,
+        disposition: String,
+        cid: String?,
     ): EmailBodyPart {
         val ctx = jmapSession(credentials)
         // Blobs are account-scoped, and a sub-account's outgoing Email is created under the
@@ -5482,7 +4853,7 @@ class MailRepository(
         )
     }
 
-    private suspend fun jmapSession(credentials: AccountCredentials): JmapAccountSession {
+    override suspend fun jmapSession(credentials: AccountCredentials): JmapAccountSession {
         cachedSession?.let { if (it.credentials == credentials) return it }
         val auth = jmapAuth(credentials)
         val session = client.fetchSession(Jmap.sessionUrlFor(credentials.server), auth)

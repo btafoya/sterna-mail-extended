@@ -198,7 +198,7 @@ internal class ImapReadBudget(val millis: Int) : AbstractCoroutineContextElement
  * IMAP read+write path, parallel to the JMAP path in [MailRepository]. One connection is pooled per
  * account and reused across calls (IMAP is stateful, so access is serialised).
  */
-class ImapMailService(
+open class ImapMailService(
     private val imapClient: ImapClient,
     private val smtpClient: SmtpClient,
     private val tokenRefresher: OAuthTokenRefresher,
@@ -347,8 +347,8 @@ class ImapMailService(
         }
     }
 
-    /** Send via SMTP, then APPEND a \Seen copy into the Sent folder (if known). */
-    suspend fun send(credentials: AccountCredentials, message: OutgoingMessage, sentMailbox: String?) {
+    /** Send via SMTP, then APPEND a \Seen copy into the Sent folder (if known); `open` because [SmtpClient] talks to a socket and a JVM test can only read this call by standing in for it. */
+    open suspend fun send(credentials: AccountCredentials, message: OutgoingMessage, sentMailbox: String?) {
         val smtp = credentials.smtp ?: error("Account has no SMTP server configured.")
         val token = tokenRefresher.freshAccessToken(credentials)
         smtpClient.send(

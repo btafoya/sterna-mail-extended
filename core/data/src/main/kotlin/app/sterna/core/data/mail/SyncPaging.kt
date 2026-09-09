@@ -4,7 +4,7 @@ import app.sterna.core.jmap.WindowWalk
 
 /** The three numbers one folder refresh runs on: [pageSize] is the window capped by
  *  `maxObjectsInGet`, [windowTarget] and [retentionFloor] the window whole, never the cap (#110). */
-internal data class FolderSyncSizing(
+data class FolderSyncSizing(
     val windowTarget: Int,
     val pageSize: Int,
     val retentionFloor: Int,

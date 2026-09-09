@@ -385,7 +385,7 @@ class OutboxStateWordingTest {
                 "apart; adding KEPT_AS_DRAFT to it puts a permanent 'Some messages didn't send' " +
                 "banner over a draft saved exactly as asked (#95).",
             listOf(
-                "val outboxHasFailures: StateFlow<Boolean> = repo.outboxFlow()",
+                "val outboxHasFailures: StateFlow<Boolean> = repo.sending.outboxFlow()",
                 ".map { items -> items.any { OutboxLogic.needsFailureBanner(it.state) } }",
             ),
             lines.drop(at).take(2),

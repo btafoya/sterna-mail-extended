@@ -20,7 +20,7 @@ class OutboxViewModel(application: Application) : AndroidViewModel(application) 
     private val repo = application.container.mailRepository
     private val sendOutbox = application.container.sendOutbox
 
-    val items = repo.outboxFlow().stateIn(
+    val items = repo.sending.outboxFlow().stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList<OutboxEntity>(),
@@ -34,13 +34,13 @@ class OutboxViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Re-queue an item for an immediate retry. */
     fun retry(id: Long) {
-        viewModelScope.launch { repo.retryOutbox(id) }
+        viewModelScope.launch { repo.sending.retryOutbox(id) }
     }
 
     /** Delete an item: cancel its worker and drop the row + its persistent attachments. */
     fun delete(id: Long) {
         Outbox.cancel(getApplication(), id)
-        viewModelScope.launch { repo.deleteOutbox(id) }
+        viewModelScope.launch { repo.sending.deleteOutbox(id) }
     }
 
     /**
@@ -52,7 +52,7 @@ class OutboxViewModel(application: Application) : AndroidViewModel(application) 
             // takeOutboxForEdit throws rather than reopen an item whose attachment can't be read, so
             // the row and its durable files survive as a still-queued send. Swallow that here: the
             // edit simply doesn't open instead of crashing, and the item stays queued as it was.
-            val draft = runCatching { repo.takeOutboxForEdit(id, staging) }
+            val draft = runCatching { repo.sending.takeOutboxForEdit(id, staging) }
                 .onFailure { android.util.Log.w("SternaOutbox", "couldn't reopen outbox item $id for edit", it) }
                 .getOrNull() ?: return@launch
             // The mapping is a pure function ([composeDraftOf]) so a JVM test can execute it: what

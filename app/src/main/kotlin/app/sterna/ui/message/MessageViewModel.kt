@@ -822,14 +822,14 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                         // and not now: it is the app's one connectivity check (#70), and `core:data`
                         // must not reach for Android. Without it a dead endpoint is reported as "No
                         // network" to a phone that is plainly online.
-                        when (val result = repo.unsubscribeOneClick(url) { hasUsableNetwork(app) }) {
+                        when (val result = repo.sending.unsubscribeOneClick(url) { hasUsableNetwork(app) }) {
                             is UnsubscribeResult.Sent -> UnsubscribeState.Sent
                             is UnsubscribeResult.Failed -> UnsubscribeState.Failed(result.reason)
                         }
                     }
                     UnsubscribeAction.MAIL -> {
                         val mailto = pending.options.mailto ?: error("no mailto")
-                        repo.sendUnsubscribeMail(credentials, mailto)
+                        repo.sending.sendUnsubscribeMail(credentials, mailto)
                         UnsubscribeState.Queued
                     }
                     // Not ours to run; leaving the state untouched keeps the banner as it was.
@@ -896,7 +896,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             val outcome: ReadReceiptState = try {
                 val credentials = credentials() ?: error(app.getString(R.string.status_no_saved_account))
                 readReceiptSendOutcome(
-                    repo.sendReadReceipt(
+                    repo.sending.sendReadReceipt(
                         credentials = credentials,
                         receiptTo = pending.receiptTo,
                         originalSubject = pending.originalSubject,
@@ -1460,7 +1460,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                     "DECLINED" -> app.getString(R.string.calendar_reply_body_declined, who)
                     else -> app.getString(R.string.calendar_reply_body_tentative, who)
                 }
-                repo.sendCalendarReply(credentials, organizer, subject, body, ics.toByteArray(Charsets.UTF_8))
+                repo.sending.sendCalendarReply(credentials, organizer, subject, body, ics.toByteArray(Charsets.UTF_8))
                 // The message may have changed underneath us while sending, guard by owner.
                 if (_calendar.value?.ownerId == invite.ownerId) {
                     _calendar.value = _calendar.value?.copy(response = InviteResponse.Sent(partstat))

@@ -568,11 +568,11 @@ class ReadReceiptMailTest {
         boundary = "B",
     )
 
-    /** The body of `MailRepository.sendReadReceipt`, from its signature to the next block. */
+    /** The body of `MailSender.sendReadReceipt`, from its signature to the next block. */
     private fun sendReadReceiptBody(): String {
-        val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt").readText()
+        val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailSender.kt").readText()
         val start = source.indexOf("suspend fun sendReadReceipt(")
-        check(start >= 0) { "MailRepository no longer declares sendReadReceipt(...)" }
+        check(start >= 0) { "MailSender no longer declares sendReadReceipt(...)" }
         val end = listOf("\n    // ----", "\n    /**")
             .mapNotNull { source.indexOf(it, start).takeIf { at -> at > start } }
             .minOrNull()

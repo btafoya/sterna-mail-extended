@@ -53,7 +53,7 @@ interface OutboxDao {
     suspend fun parkAllEditingAsInterrupted(maxAttempts: Int, lastError: String)
 
     /** Parks a composer-closed row with a lost body: failed, one write, mirroring
-     *  [MailRepository.releaseOutboxEdit]'s guard. */
+     *  [MailSender.releaseOutboxEdit]'s guard. */
     @Query("UPDATE outbox SET state = 'FAILED', attemptCount = :maxAttempts, lastError = :lastError WHERE id = :id AND state = 'EDITING'")
     suspend fun parkEditingAsInterrupted(id: Long, maxAttempts: Int, lastError: String)
 

@@ -1,6 +1,6 @@
 package app.sterna.send
 
-import app.sterna.core.data.mail.MailRepository
+import app.sterna.core.data.mail.MailSender
 import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
@@ -95,7 +95,7 @@ class SendOutboxTest {
     // --- the styling a queued message was written with (#131) -----------------------------------
 
     private fun queued(htmlBody: String?, body: String = "see you there") =
-        MailRepository.OutboxDraft(
+        MailSender.OutboxDraft(
             to = "bob@example.org", cc = "", bcc = "",
             subject = "Six o'clock", body = body, htmlBody = htmlBody,
             fromAccountId = "accA", fromEmail = "alex@masto.top",
@@ -187,7 +187,7 @@ class SendOutboxTest {
      */
     @Test fun `a message reopened from a persisted outbox row comes back with an unknown, lossy, verdict`() {
         val reopened = composeDraftOf(
-            MailRepository.OutboxDraft(
+            MailSender.OutboxDraft(
                 to = "bob@example.org", cc = "", bcc = "",
                 subject = "Six o'clock", body = "see you there",
                 fromAccountId = "accA", fromEmail = "alex@masto.top",
