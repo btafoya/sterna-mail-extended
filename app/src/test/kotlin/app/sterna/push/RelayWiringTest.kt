@@ -143,9 +143,9 @@ class RelayWiringTest {
                 "(an IMAP account nobody asked a relay for must never raise it, and must leave no " +
                 "prefs record either — hence store.load, not getOrCreate); and a JMAP account goes " +
                 "THROUGH ensureDistributor() whatever the registration window then says, because " +
-                "that call is also what silently enrols a single installed distributor. Put " +
-                "shouldRegister ahead of it and a JMAP account marked FAILED the moment its " +
-                "distributor was uninstalled cannot see the replacement for fifteen minutes.",
+                "that call is what raises the picker at all. Put shouldRegister ahead of it and a " +
+                "JMAP account marked FAILED the moment its distributor was uninstalled is asked " +
+                "about the replacement no sooner than fifteen minutes later.",
             expected,
             managerBlock(ENSURE_REGISTERED).take(expected.size),
         )
@@ -156,12 +156,12 @@ class RelayWiringTest {
         assertEquals(
             "rearmFailedAccounts may appear on exactly two lines of the file, in this order: the " +
                 "call in distributorChosen, and its declaration. That call site is the only FRONT " +
-                "there is — a distributor picked by hand, which no loop replays. The " +
-                "single-distributor arm of ensureDistributor looks like one and is not: the " +
+                "there is — a distributor picked by hand, which no loop replays. " +
+                "ensureDistributor looks like a second one and is not: the " +
                 "connector deletes its saved distributor when the last registration goes " +
                 "(UnifiedPush.unregister empties the table), so getAckDistributor and " +
                 "getSavedDistributor answer null again with the distributor still installed, and " +
-                "that arm re-enrols on later passes. Rearming there clears the FAILED stamp of " +
+                "that function is replayed on later passes. Rearming there clears the FAILED stamp of " +
                 "every account, including the ones the MAIL SERVER failed, which is the " +
                 "fifteen-minute cooldown deleted; docs/PUSH-V2.md records what that cooldown " +
                 "stopped, a register+create loop hammering the mail server at tens of Hz. Lines " +
@@ -183,7 +183,7 @@ class RelayWiringTest {
                 "and the screen still reads 'direct connection' for fifteen minutes — measured on " +
                 "the s7 with two accounts and two distributors reinstalled.",
             listOf(
-                "UnifiedPush.saveDistributor(context, packageName)",
+                SAVE_DISTRIBUTOR,
                 "_needsDistributorChoice.value = false",
                 "rearmFailedAccounts()",
                 "onTransportStateChanged?.invoke()",
@@ -218,25 +218,43 @@ class RelayWiringTest {
         )
     }
 
-    @Test fun `the silent enrolment of a single distributor rearms nothing`() {
+    @Test fun `the distributor gate asks, enrols nobody and rearms nothing`() {
         val expected = listOf(
-            "distributors.size == 1 -> {",
-            "UnifiedPush.saveDistributor(context, distributors.single())",
-            "true",
-            "}",
+            "val gate = RelayPush.distributorGate(",
+            "chosen = UnifiedPush.getAckDistributor(context) != null ||",
+            "UnifiedPush.getSavedDistributor(context) != null,",
+            "installed = UnifiedPush.getDistributors(context).size,",
+            "declined = store.distributorDeclined(),",
+            ")",
+            "if (gate == DistributorGate.ASK) _needsDistributorChoice.value = true",
+            "return gate == DistributorGate.READY",
+        )
+        val body = managerBlock(ENSURE_DISTRIBUTOR)
+        assertEquals(
+            "ensureDistributor is pinned whole: it asks RelayPush.distributorGate (the executed " +
+                "rule, [RelayPushTest]) and does nothing else. The three arguments are all " +
+                "load-bearing. 'chosen' must read BOTH connector lookups, or an acknowledged " +
+                "distributor is asked about again on every pass. 'installed' is a count handed " +
+                "to a pure function, which is what stops the count from being turned back into a " +
+                "decision here. 'declined' is read on this path or nowhere: this function runs " +
+                "on every apply(), so an unread refusal is a dialog for ever.",
+            expected,
+            body,
         )
         assertEquals(
-            "the single-distributor arm of ensureDistributor is pinned whole, and it must stay " +
-                "free of any rearm. It reads like the enrolment and is not a front: the connector " +
-                "empties its distributors table on the last unregister, so dropRelayAddress or a " +
-                "teardown sends this arm back here with the distributor still installed. A rearm " +
-                "on this line would then clear the FAILED of accounts the MAIL SERVER refused, " +
-                "reopening their cooldown, and a distributor answering UNREGISTERED to REGISTER " +
-                "would spin enrol -> rearm -> register -> unregistered for ever, one " +
-                "repo.pushVapidKey call per turn. A single distributor reinstalled is picked up " +
-                "by the worker instead, as before.",
-            expected,
-            slice(managerBlock(ENSURE_DISTRIBUTOR), expected),
+            "and this function may name neither saveDistributor nor rearmFailedAccounts. " +
+                "saveDistributor: enrolling the one installed distributor is exactly the " +
+                "reported harm (#204), a subscription created on a server the owner never chose " +
+                "and never heard named. rearmFailedAccounts: this is not a front, it is replayed. " +
+                "The connector empties its distributors table on the last unregister, so a " +
+                "teardown or a dropRelayAddress sends this function back here with the " +
+                "distributor still installed; a rearm on this path would clear the FAILED of " +
+                "accounts the MAIL SERVER refused, reopening their cooldown, and a distributor " +
+                "answering UNREGISTERED to REGISTER would spin for ever, one repo.pushVapidKey " +
+                "call per turn. docs/PUSH-V2.md records what that cooldown stopped. Found:\n" +
+                body.joinToString("\n"),
+            emptyList<String>(),
+            body.filter { "saveDistributor" in it || "rearmFailedAccounts" in it },
         )
     }
 
@@ -251,6 +269,72 @@ class RelayWiringTest {
                 "Found:\n" + offenders.joinToString("\n"),
             emptyList<String>(),
             offenders,
+        )
+    }
+
+    @Test fun `refusing the picker is written down, closing it by hand is not`() {
+        assertEquals(
+            "rememberDistributorRefusal is pinned whole and in order. The write is the whole " +
+                "reason the picker may now be raised for a single installed distributor at all: " +
+                "ensureDistributor runs on every apply(), so a refusal kept in memory only comes " +
+                "back as a dialog on the next screen resume, for ever. It is stored device-wide, " +
+                "the distributor being a choice about the device; and it is not a dead end, " +
+                "switching an account's notifications back on clears it " +
+                "(NotificationSwitchAsksAgainWiringTest), as does asking for a relay address.",
+            listOf(
+                "store.setDistributorDeclined(true)",
+                "_needsDistributorChoice.value = false",
+            ),
+            managerBlock(REMEMBER_REFUSAL),
+        )
+        assertEquals(
+            "hideDistributorChoiceForNow is the back gesture and the tap outside, and it must be " +
+                "this one line: no write. A gesture that leaves the dialog is not an answer to " +
+                "it, and writing the refusal there shuts UnifiedPush down device-wide until " +
+                "somebody guesses at switching an account's sync off and back on. Nothing loops " +
+                "on it either, ensureDistributor being reached only from an arming pass.",
+            listOf("_needsDistributorChoice.value = false"),
+            managerBlock(HIDE_CHOICE),
+        )
+        assertEquals(
+            "and the refusal may be written true on exactly one line of the whole file: a second " +
+                "writer is another path closing UnifiedPush without anybody having answered. " +
+                "Lines found:\n" + managerLines().filter { "setDistributorDeclined(true)" in it }
+                .joinToString("\n"),
+            listOf("store.setDistributorDeclined(true)"),
+            managerLines().filter { "setDistributorDeclined(true)" in it },
+        )
+        assertEquals(
+            "and its opposite, allowDistributorChoice, is the whole way back: it writes false and " +
+                "nothing else. Written true here, or left with a body that decides for itself, " +
+                "the switch tapped back on confirms the refusal instead of lifting it and the " +
+                "picker is gone for good on that device, with nothing on screen saying so.",
+            listOf("store.setDistributorDeclined(false)"),
+            managerBlock(ALLOW_CHOICE),
+        )
+    }
+
+    @Test fun `enrolling on a distributor is written on one line of the whole file`() {
+        val found = managerLines().filter { "saveDistributor" in it }
+        assertEquals(
+            "UnifiedPush.saveDistributor may be named on exactly one line of the whole file, the " +
+                "one inside distributorChosen: saving a distributor is the enrolment itself, and " +
+                "the picker is the only thing allowed to perform it (#204). Reading the body of " +
+                "ensureDistributor alone left the promise open everywhere else: the same two " +
+                "lines dropped into reconcileDistributorPresence, which PushController.apply " +
+                "runs on every pass and MailFetchWorker on every cycle, enrol the single " +
+                "installed distributor with nobody asked; the gate then reads chosen = true for " +
+                "ever, the picker is never raised again, and every other rule here stays green. " +
+                "Lines found:\n" + found.joinToString("\n"),
+            listOf(SAVE_DISTRIBUTOR),
+            found,
+        )
+        assertEquals(
+            "and that line must be the one inside distributorChosen, not merely somewhere in the " +
+                "file: an enrolment on a replayed path is the reported harm whatever it is " +
+                "spelled like.",
+            found,
+            managerBlock(DISTRIBUTOR_CHOSEN).filter { "saveDistributor" in it },
         )
     }
 
@@ -525,6 +609,198 @@ class RelayWiringTest {
         )
     }
 
+    // -- the switch going off reaches both sides -------------------------------------------------
+
+    @Test fun `apply carries both halves of the notifications switch, side by side`() {
+        val body = applyBody()
+        assertEquals(
+            "PushController.apply must open with exactly these lines, in this order. The sweep " +
+                "sits at the top level of the function, one line under the filter it is the " +
+                "complement of, and this rule pins that PLACE: nested one level deeper, inside " +
+                "the 'else' arm that starts the foreground service or behind an " +
+                "'if (userInitiated)', it still names notificationsEnabled and still reads as " +
+                "the fix, and it runs in one case out of two. The filter alone has no else " +
+                "branch, so turning the switch off only drops the account off the list: the " +
+                "subscription stays live on the distributor and on the server, every message " +
+                "wakes the process, the payload is decrypted, a job is scheduled, and " +
+                "PushFetchWorker throws it away on arrival. One wake, one process, one job, no " +
+                "mail. Body read:\n" + body.take(EXPECTED_APPLY_OPENING.size + 2).joinToString("\n"),
+            EXPECTED_APPLY_OPENING,
+            body.take(EXPECTED_APPLY_OPENING.size),
+        )
+        assertEquals(
+            "and notificationsEnabled may be named on exactly those two lines of the whole " +
+                "body: a third reading of the switch is a decision this rule has never read.",
+            listOf(EXPECTED_WATCHED_FILTER, EXPECTED_SYNC_OFF_SWEEP),
+            body.filter { "notificationsEnabled" in it },
+        )
+    }
+
+    @Test fun `an endpoint for a switched-off account is refused before any state is written`() {
+        val expected = listOf(
+            "val credentials = credentialsFor(accountId) ?: return unregisterOrphan(accountId)",
+            "if (syncSwitchedOff(accountId)) return",
+            "scope.launch {",
+        )
+        assertEquals(
+            "onNewEndpoint must open with exactly these lines, in this order. The connector " +
+                "redelivers the endpoint on every register and UnifiedPush.unregister is not " +
+                "instant, so an endpoint already in flight lands after a sync-off teardown. " +
+                "Without this gate it reaches store.getOrCreate, which writes a fresh record on " +
+                "its own, and for JMAP it goes on down the Subscribe path and creates a LIVE " +
+                "subscription on the mail server for an account the user just switched off. The " +
+                "next apply() tears it down, the next endpoint rebuilds it: a create/destroy " +
+                "cycle against the server that the 15-minute cooldown does not cover, that one " +
+                "only guarding FAILED. The gate is before scope.launch, so it is outside the " +
+                "monitor and adds no accountStore call under the lock.",
+            expected,
+            managerBlock(ON_NEW_ENDPOINT).take(expected.size),
+        )
+    }
+
+    @Test fun `a verification for a switched-off account is refused before any state is written`() {
+        val expected = listOf(
+            "val credentials = credentialsFor(accountId) ?: return unregisterOrphan(accountId)",
+            "if (credentials.protocol != MailProtocol.JMAP) {",
+            "Log.w(TAG, \"Push verification on a relay account — ignored: \$accountId\")",
+            "return",
+            "}",
+            "if (syncSwitchedOff(accountId)) return",
+            "scope.launch {",
+        )
+        assertEquals(
+            "the Verification arm must open with exactly these lines, in this order. Its " +
+                "onSuccess calls store.getOrCreate and writes ACTIVE, so a verification arriving " +
+                "for an account whose switch is off puts a torn-down account back on " +
+                "UnifiedPush, records and status line and all. The protocol gate stays FIRST: it " +
+                "is the one that stops a stranger posting to a relay topic, and its own log line " +
+                "names the case.",
+            expected,
+            managerBlock(VERIFICATION_ARM).take(expected.size),
+        )
+    }
+
+    @Test fun `the switched-off gate reads the account switch and writes nothing`() {
+        assertEquals(
+            "syncSwitchedOff must be exactly these lines. It reads accountStore, never the " +
+                "UnifiedPush store, so it cannot create the very record it exists to prevent, " +
+                "and it returns false when the switch is on: invert that comparison and both " +
+                "connector paths refuse every account instead, which is push dead for everyone " +
+                "with no crash and no message.",
+            listOf(
+                "if (accountStore.notificationsEnabled(accountId)) return false",
+                "Log.i(TAG, \"UnifiedPush event for an account with sync off — ignored: \$accountId\")",
+                "return true",
+            ),
+            managerBlock(SYNC_SWITCHED_OFF),
+        )
+    }
+
+    @Test fun `the teardown after a switch-off decides under the monitor and acts outside it`() {
+        val expected = listOf(
+            "val due = synchronized(this) {",
+            "val state = store.load(credentials.id)",
+            "RelayPush.shouldTearDown(",
+            "isLinked = accountStore.account(credentials.id)?.isLinked == true,",
+            "hasPushState = state != null,",
+            "linkedAccountStillOn = accountStore.linkedAccounts(credentials.id)",
+            ".any { accountStore.notificationsEnabled(it.id) },",
+            "relayRequested = state?.relayRequested == true,",
+            ")",
+            "}",
+            "if (!due) return",
+            "teardown(credentials)",
+        )
+        val body = managerBlock(TEARDOWN_AFTER_SYNC_OFF)
+        assertEquals(
+            "tearDownAfterSyncOff must be exactly these lines. The four facts are all " +
+                "load-bearing: a linked sub-account owns no subscription (#31) and unregistering " +
+                "on its id kills its login's; store.load and not getOrCreate, or an IMAP account " +
+                "nobody asked a relay for gets a prefs record written on every pass; a login " +
+                "with one sub-account still switched on keeps its subscription, or one switch " +
+                "off ends the push of accounts nobody touched; and relayRequested, or the relay " +
+                "address an IMAP user asked for and pasted into a third-party service by hand is " +
+                "destroyed by this sweep, with no way back and nothing on screen (#177). The " +
+                "read and the decision sit under ensureRegistered's monitor, teardown outside " +
+                "it: it unregisters through the connector and launches a coroutine, neither of " +
+                "which may run under the lock. The refusal is NOT cleared here, deliberately: " +
+                "this runs only when shouldTearDown says yes, and an account that has never been " +
+                "enrolled holds no record at all, so the one person the way back is for — she " +
+                "refused the picker before her first registration — would never reach it. It " +
+                "sits on the tap instead, see NotificationSwitchAsksAgainWiringTest.",
+            expected,
+            body,
+        )
+        assertEquals(
+            "and it may name neither onTransportStateChanged nor dropRelayAddress: the callback " +
+                "runs apply(), which is this function's own caller, so invoking it here recurses; " +
+                "dropRelayAddress refuses any account holding a subscription, which is every " +
+                "account this sweep is about. Found:\n" + body.joinToString("\n"),
+            emptyList<String>(),
+            body.filter { "onTransportStateChanged" in it || "dropRelayAddress" in it },
+        )
+    }
+
+    @Test fun `teardown leaves no state behind, on either side`() {
+        assertEquals(
+            "teardown is pinned whole: the record is cleared, the instance unregistered and the " +
+                "server subscription destroyed. store.clear is the half that closes the loop " +
+                "([RelayPushTest] runs the consequence): without it the record stays ACTIVE, " +
+                "shouldRegister answers false for ever, and switching sync back on brings " +
+                "nothing back while the status line still reads UnifiedPush over a dead " +
+                "subscription. The clear comes AFTER the load, or the subscriptionId destroyed " +
+                "on the server is read from an already emptied record.",
+            listOf(
+                "val state = store.load(credentials.id)",
+                "store.clear(credentials.id)",
+                "UnifiedPush.unregister(context, credentials.id)",
+                "val subscriptionId = state?.subscriptionId ?: return",
+                "scope.launch { runCatching { repo.destroyPushSubscription(credentials, subscriptionId) } }",
+            ),
+            managerBlock(TEARDOWN),
+        )
+    }
+
+    @Test fun `clearing a record removes every key of that account, whatever it is called`() {
+        assertEquals(
+            "UnifiedPushStateStore.clear must be exactly these lines, and the prefix must be " +
+                "the account id and a dot, whole. Narrow it to any one family of keys and the " +
+                "damage is silent: '\$accountId.sub' alone still destroys the server " +
+                "subscription, but '.device' survives, so load() keeps answering a record, that " +
+                "record is still ACTIVE, RelayPush.shouldRegister answers false for ever, the " +
+                "status line reads 'Push: UnifiedPush (ntfy)' over a dead subscription, and " +
+                "switching sync back on brings nothing back. The account falls to the 30-minute " +
+                "poll for good. Nothing executes this: SharedPreferences needs a Context and " +
+                "this module has no Robolectric, so the text is the only guard it has.",
+            listOf(
+                "val edit = prefs.edit()",
+                "prefs.all.keys.filter { it.startsWith(\"\$accountId.\") }.forEach { edit.remove(it) }",
+                "edit.apply()",
+            ),
+            blockOf(storeLines(), CLEAR, "UnifiedPushStateStore.kt"),
+        )
+    }
+
+    @Test fun `the refusal is read and written through one named key`() {
+        val lines = storeLines().filter { "DISTRIBUTOR_DECLINED_KEY" in it }
+        assertEquals(
+            "the three lines that carry the device-wide refusal are pinned whole: the read, the " +
+                "write and the constant they share. Spell the key out twice instead, differently " +
+                "on the two sides, and the read answers false for ever: the picker is refused, " +
+                "the refusal is stored under a name nobody reads, and the dialog comes back on " +
+                "every apply(). Nothing here can execute the round trip, SharedPreferences " +
+                "needing a Context and this module having no Robolectric; [RelayPushTest] runs " +
+                "the one thing that can be run, that the key carries no dot. Lines found:\n" +
+                lines.joinToString("\n"),
+            listOf(
+                "fun distributorDeclined(): Boolean = prefs.getBoolean(DISTRIBUTOR_DECLINED_KEY, false)",
+                "prefs.edit().putBoolean(DISTRIBUTOR_DECLINED_KEY, declined).apply()",
+                "const val DISTRIBUTOR_DECLINED_KEY = \"distributor-declined\"",
+            ),
+            lines,
+        )
+    }
+
     // -- the two settings gates ----------------------------------------------------------------------
 
     @Test fun `asking for an address in person starts from zero, under the lock`() {
@@ -533,6 +809,7 @@ class RelayWiringTest {
             "val state = store.getOrCreate(credentials.id)",
             "store.save(credentials.id, RelayPush.onRelayRequested(state, System.currentTimeMillis()))",
             "}",
+            "allowDistributorChoice()",
             "ensureRegistered(credentials)",
         )
         assertEquals(
@@ -541,7 +818,11 @@ class RelayWiringTest {
                 "distributor answers, onUnregistered writes FAILED stamped now — and tapping " +
                 "'Get an address' a second later then did NOTHING for fifteen minutes without a " +
                 "word on screen. And the read/write sits under the same monitor as " +
-                "ensureRegistered, or it races the endpoint delivery on Dispatchers.IO.",
+                "ensureRegistered, or it races the endpoint delivery on Dispatchers.IO. The " +
+                "clear sits between them, outside the monitor and before the registration it " +
+                "gates: this tap is the most consenting gesture in the app, and without it a " +
+                "refused picker sends ensureDistributor to STAY, so the screen reads 'Waiting " +
+                "for an address' for ever with a distributor installed and no dialog raised.",
             expected,
             managerBlock(REQUEST_RELAY),
         )
@@ -603,19 +884,19 @@ class RelayWiringTest {
     private fun managerBlock(opener: String): List<String> =
         blockOf(managerLines(), opener, "UnifiedPushManager.kt")
 
+    /** The whole body of `PushController.apply`, the pass that arms every account's transport. */
+    private fun applyBody(): List<String> =
+        blockOf(codeLines(CONTROLLER), APPLY, "PushController.kt")
+
     /** The whole body of `PushController.transportFor`, the private overload that decides. */
     private fun transportForBody(): List<String> =
         blockOf(codeLines(CONTROLLER), TRANSPORT_FOR, "PushController.kt")
 
-    /**
-     * The arms of `transportFor`'s `when`, in source order.
-     */
+    /** The arms of `transportFor`'s `when`, in source order. */
     private fun transportForArms(): List<String> =
         blockOf(transportForBody(), "return when {", "PushController.transportFor")
 
-    /**
-     * The lines of [body] that are not nested inside a `synchronized(this…) {` block.
-     */
+    /** The lines of [body] that are not nested inside a `synchronized(this…) {` block. */
     private fun outsideTheMonitor(body: List<String>): List<String> {
         var depth = 0
         var monitorAt: Int? = null
@@ -666,8 +947,16 @@ class RelayWiringTest {
         const val VERIFICATION_ARM = "is PushMessagePayload.Verification -> {"
         const val REQUEST_RELAY = "fun requestRelayAddress(credentials: AccountCredentials) {"
         const val DROP_RELAY = "fun dropRelayAddress(credentials: AccountCredentials) {"
+        const val TEARDOWN = "fun teardown(credentials: AccountCredentials) {"
+        const val SYNC_SWITCHED_OFF = "private fun syncSwitchedOff(accountId: String): Boolean {"
+        const val CLEAR = "fun clear(accountId: String) {"
+        const val TEARDOWN_AFTER_SYNC_OFF = "fun tearDownAfterSyncOff(credentials: AccountCredentials) {"
+        const val APPLY = "fun apply(context: Context, userInitiated: Boolean) {"
         const val ENSURE_DISTRIBUTOR = "private fun ensureDistributor(): Boolean {"
         const val DISTRIBUTOR_CHOSEN = "fun distributorChosen(packageName: String) {"
+        const val REMEMBER_REFUSAL = "fun rememberDistributorRefusal() {"
+        const val HIDE_CHOICE = "fun hideDistributorChoiceForNow() {"
+        const val ALLOW_CHOICE = "fun allowDistributorChoice() {"
         const val RECONCILE = "fun reconcileDistributorPresence() {"
         const val IS_PENDING = "fun isPending(accountId: String): Boolean {"
         const val REARM = "private fun rearmFailedAccounts() {"
@@ -685,6 +974,8 @@ class RelayWiringTest {
             "private fun rearmFailedAccounts() {",
         )
 
+        const val SAVE_DISTRIBUTOR = "UnifiedPush.saveDistributor(context, packageName)"
+
         const val EXPECTED_UNIFIED_PUSH_ARM = "up.isActive(credentials.id) -> Transport.UNIFIED_PUSH"
 
         val EXPECTED_TRANSPORT_ARMS = listOf(
@@ -701,8 +992,26 @@ class RelayWiringTest {
         const val EXPECTED_VAPID =
             "val vapid = if (relay) null else runCatching { repo.pushVapidKey(credentials) }.getOrNull()"
         const val EXPECTED_RELAY_FLAG = "val relay = credentials.protocol != MailProtocol.JMAP"
+        const val EXPECTED_WATCHED_FILTER =
+            "val accounts = watched.filter { store.notificationsEnabled(it.id) }"
+        const val EXPECTED_SYNC_OFF_SWEEP =
+            "watched.filterNot { store.notificationsEnabled(it.id) }" +
+                ".forEach { up.tearDownAfterSyncOff(it) }"
         const val EXPECTED_RELAY_ENDPOINT =
             "fun relayEndpoint(accountId: String): String? = RelayPush.publishedAddress(store.load(accountId))"
+
+        val EXPECTED_APPLY_OPENING = listOf(
+            "val appContext = context.applicationContext as Application",
+            "val container = appContext.container",
+            "val store = container.accountStore",
+            "val up = container.unifiedPushManager",
+            "up.reconcileDistributorPresence()",
+            "val watched = if (store.pushAllAccounts()) store.allCredentials() " +
+                "else listOfNotNull(store.load())",
+            EXPECTED_WATCHED_FILTER,
+            EXPECTED_SYNC_OFF_SWEEP,
+            "accounts.forEach { up.ensureRegistered(it) }",
+        )
 
         const val EXPECTED_CREATES_LOAD = "createAttempts = prefs.getInt(\"\$accountId.creates\", 0),"
         const val EXPECTED_CREATES_SAVE = ".putInt(\"\$accountId.creates\", state.createAttempts)"

@@ -189,6 +189,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
             // The account's baselines froze while it was excluded from every diff pass;
             // drop them so re-enabling reseeds silently instead of bursting weeks of mail.
             NewMailNotifier.clear(getApplication(), id)
+            getApplication<Application>().container.unifiedPushManager.allowDistributorChoice()
         }
         refresh()
         PushController.apply(getApplication(), userInitiated = true)

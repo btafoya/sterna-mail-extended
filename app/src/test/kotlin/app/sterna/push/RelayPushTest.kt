@@ -143,11 +143,169 @@ class RelayPushTest {
         )
     }
 
+    // ── shouldTearDown: the switch going off ────────────────────────────────────────────
+
+    @Test fun `a linked sub-account has no subscription of its own to give up`() {
+        assertFalse(
+            "a sub-account rides its login's one subscription (#31), so a teardown on its id " +
+                "unregisters the login's instance and takes the login's mail down with it",
+            RelayPush.shouldTearDown(
+                isLinked = true, hasPushState = true, linkedAccountStillOn = false, relayRequested = false,
+            ),
+        )
+    }
+
+    @Test fun `an account with no UnifiedPush record is left alone`() {
+        assertFalse(
+            "nothing to give up, and store.clear on an account that never registered writes the " +
+                "prefs trace an IMAP account nobody asked a relay for must not leave",
+            RelayPush.shouldTearDown(
+                isLinked = false, hasPushState = false, linkedAccountStillOn = false, relayRequested = false,
+            ),
+        )
+    }
+
+    @Test fun `a login keeps its subscription while one of its sub-accounts is still on`() {
+        assertFalse(
+            "that subscription is the one every sub-account rides (#31): giving it up here ends " +
+                "the push of accounts whose own switch nobody touched",
+            RelayPush.shouldTearDown(
+                isLinked = false, hasPushState = true, linkedAccountStillOn = true, relayRequested = false,
+            ),
+        )
+    }
+
+    @Test fun `a login switched off with nothing riding on it gives its subscription up`() {
+        assertTrue(
+            "the one case this decision exists for: without it the subscription stays live on " +
+                "the distributor and on the server, and every message wakes the process for a " +
+                "fetch that is dropped on arrival",
+            RelayPush.shouldTearDown(
+                isLinked = false, hasPushState = true, linkedAccountStillOn = false, relayRequested = false,
+            ),
+        )
+    }
+
+    @Test fun `an IMAP account that asked for a relay address by hand keeps it`() {
+        assertFalse(
+            "the address was pasted by hand into a third-party service and 'Remove address' is " +
+                "its only exit. A teardown here runs store.clear, so the endpoint and the relay " +
+                "flag go and the distributor's topic dies; the settings row that shows the " +
+                "address is hidden while the switch is off, so the loss is silent; and turning " +
+                "the switch back on brings nothing back, mayUsePush answering false without the " +
+                "flag. The user has to ask for a fresh address and paste it everywhere again. " +
+                "Only an IMAP account can carry this flag: the row that sets it is inside the " +
+                "isImap branch of SettingsScreen, so a JMAP account, which is what #204 is " +
+                "about, still gives its subscription up",
+            RelayPush.shouldTearDown(
+                isLinked = false, hasPushState = true, linkedAccountStillOn = false, relayRequested = true,
+            ),
+        )
+    }
+
+    @Test fun `the teardown decision reads its arguments in the declared order`() {
+        assertTrue(RelayPush.shouldTearDown(false, true, false, false))
+        assertFalse(RelayPush.shouldTearDown(true, true, false, false))
+        assertFalse(RelayPush.shouldTearDown(false, false, false, false))
+        assertFalse(RelayPush.shouldTearDown(false, true, true, false))
+        assertFalse(RelayPush.shouldTearDown(false, true, false, true))
+    }
+
+    @Test fun `what the register decision makes of the two records a teardown may leave`() {
+        assertTrue(
+            "no record at all: store.load answers null, ensureRegistered reads NONE, and " +
+                "switching sync back on re-registers. This is the state a complete store.clear " +
+                "leaves",
+            RelayPush.shouldRegister(MailProtocol.JMAP, false, UpStatus.NONE, 0L, now),
+        )
+        assertFalse(
+            "an ACTIVE record still in prefs: shouldRegister answers false for ever, so the " +
+                "account never comes back and the status line keeps reading UnifiedPush over a " +
+                "dead subscription. This is what an incomplete store.clear leaves. Which of the " +
+                "two the clear really produces is NOT proved here, both branches are pure " +
+                "functions taking the status as an argument: the clear itself needs " +
+                "SharedPreferences and is pinned as text by RelayWiringTest",
+            RelayPush.shouldRegister(MailProtocol.JMAP, false, UpStatus.ACTIVE, now, now),
+        )
+    }
+
+    @Test fun `one installed distributor is asked about, not enrolled on the owner's behalf`() {
+        assertEquals(
+            "this is #204 itself: the reporter had ntfy installed for something else, and Sterna " +
+                "saved it, registered against it and created a subscription on a server that is " +
+                "not his, with nothing on screen at any point. One installed is a candidate, " +
+                "never a consent",
+            DistributorGate.ASK,
+            RelayPush.distributorGate(chosen = false, installed = 1, declined = false),
+        )
+    }
+
+    @Test fun `several installed distributors are asked about, as they always were`() {
+        assertEquals(
+            "the case the picker was built for stays exactly as it was",
+            DistributorGate.ASK,
+            RelayPush.distributorGate(chosen = false, installed = 2, declined = false),
+        )
+    }
+
+    @Test fun `no distributor installed raises nothing and registers nothing`() {
+        assertEquals(
+            "there is nothing to ask about: an empty dialog over an account that then falls to " +
+                "the direct connection anyway",
+            DistributorGate.STAY,
+            RelayPush.distributorGate(chosen = false, installed = 0, declined = false),
+        )
+    }
+
+    @Test fun `a refusal is read before the picker is raised, whatever is installed`() {
+        assertEquals(
+            "ensureDistributor runs on every apply(), which is every screen resume, every boot " +
+                "and every worker cycle. A refusal that is not read here is a dialog that comes " +
+                "back for ever, and that is what makes remembering it the price of asking at all",
+            listOf(DistributorGate.STAY, DistributorGate.STAY),
+            listOf(
+                RelayPush.distributorGate(chosen = false, installed = 1, declined = true),
+                RelayPush.distributorGate(chosen = false, installed = 2, declined = true),
+            ),
+        )
+    }
+
+    @Test fun `a distributor already chosen outranks the refusal`() {
+        assertEquals(
+            "the refusal answers a question, it is not a switch that turns push off: an account " +
+                "riding a distributor it was told about must keep riding it, or refusing the " +
+                "dialog once on a second device profile silently kills a working transport",
+            DistributorGate.READY,
+            RelayPush.distributorGate(chosen = true, installed = 1, declined = true),
+        )
+    }
+
+    @Test fun `the distributor gate reads its arguments in the declared order`() {
+        assertEquals(
+            listOf(DistributorGate.READY, DistributorGate.STAY, DistributorGate.ASK, DistributorGate.STAY),
+            listOf(
+                RelayPush.distributorGate(true, 0, false),
+                RelayPush.distributorGate(false, 0, false),
+                RelayPush.distributorGate(false, 1, false),
+                RelayPush.distributorGate(false, 1, true),
+            ),
+        )
+    }
+
+    @Test fun `the refusal is kept under a key no account teardown can sweep`() {
+        assertFalse(
+            "UnifiedPushStateStore.clear removes every key that starts with an account id and a " +
+                "dot, and it runs on every teardown. Put a dot in the device-wide key and an " +
+                "account whose id is its prefix carries the refusal away with it, so the picker " +
+                "comes back on the next pass over a user who said no",
+            '.' in UnifiedPushStateStore.DISTRIBUTOR_DECLINED_KEY,
+        )
+    }
+
     // ── endpointOutcome ─────────────────────────────────────────────────────────────────
 
-    // The mounting carries a subscriptionId on purpose. Without one the `assertNull` below is
-    // satisfied by the input rather than by the rule, and dropping `subscriptionId = null` from the
-    // published copy() stays green, which is exactly what it did.
+    // The mounting carries a subscriptionId on purpose: without one the `assertNull` below is
+    // satisfied by the input, which is how a dropped `subscriptionId = null` once stayed green.
     @Test fun `an IMAP endpoint is published locally and talks to no server`() {
         val outcome = RelayPush.endpointOutcome(
             MailProtocol.IMAP,

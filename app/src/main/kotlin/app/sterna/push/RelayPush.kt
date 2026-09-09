@@ -2,8 +2,8 @@ package app.sterna.push
 
 import app.sterna.core.data.account.MailProtocol
 
-/** The UnifiedPush decisions, as pure functions: registering, an arriving endpoint, a delivery.
- *  [UnifiedPushManager] keeps every side effect, which is what makes this subsystem testable. */
+/** The UnifiedPush decisions, as pure functions: the distributor gate, registering, an arriving
+ *  endpoint, a delivery. [UnifiedPushManager] keeps every side effect, which makes them testable. */
 object RelayPush {
 
     /** In-flight window for REGISTERING: that wait is on the local distributor, and it is short. */
@@ -34,6 +34,21 @@ object RelayPush {
             now - statusSinceMillis >= pendingGraceMs(status)
         val failedRetryDue = status == UpStatus.FAILED && now - statusSinceMillis >= FAILED_RETRY_MS
         return status == UpStatus.NONE || failedRetryDue || stalePending
+    }
+
+    /** The switch went off: whose own subscription is there to give up? None without a record, none under a
+     *  sub-account still on (#31), none for a relay address whose one exit is its Remove button: this is final. */
+    fun shouldTearDown(
+        isLinked: Boolean,
+        hasPushState: Boolean,
+        linkedAccountStillOn: Boolean,
+        relayRequested: Boolean,
+    ): Boolean = !isLinked && hasPushState && !linkedAccountStillOn && !relayRequested
+
+    fun distributorGate(chosen: Boolean, installed: Int, declined: Boolean): DistributorGate = when {
+        chosen -> DistributorGate.READY
+        installed == 0 || declined -> DistributorGate.STAY
+        else -> DistributorGate.ASK
     }
 
     /** May this account touch the UnifiedPush subsystem at all? JMAP always may, anything else
@@ -93,15 +108,13 @@ object RelayPush {
         now: Long,
     ): EndpointOutcome {
         if (protocol != MailProtocol.JMAP) {
-            // Nobody asked for this address any more: the endpoint arrives on its own schedule, so
-            // a withdrawal can lose the race to a delivery already in flight.
+            // Nobody asked for this address any more: the endpoint lost a race to the withdrawal.
             if (!prev.relayRequested) return EndpointOutcome.Ignore
             // Same address, already published or armed: a write drags an active relay to published.
             if (prev.endpoint == url && (prev.status == UpStatus.PUBLISHED || prev.status == UpStatus.ACTIVE)) {
                 return EndpointOutcome.Ignore
             }
-            // Rotation: the address pasted into the relay just died, so the wake it earned dies
-            // with it, a carried lastDeliveryMillis dates a delivery to an address nobody posts to.
+            // Rotation: the old address is dead, and a carried lastDeliveryMillis dates a wake to it.
             return EndpointOutcome.Relay(
                 prev.copy(
                     endpoint = url,
@@ -144,6 +157,8 @@ object RelayPush {
 /** What [RelayPush.onDelivery] tells the manager to write. [armed] is true on the one delivery that
  *  took the account from published to active, the only one that is a transport change. */
 data class DeliveryUpdate(val state: UpAccountState, val armed: Boolean)
+
+enum class DistributorGate { READY, STAY, ASK }
 
 sealed interface EndpointOutcome {
 

@@ -44,9 +44,7 @@ data class UpAccountState(
     val createAttempts: Int = 0,
 )
 
-/**
- * Device-local UnifiedPush state, one record per account id, in a dedicated prefs file
- */
+/** Per-account UnifiedPush state, and device-wide keys, dotless so [clear] cannot sweep them. */
 class UnifiedPushStateStore(context: Context) {
     private val prefs = context.getSharedPreferences("unifiedpush_state", Context.MODE_PRIVATE)
 
@@ -84,9 +82,19 @@ class UnifiedPushStateStore(context: Context) {
             .apply()
     }
 
+    fun distributorDeclined(): Boolean = prefs.getBoolean(DISTRIBUTOR_DECLINED_KEY, false)
+
+    fun setDistributorDeclined(declined: Boolean) {
+        prefs.edit().putBoolean(DISTRIBUTOR_DECLINED_KEY, declined).apply()
+    }
+
     fun clear(accountId: String) {
         val edit = prefs.edit()
         prefs.all.keys.filter { it.startsWith("$accountId.") }.forEach { edit.remove(it) }
         edit.apply()
+    }
+
+    companion object {
+        const val DISTRIBUTOR_DECLINED_KEY = "distributor-declined"
     }
 }

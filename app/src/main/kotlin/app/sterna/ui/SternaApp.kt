@@ -678,8 +678,8 @@ private fun MainNavHost(
     }
 }
 
-/** UnifiedPush distributor picker (#17): shown only when several distributors are installed and
- *  none has been chosen. One installed is used silently; none means nothing happens. */
+/** UnifiedPush distributor picker (#17): shown whenever a distributor is installed and none has
+ *  been chosen. Its button is a refusal that is remembered, the back gesture is not (#204). */
 @Composable
 private fun DistributorPickerDialog() {
     val context = LocalContext.current
@@ -687,7 +687,7 @@ private fun DistributorPickerDialog() {
     val needsChoice by manager.needsDistributorChoice.collectAsStateWithLifecycle()
     if (!needsChoice) return
     androidx.compose.material3.AlertDialog(
-        onDismissRequest = { manager.dismissDistributorChoice() },
+        onDismissRequest = { manager.hideDistributorChoiceForNow() },
         title = { androidx.compose.material3.Text(stringResource(R.string.up_picker_title)) },
         text = {
             androidx.compose.foundation.layout.Column {
@@ -706,7 +706,7 @@ private fun DistributorPickerDialog() {
         },
         confirmButton = {},
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = { manager.dismissDistributorChoice() }) {
+            androidx.compose.material3.TextButton(onClick = { manager.rememberDistributorRefusal() }) {
                 androidx.compose.material3.Text(stringResource(R.string.inbox_cancel))
             }
         },

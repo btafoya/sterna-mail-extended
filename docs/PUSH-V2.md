@@ -73,8 +73,11 @@ transports**.
    foreground service entirely.
 3. A read-only per-account **status line** (e.g. "Push: UnifiedPush (ntfy)") for
    transparency.
-4. The UnifiedPush **distributor picker appears only when more than one**
-   distributor is installed (Element X style). One installed → used silently.
+4. The UnifiedPush **distributor picker appears whenever a distributor is
+   installed** and none has been chosen, one or several. One installed used to be
+   enrolled silently, which subscribed a reporter's account to a push server he had
+   installed for something else and never named to Sterna (#204). A refusal is
+   remembered device-wide; switching an account's sync off and back on asks again.
 5. Folder selection (#16) is a **simple per-folder switch** in the folder UI. No
    configuration matrix.
 6. Decided during design review:

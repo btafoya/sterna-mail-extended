@@ -38,28 +38,22 @@ class UnifiedPushManager(
 
     private val _needsDistributorChoice = MutableStateFlow(false)
 
-    /** True while >1 distributor is installed and none chosen, the UI shows the picker. */
+    /** True while a distributor is installed, none chosen and the picker not refused. */
     val needsDistributorChoice: StateFlow<Boolean> = _needsDistributorChoice.asStateFlow()
 
     fun distributorInstalled(): Boolean = UnifiedPush.getDistributors(context).isNotEmpty()
 
-    /** Make sure a distributor is chosen: one installed is saved silently, several with none saved
-     *  raises the picker, the only case with UI. False while no usable choice exists. */
+    /** Is a distributor chosen? Asking is the only case with UI, and it is asked whatever the
+     *  number installed: enrolling one on its owner's behalf subscribes her to a stranger (#204). */
     private fun ensureDistributor(): Boolean {
-        if (UnifiedPush.getAckDistributor(context) != null) return true
-        if (UnifiedPush.getSavedDistributor(context) != null) return true
-        val distributors = UnifiedPush.getDistributors(context)
-        return when {
-            distributors.isEmpty() -> false
-            distributors.size == 1 -> {
-                UnifiedPush.saveDistributor(context, distributors.single())
-                true
-            }
-            else -> {
-                _needsDistributorChoice.value = true
-                false
-            }
-        }
+        val gate = RelayPush.distributorGate(
+            chosen = UnifiedPush.getAckDistributor(context) != null ||
+                UnifiedPush.getSavedDistributor(context) != null,
+            installed = UnifiedPush.getDistributors(context).size,
+            declined = store.distributorDeclined(),
+        )
+        if (gate == DistributorGate.ASK) _needsDistributorChoice.value = true
+        return gate == DistributorGate.READY
     }
 
     fun distributorChosen(packageName: String) {
@@ -71,7 +65,7 @@ class UnifiedPushManager(
 
     /** Clear the failed a lost distributor stamped, ahead of `onTransportStateChanged` whose
      *  apply() reads it back. From the in-person pick only: the connector drops its own saved
-     *  distributor on the last unregister, so `ensureDistributor` re-enrols and would loop here. */
+     *  distributor on the last unregister, so `ensureDistributor` asks again and would loop here. */
     private fun rearmFailedAccounts() {
         val credentials = accountStore.allCredentials()
         synchronized(this) {
@@ -83,13 +77,22 @@ class UnifiedPushManager(
         }
     }
 
-    /** Dialog dismissed without a choice: stay on direct connections (re-asked next apply). */
-    fun dismissDistributorChoice() {
+    /** The picker answered no: written down, or every apply() raises it again. */
+    fun rememberDistributorRefusal() {
+        store.setDistributorDeclined(true)
         _needsDistributorChoice.value = false
     }
 
-    // A linked sub-account rides its login's one PushSubscription (#31), so its status is the
-    // login's.
+    fun hideDistributorChoiceForNow() {
+        _needsDistributorChoice.value = false
+    }
+
+    /** The way back from that refusal. The caller must be a front: replayed, this re-asks for ever. */
+    fun allowDistributorChoice() {
+        store.setDistributorDeclined(false)
+    }
+
+    // A linked sub-account rides its login's one PushSubscription (#31), so its status is the login's.
     fun isActive(accountId: String): Boolean =
         store.load(accountStore.account(accountId)?.loginKey() ?: accountId)?.status == UpStatus.ACTIVE
 
@@ -150,9 +153,8 @@ class UnifiedPushManager(
         // and must not reach ensureDistributor(), whose picker is this subsystem's only UI.
         val known = store.load(credentials.id)
         if (!RelayPush.mayUsePush(credentials.protocol, known?.relayRequested ?: false)) return
-        // ensureDistributor() runs before the registration window: it also enrols a single
-        // installed distributor and raises the picker, and behind shouldRegister an account just
-        // marked failed stopped reaching it for the whole cooldown.
+        // ensureDistributor() runs before the registration window: its picker is the one piece of
+        // UI here, and behind shouldRegister a failed account cannot reach it for the cooldown.
         if (!ensureDistributor()) return
         if (!RelayPush.shouldRegister(
                 protocol = credentials.protocol,
@@ -175,12 +177,13 @@ class UnifiedPushManager(
         }
     }
 
-    /** The user asked for a relay address: [RelayPush.onRelayRequested] clears the status first. */
+    /** Asked in person: it lifts a refused picker, [RelayPush.onRelayRequested] clears the status. */
     fun requestRelayAddress(credentials: AccountCredentials) {
         synchronized(this) {
             val state = store.getOrCreate(credentials.id)
             store.save(credentials.id, RelayPush.onRelayRequested(state, System.currentTimeMillis()))
         }
+        allowDistributorChoice()
         ensureRegistered(credentials)
     }
 
@@ -216,9 +219,7 @@ class UnifiedPushManager(
 
     fun relayLastDeliveryMillis(accountId: String): Long = store.load(accountId)?.lastDeliveryMillis ?: 0
 
-    /**
-     * Is this account served by an armed relay, one the user asked for, holding no PushSubscription
-     */
+    /** Is this account served by an armed relay, one the user asked for, holding no PushSubscription. */
     fun relayArmed(accountId: String): Boolean {
         val state = store.load(accountId) ?: return false
         return state.relayRequested && state.subscriptionId == null && state.status == UpStatus.ACTIVE
@@ -226,6 +227,7 @@ class UnifiedPushManager(
 
     fun onNewEndpoint(accountId: String, endpoint: PushEndpoint) {
         val credentials = credentialsFor(accountId) ?: return unregisterOrphan(accountId)
+        if (syncSwitchedOff(accountId)) return
         scope.launch {
             // The connector redelivers the endpoint on every register, so the no-change case has to
             // be recognised; a relay account stops at its own state. Read, decide and write in
@@ -315,6 +317,7 @@ class UnifiedPushManager(
                     Log.w(TAG, "Push verification on a relay account — ignored: $accountId")
                     return
                 }
+                if (syncSwitchedOff(accountId)) return
                 scope.launch {
                     // Promptly: servers time the round-trip out (Stalwart: ~1 min).
                     runCatching {
@@ -443,6 +446,30 @@ class UnifiedPushManager(
         UnifiedPush.unregister(context, credentials.id)
         val subscriptionId = state?.subscriptionId ?: return
         scope.launch { runCatching { repo.destroyPushSubscription(credentials, subscriptionId) } }
+    }
+
+    /** Sync switched off: give up this account's own subscription on both sides, decided under the
+     *  monitor and done outside it. The caller is PushController.apply(), so no callback from here. */
+    fun tearDownAfterSyncOff(credentials: AccountCredentials) {
+        val due = synchronized(this) {
+            val state = store.load(credentials.id)
+            RelayPush.shouldTearDown(
+                isLinked = accountStore.account(credentials.id)?.isLinked == true,
+                hasPushState = state != null,
+                linkedAccountStillOn = accountStore.linkedAccounts(credentials.id)
+                    .any { accountStore.notificationsEnabled(it.id) },
+                relayRequested = state?.relayRequested == true,
+            )
+        }
+        if (!due) return
+        teardown(credentials)
+    }
+
+    /** Unregister is not instant: a late endpoint or verification rebuilds the subscription just given up (#204). */
+    private fun syncSwitchedOff(accountId: String): Boolean {
+        if (accountStore.notificationsEnabled(accountId)) return false
+        Log.i(TAG, "UnifiedPush event for an account with sync off — ignored: $accountId")
+        return true
     }
 
     private fun markFailed(accountId: String) {

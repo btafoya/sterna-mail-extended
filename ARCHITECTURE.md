@@ -133,9 +133,9 @@ protocol, so an IMAP relay address (issue #177) rides this too; otherwise
 battery saver → the periodic worker; otherwise JMAP → an EventSource (SSE)
 connection; otherwise IMAP → IDLE. ACTIVE means the server's `PushVerification`
 came back on JMAP, and on a relay that a payload really arrived, never merely
-that an address exists: once an account has asked for one, the subsystem enrols
-whatever distributor is installed and an address appears on its own, so arming on
-that alone would trade a working IMAP IDLE for an endpoint nobody ever posts to. Direct connections live in a foreground
+that an address exists: once an account has asked for one, the subsystem asks
+which distributor to deliver through and an address appears on its own, so arming
+on that alone would trade a working IMAP IDLE for an endpoint nobody ever posts to. Direct connections live in a foreground
 service declared `specialUse` (not `dataSync`, which Android 15+ budgets and
 kills). With UnifiedPush on a JMAP account the server posts a
 WebPush-encrypted `StateChange` to the distributor's endpoint; the connector

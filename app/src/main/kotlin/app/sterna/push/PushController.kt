@@ -187,6 +187,9 @@ object PushController {
         up.reconcileDistributorPresence()
         val watched = if (store.pushAllAccounts()) store.allCredentials() else listOfNotNull(store.load())
         val accounts = watched.filter { store.notificationsEnabled(it.id) }
+        // The complement, or turning the switch off leaves the subscription live on both sides:
+        // every message then wakes the process for a fetch PushFetchWorker drops on arrival (#204).
+        watched.filterNot { store.notificationsEnabled(it.id) }.forEach { up.tearDownAfterSyncOff(it) }
         // Kick the UnifiedPush state machine (no-op for IMAP or without a distributor).
         accounts.forEach { up.ensureRegistered(it) }
         // An account counts as direct until UnifiedPush is fully active, so bring-up never gaps
@@ -224,9 +227,7 @@ object PushController {
     }
 }
 
-/**
- * May a user-initiated arm swallow this account's inbox backlog into the baseline instead of announcing it?
- */
+/** May a user-initiated arm swallow this account's inbox backlog into the baseline instead of announcing it? */
 internal fun shouldResetBaseline(
     accountId: String,
     userInitiated: Boolean,
