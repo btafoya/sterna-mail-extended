@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.Serializable
 
 /** How the app picks light vs dark colours. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -37,6 +38,7 @@ enum class MessageTextSize(val zoom: Int) { SMALL(85), NORMAL(100), LARGE(125), 
 /**
  * How new mail reaches the device (#17, outcome-framed, never a transport choice): instant keeps
  */
+@Serializable
 enum class DeliveryMode { INSTANT, BATTERY_SAVER }
 
 /**

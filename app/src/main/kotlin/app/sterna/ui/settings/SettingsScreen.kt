@@ -719,20 +719,6 @@ private fun NotificationsScreen(viewModel: SettingsViewModel, onBack: () -> Unit
             Column(
                 Modifier.fillMaxSize().padding(padding).verticalScroll(scroll),
             ) {
-                SettingsSection(stringResource(R.string.settings_delivery_section)) {
-                    DeliveryModeOption(
-                        title = stringResource(R.string.settings_delivery_instant),
-                        subtitle = stringResource(R.string.settings_delivery_instant_desc),
-                        selected = state.deliveryMode == DeliveryMode.INSTANT,
-                        onClick = { viewModel.setDeliveryMode(DeliveryMode.INSTANT) },
-                    )
-                    DeliveryModeOption(
-                        title = stringResource(R.string.settings_delivery_saver),
-                        subtitle = stringResource(R.string.settings_delivery_saver_desc),
-                        selected = state.deliveryMode == DeliveryMode.BATTERY_SAVER,
-                        onClick = { viewModel.setDeliveryMode(DeliveryMode.BATTERY_SAVER) },
-                    )
-                }
                 SettingsSection(stringResource(R.string.settings_new_mail_section)) {
                     SettingSwitch(
                         title = stringResource(R.string.settings_push_all_title),
@@ -1365,6 +1351,7 @@ private fun AccountDetailScreen(
     var syncWindow by remember(accountId) { mutableStateOf(account.syncWindow) }
     var colorArgb by remember(accountId) { mutableStateOf(account.color) }
     var notificationsEnabled by remember(accountId) { mutableStateOf(account.notificationsEnabled) }
+    var deliveryMode by remember(accountId) { mutableStateOf(viewModel.deliveryMode(accountId)) }
     var uploadSentCopy by remember(accountId) { mutableStateOf(account.uploadSentCopy) }
     var showOnlySubscribedFolders by remember(accountId) { mutableStateOf(account.showOnlySubscribedFolders) }
     var imapHost by remember(accountId) { mutableStateOf(account.imapHost) }
@@ -1559,6 +1546,24 @@ private fun AccountDetailScreen(
                     onCheckedChange = {
                         notificationsEnabled = it
                         viewModel.setNotificationsEnabled(accountId, it)
+                    },
+                )
+                DeliveryModeOption(
+                    title = stringResource(R.string.settings_delivery_instant),
+                    subtitle = stringResource(R.string.settings_delivery_instant_desc),
+                    selected = deliveryMode == DeliveryMode.INSTANT,
+                    onClick = {
+                        deliveryMode = DeliveryMode.INSTANT
+                        viewModel.setDeliveryMode(accountId, DeliveryMode.INSTANT)
+                    },
+                )
+                DeliveryModeOption(
+                    title = stringResource(R.string.settings_delivery_saver),
+                    subtitle = stringResource(R.string.settings_delivery_saver_desc),
+                    selected = deliveryMode == DeliveryMode.BATTERY_SAVER,
+                    onClick = {
+                        deliveryMode = DeliveryMode.BATTERY_SAVER
+                        viewModel.setDeliveryMode(accountId, DeliveryMode.BATTERY_SAVER)
                     },
                 )
                 // isWatched is re-read each recomposition (no remember): neither the current

@@ -15,8 +15,10 @@ shippable and device-testable; `main` stays releasable throughout.
 - **Phase B**: UnifiedPush transport for JMAP accounts behind automatic
   transport selection ([#17](https://codeberg.org/emon/sterna-mail/issues/17)).
   Zero behavior change when no distributor is installed.
-- **Phase C**: the single "New mail delivery: Instant / Battery saver" setting,
-  which also becomes the designated periodic mode for IMAP.
+- **Phase C**: the "New mail delivery: Instant / Battery saver" setting, which
+  also becomes the designated periodic mode for IMAP. It shipped as one global
+  switch; since #190 every account carries its own, and the old global value only
+  seeds an account that never chose.
 
 ## New mail delivery: Instant vs Battery saver (user-facing behavior)
 
@@ -68,9 +70,9 @@ transports**.
    - JMAP account without a distributor → **direct connection** (EventSource);
    - IMAP account → **direct connection** (IDLE).
    No transport setting is ever exposed.
-2. Exactly **one** user-facing setting, outcome-framed: *"New mail delivery:
-   Instant / Battery saver (30-min checks)"*. Battery saver drops the persistent
-   foreground service entirely.
+2. Exactly **one** user-facing setting per account, outcome-framed: *"New mail
+   delivery: Instant / Battery saver (30-min checks)"*. The persistent foreground
+   service goes away once no account is left on Instant.
 3. A read-only per-account **status line** (e.g. "Push: UnifiedPush (ntfy)") for
    transparency.
 4. The UnifiedPush **distributor picker appears whenever a distributor is

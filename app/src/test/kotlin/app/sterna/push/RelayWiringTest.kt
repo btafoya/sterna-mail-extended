@@ -39,18 +39,72 @@ class RelayWiringTest {
 
     @Test fun `the UnifiedPush arm of transportFor is the isActive line, whole`() {
         assertEquals(
-            "the UnifiedPush arm of PushController.transportFor must be exactly " +
-                "'$EXPECTED_UNIFIED_PUSH_ARM' — the whole line. This is THE line of the branch: " +
-                "isActive is true for a relay only once a payload really arrived " +
-                "([RelayPush.onDelivery]), and widening it by so much as an '|| " +
-                "up.relayEndpoint(id) != null' hands a merely PUBLISHED account — an address " +
-                "exists, nobody has ever posted to it — from IMAP IDLE to a dead endpoint, " +
-                "foreground service and all. Nothing executes transportFor (it needs " +
-                "Application.container; see PushWatchTest's KNOWN GAP), so this text is the only " +
-                "guard it has. Lines found:\n" +
+            "the UnifiedPush arm of transportOf must be exactly '$EXPECTED_UNIFIED_PUSH_ARM' — " +
+                "the whole line. This is THE line of the branch: the fact behind it is true for a " +
+                "relay only once a payload really arrived ([RelayPush.onDelivery]), and widening " +
+                "it by so much as an '|| up.relayEndpoint(id) != null' hands a merely PUBLISHED " +
+                "account — an address exists, nobody has ever posted to it — from IMAP IDLE to a " +
+                "dead endpoint, foreground service and all. [PerAccountDeliveryTest] runs these " +
+                "arms; what it cannot see is which expression fills the fact, which is the rule " +
+                "below. Lines found:\n" +
                 transportForArms().filter { "UNIFIED_PUSH" in it }.joinToString("\n"),
             listOf(EXPECTED_UNIFIED_PUSH_ARM),
             transportForArms().filter { "UNIFIED_PUSH" in it },
+        )
+    }
+
+    @Test fun `the UnifiedPush fact handed to the decision is the isActive call, whole`() {
+        val lines = codeLines(CONTROLLER)
+        assertEquals(
+            "the decision is taken on facts read in PushController.deliveryFacts, so the arm " +
+                "above only guards half of it: 'unifiedPushActive' must be filled by exactly " +
+                "'$EXPECTED_UNIFIED_PUSH_FACT'. Widen it here and the arm stays word for word as " +
+                "pinned while a merely published relay is handed a dead endpoint anyway.",
+            listOf(EXPECTED_UNIFIED_PUSH_FACT),
+            lines.filter { it.startsWith("unifiedPushActive") },
+        )
+        assertEquals(
+            "and the account's own delivery mode is what the battery-saver arm is decided on: " +
+                "'deliveryMode = container.accountStore.deliveryMode(credentials.id),'. Read the " +
+                "global setting here instead and the per-account choice (#190) is dead, silently.",
+            listOf("deliveryMode = container.accountStore.deliveryMode(credentials.id),"),
+            lines.filter { it.startsWith("deliveryMode =") },
+        )
+        assertEquals(
+            "the isLinked fact must be filled by exactly '$EXPECTED_IS_LINKED_FACT'. This is the " +
+                "expression that closes #31: a linked sub-account is ACL-shared, the server never " +
+                "puts its StateChanges on the login's EventSource, and the arm above turns that " +
+                "fact into PERIODIC. Fill it with false — or with anything that stops asking the " +
+                "STORE, credentials carry no such flag — and the arm stays pinned word for word " +
+                "while every shared sub-account is handed a connection of its own that will " +
+                "never deliver it a single message: mail arrives nowhere, and the screen reads " +
+                "'direct connection'.",
+            listOf(EXPECTED_IS_LINKED_FACT),
+            lines.filter { it.startsWith("isLinked =") },
+        )
+        assertEquals(
+            "and the protocol fact must be exactly '$EXPECTED_PROTOCOL_FACT': the credentials " +
+                "this decision was asked about, not a constant and not another account's. It " +
+                "chooses between the last two arms, so a hard MailProtocol.JMAP here opens an " +
+                "EventSource against an IMAP server, and a hard IMAP puts a JMAP account on IDLE " +
+                "against a host that does not speak it — in both cases the pinned arms are " +
+                "untouched and no other test looks.",
+            listOf(EXPECTED_PROTOCOL_FACT),
+            lines.filter { it.startsWith("protocol =") },
+        )
+    }
+
+    @Test fun `the battery-saver arm is decided on the account, seeded by the global setting`() {
+        assertEquals(
+            "the 'batterySaver' the arms read must be computed as " +
+                "'$EXPECTED_BATTERY_SAVER_FACT'. A bare 'account.deliveryMode == " +
+                "DeliveryMode.BATTERY_SAVER' answers false for every account that never chose, " +
+                "which is every account on the update: a whole install of battery-saver users " +
+                "wakes up holding live connections. Reading the global setting alone is the " +
+                "defect this issue removes. Lines found:\n" +
+                transportForBody().joinToString("\n"),
+            listOf(EXPECTED_BATTERY_SAVER_FACT),
+            transportForBody().filter { "resolveDeliveryMode" in it },
         )
     }
 
@@ -60,7 +114,7 @@ class RelayWiringTest {
             FORBIDDEN_IN_TRANSPORT.any { it in line }
         }
         assertEquals(
-            "nothing inside transportFor may name any of " +
+            "nothing inside transportOf may name any of " +
                 FORBIDDEN_IN_TRANSPORT.joinToString(", ") + ". An address, a PUBLISHED state or " +
                 "the mere fact that a relay was requested are all 'somebody might post here one " +
                 "day'; the transport may only move on what already happened. Found:\n" +
@@ -72,7 +126,7 @@ class RelayWiringTest {
 
     @Test fun `the arms of transportFor are pinned whole and in order`() {
         assertEquals(
-            "transportFor decides in one 'when', and its arms are pinned whole and in order. " +
+            "transportOf decides in one 'when', and its arms are pinned whole and in order. " +
                 "isLinked first: a shared sub-account has no push of its own (#31) and would " +
                 "otherwise inherit its login's UnifiedPush. batterySaver AFTER the UnifiedPush " +
                 "arm and not before it: UnifiedPush costs Sterna nothing, so battery saver must " +
@@ -888,13 +942,13 @@ class RelayWiringTest {
     private fun applyBody(): List<String> =
         blockOf(codeLines(CONTROLLER), APPLY, "PushController.kt")
 
-    /** The whole body of `PushController.transportFor`, the private overload that decides. */
+    /** The whole body of `transportOf`, the container-free decision `transportFor` delegates to. */
     private fun transportForBody(): List<String> =
-        blockOf(codeLines(CONTROLLER), TRANSPORT_FOR, "PushController.kt")
+        blockOf(codeLines(DECISION), TRANSPORT_FOR, "DeliveryDecision.kt")
 
-    /** The arms of `transportFor`'s `when`, in source order. */
+    /** The arms of `transportOf`'s `when`, in source order. */
     private fun transportForArms(): List<String> =
-        blockOf(transportForBody(), "return when {", "PushController.transportFor")
+        blockOf(transportForBody(), "return when {", "transportOf")
 
     /** The lines of [body] that are not nested inside a `synchronized(this…) {` block. */
     private fun outsideTheMonitor(body: List<String>): List<String> {
@@ -962,8 +1016,7 @@ class RelayWiringTest {
         const val REARM = "private fun rearmFailedAccounts() {"
         const val MARK_FAILED = "private fun markFailed(accountId: String) {"
         const val TRANSPORT_FOR =
-            "private fun transportFor(context: Context, credentials: AccountCredentials, " +
-                "batterySaver: Boolean): Transport {"
+            "internal fun transportOf(account: AccountDelivery, globalDelivery: DeliveryMode): Transport {"
 
         /** The five state writers that run on a thread of their own. */
         val MONITORED = listOf(
@@ -976,15 +1029,27 @@ class RelayWiringTest {
 
         const val SAVE_DISTRIBUTOR = "UnifiedPush.saveDistributor(context, packageName)"
 
-        const val EXPECTED_UNIFIED_PUSH_ARM = "up.isActive(credentials.id) -> Transport.UNIFIED_PUSH"
+        const val EXPECTED_UNIFIED_PUSH_ARM = "account.unifiedPushActive -> Transport.UNIFIED_PUSH"
 
         val EXPECTED_TRANSPORT_ARMS = listOf(
-            "container.accountStore.account(credentials.id)?.isLinked == true -> Transport.PERIODIC",
+            "account.isLinked -> Transport.PERIODIC",
             EXPECTED_UNIFIED_PUSH_ARM,
             "batterySaver -> Transport.PERIODIC",
-            "credentials.protocol == MailProtocol.JMAP -> Transport.EVENT_SOURCE",
+            "account.protocol == MailProtocol.JMAP -> Transport.EVENT_SOURCE",
             "else -> Transport.IMAP_IDLE",
         )
+
+        /** The one line that fills the UnifiedPush fact the arm above reads. */
+        const val EXPECTED_UNIFIED_PUSH_FACT =
+            "unifiedPushActive = container.unifiedPushManager.isActive(credentials.id),"
+
+        /** The line that fills the fact the #31 arm reads, and the one the protocol arms read. */
+        const val EXPECTED_IS_LINKED_FACT =
+            "isLinked = container.accountStore.account(credentials.id)?.isLinked == true,"
+        const val EXPECTED_PROTOCOL_FACT = "protocol = credentials.protocol,"
+
+        const val EXPECTED_BATTERY_SAVER_FACT =
+            "resolveDeliveryMode(account.deliveryMode, globalDelivery) == DeliveryMode.BATTERY_SAVER"
 
         val FORBIDDEN_IN_TRANSPORT =
             listOf("relayEndpoint", "PUBLISHED", "relayRequested", "publishedAddress")
@@ -1018,6 +1083,7 @@ class RelayWiringTest {
 
         const val MANAGER_PATH = "app/src/main/kotlin/app/sterna/push/UnifiedPushManager.kt"
         const val CONTROLLER_PATH = "app/src/main/kotlin/app/sterna/push/PushController.kt"
+        const val DECISION_PATH = "app/src/main/kotlin/app/sterna/push/DeliveryDecision.kt"
         const val STORE_PATH = "app/src/main/kotlin/app/sterna/push/UnifiedPushStateStore.kt"
 
         /** Repo root, walked up from the module's working directory. */
@@ -1032,6 +1098,7 @@ class RelayWiringTest {
 
         val MANAGER: File by lazy { File(root, MANAGER_PATH) }
         val CONTROLLER: File by lazy { File(root, CONTROLLER_PATH) }
+        val DECISION: File by lazy { File(root, DECISION_PATH) }
         val STORE: File by lazy { File(root, STORE_PATH) }
     }
 }

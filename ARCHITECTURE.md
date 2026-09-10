@@ -129,8 +129,9 @@ per-account sources.
 rule that applies wins: a linked sub-account (issue #31) → the periodic worker,
 because the server never pushes an ACL-shared account's changes; otherwise an
 account whose UnifiedPush endpoint is ACTIVE → UnifiedPush, whatever its
-protocol, so an IMAP relay address (issue #177) rides this too; otherwise
-battery saver → the periodic worker; otherwise JMAP → an EventSource (SSE)
+protocol, so an IMAP relay address (issue #177) rides this too; otherwise an
+account set to battery saver (issue #190, a setting each account carries) → the
+periodic worker; otherwise JMAP → an EventSource (SSE)
 connection; otherwise IMAP → IDLE. ACTIVE means the server's `PushVerification`
 came back on JMAP, and on a relay that a payload really arrived, never merely
 that an address exists: once an account has asked for one, the subsystem asks

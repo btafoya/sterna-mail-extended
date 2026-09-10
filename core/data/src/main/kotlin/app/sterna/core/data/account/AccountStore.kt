@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Base64
 import android.util.Log
 import app.sterna.core.data.crypto.KeystoreCrypto
+import app.sterna.core.data.settings.DeliveryMode
 import app.sterna.core.jmap.JmapException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -451,6 +452,13 @@ class AccountStore(context: Context) : AccountStorage {
     @Synchronized
     fun setSyncWindow(id: String, window: SyncWindow) {
         saveAccounts(accounts().map { if (it.id == id) it.copy(syncWindow = window) else it })
+    }
+
+    fun deliveryMode(id: String): DeliveryMode? = account(id)?.deliveryMode
+
+    @Synchronized
+    fun setDeliveryMode(id: String, mode: DeliveryMode) {
+        saveAccounts(accounts().map { if (it.id == id) it.copy(deliveryMode = mode) else it })
     }
 
     /** Persist the account's accent colour (ARGB), or null for auto. No-op if the id is unknown. */

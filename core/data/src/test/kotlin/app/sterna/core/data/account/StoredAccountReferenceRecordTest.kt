@@ -1,5 +1,6 @@
 package app.sterna.core.data.account
 
+import app.sterna.core.data.settings.DeliveryMode
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.descriptors.SerialDescriptor
@@ -114,6 +115,11 @@ class StoredAccountReferenceRecordTest {
         EnumField("protocol", MailProtocol.entries.map { it.name }, listOf("JMAP", "IMAP")) { it.protocol.name },
         EnumField("imapSecurity", ConnectionSecurity.entries.map { it.name }, listOf("TLS", "STARTTLS", "NONE")) { it.imapSecurity.name },
         EnumField("smtpSecurity", ConnectionSecurity.entries.map { it.name }, listOf("TLS", "STARTTLS", "NONE")) { it.smtpSecurity.name },
+        EnumField(
+            "deliveryMode",
+            DeliveryMode.entries.map { it.name },
+            listOf("INSTANT", "BATTERY_SAVER"),
+        ) { it.deliveryMode?.name ?: "«the record decoded without a deliveryMode»" },
         EnumField(
             "syncWindow",
             SyncWindow.entries.map { it.name },

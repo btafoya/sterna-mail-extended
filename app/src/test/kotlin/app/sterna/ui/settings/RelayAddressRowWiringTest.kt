@@ -144,9 +144,32 @@ class RelayAddressRowWiringTest {
                 "unwatched account with an armed relay really is woken, really does fetch and " +
                 "really does notify, while the screen told the reader nothing was watching it " +
                 "and offered it an address in the same breath. Nothing moves for a non-relay " +
-                "account: NotWatched keeps its place and its meaning for everybody else.",
+                "account: NotWatched keeps its place and its meaning for everybody else. The " +
+                "battery-saver branch is asked per account (#190): read off the global setting, " +
+                "this line would tell an account on instant delivery that it is polled every " +
+                "30 minutes, and the other way round. It is decided on the record `account` " +
+                "already read at the top of statusFor, seeded by the global mode: asking the " +
+                "store again (deliveryMode(accountId), deliveryModeFor(...)) decodes the whole " +
+                "account blob from JSON a second time, and this runs in the account screen's " +
+                "500 ms loop on the main thread — two full decodes a second where the read-once " +
+                "line above exists to allow one.",
             EXPECTED_STATUS_BRANCHES,
             statusForBranches(),
+        )
+    }
+
+    @Test fun `statusFor decodes the account record once, whatever its branches ask`() {
+        val body = blockBody(codeLinesOf(PUSH_CONTROLLER), STATUS_FOR)
+        assertEquals(
+            "statusFor may ask the account store for the record ONCE, and it already does, on " +
+                "the line the comment above it is about: every one of those calls decodes the " +
+                "whole account blob from JSON, and this function is called from the account " +
+                "screen's while(true)/delay(500) loop, on the main thread. A branch that reaches " +
+                "for the store again instead of reading the record in hand doubles that cost " +
+                "every 500 ms, and no behavioural test would ever notice. Store reads found:\n" +
+                body.filter { STORE_READS.any { call -> call in it } }.joinToString("\n"),
+            listOf("val account = store.account(accountId)"),
+            body.filter { line -> STORE_READS.any { it in line } },
         )
     }
 
@@ -471,12 +494,14 @@ class RelayAddressRowWiringTest {
             "} else {",
         )
 
+        val STORE_READS = listOf("store.account(", "deliveryMode(accountId)", "deliveryModeFor(")
+
         val EXPECTED_STATUS_BRANCHES = listOf(
             "account?.isLinked == true -> PushStatus.Periodic",
             "up.relayArmed(accountId) -> PushStatus.ViaRelay(up.relayLastDeliveryMillis(accountId))",
             "!isWatched(accountId, store.currentId(), store.pushAllAccounts()) -> PushStatus.NotWatched",
             "up.isActive(accountId) -> PushStatus.ViaUnifiedPush(up.distributorLabel())",
-            "isBatterySaver(context) -> PushStatus.Periodic",
+            "resolveDeliveryMode(account?.deliveryMode, globalDeliveryMode(context)) == DeliveryMode.BATTERY_SAVER -> PushStatus.Periodic",
             "PushService.isConnected(accountId) -> PushStatus.Direct(up.unifiedPushMissing(accountId, account?.protocol))",
             "up.isPending(accountId) -> PushStatus.Connecting",
             "PushService.isRunning -> PushStatus.Connecting",

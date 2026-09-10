@@ -6,6 +6,7 @@ import app.sterna.container
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.settings.DeliveryMode
+import app.sterna.core.data.settings.resolveDeliveryMode
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
@@ -48,28 +49,34 @@ object PushController {
     var unifiedInboxVisible: Boolean = false
 
     fun transportFor(context: Context, credentials: AccountCredentials): Transport =
-        transportFor(context, credentials, isBatterySaver(context))
+        transportOf(deliveryFacts(context, credentials), globalDeliveryMode(context))
 
-    private fun transportFor(context: Context, credentials: AccountCredentials, batterySaver: Boolean): Transport {
+    private fun deliveryFacts(context: Context, credentials: AccountCredentials): AccountDelivery {
         val container = (context.applicationContext as Application).container
-        val up = container.unifiedPushManager
-        return when {
-            // A linked sub-account holds no live push of its own (#31): the server never puts an
-            // ACL-shared account's StateChanges on the login's EventSource.
-            container.accountStore.account(credentials.id)?.isLinked == true -> Transport.PERIODIC
-            // Not gated on JMAP: an IMAP relay rides this too, but only once active, a payload
-            // really arrived, or any distributor would trade IMAP IDLE for a dead endpoint.
-            up.isActive(credentials.id) -> Transport.UNIFIED_PUSH
-            batterySaver -> Transport.PERIODIC
-            credentials.protocol == MailProtocol.JMAP -> Transport.EVENT_SOURCE
-            else -> Transport.IMAP_IDLE
-        }
+        return AccountDelivery(
+            id = credentials.id,
+            isLinked = container.accountStore.account(credentials.id)?.isLinked == true,
+            unifiedPushActive = container.unifiedPushManager.isActive(credentials.id),
+            protocol = credentials.protocol,
+            deliveryMode = container.accountStore.deliveryMode(credentials.id),
+        )
     }
 
     /** Synchronous read: DataStore serves from memory after the first load, off any hot path. */
-    private fun isBatterySaver(context: Context): Boolean {
+    private fun globalDeliveryMode(context: Context): DeliveryMode {
         val settings = (context.applicationContext as Application).container.settingsRepository
-        return runBlocking { settings.deliveryMode.first() } == DeliveryMode.BATTERY_SAVER
+        return runBlocking { settings.deliveryMode.first() }
+    }
+
+    fun deliveryModeFor(context: Context, accountId: String): DeliveryMode {
+        val store = (context.applicationContext as Application).container.accountStore
+        return resolveDeliveryMode(store.deliveryMode(accountId), globalDeliveryMode(context))
+    }
+
+    internal fun directAccountIdsFor(context: Context, accounts: List<AccountCredentials>): Set<String> {
+        val appContext = context.applicationContext as Application
+        val global = globalDeliveryMode(appContext)
+        return directAccountIds(accounts.map { deliveryFacts(appContext, it) }, global).toSet()
     }
 
     /** Whether [accountId] is in the push/worker watched set (A8). The notifications filter applies
@@ -167,7 +174,7 @@ object PushController {
             // Not watched at all (A8), decided before every branch below so it cannot masquerade.
             !isWatched(accountId, store.currentId(), store.pushAllAccounts()) -> PushStatus.NotWatched
             up.isActive(accountId) -> PushStatus.ViaUnifiedPush(up.distributorLabel())
-            isBatterySaver(context) -> PushStatus.Periodic
+            resolveDeliveryMode(account?.deliveryMode, globalDeliveryMode(context)) == DeliveryMode.BATTERY_SAVER -> PushStatus.Periodic
             // An open connection wins over a pending UnifiedPush bring-up: the EventSource stays up
             // through REGISTERING/VERIFYING, so delivery is direct right now (#53).
             PushService.isConnected(accountId) -> PushStatus.Direct(up.unifiedPushMissing(accountId, account?.protocol))
@@ -193,9 +200,9 @@ object PushController {
         // Kick the UnifiedPush state machine (no-op for IMAP or without a distributor).
         accounts.forEach { up.ensureRegistered(it) }
         // An account counts as direct until UnifiedPush is fully active, so bring-up never gaps
-        // delivery. In battery saver none is: the 30-minute worker carries the rest.
-        val batterySaver = isBatterySaver(appContext)
-        val direct = accounts.filter { transportFor(appContext, it, batterySaver).isDirect }
+        // delivery. The global mode is read once for the whole list and resolved per account.
+        val directIds = directAccountIdsFor(appContext, accounts)
+        val direct = accounts.filter { it.id in directIds }
         val currentId = store.currentId()
         if (direct.isEmpty()) {
             PushService.stop(appContext)

@@ -66,7 +66,7 @@ class NotificationsGateWiringTest {
                 "Column(",
                 "Modifier.fillMaxSize().padding(padding).verticalScroll(scroll),",
                 ") {",
-                "SettingsSection(stringResource(R.string.settings_delivery_section)) {",
+                "SettingsSection(stringResource(R.string.settings_new_mail_section)) {",
             ),
             "the notifications screen's gate",
             SETTINGS_SCREEN,
@@ -147,27 +147,55 @@ class NotificationsGateWiringTest {
         )
     }
 
-    @Test fun `each delivery row shows and writes its own value`() {
+    @Test fun `each delivery row shows and writes this account's own value`() {
         assertBlockIn(
-            notificationsScreen(),
+            accountNotificationsSection(),
             listOf(
-                "SettingsSection(stringResource(R.string.settings_delivery_section)) {",
                 "DeliveryModeOption(",
                 "title = stringResource(R.string.settings_delivery_instant),",
                 "subtitle = stringResource(R.string.settings_delivery_instant_desc),",
-                "selected = state.deliveryMode == DeliveryMode.INSTANT,",
-                "onClick = { viewModel.setDeliveryMode(DeliveryMode.INSTANT) },",
+                "selected = deliveryMode == DeliveryMode.INSTANT,",
+                "onClick = {",
+                "deliveryMode = DeliveryMode.INSTANT",
+                "viewModel.setDeliveryMode(accountId, DeliveryMode.INSTANT)",
+                "},",
                 ")",
                 "DeliveryModeOption(",
                 "title = stringResource(R.string.settings_delivery_saver),",
                 "subtitle = stringResource(R.string.settings_delivery_saver_desc),",
-                "selected = state.deliveryMode == DeliveryMode.BATTERY_SAVER,",
-                "onClick = { viewModel.setDeliveryMode(DeliveryMode.BATTERY_SAVER) },",
+                "selected = deliveryMode == DeliveryMode.BATTERY_SAVER,",
+                "onClick = {",
+                "deliveryMode = DeliveryMode.BATTERY_SAVER",
+                "viewModel.setDeliveryMode(accountId, DeliveryMode.BATTERY_SAVER)",
+                "},",
                 ")",
-                "}",
             ),
-            "the delivery rows",
+            "the account's delivery rows",
             SETTINGS_SCREEN,
+        )
+    }
+
+    @Test fun `the rows open on the mode the account is really running under`() {
+        assertEquals(
+            "the account editor must seed its delivery state from viewModel.deliveryMode(accountId), " +
+                "keyed by accountId like every other field of the screen. A constant, or the stored " +
+                "field alone, draws 'Instant' for an account that has never chosen and is really " +
+                "running under a global battery saver.",
+            listOf("var deliveryMode by remember(accountId) { mutableStateOf(viewModel.deliveryMode(accountId)) }"),
+            codeLines(SETTINGS_SCREEN).filter { it.startsWith("var deliveryMode ") },
+        )
+    }
+
+    @Test fun `no screen offers one delivery setting for every account any more`() {
+        val offenders = codeLines(SETTINGS_SCREEN).filter { "settings_delivery_section" in it } +
+            codeLines(SETTINGS_SCREEN).filter { "viewModel.setDeliveryMode(DeliveryMode." in it }
+        assertEquals(
+            "delivery is decided per account (#190). A row that writes SettingsViewModel's global " +
+                "mode, or the heading that used to sit above it, is that decision coming back for " +
+                "every account at once — and the per-account rows would then be silently overruled " +
+                "for every account that never chose. Found:\n" + offenders.joinToString("\n"),
+            emptyList<String>(),
+            offenders,
         )
     }
 
@@ -212,6 +240,25 @@ class NotificationsGateWiringTest {
             body += line
         }
         error("NotificationsScreen is never closed in SettingsScreen.kt")
+    }
+
+    private fun accountNotificationsSection(): List<String> {
+        val lines = codeLines(SETTINGS_SCREEN)
+        val opener = "SettingsSection(stringResource(R.string.settings_account_notifications_section)) {"
+        val at = lines.indexOfFirst { it == opener }
+        check(at >= 0) {
+            "no '$opener' in SettingsScreen.kt — the account's notifications section moved or was " +
+                "reshaped, and this lint must be taught the new shape rather than left green over " +
+                "a section it never read"
+        }
+        var depth = 1
+        val body = mutableListOf<String>()
+        for (line in lines.drop(at + 1)) {
+            depth += line.count { it == '{' } - line.count { it == '}' }
+            if (depth <= 0) return body
+            body += line
+        }
+        error("the account's notifications section is never closed in SettingsScreen.kt")
     }
 
     private fun assertBlock(file: File, expected: List<String>, what: String) =

@@ -1,5 +1,6 @@
 package app.sterna.core.data.account
 
+import app.sterna.core.data.settings.DeliveryMode
 import kotlinx.serialization.Serializable
 
 /** Persisted account metadata (the password is stored separately, encrypted). */
@@ -17,6 +18,7 @@ data class StoredAccount(
     val inboxName: String = "Inbox",
     val unread: Int = 0,
     val syncWindow: SyncWindow = SyncWindow.DAYS_90,
+    val deliveryMode: DeliveryMode? = null,
     /** Whether new-mail notifications fire for this account (per-account opt-out). */
     val notificationsEnabled: Boolean = true,
     /** Whether a sent copy is APPENDed into Sent (IMAP only), off for a submission server that files its own. */

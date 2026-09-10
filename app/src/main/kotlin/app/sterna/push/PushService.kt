@@ -86,9 +86,13 @@ class PushService : Service() {
         val store = application.container.accountStore
         val up = application.container.unifiedPushManager
         val watched = if (store.pushAllAccounts()) store.allCredentials() else listOfNotNull(store.load())
-        // Honour the per-account notification opt-out; UnifiedPush-active accounts are served by
-        // their endpoint (#17).
-        val accounts = watched.filter { store.notificationsEnabled(it.id) && !up.isActive(it.id) }
+        // The opt-out and the endpoint (#17), then the transport: delivery is each account's own
+        // setting, so an arm raised for an instant one must not connect the battery-saver ones.
+        val direct = PushController.directAccountIdsFor(application, watched)
+        val accounts = watched.filter {
+            store.notificationsEnabled(it.id) && !up.isActive(it.id) &&
+                it.id in direct
+        }
         if (accounts.isEmpty()) {
             // The one arm that ends without even a summary line. Legitimate, and also what a
             // credential that failed to decrypt looks like from here, so say which of the two.

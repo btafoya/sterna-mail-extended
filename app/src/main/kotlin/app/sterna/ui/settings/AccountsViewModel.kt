@@ -22,6 +22,7 @@ import app.sterna.core.data.account.syncWindowChanged
 import app.sterna.core.data.mail.OAuthDeniedException
 import app.sterna.core.data.mail.OAuthProvider
 import app.sterna.core.data.pgp.PgpResult
+import app.sterna.core.data.settings.DeliveryMode
 import app.sterna.pgp.PgpProviders
 import app.sterna.push.NewMailNotifier
 import app.sterna.push.Notifications
@@ -191,6 +192,15 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
             NewMailNotifier.clear(getApplication(), id)
             getApplication<Application>().container.unifiedPushManager.allowDistributorChoice()
         }
+        refresh()
+        PushController.apply(getApplication(), userInitiated = true)
+    }
+
+    fun deliveryMode(id: String): DeliveryMode =
+        PushController.deliveryModeFor(getApplication(), id)
+
+    fun setDeliveryMode(id: String, mode: DeliveryMode) {
+        store.setDeliveryMode(id, mode)
         refresh()
         PushController.apply(getApplication(), userInitiated = true)
     }
