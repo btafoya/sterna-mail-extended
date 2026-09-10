@@ -18,15 +18,17 @@ internal fun selectionIsGone(selectedMailboxId: String?, mailboxes: List<Mailbox
     return mailboxes.none { it.id == selectedMailboxId }
 }
 
-/** True when the folder on screen is gone (#89) or hidden by "subscribed folders only" (#174).
- * Both lists are judged; elsewhere a hidden folder is still a real folder. */
+/** True when the folder on screen is gone (#89) or hidden, by "subscribed folders only" (#174) or
+ *  by the account's registry (#207). Both lists are judged; elsewhere a hidden folder is real. */
 internal fun selectionIsUnreachable(
     selectedMailboxId: String?,
     mailboxes: List<Mailbox>,
     showOnlySubscribed: Boolean,
+    hidden: Set<String> = emptySet(),
+    inboxId: String? = null,
 ): Boolean =
     selectionIsGone(selectedMailboxId, mailboxes) ||
-        selectionIsGone(selectedMailboxId, visibleFolders(mailboxes, showOnlySubscribed))
+        selectionIsGone(selectedMailboxId, shownFolders(visibleFolders(mailboxes, showOnlySubscribed), hidden, inboxId))
 
 /** The folder a tapped notification may switch the list to, or null when it is unreachable (#174).
  * [mailboxes] is the whole list, here and at `resolve`: it is the result that is judged. */
@@ -34,9 +36,11 @@ internal fun notificationFolderToShow(
     resolvedMailboxId: String?,
     mailboxes: List<Mailbox>,
     showOnlySubscribed: Boolean,
+    hidden: Set<String> = emptySet(),
+    inboxId: String? = null,
 ): String? {
     val target = resolvedMailboxId ?: return null
-    if (selectionIsUnreachable(target, mailboxes, showOnlySubscribed)) return null
+    if (selectionIsUnreachable(target, mailboxes, showOnlySubscribed, hidden, inboxId)) return null
     return target
 }
 
@@ -52,16 +56,18 @@ private fun roleRank(role: String?): Int = when (role) {
 }
 
 /** The folders a move-to-folder picker offers: [mailboxes] minus the current folder and what
- * [showOnlySubscribed] hides (#174), standard first then the user's own by path. Only the
- *  targets may be filtered, or a child whose parent is hidden loses a path segment (#109). */
+ * [showOnlySubscribed] (#174) and [hidden] (#207) leave out, standard first then the user's own by
+ *  path. Only the targets may be filtered, or a child whose parent is hidden loses a segment (#109). */
 internal fun moveTargets(
     mailboxes: List<Mailbox>,
     currentMailboxId: String?,
     showOnlySubscribed: Boolean = false,
+    hidden: Set<String> = emptySet(),
+    inboxId: String? = null,
     collator: Collator = Collator.getInstance(),
     ancestorsOf: (Mailbox, List<Mailbox>) -> List<String> = ::mailboxAncestors,
 ): List<Mailbox> =
-    visibleFolders(mailboxes, showOnlySubscribed).filter { it.id != currentMailboxId }
+    shownFolders(visibleFolders(mailboxes, showOnlySubscribed), hidden, inboxId).filter { it.id != currentMailboxId }
         .map { it to (ancestorsOf(it, mailboxes) + it.name) }
         .sortedWith(
             compareBy<Pair<Mailbox, List<String>>> { roleRank(it.first.role) }

@@ -31,6 +31,7 @@ data class StoredAccount(
     /** Per-folder collapse choice; absent = undecided. A `Map`, not a set: unfolding must write `false`, or it folds
      *  back. */
     val collapsedFolders: Map<String, Boolean> = emptyMap(),
+    val hiddenFolders: Set<String> = emptySet(),
     /** User-chosen accent colour (ARGB); null = auto (derived from the address). */
     val color: Int? = null,
     /** Legacy account-level signature; seeds the default identity when none are set. */

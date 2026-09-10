@@ -540,6 +540,23 @@ class AccountStore(context: Context) : AccountStorage {
         saveAccounts(withRenamedCollapsedFolder(accounts(), id, oldId, newId, delimiter))
     }
 
+    fun hiddenFolders(id: String): Set<String> = account(id)?.hiddenFolders ?: emptySet()
+
+    @Synchronized
+    fun setFolderHidden(id: String, folderId: String, hidden: Boolean) {
+        saveAccounts(withHiddenFolder(accounts(), id, folderId, hidden))
+    }
+
+    @Synchronized
+    override fun replaceHiddenFolder(id: String, oldId: String, newId: String, delimiter: String) {
+        saveAccounts(withRenamedHiddenFolder(accounts(), id, oldId, newId, delimiter))
+    }
+
+    @Synchronized
+    override fun forgetHiddenFolders(id: String, folderIds: Collection<String>) {
+        saveAccounts(withoutHiddenFolder(accounts(), id, folderIds))
+    }
+
     /**
      * Re-key a watched folder after an IMAP rename (ids are folder paths there). Also rewrites
      * watched children of [oldId]. No-op for JMAP ids, which are stable across renames.

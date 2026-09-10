@@ -456,7 +456,7 @@ class UnreadViewWiringLintTest {
 
         /** Every line of the ViewModel that names the flag, or the number, the screen reads. */
         private val EXPECTED_VIEW_FLAG_LINES = listOf(
-            "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed), showRefreshIndicator = showing)",
+            "base.copy(accountId = hiding.accountId, unreadViewCount = unreadViewCount(hiding.accountId, scopes, base.mailboxes), visibleMailboxes = shownFolders(visibleFolders(base.mailboxes, onlySubscribed), listed.ids, listed.inboxId), showRefreshIndicator = showing)",
             "unreadView = base.unreadView,",
             "unreadView = sel is Sel.Unread,",
             // The placeholder `state` starts on, below `}.stateIn(`, a second site of the line
@@ -476,14 +476,14 @@ class UnreadViewWiringLintTest {
             // The fold gained a fifth flow, the refresh indicator's visibility (#178): the
             // display of the tern is derived, and the truth `refreshing`, carried by baseState
             // above, untouched, is what still empties the centre of the screen (#63).
-            "private val badgedState = combine(baseState, unreadScopes, currentAccountId, showOnlySubscribed, indicatorShowing) { base, scopes, accountId, onlySubscribed, showing ->",
+            "private val badgedState = combine(baseState, unreadScopes, currentHiding, showOnlySubscribed, indicatorShowing) { base, scopes, hiding, onlySubscribed, showing ->",
             "private val baseState = combine(mailboxes, selection, meta, status, unifiedUnread) { mailboxes, sel, meta, status, unifiedUnread ->",
             "val state: StateFlow<MailUi> = combine(badgedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->",
         )
 
         /** The badge, computed once, from the scope the pager uses. */
         private val EXPECTED_BADGE_CALL = listOf(
-            "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed), showRefreshIndicator = showing)",
+            "base.copy(accountId = hiding.accountId, unreadViewCount = unreadViewCount(hiding.accountId, scopes, base.mailboxes), visibleMailboxes = shownFolders(visibleFolders(base.mailboxes, onlySubscribed), listed.ids, listed.inboxId), showRefreshIndicator = showing)",
         )
 
         /** Back's answer: carried once, decided nowhere but [isAtInbox]. Sorted. */

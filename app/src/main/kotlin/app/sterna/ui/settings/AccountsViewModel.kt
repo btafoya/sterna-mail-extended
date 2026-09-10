@@ -21,6 +21,7 @@ import app.sterna.core.data.account.subscriptionSyncOnToggle
 import app.sterna.core.data.account.syncWindowChanged
 import app.sterna.core.data.mail.OAuthDeniedException
 import app.sterna.core.data.mail.OAuthProvider
+import app.sterna.core.jmap.model.Mailbox
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.data.settings.DeliveryMode
 import app.sterna.pgp.PgpProviders
@@ -33,6 +34,7 @@ import app.sterna.ui.inbox.prunedView
 import app.sterna.widget.RecentMailWidgetDraw
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -154,6 +156,18 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
      *  An unwatched account's notifications toggle is inert, so the UI says so under it. */
     fun isWatched(id: String): Boolean =
         PushController.isWatched(id, store.currentId(), store.pushAllAccounts())
+
+    fun folders(id: String): Flow<List<Mailbox>> = mail.observeMailboxes(id)
+
+    fun setFolderHidden(id: String, folderId: String, hidden: Boolean) {
+        store.setFolderHidden(id, folderId, hidden)
+    }
+
+    fun setFolderWatched(id: String, folderId: String, watched: Boolean) {
+        store.setFolderWatched(id, folderId, watched)
+        if (!watched) NewMailNotifier.clear(getApplication(), id, folderId)
+        PushController.apply(getApplication(), userInitiated = true)
+    }
 
     fun syncWindow(id: String): SyncWindow = store.syncWindow(id)
 

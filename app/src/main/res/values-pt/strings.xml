@@ -992,4 +992,8 @@
     <string name="widget_latest_description">Lista as mensagens mais recentes de todas as caixas de entrada.</string>
     <string name="widget_latest_empty">Sem mensagens</string>
     <string name="widget_latest_hidden">Mensagem oculta</string>
+    <string name="folders_manage_title">Gerir as pastas</string>
+    <string name="folders_manage_show_title">Mostrar esta pasta</string>
+    <string name="folders_manage_show_subtitle">Uma pasta oculta mantém as mensagens e a pesquisa encontra-as</string>
+    <string name="folders_manage_watch_subtitle">Transfere esta pasta em segundo plano</string>
 </resources>

@@ -123,7 +123,7 @@ class PageKeyWiringLintTest {
         assertEquals(
             "…and the scope must be DERIVED from that record and from the subscription setting, in " +
                 "one place. Derivations found were:\n${derivation.joinToString("\n")}",
-            listOf("unreadViewScopes(accountId, visibleFolders(folders, onlySubscribed))"),
+            listOf("unreadViewScopes(accountId, shownFolders(visibleFolders(folders, onlySubscribed), hiding.ids, hiding.inboxId))"),
             derivation,
         )
     }

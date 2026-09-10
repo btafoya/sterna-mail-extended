@@ -982,4 +982,8 @@
     <string name="widget_latest_description">Listet die neuesten Nachrichten aus allen Posteingängen auf.</string>
     <string name="widget_latest_empty">Keine Nachrichten</string>
     <string name="widget_latest_hidden">Nachricht ausgeblendet</string>
+    <string name="folders_manage_title">Ordner verwalten</string>
+    <string name="folders_manage_show_title">Diesen Ordner anzeigen</string>
+    <string name="folders_manage_show_subtitle">Ein verborgener Ordner behält seine E-Mails und bleibt durchsuchbar</string>
+    <string name="folders_manage_watch_subtitle">Ruft diesen Ordner im Hintergrund ab</string>
 </resources>

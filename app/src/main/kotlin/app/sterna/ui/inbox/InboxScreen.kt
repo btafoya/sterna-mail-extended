@@ -82,7 +82,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -218,10 +217,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 
-/** Folder roles whose drawer row shows no overflow menu: the inbox is always watched (#16), and
- *  notifying about one's own sent/drafts/trash/junk would be noise. */
-private val watchMenuHiddenRoles = setOf("inbox", "sent", "drafts", "trash", "junk")
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InboxScreen(
@@ -235,6 +230,7 @@ fun InboxScreen(
     /** Open a saved draft in compose for editing (#63), tapping a row in the Drafts folder. */
     onEditDraft: (emailId: String, accountId: String?) -> Unit,
     onOpenSettings: () -> Unit,
+    onManageFolders: () -> Unit,
     /** Advanced search, carrying whatever is already typed in the search bar so it isn't retyped. */
     onOpenSearch: (query: String) -> Unit,
     onOpenScheduled: () -> Unit,
@@ -265,6 +261,7 @@ fun InboxScreen(
     // …and whether that account hides its unsubscribed folders (#174). Read next to the list, not
     // folded into it: moveTargets needs the whole list for the parent paths it shows (#109).
     val moveTargetsOnlySubscribed by viewModel.selectionOnlySubscribed.collectAsStateWithLifecycle()
+    val moveTargetsHiding by viewModel.selectionHiding.collectAsStateWithLifecycle()
     // The picker's account row (#189): the account the selection belongs to, and the one chosen
     // on the row, if any, both live in the ViewModel so the choice survives a rotation.
     val moveOwnerAccountId by viewModel.moveOwnerAccountId.collectAsStateWithLifecycle()
@@ -282,7 +279,6 @@ fun InboxScreen(
     var folderToDeleteRecursive by remember { mutableStateOf<Mailbox?>(null) }
     var folderToAddChild by remember { mutableStateOf<Mailbox?>(null) }
     val undo by viewModel.undo.collectAsStateWithLifecycle()
-    val watchedFolders by viewModel.watchedFolders.collectAsStateWithLifecycle()
     // The current account's explicit fold/unfold choice per folder, persisted. A folder with no
     // key in here is one nobody decided anything about.
     val collapsedFolders by viewModel.collapsedFolders.collectAsStateWithLifecycle()
@@ -373,8 +369,8 @@ fun InboxScreen(
         // The folder on screen is left out of the list only while the list is the selection's own
         // account's: listing another account's, its id names nothing there, or a homonym (#92).
         val moveExcludedMailbox = pickerExcludedMailbox(moveAccountId, moveOwnerAccountId, ui.selectedMailboxId)
-        val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed) {
-            moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed)
+        val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding) {
+            moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId)
         }
         // Nested folders sharing a leaf are one and the same row without their parent path (#109).
         // Resolved against the whole folder list, not the offered subset. Memoized like [targets]:
@@ -1695,7 +1691,6 @@ fun InboxScreen(
                         accounts = accounts,
                         currentAccountId = currentAccountId,
                         ui = ui,
-                        watchedFolders = watchedFolders,
                         collapsedFolders = collapsedFolders,
                         folderRowsBadgeUnread = folderRowsBadgeUnread,
                         viewModel = viewModel,
@@ -1704,6 +1699,7 @@ fun InboxScreen(
                         onSwitchAccount = onSwitchAccount,
                         onOpenAccountSettings = onOpenAccountSettings,
                         onOpenSettings = onOpenSettings,
+                        onManageFolders = onManageFolders,
                         onCreateFolder = { showCreateFolder = true },
                         onAddSubfolder = { folderToAddChild = it },
                         onRenameFolder = { folderToRename = it },
@@ -1722,7 +1718,6 @@ fun InboxScreen(
                         accounts = accounts,
                         currentAccountId = currentAccountId,
                         ui = ui,
-                        watchedFolders = watchedFolders,
                         collapsedFolders = collapsedFolders,
                         folderRowsBadgeUnread = folderRowsBadgeUnread,
                         viewModel = viewModel,
@@ -1731,6 +1726,7 @@ fun InboxScreen(
                         onSwitchAccount = onSwitchAccount,
                         onOpenAccountSettings = onOpenAccountSettings,
                         onOpenSettings = onOpenSettings,
+                        onManageFolders = onManageFolders,
                         onCreateFolder = { showCreateFolder = true },
                         onAddSubfolder = { folderToAddChild = it },
                         onRenameFolder = { folderToRename = it },
@@ -1751,7 +1747,6 @@ private fun DrawerContent(
     accounts: List<app.sterna.core.data.account.StoredAccount>,
     currentAccountId: String,
     ui: MailUi,
-    watchedFolders: Set<String>,
     collapsedFolders: Map<String, Boolean>,
     folderRowsBadgeUnread: Boolean,
     viewModel: InboxViewModel,
@@ -1760,6 +1755,7 @@ private fun DrawerContent(
     onSwitchAccount: (String) -> Unit,
     onOpenAccountSettings: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    onManageFolders: () -> Unit,
     /** The four dialogs the drawer opens live with the screen, not with the sheet: hoisted as
      *  callbacks so a dialog outlives the modal sheet closing under it. */
     onCreateFolder: () -> Unit,
@@ -1968,10 +1964,9 @@ private fun DrawerContent(
                             }
                         },
                         label = { Text(label) },
-                        // The inbox is always watched (no menu); notifying about one's own
-                        // sent/drafts/trash/junk would be noise (#16). Management actions stay
-                        // limited to user-created folders (no role).
-                        badge = if (mailbox.role !in watchMenuHiddenRoles) {
+                        // The question its three items answer, asked once: a role list here opens
+                        // an empty menu on every role they refuse.
+                        badge = if (mailbox.role == null) {
                             {
                                 Box {
                                     var folderMenu by remember { mutableStateOf(false) }
@@ -1979,26 +1974,18 @@ private fun DrawerContent(
                                         Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_folder_options))
                                     }
                                     DropdownMenu(folderMenu, onDismissRequest = { folderMenu = false }, shape = MaterialTheme.shapes.medium) {
-                                        val watched = mailbox.id in watchedFolders
                                         DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.inbox_folder_watch)) },
-                                            trailingIcon = { Checkbox(checked = watched, onCheckedChange = null) },
-                                            onClick = { folderMenu = false; viewModel.setFolderWatched(mailbox.id, !watched) },
+                                            text = { Text(stringResource(R.string.inbox_new_subfolder)) },
+                                            onClick = { folderMenu = false; onAddSubfolder(mailbox) },
                                         )
-                                        if (mailbox.role == null) {
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.inbox_new_subfolder)) },
-                                                onClick = { folderMenu = false; onAddSubfolder(mailbox) },
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.inbox_rename)) },
-                                                onClick = { folderMenu = false; onRenameFolder(mailbox) },
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.inbox_delete)) },
-                                                onClick = { folderMenu = false; onDeleteFolder(mailbox) },
-                                            )
-                                        }
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.inbox_rename)) },
+                                            onClick = { folderMenu = false; onRenameFolder(mailbox) },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.inbox_delete)) },
+                                            onClick = { folderMenu = false; onDeleteFolder(mailbox) },
+                                        )
                                     }
                                 }
                             }
@@ -2018,6 +2005,16 @@ private fun DrawerContent(
                     label = { Text(stringResource(R.string.inbox_new_folder)) },
                     selected = false,
                     onClick = onCreateFolder,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Filled.Tune, contentDescription = null) },
+                    label = { Text(stringResource(R.string.folders_manage_title)) },
+                    selected = false,
+                    onClick = {
+                        onManageFolders()
+                        scope.launch { drawerState.close() }
+                    },
                     modifier = Modifier.padding(horizontal = 12.dp),
                 )
                 HorizontalDivider()

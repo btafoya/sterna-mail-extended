@@ -23,6 +23,7 @@ import app.sterna.ui.compose.receivingAddress
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.account.accountAddresses
+import app.sterna.core.data.account.folderHidingOf
 import app.sterna.core.data.calendar.ICalendar
 import app.sterna.core.data.calendar.ParsedEvent
 import app.sterna.core.data.getOrElseUnlessCancelled
@@ -479,7 +480,8 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         },
         combine(_moveAccountId, _ownerAccountId, _mailboxId) { chosen, owner, current -> pickerExcludedMailbox(chosen, owner, current) },
         combine(store.accountsFlow, movePickerAccountId) { accounts, id -> showOnlySubscribedFor(id, accounts) },
-    ) { folders, current, onlySubscribed -> moveTargets(folders, current, onlySubscribed) }
+        combine(store.accountsFlow, movePickerAccountId) { accounts, id -> folderHidingOf(id, accounts) },
+    ) { folders, current, onlySubscribed, hiding -> moveTargets(folders, current, onlySubscribed, hiding.ids, hiding.inboxId) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**

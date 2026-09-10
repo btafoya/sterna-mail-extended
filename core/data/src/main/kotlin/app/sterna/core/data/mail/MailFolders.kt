@@ -53,8 +53,9 @@ class MailFolders(
         refreshMailboxes(credentials)
     }
 
-    /** Rename a folder, then refresh; returns its id. IMAP ids are paths, so both per-folder registries
-     *  are re-keyed to follow: the watch flags (#16) and the drawer's fold choices (#185). */
+    /** Rename a folder, then refresh; returns its id. IMAP ids are paths, so the per-folder registries
+     *  are re-keyed to follow: the watch flags (#16), the drawer's fold choices (#185), the hidden
+     *  folders (#207). */
     suspend fun renameFolder(credentials: AccountCredentials, mailboxId: String, newName: String): String {
         if (credentials.protocol == MailProtocol.IMAP) {
             val delim = imap.listImapFolders(credentials).firstOrNull { it.path == mailboxId }?.delimiter
@@ -64,6 +65,7 @@ class MailFolders(
             imap.renameFolder(credentials, mailboxId, newPath)
             accountStore.replaceWatchedFolder(credentials.id, mailboxId, newPath, delim)
             accountStore.replaceCollapsedFolder(credentials.id, mailboxId, newPath, delim)
+            accountStore.replaceHiddenFolder(credentials.id, mailboxId, newPath, delim)
             refreshMailboxes(credentials)
             return newPath
         }
@@ -102,6 +104,9 @@ class MailFolders(
             accountStore.setFolderWatched(credentials.id, it, watched = false)
             emailDao.replaceMailbox(credentials.id, it, emptyList())
         }
+        // A hide key left on a destroyed path makes a folder later created at that path be born
+        // hidden, which nothing on screen can explain.
+        accountStore.forgetHiddenFolders(credentials.id, targets)
         refreshMailboxes(credentials)
         return targets
     }

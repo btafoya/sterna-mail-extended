@@ -80,7 +80,8 @@ transports**.
    enrolled silently, which subscribed a reporter's account to a push server he had
    installed for something else and never named to Sterna (#204). A refusal is
    remembered device-wide; switching an account's sync off and back on asks again.
-5. Folder selection (#16) is a **simple per-folder switch** in the folder UI. No
+5. Folder selection (#16) is a **simple per-folder switch**, carried since #207
+   by the Manage folders screen rather than the drawer's own folder menu. No
    configuration matrix.
 6. Decided during design review:
    - In Battery saver, **UnifiedPush subscriptions stay active and renewed**:

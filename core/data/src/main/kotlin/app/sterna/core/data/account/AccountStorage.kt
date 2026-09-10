@@ -76,6 +76,12 @@ interface AccountStorage {
     /** Re-key a watched folder after an IMAP rename, including watched children of [oldId]. */
     fun replaceWatchedFolder(id: String, oldId: String, newId: String, delimiter: String = "/")
 
+    /** Re-key a hidden folder after an IMAP rename, carrying everything under it across. */
+    fun replaceHiddenFolder(id: String, oldId: String, newId: String, delimiter: String = "/")
+
+    /** Drop the hide registry keys of folders a delete destroyed, descendants included. */
+    fun forgetHiddenFolders(id: String, folderIds: Collection<String>)
+
     /** Everything needed to open a connection for an account, secrets decrypted. */
     fun credentials(id: String): AccountCredentials?
 

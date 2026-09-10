@@ -132,7 +132,6 @@ class PermanentDrawerWiringLintTest {
             "accounts = accounts,",
             "currentAccountId = currentAccountId,",
             "ui = ui,",
-            "watchedFolders = watchedFolders,",
             "collapsedFolders = collapsedFolders,",
             "folderRowsBadgeUnread = folderRowsBadgeUnread,",
             "viewModel = viewModel,",
@@ -141,6 +140,7 @@ class PermanentDrawerWiringLintTest {
             "onSwitchAccount = onSwitchAccount,",
             "onOpenAccountSettings = onOpenAccountSettings,",
             "onOpenSettings = onOpenSettings,",
+            "onManageFolders = onManageFolders,",
             "onCreateFolder = { showCreateFolder = true },",
             "onAddSubfolder = { folderToAddChild = it },",
             "onRenameFolder = { folderToRename = it },",
@@ -153,9 +153,10 @@ class PermanentDrawerWiringLintTest {
                 "and in this order. A single one rewritten in a single branch compiles and is " +
                 "invisible to every other rule here: `folderRowsBadgeUnread = true` puts #185's " +
                 "fold-by-default back on an IMAP account, where a folder folds itself and the mail " +
-                "under it is badged nowhere; `watchedFolders = emptySet()` unticks every 'watch " +
-                "this folder' box on a wide window while the folders stay watched. Nothing in this " +
-                "module can compose the drawer, so this list is all there is.",
+                "under it is badged nowhere. Nothing in this " +
+                "module can compose the drawer, so this list is all there is. A folder screen " +
+                "opened for the wrong account (onManageFolders) lists another account's folders and " +
+                "writes its registry (#92/#121).",
             listOf(call, call),
             blocksAt(codeLines(INBOX_SCREEN), "DrawerContent(", call.size),
         )

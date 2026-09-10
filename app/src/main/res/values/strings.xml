@@ -1037,4 +1037,8 @@
     <string name="widget_latest_description">Lists the newest messages from all your inboxes.</string>
     <string name="widget_latest_empty">No messages</string>
     <string name="widget_latest_hidden">Message hidden</string>
+    <string name="folders_manage_title">Manage folders</string>
+    <string name="folders_manage_show_title">Show this folder</string>
+    <string name="folders_manage_show_subtitle">A hidden folder keeps its mail, and search still finds it</string>
+    <string name="folders_manage_watch_subtitle">Fetches this folder in the background</string>
 </resources>

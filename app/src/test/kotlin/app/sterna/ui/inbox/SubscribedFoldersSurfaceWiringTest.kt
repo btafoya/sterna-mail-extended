@@ -53,8 +53,8 @@ class SubscribedFoldersSurfaceWiringTest {
                 "field (#182) does not re-sort the whole account on every keystroke, and a key " +
                 "dropped from that list freezes the picker on a stale folder list.",
             listOf(
-                "val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed) {",
-                "moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed)",
+                "val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding) {",
+                "moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId)",
                 "}",
             ),
             block(INBOX_SCREEN, "val targets = remember(", 3),
@@ -92,9 +92,10 @@ class SubscribedFoldersSurfaceWiringTest {
                 "},",
                 "combine(_moveAccountId, _ownerAccountId, _mailboxId) { chosen, owner, current -> pickerExcludedMailbox(chosen, owner, current) },",
                 "combine(store.accountsFlow, movePickerAccountId) { accounts, id -> showOnlySubscribedFor(id, accounts) },",
-                ") { folders, current, onlySubscribed -> moveTargets(folders, current, onlySubscribed) }",
+                "combine(store.accountsFlow, movePickerAccountId) { accounts, id -> folderHidingOf(id, accounts) },",
+                ") { folders, current, onlySubscribed, hiding -> moveTargets(folders, current, onlySubscribed, hiding.ids, hiding.inboxId) }",
             ),
-            block(MESSAGE_VIEW_MODEL, "val moveTargets: StateFlow<List<Mailbox>> = combine(", 7),
+            block(MESSAGE_VIEW_MODEL, "val moveTargets: StateFlow<List<Mailbox>> = combine(", 8),
         )
     }
 
@@ -106,11 +107,12 @@ class SubscribedFoldersSurfaceWiringTest {
                 "are replayed on a setting change.",
             listOf(
                 "private val unreadScopes: StateFlow<List<Pair<String, String>>> =",
-                "combine(folderSnapshot, showOnlySubscribed) { (accountId, folders), onlySubscribed ->",
-                "unreadViewScopes(accountId, visibleFolders(folders, onlySubscribed))",
+                "combine(folderSnapshot, showOnlySubscribed, store.accountsFlow) { (accountId, folders), onlySubscribed, accounts ->",
+                "val hiding = folderHidingOf(accountId, accounts)",
+                "unreadViewScopes(accountId, shownFolders(visibleFolders(folders, onlySubscribed), hiding.ids, hiding.inboxId))",
                 "}.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())",
             ),
-            block(INBOX_VIEW_MODEL, "private val unreadScopes:", 4),
+            block(INBOX_VIEW_MODEL, "private val unreadScopes:", 5),
         )
     }
 
@@ -141,6 +143,30 @@ class SubscribedFoldersSurfaceWiringTest {
             ),
             block(INBOX_VIEW_MODEL, "val selectionOnlySubscribed:", 3),
         )
+        assertEquals(
+            "the drawer's hide registry (#207) must be read for the CURRENT account, and for that " +
+                "one alone: hand folderHidingOf anything else — the first record of the list, a " +
+                "fresh store read — and one account's hidden folders take folders away in every " +
+                "other account's drawer. The lines that USE it do not change shape when this one " +
+                "does, which is why the arguments are pinned here.",
+            listOf(
+                "private val currentHiding: StateFlow<FolderHiding> =",
+                "combine(currentAccountId, store.accountsFlow) { id, accounts -> folderHidingOf(id, accounts) }",
+                ".stateIn(viewModelScope, SharingStarted.Eagerly, FolderHiding(null, emptySet(), null))",
+            ),
+            block(INBOX_VIEW_MODEL, "private val currentHiding:", 3),
+        )
+        assertEquals(
+            "the list picker's hide registry (#207) must be read for the account the picker LISTS, " +
+                "never straight from the current one (#92): mailbox ids collide between two accounts " +
+                "of one server, and the two accounts' registries differ.",
+            listOf(
+                "val selectionHiding: StateFlow<FolderHiding> =",
+                "combine(movePickerAccountId, store.accountsFlow) { accountId, accounts -> folderHidingOf(accountId, accounts) }",
+                ".stateIn(viewModelScope, SharingStarted.Eagerly, FolderHiding(null, emptySet(), null))",
+            ),
+            block(INBOX_VIEW_MODEL, "val selectionHiding:", 3),
+        )
     }
 
     @Test fun `the side effects of the folder flow are NOT replayed on a setting change`() {
@@ -169,7 +195,7 @@ class SubscribedFoldersSurfaceWiringTest {
                 "The rule runs BEFORE select(), whose emptyPane is then false because the question " +
                 "is already answered.",
             listOf(
-                "val show = notificationFolderToShow(target, folders, showOnlySubscribed.value) ?: return",
+                "val show = notificationFolderToShow(target, folders, showOnlySubscribed.value, currentHiding.value.ids, currentHiding.value.inboxId) ?: return",
                 "setReadingPane(ReadingPaneRule.onFolderFromNotification(_readingPane.value, emailId, accountId))",
                 "folders.firstOrNull { it.id == show }?.let { select(it, emptyPane = false) }",
             ),
@@ -215,12 +241,13 @@ class SubscribedFoldersSurfaceWiringTest {
                 "from a list nobody has loaded yet.",
             listOf(
                 "private val inboxFallback: Job =",
-                "combine(folderSnapshot, showOnlySubscribed) { (_, folders), onlySubscribed ->",
-                "selectionIsUnreachable((selection.value as? Sel.Folder)?.id, folders, onlySubscribed)",
+                "combine(folderSnapshot, showOnlySubscribed, store.accountsFlow) { (accountId, folders), onlySubscribed, accounts ->",
+                "val hiding = folderHidingOf(accountId, accounts)",
+                "selectionIsUnreachable((selection.value as? Sel.Folder)?.id, folders, onlySubscribed, hiding.ids, hiding.inboxId)",
                 "}.onEach { unreachable -> if (unreachable) showInbox() }",
                 ".launchIn(viewModelScope)",
             ),
-            block(INBOX_VIEW_MODEL, "private val inboxFallback:", 5),
+            block(INBOX_VIEW_MODEL, "private val inboxFallback:", 6),
         )
         assertEquals(
             "the selection rule must be applied in ONE place. A second call site is a second " +
@@ -237,6 +264,18 @@ class SubscribedFoldersSurfaceWiringTest {
                 "child leaves that child's mail behind, unreachable — data loss.",
             listOf(NEW_BASE_COPY),
             block(INBOX_VIEW_MODEL, "base.copy(", 1),
+        )
+        assertEquals(
+            "the registry must be applied only to a list that belongs to the account it was read " +
+                "from. The two arrive on separate inputs of one combine, so an account switch pairs " +
+                "the new account's registry with the list still on screen — and on IMAP folder ids " +
+                "are paths that collide between two accounts of one server (#92/#121). The account " +
+                "the list belongs to is the recorded snapshot's, never a fresh store read, and " +
+                "reading it here is a read of a StateFlow, never a second collection of [mailboxes], " +
+                "whose side effects (#91, #89) a second collector replays. Executed on arguments by " +
+                "FolderHidingTest; that this call site passes the LISTED account is this test's.",
+            listOf("val listed = hiding.forList(folderSnapshot.value.first)"),
+            block(INBOX_VIEW_MODEL, "val listed =", 1),
         )
         val lines = codeLines(INBOX_VIEW_MODEL)
         assertEquals(
@@ -262,11 +301,34 @@ class SubscribedFoldersSurfaceWiringTest {
             codeLines(file).any { "visibleFolders(" in it }
         }.map { it.name }.sorted()
         assertEquals(
-            "the subscription filter moved. It belongs to the three files below and nowhere else — " +
+            "the subscription filter moved. It belongs to the four files below and nowhere else — " +
                 "in the repository or in the folder cache it would take with it every reader of the " +
                 "list: subfolderIdsOf (a delete that misses hidden children), the reader's parent " +
-                "paths, the rule editor, the watched folders.",
-            listOf("FolderSelection.kt", "InboxViewModel.kt", "SubscribedFolders.kt"),
+                "paths, the rule editor, the watched folders. All four are screen rules; the fourth " +
+                "is the folder screen's own (#207), which must list what the drawer can show and " +
+                "nothing more, or a switch offers to unhide what the subscription setting hides.",
+            listOf(
+                "FolderManagementRows.kt",
+                "FolderSelection.kt",
+                "InboxViewModel.kt",
+                "SubscribedFolders.kt",
+            ),
+            callers,
+        )
+    }
+
+    @Test fun `the hide filter is applied at the screen too, never at the source`() {
+        val callers = MAIN_SOURCES.filter { file ->
+            codeLines(file).any { "shownFolders(" in it }
+        }.map { it.name }.sorted()
+        assertEquals(
+            "the hide registry's filter (#207) moved. It belongs to the three files below and " +
+                "nowhere else — the declaration and the two screens that apply it. In the " +
+                "repository or in the folder cache it would take with it every reader of the list, " +
+                "exactly as the guard above forbids for the subscription filter: subfolderIdsOf (a " +
+                "delete that misses hidden children), the reader's parent paths, the rule editor, " +
+                "the watched folders.",
+            listOf("FolderSelection.kt", "HiddenFolders.kt", "InboxViewModel.kt"),
             callers,
         )
     }
@@ -299,9 +361,10 @@ class SubscribedFoldersSurfaceWiringTest {
         /** Whole line, arguments included, the shape `PageKeyWiringLintTest` and
          *  `UnreadViewWiringLintTest` pin from their own angle. */
         private const val NEW_BASE_COPY =
-            "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, " +
-                "scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, " +
-                "onlySubscribed), showRefreshIndicator = showing)"
+            "base.copy(accountId = hiding.accountId, unreadViewCount = unreadViewCount(" +
+                "hiding.accountId, scopes, base.mailboxes), visibleMailboxes = shownFolders(" +
+                "visibleFolders(base.mailboxes, onlySubscribed), listed.ids, listed.inboxId), " +
+                "showRefreshIndicator = showing)"
 
         private const val INBOX_SCREEN_PATH = "app/src/main/kotlin/app/sterna/ui/inbox/InboxScreen.kt"
 

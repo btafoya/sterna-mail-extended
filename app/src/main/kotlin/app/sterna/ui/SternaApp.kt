@@ -70,6 +70,7 @@ import app.sterna.ui.sender.MailBySenderScreen
 import app.sterna.ui.snoozed.SnoozedScreen
 import app.sterna.ui.search.SearchScreen
 import app.sterna.ui.onboarding.WelcomeScreen
+import app.sterna.ui.settings.FolderManagementScreen
 import app.sterna.ui.settings.SettingsScreen
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -407,6 +408,7 @@ private fun MainNavHost(
                     }
                 },
                 onOpenSettings = { entry.navigateOnce { nav.navigate("settings") } },
+                onManageFolders = { entry.navigateOnce { nav.navigate("folders?accountId=${Uri.encode(currentAccountId)}") } },
                 // The words already typed in the search bar travel with the navigation.
                 onOpenSearch = { q -> entry.navigateOnce { nav.navigate("search?q=${Uri.encode(q)}") } },
                 onOpenScheduled = { entry.navigateOnce { nav.navigate("scheduled") } },
@@ -652,6 +654,23 @@ private fun MainNavHost(
                 onBack = { entry.navigateOnce { nav.popBackStack() } },
                 onAccountsChanged = onAccountsChanged,
                 initialAccountId = entry.arguments?.getString("accountId")?.ifBlank { null },
+            )
+        }
+        composable(
+            route = "folders?accountId={accountId}",
+            arguments = listOf(
+                navArgument("accountId") { type = NavType.StringType; nullable = true; defaultValue = null },
+            ),
+            enterTransition = {
+                if (!motionEnabled) EnterTransition.None else slideInHorizontally(tween(SCREEN_SLIDE_MS)) { it }
+            },
+            popExitTransition = {
+                if (!motionEnabled) ExitTransition.None else slideOutHorizontally(tween(SCREEN_SLIDE_MS)) { it }
+            },
+        ) { entry ->
+            FolderManagementScreen(
+                accountId = entry.arguments?.getString("accountId")?.ifBlank { null }.orEmpty(),
+                onBack = { entry.navigateOnce { nav.popBackStack() } },
             )
         }
         composable("scheduled") { entry ->

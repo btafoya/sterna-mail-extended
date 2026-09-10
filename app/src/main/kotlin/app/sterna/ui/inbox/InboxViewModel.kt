@@ -23,6 +23,8 @@ import app.sterna.push.Notifications
 import app.sterna.push.PushController
 import app.sterna.snooze.Snoozes
 import app.sterna.core.data.account.AccountCredentials
+import app.sterna.core.data.account.FolderHiding
+import app.sterna.core.data.account.folderHidingOf
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.db.OutboxLogic
 import app.sterna.core.data.getOrElseUnlessCancelled
@@ -93,8 +95,8 @@ data class MailUi(
      *  dropped): the count above the results then says "at least N". */
     val searchComplete: Boolean = true,
     val mailboxes: List<Mailbox>,
-    /** The same list minus what the account's "subscribed folders only" setting hides (#174,
-     * [visibleFolders]), what the drawer draws, and nothing else. A second field, never a
+    /** The same list minus what the subscription setting (#174) and the hide registry (#207) leave
+     * out, what the drawer draws, and nothing else. A second field, never a
      *  replacement for [mailboxes], which is read for subfolder deletes ([InboxViewModel.subfolderIdsOf]),
      *  to tell a deleted folder from a hidden one (#89), and to name a row's folder and role. */
     val visibleMailboxes: List<Mailbox> = emptyList(),
@@ -679,6 +681,10 @@ class InboxViewModel(
         combine(store.accountsFlow, currentAccountId) { accounts, id -> showOnlySubscribedFor(id, accounts) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    private val currentHiding: StateFlow<FolderHiding> =
+        combine(currentAccountId, store.accountsFlow) { id, accounts -> folderHidingOf(id, accounts) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, FolderHiding(null, emptySet(), null))
+
     /**
      * The last folder list [mailboxes] delivered, with the account it belonged to, raw, unfiltered.
      * [mailboxes] carries side effects (#91, #89) and must be collected once, so the setting
@@ -694,8 +700,9 @@ class InboxViewModel(
      * [MailRepository.pagedMailbox] answers `PagingData.empty()` to.
      */
     private val unreadScopes: StateFlow<List<Pair<String, String>>> =
-        combine(folderSnapshot, showOnlySubscribed) { (accountId, folders), onlySubscribed ->
-            unreadViewScopes(accountId, visibleFolders(folders, onlySubscribed))
+        combine(folderSnapshot, showOnlySubscribed, store.accountsFlow) { (accountId, folders), onlySubscribed, accounts ->
+            val hiding = folderHidingOf(accountId, accounts)
+            unreadViewScopes(accountId, shownFolders(visibleFolders(folders, onlySubscribed), hiding.ids, hiding.inboxId))
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /**
@@ -706,8 +713,9 @@ class InboxViewModel(
      * (#91) a second collector would replay on every tick of the box.
      */
     private val inboxFallback: Job =
-        combine(folderSnapshot, showOnlySubscribed) { (_, folders), onlySubscribed ->
-            selectionIsUnreachable((selection.value as? Sel.Folder)?.id, folders, onlySubscribed)
+        combine(folderSnapshot, showOnlySubscribed, store.accountsFlow) { (accountId, folders), onlySubscribed, accounts ->
+            val hiding = folderHidingOf(accountId, accounts)
+            selectionIsUnreachable((selection.value as? Sel.Folder)?.id, folders, onlySubscribed, hiding.ids, hiding.inboxId)
         }.onEach { unreachable -> if (unreachable) showInbox() }
             .launchIn(viewModelScope)
 
@@ -893,6 +901,10 @@ class InboxViewModel(
         combine(movePickerAccountId, store.accountsFlow) { accountId, accounts -> showOnlySubscribedFor(accountId, accounts) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    val selectionHiding: StateFlow<FolderHiding> =
+        combine(movePickerAccountId, store.accountsFlow) { accountId, accounts -> folderHidingOf(accountId, accounts) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, FolderHiding(null, emptySet(), null))
+
     /**
      * The browse list, paged from Room. A single folder uses the RemoteMediator-backed pager; the
      * unified inbox pages cached rows only. The key comes from [pageKeyFlow], which is deduped:
@@ -1031,8 +1043,9 @@ class InboxViewModel(
      */
     private val indicatorShowing = refreshIndicatorVisibility(refreshRun, clock)
 
-    private val badgedState = combine(baseState, unreadScopes, currentAccountId, showOnlySubscribed, indicatorShowing) { base, scopes, accountId, onlySubscribed, showing ->
-        base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed), showRefreshIndicator = showing)
+    private val badgedState = combine(baseState, unreadScopes, currentHiding, showOnlySubscribed, indicatorShowing) { base, scopes, hiding, onlySubscribed, showing ->
+        val listed = hiding.forList(folderSnapshot.value.first)
+        base.copy(accountId = hiding.accountId, unreadViewCount = unreadViewCount(hiding.accountId, scopes, base.mailboxes), visibleMailboxes = shownFolders(visibleFolders(base.mailboxes, onlySubscribed), listed.ids, listed.inboxId), showRefreshIndicator = showing)
     }
 
     val state: StateFlow<MailUi> = combine(badgedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->
@@ -1407,7 +1420,7 @@ class InboxViewModel(
         )
         // [NotificationFolderSwitch.resolve] gets the whole list: a hidden folder is not an
         // unknown one, whose branch means deleted. Its result is judged ([notificationFolderToShow]).
-        val show = notificationFolderToShow(target, folders, showOnlySubscribed.value) ?: return
+        val show = notificationFolderToShow(target, folders, showOnlySubscribed.value, currentHiding.value.ids, currentHiding.value.inboxId) ?: return
         // Not a flat `emptyPane = false`, nor "was a message parked?", that park is spent by the
         // account switch. The order-proof question: is what the pane holds my message?
         setReadingPane(ReadingPaneRule.onFolderFromNotification(_readingPane.value, emailId, accountId))

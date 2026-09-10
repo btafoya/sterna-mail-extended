@@ -1002,4 +1002,8 @@
     <string name="widget_latest_description">Pokazuje najnowsze wiadomości ze wszystkich skrzynek odbiorczych.</string>
     <string name="widget_latest_empty">Brak wiadomości</string>
     <string name="widget_latest_hidden">Wiadomość ukryta</string>
+    <string name="folders_manage_title">Zarządzaj folderami</string>
+    <string name="folders_manage_show_title">Pokaż ten folder</string>
+    <string name="folders_manage_show_subtitle">Ukryty folder zachowuje pocztę i nadal można ją wyszukać</string>
+    <string name="folders_manage_watch_subtitle">Pobiera ten folder w tle</string>
 </resources>
