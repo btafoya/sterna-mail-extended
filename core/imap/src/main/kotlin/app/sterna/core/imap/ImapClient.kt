@@ -7,9 +7,6 @@ import java.io.Closeable
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
-import java.time.OffsetDateTime
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
@@ -932,8 +929,6 @@ class ImapSession(private var socket: Socket) : Closeable {
         runCatching { socket.close() }
     }
 
-    // ---- FETCH parsing ----
-
     private fun parseFetch(resp: List<Any?>): ImapMessage? {
         if (resp.getOrNull(2) != "FETCH") return null
         @Suppress("UNCHECKED_CAST")
@@ -947,7 +942,9 @@ class ImapSession(private var socket: Socket) : Closeable {
         val envelope = map["ENVELOPE"] as? List<Any?>
 
         val subject = decodeWords(envelope?.getOrNull(1) as? String)
-        val dateMillis = parseDate(envelope?.getOrNull(0) as? String)
+        // At or before the epoch counts as no date at all. The stamp is a net, never a preference.
+        val dateMillis = rfc5322DateMillis(envelope?.getOrNull(0) as? String).takeIf { it > 0L }
+            ?: (map["INTERNALDATE"] as? String)?.let(::imapDateTimeMillis) ?: 0L
         @Suppress("UNCHECKED_CAST")
         val fromAddr = (envelope?.getOrNull(2) as? List<Any?>)?.firstOrNull() as? List<Any?>
         val fromName = decodeWords(fromAddr?.getOrNull(0) as? String)
@@ -1028,17 +1025,6 @@ class ImapSession(private var socket: Socket) : Closeable {
             else -> false
         }
         return walk(bodystructure)
-    }
-
-    private companion object {
-        fun parseDate(raw: String?): Long {
-            if (raw.isNullOrBlank()) return 0L
-            val cleaned = raw.replace(Regex("\\s*\\([^)]*\\)"), "").trim()
-            return runCatching { ZonedDateTime.parse(cleaned, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli() }
-                .recoverCatching { OffsetDateTime.parse(cleaned).toInstant().toEpochMilli() }
-                .getOrDefault(0L)
-        }
-
     }
 }
 
@@ -1140,7 +1126,7 @@ internal fun imapDateTime(epochMs: Long): String {
     return "\"$day-${IMAP_MONTHS[t.monthValue - 1]}-${t.year} $time +0000\""
 }
 
-private val IMAP_MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+internal val IMAP_MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
     /**
      * `null` when [raw] is not an RFC 3501 §9 `date-time`. [raw] is the value as the parser hands it

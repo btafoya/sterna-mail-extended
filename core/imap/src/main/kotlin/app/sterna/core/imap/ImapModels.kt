@@ -75,10 +75,10 @@ data class ImapMessage(
          *  address that stops here is one they cannot address. */
     val cc: List<ImapAddress> = emptyList(),
         /**
-         * Envelope `Bcc` (index 7): the blind copies. Practically always empty on a received
+         * Envelope `Bcc` (index 7): the blind copies, empty on a received message, never merged into [cc].
          */
     val bcc: List<ImapAddress> = emptyList(),
-    /** Epoch millis from the envelope date (0 if unparseable). */
+    /** Epoch millis of the sender's `Date:` when it falls after the epoch, else of `INTERNALDATE`, else 0. */
     val dateMillis: Long,
     val seen: Boolean,
     val flagged: Boolean,
