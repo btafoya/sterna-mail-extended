@@ -32,9 +32,9 @@ import app.sterna.ui.components.AccountPalette
 internal fun sharedAccountFor(id: String, accounts: List<StoredAccount>): StoredAccount? =
     accounts.firstOrNull { it.id == id && it.isShared }
 
-/**
- * The inner settings route that opens [accountId]: the short shared-mailbox screen when the id
- */
+/** The inner settings route that opens [accountId]: the shared-mailbox screen when the id names a
+ *  delegated mailbox, the account screen otherwise. A shared mailbox owns its colour and its
+ *  notification switches under its own id, so the login's screen would silence the wrong one (#31). */
 internal fun settingsRouteFor(accountId: String, accounts: List<StoredAccount>): String =
     if (sharedAccountFor(accountId, accounts) != null) "sharedAccount/$accountId" else "account/$accountId"
 

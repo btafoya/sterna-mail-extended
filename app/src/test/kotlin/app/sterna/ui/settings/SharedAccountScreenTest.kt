@@ -243,22 +243,6 @@ class SharedAccountScreenTest {
         )
     }
 
-    /**
-     * The drawer's account chip, same reading: it hands over the id of the account being looked
-     * at, never a login's. Same limits as the lint above, this is text, not behaviour.
-     */
-    @Test fun `the drawer chip opens the account on screen, shared or not`() {
-        assertEquals(
-            listOf(
-                ".clickable {",
-                "onOpenAccountSettings(currentAccountId)",
-                "scope.launch { drawerState.close() }",
-                "},",
-            ),
-            statementsAfter(INBOX, ACCOUNT_CHIP_MARKER, 4),
-        )
-    }
-
     // ---- the accounts list (volet 3) ----
 
     /**
@@ -325,7 +309,6 @@ class SharedAccountScreenTest {
     private companion object {
         const val SCREEN = "app/src/main/kotlin/app/sterna/ui/settings/SharedAccountScreen.kt"
         const val SETTINGS = "app/src/main/kotlin/app/sterna/ui/settings/SettingsScreen.kt"
-        const val INBOX = "app/src/main/kotlin/app/sterna/ui/inbox/InboxScreen.kt"
         const val COMPONENTS = "app/src/main/kotlin/app/sterna/ui/settings/SettingsComponents.kt"
 
         /** The composable the absence lint reads, and nothing above it. */
@@ -357,7 +340,6 @@ class SharedAccountScreenTest {
         const val SHARED_ROUTE_MARKER =
             "// PINNED BY SharedAccountScreenTest \u2014 the shared route, statement by statement"
         const val ACCOUNTS_SCREEN_MARKER = "AccountsScreen("
-        const val ACCOUNT_CHIP_MARKER = ".graphicsLayer { translationX = accountOffset.value }"
 
         /**
          * Doors a screen can open, and what the user loses through each one, half a line apiece.

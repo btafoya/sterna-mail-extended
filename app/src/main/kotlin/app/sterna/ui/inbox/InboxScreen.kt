@@ -1786,7 +1786,7 @@ private fun DrawerContent(
                 ) {
                     // The active account as a little carousel: drag it sideways to bring the
                     // next/previous account in; releasing past a threshold switches account in place.
-                    // A tap opens the account's settings; the chevron still lists all accounts.
+                    // A tap unfolds the other accounts, the same as the chevron beside it.
                     Box(
                         modifier = Modifier.weight(1f).clipToBounds()
                             .onSizeChanged { chipWidth = it.width }
@@ -1826,13 +1826,17 @@ private fun DrawerContent(
                             color = accountColorOf(currentAccount?.color),
                             modifier = Modifier
                                 .graphicsLayer { translationX = accountOffset.value }
-                                .clickable {
-                                    // The account you are looking at, shared or not: the settings a
-                                    // shared mailbox owns (colour, notifications) are stored under
-                                    // its id, so the login's settings would silence the wrong one (#31).
-                                    onOpenAccountSettings(currentAccountId)
-                                    scope.launch { drawerState.close() }
-                                },
+                                // With one account there is nothing to unfold, and a chip that
+                                // takes a tap without doing anything is an affordance that lies.
+                                .then(
+                                    if (otherAccounts.isNotEmpty()) {
+                                        Modifier.clickable(
+                                            onClickLabel = stringResource(R.string.inbox_switch_account),
+                                        ) { accountsExpanded = !accountsExpanded }
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
                         )
                         // The account being dragged toward, peeking in from the opposite edge.
                         val peek = if (accountOffset.value < 0f) nextAccount

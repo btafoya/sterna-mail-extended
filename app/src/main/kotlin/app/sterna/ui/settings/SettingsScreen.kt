@@ -182,8 +182,8 @@ fun SettingsScreen(
     // The system "Remove animations" setting switches these slides off (#100). Captured here
     // because rememberMotionEnabled() is @Composable and the transition lambdas are not.
     val motionEnabled = rememberMotionEnabled()
-    // Deep-link from the drawer's account row (#34): the inner graph starts on the account detail
-    // so the hub never renders, and Back falls through to the caller rather than popping it.
+    // Entered with an account id (#34): the inner graph starts on the account detail so the hub
+    // never renders, and Back falls through to the caller rather than popping it.
     // The slides are opaque and cover the viewport at every frame, so a fast double-back cannot
     // expose a blank window-background frame. No fade here; ≤ 250 ms cap in DESIGN.md (#100).
     // Every action below goes through [navigateOnce]: taps landing during the slide otherwise
