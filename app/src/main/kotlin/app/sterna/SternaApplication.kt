@@ -111,7 +111,7 @@ class AppContainer(context: Context) {
         }
         // A linked sub-account pruned on reconcile (#31) drops its notification baselines too,
         // exactly like a sign-out, the data layer cannot reach them.
-        mailRepository.onAccountPruned = { app.sterna.push.NewMailNotifier.clear(appContext, it) }
+        mailRepository.accounts.onAccountPruned = { app.sterna.push.NewMailNotifier.clear(appContext, it) }
         // A folder the server renumbered (#99): every id in it is new, so its baseline describes
         // messages that no longer exist. Cleared here, the next pass seeds it silently.
         mailRepository.onMailboxRenumbered = { accountId, mailboxId ->

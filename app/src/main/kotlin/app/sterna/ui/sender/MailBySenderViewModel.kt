@@ -244,7 +244,7 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
                 // must be refused from the moment it is drawn.
                 ownAddresses = ownAddresses(credentials),
             )
-            val loaded = runCatching { repo.loadFilterRules(credentials) }
+            val loaded = runCatching { repo.accounts.loadFilterRules(credentials) }
                 .getOrElseUnlessCancelled { null }
             _state.value = _state.value.copy(
                 canBlock = canBlockSender(loaded, trashPath),
@@ -354,8 +354,8 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
                 val outcome = addBlockRule(
                     address = sender.email,
                     trashFolder = trashPath,
-                    load = { repo.loadFilterRules(credentials) },
-                    save = { rules -> repo.saveFilterRules(credentials, rules) },
+                    load = { repo.accounts.loadFilterRules(credentials) },
+                    save = { rules -> repo.accounts.saveFilterRules(credentials, rules) },
                 )
                 _message.value = getApplication<Application>().getString(
                     when (outcome) {

@@ -379,7 +379,7 @@ class SignedOutAccountWiringTest {
         // The previous version of this test asked for `checkAccountStillConfigured` and a
         // `runCatching` on the same line, which a multi-line `try { … } catch` walks straight past.
         // This one asks what actually matters: which blocks are still open at the guard.
-        val body = DaoQuerySource.mailSource("MailRepository").lines()
+        val body = (DaoQuerySource.mailSource("MailRepository") + "\n" + DaoQuerySource.mailSource("MailAccounts")).lines()
         val sites = body.indices.filter { body[it].trim().startsWith("$guard(") }
         assertEquals(
             "MailRepository no longer carries thirteen guard call sites — four entries and nine " +
@@ -407,7 +407,7 @@ class SignedOutAccountWiringTest {
         // It is the same family of blindness as the hole this file was extended for: what is not
         // pinned is invisible. So the declaration itself is pinned, once, for all thirteen sites.
         val declaration = Regex("""\bfun\s+$guard\s*[(<]""")
-        val found = DaoQuerySource.mailSource("MailRepository").lines()
+        val found = (DaoQuerySource.mailSource("MailRepository") + "\n" + DaoQuerySource.mailSource("MailAccounts")).lines()
             .map { it.trim() }
             .filter { declaration.containsMatchIn(it) }
         assertEquals(

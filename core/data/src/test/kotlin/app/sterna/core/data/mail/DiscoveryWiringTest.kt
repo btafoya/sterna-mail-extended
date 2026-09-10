@@ -14,7 +14,7 @@ class DiscoveryWiringTest {
     @Test fun `autodiscovery asks each host through the probe the tests run`() {
         val body = discoverJmapServerBody()
         assertTrue(
-            "MailRepository.discoverJmapServer must ask each candidate through probeHost { … }, " +
+            "MailAccounts.discoverJmapServer must ask each candidate through probeHost { … }, " +
                 "which is where a session, a 401/403 and a cancellation are turned into a " +
                 "HostProbe — and the only version of that translation any test executes. Spelled " +
                 "out at this call site instead, it is a decision nothing can hold: replacing it " +
@@ -26,7 +26,7 @@ class DiscoveryWiringTest {
     @Test fun `autodiscovery takes the budget the app ships with, and does not restate it`() {
         val body = discoverJmapServerBody()
         assertTrue(
-            "MailRepository.discoverJmapServer must call discoverJmapAmong(hosts) with NO budget " +
+            "MailAccounts.discoverJmapServer must call discoverJmapAmong(hosts) with NO budget " +
                 "argument: the shipped value then lives once, in JMAP_DISCOVERY_BUDGET_MS, where a " +
                 "test pins it. Restating it here makes a second copy no test can reach. Body was:\n$body",
             BUDGET_LESS_CALL.containsMatchIn(body),
@@ -40,7 +40,7 @@ class DiscoveryWiringTest {
     @Test fun `autodiscovery proves a token as a Bearer, and only falls back on Basic without one`() {
         val body = discoverJmapServerBody()
         assertTrue(
-            "MailRepository.discoverJmapServer must build its auth as:\n  $AUTH_LINE\n" +
+            "MailAccounts.discoverJmapServer must build its auth as:\n  $AUTH_LINE\n" +
                 "Rewritten to Basic only, the whole suite stays green and #55 comes back in " +
                 "silence: the OAuth cascade then probes all four candidates with an EMPTY " +
                 "password, every one answers 401, and oauthServerToStore falls back on the " +
@@ -56,7 +56,7 @@ class DiscoveryWiringTest {
     @Test fun `autodiscovery keeps the candidate order, so rank 0 is the domain she typed`() {
         val body = discoverJmapServerBody()
         assertTrue(
-            "MailRepository.discoverJmapServer must build its candidates as:\n  $HOSTS_LINE\n" +
+            "MailAccounts.discoverJmapServer must build its candidates as:\n  $HOSTS_LINE\n" +
                 "Rank 0 must stay the domain the reader typed: it is the only rank whose 401/403 " +
                 "is her password being refused, every other rank being a guess (#188). Reordered " +
                 "or reversed here, that property is silently false and no test in the tree can " +
@@ -66,10 +66,10 @@ class DiscoveryWiringTest {
     }
 
     private fun discoverJmapServerBody(): String {
-        val text = MAIL_REPOSITORY.readText()
+        val text = MAIL_ACCOUNTS.readText()
         val start = text.indexOf(DECLARATION)
         check(start >= 0) {
-            "no `$DECLARATION` in MailRepository.kt — autodiscovery was renamed or moved, and the " +
+            "no `$DECLARATION` in MailAccounts.kt — autodiscovery was renamed or moved, and the " +
                 "rules in this file are now guarding nothing. Follow it, or delete this file."
         }
         // To the next top-level declaration of the class: enough to hold the function, and it does
@@ -101,15 +101,15 @@ class DiscoveryWiringTest {
         val BUDGET_LESS_CALL = Regex("""discoverJmapAmong\(hosts\)\s*\{""")
 
         /** The shipped file, in the tree that was actually built. */
-        val MAIL_REPOSITORY: File by lazy {
+        val MAIL_ACCOUNTS: File by lazy {
             val classes = DiscoveryWiringTest::class.java.protectionDomain?.codeSource?.location
                 ?: error("no code source; cannot tell which tree was built")
             var dir: File? = File(classes.toURI()).absoluteFile
             while (dir != null && dir.name != "build") dir = dir.parentFile
             val module = dir?.parentFile
                 ?: error("$classes is not under a 'build' directory; cannot locate the module source")
-            File(module, "src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt").also {
-                check(it.isFile) { "no MailRepository.kt in the tree that was built ($module)" }
+            File(module, "src/main/kotlin/app/sterna/core/data/mail/MailAccounts.kt").also {
+                check(it.isFile) { "no MailAccounts.kt in the tree that was built ($module)" }
             }
         }
     }

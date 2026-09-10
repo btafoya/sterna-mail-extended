@@ -59,7 +59,7 @@ class OutlookSignIn(
         job = scope.launch {
             try {
                 _progress.value = OutlookProgress.Starting
-                val device = repo.startProviderDeviceAuth(provider)
+                val device = repo.accounts.startProviderDeviceAuth(provider)
                 _progress.value = OutlookProgress.AwaitingApproval(
                     device.userCode, device.verificationUri, device.verificationUriComplete,
                 )
@@ -67,10 +67,10 @@ class OutlookSignIn(
                 val deadline = System.currentTimeMillis() + device.expiresIn * 1000L
                 while (System.currentTimeMillis() < deadline) {
                     delay(interval * 1000)
-                    when (val result = repo.pollProviderToken(provider, device.deviceCode)) {
+                    when (val result = repo.accounts.pollProviderToken(provider, device.deviceCode)) {
                         is DeviceTokenResult.Success -> {
                             _progress.value = OutlookProgress.Connecting
-                            runCatching { repo.addOAuthImapAccount(provider, email, result.tokens, accountName) }
+                            runCatching { repo.accounts.addOAuthImapAccount(provider, email, result.tokens, accountName) }
                                 .onSuccess { created ->
                                     // Same rule as every other add route: an add that landed on an
                                     // account already there says so ([accountAddedToast]).

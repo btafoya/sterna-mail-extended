@@ -35,7 +35,7 @@ fun blockableSender(address: String, ownAddresses: List<String>): Boolean {
 }
 
 /**
- * [loaded] plus the new rule, added, never substituted. `MailRepository.saveFilterRules`
+ * [loaded] plus the new rule, added, never substituted. `MailAccounts.saveFilterRules`
  */
 fun withBlockRule(loaded: List<FilterRule>, address: String, trashFolder: String): List<FilterRule> =
     if (alreadyBlocked(loaded, address)) loaded else loaded + blockRule(address, trashFolder)

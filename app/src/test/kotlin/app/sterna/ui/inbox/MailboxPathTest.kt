@@ -148,7 +148,7 @@ class MailboxPathTest {
 
     // ---- what a server-side rule must name -------------------------------------------------
     //
-    // Server-side rules are JMAP-only: MailRepository.loadFilterRules answers Unsupported for
+    // Server-side rules are JMAP-only: MailAccounts.loadFilterRules answers Unsupported for
     // every IMAP account, and the rule editor is this function's single caller. So only the
     // JMAP cases below describe something that reaches a wire today; the IMAP ones pin the
     // behaviour of a branch kept for the day IMAP filters exist, and say so in their name.

@@ -74,7 +74,7 @@ class OAuthCodeSignIn(
         val verifier = Pkce.newCodeVerifier()
         val state = newOAuthState()
         val url = try {
-            repo.authorizationUrl(metadata, redirectUri, state, Pkce.codeChallengeOf(verifier))
+            repo.accounts.authorizationUrl(metadata, redirectUri, state, Pkce.codeChallengeOf(verifier))
         } catch (t: Throwable) {
             // A non-https or unusable authorization endpoint (#2), the URL is never half-built.
             fail(failureMessage(t, R.string.connect_oauth_failed))
@@ -130,7 +130,7 @@ class OAuthCodeSignIn(
         _progress.value = OAuthCodeProgress.Connecting
         job = scope.launch {
             try {
-                val tokens = repo.exchangeCode(
+                val tokens = repo.accounts.exchangeCode(
                     metadata = exchange.metadata,
                     code = exchange.code,
                     redirectUri = exchange.redirectUri,
@@ -138,7 +138,7 @@ class OAuthCodeSignIn(
                 )
                 // The account is persisted by the path the device flow already uses: it stores the
                 // token endpoint and client id per account, so the refresher is grant-agnostic.
-                val created = repo.addOAuthAccount(request.host, request.email, request.metadata, tokens, request.accountName)
+                val created = repo.accounts.addOAuthAccount(request.host, request.email, request.metadata, tokens, request.accountName)
                 // The add may resolve onto an account already stored and refresh it; which sentence
                 // that gets is accountAddedToast's.
                 accountAddedToast(created, R.string.connect_account_added)?.let { toast(string(it)) }

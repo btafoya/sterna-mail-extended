@@ -12,21 +12,9 @@ import androidx.sqlite.db.SimpleSQLiteQuery
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.AccountStorage
 import app.sterna.core.data.account.AuthType
-import app.sterna.core.data.account.DiscoveredMailAccount
-import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.account.MailProtocol
-import app.sterna.core.data.account.OAuthCredentials
-import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.data.account.UnifiedInbox
-import app.sterna.core.data.account.accountKeyOf
-import app.sterna.core.data.account.resolveExistingLogin
-import app.sterna.core.data.account.resolveExistingLoginAmong
 import app.sterna.core.data.filter.FilterRule
-import app.sterna.core.data.filter.FilterScriptStatus
-import app.sterna.core.data.filter.SieveCodec
-import app.sterna.core.data.filter.VACATION_SCRIPT_NAME
-import app.sterna.core.data.filter.enabledRuleCount
-import app.sterna.core.data.filter.loadedFilterRules
 import app.sterna.core.data.db.AccountMailboxRole
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
@@ -58,17 +46,13 @@ import app.sterna.core.jmap.BasicAuth
 import app.sterna.core.jmap.ContentTooLargeException
 import app.sterna.core.jmap.DownloadLimits
 import app.sterna.core.jmap.BearerAuth
-import app.sterna.core.jmap.DeviceAuthorization
 import app.sterna.core.jmap.DeviceTokenResult
 import app.sterna.core.jmap.OAuthClient
-import app.sterna.core.jmap.OAuthMetadata
-import app.sterna.core.jmap.OAuthTokens
 import app.sterna.core.jmap.Jmap
 import app.sterna.core.jmap.JmapAuth
 import app.sterna.core.jmap.JmapClient
 import app.sterna.core.jmap.JmapException
 import app.sterna.core.jmap.WindowWalk
-import app.sterna.core.jmap.buildAuthorizationUrl
 import app.sterna.core.imap.CryptoEnvelope
 import app.sterna.core.imap.CryptoKind
 import app.sterna.core.imap.ImapUidValidityChanged
@@ -90,13 +74,11 @@ import app.sterna.core.jmap.model.EmailHeader
 import app.sterna.core.jmap.model.Mailbox
 import app.sterna.core.jmap.model.JmapSession
 import app.sterna.core.jmap.model.PushSubscription
-import app.sterna.core.jmap.model.Quota
 import app.sterna.core.jmap.model.SearchQuery
 import app.sterna.core.jmap.model.VacationResponse
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -112,8 +94,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import java.io.Closeable
 import java.util.UUID
 
@@ -874,7 +854,10 @@ class MailRepository(
     private val syncStateStore: SyncStateStore? = null,
     private val logInfo: (String, String, Throwable?) -> Unit = { _, _, _ -> },
     private val logWarn: (String, String, Throwable?) -> Unit = { _, _, _ -> },
-) : MailSendHost, MailDraftHost, MailFolderHost {
+) : MailSendHost, MailDraftHost, MailFolderHost, MailAccountHost {
+    /** Background scope for fire-and-forget work (body prefetch) that must outlive a sync call. */
+    private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     /** Everything the app sends, held apart from what it reads; see [MailSender]. */
     val sending: MailSender = MailSender(
         client = client,
@@ -913,11 +896,22 @@ class MailRepository(
         host = this,
     )
 
-    /**
-     * App-layer teardown for a linked sub-account pruned on reconcile (#31): clears its notification
-     * baselines. Set by the app layer at startup.
-     */
-    var onAccountPruned: ((String) -> Unit)? = null
+    /** Every account: found, proved, created, reconciled, with its identities and settings; see [MailAccounts]. */
+    val accounts: MailAccounts = MailAccounts(
+        client = client,
+        imap = imap,
+        emailDao = emailDao,
+        emailFtsDao = emailFtsDao,
+        emailBodyDao = emailBodyDao,
+        mailboxDao = mailboxDao,
+        snoozedDao = snoozedDao,
+        accountStore = accountStore,
+        oauthClient = oauthClient,
+        bgScope = bgScope,
+        host = this,
+        logWarn = logWarn,
+    )
+
     class JmapAccountSession(
         val credentials: AccountCredentials,
         val session: JmapSession,
@@ -931,6 +925,8 @@ class MailRepository(
     @Volatile
     private var cachedSession: JmapAccountSession? = null
 
+    override fun cachedJmapSession(): JmapAccountSession? = cachedSession
+
     /**
      * App-layer teardown for a folder the server has renumbered (#99). Without it the next push pass diffs
      */
@@ -939,9 +935,6 @@ class MailRepository(
         set(value) { imap.onMailboxRenumbered = value }
 
     private val tokenRefresher = OAuthTokenRefresher(oauthClient, accountStore)
-
-    /** Background scope for fire-and-forget work (body prefetch) that must outlive a sync call. */
-    private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** Tolerant JSON for the on-disk body cache (schema may add fields across versions). */
     private val cacheJson = Json { ignoreUnknownKeys = true }
@@ -1712,315 +1705,18 @@ class MailRepository(
         data object NotFound : DiscoveryResult
     }
 
-    /** JMAP autodiscovery (RFC 8620 §2.2). A 401/403 from a reachable candidate means the server was
-     *  found but the password is wrong. Candidates are probed at once; rank decides, not latency. */
-    suspend fun discoverJmapServer(email: String, password: String, token: String? = null): DiscoveryResult {
-        val hosts = Jmap.autodiscoverHosts(email)
-        if (hosts.isEmpty()) return DiscoveryResult.NotFound
-        // A non-null [token] is a bearer credential (an API token, or a just-granted access token).
-        val auth = if (token != null) BearerAuth(token) else BasicAuth(email.trim(), password)
-        // No budget passed on purpose: the shipped value lives once, in JMAP_DISCOVERY_BUDGET_MS.
-        return discoverJmapAmong(hosts) { host ->
-            probeHost { client.fetchSession(Jmap.sessionUrlFor(host), auth) }
-        }
-    }
-
     /**
      * Build JMAP auth for [credentials], the token half of the session seam [jmapAccountIdFor] completes:
      * Bearer for API-token accounts (token in the password slot), OAuth refreshed within 60 s of expiry, Basic otherwise.
      */
-    private suspend fun jmapAuth(credentials: AccountCredentials): JmapAuth {
+    override suspend fun jmapAuth(credentials: AccountCredentials): JmapAuth {
         if (credentials.authType == AuthType.API_TOKEN) return BearerAuth(credentials.password)
         val token = tokenRefresher.freshAccessToken(credentials)
             ?: return BasicAuth(credentials.username, credentials.password)
         return BearerAuth(token)
     }
 
-    /**
-     * Resolve a manually-entered JMAP server to the value to persist as the account's `server`: the first
-     */
-    suspend fun resolveJmapServerInput(serverInput: String, auth: JmapAuth): String {
-        val candidates = Jmap.sessionUrlCandidates(serverInput)
-        var firstError: Throwable? = null
-        for (url in candidates) {
-            val session = try {
-                client.fetchSession(url, auth)
-            } catch (t: Throwable) {
-                if (firstError == null) firstError = t
-                continue
-            }
-            if (session.mailAccountId() != null) {
-                return if (candidates.size == 1) serverInput.trim() else url
-            }
-            if (firstError == null) firstError = JmapException("This user has no JMAP mail account.")
-        }
-        throw firstError ?: JmapException("No JMAP server found at $serverInput")
-    }
-
-    /**
-     * The address the server itself associates with [auth] at [server]: the session's `username` (RFC 8620
-     */
-    suspend fun sessionIdentity(server: String, auth: JmapAuth): String? {
-        val session = client.fetchSession(Jmap.sessionUrlFor(server), auth)
-        val accountName = session.mailAccountId()?.let { session.accounts[it]?.name }
-        val looksLikeEmail = Regex("""[^@\s]+@[^@\s]+\.[^@\s]+""")
-        return sequenceOf(session.username, accountName.orEmpty())
-            .map { it.trim() }
-            .firstOrNull { looksLikeEmail.matches(it) }
-    }
-
-    /**
-     * Validate an account's credentials without persisting anything or disturbing the active session: JMAP
-     * fetches the session and checks for a mail account, IMAP connects.
-     */
-    suspend fun testConnection(credentials: AccountCredentials): Result<Unit> = runCatching {
-        if (credentials.protocol == MailProtocol.IMAP) {
-            imap.testConnection(credentials)
-        } else {
-            val session = client.fetchSession(
-                Jmap.sessionUrlFor(credentials.server),
-                jmapAuth(credentials),
-            )
-            requireNotNull(session.mailAccountId()) { "This user has no JMAP mail account." }
-            Unit
-        }
-    }
-
-    /**
-     * OAuth metadata for a host, or null when it advertises none.
-     */
-    suspend fun discoverOAuth(host: String, addressDomain: String): OAuthMetadata? =
-        oauthClient.discoverMetadata(host, addressDomain)
-
-    /** Begin the device flow against [metadata] using Sterna's client id + scopes. */
-    suspend fun startDeviceAuthorization(metadata: OAuthMetadata): DeviceAuthorization =
-        oauthClient.startDeviceAuthorization(metadata, Jmap.OAUTH_CLIENT_ID, Jmap.OAUTH_SCOPE)
-
-    /** Poll the token endpoint once for a pending device authorization. */
-    suspend fun pollDeviceToken(metadata: OAuthMetadata, deviceCode: String): DeviceTokenResult =
-        oauthClient.pollDeviceToken(metadata, deviceCode, Jmap.OAUTH_CLIENT_ID)
-
-    /**
-     * The URL the browser is sent to for the authorization-code grant, with Sterna's client id and scopes.
-     */
-    fun authorizationUrl(
-        metadata: OAuthMetadata,
-        redirectUri: String,
-        state: String,
-        codeChallenge: String,
-    ): String = buildAuthorizationUrl(
-        authorizationEndpoint = metadata.authorizationEndpoint
-            ?: throw JmapException("Server has no authorization endpoint"),
-        clientId = Jmap.OAUTH_CLIENT_ID,
-        redirectUri = redirectUri,
-        scope = Jmap.OAUTH_SCOPE,
-        state = state,
-        codeChallenge = codeChallenge,
-    )
-
-    /** Redeem an authorization code, proving PKCE possession with [codeVerifier] (RFC 7636). */
-    suspend fun exchangeCode(
-        metadata: OAuthMetadata,
-        code: String,
-        redirectUri: String,
-        codeVerifier: String,
-    ): OAuthTokens = oauthClient.exchangeCode(metadata, code, redirectUri, Jmap.OAUTH_CLIENT_ID, codeVerifier)
-
-    /** Throws, persisting nothing, if [tokens] don't authenticate against [host]. Returns true when
-     *  THIS add created the account, a re-add must land on the existing one and succeed. */
-    suspend fun addOAuthAccount(
-        host: String,
-        email: String,
-        metadata: OAuthMetadata,
-        tokens: OAuthTokens,
-        accountName: String,
-    ): Boolean {
-        val expiresAt = System.currentTimeMillis() + tokens.expiresIn * 1000
-        client.fetchSession(Jmap.sessionUrlFor(host), BearerAuth(tokens.accessToken)).mailAccountId()
-            ?: error("This user has no JMAP mail account.")
-        // [host] proved the tokens; it does not decide the identity when the app guessed it. The
-        // candidate list drops the apex, so a guessed host is `mail.<domain>` where the password
-        // path stores `<domain>`, one mailbox added both ways became two accounts (#55). Only the
-        // guessed ones: a typed host is stored verbatim by its own button. See oauthHostWasGuessed.
-        val guessedHost = oauthHostWasGuessed(host, Jmap.autodiscoverHosts(email))
-        val server = if (guessedHost) {
-            oauthServerToStore(
-                discoverJmapServer(email, password = "", token = tokens.accessToken),
-                host,
-            )
-        } else {
-            host
-        }
-        // Said out loud: the account is written under the host we wanted to improve, so #55 stands.
-        if (guessedHost && server == host) {
-            logWarn("MailRepository", "OAuth add: nothing autodiscovered for $host; stored as-is (#55)", null)
-        }
-        // Asked before the store writes: addOAuth refreshes the login already stored under this
-        // identity. On both keys this route has written, in the order the store resolves them.
-        val created = resolveExistingLoginAmong(
-            accountStore.accounts(),
-            listOf(
-                accountKeyOf(MailProtocol.JMAP, server, "", email),
-                accountKeyOf(MailProtocol.JMAP, host, "", email),
-            ),
-        ) == null
-        val id = accountStore.addOAuth(
-            server = server,
-            username = email,
-            accountName = accountName,
-            accessToken = tokens.accessToken,
-            refreshToken = tokens.refreshToken.orEmpty(),
-            accessExpiresAtMillis = expiresAt,
-            tokenEndpoint = metadata.tokenEndpoint,
-            clientId = Jmap.OAUTH_CLIENT_ID,
-            documentHost = host,
-        )
-        val credentials = accountStore.credentials(id) ?: error("Account could not be loaded after creation.")
-        val meta = refresh(credentials)
-        accountStore.saveInboxMeta(meta.mailboxId, meta.mailboxName, meta.accountName, meta.unreadCount)
-        // Only on a real creation. A re-add lands on the login already there, with its shared
-        // sub-accounts, and eviction reads the raw discovered list: a session listing the login's
-        // own account but not the shares would prune every sub-account and purge five tables (#129).
-        if (created) reconcileLinkedAccountsAfterAdd(id)
-        return created
-    }
-
-    /** Begin the device flow for a built-in OAuth provider (Microsoft, …). */
-    suspend fun startProviderDeviceAuth(provider: OAuthProvider): DeviceAuthorization =
-        oauthClient.startDeviceAuthorization(provider.metadata, provider.clientId, provider.scope)
-
-    /** Poll a built-in provider's token endpoint once for a pending device authorization. */
-    suspend fun pollProviderToken(provider: OAuthProvider, deviceCode: String): DeviceTokenResult =
-        oauthClient.pollDeviceToken(provider.metadata, deviceCode, provider.clientId)
-
-    /**
-     * Run a provider device flow to completion: start it, hand the code to [onCode], then poll to its deadline.
-     */
-    suspend fun runProviderDeviceFlow(
-        provider: OAuthProvider,
-        onCode: (DeviceAuthorization) -> Unit,
-    ): Result<OAuthTokens> = runCatching {
-        val device = startProviderDeviceAuth(provider)
-        onCode(device)
-        var interval = device.interval.coerceAtLeast(1).toLong()
-        val deadline = System.currentTimeMillis() + device.expiresIn * 1000L
-        while (System.currentTimeMillis() < deadline) {
-            delay(interval * 1000)
-            when (val r = pollProviderToken(provider, device.deviceCode)) {
-                is DeviceTokenResult.Success -> return@runCatching r.tokens
-                DeviceTokenResult.Pending -> Unit
-                DeviceTokenResult.SlowDown -> interval += 5
-                is DeviceTokenResult.Failed -> throw OAuthDeniedException(r)
-            }
-        }
-        throw OAuthDeniedException(DeviceTokenResult.Failed("expired_token"))
-    }
-
-    /**
-     * Validate freshly granted OAuth [tokens] against [provider]'s IMAP server with XOAUTH2, then store them.
-     */
-    suspend fun addOAuthImapAccount(
-        provider: OAuthProvider,
-        email: String,
-        tokens: OAuthTokens,
-        accountName: String,
-    ): Boolean {
-        val expiresAt = System.currentTimeMillis() + tokens.expiresIn * 1000
-        // Microsoft IMAP wants the account's exact primary address as the XOAUTH2 user=,
-        // not whatever alias the user typed, take it from the signed-in identity (id_token).
-        val username = emailFromIdToken(tokens.idToken) ?: email
-        val probe = AccountCredentials(
-            server = "",
-            username = username,
-            password = "",
-            protocol = MailProtocol.IMAP,
-            imap = provider.imap,
-            smtp = provider.smtp,
-            oauth = OAuthCredentials(
-                accessToken = tokens.accessToken,
-                refreshToken = tokens.refreshToken.orEmpty(),
-                accessExpiresAtMillis = expiresAt,
-                tokenEndpoint = provider.metadata.tokenEndpoint,
-                clientId = provider.clientId,
-            ),
-        )
-        try {
-            imap.testConnection(probe)
-        } finally {
-            runCatching { imap.disconnect("") }
-        }
-        // On the values the store is actually given: the IMAP host is the endpoint an IMAP account
-        // is keyed on, and `username` is the address the id_token named, not the typed one.
-        val created = resolveExistingLogin(
-            accountStore.accounts(),
-            accountKeyOf(MailProtocol.IMAP, "", provider.imap.host, username),
-        ) == null
-        val id = accountStore.addOAuth(
-            server = "",
-            username = username,
-            accountName = accountName,
-            accessToken = tokens.accessToken,
-            refreshToken = tokens.refreshToken.orEmpty(),
-            accessExpiresAtMillis = expiresAt,
-            tokenEndpoint = provider.metadata.tokenEndpoint,
-            clientId = provider.clientId,
-            protocol = MailProtocol.IMAP,
-            imapHost = provider.imap.host,
-            imapPort = provider.imap.port,
-            imapSecurity = provider.imap.security,
-            smtpHost = provider.smtp.host,
-            smtpPort = provider.smtp.port,
-            smtpSecurity = provider.smtp.security,
-        )
-        val credentials = accountStore.credentials(id) ?: error("Account could not be loaded after creation.")
-        val meta = refresh(credentials)
-        accountStore.saveInboxMeta(meta.mailboxId, meta.mailboxName, meta.accountName, meta.unreadCount)
-        return created
-    }
-
-    /** Complete OAuth sign-in for an already-imported (inert) account [accountId] using freshly
-     *  granted [tokens]. Validates via IMAP XOAUTH2 first; throws (account left inert) on failure. */
-    suspend fun signInImportedOAuth(accountId: String, provider: OAuthProvider, tokens: OAuthTokens) {
-        val account = accountStore.account(accountId) ?: error("Account not found.")
-        val expiresAt = System.currentTimeMillis() + tokens.expiresIn * 1000
-        val username = emailFromIdToken(tokens.idToken) ?: account.username
-        val probe = AccountCredentials(
-            server = "", username = username, password = "",
-            protocol = MailProtocol.IMAP,
-            imap = MailEndpoint(account.imapHost, account.imapPort, account.imapSecurity),
-            smtp = MailEndpoint(account.smtpHost, account.smtpPort, account.smtpSecurity),
-            oauth = OAuthCredentials(
-                accessToken = tokens.accessToken,
-                refreshToken = tokens.refreshToken.orEmpty(),
-                accessExpiresAtMillis = expiresAt,
-                tokenEndpoint = provider.metadata.tokenEndpoint,
-                clientId = provider.clientId,
-            ),
-        )
-        try { imap.testConnection(probe) } finally { runCatching { imap.disconnect("") } }
-        accountStore.attachOAuth(
-            id = accountId, username = username,
-            accessToken = tokens.accessToken, refreshToken = tokens.refreshToken.orEmpty(),
-            accessExpiresAtMillis = expiresAt, tokenEndpoint = provider.metadata.tokenEndpoint,
-            clientId = provider.clientId,
-        )
-        val credentials = accountStore.credentials(accountId) ?: error("Account could not be loaded.")
-        val meta = refresh(credentials)
-        accountStore.saveInboxMetaFor(accountId, meta.mailboxId, meta.mailboxName, meta.accountName, meta.unreadCount)
-    }
-
-    private fun emailFromIdToken(idToken: String?): String? {
-        if (idToken.isNullOrBlank()) return null
-        return runCatching {
-            val payload = idToken.split(".").getOrNull(1) ?: return null
-            val decoded = android.util.Base64.decode(
-                payload,
-                android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING,
-            )
-            val obj = Json.parseToJsonElement(String(decoded, Charsets.UTF_8)).jsonObject
-            (obj["preferred_username"] ?: obj["email"])?.jsonPrimitive?.content
-        }.getOrNull()?.takeIf { it.isNotBlank() }
-    }
+    override suspend fun firstSync(credentials: AccountCredentials): MailboxMeta = refresh(credentials)
 
     suspend fun refresh(
         credentials: AccountCredentials,
@@ -3911,50 +3607,6 @@ class MailRepository(
             ?: session.mailAccountId()
             ?: error("This user has no JMAP mail account.")
 
-    /** #31: several mail accounts per login; #129 probes non-primary ones for admission only. */
-    private suspend fun reconcileLinkedAccounts(
-        credentials: AccountCredentials,
-        session: JmapSession,
-        auth: JmapAuth,
-    ) {
-        val mailAccountIds = session.mailAccountIds()
-        val loginId = accountStore.account(credentials.id)?.loginKey() ?: credentials.id
-        if (mailAccountIds.size <= 1 && accountStore.linkedAccounts(loginId).isEmpty()) return
-        val discovered = mailAccountIds.map { DiscoveredMailAccount(it, session.accounts[it]?.name.orEmpty()) }
-        val probes = discovered.drop(1).associate { candidate ->
-            candidate.jmapAccountId to
-                runCatching { client.getMailboxes(session, candidate.jmapAccountId, auth) }.rethrowIfCancelled()
-        }
-        val pruned = runCatching { accountStore.reconcileLinkedAccounts(loginId, discovered, probes) }
-            .getOrDefault(emptyList())
-        pruned.forEach { prunedId ->
-            // App-layer teardown first (notification baselines); each step best-effort so one
-            // failure never leaves the rest of a revoked account behind.
-            onAccountPruned?.let { hook -> runCatching { hook(prunedId) } }
-            bgScope.launch {
-                // One runCatching PER delete: a failure in one table must not leave the
-                // remaining tables' rows of a revoked account behind.
-                runCatching { emailDao.deleteForAccount(prunedId) }
-                runCatching { emailFtsDao.clearAccount(prunedId) }
-                runCatching { emailBodyDao.deleteForAccount(prunedId) }
-                runCatching { mailboxDao.deleteForAccount(prunedId) }
-                runCatching { snoozedDao.deleteForAccount(prunedId) }
-            }
-        }
-    }
-
-    /** #31: discover linked sub-accounts for the new login [id]; best-effort, except cancellation. */
-    suspend fun reconcileLinkedAccountsAfterAdd(id: String) {
-        runCatching {
-            val credentials = accountStore.credentials(id) ?: return
-            val cached = cachedSession
-                ?.takeIf { it.credentials.server == credentials.server && it.credentials.username == credentials.username }
-                ?: return
-            // The cached session's own auth, so the #129 probe costs no token work of its own.
-            reconcileLinkedAccounts(credentials, cached.session, cached.auth)
-        }.rethrowIfCancelled()
-    }
-
     /** Re-key persisted watched-folder ids and persist the correction (#101). */
     private fun rekeyWatchedFolders(accountId: String, watched: Set<String>): Set<String> {
         if (watched.isEmpty()) return watched
@@ -4156,149 +3808,15 @@ class MailRepository(
         )
     }
 
-    /** The server-side vacation responder; Unsupported for IMAP and without the capability. */
-    suspend fun loadVacation(credentials: AccountCredentials): VacationState {
-        if (credentials.protocol == MailProtocol.IMAP) return VacationState.Unsupported
-        val ctx = jmapSession(credentials)
-        val response = client.getVacationResponse(ctx.session, ctx.accountId, ctx.auth)
-            ?: return VacationState.Unsupported
-        return VacationState.Loaded(response)
-    }
-
-    suspend fun saveVacation(credentials: AccountCredentials, vacation: VacationResponse): VacationResponse {
-        val ctx = jmapSession(credentials)
-        return client.setVacationResponse(ctx.session, ctx.accountId, ctx.auth, vacation)
-    }
-
-    /** Identities read now from the server and stored (#172). It throws; empty means "none". */
-    suspend fun serverIdentities(credentials: AccountCredentials): List<StoredIdentity> {
-        if (credentials.protocol == MailProtocol.IMAP) {
-            throw IllegalStateException("Identity/get is JMAP-only; an IMAP alias is local")
-        }
-        val ctx = jmapSession(credentials)
-        val identities = storedServerIdentities(client.getIdentities(ctx.session, ctx.accountId, ctx.auth))
-        accountStore.setServerIdentities(credentials.id, identities)
-        return identities
-    }
-
-    /** Create one sending identity (`Identity/set`, #172) and return its id; IMAP throws. */
-    suspend fun createIdentity(credentials: AccountCredentials, name: String, email: String): String {
-        if (credentials.protocol == MailProtocol.IMAP) {
-            throw IllegalStateException("Identity/set is JMAP-only; an IMAP alias is local")
-        }
-        val ctx = jmapSession(credentials)
-        // Named, not positional: a swap compiles silently and posts the display name as address.
-        val created = client.createIdentity(ctx.session, ctx.accountId, name = name, email = email, auth = ctx.auth)
-        // #172: `jmapSession` hands back a cached session, so nothing re-reads Identity/get until the
-        // next cold start. Re-read here, only once the server has confirmed the creation.
-        refreshServerIdentities(ctx.session, ctx.accountId, credentials.id, ctx.auth)
-        return created
-    }
-
-    /** Server-side quotas (RFC 9425); empty for IMAP, without the capability, and on any error. */
-    suspend fun loadQuotas(credentials: AccountCredentials): List<Quota> {
-        if (credentials.protocol == MailProtocol.IMAP) return emptyList()
-        return runCatching {
-            val ctx = jmapSession(credentials)
-            client.getQuotas(ctx.session, ctx.accountId, ctx.auth)
-        }.getOrDefault(emptyList())
-    }
-
-    /** The account's Sterna-managed Sieve rules; Unsupported for IMAP and without the capability. */
-    suspend fun loadFilterRules(credentials: AccountCredentials): FilterRulesState {
-        if (credentials.protocol == MailProtocol.IMAP) return FilterRulesState.Unsupported
-        val ctx = jmapSession(credentials)
-        if (!ctx.session.capabilities.containsKey(app.sterna.core.jmap.Jmap.SIEVE_CAPABILITY)) {
-            return FilterRulesState.Unsupported
-        }
-        val scripts = client.getSieveScripts(ctx.session, ctx.accountId, ctx.auth)
-        val managed = scripts.firstOrNull { it.name == SieveCodec.SCRIPT_NAME }
-        val script = managed?.let {
-            client.downloadBlob(
-                ctx.session, ctx.accountId, it.blobId, "application/sieve", "sterna.siv", ctx.auth,
-            ).toString(Charsets.UTF_8)
-        }
-        return loadedFilterRules(
-            sternaScript = script,
-            otherActiveScript = scripts.any { it.isActive && it.name != SieveCodec.SCRIPT_NAME },
-        )
-    }
-
-    /**
-     * Whether the filter rules are actually running server-side, and whether the vacation responder
-     */
-    suspend fun loadFilterScriptStatus(credentials: AccountCredentials): FilterScriptStatus? {
-        if (credentials.protocol == MailProtocol.IMAP) return FilterScriptStatus()
-        return runCatching {
-            val ctx = jmapSession(credentials)
-            if (!ctx.session.capabilities.containsKey(app.sterna.core.jmap.Jmap.SIEVE_CAPABILITY)) {
-                return@runCatching FilterScriptStatus()
-            }
-            val scripts = client.getSieveScripts(ctx.session, ctx.accountId, ctx.auth)
-            val vacation = scripts.any { it.name == VACATION_SCRIPT_NAME }
-            // Existence and activity are two facts: the prediction needs the first, the red line
-            // above Save the second (that script is running, so Save stops it).
-            val vacationActive = scripts.any { it.name == VACATION_SCRIPT_NAME && it.isActive }
-            val foreign = scripts.any { it.isActive && it.name != SieveCodec.SCRIPT_NAME }
-            val managed = scripts.firstOrNull { it.name == SieveCodec.SCRIPT_NAME }
-                ?: return@runCatching FilterScriptStatus(
-                    vacationScriptExists = vacation,
-                    vacationScriptActive = vacationActive,
-                    foreignActive = foreign,
-                )
-            val bytes = client.downloadBlob(
-                ctx.session, ctx.accountId, managed.blobId, "application/sieve", "sterna.siv", ctx.auth,
-            )
-            FilterScriptStatus(
-                scriptExists = true,
-                scriptActive = managed.isActive,
-                enabledRuleCount = enabledRuleCount(SieveCodec.parseRules(bytes.toString(Charsets.UTF_8))),
-                vacationScriptExists = vacation,
-                vacationScriptActive = vacationActive,
-                foreignActive = foreign,
-            )
-        }.getOrElseUnlessCancelled { null }
-    }
-
-    /** Compile [rules] to Sieve, validate server-side, then save and activate. Throws on refusal. */
-    suspend fun saveFilterRules(credentials: AccountCredentials, rules: List<FilterRule>) {
-        val ctx = jmapSession(credentials)
-        val script = SieveCodec.generate(rules)
-        val blob = client.uploadBlob(
-            ctx.session, ctx.accountId, script.toByteArray(Charsets.UTF_8), "application/sieve", ctx.auth,
-        )
-        client.validateSieve(ctx.session, ctx.accountId, blob.blobId, ctx.auth)?.let {
-            throw IllegalStateException("The server rejected the filters: $it")
-        }
-        val existing = client.getSieveScripts(ctx.session, ctx.accountId, ctx.auth)
-            .firstOrNull { it.name == SieveCodec.SCRIPT_NAME }
-        client.saveSieveScript(
-            ctx.session, ctx.accountId, SieveCodec.SCRIPT_NAME, blob.blobId, existing?.id, ctx.auth,
-        )
-    }
-
     override suspend fun jmapSession(credentials: AccountCredentials): JmapAccountSession {
         cachedSession?.let { if (it.credentials == credentials) return it }
         val auth = jmapAuth(credentials)
         val session = client.fetchSession(Jmap.sessionUrlFor(credentials.server), auth)
         val accountId = jmapAccountIdFor(credentials, session)
-        reconcileLinkedAccounts(credentials, session, auth)
-        refreshServerIdentities(session, accountId, credentials.id, auth)
+        accounts.reconcileLinkedAccounts(credentials, session, auth)
+        accounts.refreshServerIdentities(session, accountId, credentials.id, auth)
         val mailboxes = client.getMailboxes(session, accountId, auth)
         val roles = mailboxes.mapNotNull { mb -> mb.role?.let { it to mb.id } }.toMap()
         return JmapAccountSession(credentials, session, accountId, auth, roles, mailboxes).also { cachedSession = it }
-    }
-
-    /** Best-effort (#32). [accountId] is the JMAP account, [localAccountId] the record. */
-    private suspend fun refreshServerIdentities(
-        session: JmapSession,
-        accountId: String,
-        localAccountId: String,
-        auth: JmapAuth,
-    ) {
-        runCatching {
-            val serverIdentities = storedServerIdentities(client.getIdentities(session, accountId, auth))
-            accountStore.setServerIdentities(localAccountId, serverIdentities)
-        }
     }
 }

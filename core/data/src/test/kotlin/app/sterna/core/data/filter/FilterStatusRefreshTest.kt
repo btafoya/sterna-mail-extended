@@ -474,11 +474,11 @@ class FilterStatusRefreshTest {
         return line.trimEnd()
     }
 
-    /** The body of `MailRepository.loadFilterScriptStatus`, from its signature to the next block. */
+    /** The body of `MailAccounts.loadFilterScriptStatus`, from its signature to the next block. */
     private fun loadFilterScriptStatusBody(): String {
-        val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt").readText()
+        val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailAccounts.kt").readText()
         val start = source.indexOf("suspend fun loadFilterScriptStatus(credentials: AccountCredentials)")
-        check(start >= 0) { "MailRepository no longer declares loadFilterScriptStatus(credentials)" }
+        check(start >= 0) { "MailAccounts no longer declares loadFilterScriptStatus(credentials)" }
         val end = source.indexOf("\n    /**", start)
         check(end > start) { "no declaration follows loadFilterScriptStatus — the slice would be the whole file" }
         return source.substring(start, end)

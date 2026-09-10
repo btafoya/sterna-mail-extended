@@ -214,7 +214,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         // asked. Read from `Jmap.autodiscoverHosts`, which `mailOAuthCandidates` also derives from.
         val addressDomain = Jmap.autodiscoverHosts(address).firstOrNull().orEmpty()
         val chosen = discoverOAuthAmong(mailOAuthCandidates(address)) {
-            container.mailRepository.discoverOAuth(it, addressDomain)
+            container.mailRepository.accounts.discoverOAuth(it, addressDomain)
         }
         return OAuthDiscovery(address, chosen)
     }
@@ -268,7 +268,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         _state.value = ConnectState.Discovering
         viewModelScope.launch {
             val result = try {
-                container.mailRepository.discoverJmapServer(email.trim(), password)
+                container.mailRepository.accounts.discoverJmapServer(email.trim(), password)
             } catch (cancelled: CancellationException) {
                 // Leaving the screen cancels the probes: that is not "no server found", and the
                 // NeedsServer below would be a form nobody asked for, on a screen that is gone.
@@ -307,7 +307,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         _state.value = ConnectState.Discovering
         viewModelScope.launch {
             val result = try {
-                container.mailRepository.discoverJmapServer(emailTrim, password = "", token = token)
+                container.mailRepository.accounts.discoverJmapServer(emailTrim, password = "", token = token)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
@@ -329,11 +329,11 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
     /** Resolve the server input with the token, validate, persist. Mirrors [finishJmapConnect]. */
     private suspend fun finishTokenConnect(server: String, email: String, token: String, accountName: String) {
         try {
-            val resolved = container.mailRepository.resolveJmapServerInput(server, BearerAuth(token))
+            val resolved = container.mailRepository.accounts.resolveJmapServerInput(server, BearerAuth(token))
             // The token alone identifies the account server-side, Bearer auth never validates the
             // typed address, so adopt the session's own when it declares one.
             val address = runCatching {
-                container.mailRepository.sessionIdentity(resolved, BearerAuth(token))
+                container.mailRepository.accounts.sessionIdentity(resolved, BearerAuth(token))
             }.getOrNull() ?: email
             // Re-adding the same mailbox resolves to the same server + adopted address, so the store
             // refreshes in place. Not filtered on authType: password then token is one account.
@@ -344,7 +344,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             val probe = AccountCredentials(resolved, address, token, authType = AuthType.API_TOKEN)
             val added = addAccountThenPrime(
                 probe = probe,
-                validate = { container.mailRepository.testConnection(it).getOrThrow() },
+                validate = { container.mailRepository.accounts.testConnection(it).getOrThrow() },
                 // One call either way: add() refreshes the login stored under this identity and
                 // hands back its id, atomically.
                 persist = {
@@ -358,7 +358,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             warnIfNotPrimed(added)
             // Surface linked sub-accounts before navigating, like the password path (#31). Only on
             // a real creation, see [finishJmapConnect] for why a re-add must not.
-            if (created) container.mailRepository.reconcileLinkedAccountsAfterAdd(added.id)
+            if (created) container.mailRepository.accounts.reconcileLinkedAccountsAfterAdd(added.id)
             accountAddedToast(created, null)?.let { toast(it) }
             _state.value = ConnectState.Connected
         } catch (cancelled: CancellationException) {
@@ -393,7 +393,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             // may name stays the typed host or the address' own domain.
             val addressDomain = Jmap.autodiscoverHosts(emailTrim).firstOrNull().orEmpty()
             val discovered = reused?.let { listOf(it) }
-                ?: collectOAuthHosts(candidates) { container.mailRepository.discoverOAuth(it, addressDomain) }
+                ?: collectOAuthHosts(candidates) { container.mailRepository.accounts.discoverOAuth(it, addressDomain) }
             // "No OAuth here" and "OAuth, but not a flow this app can drive" are different facts;
             // oauthDiscoveryFailure picks the sentence, and answers for a null metadata.
             val chosen = chooseOAuthHost(discovered)
@@ -418,7 +418,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 )
                 return@launch
             }
-            val start = runCatching { container.mailRepository.startDeviceAuthorization(found) }
+            val start = runCatching { container.mailRepository.accounts.startDeviceAuthorization(found) }
             val device = start.getOrNull()
             if (device == null) {
                 // A transport failure carries no oauthError and falls back to the generic sentence.
@@ -457,7 +457,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 // No clamp here: the one-second floor is pollDeviceGrant's, where a test runs it.
                 intervalSeconds = device.interval.toLong(),
                 expiresInSeconds = device.expiresIn.toLong(),
-            ) { container.mailRepository.pollDeviceToken(metadata, device.deviceCode) }
+            ) { container.mailRepository.accounts.pollDeviceToken(metadata, device.deviceCode) }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (t: Throwable) {
@@ -476,7 +476,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             is DevicePollVerdict.Approved -> {
                 _state.value = ConnectState.Connecting
                 val outcome = runCatching {
-                    container.mailRepository.addOAuthAccount(host, email, metadata, verdict.tokens, accountName)
+                    container.mailRepository.accounts.addOAuthAccount(host, email, metadata, verdict.tokens, accountName)
                 }
                 _state.value = outcome.fold(
                     onSuccess = { created ->
@@ -693,7 +693,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         }
         updateSelected { it.copy(verifying = true, error = null) }
         viewModelScope.launch {
-            container.mailRepository.testConnection(credentialsFor(account, password)).fold(
+            container.mailRepository.accounts.testConnection(credentialsFor(account, password)).fold(
                 onSuccess = {
                     container.accountStore.updatePassword(target.account.id, password)
                     container.accountStore.setImportPending(target.account.id, false)
@@ -724,7 +724,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         }
         updateSelected { it.copy(verifying = true, error = null, offerAppPasswordFallback = false) }
         importOAuthJob = viewModelScope.launch {
-            val result = container.mailRepository.runProviderDeviceFlow(provider) { device ->
+            val result = container.mailRepository.accounts.runProviderDeviceFlow(provider) { device ->
                 updateSelected {
                     it.copy(
                         verifying = false,
@@ -735,7 +735,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             result.fold(
                 onSuccess = { tokens ->
                     updateSelected { it.copy(approval = null, verifying = true, error = null) }
-                    runCatching { container.mailRepository.signInImportedOAuth(target.account.id, provider, tokens) }.fold(
+                    runCatching { container.mailRepository.accounts.signInImportedOAuth(target.account.id, provider, tokens) }.fold(
                         onSuccess = {
                             container.accountStore.setImportPending(target.account.id, false)
                             refreshListing(keepSelected = null)
@@ -860,7 +860,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             val probe = AccountCredentials(server, username.trim(), password)
             val added = addAccountThenPrime(
                 probe = probe,
-                validate = { container.mailRepository.testConnection(it).getOrThrow() },
+                validate = { container.mailRepository.accounts.testConnection(it).getOrThrow() },
                 // A blank name falls back to the address.
                 persist = {
                     AddedAccount(
@@ -875,7 +875,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             // may have moved the login from OAuth to a password; reconciling then hands
             // `diffLinkedAccounts` a session of the other auth family, and eviction reads the raw
             // discovered list (AccountStore), purging every sub-account (#129).
-            if (created) container.mailRepository.reconcileLinkedAccountsAfterAdd(added.id)
+            if (created) container.mailRepository.accounts.reconcileLinkedAccountsAfterAdd(added.id)
             accountAddedToast(created, null)?.let { toast(it) }
             _state.value = ConnectState.Connected
         } catch (cancelled: CancellationException) {
@@ -925,7 +925,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 )
                 val added = addAccountThenPrime(
                     probe = probe,
-                    validate = { container.mailRepository.testConnection(it).getOrThrow() },
+                    validate = { container.mailRepository.accounts.testConnection(it).getOrThrow() },
                     persist = {
                         AddedAccount(
                             container.accountStore.add(

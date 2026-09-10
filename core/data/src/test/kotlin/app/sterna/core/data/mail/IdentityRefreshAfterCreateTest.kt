@@ -12,12 +12,13 @@ import org.junit.Test
 class IdentityRefreshAfterCreateTest {
 
     private val mailRepository = "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt"
+    private val mailAccounts = "core/data/src/main/kotlin/app/sterna/core/data/mail/MailAccounts.kt"
 
     // ── The wiring, read as text ─────────────────────────────────────────────────────────────
 
     @Test fun `a confirmed creation is followed by a re-read, before createIdentity returns`() {
         assertEquals(
-            "MailRepository.createIdentity no longer re-reads the server's identities after the " +
+            "MailAccounts.createIdentity no longer re-reads the server's identities after the " +
                 "creation was confirmed. Without that line the new address is stored nowhere the " +
                 "screen reads: `jmapSession` hands back its CACHED session, so the next Identity/get " +
                 "only happens at the following cold start — the app restart of #172. The order is " +
@@ -29,18 +30,18 @@ class IdentityRefreshAfterCreateTest {
                 "refreshServerIdentities(ctx.session, ctx.accountId, credentials.id, ctx.auth)",
                 "return created",
             ),
-            block(mailRepository, "val created = client.createIdentity(", 3),
+            block(mailAccounts, "val created = client.createIdentity(", 3),
         )
     }
 
     @Test fun `createIdentity refreshes once, and only there`() {
         val body = SourceText.functionSource(
-            SourceText.read(mailRepository),
+            SourceText.read(mailAccounts),
             "suspend fun createIdentity(credentials: AccountCredentials, name: String, email: String): String {",
         )
 
         assertEquals(
-            "MailRepository.createIdentity must call refreshServerIdentities exactly once. A " +
+            "MailAccounts.createIdentity must call refreshServerIdentities exactly once. A " +
                 "second call placed BEFORE the client call would leave the block above intact " +
                 "while re-reading the whole list on every refusal too — a round trip nobody asked " +
                 "for, on the one path where the server has just said no.",
@@ -57,23 +58,23 @@ class IdentityRefreshAfterCreateTest {
                 "compiles. Codeberg #32 rides on this line: the server is authoritative for the " +
                 "addresses the user may send as.",
             listOf(
-                "reconcileLinkedAccounts(credentials, session, auth)",
-                "refreshServerIdentities(session, accountId, credentials.id, auth)",
+                "accounts.reconcileLinkedAccounts(credentials, session, auth)",
+                "accounts.refreshServerIdentities(session, accountId, credentials.id, auth)",
                 "val mailboxes = client.getMailboxes(session, accountId, auth)",
             ),
-            block(mailRepository, "reconcileLinkedAccounts(credentials, session, auth)", 3),
+            block(mailRepository, "accounts.reconcileLinkedAccounts(credentials, session, auth)", 3),
         )
     }
 
     @Test fun `the refresh reads from the server, writes under the local id, and cannot throw`() {
         assertEquals(
-            "MailRepository.refreshServerIdentities changed shape. It must read the list from the " +
+            "MailAccounts.refreshServerIdentities changed shape. It must read the list from the " +
                 "server (Identity/get) and store THAT, never a list built locally; it must write " +
                 "under the local account id and read under the JMAP one; and it must stay inside " +
                 "runCatching, because `jmapSession` calls it and a failed read must not break signing " +
                 "in.",
             listOf(
-                "private suspend fun refreshServerIdentities(",
+                "internal suspend fun refreshServerIdentities(",
                 "session: JmapSession,",
                 "accountId: String,",
                 "localAccountId: String,",
@@ -85,13 +86,13 @@ class IdentityRefreshAfterCreateTest {
                 "}",
                 "}",
             ),
-            block(mailRepository, "private suspend fun refreshServerIdentities(", 11),
+            block(mailAccounts, "internal suspend fun refreshServerIdentities(", 11),
         )
     }
 
     @Test fun `the caller can read the server's identities, and a failed read THROWS`() {
         assertEquals(
-            "MailRepository.serverIdentities changed shape. It is the read #172 was missing: " +
+            "MailAccounts.serverIdentities changed shape. It is the read #172 was missing: " +
                 "`StoredAccount.serverIdentities` is written only by refreshServerIdentities, which " +
                 "only `jmapSession` calls, and neither adding an account nor Test connection nor a sync " +
                 "opens a session — so on a freshly added account the stored list stayed empty " +
@@ -107,13 +108,13 @@ class IdentityRefreshAfterCreateTest {
                 "if (credentials.protocol == MailProtocol.IMAP) {",
                 "throw IllegalStateException(\"Identity/get is JMAP-only; an IMAP alias is local\")",
                 "}",
-                "val ctx = jmapSession(credentials)",
+                "val ctx = host.jmapSession(credentials)",
                 "val identities = storedServerIdentities(client.getIdentities(ctx.session, ctx.accountId, ctx.auth))",
                 "accountStore.setServerIdentities(credentials.id, identities)",
                 "return identities",
                 "}",
             ),
-            block(mailRepository, "suspend fun serverIdentities(", 9),
+            block(mailAccounts, "suspend fun serverIdentities(", 9),
         )
     }
 

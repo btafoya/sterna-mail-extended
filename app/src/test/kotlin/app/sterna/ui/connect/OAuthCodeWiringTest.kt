@@ -195,7 +195,7 @@ class OAuthCodeWiringTest {
          * candidates and the same credentials-free probe.
          */
         const val PROBES =
-            "?: collectOAuthHosts(candidates) { container.mailRepository.discoverOAuth(it, addressDomain) }"
+            "?: collectOAuthHosts(candidates) { container.mailRepository.accounts.discoverOAuth(it, addressDomain) }"
         const val HANDS_REDIRECT = "consumeOAuthRedirect()"
         const val STRIPS = "current.data = null"
         const val TOASTS = "toast(message)"

@@ -25,7 +25,7 @@ import java.io.File
  *   never that the level or tag a device shows is the one read here.
  * - The position of a call in a control structure. A pinned line says nothing about the branch it
  *   sits on; [DestroyChecksTheFolderWiringTest] is what holds the spared line to its `if`.
- * - The other JVM blockers of the same file. `android.util.LruCache` and `android.util.Base64`
+ * - The other JVM blockers of these files. `android.util.LruCache` and `android.util.Base64`
  *   both construct under the stub android.jar, so they stay where they are, deliberately.
  * - The `Log` calls of `EmailDao.kt`, `ImapMailService.kt` and `AccountStore.kt`. Those files are
  *   reached by no test that builds a repository, and are out of this rule's scope.
@@ -72,13 +72,13 @@ class MailRepositoryLogsThroughASeamTest {
         // The rule matches the call and the import, not the qualified name: an import, aliased or
         // not, followed by a bare `Log.i(` is what a fully qualified needle reads as absence.
         assertEquals(
-            "MailRepository, MailSender, MailDrafts and MailFolders must not call android.util.Log: " +
+            "MailRepository, MailSender, MailDrafts, MailFolders and MailAccounts must not call android.util.Log: " +
                 "the stub android.jar of a JVM unit " +
                 "test throws 'not mocked' on every one of them, so a single call turns a test of " +
                 "the path around it into a test of the logger. Route the line through logInfo / " +
                 "logWarn, whose production binding lives in DataFactory.create.",
             emptyList<String>(),
-            (codeLinesOf(REPOSITORY) + codeLinesOf(SENDER) + codeLinesOf(DRAFTS) + codeLinesOf(FOLDERS))
+            (codeLinesOf(REPOSITORY) + codeLinesOf(SENDER) + codeLinesOf(DRAFTS) + codeLinesOf(FOLDERS) + codeLinesOf(ACCOUNTS))
                 .filter { LOG_CALL.containsMatchIn(it) || LOG_IMPORT.containsMatchIn(it) },
         )
     }
@@ -171,7 +171,7 @@ class MailRepositoryLogsThroughASeamTest {
                 "logWarn(\"MailRepository\", \"OAuth add: nothing autodiscovered for \$host; " +
                     "stored as-is (#55)\", null)",
             ),
-            codeLinesNaming(REPOSITORY, "nothing autodiscovered"),
+            codeLinesNaming(ACCOUNTS, "nothing autodiscovered"),
         )
         assertEquals(
             "an outbox item that could not be armed stays a WARNING (#70)",
@@ -207,6 +207,32 @@ class MailRepositoryLogsThroughASeamTest {
         )
     }
 
+    @Test fun `the account half is built with the repository's own seam, scope and host`() {
+        assertEquals(
+            "MailRepository must hand MailAccounts its own logWarn, its own bgScope and itself as " +
+                "host, every one of them named. Dropped, `logWarn` falls to the class's silent " +
+                "default and the #55 warning above never reaches logcat; a second scope would " +
+                "let a purge die with a sync call.",
+            listOf(
+                "val accounts: MailAccounts = MailAccounts(",
+                "client = client,",
+                "imap = imap,",
+                "emailDao = emailDao,",
+                "emailFtsDao = emailFtsDao,",
+                "emailBodyDao = emailBodyDao,",
+                "mailboxDao = mailboxDao,",
+                "snoozedDao = snoozedDao,",
+                "accountStore = accountStore,",
+                "oauthClient = oauthClient,",
+                "bgScope = bgScope,",
+                "host = this,",
+                "logWarn = logWarn,",
+                ")",
+            ),
+            callAt("= MailAccounts("),
+        )
+    }
+
     private companion object {
         /** A call of the platform logger, however it was imported, and the imports that allow one. */
         val LOG_CALL = Regex("""\bLog\s*\.\s*[a-z]+\s*\(""")
@@ -222,6 +248,9 @@ class MailRepositoryLogsThroughASeamTest {
 
         /** And the folder half, entered by a JVM test on both protocols. */
         val FOLDERS: String by lazy { DaoQuerySource.mailSource("MailFolders") }
+
+        /** And the account half, whose prune a JVM test runs against a store and a server. */
+        val ACCOUNTS: String by lazy { DaoQuerySource.mailSource("MailAccounts") }
 
         val FACTORY: String by lazy {
             repoFile("core/data/src/main/kotlin/app/sterna/core/data/DataFactory.kt").readText()

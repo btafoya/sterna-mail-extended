@@ -11,17 +11,22 @@ import org.junit.Test
  */
 class ForbiddenSubAccountWiringTest {
 
-    private fun bodyLines(function: String): List<String> =
-        DaoQuerySource.mailFunctionBody("MailRepository", function)
+    private fun bodyLines(file: String, function: String): List<String> =
+        DaoQuerySource.mailFunctionBody(file, function)
             .lines().map { it.trim() }.filter { it.isNotEmpty() }
+
+    private fun repositoryThenAccounts(): List<String> =
+        listOf("MailRepository", "MailAccounts")
+            .flatMap { DaoQuerySource.mailSource(it).lines() }
+            .map { it.trim() }
 
     private fun assertBody(function: String, expected: String) {
         assertEquals(
-            "MailRepository.$function is no longer, line for line, what this test was written " +
+            "MailAccounts.$function is no longer, line for line, what this test was written " +
                 "against. Read the new body before updating this: an INSERTED or LENGTHENED line " +
                 "is exactly what this pin exists to catch (#129).",
             expected.trimIndent().lines().map { it.trim() }.filter { it.isNotEmpty() },
-            bodyLines(function),
+            bodyLines("MailAccounts", function),
         )
     }
 
@@ -63,7 +68,7 @@ class ForbiddenSubAccountWiringTest {
      * The probe must come from the head of the candidate list down, never over the whole of it:
      */
     @Test fun `the probed set starts after the primary`() {
-        val probeLines = bodyLines("reconcileLinkedAccounts").filter { "getMailboxes" in it || "drop(" in it }
+        val probeLines = bodyLines("MailAccounts", "reconcileLinkedAccounts").filter { "getMailboxes" in it || "drop(" in it }
         assertEquals(
             "the #129 probe no longer reads as 'every candidate after the head, one Mailbox/get " +
                 "each, each in its own runCatching'.",
@@ -77,7 +82,7 @@ class ForbiddenSubAccountWiringTest {
 
     /** The early return stays ahead of the probe: a login with no sub-account costs no request. */
     @Test fun `the early return still sits in front of the probe`() {
-        val lines = bodyLines("reconcileLinkedAccounts")
+        val lines = bodyLines("MailAccounts", "reconcileLinkedAccounts")
         val guard = lines.indexOf(
             "if (mailAccountIds.size <= 1 && accountStore.linkedAccounts(loginId).isEmpty()) return",
         )
@@ -98,7 +103,7 @@ class ForbiddenSubAccountWiringTest {
             {
             runCatching {
             val credentials = accountStore.credentials(id) ?: return
-            val cached = cachedSession
+            val cached = host.cachedJmapSession()
             ?.takeIf { it.credentials.server == credentials.server && it.credentials.username == credentials.username }
             ?: return
             // The cached session's own auth, so the #129 probe costs no token work of its own.
@@ -113,11 +118,11 @@ class ForbiddenSubAccountWiringTest {
      * Order, not the whole body: the mention list below sees only the text and its rank, so moving
      */
     @Test fun `the session accessor reconciles the linked accounts before it uses the session`() {
-        val lines = bodyLines("jmapSession")
-        val reconcile = lines.indexOf("reconcileLinkedAccounts(credentials, session, auth)")
+        val lines = bodyLines("MailRepository", "jmapSession")
+        val reconcile = lines.indexOf("accounts.reconcileLinkedAccounts(credentials, session, auth)")
         val use = lines.indexOfFirst { "client.getMailboxes(" in it }
         assertTrue(
-            "jmapSession() no longer calls reconcileLinkedAccounts(credentials, session, auth) — that " +
+            "jmapSession() no longer calls accounts.reconcileLinkedAccounts(credentials, session, auth) — that " +
                 "call is what makes the #129 filter and the #31 prune run at all.",
             reconcile >= 0,
         )
@@ -133,17 +138,17 @@ class ForbiddenSubAccountWiringTest {
      * Every mention of the reconcile in the file, declaration and call sites alike, with their
      */
     @Test fun `the reconcile is declared once and called from exactly these two places`() {
-        val mentions = DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }
+        val mentions = repositoryThenAccounts()
             .filter { Regex("""\breconcileLinkedAccounts\(""").containsMatchIn(it) }
         assertEquals(
-            "a call to MailRepository.reconcileLinkedAccounts was added, removed or given other " +
+            "a call to MailAccounts.reconcileLinkedAccounts was added, removed or given other " +
                 "arguments. The jmapSession() one is what makes the fix run at all (#129) and what " +
                 "makes revocations prune (#31); the after-add one is what the add flow shows.",
             listOf(
-                "private suspend fun reconcileLinkedAccounts(",
+                "accounts.reconcileLinkedAccounts(credentials, session, auth)",
+                "internal suspend fun reconcileLinkedAccounts(",
                 "val pruned = runCatching { accountStore.reconcileLinkedAccounts(loginId, discovered, probes) }",
                 "reconcileLinkedAccounts(credentials, cached.session, cached.auth)",
-                "reconcileLinkedAccounts(credentials, session, auth)",
             ),
             mentions,
         )
@@ -157,7 +162,7 @@ class ForbiddenSubAccountWiringTest {
      * reached. The decision is executed in `CancellationTest`; the plug is read here.
      */
     @Test fun `both runCatchings of this path re-throw a cancellation`() {
-        val guarded = DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }
+        val guarded = repositoryThenAccounts()
             .filter { "rethrowIfCancelled()" in it }
         assertEquals(
             "a runCatching of the #129 path no longer re-throws cancellation, or another one was " +
@@ -176,10 +181,10 @@ class ForbiddenSubAccountWiringTest {
      * And nothing else in the file may hand the store a candidate list: a second call site would be
      */
     @Test fun `the store's reconcile is called from exactly one place, with the unfiltered list and the probes`() {
-        val calls = DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }
+        val calls = repositoryThenAccounts()
             .filter { "accountStore.reconcileLinkedAccounts(" in it }
         assertEquals(
-            "MailRepository now calls AccountStore.reconcileLinkedAccounts somewhere else, or with " +
+            "MailAccounts now calls AccountStore.reconcileLinkedAccounts somewhere else, or with " +
                 "something other than (loginId, the raw discovered list, probes) — filtering the " +
                 "list here is what turns a passing 'forbidden' into a prune (#129 vs #31).",
             listOf(

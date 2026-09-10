@@ -651,7 +651,7 @@ class OAuthHandoverWiringTest {
         )
         assertPinnedLine(
             VIEW_MODEL,
-            "container.mailRepository.discoverOAuth(it, addressDomain)",
+            "container.mailRepository.accounts.discoverOAuth(it, addressDomain)",
             "And the probe is the repository's credentials-free metadata GET — which is what " +
                 "makes it safe to run before any secret has been typed. ⛔ Pinned WITH the " +
                 "address domain: it is what bounds the hosts the document may name (executed in " +

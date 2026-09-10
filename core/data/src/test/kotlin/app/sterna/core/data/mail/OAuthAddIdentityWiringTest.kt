@@ -9,7 +9,7 @@ import org.junit.Test
 class OAuthAddIdentityWiringTest {
 
     private fun bodyLines(function: String): List<String> =
-        DaoQuerySource.mailFunctionBody("MailRepository", function)
+        DaoQuerySource.mailFunctionBody("MailAccounts", function)
             .lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("//") }
 
     /**
@@ -24,7 +24,7 @@ class OAuthAddIdentityWiringTest {
     private fun assertAsks(function: String, why: String, expected: List<String>) =
         assertBlock(
             function,
-            "MailRepository.$function must ask the shared identity, BEFORE the store writes, " +
+            "MailAccounts.$function must ask the shared identity, BEFORE the store writes, " +
                 "whether this add creates the account — on the very values it then hands to " +
                 "addOAuth. $why",
             expected,
@@ -96,7 +96,7 @@ class OAuthAddIdentityWiringTest {
     @Test fun `the JMAP OAuth add resolves the server the password path would have stored`() {
         assertBlock(
             "addOAuthAccount",
-            "MailRepository.addOAuthAccount must resolve the server with the shared autodiscovery " +
+            "MailAccounts.addOAuthAccount must resolve the server with the shared autodiscovery " +
                 "before it stores anything, falling back on the OAuth document's host via " +
                 "oauthServerToStore. Stored under the OAuth document's host, the same mailbox " +
                 "added by password and then by OAuth makes two accounts (#55). And the block " +
@@ -122,7 +122,7 @@ class OAuthAddIdentityWiringTest {
     @Test fun `the JMAP OAuth add keeps a host the reader dictated verbatim`() {
         assertBlock(
             "addOAuthAccount",
-            "MailRepository.addOAuthAccount must resolve ONLY a host autodiscovery guessed; the " +
+            "MailAccounts.addOAuthAccount must resolve ONLY a host autodiscovery guessed; the " +
                 "other branch hands the store `host` unchanged. Resolve unconditionally and the " +
                 "manual form's OAuth button files the account somewhere else than its own " +
                 "password button, from the same typed field (#55).",
@@ -145,7 +145,7 @@ class OAuthAddIdentityWiringTest {
     @Test fun `a silent resolution leaves a line to read`() {
         assertBlock(
             "addOAuthAccount",
-            "MailRepository.addOAuthAccount must log when the guard passed and autodiscovery " +
+            "MailAccounts.addOAuthAccount must log when the guard passed and autodiscovery " +
                 "resolved nothing, because the account is then stored under the OAuth document's " +
                 "host — #55 as it was, with nothing anywhere to say so.",
             listOf(
@@ -163,7 +163,7 @@ class OAuthAddIdentityWiringTest {
     @Test fun `the JMAP OAuth add stores the resolved server, not the document host`() {
         assertBlock(
             "addOAuthAccount",
-            "MailRepository.addOAuthAccount must hand accountStore.addOAuth the RESOLVED server. " +
+            "MailAccounts.addOAuthAccount must hand accountStore.addOAuth the RESOLVED server. " +
                 "Stored under the OAuth document's host, the same mailbox added by password and " +
                 "then by OAuth makes two accounts (#55).",
             listOf(
@@ -180,7 +180,7 @@ class OAuthAddIdentityWiringTest {
     @Test fun `the JMAP OAuth add tells the store which host 1_5_x filed this account under`() {
         assertBlock(
             "addOAuthAccount",
-            "MailRepository.addOAuthAccount must pass accountStore.addOAuth the host the OAuth " +
+            "MailAccounts.addOAuthAccount must pass accountStore.addOAuth the host the OAuth " +
                 "document came from. Without it, an account OAuth-added under 1.5.0 or 1.5.1 " +
                 "takes a SECOND line at the first re-add after the update — the fix for #55 " +
                 "manufacturing the duplicate of #55.",
@@ -201,13 +201,34 @@ class OAuthAddIdentityWiringTest {
         val offenders = bodyLines("addOAuthAccount")
             .filter { RECONCILE.containsMatchIn(it) && it != gated }
         assertEquals(
-            "MailRepository.addOAuthAccount must call reconcileLinkedAccountsAfterAdd behind " +
+            "MailAccounts.addOAuthAccount must call reconcileLinkedAccountsAfterAdd behind " +
                 "`if (created)`, exactly as the two routes in ConnectViewModel do. Ungated, an " +
                 "OAuth re-add that lands on a login carrying SHARED MAILBOXES hands the #129 diff " +
                 "a session that may not list the shares: every sub-account is deleted and its " +
                 "five tables purged — a real shared mailbox gone, cache included, with nothing to " +
                 "restore it from. Found:\n" + offenders.joinToString("\n"),
             emptyList<String>(), offenders,
+        )
+    }
+
+    @Test fun `the first sync a creator owes is the repository's refresh, with its defaults`() {
+        val naming = { file: String ->
+            DaoQuerySource.mailSource(file).lines().map { it.trim() }
+                .filter { "firstSync(" in it && !it.startsWith("*") }
+        }
+        assertEquals(
+            "the three creators reach the first sync through MailAccountHost.firstSync, and the " +
+                "repository answers it with `refresh(credentials)` and nothing more: a limit or a " +
+                "cutoff added on that one line would hand every new OAuth account a near-empty " +
+                "inbox, and no body pinned in this file reads it.",
+            listOf(
+                "override suspend fun firstSync(credentials: AccountCredentials): MailboxMeta = refresh(credentials)",
+                "suspend fun firstSync(credentials: AccountCredentials): MailboxMeta",
+                "val meta = this.host.firstSync(credentials)",
+                "val meta = host.firstSync(credentials)",
+                "val meta = host.firstSync(credentials)",
+            ),
+            naming("MailRepository") + naming("MailAccounts"),
         )
     }
 

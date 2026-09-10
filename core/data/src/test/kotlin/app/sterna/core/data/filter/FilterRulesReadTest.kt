@@ -369,9 +369,9 @@ class FilterRulesReadTest {
     private fun declarationsOf(body: String, name: String): List<String> =
         SourceText.codeLines(body).filter { it.substringBefore(" =") == "val $name" }
 
-    /** The body of `MailRepository.loadFilterRules`, from its signature to the next declaration. */
+    /** The body of `MailAccounts.loadFilterRules`, from its signature to the next declaration. */
     private fun loadFilterRulesBody(): String = SourceText.functionSource(
-        SourceText.read("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt"),
+        SourceText.read("core/data/src/main/kotlin/app/sterna/core/data/mail/MailAccounts.kt"),
         "suspend fun loadFilterRules(credentials: AccountCredentials)",
     )
 }

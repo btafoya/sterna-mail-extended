@@ -346,9 +346,9 @@ class SenderRuleFromReaderTest {
             "val outcome = addBlockRule(" in vm,
         )
         assertTrue(
-            "its load must be the repository call itself — 'load = { repo.loadFilterRules(" +
+            "its load must be the repository call itself — 'load = { repo.accounts.loadFilterRules(" +
                 "credentials) }' — never a snapshot taken when the message opened",
-            "load = { repo.loadFilterRules(credentials) }," in vm,
+            "load = { repo.accounts.loadFilterRules(credentials) }," in vm,
         )
         val saves = vm.lines().filter { "saveFilterRules(" in it && !it.trimStart().startsWith("*") }
         assertEquals(

@@ -543,7 +543,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
      *  `getOrElseUnlessCancelled` and not `getOrDefault` (#99): a cancelled read is not a failed one,
      *  and this coroutine dies every time a page is swiped away. */
     private suspend fun readSenderScript(credentials: AccountCredentials): SenderScript =
-        runCatching { SenderScript.Read(repo.loadFilterRules(credentials)) }
+        runCatching { SenderScript.Read(repo.accounts.loadFilterRules(credentials)) }
             .getOrElseUnlessCancelled { SenderScript.Unreachable }
 
     /**
@@ -561,8 +561,8 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             val outcome = addBlockRule(
                 address = address,
                 trashFolder = trashPath,
-                load = { repo.loadFilterRules(credentials) },
-                save = { rules -> repo.saveFilterRules(credentials, rules) },
+                load = { repo.accounts.loadFilterRules(credentials) },
+                save = { rules -> repo.accounts.saveFilterRules(credentials, rules) },
             )
             _senderRuleStatus.value = getApplication<Application>().getString(
                 when (outcome) {

@@ -136,7 +136,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
                 // password and always fails, a false negative (audit A5).
                 oauth = stored?.oauth,
             )
-            _connTest.value = mail.testConnection(credentials).fold(
+            _connTest.value = mail.accounts.testConnection(credentials).fold(
                 onSuccess = { ConnTest.Ok },
                 onFailure = { ConnTest.Failed(it.message ?: it.javaClass.simpleName) },
             )
@@ -343,7 +343,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         val credentials = store.credentials(id) ?: return
         appScope.launch {
             val server = try {
-                mail.serverIdentities(credentials)
+                mail.accounts.serverIdentities(credentials)
             } catch (e: Exception) {
                 android.util.Log.w(
                     "SternaAccounts",
@@ -361,7 +361,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
             }
             for (identity in identitiesToCreate(before, identities, server)) {
                 try {
-                    mail.createIdentity(credentials, name = identity.name, email = identity.email.trim())
+                    mail.accounts.createIdentity(credentials, name = identity.name, email = identity.email.trim())
                 } catch (e: Exception) {
                     android.util.Log.w(
                         "SternaAccounts",
@@ -403,7 +403,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         if (_accountSignIn.value != AccountSignIn.Idle && _accountSignIn.value !is AccountSignIn.Failed) return
         _accountSignIn.value = AccountSignIn.Starting
         accountSignInJob = viewModelScope.launch {
-            val result = mail.runProviderDeviceFlow(provider) { device ->
+            val result = mail.accounts.runProviderDeviceFlow(provider) { device ->
                 _accountSignIn.value = AccountSignIn.Approval(
                     device.userCode, device.verificationUri, device.verificationUriComplete,
                 )
@@ -411,7 +411,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
             result.fold(
                 onSuccess = { tokens ->
                     _accountSignIn.value = AccountSignIn.Connecting
-                    runCatching { mail.signInImportedOAuth(accountId, provider, tokens) }.fold(
+                    runCatching { mail.accounts.signInImportedOAuth(accountId, provider, tokens) }.fold(
                         onSuccess = {
                             store.setImportPending(accountId, false)
                             refresh()

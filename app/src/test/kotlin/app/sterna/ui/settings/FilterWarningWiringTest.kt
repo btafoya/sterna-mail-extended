@@ -236,12 +236,12 @@ class FilterWarningWiringTest {
         // save's own read matched the pattern and answered for it. Each of the two call sites is
         // pinned on its own.
         assertTrue(
-            "the load must fold in a status it read ITSELF (`status = repo.loadFilterScriptStatus(…)`)",
-            Regex("status = repo\\.loadFilterScriptStatus\\(credentials\\),").containsMatchIn(source),
+            "the load must fold in a status it read ITSELF (`status = repo.accounts.loadFilterScriptStatus(…)`)",
+            Regex("status = repo\\.accounts\\.loadFilterScriptStatus\\(credentials\\),").containsMatchIn(source),
         )
         assertTrue(
             "and the save must fold in the status IT read, not null and not a fresh value",
-            Regex("val status = repo\\.loadFilterScriptStatus\\(credentials\\)").containsMatchIn(source) &&
+            Regex("val status = repo\\.accounts\\.loadFilterScriptStatus\\(credentials\\)").containsMatchIn(source) &&
                 Regex("status = status").containsMatchIn(source),
         )
         assertTrue(
@@ -292,7 +292,7 @@ class FilterWarningWiringTest {
         )
         assertTrue(
             "and the status it folds in must be one this run actually read",
-            Regex("val status = repo\\.loadFilterScriptStatus\\(credentials\\)").containsMatchIn(source),
+            Regex("val status = repo\\.accounts\\.loadFilterScriptStatus\\(credentials\\)").containsMatchIn(source),
         )
     }
 

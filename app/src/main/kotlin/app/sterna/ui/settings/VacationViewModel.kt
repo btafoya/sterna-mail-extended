@@ -68,7 +68,7 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
         _state.update { it.copy(loading = true, errorKind = null) }
         viewModelScope.launch {
             try {
-                when (val result = repo.loadVacation(credentials)) {
+                when (val result = repo.accounts.loadVacation(credentials)) {
                     VacationState.Unsupported ->
                         _state.value = VacationUiState(
                             loading = false,
@@ -82,7 +82,7 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
                         // it and pressed Save. The screen holds its spinner one more round trip.
                         val warning = refreshedFilterWarning(
                             previous = null,
-                            status = repo.loadFilterScriptStatus(credentials),
+                            status = repo.accounts.loadFilterScriptStatus(credentials),
                             responderEnabled = r.isEnabled,
                         )
                         _state.value = VacationUiState(
@@ -143,7 +143,7 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
                     textBody = s.message.ifBlank { null },
                     htmlBody = null,
                 )
-                repo.saveVacation(credentials, vacation)
+                repo.accounts.saveVacation(credentials, vacation)
                 serverEdits = s.edits()
                 _state.update { it.copy(saving = false, savedTick = it.savedTick + 1, dirty = false) }
                 written = true
@@ -160,7 +160,7 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
             // cancels this read, and inside the catch above a cancellation would be painted as a
             // failed save over a write the server has already taken.
             if (written) {
-                val status = repo.loadFilterScriptStatus(credentials)
+                val status = repo.accounts.loadFilterScriptStatus(credentials)
                 _state.update {
                     it.copy(
                         filterWarning = refreshedFilterWarning(

@@ -59,7 +59,7 @@ class ConnectPrimingWiringTest {
     private val accountCreation = listOf(
         "container.accountStore.add(",
         "container.accountStore.readdImportedAccount(",
-        "container.mailRepository.addOAuthAccount(",
+        "container.mailRepository.accounts.addOAuthAccount(",
     )
 
     /**
@@ -298,7 +298,7 @@ class ConnectPrimingWiringTest {
     @Test fun `every add path proves the credentials before persisting anything`() {
         val offenders = addPaths.filterNot { path ->
             val body = functionBody(path)
-            "validate = { container.mailRepository.testConnection(it).getOrThrow() }" in body
+            "validate = { container.mailRepository.accounts.testConnection(it).getOrThrow() }" in body
         }
         assertEquals(
             "each add path must validate with testConnection(), which authenticates WITHOUT writing " +
@@ -384,7 +384,7 @@ class ConnectPrimingWiringTest {
      * sub-accounts it carries, and it may have just moved that login from OAuth onto a password.
      */
     @Test fun `sub-account reconciliation only runs when the add created the account`() {
-        val gated = "if (created) container.mailRepository.reconcileLinkedAccountsAfterAdd(added.id)"
+        val gated = "if (created) container.mailRepository.accounts.reconcileLinkedAccountsAfterAdd(added.id)"
         val offenders = listOf("finishTokenConnect", "finishJmapConnect").flatMap { path ->
             functionBody(path).lines().map { it.trim() }
                 .filter { RECONCILE.containsMatchIn(it) && it != gated }

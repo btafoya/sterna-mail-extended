@@ -60,7 +60,7 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
                 quotas = _state.value.quotas,
             )
             // Server-side quota is a network call; fetched after the instant on-device figures.
-            val quotas = runCatching { store.load()?.let { mail.loadQuotas(it) }.orEmpty() }
+            val quotas = runCatching { store.load()?.let { mail.accounts.loadQuotas(it) }.orEmpty() }
                 .getOrDefault(emptyList())
                 .filter { it.scope == "account" && (it.resourceType == "octets" || it.resourceType == "count") }
                 .map { QuotaUi(it.resourceType, it.used, it.limit) }

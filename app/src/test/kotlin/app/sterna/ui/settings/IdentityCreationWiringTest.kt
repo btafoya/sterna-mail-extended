@@ -91,7 +91,7 @@ class IdentityCreationWiringTest {
         assertEquals(
             "AccountsViewModel.createIdentitiesOnServer must READ the server's identities before " +
                 "deciding, and hand THAT list to identitiesToCreate. This is V5 whole: " +
-                "`StoredAccount.serverIdentities` is only ever written by `MailRepository.connect`, " +
+                "`StoredAccount.serverIdentities` is only ever written by `MailAccounts.refreshServerIdentities`, run from `MailRepository.jmapSession`, " +
                 "which neither adding an account, nor Test connection, nor a sync runs — so on a " +
                 "freshly added account the stored list is empty because nobody read it, and the " +
                 "guard that (rightly) refuses to post against an unread list refused for good. " +
@@ -102,7 +102,7 @@ class IdentityCreationWiringTest {
                 "server holds nothing' are opposite instructions.",
             listOf(
                 "val server = try {",
-                "mail.serverIdentities(credentials)",
+                "mail.accounts.serverIdentities(credentials)",
                 "} catch (e: Exception) {",
                 "android.util.Log.w(",
                 "\"SternaAccounts\",",
@@ -130,7 +130,7 @@ class IdentityCreationWiringTest {
             listOf(
                 "for (identity in identitiesToCreate(before, identities, server)) {",
                 "try {",
-                "mail.createIdentity(credentials, name = identity.name, email = identity.email.trim())",
+                "mail.accounts.createIdentity(credentials, name = identity.name, email = identity.email.trim())",
                 "} catch (e: Exception) {",
             ),
             block(ACCOUNTS_VIEW_MODEL, "for (identity in identitiesToCreate(before, identities, server))", 4),
@@ -150,7 +150,7 @@ class IdentityCreationWiringTest {
                 "which would leave offline, dead DNS, broken TLS and timeouts mute — the very " +
                 "cases with no retry behind them.",
             listOf(
-                "mail.createIdentity(credentials, name = identity.name, email = identity.email.trim())",
+                "mail.accounts.createIdentity(credentials, name = identity.name, email = identity.email.trim())",
                 "} catch (e: Exception) {",
                 "android.util.Log.w(",
                 "\"SternaAccounts\",",
@@ -164,7 +164,7 @@ class IdentityCreationWiringTest {
             ),
             blockEndingAt(
                 ACCOUNTS_VIEW_MODEL,
-                "mail.createIdentity(credentials, name = identity.name, email = identity.email.trim())",
+                "mail.accounts.createIdentity(credentials, name = identity.name, email = identity.email.trim())",
                 0,
                 11,
             ),

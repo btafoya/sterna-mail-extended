@@ -30,10 +30,10 @@ class SessionSeamIsNamedTest {
         )
     }
 
-    /** All three files: the drafts and the folders were handed the session through the seam, never
-     *  a second one of their own. */
+    /** All four files: the drafts, the folders and the accounts were handed the session through the
+     *  seam, never a second one of their own. */
     private fun mentions(symbol: String): List<String> =
-        listOf("MailRepository", "MailDrafts", "MailFolders")
+        listOf("MailRepository", "MailDrafts", "MailFolders", "MailAccounts")
             .flatMap { DaoQuerySource.mailSource(it).lines() }
             .map { it.trim() }
             .filter { Regex("""\b$symbol\b""").containsMatchIn(it) }
@@ -51,8 +51,8 @@ class SessionSeamIsNamedTest {
             val auth = jmapAuth(credentials)
             val session = client.fetchSession(Jmap.sessionUrlFor(credentials.server), auth)
             val accountId = jmapAccountIdFor(credentials, session)
-            reconcileLinkedAccounts(credentials, session, auth)
-            refreshServerIdentities(session, accountId, credentials.id, auth)
+            accounts.reconcileLinkedAccounts(credentials, session, auth)
+            accounts.refreshServerIdentities(session, accountId, credentials.id, auth)
             val mailboxes = client.getMailboxes(session, accountId, auth)
             val roles = mailboxes.mapNotNull { mb -> mb.role?.let { it to mb.id } }.toMap()
             return JmapAccountSession(credentials, session, accountId, auth, roles, mailboxes).also { cachedSession = it }
@@ -92,13 +92,13 @@ class SessionSeamIsNamedTest {
                 "this, a second write site is what the pin exists to catch.",
             listOf(
                 "private var cachedSession: JmapAccountSession? = null",
+                "override fun cachedJmapSession(): JmapAccountSession? = cachedSession",
                 "cachedSession = JmapAccountSession(",
                 """cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("archive" to byName), ctx.mailboxes)""",
                 """cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("archive" to id), ctx.mailboxes)""",
                 """cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("trash" to byName), ctx.mailboxes)""",
                 """cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("trash" to id), ctx.mailboxes)""",
                 "cachedSession = null",
-                "val cached = cachedSession",
                 "cachedSession?.let { if (it.credentials == credentials) return it }",
                 "return JmapAccountSession(credentials, session, accountId, auth, roles, mailboxes).also { cachedSession = it }",
             ),
@@ -119,6 +119,7 @@ class SessionSeamIsNamedTest {
             listOf(
                 "class JmapAccountSession(",
                 "private var cachedSession: JmapAccountSession? = null",
+                "override fun cachedJmapSession(): JmapAccountSession? = cachedSession",
                 "cachedSession = JmapAccountSession(",
                 "private suspend fun originalSendersOf(ctx: JmapAccountSession, emails: List<Email>): Map<String, String?>? = try {",
                 "private suspend fun jmapMoveAll(ctx: JmapAccountSession, emailIds: List<String>, target: String): BulkResult {",
@@ -139,6 +140,9 @@ class SessionSeamIsNamedTest {
                 "private suspend fun jmapDraftReceiptRequested(ctx: MailRepository.JmapAccountSession, emailId: String): Boolean? {",
                 // MailFolders, whose one edge back into the repository is that same seam.
                 "suspend fun jmapSession(credentials: AccountCredentials): MailRepository.JmapAccountSession",
+                // MailAccounts: the seam, and the read of the cache its after-add reconcile reuses.
+                "suspend fun jmapSession(credentials: AccountCredentials): MailRepository.JmapAccountSession",
+                "fun cachedJmapSession(): MailRepository.JmapAccountSession?",
             ),
             mentions("JmapAccountSession"),
         )

@@ -789,7 +789,7 @@ class MailBySenderWiringTest {
         private const val SCOPE_LABEL = "R.string.sender_volume_scope"
 
         /** The write path's read, in full: it must go to the server where it is written. */
-        private const val LOAD_CALLBACK = "load = { repo.loadFilterRules(credentials) }"
+        private const val LOAD_CALLBACK = "load = { repo.accounts.loadFilterRules(credentials) }"
 
         private const val APP_SOURCES = "app/src/main/kotlin"
         private const val INBOX_SCREEN_PATH = "$APP_SOURCES/app/sterna/ui/inbox/InboxScreen.kt"

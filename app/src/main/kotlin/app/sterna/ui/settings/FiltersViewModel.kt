@@ -77,7 +77,7 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
                     repo.observeMailboxes(credentials.id).first()
                         .let { all -> all.mapNotNull { mb -> mailboxFilePath(mb, all) } }
                 }.getOrDefault(emptyList())
-                when (val result = repo.loadFilterRules(credentials)) {
+                when (val result = repo.accounts.loadFilterRules(credentials)) {
                     FilterRulesState.Unsupported -> {
                         serverRules = emptyList()
                         _state.value = FiltersUiState(
@@ -97,7 +97,7 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
                                 rules = result.rules,
                                 folders = folders,
                             ),
-                            status = repo.loadFilterScriptStatus(credentials),
+                            status = repo.accounts.loadFilterScriptStatus(credentials),
                             foreignFromRulesRead = result.foreignActiveScript,
                             unreadableFromRulesRead = result.scriptUnreadable,
                         )
@@ -148,7 +148,7 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             var written = false
             try {
-                repo.saveFilterRules(credentials, rules)
+                repo.accounts.saveFilterRules(credentials, rules)
                 serverRules = rules
                 _state.update { it.copy(saving = false, savedTick = it.savedTick + 1, dirty = false) }
                 written = true
@@ -166,7 +166,7 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
             // failed save over rules the server has already taken. All three flags come from this
             // read, so they cannot describe two moments; a failed read moves none.
             if (written) {
-                val status = repo.loadFilterScriptStatus(credentials)
+                val status = repo.accounts.loadFilterScriptStatus(credentials)
                 _state.update { filtersStateWithStatus(state = it, status = status) }
             }
         }
