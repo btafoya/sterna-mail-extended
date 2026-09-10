@@ -27,7 +27,7 @@ class FolderDeleteWorker(context: Context, params: WorkerParameters) : Coroutine
         val credentials = container.accountStore.allCredentials().firstOrNull { it.id == accountId }
             ?: return Result.success()
         return runCatching {
-            val deleted = container.mailRepository.deleteFolder(credentials, mailboxId)
+            val deleted = container.mailRepository.folders.deleteFolder(credentials, mailboxId)
             deleted.forEach { NewMailNotifier.clear(applicationContext, accountId, it) }
         }.fold(
             { Result.success() },

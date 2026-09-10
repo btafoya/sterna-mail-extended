@@ -250,7 +250,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         refresh()
         val sync = subscriptionSyncOnToggle(id, enabled) ?: return
         appScope.launch {
-            runCatching { mail.refreshFolderList(sync.accountId, sync.onlySubscribed) }
+            runCatching { mail.folders.refreshFolderList(sync.accountId, sync.onlySubscribed) }
                 .onFailure { android.util.Log.w("SternaAccounts", "the subscribed-folders sync failed; every folder stays in the drawer", it) }
         }
     }

@@ -178,7 +178,7 @@ class CollapsedFoldersSurfaceWiringTest {
             "the registry is re-read from somewhere new, or no longer from all of the places it " +
                 "must be. THREE call sites, pinned as a number and not as a count taken from the " +
                 "file itself: the account switch above, setFolderCollapsed's own re-read, and the " +
-                "folder RENAME — on IMAP the id is the path, MailRepository.renameFolder re-keys " +
+                "folder RENAME — on IMAP the id is the path, MailFolders.renameFolder re-keys " +
                 "the stored registry (AccountStore.replaceCollapsedFolder) beside the watch flags, " +
                 "and without this re-read the flow keeps the OLD key: the renamed folder reads as " +
                 "'nobody decided' and the default folds it on the spot, closing the folder the " +

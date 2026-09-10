@@ -5,7 +5,7 @@ import org.junit.Test
 
 /**
  * Source lint, same instrument and disclaimer as [ShowOnlySubscribedFoldersStoreWiringTest]: it
- * reads `AccountStore.kt` (and, for the rename, `MailRepository.kt`) as text, and proves nothing
+ * reads `AccountStore.kt` (and, for the rename, `MailFolders.kt`) as text, and proves nothing
  * about a running store, which this module cannot build (a `Context` and the Keystore, no
  * Robolectric here); nor about a running repository, which wants Room and a socket.
  */
@@ -65,11 +65,11 @@ class CollapsedFoldersStoreWiringTest {
     }
 
     /**
-     * The two re-keys, side by side in `MailRepository.renameFolder`, with the same delimiter.
+     * The two re-keys, side by side in `MailFolders.renameFolder`, with the same delimiter.
      */
     @Test fun `the folder rename re-keys the watch flags AND the fold registry, same delimiter`() {
         assertEquals(
-            "MailRepository.renameFolder no longer re-keys BOTH registries with the delimiter it " +
+            "MailFolders.renameFolder no longer re-keys BOTH registries with the delimiter it " +
                 "resolved for this account. Drop the second line and the folder the user had " +
                 "opened by hand folds itself the moment it is renamed; hand it '/' instead of " +
                 "`delim` and nothing moves at all on a Dovecot account.",
@@ -77,7 +77,7 @@ class CollapsedFoldersStoreWiringTest {
                 "accountStore.replaceWatchedFolder(credentials.id, mailboxId, newPath, delim)",
                 "accountStore.replaceCollapsedFolder(credentials.id, mailboxId, newPath, delim)",
             ),
-            block("accountStore.replaceWatchedFolder(credentials.id", 2, path = MAIL_REPOSITORY),
+            block("accountStore.replaceWatchedFolder(credentials.id", 2, path = MAIL_FOLDERS),
         )
     }
 
@@ -154,5 +154,6 @@ class CollapsedFoldersStoreWiringTest {
     private companion object {
         const val ACCOUNT_STORE = "core/data/src/main/kotlin/app/sterna/core/data/account/AccountStore.kt"
         const val MAIL_REPOSITORY = "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt"
+        const val MAIL_FOLDERS = "core/data/src/main/kotlin/app/sterna/core/data/mail/MailFolders.kt"
     }
 }

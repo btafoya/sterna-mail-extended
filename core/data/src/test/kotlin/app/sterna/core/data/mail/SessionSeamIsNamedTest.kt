@@ -30,9 +30,11 @@ class SessionSeamIsNamedTest {
         )
     }
 
-    /** Both files: the drafts were handed the session through the seam, never a second one. */
+    /** All three files: the drafts and the folders were handed the session through the seam, never
+     *  a second one of their own. */
     private fun mentions(symbol: String): List<String> =
-        (DaoQuerySource.mailSource("MailRepository").lines() + DaoQuerySource.mailSource("MailDrafts").lines())
+        listOf("MailRepository", "MailDrafts", "MailFolders")
+            .flatMap { DaoQuerySource.mailSource(it).lines() }
             .map { it.trim() }
             .filter { Regex("""\b$symbol\b""").containsMatchIn(it) }
 
@@ -135,6 +137,8 @@ class SessionSeamIsNamedTest {
                 // MailDrafts, which only ever receives one through the seam.
                 "suspend fun jmapSession(credentials: AccountCredentials): MailRepository.JmapAccountSession",
                 "private suspend fun jmapDraftReceiptRequested(ctx: MailRepository.JmapAccountSession, emailId: String): Boolean? {",
+                // MailFolders, whose one edge back into the repository is that same seam.
+                "suspend fun jmapSession(credentials: AccountCredentials): MailRepository.JmapAccountSession",
             ),
             mentions("JmapAccountSession"),
         )

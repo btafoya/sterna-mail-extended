@@ -7,12 +7,11 @@ import java.io.File
 /**
  * Which boolean reaches `ImapSession.listFolders`, and at which call sites (#174).
  *
- * The decision itself is executed elsewhere, `withSubscriptions`/`parseLsubPaths` in
- * `:core:imap` (`SubscribedFoldersTest`) and `showOnlySubscribedFoldersOf` in
- * `ShowOnlySubscribedFoldersTest`. What no executable test on this bench can reach is the wiring:
- * `MailRepository` opens an `AccountStore` (shared preferences) in its constructor and
- * `ImapMailService` needs a live session, and there is no Robolectric here, same reason as
- * [DecryptedSubjectCallSiteTest], whose source-reading harness this reuses.
+ * The decision itself is executed elsewhere, `withSubscriptions`/`parseLsubPaths` in `:core:imap`
+ * (`SubscribedFoldersTest`), `showOnlySubscribedFoldersOf` in `ShowOnlySubscribedFoldersTest`, and
+ * the two doors in [MailFoldersActOnBothProtocolsTest]. What no executable test on this bench can
+ * reach is the other call sites: they need a live `ImapMailService` session and an `AccountStore`
+ * (shared preferences), with no Robolectric here, as in [DecryptedSubjectCallSiteTest].
  *
  * Both halves matter and neither implies the other:
  * - passing a hard-coded `false` from the repository compiles, keeps every other test green, and
@@ -24,8 +23,9 @@ import java.io.File
  *   extra full listing on every archive and every delete, on exactly the big-folder-list account
  *   this feature was asked for.
  *
- * Assertions are on whole trimmed lines, by equality, and they screen every code line that calls
- * these functions, never `contains`, which is blind to any mutation that lengthens a line.
+ * Assertions are on whole trimmed lines, by equality, screening every code line of BOTH files the
+ * listing now spans (`MailRepository.kt` then `MailFolders.kt`), never `contains`, which is blind
+ * to any mutation that lengthens a line.
  */
 class SubscribedFoldersWiringTest {
 
@@ -40,13 +40,12 @@ class SubscribedFoldersWiringTest {
                 // Bare, and the only bare one in this list: these rows are never cached, so a
                 // subscription fetched for them is an LSUB paid on every archive and every delete.
                 "val folders = imap.listMailboxes(credentials)",
-                // The value stated by the caller, not re-read from the store here: the toggle
-                // path hands it down (`refreshFolderList`), so no ordering between the store write
-                // and this listing can turn the feature off.
+                // `MailFolders`, and the caller's own value, not a reading of the store here, so
+                // no ordering between the store write and this listing can turn the feature off.
                 "val load = imap.loadFolder(credentials, requestedMailboxId = null, limit = 1, " +
                     "onlySubscribed = onlySubscribed, onPage = {}, cachedPreviewsFor = null)",
             ),
-            codeLines("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt")
+            repositoryThenFolders()
                 .filter { it.contains("imap.loadFolder(") || it.contains("imap.listMailboxes(") },
         )
     }
@@ -81,7 +80,7 @@ class SubscribedFoldersWiringTest {
      * inert again, with every other test in this branch still green.
      */
     @Test fun `the toggle's own value reaches the listing, and only the other door reads the store`() {
-        val lines = codeLines("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt")
+        val lines = codeLines(MAIL_FOLDERS)
         val at = lines.indexOfFirst { it.startsWith("suspend fun refreshFolderList(") }
         assertEquals(
             "the two doors into the folder-list refresh changed shape. Lines found:",
@@ -91,11 +90,11 @@ class SubscribedFoldersWiringTest {
                 // `onlySubscribed`, the caller's, not accountStore.showOnlySubscribedFolders(...).
                 "refreshMailboxes(credentials, onlySubscribed)",
                 "}",
-                "private suspend fun refreshMailboxes(credentials: AccountCredentials) =",
+                "suspend fun refreshMailboxes(credentials: AccountCredentials) =",
                 "refreshMailboxes(credentials, accountStore.showOnlySubscribedFolders(credentials.id))",
                 "private suspend fun refreshMailboxes(credentials: AccountCredentials, onlySubscribed: Boolean) {",
             ),
-            if (at < 0) listOf("<no refreshFolderList in MailRepository at all>") else lines.subList(at, minOf(at + 7, lines.size)),
+            if (at < 0) listOf("<no refreshFolderList in MailFolders at all>") else lines.subList(at, minOf(at + 7, lines.size)),
         )
     }
 
@@ -109,10 +108,10 @@ class SubscribedFoldersWiringTest {
      * +    mailboxDao.replaceAll(credentials.id, load.mailboxes.filter { it.isSubscribed })
      * ```
      *
-     * That one passed the whole suite. The seven-line pin above stops at the private overload's
+     * That one passed the whole suite. The seven-line pin above stops at the second overload's
      * signature, the call-site pin above only reads lines naming `imap.loadFolder(`, the executable
-     * test next door never builds a `MailRepository` at all, and the "filter at the screen" guard
-     * lives in `:app` and scans `app/src/main` only, `:core:data` is not swept by it.
+     * test next door runs the two doors and not the five other writes, and the "filter at the
+     * screen" guard lives in `:app` and scans `app/src/main` only, `:core:data` is not swept by it.
      *
      * And the damage is data, not display: ticking the box would DELETE the unsubscribed
      * folders' rows from the cache. A folder delete would no longer find its hidden children
@@ -135,15 +134,16 @@ class SubscribedFoldersWiringTest {
                 "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.map { it.toEntity(credentials.id) })",
                 "mailboxDao.replaceAll(credentials.id, mailboxes.map { it.toEntity(credentials.id) })",
                 "mailboxDao.replaceAll(credentials.id, load.mailboxes)",
-                // The one the switch drives: `refreshFolderList` → `refreshMailboxes(credentials, onlySubscribed)`.
+                "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.map { it.toEntity(credentials.id) })",
+                // `MailFolders`: the two the switch drives, one per protocol.
                 "mailboxDao.replaceAll(credentials.id, load.mailboxes)",
                 "mailboxDao.replaceAll(credentials.id, client.getMailboxes(ctx.session, ctx.accountId, ctx.auth).map { it.toEntity(credentials.id) })",
-                "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.map { it.toEntity(credentials.id) })",
             ),
-            codeLines("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt")
-                .filter { it.contains("mailboxDao.replaceAll(") },
+            repositoryThenFolders().filter { it.contains("mailboxDao.replaceAll(") },
         )
     }
+
+    private fun repositoryThenFolders(): List<String> = codeLines(MAIL_REPOSITORY) + codeLines(MAIL_FOLDERS)
 
     /** [relative]'s code lines, trimmed, comments and blanks dropped, as [DecryptedSubjectCallSiteTest] does. */
     private fun codeLines(relative: String): List<String> = locate(relative).readLines()
@@ -159,5 +159,10 @@ class SubscribedFoldersWiringTest {
             dir = dir.parentFile
         }
         error("Cannot find $relative from ${System.getProperty("user.dir")}")
+    }
+
+    private companion object {
+        const val MAIL_REPOSITORY = "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt"
+        const val MAIL_FOLDERS = "core/data/src/main/kotlin/app/sterna/core/data/mail/MailFolders.kt"
     }
 }

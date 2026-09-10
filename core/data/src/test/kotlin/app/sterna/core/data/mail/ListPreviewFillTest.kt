@@ -47,11 +47,11 @@ class ListPreviewFillTest {
      * The three call sites, and what each of them passes.
      */
     @Test fun `the two caching reads ask for the cache, and the folder listing asks for none`() {
-        val source = DaoQuerySource.mailSource("MailRepository")
+        val source = DaoQuerySource.mailSource("MailRepository") + DaoQuerySource.mailSource("MailFolders")
 
         assertEquals(
             "the scroll page and the folder walk both carry the cache lambda; the folder-list " +
-                "refresh must carry a literal null — it caches no message at all",
+                "refresh, in MailFolders, must carry a literal null — it caches no message at all",
             listOf(
                 "val (entities, exists) = imap.fetchOlderPage(credentials, mailboxId, offset, PAGE_SIZE, listPreviewCache(credentials.id))",
                 "walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, cachedPreviewsFor = listPreviewCache(credentials.id)) },",

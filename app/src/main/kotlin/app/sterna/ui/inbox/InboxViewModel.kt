@@ -2601,13 +2601,13 @@ class InboxViewModel(
 
     // ---- folder management ----
 
-    fun createFolder(name: String, parentId: String? = null) = folderOp { c -> repo.createFolder(c, name, parentId) }
+    fun createFolder(name: String, parentId: String? = null) = folderOp { c -> repo.folders.createFolder(c, name, parentId) }
 
     fun renameFolder(mailboxId: String, newName: String) = folderOp { c ->
-        val newId = repo.renameFolder(c, mailboxId, newName)
-        // IMAP ids are paths: the repo re-keyed the watch flags; follow with the baseline.
+        val newId = repo.folders.renameFolder(c, mailboxId, newName)
+        // IMAP ids are paths: MailFolders re-keyed the watch flags; follow with the baseline.
         if (newId != mailboxId) NewMailNotifier.rename(getApplication(), c.id, mailboxId, newId)
-        // The fold registry IS re-read here, because the repo re-keys it exactly like the watch
+        // The fold registry IS re-read here, because MailFolders re-keys it exactly like the watch
         // flags (IMAP ids are paths). Without it the flow holds the old key, the renamed folder
         // reads as "nobody decided" and the default folds it on the spot (#185).
         refreshWatchedFolders()
@@ -2656,7 +2656,7 @@ class InboxViewModel(
     fun deleteFolder(mailboxId: String, folderName: String) {
         val credentials = store.load() ?: return
         val ids = listOf(mailboxId) + subfolderIdsOf(mailboxId)
-        viewModelScope.launch { repo.hideMailboxesLocally(credentials.id, ids) }
+        viewModelScope.launch { repo.folders.hideMailboxesLocally(credentials.id, ids) }
         _pendingFolderDelete.value =
             getApplication<Application>().getString(R.string.inbox_folder_deleted, folderName)
         FolderDeleteWorker.schedule(getApplication(), credentials.id, mailboxId, PURGE_HOLD_BACK_MS)

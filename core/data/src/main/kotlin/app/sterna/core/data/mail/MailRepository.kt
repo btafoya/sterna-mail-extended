@@ -874,7 +874,7 @@ class MailRepository(
     private val syncStateStore: SyncStateStore? = null,
     private val logInfo: (String, String, Throwable?) -> Unit = { _, _, _ -> },
     private val logWarn: (String, String, Throwable?) -> Unit = { _, _, _ -> },
-) : MailSendHost, MailDraftHost {
+) : MailSendHost, MailDraftHost, MailFolderHost {
     /** Everything the app sends, held apart from what it reads; see [MailSender]. */
     val sending: MailSender = MailSender(
         client = client,
@@ -900,6 +900,16 @@ class MailRepository(
         localDraftDao = localDraftDao,
         mailboxUidValidityDao = mailboxUidValidityDao,
         localDraftFilesDir = localDraftFilesDir,
+        host = this,
+    )
+
+    /** Every folder of an account: created, renamed, deleted, re-listed; see [MailFolders]. */
+    val folders: MailFolders = MailFolders(
+        client = client,
+        imap = imap,
+        mailboxDao = mailboxDao,
+        emailDao = emailDao,
+        accountStore = accountStore,
         host = this,
     )
 
@@ -3352,106 +3362,6 @@ class MailRepository(
     suspend fun cachedEmail(accountId: String, emailId: String): Email? =
         emailDao.emailsByIds(accountId, listOf(emailId)).firstOrNull()?.toEmail()
 
-    // ---- folder management ----
-
-    /** Create a folder, then refresh the cache. [name] and [parentId] are both Unicode, an IMAP folder
-     *  id is its path decoded from modified UTF-7 (#101), so the encoding happens at the socket. */
-    suspend fun createFolder(credentials: AccountCredentials, name: String, parentId: String? = null) {
-        if (credentials.protocol == MailProtocol.IMAP) {
-            // IMAP nests by path; the parent's id is its full path.
-            val path = if (parentId.isNullOrEmpty()) {
-                name.trim()
-            } else {
-                val delim = if (parentId.contains('/')) "/" else if (parentId.contains('.')) "." else "/"
-                "$parentId$delim${name.trim()}"
-            }
-            imap.createFolder(credentials, path)
-        } else {
-            val ctx = jmapSession(credentials)
-            client.createMailbox(ctx.session, ctx.accountId, name.trim(), role = null, ctx.auth, parentId = parentId)
-        }
-        refreshMailboxes(credentials)
-    }
-
-    /** Rename a folder, then refresh; returns its id. IMAP ids are paths, so both per-folder registries
-     *  are re-keyed to follow: the watch flags (#16) and the drawer's fold choices (#185). */
-    suspend fun renameFolder(credentials: AccountCredentials, mailboxId: String, newName: String): String {
-        if (credentials.protocol == MailProtocol.IMAP) {
-            val delim = imap.listImapFolders(credentials).firstOrNull { it.path == mailboxId }?.delimiter
-                ?: if (mailboxId.contains('/')) "/" else if (mailboxId.contains('.')) "." else "/"
-            val parent = mailboxId.substringBeforeLast(delim, "")
-            val newPath = if (parent.isEmpty()) newName.trim() else "$parent$delim${newName.trim()}"
-            imap.renameFolder(credentials, mailboxId, newPath)
-            accountStore.replaceWatchedFolder(credentials.id, mailboxId, newPath, delim)
-            accountStore.replaceCollapsedFolder(credentials.id, mailboxId, newPath, delim)
-            refreshMailboxes(credentials)
-            return newPath
-        }
-        val ctx = jmapSession(credentials)
-        client.renameMailbox(ctx.session, ctx.accountId, mailboxId, newName.trim(), ctx.auth)
-        refreshMailboxes(credentials)
-        return mailboxId
-    }
-
-    /** Delete a folder and its subfolders, deepest first (servers refuse to destroy a parent that still
-     *  has children), plus their cached messages and watch flags. Children match on Unicode paths (#101). */
-    suspend fun deleteFolder(credentials: AccountCredentials, mailboxId: String): List<String> {
-        val targets: List<String>
-        if (credentials.protocol == MailProtocol.IMAP) {
-            val folders = imap.listImapFolders(credentials)
-            // The folder's own delimiter from LIST: a guess breaks on names containing '/' or '.'.
-            val delim = folders.firstOrNull { it.path == mailboxId }?.delimiter ?: "/"
-            targets = folders.map { it.path }
-                .filter { it == mailboxId || it.startsWith(mailboxId + delim) }
-                .sortedByDescending { it.length }
-                .ifEmpty { listOf(mailboxId) } // already gone server-side: still clean up locally
-            targets.forEach { runCatching { imap.deleteFolder(credentials, it) } }
-        } else {
-            val ctx = jmapSession(credentials)
-            val childrenOf = client.getMailboxes(ctx.session, ctx.accountId, ctx.auth).groupBy { it.parentId }
-            val ordered = mutableListOf<String>()
-            fun visit(id: String) { // post-order: children before their parent
-                childrenOf[id].orEmpty().forEach { visit(it.id) }
-                ordered += id
-            }
-            visit(mailboxId)
-            targets = ordered
-            targets.forEach { client.deleteMailbox(ctx.session, ctx.accountId, it, ctx.auth) }
-        }
-        targets.forEach {
-            accountStore.setFolderWatched(credentials.id, it, watched = false)
-            emailDao.replaceMailbox(credentials.id, it, emptyList())
-        }
-        refreshMailboxes(credentials)
-        return targets
-    }
-
-    /** Drop folders from the local cache only (a folder delete's undo window); a refresh restores them. */
-    suspend fun hideMailboxesLocally(accountId: String, mailboxIds: List<String>) =
-        mailboxDao.deleteByIds(accountId, mailboxIds)
-
-    /** Re-fetch one account's folder list under a stated [onlySubscribed] (#174). The value is an
-     *  argument, not a second reading of the store: `LSUB` only goes out on a listing that asked. */
-    suspend fun refreshFolderList(accountId: String, onlySubscribed: Boolean) {
-        val credentials = accountStore.credentials(accountId) ?: return
-        refreshMailboxes(credentials, onlySubscribed)
-    }
-
-    private suspend fun refreshMailboxes(credentials: AccountCredentials) =
-        refreshMailboxes(credentials, accountStore.showOnlySubscribedFolders(credentials.id))
-
-    /** [refreshMailboxes] for a caller that already knows what to ask the server about (#174). */
-    private suspend fun refreshMailboxes(credentials: AccountCredentials, onlySubscribed: Boolean) {
-        if (credentials.protocol == MailProtocol.IMAP) {
-            // Empty `onPage` and null `cachedPreviewsFor`: this caller caches no message. Still SELECTs the inbox.
-            val load = imap.loadFolder(credentials, requestedMailboxId = null, limit = 1, onlySubscribed = onlySubscribed, onPage = {}, cachedPreviewsFor = null)
-            mailboxDao.replaceAll(credentials.id, load.mailboxes)
-            return
-        }
-        val ctx = jmapSession(credentials)
-        mailboxDao.replaceAll(credentials.id, client.getMailboxes(ctx.session, ctx.accountId, ctx.auth).map { it.toEntity(credentials.id) })
-    }
-
     /** The account's archive folder id: by JMAP `archive` role, else by a recognised name, cached into
      *  the cached session's role map so a bulk archive resolves it once. */
     private suspend fun archiveMailboxId(ctx: JmapAccountSession): String? {
@@ -3771,14 +3681,14 @@ class MailRepository(
         } catch (renumbered: ImapUidValidityChanged) {
             // Not swallowed and not retried: the folder is not the one the user confirmed emptying.
             purgeSnapshotDao.deleteSnapshot(purgeId)
-            refreshMailboxes(credentials)
+            folders.refreshMailboxes(credentials)
             return destroyed
         } finally {
             // In `finally` because two exits leave early: the abandoned purge, and a propagating failure.
             if (refusedAny) resetSyncState()
         }
         purgeSnapshotDao.deleteSnapshot(purgeId)
-        refreshMailboxes(credentials)
+        folders.refreshMailboxes(credentials)
         return destroyed
     }
 

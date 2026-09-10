@@ -336,7 +336,7 @@ open class ImapMailService(
     }
 
     /** Raw folder list (paths + the server's real hierarchy delimiter from LIST). */
-    suspend fun listImapFolders(credentials: AccountCredentials) =
+    open suspend fun listImapFolders(credentials: AccountCredentials): List<ImapFolder> =
         withSession(credentials) { it.listFolders() }
 
     suspend fun disconnect(accountId: String) {
@@ -426,7 +426,7 @@ open class ImapMailService(
     /**
      * Connect, list folders, and walk the newest [limit] of the target folder, page by page to [onPage].
      */
-    suspend fun loadFolder(
+    open suspend fun loadFolder(
         credentials: AccountCredentials,
         requestedMailboxId: String?,
         limit: Int,
@@ -614,13 +614,13 @@ open class ImapMailService(
             session.fetchUids(uids).map { it.toEntity(credentials.id, mailboxId, status.uidValidity, null) }
         }
 
-    suspend fun createFolder(credentials: AccountCredentials, path: String) =
+    open suspend fun createFolder(credentials: AccountCredentials, path: String) =
         withSession(credentials) { it.createFolder(path) }
 
-    suspend fun renameFolder(credentials: AccountCredentials, oldPath: String, newPath: String) =
+    open suspend fun renameFolder(credentials: AccountCredentials, oldPath: String, newPath: String) =
         withSession(credentials) { it.renameFolder(oldPath, newPath) }
 
-    suspend fun deleteFolder(credentials: AccountCredentials, path: String) =
+    open suspend fun deleteFolder(credentials: AccountCredentials, path: String) =
         withSession(credentials) { it.deleteFolder(path) }
 
     /**
