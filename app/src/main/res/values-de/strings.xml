@@ -119,6 +119,8 @@
     <string name="settings_push_relay_remove">Adresse entfernen</string>
     <string name="settings_push_relay_copied">Adresse kopiert</string>
     <string name="settings_push_relay_no_distributor">Installiere eine UnifiedPush-App (etwa ntfy), um eine Adresse zu erhalten.</string>
+    <string name="settings_push_relay_sync_off">Diese Adresse ist weiterhin veröffentlicht und funktioniert. Was darauf gesendet wird, weckt Sterna, ruft aber keine E-Mails ab, solange die Synchronisierung dieses Kontos aus ist.</string>
+    <string name="settings_push_relay_sync_off_unpublished">Für dieses Konto ist keine Adresse veröffentlicht, und solange die Synchronisierung aus ist, kommt auch keine.</string>
     <string name="settings_account_notifications_unwatched_note">Dieses Konto wird nicht überwacht. Aktiviere „Push für alle Konten“, um seine neuen E-Mails im Hintergrund abzurufen und darüber benachrichtigt zu werden.</string>
     <string name="up_picker_title">Benachrichtigungen zustellen über</string>
     <string name="inbox_delete_folder_recursive_title">Auch Unterordner löschen?</string>

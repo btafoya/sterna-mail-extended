@@ -132,6 +132,8 @@
     <string name="settings_push_relay_remove">Remove address</string>
     <string name="settings_push_relay_copied">Address copied</string>
     <string name="settings_push_relay_no_distributor">Install a UnifiedPush app (such as ntfy) to get an address.</string>
+    <string name="settings_push_relay_sync_off">This address is still published and still works. Posting to it wakes Sterna, but no mail is fetched while sync is off for this account.</string>
+    <string name="settings_push_relay_sync_off_unpublished">No address is published for this account, and none will arrive while sync is off.</string>
     <string name="settings_account_notifications_unwatched_note">This account is not being watched. Turn on “Push for all accounts” to fetch its new mail in the background and be notified about it.</string>
     <string name="up_picker_title">Deliver notifications through</string>
     <string name="inbox_delete_folder_recursive_title">Also delete subfolders?</string>

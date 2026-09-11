@@ -1,5 +1,7 @@
 package app.sterna.push
 
+import app.sterna.core.data.account.AccountCredentials
+import app.sterna.core.data.account.MailProtocol
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -29,6 +31,61 @@ class PushWatchTest {
     @Test fun `no current account and push-all off watches nothing`() {
         assertFalse(PushController.isWatched("a", currentId = null, pushAllAccounts = false))
     }
+
+    @Test fun `an account with sync off is swept even when it is not the watched one`() {
+        assertEquals(
+            "'b' is not in the watched set and its switch is off: its UnifiedPush subscription " +
+                "stays live on the distributor and on the server unless the sweep reaches it, and " +
+                "every message then wakes the process for a fetch PushFetchWorker drops (#204)",
+            listOf("b"),
+            PushController.accountsToTearDown(
+                listOf(credentialsFor("a"), credentialsFor("b")),
+            ) { it == "a" }.map { it.id },
+        )
+    }
+
+    @Test fun `an unwatched account whose switch is on is not swept`() {
+        assertEquals(
+            "the switch is the only key: an account outside the watched set with notifications " +
+                "on is in neither set, so widening the sweep must not touch it",
+            emptyList<String>(),
+            PushController.accountsToTearDown(
+                listOf(credentialsFor("a"), credentialsFor("b")),
+            ) { true }.map { it.id },
+        )
+    }
+
+    @Test fun `the watched account with sync off is still swept`() {
+        assertEquals(
+            listOf("a"),
+            PushController.accountsToTearDown(
+                listOf(credentialsFor("a"), credentialsFor("b")),
+            ) { it == "b" }.map { it.id },
+        )
+    }
+
+    @Test fun `several accounts with sync off are all swept, whatever they differ by`() {
+        assertEquals(
+            "two of the three have their switch off, and both must come back: a sweep that keeps " +
+                "one of them, or one server's worth, or one protocol's worth, hands the phone " +
+                "back to the accounts it dropped and nothing on screen says so",
+            listOf("b", "c"),
+            PushController.accountsToTearDown(
+                listOf(
+                    credentialsFor("a"),
+                    credentialsFor("b", server = "https://other.example.test"),
+                    credentialsFor("c", protocol = MailProtocol.IMAP),
+                ),
+            ) { it == "a" }.map { it.id },
+        )
+    }
+
+    private fun credentialsFor(
+        id: String,
+        server: String = "https://mail.example.test",
+        protocol: MailProtocol = MailProtocol.JMAP,
+    ): AccountCredentials =
+        AccountCredentials(server = server, username = id, password = "secret", id = id, protocol = protocol)
 
     // --- the unwatched note promises one action, so it may only appear when one is enough ---------
     //

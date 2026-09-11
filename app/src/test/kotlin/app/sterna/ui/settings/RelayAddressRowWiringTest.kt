@@ -128,6 +128,90 @@ class RelayAddressRowWiringTest {
         )
     }
 
+    // -- the same address on an account whose sync is off ---------------------------------------
+
+    @Test fun `the sync-off block stands beside the address block, not inside it`() {
+        val ancestors = ancestorsOf(SYNC_OFF_CALL)
+        assertEquals(
+            "the sync-off block must be written under exactly these blocks, outermost first, and " +
+                "under no others. Its own guard is \"$SYNC_OFF_GUARD\": isImap, because a JMAP " +
+                "account holds a PushSubscription and has no relay address in any state, and the " +
+                "negation, because this block is what the reader is left with once sync is off. " +
+                "The address stays published and the relay goes on posting, so hiding the block " +
+                "takes 'Remove address' away with it, which is the only exit that address has. " +
+                "Compared as the WHOLE list, not as a contains: a guard wrapped around the call " +
+                "(a distributor check, say) leaves every other rule of this volet green while " +
+                "putting the exit back out of reach for anyone whose distributor is gone, which " +
+                "is one uninstall away. Blocks actually enclosing the call:\n" +
+                ancestors.joinToString("\n"),
+            EXPECTED_SYNC_OFF_ANCESTORS,
+            ancestors,
+        )
+        assertEquals(
+            "and the block is called ONCE. ancestorsOf answers on the first call it meets, so a " +
+                "second one anywhere below is invisible to the rule above: written inside " +
+                "'if (notificationsEnabled) {' it would tell someone whose sync is ON that no " +
+                "mail is fetched while sync is off.",
+            1,
+            screenLines().count { it == SYNC_OFF_CALL },
+        )
+    }
+
+    @Test fun `the sync-off block is pinned whole`() {
+        assertEquals(
+            "the body of the sync-off block is pinned line by line and in order. It reads the " +
+                "state record once, through a remember(accountId) and no tick, so a process " +
+                "death, a rotation or a trip out to another app and back draws the same block " +
+                "from SharedPreferences and nothing survives in memory. It leaves at once when " +
+                "there is nothing to drop: an account that never asked for an address must see " +
+                "no heading, no sentence and no button. A request that left and never came back " +
+                "counts as something to drop, hence relay.requested and not the endpoint alone. " +
+                "The two branches carry DIFFERENT sentences, and that is the half of this volet " +
+                "a reshuffle loses silently: RelayPush.publishedAddress answers null for a " +
+                "request that never landed AND for an address the distributor has dropped since, " +
+                "so settings_push_relay_sync_off — 'still published and still works' — is false " +
+                "in the else branch, over a block showing no address at all. The address itself " +
+                "is drawn through SettingCopyableRow, whole and copyable: a block that names the " +
+                "address without showing it restores half the defect. And the way out is a " +
+                "TextButton calling viewModel.dropRelayAddress(accountId), never a Text naming " +
+                "the string — a sentence is not a gesture. That tap is final: " +
+                "UnifiedPushManager.dropRelayAddress clears the record and then calls " +
+                "UnifiedPush.unregister, which kills the topic at the distributor, so the copy " +
+                "already pasted into somebody else's app dies with it.",
+            EXPECTED_SYNC_OFF_BODY,
+            syncOffBody(),
+        )
+    }
+
+    /** The negative half of the two rules above, `contains`, deliberately: it screens for absence. */
+    @Test fun `the sync-off block offers no way in and borrows no other sentence`() {
+        val body = syncOffBody()
+        assertEquals(
+            "the sync-off block must offer NO way to ask for an address. The symptom is a missing " +
+                "exit, not a missing entrance: handing out a fresh address on an account Sterna " +
+                "has been told not to fetch builds the trap instead of opening it. Lines found:\n" +
+                body.joinToString("\n"),
+            emptyList<String>(),
+            body.filter { "settings_push_relay_get" in it || "requestRelayAddress" in it },
+        )
+        assertEquals(
+            "and it may not borrow a sentence written for another state. " +
+                "settings_push_status_relay says 'Push: last wake …', which claims a delivery that " +
+                "is not happening, and settings_push_relay_explain answers a question nobody in " +
+                "this state is asking. Lines found:\n" + body.joinToString("\n"),
+            emptyList<String>(),
+            body.filter { "settings_push_status_relay" in it || "settings_push_relay_explain" in it },
+        )
+        assertEquals(
+            "and nothing in it may read the distributor: " +
+                "packageManager.queryBroadcastReceivers() is a binder round trip, and this block " +
+                "has no use for the answer — it never offers to get an address. Lines found:\n" +
+                body.joinToString("\n"),
+            emptyList<String>(),
+            body.filter { "distributorInstalled" in it || "Distributor" in it },
+        )
+    }
+
     // -- the status line -----------------------------------------------------------------------
 
     @Test fun `statusFor asks the relay before it asks UnifiedPush`() {
@@ -291,10 +375,8 @@ class RelayAddressRowWiringTest {
 
     // -- the strings ---------------------------------------------------------------------------
 
-    /**
-     * What `TranslationParityTest` already covers, and which is deliberately not repeated here:
-     */
-    @Test fun `the nine languages all carry the eight relay strings`() {
+    /** What `TranslationParityTest` already covers is deliberately not repeated here. */
+    @Test fun `the nine languages all carry the ten relay strings`() {
         val files = stringFiles()
         assertEquals(
             "the app ships nine languages; a directory that vanishes takes its own rule with it",
@@ -394,9 +476,7 @@ class RelayAddressRowWiringTest {
     /** The body of the private composable that draws the block, closed by counting braces. */
     private fun relaySectionBody(): List<String> = blockBody(codeLinesOf(SETTINGS_SCREEN), RELAY_FUN)
 
-    /**
-     * The block's branches: each condition line with the lines drawn under it, in source order.
-     */
+    /** The block's branches: each condition line with the lines drawn under it, in source order. */
     private fun relayBranches(): List<Pair<String, List<String>>> {
         val out = mutableListOf<Pair<String, MutableList<String>>>()
         for (line in relaySectionBody()) {
@@ -413,6 +493,8 @@ class RelayAddressRowWiringTest {
                 .map { it.groupValues[1] }.toList()
         }
     }
+
+    private fun syncOffBody(): List<String> = blockBody(codeLinesOf(SETTINGS_SCREEN), SYNC_OFF_FUN)
 
     private fun managerFunctionBody(signature: String): List<String> =
         blockBody(codeLinesOf(UNIFIED_PUSH_MANAGER), signature)
@@ -461,6 +543,10 @@ class RelayAddressRowWiringTest {
         const val RELAY_FUN =
             "private fun RelayAddressSection(accountId: String, viewModel: AccountsViewModel) {"
         const val RELAY_ADDRESS_READ = "fun relayAddress(id: String): RelayAddress {"
+        const val SYNC_OFF_CALL = "RelaySyncOffSection(accountId = accountId, viewModel = viewModel)"
+        const val SYNC_OFF_FUN =
+            "private fun RelaySyncOffSection(accountId: String, viewModel: AccountsViewModel) {"
+        const val SYNC_OFF_GUARD = "if (isImap && !notificationsEnabled) {"
         const val UP_MISSING =
             "fun unifiedPushMissing(accountId: String, protocol: MailProtocol?): Boolean {"
         const val DIRECT_ARM = "is PushStatus.Direct -> stringResource("
@@ -474,6 +560,43 @@ class RelayAddressRowWiringTest {
         val EXPECTED_EXPLAIN_LINES = listOf(
             "stringResource(R.string.settings_push_relay_explain),",
             "RelayAddressNote(title, stringResource(R.string.settings_push_relay_explain))",
+        )
+
+        val EXPECTED_SYNC_OFF_ANCESTORS = listOf(
+            "DetailScaffold(title = account.label(), onBack = { leaveOrConfirm() }) { padding ->",
+            "DetailScaffold(title = account.label(), onBack = { leaveOrConfirm() }) { padding ->",
+            ") {",
+            "SettingsSection(stringResource(R.string.settings_account_notifications_section)) {",
+            SYNC_OFF_GUARD,
+        )
+
+        val EXPECTED_SYNC_OFF_BODY = listOf(
+            "var relay by remember(accountId) { mutableStateOf(viewModel.relayAddress(accountId)) }",
+            "val endpoint = relay.endpoint",
+            "if (!relay.requested && endpoint == null) return",
+            "val title = stringResource(R.string.settings_push_relay_title)",
+            "if (endpoint != null) {",
+            "SettingCopyableRow(",
+            "label = title,",
+            "value = endpoint,",
+            "copiedMessage = stringResource(R.string.settings_push_relay_copied),",
+            ")",
+            "Text(",
+            "stringResource(R.string.settings_push_relay_sync_off),",
+            "style = MaterialTheme.typography.bodySmall,",
+            "color = MaterialTheme.colorScheme.onSurfaceVariant,",
+            "modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),",
+            ")",
+            "} else {",
+            "RelayAddressNote(title, stringResource(R.string.settings_push_relay_sync_off_unpublished))",
+            "}",
+            "TextButton(",
+            "onClick = {",
+            "viewModel.dropRelayAddress(accountId)",
+            "relay = viewModel.relayAddress(accountId)",
+            "},",
+            "modifier = Modifier.padding(horizontal = 8.dp),",
+            ") { Text(stringResource(R.string.settings_push_relay_remove)) }",
         )
 
         val EXPECTED_RELAY_POLL = listOf(
@@ -542,6 +665,8 @@ class RelayAddressRowWiringTest {
             "settings_push_relay_copied",
             "settings_push_relay_no_distributor",
             "settings_push_status_relay",
+            "settings_push_relay_sync_off",
+            "settings_push_relay_sync_off_unpublished",
         )
 
         /** The words that would turn the dated fact into a verdict, per shipped language. */

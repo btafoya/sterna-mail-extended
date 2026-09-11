@@ -90,6 +90,15 @@ object PushController {
     fun shouldShowUnwatchedNote(isLinked: Boolean, isWatched: Boolean, notificationsEnabled: Boolean): Boolean =
         !isLinked && !isWatched && notificationsEnabled
 
+    /** Which of [all] stored accounts must give up their push subscription. Keyed on the
+     *  notifications switch alone, so an account outside the watched set that still wants mail is
+     *  in neither set: not armed, not torn down. The watched set is not a parameter, which is what
+     *  makes narrowing the sweep back to it unwriteable here and visible at the call site. */
+    fun accountsToTearDown(
+        all: List<AccountCredentials>,
+        notificationsEnabled: (String) -> Boolean,
+    ): List<AccountCredentials> = all.filterNot { notificationsEnabled(it.id) }
+
     /** Which sentence the direct-connection line carries. A missing distributor is folded apart
      *  because it is the actionable one; a failed and a stalled registration are not, so they merge. */
     fun directLine(unifiedPushMissing: Boolean, distributorInstalled: Boolean): DirectLine = when {
@@ -192,11 +201,13 @@ object PushController {
         val store = container.accountStore
         val up = container.unifiedPushManager
         up.reconcileDistributorPresence()
-        val watched = if (store.pushAllAccounts()) store.allCredentials() else listOfNotNull(store.load())
+        val all = store.allCredentials()
+        val watched = if (store.pushAllAccounts()) all else listOfNotNull(store.load())
         val accounts = watched.filter { store.notificationsEnabled(it.id) }
-        // The complement, or turning the switch off leaves the subscription live on both sides:
-        // every message then wakes the process for a fetch PushFetchWorker drops on arrival (#204).
-        watched.filterNot { store.notificationsEnabled(it.id) }.forEach { up.tearDownAfterSyncOff(it) }
+        // A subscription outlives the account leaving the watched set, so the sweep is based on
+        // every stored account while the arm above stays on `watched` (#204).
+        accountsToTearDown(all) { store.notificationsEnabled(it) }
+            .forEach { up.tearDownAfterSyncOff(it) }
         // Kick the UnifiedPush state machine (no-op for IMAP or without a distributor).
         accounts.forEach { up.ensureRegistered(it) }
         // An account counts as direct until UnifiedPush is fully active, so bring-up never gaps

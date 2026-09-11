@@ -119,6 +119,8 @@
     <string name="settings_push_relay_remove">Retirer l’adresse</string>
     <string name="settings_push_relay_copied">Adresse copiée</string>
     <string name="settings_push_relay_no_distributor">Installez une application UnifiedPush (ntfy par exemple) pour obtenir une adresse.</string>
+    <string name="settings_push_relay_sync_off">Cette adresse reste publiée et fonctionne toujours. Ce qui y est envoyé réveille Sterna, mais aucun courrier n’est relevé tant que la synchronisation de ce compte est coupée.</string>
+    <string name="settings_push_relay_sync_off_unpublished">Aucune adresse n’est publiée pour ce compte, et aucune n’arrivera tant que la synchronisation est coupée.</string>
     <string name="settings_account_notifications_unwatched_note">Ce compte n’est pas surveillé. Activez « Push pour tous les comptes » pour récupérer ses nouveaux messages en arrière-plan et en être prévenu.</string>
     <string name="up_picker_title">Acheminer les notifications via</string>
     <string name="inbox_delete_folder_recursive_title">Supprimer aussi les sous-dossiers ?</string>

@@ -119,6 +119,8 @@
     <string name="settings_push_relay_remove">Usuń adres</string>
     <string name="settings_push_relay_copied">Skopiowano adres</string>
     <string name="settings_push_relay_no_distributor">Zainstaluj aplikację UnifiedPush (na przykład ntfy), aby uzyskać adres.</string>
+    <string name="settings_push_relay_sync_off">Ten adres jest nadal opublikowany i nadal działa. To, co zostanie na niego wysłane, budzi Sternę, ale poczta nie jest pobierana, dopóki synchronizacja tego konta jest wyłączona.</string>
+    <string name="settings_push_relay_sync_off_unpublished">Dla tego konta nie opublikowano żadnego adresu i żaden nie nadejdzie, dopóki synchronizacja jest wyłączona.</string>
     <string name="settings_account_notifications_unwatched_note">To konto nie jest monitorowane. Włącz „Push dla wszystkich kont”, aby pobierać jego nową pocztę w tle i otrzymywać o niej powiadomienia.</string>
     <string name="up_picker_title">Dostarczaj powiadomienia przez</string>
     <string name="inbox_delete_folder_recursive_title">Usunąć także podfoldery?</string>

@@ -378,9 +378,10 @@ class UnifiedPushManager(
         }
     }
 
-    /** Wake the login [loginId] and every sub-account riding its subscription (issue #31). */
+    /** Wake [loginId] and each sub-account riding its subscription (#31), each on its own sync switch, never the login's. */
     private fun enqueueForLogin(loginId: String) {
         (listOf(loginId) + accountStore.linkedAccounts(loginId).map { it.id }).distinct()
+            .filterNot { syncSwitchedOff(it) }
             .forEach { PushFetchWorker.enqueue(context, it) }
     }
 

@@ -119,6 +119,8 @@
     <string name="settings_push_relay_remove">Adres verwijderen</string>
     <string name="settings_push_relay_copied">Adres gekopieerd</string>
     <string name="settings_push_relay_no_distributor">Installeer een UnifiedPush-app (zoals ntfy) om een adres te krijgen.</string>
+    <string name="settings_push_relay_sync_off">Dit adres is nog steeds gepubliceerd en werkt nog steeds. Wat ernaartoe wordt gestuurd, wekt Sterna, maar er wordt geen e-mail opgehaald zolang de synchronisatie van dit account uit staat.</string>
+    <string name="settings_push_relay_sync_off_unpublished">Voor dit account is geen adres gepubliceerd, en er komt er geen zolang synchronisatie uit staat.</string>
     <string name="settings_account_notifications_unwatched_note">Dit account wordt niet bewaakt. Schakel ‘Push voor alle accounts’ in om de nieuwe e-mail ervan op de achtergrond op te halen en er een melding van te krijgen.</string>
     <string name="up_picker_title">Meldingen bezorgen via</string>
     <string name="inbox_delete_folder_recursive_title">Ook submappen verwijderen?</string>

@@ -651,15 +651,59 @@ class RelayWiringTest {
         val body = managerBlock(ON_MESSAGE)
         assertEquals(
             "the mail-carrying arm of onMessage is pinned whole: the delivery is stamped BEFORE " +
-                "the fetch is enqueued, and nothing else happens in it.",
+                "the fetch is fanned out, and nothing else happens in it. The stamp is " +
+                "unconditional on purpose, a switched-off account included: a POST on a public " +
+                "relay address had already woken the process before a line of Sterna ran, and " +
+                "recordDelivery is the only thing that carries a relay from PUBLISHED to ACTIVE " +
+                "(RelayPush.onDelivery holds that rule), so behind a sync gate the account that " +
+                "comes back on would advertise an address nothing has ever confirmed. WHICH " +
+                "accounts the wake reaches is not decided here but inside enqueueForLogin, one " +
+                "by one: the switch is per account, and the sub-accounts riding this same " +
+                "subscription (#31) each carry their own. Read:\n" +
+                slice(body, change).joinToString("\n"),
             change,
             slice(body, change),
         )
         assertEquals(
-            "the unparsed arm is pinned whole too: an undecryptable payload is still a wake, and " +
-                "its log line carries the SIZE and the decrypted flag only — never the payload.",
+            "the unparsed arm is pinned whole too: an undecryptable payload is still a wake, so " +
+                "it is stamped and fanned out exactly like a change, and its log line carries " +
+                "the SIZE and the decrypted flag only — never the payload. Read:\n" +
+                slice(body, unparsed).joinToString("\n"),
             unparsed,
             slice(body, unparsed),
+        )
+    }
+
+    @Test fun `the body of enqueueForLogin is pinned whole, fan-out then filter then schedule`() {
+        val body = managerBlock(ENQUEUE_FOR_LOGIN)
+        assertEquals(
+            "enqueueForLogin holds the whole decision of which accounts a push wake puts work " +
+                "on, so its body is pinned line by line and in order, each line written whole. " +
+                "The first line is the fan-out of ONE subscription, the login plus the " +
+                "sub-accounts linked to it (#31), and it must read linkedAccounts(loginId): " +
+                "allCredentials() looks just as sensible and schedules a fetch for every account " +
+                "on the device on every message. The second drops the accounts whose sync is " +
+                "off, and it filters account by account rather than gating the call: the login " +
+                "and its sub-accounts disagree in both directions, a login left on carrying " +
+                "sub-accounts switched off (the defect this closes), and a login switched off " +
+                "keeping its subscription alive for a sub-account left on (tearDownAfterSyncOff " +
+                "refuses to hand it back), whose mail nothing else would fetch. The third is the " +
+                "scheduling itself. Lines found:\n" + body.joinToString("\n"),
+            listOf(
+                "(listOf(loginId) + accountStore.linkedAccounts(loginId).map { it.id }).distinct()",
+                ".filterNot { syncSwitchedOff(it) }",
+                ".forEach { PushFetchWorker.enqueue(context, it) }",
+            ),
+            body,
+        )
+        assertEquals(
+            "and PushFetchWorker may be named on exactly this one line of THIS file, written " +
+                "whole: other schedulers exist (PushController enqueues the same worker), but " +
+                "inside the manager every wake must reach the worker through the filtered " +
+                "fan-out above, never beside it. Lines found:\n" +
+                managerLines().filter { "PushFetchWorker" in it }.joinToString("\n"),
+            listOf(".forEach { PushFetchWorker.enqueue(context, it) }"),
+            managerLines().filter { "PushFetchWorker" in it },
         )
     }
 
@@ -668,17 +712,22 @@ class RelayWiringTest {
     @Test fun `apply carries both halves of the notifications switch, side by side`() {
         val body = applyBody()
         assertEquals(
-            "PushController.apply must open with exactly these lines, in this order. The sweep " +
-                "sits at the top level of the function, one line under the filter it is the " +
-                "complement of, and this rule pins that PLACE: nested one level deeper, inside " +
-                "the 'else' arm that starts the foreground service or behind an " +
-                "'if (userInitiated)', it still names notificationsEnabled and still reads as " +
-                "the fix, and it runs in one case out of two. The filter alone has no else " +
-                "branch, so turning the switch off only drops the account off the list: the " +
-                "subscription stays live on the distributor and on the server, every message " +
-                "wakes the process, the payload is decrypted, a job is scheduled, and " +
-                "PushFetchWorker throws it away on arrival. One wake, one process, one job, no " +
-                "mail. Body read:\n" + body.take(EXPECTED_APPLY_OPENING.size + 2).joinToString("\n"),
+            "PushController.apply must open with exactly these lines, in this order. Two sets, " +
+                "two bases, and the arguments say which is which: the arm runs on 'watched' (the " +
+                "current account alone until push-all is on) and the sweep is handed 'all', every " +
+                "stored account. Handing the sweep 'watched' back is the defect this pin exists " +
+                "for: the complement of a one-element set is empty, so the switch going off on an " +
+                "account that is not the one on screen sweeps nothing, the subscription stays " +
+                "live on the distributor and on the server, every message wakes the process, the " +
+                "payload is decrypted, a job is scheduled, and PushFetchWorker throws it away on " +
+                "arrival. One wake, one process, one job, no mail. The sweep takes one list and the " +
+                "watched set is not among its arguments, so narrowing it back can only be " +
+                "written here, as a changed argument. The sweep also sits at the " +
+                "top level of the function, one line under the filter, and this rule pins that " +
+                "PLACE: nested one level deeper, inside the 'else' arm that starts the foreground " +
+                "service or behind an 'if (userInitiated)', it still names notificationsEnabled " +
+                "and still reads as the fix, and it runs in one case out of two. Body read:\n" +
+                body.take(EXPECTED_APPLY_OPENING.size + 2).joinToString("\n"),
             EXPECTED_APPLY_OPENING,
             body.take(EXPECTED_APPLY_OPENING.size),
         )
@@ -998,6 +1047,7 @@ class RelayWiringTest {
         const val ENSURE_REGISTERED = "fun ensureRegistered(credentials: AccountCredentials) {"
         const val ON_NEW_ENDPOINT = "fun onNewEndpoint(accountId: String, endpoint: PushEndpoint) {"
         const val ON_MESSAGE = "fun onMessage(accountId: String, message: PushMessage) {"
+        const val ENQUEUE_FOR_LOGIN = "private fun enqueueForLogin(loginId: String) {"
         const val VERIFICATION_ARM = "is PushMessagePayload.Verification -> {"
         const val REQUEST_RELAY = "fun requestRelayAddress(credentials: AccountCredentials) {"
         const val DROP_RELAY = "fun dropRelayAddress(credentials: AccountCredentials) {"
@@ -1057,11 +1107,14 @@ class RelayWiringTest {
         const val EXPECTED_VAPID =
             "val vapid = if (relay) null else runCatching { repo.pushVapidKey(credentials) }.getOrNull()"
         const val EXPECTED_RELAY_FLAG = "val relay = credentials.protocol != MailProtocol.JMAP"
+        const val EXPECTED_ALL_ACCOUNTS = "val all = store.allCredentials()"
+        const val EXPECTED_WATCHED_SET =
+            "val watched = if (store.pushAllAccounts()) all else listOfNotNull(store.load())"
         const val EXPECTED_WATCHED_FILTER =
             "val accounts = watched.filter { store.notificationsEnabled(it.id) }"
         const val EXPECTED_SYNC_OFF_SWEEP =
-            "watched.filterNot { store.notificationsEnabled(it.id) }" +
-                ".forEach { up.tearDownAfterSyncOff(it) }"
+            "accountsToTearDown(all) { store.notificationsEnabled(it) }"
+        const val EXPECTED_SYNC_OFF_TEARDOWN = ".forEach { up.tearDownAfterSyncOff(it) }"
         const val EXPECTED_RELAY_ENDPOINT =
             "fun relayEndpoint(accountId: String): String? = RelayPush.publishedAddress(store.load(accountId))"
 
@@ -1071,10 +1124,11 @@ class RelayWiringTest {
             "val store = container.accountStore",
             "val up = container.unifiedPushManager",
             "up.reconcileDistributorPresence()",
-            "val watched = if (store.pushAllAccounts()) store.allCredentials() " +
-                "else listOfNotNull(store.load())",
+            EXPECTED_ALL_ACCOUNTS,
+            EXPECTED_WATCHED_SET,
             EXPECTED_WATCHED_FILTER,
             EXPECTED_SYNC_OFF_SWEEP,
+            EXPECTED_SYNC_OFF_TEARDOWN,
             "accounts.forEach { up.ensureRegistered(it) }",
         )
 

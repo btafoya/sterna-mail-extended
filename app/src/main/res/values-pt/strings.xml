@@ -119,6 +119,8 @@
     <string name="settings_push_relay_remove">Remover o endereço</string>
     <string name="settings_push_relay_copied">Endereço copiado</string>
     <string name="settings_push_relay_no_distributor">Instale uma aplicação UnifiedPush (como o ntfy) para obter um endereço.</string>
+    <string name="settings_push_relay_sync_off">Este endereço continua publicado e continua a funcionar. O que for enviado para ele acorda o Sterna, mas não é transferida nenhuma mensagem enquanto a sincronização desta conta estiver desativada.</string>
+    <string name="settings_push_relay_sync_off_unpublished">Nenhum endereço está publicado para esta conta, e nenhum chegará enquanto a sincronização estiver desativada.</string>
     <string name="settings_account_notifications_unwatched_note">Esta conta não está a ser monitorizada. Ative «Push para todas as contas» para obter os seus novos e-mails em segundo plano e ser notificado sobre eles.</string>
     <string name="up_picker_title">Entregar as notificações através de</string>
     <string name="inbox_delete_folder_recursive_title">Eliminar também as subpastas?</string>

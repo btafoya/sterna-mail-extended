@@ -261,8 +261,6 @@ fun SettingsScreen(
                     // the pop, stranding the user on a Connect form for an account that has already
                     // been added. Same family as the mailto:/notification navigations: a single
                     // consumption whose loss is not a no-op.
-                    // Unguarded: not a tap but a LaunchedEffect, possibly firing while
-                    // backgrounded with no entry RESUMED, where the guard would swallow the pop.
                     nav.popBackStack()
                 },
             )
@@ -306,7 +304,6 @@ fun SettingsScreen(
             SharedAccountScreen(
                 accountId = id,
                 viewModel = accountsViewModel,
-                // Same fall-through as the account screen above, and for the same reason (#34).
                 onBack = { entry.navigateOnce { if (!nav.popBackStack()) onBack() } },
                 onAccountsChanged = onAccountsChanged,
             )
@@ -1631,13 +1628,14 @@ private fun AccountDetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
-                    // The relay block (#177) belongs inside both guards. notificationsEnabled: an
-                    // address on an account Sterna is told not to fetch is a trap, since the relay
-                    // posts and the wake is ignored. isImap: a JMAP account holds a real
-                    // PushSubscription and has no use for a relay.
+                    // Both guards: this is the block with a way in, and an address handed to
+                    // an account told not to fetch is the trap. A JMAP account has no use for one.
                     if (isImap) {
                         RelayAddressSection(accountId = accountId, viewModel = viewModel)
                     }
+                }
+                if (isImap && !notificationsEnabled) {
+                    RelaySyncOffSection(accountId = accountId, viewModel = viewModel)
                 }
             }
             SettingsSection(stringResource(R.string.settings_server_settings_section)) {
@@ -1712,7 +1710,6 @@ private fun AccountDetailScreen(
                 // account. (API-token accounts do type their token into this slot.)
                 if (account.authType != AuthType.OAUTH) {
                     SettingTextField(
-                        // For API-token accounts the encrypted slot holds the token, not a password.
                         label = stringResource(
                             if (account.authType == AuthType.API_TOKEN) {
                                 R.string.settings_api_token_label
@@ -1961,7 +1958,6 @@ private fun AccountDetailScreen(
                             )
                             OutlinedTextField(
                                 value = identity.signature,
-                                // Editing the text drops the imported HTML (see the server group).
                                 onValueChange = { v ->
                                     update { it.copy(signature = v, signatureHtml = "") }
                                 },
@@ -2211,9 +2207,8 @@ private fun RelayAddressSection(accountId: String, viewModel: AccountsViewModel)
     // Read once per visit, never on the tick below: it is a binder call
     // (packageManager.queryBroadcastReceivers) for an answer that cannot change while on top.
     val distributorInstalled = remember(accountId) { viewModel.distributorInstalled() }
-    // The rest re-reads on the same 500 ms tick as the status line above, since the distributor
-    // answers asynchronously. SharedPreferences only; no DataStore, runBlocking or PackageManager
-    // may join it.
+    // The rest re-reads on the same 500 ms tick as the status line, the distributor answering
+    // asynchronously: SharedPreferences only, no DataStore, runBlocking or PackageManager.
     var relay by remember(accountId) { mutableStateOf(viewModel.relayAddress(accountId)) }
     LaunchedEffect(accountId) {
         while (true) {
@@ -2268,7 +2263,45 @@ private fun RelayAddressSection(accountId: String, viewModel: AccountsViewModel)
     }
 }
 
-/** The block's heading and its one sentence, for the three states that have no address to show. */
+/**
+ * The same address (#177) on an account told not to fetch. Sync going off does not unpublish it:
+ * `UnifiedPush.unregister` kills the topic at the distributor and the pasted copy dies with it, so
+ * the address outlives the switch, and what is drawn here is its way out, never a way in.
+ */
+@Composable
+private fun RelaySyncOffSection(accountId: String, viewModel: AccountsViewModel) {
+    var relay by remember(accountId) { mutableStateOf(viewModel.relayAddress(accountId)) }
+    val endpoint = relay.endpoint
+    // A request that left and never came back is a state to get out of too.
+    if (!relay.requested && endpoint == null) return
+    val title = stringResource(R.string.settings_push_relay_title)
+    if (endpoint != null) {
+        SettingCopyableRow(
+            label = title,
+            value = endpoint,
+            copiedMessage = stringResource(R.string.settings_push_relay_copied),
+        )
+        Text(
+            stringResource(R.string.settings_push_relay_sync_off),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+    } else {
+        // Its own sentence: `RelayPush.publishedAddress` answers null both for a request that
+        // never landed and for an address the distributor has dropped since, and neither is live.
+        RelayAddressNote(title, stringResource(R.string.settings_push_relay_sync_off_unpublished))
+    }
+    TextButton(
+        onClick = {
+            viewModel.dropRelayAddress(accountId)
+            relay = viewModel.relayAddress(accountId)
+        },
+        modifier = Modifier.padding(horizontal = 8.dp),
+    ) { Text(stringResource(R.string.settings_push_relay_remove)) }
+}
+
+/** The block's heading and its one sentence, for the states that have no address to show. */
 @Composable
 private fun RelayAddressNote(title: String, note: String) {
     Text(

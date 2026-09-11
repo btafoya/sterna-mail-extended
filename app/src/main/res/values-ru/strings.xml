@@ -119,6 +119,8 @@
     <string name="settings_push_relay_remove">Удалить адрес</string>
     <string name="settings_push_relay_copied">Адрес скопирован</string>
     <string name="settings_push_relay_no_distributor">Установите приложение UnifiedPush (например, ntfy), чтобы получить адрес.</string>
+    <string name="settings_push_relay_sync_off">Этот адрес по-прежнему опубликован и по-прежнему работает. Отправка на него будит Sterna, но почта не загружается, пока синхронизация этой учётной записи выключена.</string>
+    <string name="settings_push_relay_sync_off_unpublished">Для этой учётной записи адрес не опубликован, и он не появится, пока синхронизация отключена.</string>
     <string name="settings_account_notifications_unwatched_note">Эта учётная запись не отслеживается. Включите «Push для всех аккаунтов», чтобы загружать её новые письма в фоновом режиме и получать уведомления о них.</string>
     <string name="up_picker_title">Доставлять уведомления через</string>
     <string name="inbox_delete_folder_recursive_title">Удалить также вложенные папки?</string>
