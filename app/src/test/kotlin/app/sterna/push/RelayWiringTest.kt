@@ -806,8 +806,7 @@ class RelayWiringTest {
             "RelayPush.shouldTearDown(",
             "isLinked = accountStore.account(credentials.id)?.isLinked == true,",
             "hasPushState = state != null,",
-            "linkedAccountStillOn = accountStore.linkedAccounts(credentials.id)",
-            ".any { accountStore.notificationsEnabled(it.id) },",
+            "linkedAccountStillOn = accountStore.keepsPushForLinkedAccount(credentials.id),",
             "relayRequested = state?.relayRequested == true,",
             ")",
             "}",
@@ -830,7 +829,16 @@ class RelayWiringTest {
                 "this runs only when shouldTearDown says yes, and an account that has never been " +
                 "enrolled holds no record at all, so the one person the way back is for — she " +
                 "refused the picker before her first registration — would never reach it. It " +
-                "sits on the tap instead, see NotificationSwitchAsksAgainWiringTest.",
+                "sits on the tap instead, see NotificationSwitchAsksAgainWiringTest. The third " +
+                "fact is a CALL to the shared predicate and not the two lines it replaced " +
+                "(linkedAccounts(id).any { notificationsEnabled(it.id) }): the fallback cycle " +
+                "renews the logins this predicate keeps alive AND has in its watched set, so the " +
+                "decision has to be one condition read from both ends. The two ends still " +
+                "differ on the SET, this one running on every stored account and the cycle on " +
+                "the watched ones, which is a gap of its own. Inlined here it stays green while " +
+                "the " +
+                "renewal end reads something else, which is how a login whose own sync was off " +
+                "kept a record reading ACTIVE for a subscription the server had already dropped.",
             expected,
             body,
         )

@@ -194,6 +194,18 @@ class FallbackPollSaysWhatItSkippedTest {
             workerOccurrencesOf("nothingToPollLine"),
         )
         assertEquals(
+            "the head of doWork must be exactly these statements, in this order. The renewal " +
+                "sweep sits where it is read: above the empty-cycle exit, because a login whose " +
+                "own sync is off is not in `accounts`, and on a phone where it is the only " +
+                "watched account that set is empty and the cycle returns right there. Moved one " +
+                "line down, under the exit, the sweep still reads as the fix and never runs in " +
+                "the very case it was written for, its subscription expiring at the server with " +
+                "the local record still ACTIVE. It also sits AFTER " +
+                "reconcileDistributorPresence(), which has already marked FAILED every record " +
+                "whose distributor was uninstalled: renewing at the server a subscription no " +
+                "distributor can deliver to spends a request to keep a dead address alive. " +
+                "Read:\n" +
+                doWorkStatements().take(24).joinToString("\n"),
             listOf(
                 "val container = (applicationContext as Application).container",
                 "val store = container.accountStore",
@@ -201,6 +213,12 @@ class FallbackPollSaysWhatItSkippedTest {
                 "val accounts = watched.filter { store.notificationsEnabled(it.id) }",
                 "val up = container.unifiedPushManager",
                 "up.reconcileDistributorPresence()",
+                "val keptForSubAccount = watched",
+                ".filter { !store.notificationsEnabled(it.id) && store.keepsPushForLinkedAccount(it.id) }",
+                "for (credentials in keptForSubAccount) {",
+                "runCatching { up.renewIfNeeded(credentials) }",
+                ".onFailure { Log.w(TAG, \"UnifiedPush renew check failed for \${credentials.id}\", it) }",
+                "}",
                 "if (accounts.isEmpty()) {",
                 "Log.i(",
                 "TAG,",
@@ -214,7 +232,52 @@ class FallbackPollSaysWhatItSkippedTest {
                 "}",
                 "for (credentials in accounts) {",
             ),
-            doWorkStatements().take(18),
+            doWorkStatements().take(24),
+        )
+    }
+
+    @Test fun `the renewal sweep takes the logins kept for a sub-account, and only renews them`() {
+        val sweep = doWorkStatements().dropWhile { !it.startsWith("val keptForSubAccount") }.take(6)
+        assertEquals(
+            "the sweep must be exactly these lines. Its SET is the whole rule and both halves " +
+                "are load-bearing: the accounts the switch took out of `accounts` " +
+                "(!notificationsEnabled) that a linked sub-account still holds the subscription " +
+                "for (keepsPushForLinkedAccount, the very predicate tearDownAfterSyncOff refuses " +
+                "to hand it back on). Drop the first half and the sweep renews what the loop " +
+                "below already renews; drop the second and it renews logins whose subscription " +
+                "was handed back. Its BODY is renewIfNeeded and nothing else: an ensureRegistered " +
+                "or a PushFetchWorker.enqueue written here puts work on a login whose sync the " +
+                "user switched off, which is #204 reopened from the other side. What a failed " +
+                "renewal does next is renewIfNeeded's own business, and its re-registration " +
+                "does NOT come back for this login: the endpoint it asks for is refused at " +
+                "onNewEndpoint by the same switch, so the record stays REGISTERING. That hole " +
+                "is open and named, and widening this body is not what closes it. Read:\n" +
+                sweep.joinToString("\n"),
+            listOf(
+                "val keptForSubAccount = watched",
+                ".filter { !store.notificationsEnabled(it.id) && store.keepsPushForLinkedAccount(it.id) }",
+                "for (credentials in keptForSubAccount) {",
+                "runCatching { up.renewIfNeeded(credentials) }",
+                ".onFailure { Log.w(TAG, \"UnifiedPush renew check failed for \${credentials.id}\", it) }",
+                "}",
+            ),
+            sweep,
+        )
+        assertEquals(
+            "and doWork may not name PushFetchWorker at all: a push wake for a switched-off " +
+                "login is thrown away at that worker's own gate (#204), so scheduling one from " +
+                "here only burns a wake. Found:\n" +
+                doWorkStatements().filter { "PushFetchWorker" in it }.joinToString("\n"),
+            emptyList<String>(),
+            doWorkStatements().filter { "PushFetchWorker" in it },
+        )
+        assertEquals(
+            "and ensureRegistered stays on the switched-on loop alone: called on the kept set it " +
+                "would enrol, on the distributor and on the mail server, a login the user " +
+                "switched off. Found:\n" +
+                doWorkStatements().filter { "ensureRegistered" in it }.joinToString("\n"),
+            listOf("runCatching { up.ensureRegistered(credentials) }"),
+            doWorkStatements().filter { "ensureRegistered" in it },
         )
     }
 

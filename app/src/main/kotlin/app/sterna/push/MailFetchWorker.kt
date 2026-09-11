@@ -12,6 +12,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import app.sterna.container
 import app.sterna.core.data.account.MailProtocol
+import app.sterna.core.data.account.keepsPushForLinkedAccount
 import java.util.concurrent.TimeUnit
 
 /**
@@ -29,6 +30,12 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
         // poll, its endpoint being able to die silently with the status still active.
         val up = container.unifiedPushManager
         up.reconcileDistributorPresence()
+        val keptForSubAccount = watched
+            .filter { !store.notificationsEnabled(it.id) && store.keepsPushForLinkedAccount(it.id) }
+        for (credentials in keptForSubAccount) {
+            runCatching { up.renewIfNeeded(credentials) }
+                .onFailure { Log.w(TAG, "UnifiedPush renew check failed for ${credentials.id}", it) }
+        }
         // Until this line the cycle ended on the same SUCCESS as one that fetched everything. Four
         // different things arrive here and only one is a choice, so the three facts that separate
         // them are read here and handed to the line.

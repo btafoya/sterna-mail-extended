@@ -5,6 +5,7 @@ import android.util.Log
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.AccountStore
 import app.sterna.core.data.account.MailProtocol
+import app.sterna.core.data.account.keepsPushForLinkedAccount
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.jmap.model.PushKeys
 import app.sterna.core.jmap.model.PushMessagePayload
@@ -457,8 +458,7 @@ class UnifiedPushManager(
             RelayPush.shouldTearDown(
                 isLinked = accountStore.account(credentials.id)?.isLinked == true,
                 hasPushState = state != null,
-                linkedAccountStillOn = accountStore.linkedAccounts(credentials.id)
-                    .any { accountStore.notificationsEnabled(it.id) },
+                linkedAccountStillOn = accountStore.keepsPushForLinkedAccount(credentials.id),
                 relayRequested = state?.relayRequested == true,
             )
         }
