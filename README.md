@@ -184,16 +184,18 @@ and [CONTRIBUTING.md](CONTRIBUTING.md). The planned and shipped feature set is
 tracked in [FEATURES.md](FEATURES.md). Contributions, bug reports and ideas are
 very welcome. 🙌
 
-Sterna Mail is written and maintained by one developer. Every change is
-reviewed and tested before it ships, on an emulator and on real hardware
-according to what the change needs. Issues are closed on reporter
-confirmation, and release builds are reproducible and checked by F-Droid
-against the published source.
+Sterna Mail is written and maintained by one developer. Every change ships
+with its own test suite green. What it goes through beyond that is scaled to
+what it touches: anything that reaches the screen, the network or stored mail
+also gets an independent review pass and a hands-on run on a device or an
+emulator, while a small internal change can ship on its tests alone. Issues
+are closed on reporter confirmation, and release builds are reproducible and
+checked by F-Droid against the published source.
 
-AI coding assistants are part of that toolchain. They do not decide what Sterna
-does. What guards the quality is the pipeline they work inside: automated tests,
-mutation checks, an independent review pass and a hands-on run on a device,
-scaled to what each change touches.
+AI coding assistants are part of that toolchain. They do not decide what
+Sterna does: I pick what gets built, I sign off on it, and I cut every release
+myself. The checks above apply the same way whoever, or whatever, wrote the
+diff.
 
 ## ☕ Support
 
