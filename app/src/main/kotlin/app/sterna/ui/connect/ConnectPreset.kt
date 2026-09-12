@@ -19,7 +19,7 @@ internal data class MailProvider(
     val smtpSecurity: ConnectionSecurity,
     /** When true the chip starts the OAuth sign-in flow instead of filling host/port. */
     val oauth: Boolean = false,
-    /** Page where the user creates an app-specific password (their normal one is refused). */
+    /** The app-specific password's page, or the provider's help on it (their normal one is refused). */
     val appPasswordUrl: String? = null,
 )
 
@@ -31,9 +31,14 @@ internal val MAIL_PROVIDERS = listOf(
     MailProvider("Yahoo", "imap.mail.yahoo.com", "993", ConnectionSecurity.TLS, "smtp.mail.yahoo.com", "465", ConnectionSecurity.TLS),
     MailProvider("iCloud", "imap.mail.me.com", "993", ConnectionSecurity.TLS, "smtp.mail.me.com", "587", ConnectionSecurity.STARTTLS),
     MailProvider("Fastmail", "imap.fastmail.com", "993", ConnectionSecurity.TLS, "smtp.fastmail.com", "465", ConnectionSecurity.TLS),
-    // Yandex and Mail.ru are plain IMAP behind an app-specific password (#105). Values from the
-    // providers' own documentation, not by analogy with each other:
+    // Plain IMAP behind an app-specific password, QQ Mail to Sina Mail (#203), Yandex and Mail.ru (#105).
+    // Values from each provider's own documentation, not by analogy with each other; for the last two,
     //   yandex.com/support/mail/mail-clients/others.html ; help.mail.ru/mail/login/mailer/
+    MailProvider("QQ Mail", "imap.qq.com", "993", ConnectionSecurity.TLS, "smtp.qq.com", "465", ConnectionSecurity.TLS, appPasswordUrl = "https://help.mail.qq.com/detail/106/985"),
+    MailProvider("163 Mail", "imap.163.com", "993", ConnectionSecurity.TLS, "smtp.163.com", "465", ConnectionSecurity.TLS, appPasswordUrl = "https://help.mail.163.com/faqDetail.do?code=d7a5dc8471cd0c0e8b4b8f4f8e49998b374173cfe9171305fa1ce630d7f67ac286624f309a1a7089"),
+    MailProvider("126 Mail", "imap.126.com", "993", ConnectionSecurity.TLS, "smtp.126.com", "465", ConnectionSecurity.TLS, appPasswordUrl = "https://help.mail.126.com/faqDetail.do?code=d7a5dc8471cd0c0e8b4b8f4f8e49998b374173cfe9171305fa1ce630d7f67ac286624f309a1a7089"),
+    MailProvider("Yeah Mail", "imap.yeah.net", "993", ConnectionSecurity.TLS, "smtp.yeah.net", "465", ConnectionSecurity.TLS, appPasswordUrl = "https://help.mail.yeah.net/faqDetail.do?code=d7a5dc8471cd0c0e8b4b8f4f8e49998b374173cfe9171305fa1ce630d7f67ac286624f309a1a7089"),
+    MailProvider("Sina Mail", "imap.sina.com", "993", ConnectionSecurity.TLS, "smtp.sina.com", "465", ConnectionSecurity.TLS, appPasswordUrl = "https://help.sina.com.cn/comquestiondetail/view/1566/"),
     MailProvider("Yandex", "imap.yandex.com", "993", ConnectionSecurity.TLS, "smtp.yandex.com", "465", ConnectionSecurity.TLS, appPasswordUrl = "https://id.yandex.com/security/app-passwords"),
     MailProvider("Mail.ru", "imap.mail.ru", "993", ConnectionSecurity.TLS, "smtp.mail.ru", "465", ConnectionSecurity.TLS, appPasswordUrl = "https://account.mail.ru/user/2-step-auth/passwords/"),
     MailProvider("Proton Bridge", "127.0.0.1", "1143", ConnectionSecurity.STARTTLS, "127.0.0.1", "1025", ConnectionSecurity.STARTTLS),

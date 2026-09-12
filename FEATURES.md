@@ -108,8 +108,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   needs. A manual host and port form is the fallback.
 - ✅ Autodiscovery of `/.well-known/jmap`, and of the IMAP/SMTP settings a domain
   publishes for itself. No third-party configuration directory is contacted.
-- ✅ IMAP presets for Gmail, Yahoo, iCloud, Fastmail, Proton Bridge, Yandex and
-  Mail.ru, with the app-password reminder most of them need.
+- ✅ IMAP presets for Gmail, Yahoo, iCloud, Fastmail, Proton Bridge, Yandex,
+  Mail.ru, QQ Mail, 163 Mail, 126 Mail, Yeah Mail and Sina Mail, with the
+  app-password reminder most of them need.
 - ✅ OAuth2, device flow (RFC 8628) where the server offers one, authorization code
   with PKCE otherwise. Tokens are encrypted and refreshed, no password is handled.
 - ✅ Outlook and Microsoft, over OAuth2 with XOAUTH2 on IMAP and SMTP. Personal

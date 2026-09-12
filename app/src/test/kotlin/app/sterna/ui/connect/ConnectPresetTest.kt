@@ -11,6 +11,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.URI
 
 /**
  * Quick setup used to be four pieces of screen state that could disagree: the Outlook chip armed a
@@ -384,6 +385,36 @@ class ConnectPresetTest {
         listOf(yandex, mailru).forEach {
             assertFalse("${it.name} is password IMAP, not OAuth", it.oauth)
             assertNotNull("${it.name} needs its app-password page", it.appPasswordUrl)
+        }
+    }
+
+    @Test fun qqNeteaseAndSinaAreAppPasswordImapPresetsLinkingTheirOwnHelp() {
+        data class Expected(val name: String, val imap: String, val smtp: String, val domain: String)
+        listOf(
+            Expected("QQ Mail", "imap.qq.com", "smtp.qq.com", "qq.com"),
+            Expected("163 Mail", "imap.163.com", "smtp.163.com", "163.com"),
+            Expected("126 Mail", "imap.126.com", "smtp.126.com", "126.com"),
+            Expected("Yeah Mail", "imap.yeah.net", "smtp.yeah.net", "yeah.net"),
+            Expected("Sina Mail", "imap.sina.com", "smtp.sina.com", "sina.com.cn"),
+        ).forEach { e ->
+            val p = provider(e.name)
+            assertEquals("${e.name} imap host", e.imap, p.imapHost)
+            assertEquals("${e.name} imap port", "993", p.imapPort)
+            assertEquals("${e.name} imap security", ConnectionSecurity.TLS, p.imapSecurity)
+            assertEquals("${e.name} smtp host", e.smtp, p.smtpHost)
+            assertEquals("${e.name} smtp port", "465", p.smtpPort)
+            assertEquals("${e.name} smtp security", ConnectionSecurity.TLS, p.smtpSecurity)
+            assertFalse("${e.name} is password IMAP, not OAuth", p.oauth)
+
+            val url = p.appPasswordUrl
+            assertNotNull("${e.name} needs its authorization-code help page", url)
+            val uri = URI(url!!)
+            assertEquals("${e.name} help page scheme in <$url>", "https", uri.scheme)
+            val host = uri.host.orEmpty()
+            assertTrue(
+                "${e.name} help page <$url> is not on ${e.domain}",
+                host == e.domain || host.endsWith(".${e.domain}"),
+            )
         }
     }
 
