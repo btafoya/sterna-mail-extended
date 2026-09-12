@@ -1,0 +1,7 @@
+Each account now picks instant or battery-saver delivery for itself, not one setting for the whole app.
+
+A folder screen per account: hide a folder from the folder list and the move pickers, and the per-folder new-mail switch moves here.
+
+Tapping an account's name in the drawer unfolds the account list.
+
+Fixed: sending a received message filed under Drafts no longer destroys it; unusual Date headers are read rather than leaving a row undated; push returns after a distributor is reinstalled.

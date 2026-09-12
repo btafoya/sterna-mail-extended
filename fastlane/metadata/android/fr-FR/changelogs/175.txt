@@ -1,0 +1,7 @@
+Chaque compte choisit sa distribution : instantanée ou économie de batterie, au lieu d'un réglage global.
+
+Un écran de dossiers par compte : masquer un dossier de la liste et des sélecteurs de déplacement, et l'interrupteur de nouveau courrier par dossier.
+
+Taper le nom d'un compte dans le tiroir déplie la liste.
+
+Corrigé : envoyer un message reçu rangé dans Brouillons ne le détruit plus ; les en-têtes Date inhabituels sont lus ; le push revient après réinstallation d'un distributeur.
