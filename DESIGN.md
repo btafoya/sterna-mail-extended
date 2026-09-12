@@ -77,7 +77,7 @@ bounce) so it stays alive yet sober.
 | List → message (under 600 dp) | `fadeIn` / `fadeOut` cross-fade; falls back to instant under reduced motion or when the fade-crash sentinel has latched | 200ms fade, `FastOutSlowIn` |
 | List → reading pane (600 dp and up) | none: the message replaces the pane's content with no fade, because a fade over a live WebView is the crash window the sentinel guards (#10) | instant |
 | Row appearance | `animateItem()` on `LazyColumn` | default, subtle |
-| Swipe actions | `SwipeableEmailRow`, action icon fades in | tracks the finger |
+| Swipe actions | `SwipeableEmailRow`, action icon fades in, and out with the row | tracks the finger |
 | Top bar / FAB collapse | `exitUntilCollapsedScrollBehavior`, FAB `expanded` | native |
 | Delete | row collapses (height → 0) | ~200ms ease-out |
 | Pull-to-refresh | `PullToRefreshBox`, `TernRefreshIndicator` settles with no bounce | native, short |

@@ -2390,21 +2390,32 @@ private fun SwipeableEmailRow(
                 animationSpec = if (motionOn) spring() else snap(),
                 label = "swipeRevealScale",
             )
-            Box(
-                Modifier.matchParentSize().background(bg).padding(horizontal = 24.dp),
-                contentAlignment = if (draggingRight) Alignment.CenterStart else Alignment.CenterEnd,
-            ) {
-                val labelRes = swipeActionLabel(action, email, unarchiveContext, trashContext)
-                if (labelRes != 0) {
-                    Text(
-                        stringResource(labelRes),
-                        color = fg,
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.graphicsLayer {
-                            scaleX = labelScale
-                            scaleY = labelScale
-                        },
-                    )
+            // Composed, not merely painted transparent: alpha is a draw-phase value that
+            // accessibility never reads, so a label left composed at alpha 0 goes on announcing
+            // "Delete" over a cell that stopped showing it. The guard above stays as it is: it is
+            // the finger's affordance, and the alpha answers 1f for as long as the finger is down.
+            val revealAlpha = swipeRevealAlpha(offsetX.value, rowWidth.toFloat(), lift.value, flyDir != 0)
+            if (revealAlpha > 0f) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .graphicsLayer { alpha = revealAlpha }
+                        .background(bg)
+                        .padding(horizontal = 24.dp),
+                    contentAlignment = if (draggingRight) Alignment.CenterStart else Alignment.CenterEnd,
+                ) {
+                    val labelRes = swipeActionLabel(action, email, unarchiveContext, trashContext)
+                    if (labelRes != 0) {
+                        Text(
+                            stringResource(labelRes),
+                            color = fg,
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = labelScale
+                                scaleY = labelScale
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -2510,6 +2521,7 @@ private fun CoroutineScope.commitSwipe(
             onSwipe(action)
         }
     } else {
+        if (dismissesRow(action)) setFlyDir(dir)
         onSwipe(action)
         launch { offsetX.animateTo(if (dismissesRow(action)) dir * width else 0f) }
     }
