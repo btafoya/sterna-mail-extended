@@ -368,6 +368,7 @@ class SaveScopeCaptionTest {
             "values-pl" to listOf("natychmiast", "zaraz", "od razu", "stosowan", "stosuj", "obowiąz", "wchodzą w życie", "w życie"),
             "values-pt" to listOf("imediat", "aplic", "surte", "no ato", "vigor"),
             "values-ru" to listOf("сразу", "немедленн", "мгновенн", "примен", "вступа", "в силу", "действу"),
+            "values-zh-rCN" to listOf("生效", "即时", "马上生效", "立即生效"),
         )
 
         /**
@@ -387,6 +388,7 @@ class SaveScopeCaptionTest {
             "values-pl" to "Pozostałe ustawienia zaczynają obowiązywać od zaraz.",
             "values-pt" to "As outras configurações entram em vigor de imediato.",
             "values-ru" to "Остальные настройки вступают в силу сразу же.",
+            "values-zh-rCN" to "此屏幕上的其他设置会立即生效。",
         )
 
         /** How each language says "button", the caption has to name the thing it describes. */
@@ -400,6 +402,7 @@ class SaveScopeCaptionTest {
             "values-pl" to listOf("przycisk"),
             "values-pt" to listOf("botão"),
             "values-ru" to listOf("кнопк"),
+            "values-zh-rCN" to listOf("按钮"),
         )
 
         /** How each language says "as soon as you change them", the claim, not the wording. */
@@ -413,10 +416,11 @@ class SaveScopeCaptionTest {
             "values-pl" to listOf("w chwili", "z chwilą", "gdy tylko", "kiedy tylko"),
             "values-pt" to listOf("assim que", "logo que", "no momento em que"),
             "values-ru" to listOf("как только", "в момент"),
+            "values-zh-rCN" to listOf("更改后", "改动后"),
         )
 
-        /** A sentence end: the caption must have two of them, because the second one is the point. */
-        val SENTENCE_END = Regex("[.!?](\\s|\$)")
+        /** A sentence end, Latin or `。`: the caption must have two of them, because the second one is the point. */
+        val SENTENCE_END = Regex("[.!?](?:\\s|\$)|。")
 
         val CAPTION = Regex("<string name=\"settings_save_scope\">(.*?)</string>", RegexOption.DOT_MATCHES_ALL)
         val SAVE_LABEL = Regex("<string name=\"settings_save\">(.*?)</string>", RegexOption.DOT_MATCHES_ALL)

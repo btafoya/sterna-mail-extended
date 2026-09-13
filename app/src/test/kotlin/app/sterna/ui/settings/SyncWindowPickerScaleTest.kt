@@ -156,8 +156,8 @@ class SyncWindowPickerScaleTest {
         )
     }
 
-    @Test fun `the nine languages carry the three new labels and no locale was left behind`() {
-        assertEquals("nine locales ship; this test read a different number of them", 9, stringFiles().size)
+    @Test fun `the ten languages carry the three new labels and no locale was left behind`() {
+        assertEquals("ten locales ship; this test read a different number of them", 10, stringFiles().size)
     }
 
     // -- reading the sources ---------------------------------------------------------------------------

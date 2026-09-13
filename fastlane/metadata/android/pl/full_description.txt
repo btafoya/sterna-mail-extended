@@ -30,7 +30,7 @@ Funkcje serwera i wykończenie:
 
 * Autoresponder na czas nieobecności, reguły filtrowania Sieve i podgląd limitu skrzynki, po stronie serwera
 * Interfejs Material 3 z własnymi motywami jasnym i ciemnym, opcjonalnym Material You i regulowaną wielkością tekstu wiadomości
-* Dostępny w dziewięciu językach: angielskim, francuskim, niemieckim, hiszpańskim, włoskim, portugalskim, niderlandzkim, polskim i rosyjskim
+* Dostępny w dziesięciu językach: angielskim, francuskim, niemieckim, hiszpańskim, włoskim, portugalskim, niderlandzkim, polskim, rosyjskim i chińskim uproszczonym
 * Zgodny z czytnikami ekranu, z eksportem i importem ustawień
 
 Sterna Mail ma otwarty kod źródłowy, a jego wydania są odtwarzalne: F-Droid sprawdza, że rozpowszechniana aplikacja jest bajt w bajt tą zbudowaną z opublikowanego kodu. Kod może przeczytać, skontrolować i ulepszyć każdy.

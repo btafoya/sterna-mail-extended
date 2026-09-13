@@ -92,7 +92,7 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Undo send, then an Outbox that survives app death and retries when the network
   comes back, with its own screen for waiting, sending and failed mail.
 - ✅ Schedule send, with a screen to cancel a pending one. No attachments yet.
-- ✅ "Forgot attachment?" reminder, in all nine UI languages.
+- ✅ "Forgot attachment?" reminder, in every UI language.
 - ✅ Recipient autocomplete from cached and opt-in device contacts, as removable
   chips, with address validation.
 - ✅ Several sending identities per account, each with its own signature, chosen
@@ -177,7 +177,7 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ About screen: version and release date, source, license, author.
 - ✅ Accessibility pass: screen-reader labels on icon-only controls, and text that
   scales with the system font size.
-- ✅ Nine UI languages.
+- ✅ Ten UI languages.
 - ✅ Coastal line-art empty states.
 
 ## Server-side extras

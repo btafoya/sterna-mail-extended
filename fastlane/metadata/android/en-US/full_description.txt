@@ -30,7 +30,7 @@ Server features and polish:
 
 * Server-side vacation responder, Sieve filter rules, and mailbox quota display
 * Material 3 interface with its own light and dark themes, optional Material You, and adjustable message text size
-* Available in nine languages: English, French, German, Spanish, Italian, Portuguese, Dutch, Polish and Russian
+* Available in ten languages: English, French, German, Spanish, Italian, Portuguese, Dutch, Polish, Russian and Simplified Chinese
 * Screen-reader friendly, with settings export and import
 
 Sterna Mail is open source, and its release builds are reproducible: F-Droid checks that the app it distributes is byte for byte the one built from the published source. The code can be read, audited, and improved by anyone.

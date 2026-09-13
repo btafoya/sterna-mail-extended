@@ -24,9 +24,9 @@ class PgpProviderNamingTest {
     fun `no language demands one particular OpenPGP app`() {
         val files = listOf(File(res, "values/strings.xml")) + translations()
         assertEquals(
-            "the app ships nine languages; a directory that vanishes takes this rule with it and " +
+            "the app ships ten languages; a directory that vanishes takes this rule with it and " +
                 "nothing else notices",
-            NINE,
+            SHIPPED_LANGUAGES,
             files.map { it.parentFile.name },
         )
         val naming = files.associate { file ->
@@ -107,7 +107,7 @@ class PgpProviderNamingTest {
     fun `the install button opens the page of the app it names`() {
         assertEquals(
             "the install button's link left OpenKeychain's F-Droid page while its label still " +
-                "says OpenKeychain in nine languages: the button names one app and installs another.",
+                "says OpenKeychain in ten languages: the button names one app and installs another.",
             "https://f-droid.org/packages/org.sufficientlysecure.keychain/",
             OPENKEYCHAIN_FDROID_URL,
         )
@@ -134,9 +134,9 @@ class PgpProviderNamingTest {
         const val INSTALL_BUTTON = "settings_pgp_install"
         const val ARGUMENT = "%1\$s"
 
-        val NINE = listOf(
+        val SHIPPED_LANGUAGES = listOf(
             "values", "values-de", "values-es", "values-fr", "values-it",
-            "values-nl", "values-pl", "values-pt", "values-ru",
+            "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN",
         )
 
         val STRING = Regex("<string\\s+name=\"([^\"]+)\"[^>]*>(.*?)</string>", RegexOption.DOT_MATCHES_ALL)

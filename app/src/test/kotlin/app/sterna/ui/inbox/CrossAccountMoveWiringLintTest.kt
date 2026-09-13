@@ -578,7 +578,7 @@ class CrossAccountMoveWiringLintTest {
         )
     }
 
-    @Test fun `the four strings of the move between accounts exist in the nine languages`() {
+    @Test fun `the four strings of the move between accounts exist in the ten languages`() {
         val expected = setOf(
             "inbox_move_account",
             "status_moved_to_account",
@@ -589,7 +589,7 @@ class CrossAccountMoveWiringLintTest {
             .filter { it.isDirectory && it.name.startsWith("values-") }
             .map { File(it, "strings.xml") }
             .filter { it.isFile }
-        assertEquals("nine string files", 9, files.size)
+        assertEquals("ten string files", 10, files.size)
         val missing = files.associate { it.parentFile.name to (expected - keysOf(it)) }.filterValues { it.isNotEmpty() }
         assertEquals("strings of the move between accounts missing in", emptyMap<String, Set<String>>(), missing)
     }

@@ -93,7 +93,7 @@ class DraftKeptToastFitTest {
         val halved = noticeIds().sorted().flatMap { id ->
             strings.entries.sortedBy { it.key }.mapNotNull { (locale, texts) ->
                 val text = unescaped(texts[id] ?: return@mapNotNull null)
-                val propositions = text.split('.').map { it.trim() }.filter { it.isNotEmpty() }
+                val propositions = text.split(Regex("[.。]")).map { it.trim() }.filter { it.isNotEmpty() }
                 if (propositions.size >= 2) null
                 else "$locale/$id has ${propositions.size} — \"$text\""
             }
@@ -215,8 +215,8 @@ class DraftKeptToastFitTest {
         .filter { it.isDirectory && File(it, "strings.xml").isFile }
         .sortedBy { it.name }
         .also {
-            check(it.size == 9) {
-                "expected 9 locales carrying a strings.xml, found ${it.size} " +
+            check(it.size == 10) {
+                "expected 10 locales carrying a strings.xml, found ${it.size} " +
                     "(${it.joinToString { d -> d.name }}) — a language added or a file moved " +
                     "leaves this sentence unmeasured in it"
             }

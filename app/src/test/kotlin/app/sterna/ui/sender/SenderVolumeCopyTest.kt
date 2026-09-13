@@ -125,7 +125,7 @@ class SenderVolumeCopyTest {
     private fun locales(): List<File> = (res.listFiles() ?: emptyArray())
         .filter { it.isDirectory && File(it, "strings.xml").isFile }
         .sortedBy { it.name }
-        .also { check(it.size == 9) { "expected 9 locales, found ${it.size}" } }
+        .also { check(it.size == 10) { "expected 10 locales, found ${it.size}" } }
 
     /** Every `<string>` of one locale, name → text. `<plurals>` are not read: neither rule
      *  concerns one, and their items would need a quantity to be addressed by. */

@@ -138,7 +138,7 @@ class AccountRefreshedStringTest {
 
         val LOCALES = listOf(
             "values", "values-de", "values-es", "values-fr", "values-it",
-            "values-nl", "values-pl", "values-pt", "values-ru",
+            "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN",
         )
 
         /** Repo root, found by walking up from the module's working directory. */

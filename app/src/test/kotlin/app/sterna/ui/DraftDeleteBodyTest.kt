@@ -122,7 +122,7 @@ class DraftDeleteBodyTest {
 
         val LOCALES = listOf(
             "values", "values-de", "values-es", "values-fr", "values-it",
-            "values-nl", "values-pl", "values-pt", "values-ru",
+            "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN",
         )
 
         /**
@@ -139,6 +139,7 @@ class DraftDeleteBodyTest {
             "values-pl" to listOf("Kosz", "usunięta", "nie ma folderu", "nie jest zapisywane"),
             "values-pt" to listOf("Lixeira", "eliminado", "não tiver pasta", "não é guardado"),
             "values-ru" to listOf("Корзин", "удаляется", "нет папки", "не сохраняется"),
+            "values-zh-rCN" to listOf("回收站", "没有回收站文件夹", "删除", "不会被保存"),
         )
 
         /**
@@ -162,6 +163,7 @@ class DraftDeleteBodyTest {
                 "nenhum outro", "serão perdidos", "definitivamente", "de vez", "sua pasta", "será", "irá",
             ),
             "values-ru" to listOf("нигде больше", "будут потеряны", "навсегда", "вашей", "будет"),
+            "values-zh-rCN" to listOf("其他地方", "将丢失", "永久", "永远", "您的回收站", "将会"),
         )
 
         val BODY = Regex(

@@ -152,7 +152,7 @@ class PendingDeletionLabelTest {
 
         val LOCALES = listOf(
             "values", "values-de", "values-es", "values-fr", "values-it",
-            "values-nl", "values-pl", "values-pt", "values-ru",
+            "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN",
         )
 
         /**
@@ -204,6 +204,11 @@ class PendingDeletionLabelTest {
                 DESTROY to "Письмо удалено навсегда",
                 EMPTY to "Корзина очищена",
                 FOLDER to "Папка «%1\$s» удалена",
+            ),
+            "values-zh-rCN" to mapOf(
+                DESTROY to "邮件已永久删除",
+                EMPTY to "回收站已清空",
+                FOLDER to "文件夹“%1\$s”已删除",
             ),
         )
 

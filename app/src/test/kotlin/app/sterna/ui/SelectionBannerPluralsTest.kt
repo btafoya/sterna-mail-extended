@@ -43,7 +43,7 @@ class SelectionBannerPluralsTest {
         assertEquals("plural forms with no number in them", emptyList<String>(), offenders)
     }
 
-    /** `values/` plus every `values-xx/` that ships strings, nine files as of this change. */
+    /** `values/` plus every `values-xx/` that ships strings, ten files as of this change. */
     private fun localeFiles(): List<File> = (res.listFiles() ?: emptyArray())
         .filter { it.isDirectory && (it.name == "values" || it.name.startsWith("values-")) }
         .map { File(it, "strings.xml") }
@@ -80,6 +80,7 @@ class SelectionBannerPluralsTest {
             "values-fr" to listOf("one", "many", "other"),
             "values-pl" to listOf("one", "few", "many", "other"),
             "values-ru" to listOf("one", "few", "many", "other"),
+            "values-zh-rCN" to listOf("other"),
         )
 
         /** The one placeholder the banner is formatted with, written out so a `%d` cannot pass. */

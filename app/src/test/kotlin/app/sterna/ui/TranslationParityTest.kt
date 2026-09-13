@@ -119,7 +119,7 @@ class TranslationParityTest {
                 "with it and nothing else notices",
             listOf(
                 "values", "values-de", "values-es", "values-fr", "values-it",
-                "values-nl", "values-pl", "values-pt", "values-ru",
+                "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN",
             ),
             files.map { it.parentFile.name },
         )
@@ -661,8 +661,8 @@ class TranslationParityTest {
                     sentences.size < 2 ->
                         "${file.parentFile.name}/$key: ${sentences.size} sentence(s), so it cannot " +
                             "make both of the statements this label owes — <$text>"
-                    text.length < 60 ->
-                        "${file.parentFile.name}/$key: ${text.length} characters is too short to " +
+                    widthOf(text) < 60 ->
+                        "${file.parentFile.name}/$key: ${widthOf(text)} width-units is too short to " +
                             "say both — <$text>"
                     else -> null
                 }
@@ -733,7 +733,11 @@ class TranslationParityTest {
      */
     private fun sentencesOf(text: String): List<String> = text.split(SENTENCE_END)
         .map { it.trim() }
-        .filter { it.length >= 20 && it.firstOrNull(Char::isLetter)?.isUpperCase() == true }
+        .filter { widthOf(it) >= 20 && it.firstOrNull(Char::isLetter)?.let(::opensSentence) == true }
+
+    private fun widthOf(text: String): Int = text.sumOf { if (it.code in CJK_RANGE) 2 else 1 }
+
+    private fun opensSentence(c: Char): Boolean = c.isUpperCase() || c.code in CJK_RANGE
 
     /** Each `<string>`'s text exactly as the file carries it, escapes included. */
     private fun valuesOf(file: File): Map<String, String> = STRING
@@ -766,8 +770,10 @@ class TranslationParityTest {
         /** A Java format specifier as Android uses them: `%s`, `%d`, `%1${'$'}s`, `%2${'$'}d`. */
         val PLACEHOLDER = Regex("%(?:\\d+\\$)?[sd]")
 
-        /** End of a sentence: the punctuation, and then a space or the end of the label. */
-        val SENTENCE_END = Regex("[.!?…](?=\\s|${'$'})")
+        /** End of a sentence: a Latin `.!?…` before a space or the end, or the CJK `。！？`. */
+        val SENTENCE_END = Regex("(?:[.!?…](?=\\s|${'$'}))|[。！？]")
+
+        val CJK_RANGE = 0x4E00..0x9FFF
 
         const val SUBTITLE = "settings_account_notifications_subtitle"
 
@@ -800,6 +806,7 @@ class TranslationParityTest {
             "values-pl" to "w tle",
             "values-pt" to "em segundo plano",
             "values-ru" to "фоновом режиме",
+            "values-zh-rCN" to "后台",
         )
 
         /**

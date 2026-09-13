@@ -24,6 +24,7 @@ class SyncEverythingLabelTest {
                 "values-pl" to "Wszystko",
                 "values-pt" to "Tudo",
                 "values-ru" to "Всё",
+                "values-zh-rCN" to "全部",
             ),
             labels(),
         )

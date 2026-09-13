@@ -30,7 +30,7 @@ Serverfuncties en afwerking:
 
 * Afwezigheidsassistent, Sieve-filterregels en weergave van het postvakquotum, aan de serverzijde
 * Material 3-interface met eigen lichte en donkere thema's, Material You naar keuze, en instelbare tekstgrootte voor berichten
-* Beschikbaar in negen talen: Engels, Frans, Duits, Spaans, Italiaans, Portugees, Nederlands, Pools en Russisch
+* Beschikbaar in tien talen: Engels, Frans, Duits, Spaans, Italiaans, Portugees, Nederlands, Pools, Russisch en vereenvoudigd Chinees
 * Geschikt voor schermlezers, met export en import van de instellingen
 
 Sterna Mail is opensource, en de uitgebrachte versies zijn reproduceerbaar: F-Droid controleert dat de app die het verspreidt byte voor byte dezelfde is als die uit de gepubliceerde broncode is gebouwd. De code kan door iedereen worden gelezen, gecontroleerd en verbeterd.

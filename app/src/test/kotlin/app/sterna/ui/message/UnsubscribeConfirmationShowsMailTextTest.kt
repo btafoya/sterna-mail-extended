@@ -98,7 +98,7 @@ class UnsubscribeConfirmationShowsMailTextTest {
             .map { File(it, "strings.xml") }
             .filter { it.isFile }
             .sortedBy { it.parentFile.name }
-        assertTrue("expected nine languages, found ${files.size}", files.size == 9)
+        assertTrue("expected ten languages, found ${files.size}", files.size == 10)
 
         val broken = files.filter { file ->
             val text = STRING.find(file.readText())

@@ -376,13 +376,13 @@ class RelayAddressRowWiringTest {
     // -- the strings ---------------------------------------------------------------------------
 
     /** What `TranslationParityTest` already covers is deliberately not repeated here. */
-    @Test fun `the nine languages all carry the ten relay strings`() {
+    @Test fun `the ten languages all carry the ten relay strings`() {
         val files = stringFiles()
         assertEquals(
-            "the app ships nine languages; a directory that vanishes takes its own rule with it",
+            "the app ships ten languages; a directory that vanishes takes its own rule with it",
             listOf(
                 "values", "values-de", "values-es", "values-fr", "values-it",
-                "values-nl", "values-pl", "values-pt", "values-ru",
+                "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN",
             ),
             files.map { it.parentFile.name },
         )
@@ -399,7 +399,7 @@ class RelayAddressRowWiringTest {
         )
     }
 
-    @Test fun `the status line keeps its date argument in all nine languages`() {
+    @Test fun `the status line keeps its date argument in all ten languages`() {
         val broken = stringFiles().mapNotNull { file ->
             val value = stringValue(file, "settings_push_status_relay")
             if ("%1\$s" in value) null else "${file.parentFile.name}: \"$value\""
@@ -680,6 +680,7 @@ class RelayAddressRowWiringTest {
             "values-pl" to listOf("aktywny", "połączony"),
             "values-pt" to listOf("ativo", "ligado", "conectado"),
             "values-ru" to listOf("активен", "активный", "подключ"),
+            "values-zh-rCN" to listOf("活跃", "健康", "已连接", "连接中", "正常运行", "在线"),
         )
 
         val EXPECTED_BRANCH_ACTIONS = listOf(

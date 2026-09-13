@@ -30,7 +30,7 @@ Funções do servidor e acabamento:
 
 * Resposta de ausência, regras de filtragem Sieve e apresentação da quota da caixa, do lado do servidor
 * Interface Material 3 com temas claro e escuro próprios, Material You opcional e tamanho do texto das mensagens ajustável
-* Disponível em nove idiomas: inglês, francês, alemão, espanhol, italiano, português, neerlandês, polaco e russo
+* Disponível em dez idiomas: inglês, francês, alemão, espanhol, italiano, português, neerlandês, polaco, russo e chinês simplificado
 * Compatível com leitores de ecrã, com exportação e importação das definições
 
 O Sterna Mail é de código aberto, e as suas versões publicadas são reproduzíveis: o F-Droid verifica que a aplicação que distribui é byte a byte a que foi compilada a partir do código-fonte publicado. O código pode ser lido, auditado e melhorado por qualquer pessoa.

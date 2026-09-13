@@ -456,8 +456,8 @@ class ReplyBarWiringTest {
             RegexOption.DOT_MATCHES_ALL,
         )
 
-        /** "Menu", in the nine languages the app ships. */
-        private val MENU_WORDS = listOf("menu", "menü", "menú", "меню")
+        /** "Menu", in the ten languages the app ships. */
+        private val MENU_WORDS = listOf("menu", "menü", "menú", "меню", "菜单")
 
         private const val MESSAGE_SCREEN_PATH =
             "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt"

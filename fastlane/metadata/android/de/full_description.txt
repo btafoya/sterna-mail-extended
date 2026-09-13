@@ -30,7 +30,7 @@ Serverfunktionen und Feinschliff:
 
 * Abwesenheitsnotiz, Sieve-Filterregeln und Anzeige des Postfach-Kontingents, serverseitig
 * Material-3-Oberfläche mit eigenem hellen und dunklem Thema, Material You auf Wunsch und einstellbarer Schriftgröße für Nachrichten
-* Verfügbar in neun Sprachen: Englisch, Französisch, Deutsch, Spanisch, Italienisch, Portugiesisch, Niederländisch, Polnisch und Russisch
+* Verfügbar in zehn Sprachen: Englisch, Französisch, Deutsch, Spanisch, Italienisch, Portugiesisch, Niederländisch, Polnisch, Russisch und vereinfachtes Chinesisch
 * Für Screenreader geeignet, mit Export und Import der Einstellungen
 
 Sterna Mail ist quelloffen, und die veröffentlichten Versionen sind reproduzierbar: F-Droid prüft, dass die ausgelieferte App Byte für Byte diejenige ist, die aus dem veröffentlichten Quelltext gebaut wurde. Der Code kann von jedem gelesen, geprüft und verbessert werden.
