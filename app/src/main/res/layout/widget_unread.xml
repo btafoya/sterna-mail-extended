@@ -22,7 +22,7 @@
     ⛔ Not a zero. "0" is a number, and a number here says "no unread mail", which the app does not
     know yet and which is wrong for most people. The figure is a horizontal ellipsis: it is not a
     count, nobody can misread it as one, and it says the same thing in every language. The label is
-    @string/app_name — already translated in the nine languages, so nothing is added to carry, and
+    @string/app_name — already translated in the ten languages, so nothing is added to carry, and
     it answers the only question a blank cell leaves: which app is this.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"

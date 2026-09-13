@@ -21,7 +21,7 @@ class ReaderBodyTest {
      * What the reader says when there is no body, standing in for the localised string, and
      * deliberately not the shipped English text. Asserting "(no content)" would pass just as well
      * against a literal left hard-coded in [readerBody], i.e. against a reader that says it in
-     * English to the eight users out of nine who read the app in another language.
+     * English to the nine users out of ten who read the app in another language.
      */
     private val noContent = "NO-CONTENT-SENTINEL"
 
@@ -541,7 +541,7 @@ class ReaderBodyTest {
 
         assertEquals(
             "the menu and the page must each resolve message_no_content — a literal handed to " +
-                "readerBody is a reader that says '(no content)' in nine languages",
+                "readerBody is a reader that says '(no content)' in ten languages",
             2,
             lines(source, """val noContent = stringResource\(R\.string\.message_no_content\)"""),
         )
@@ -554,7 +554,7 @@ class ReaderBodyTest {
         )
         assertEquals(
             "the page must RESOLVE message_quoted_text: a literal would label the quote button " +
-                "'Quoted text' in nine languages, and an absent label falls on quoteLabel's " +
+                "'Quoted text' in ten languages, and an absent label falls on quoteLabel's " +
                 "default (\"\"), which switches the fold off in production with every test in " +
                 "this file still green",
             1,

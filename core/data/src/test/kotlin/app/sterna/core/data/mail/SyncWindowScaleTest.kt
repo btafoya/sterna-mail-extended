@@ -23,7 +23,7 @@ class SyncWindowScaleTest {
 
     @Test fun `the offered count windows are 100, 1000 and 10000`() {
         assertEquals(
-            "the scale the settings row offers changed — the labels, nine locales of them, are " +
+            "the scale the settings row offers changed — the labels, ten locales of them, are " +
                 "written against these three numbers",
             listOf(100, 1_000, 10_000),
             syncWindowChoices().filter { it.maxAgeDays == null }.map { it.limit },

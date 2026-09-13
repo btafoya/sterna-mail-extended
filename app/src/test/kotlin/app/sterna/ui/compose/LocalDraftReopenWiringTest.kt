@@ -136,7 +136,7 @@ class LocalDraftReopenWiringTest {
             body.subList(at, at + 11),
         )
         assertEquals(
-            "…and the busy sentence must be the string that already exists in the nine locales, on " +
+            "…and the busy sentence must be the string that already exists in the ten locales, on " +
                 "the flow that also STOPS THE EDITOR BEING DRAWN (draftReopenView). A new string " +
                 "here is a translation debt for a sentence already written; a notice on " +
                 "_attachmentStatus instead would leave a blank composer with a live Save over a " +

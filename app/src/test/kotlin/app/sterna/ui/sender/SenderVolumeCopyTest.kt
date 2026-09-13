@@ -7,7 +7,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Resource lint. It reads the string resources as text, in all nine languages, and checks the two
+ * Resource lint. It reads the string resources as text, in all ten languages, and checks the two
  */
 class SenderVolumeCopyTest {
 

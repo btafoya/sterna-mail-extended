@@ -352,7 +352,7 @@ class ConnectStatusWiringTest {
             "⛔ LABEL AND BODY, ADJACENT. Pinning the two lines separately is blind to the two " +
                 "branches' bodies being EXCHANGED: each line would still occur exactly once while " +
                 "the manual form said 'Could not connect: …' and a failed sign-in said 'enter it " +
-                "below'. The string is an existing one, in all nine locales.",
+                "below'. The string is an existing one, in all ten locales.",
         )
         assertRun(
             listOf(

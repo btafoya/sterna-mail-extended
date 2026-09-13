@@ -56,7 +56,7 @@ internal data class Meta(val accountName: String, val mailboxName: String, val u
 
 /** The internal label the unified inbox's [Meta] carries. Never shown as it stands: `InboxScreen`
  *  swaps it for the translated string (`UnifiedTitleWiringLintTest`), so a copy of this literal
- *  would be English in nine locales. */
+ *  would be English in ten locales. */
 internal const val UNIFIED_LABEL = "All inboxes"
 
 /** The header to start on for the view [sel] just restored, from what the store knows without a

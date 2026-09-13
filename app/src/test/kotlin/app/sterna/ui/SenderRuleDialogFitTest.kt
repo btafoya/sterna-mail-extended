@@ -102,7 +102,7 @@ class SenderRuleDialogFitTest {
             }
         }
         assertEquals(
-            "every action label of these dialogs must be READABLE by this rule in all nine " +
+            "every action label of these dialogs must be READABLE by this rule in all ten " +
                 "locales, or the length rule below is measuring nothing while reporting success. " +
                 "An id that resolves nowhere is not a translation problem — TranslationParityTest " +
                 "is happy with a key that is consistently absent from this rule's view — it is " +
@@ -115,7 +115,7 @@ class SenderRuleDialogFitTest {
                 "Material then paints the dismiss button INSIDE the confirm button (measured: " +
                 "'Отмена' entirely within the confirm button's rectangle, on the gesture that " +
                 "writes a permanent server-side rule). The fix is a verb, ≤ $maxActionLabelChars " +
-                "characters in all nine languages — where the object does not fit, the verb alone " +
+                "characters in all ten languages — where the object does not fit, the verb alone " +
                 "is the translation. Offenders:\n" + offenders.joinToString("\n"),
             emptyList<String>(),
             offenders,
@@ -253,7 +253,7 @@ class SenderRuleDialogFitTest {
         return line.trimEnd()
     }
 
-    /** The nine shipped locales, as `SenderVolumeCopyTest` counts them: a tenth added without a
+    /** The ten shipped locales, as `SenderVolumeCopyTest` counts them: an eleventh added without a
      *  translation of these labels must not slip through as "not checked". */
     private fun locales(): List<File> = (res.listFiles() ?: emptyArray())
         .filter { it.isDirectory && File(it, "strings.xml").isFile }

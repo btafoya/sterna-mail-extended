@@ -388,7 +388,7 @@ class ImapDiscoveryWiringTest {
         val open = lines.indexOf("internal fun reportOffline() {")
         assertEquals(
             "reportOffline must say exactly what the six sign-in routes' guards say — " +
-                "R.string.connect_offline, which already lives in all nine locales — on the " +
+                "R.string.connect_offline, which already lives in all ten locales — on the " +
                 "screen's own error surface, AND NOTHING ELSE. Pinned as the WHOLE body, closing " +
                 "brace included: reading only the first line lets a second one be inserted after " +
                 "it (`_state.value = ConnectState.Idle` is the obvious one) that puts the sentence " +

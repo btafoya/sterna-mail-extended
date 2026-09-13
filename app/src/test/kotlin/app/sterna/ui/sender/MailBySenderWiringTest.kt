@@ -158,7 +158,7 @@ class MailBySenderWiringTest {
         )
         assertTrue(
             "the note must name the Filters screen by its own localised labels, not by an " +
-                "English path typed into nine translations — and in the order the sentence " +
+                "English path typed into ten translations — and in the order the sentence " +
                 "reads: %1\$s is the settings entry, %2\$s the Filters screen INSIDE it. " +
                 "Swapped, the sentence reads 'Filters → Settings', which is nowhere. Whole " +
                 "lines, so an argument with anything appended to it fails here too. Note call " +
@@ -290,7 +290,7 @@ class MailBySenderWiringTest {
                 "same one the reader's dialog uses. It is NOT the menu entry's label: that one " +
                 "is a whole sentence, and a sentence in a dialog button wraps to four lines at a " +
                 "large font scale, which is how Material came to paint Cancel inside this very " +
-                "button. Whether it stays short in nine languages is SenderRuleDialogFitTest's " +
+                "button. Whether it stays short in ten languages is SenderRuleDialogFitTest's " +
                 "rule. Confirm button was:\n$confirm",
             "R.string.sender_volume_block_confirm)" in confirm,
         )

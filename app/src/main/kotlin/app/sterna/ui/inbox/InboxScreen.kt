@@ -941,7 +941,7 @@ fun InboxScreen(
                                 .firstOrNull { it.id == ui.selectedMailboxId }?.role
                             // The hint says what the search covers. In the unread view that is the
                             // whole account, while ui.mailboxName still holds the Inbox's name.
-                            // Same string as the title, no tenth translation of the same word.
+                            // Same string as the title, no eleventh translation of the same word.
                             val scopeLabel = if (ui.unreadView) {
                                 stringResource(R.string.inbox_unread_view)
                             } else if (ui.unified) {

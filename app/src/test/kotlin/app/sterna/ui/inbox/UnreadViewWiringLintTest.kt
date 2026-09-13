@@ -219,8 +219,8 @@ class UnreadViewWiringLintTest {
         )
         assertEquals(
             "Each arm must name its own scope, and the unread one reuses the title's string — no " +
-                "tenth translation for the same word. Compared as whole calls, in source order. " +
-                "Calls found were:\n${scopeCalls(block).joinToString("\n")}",
+                "eleventh translation for the same word. Compared as whole calls, " +
+                "in source order. Calls found were:\n${scopeCalls(block).joinToString("\n")}",
             EXPECTED_SEARCH_SCOPE_CALLS,
             scopeCalls(block),
         )

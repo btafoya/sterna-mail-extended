@@ -1604,7 +1604,7 @@ private fun AccountDetailScreen(
                         is PushStatus.ViaUnifiedPush ->
                             stringResource(R.string.settings_push_status_up, appLabelOf(appContext, s.distributorPackage))
                         // A date, not a verdict: nothing here can tell a dead relay from one with
-                        // nothing to announce (#177). DateUtils localises the span, so the nine
+                        // nothing to announce (#177). DateUtils localises the span, so the ten
                         // translations carry no units of time of their own.
                         is PushStatus.ViaRelay -> stringResource(
                             R.string.settings_push_status_relay,
@@ -2524,7 +2524,7 @@ internal fun pgpProviderDisplayName(declaredName: String?, packageName: String):
  *  null in production; the fallback readers actually meet is [pgpProviderDisplayName]'s. */
 internal fun pgpSubtitleProviderName(label: String?): String = label ?: "OpenPGP"
 
-/** Held together with `settings_pgp_install`, which names OpenKeychain in all nine languages: the
+/** Held together with `settings_pgp_install`, which names OpenKeychain in all ten languages: the
  *  button may name one app precisely because it opens that app's page. */
 internal const val OPENKEYCHAIN_FDROID_URL =
     "https://f-droid.org/packages/org.sufficientlysecure.keychain/"

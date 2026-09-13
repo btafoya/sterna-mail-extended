@@ -13,9 +13,9 @@
     as a plausible, wrong count for as long as the first draw takes, and forever if it never lands.
 
     The label is @string/inbox_all_inboxes — the widget's own two-account label, already translated
-    in the nine languages, so the preview speaks the reader's language too. The figure is a literal:
-    it is a digit, it would be the same word in every language, and a string for it would be a tenth
-    translation to carry for a picture.
+    in the ten languages, so the preview speaks the reader's language too. The figure is a literal:
+    it is a digit, it would be the same word in every language, and a string for it would be an
+    eleventh translation to carry for a picture.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"

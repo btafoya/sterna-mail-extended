@@ -113,7 +113,7 @@ class StagedAttachmentSweepWiringTest {
 
     /**
      * The sentence exists and is the app's, not a literal. Only the default set is checked here;
-     * `TranslationParityTest` is what makes the other eight languages carry it too.
+     * `TranslationParityTest` is what makes the other nine languages carry it too.
      */
     @Test
     fun `the sentence is a string resource and it is declared`() {

@@ -88,14 +88,14 @@ class AccountAddedToastTest {
 }
 
 /**
- * Resource lint, the sentence exists in the nine languages the app ships, and carries something.
+ * Resource lint, the sentence exists in the ten languages the app ships, and carries something.
  */
 class AccountRefreshedStringTest {
 
-    @Test fun `the re-add sentence is there, and not empty, in the nine languages`() {
+    @Test fun `the re-add sentence is there, and not empty, in the ten languages`() {
         val files = listOf(File(res, "values/strings.xml")) + translations()
         assertEquals(
-            "the app ships nine languages, and a directory that disappears takes this sentence " +
+            "the app ships ten languages, and a directory that disappears takes this sentence " +
                 "with it without failing anything else here",
             LOCALES,
             files.map { it.parentFile.name },

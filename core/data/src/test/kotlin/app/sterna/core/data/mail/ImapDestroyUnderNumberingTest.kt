@@ -226,7 +226,7 @@ class ImapDestroyUnderNumberingTest {
                 "`onMailbox` hands `expectedUidValidity ?: recorded` to the SELECT, and a folder " +
                 "renumbered since the composer read the id refuses THERE. Uncaught, it travels the " +
                 "#69 path up to `ComposeViewModel.submit`, which puts `t.message` verbatim in the " +
-                "\"could not save\" banner: English protocol jargon in all nine locales, at the " +
+                "\"could not save\" banner: English protocol jargon in all ten locales, at the " +
                 "exact moment the guard saved the user's mail. A `runCatching` or a " +
                 "`catch (t: Throwable)` here would instead hide a transport failure and close the " +
                 "composer over a draft that comes back on the next sync. Body was:\n$body",

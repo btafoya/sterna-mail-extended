@@ -262,7 +262,7 @@ class ReadReceiptStripTest {
             "BOTH texts in this strip are ellipsised — the line beside the button AND the " +
                 "button's own label. A label allowed to wrap makes the strip a whole line taller " +
                 "in one state and not in another, which is the defect at its largest; German and " +
-                "Russian are the longest of the nine.",
+                "Russian are the longest of the ten.",
             2,
             strip.count { it == "overflow = TextOverflow.Ellipsis," },
         )

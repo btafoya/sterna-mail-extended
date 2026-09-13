@@ -68,7 +68,7 @@ class SettingsScreenHonestyTest {
         )
     }
 
-    // -- the wording, in all nine languages ---------------------------------------------------
+    // -- the wording, in all ten languages ----------------------------------------------------
 
     @Test fun `every language says where the thread comes from on each protocol`() {
         val files = stringFiles()

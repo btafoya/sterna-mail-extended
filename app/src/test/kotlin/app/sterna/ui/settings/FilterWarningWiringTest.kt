@@ -50,7 +50,7 @@ class FilterWarningWiringTest {
         assertTrue(
             "the sentence takes its two arguments from the strings the user actually reads on " +
                 "screen (Settings → Filters), like sender_volume_block_body does: written as " +
-                "literals they drift out of the menu and out of the eight translations",
+                "literals they drift out of the menu and out of the nine translations",
             ARM_NOT_RUNNING_ARGS.containsMatchIn(text(SETTINGS_SCREEN)),
         )
     }

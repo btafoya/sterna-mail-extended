@@ -110,7 +110,7 @@ class ScheduleMenuWiringTest {
             "the else branch must be exactly 'menuOpenedAt = System.currentTimeMillis()'. The wall " +
                 "clock is not snapshot state, so a refused tap recomposes nothing on its own: " +
                 "without the re-stamp the lapsed entry stays on screen, tappable and silent. Its " +
-                "disappearance IS the message — deliberately no new string, no nine translations " +
+                "disappearance IS the message — deliberately no new string, no ten translations " +
                 "for a window a few seconds wide. And closing the menu here would hide the choice.",
             listOf("menuOpenedAt = System.currentTimeMillis()"),
             elseBlock(),

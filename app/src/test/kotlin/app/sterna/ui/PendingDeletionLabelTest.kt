@@ -11,7 +11,7 @@ import java.io.File
 class PendingDeletionLabelTest {
 
     /**
-     * The mark itself, in the nine languages: a label posted before the write leaves the phone ends
+     * The mark itself, in the ten languages: a label posted before the write leaves the phone ends
      */
     @Test
     fun `the three labels of a delete that has not happened yet say it is under way`() {
@@ -93,7 +93,7 @@ class PendingDeletionLabelTest {
     }
 
     /**
-     * Run [check] over the three keys in the nine languages and collect what it complains about.
+     * Run [check] over the three keys in the ten languages and collect what it complains about.
      */
     private fun eachValue(
         keys: List<String> = PENDING_KEYS,
@@ -101,7 +101,7 @@ class PendingDeletionLabelTest {
     ): List<String> {
         val files = listOf(File(res, "values/strings.xml")) + translations()
         assertEquals(
-            "the app ships nine languages, and a directory that disappears takes its three labels " +
+            "the app ships ten languages, and a directory that disappears takes its three labels " +
                 "with it without failing anything else here",
             LOCALES,
             files.map { it.parentFile.name },

@@ -91,7 +91,7 @@ class UnsubscribeConfirmationShowsMailTextTest {
         )
     }
 
-    /** The string itself, in all nine languages: two placeholders, or a text goes unshown. */
+    /** The string itself, in all ten languages: two placeholders, or a text goes unshown. */
     @Test fun `the preview string keeps both placeholders in every language`() {
         val files = listOf(File(res, "values/strings.xml")) + (res.listFiles() ?: emptyArray())
             .filter { it.isDirectory && it.name.startsWith("values-") }

@@ -111,7 +111,7 @@ class RemoteImagesTest {
     @Test fun `the held-back state wears the show-images label`() {
         assertEquals(
             "blocked pictures must offer R.string.message_show_images — the label the overflow " +
-                "entry already uses, translated in all nine languages. Any other id here and the " +
+                "entry already uses, translated in all ten languages. Any other id here and the " +
                 "one thing the strip exists to say is wrong",
             app.sterna.R.string.message_show_images,
             imagesStripBody(blocked = true).label,

@@ -150,7 +150,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
                 "counts a filtered, stale list: two messages arriving into an empty group are " +
                 "posted, the shade does not show them yet, and the summary goes up saying " +
                 "\"0 new messages\" over the two banners it is summarising (notif_group_count is " +
-                "a bare %1\$d in all nine languages)",
+                "a bare %1\$d in all ten languages)",
             listOf("notifyGroupSummary(context, accountId, accountLabel, live.size, lines, silent)"),
             codeLinesNaming(body, "notifyGroupSummary("),
         )

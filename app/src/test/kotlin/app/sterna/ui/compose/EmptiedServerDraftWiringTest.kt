@@ -47,7 +47,7 @@ class EmptiedServerDraftWiringTest {
             "⛔ the whole block, in order. Three things are pinned together because each alone " +
                 "leaves the defect standing: the decision is asked BEFORE anything is destroyed; " +
                 "the kept branch says so with the sentence the other route already posts " +
-                "(compose_emptied_draft_server_copy_kept — no new string, it exists in the nine " +
+                "(compose_emptied_draft_server_copy_kept — no new string, it exists in the ten " +
                 "locales), and it says it INSIDE the lambda, since submit() moves the screen to " +
                 "Done only after this returns and a notice emitted afterwards is read by nobody; " +
                 "and the destroying branch stays word for word what it was, frozen numbering " +

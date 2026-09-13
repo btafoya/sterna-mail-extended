@@ -92,7 +92,7 @@ class UnreadWidgetDeclarationTest {
         )
         assertEquals(
             "the preview layout must give both TextViews an android:text — an example figure, and " +
-                "the label from a string the nine languages already carry. A preview without text " +
+                "the label from a string the ten languages already carry. A preview without text " +
                 "is the empty rectangle this rule exists to stop.",
             listOf("android:text=\"12\"", "android:text=\"@string/inbox_all_inboxes\""),
             codeLines(PREVIEW_LAYOUT).filter { it.startsWith("android:text=") },

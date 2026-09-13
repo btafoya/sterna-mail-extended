@@ -37,7 +37,7 @@ import java.io.File
  *    contains none of the forbidden words. So each caption must also say three things, checked
  *    against the same locale's own resources, its own Save label, its own Identities section
  *    name, plus two sentences and a connective meaning "as soon as you change them". Only the
- *    connective list is written per language here; the other two anchors hold nine translations
+ *    connective list is written per language here; the other two anchors hold ten translations
  *    without this file containing any of them.
  *
  * What is not covered: that any translation means what it says. No test reads a sentence for
@@ -219,8 +219,8 @@ class SaveScopeCaptionTest {
      */
     private fun promisesImmediateEffect(locale: String, caption: String): Boolean {
         val banned = IMMEDIACY[locale] ?: error(
-            "no immediacy vocabulary for $locale — a tenth language cannot be checked by a list " +
-                "written for nine, and passing it silently would be the failure this rule exists for",
+            "no immediacy vocabulary for $locale — an eleventh language cannot be checked by a list " +
+                "written for ten, and passing it silently would be the failure this rule exists for",
         )
         val text = caption.lowercase()
         return banned.any { it in text }
@@ -237,12 +237,12 @@ class SaveScopeCaptionTest {
     ): List<String> {
         val text = caption.lowercase()
         val connectives = AS_SOON_AS[locale] ?: error(
-            "no \"as soon as\" vocabulary for $locale — a tenth language cannot be checked by a " +
-                "list written for nine",
+            "no \"as soon as\" vocabulary for $locale — an eleventh language cannot be checked by a " +
+                "list written for ten",
         )
         val buttonWords = BUTTON[locale] ?: error(
-            "no word for \"button\" for $locale — a tenth language cannot be checked by a list " +
-                "written for nine",
+            "no word for \"button\" for $locale — an eleventh language cannot be checked by a list " +
+                "written for ten",
         )
         return buildList {
             // Both the label and the word "button": in English and Italian the Save label IS the

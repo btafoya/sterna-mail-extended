@@ -48,7 +48,7 @@ class EditInterruptedRowTest {
     /**
      * The sentinel is stored, in every user's database, from the first version that ships it. It
      * is pinned as a literal so that renaming the constant is seen for what it is: every row already
-     * parked would stop being translated and print "Failed: edit-interrupted" in nine languages.
+     * parked would stop being translated and print "Failed: edit-interrupted" in ten languages.
      */
     @Test fun `the sentinel is a fixed token, never a translated sentence`() {
         assertEquals("edit-interrupted", OutboxLogic.EDIT_INTERRUPTED)

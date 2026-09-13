@@ -266,7 +266,7 @@ class ComposeDeleteWiringTest {
                 "body already ends at \"…getippt hast, wird\" — and the scroll then hides a cut " +
                 "instead of preventing one. softWrap = false is worse still: the body stops " +
                 "wrapping altogether, comes out as ONE line clipped at the dialog's edge " +
-                "(\"Wandert in den Papierkorb ode…\") in all nine languages and at EVERY font " +
+                "(\"Wandert in den Papierkorb ode…\") in all ten languages and at EVERY font " +
                 "size, and a vertical scroll reaches nothing that overflowed sideways. Text " +
                 "was:\n$body",
             emptyList<String>(),

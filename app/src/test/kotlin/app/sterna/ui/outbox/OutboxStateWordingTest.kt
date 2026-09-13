@@ -214,13 +214,13 @@ class OutboxStateWordingTest {
     @Test fun `the reason a failed row prints is translated from its sentinel, never stored`() {
         assertEquals(
             "⛔ the sentinel must come out as R.string.outbox_error_edit_interrupted — printed raw " +
-                "it reads 'Failed: edit-interrupted' in nine languages",
+                "it reads 'Failed: edit-interrupted' in ten languages",
             OutboxFailureReason.Words(R.string.outbox_error_edit_interrupted),
             outboxFailureReason(OutboxLogic.EDIT_INTERRUPTED),
         )
         assertEquals(
             "⛔ the arming sentinel must come out as R.string.outbox_error_not_armed — printed raw " +
-                "it reads 'not-armed' in nine languages, on a row that is merely waiting",
+                "it reads 'not-armed' in ten languages, on a row that is merely waiting",
             OutboxFailureReason.Words(R.string.outbox_error_not_armed),
             outboxFailureReason(OutboxLogic.NOT_ARMED),
         )
@@ -234,7 +234,7 @@ class OutboxStateWordingTest {
                 "decode to the same words. Those two published versions stored `unarmedNote`'s " +
                 "diagnostic English on the row instead of the sentinel, and NO migration rewrites " +
                 "it — so a row still QUEUED on a phone that ran either of them prints that English " +
-                "under 'Waiting to send' in eight locales, which is the whole thing this branch " +
+                "under 'Waiting to send' in nine locales, which is the whole thing this branch " +
                 "exists to stop.",
             OutboxFailureReason.Words(R.string.outbox_error_not_armed),
             outboxFailureReason(
@@ -286,7 +286,7 @@ class OutboxStateWordingTest {
         assertEquals(
             "and every reading of the row's lastError must go through " +
                 "outboxFailureReason(item.lastError) — the raw column printed on screen puts " +
-                "'edit-interrupted' or 'not-armed' in nine languages. Three lines: the reason the " +
+                "'edit-interrupted' or 'not-armed' in ten languages. Three lines: the reason the " +
                 "FAILED sentence substitutes, the guard that decides whether a WAITING row prints " +
                 "one at all, and the reason that complement resolves.",
             listOf(

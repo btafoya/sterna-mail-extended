@@ -9,7 +9,7 @@ import java.io.File
 
 /**
  * What the "Messages to sync" row offers, and the weld between each offered number and the label it
- * is shown under, in all nine languages.
+ * is shown under, in all ten languages.
  */
 class SyncWindowPickerScaleTest {
 
@@ -105,7 +105,7 @@ class SyncWindowPickerScaleTest {
         ).forEach { (key, window) ->
             val perLocale = stringFiles().associate { it.parentFile.name to value(it, key) }
             assertEquals(
-                "$key is missing from a locale — nine languages is the cost of one new label",
+                "$key is missing from a locale — ten languages is the cost of one new label",
                 emptyList<String>(),
                 perLocale.filterValues { it == null }.keys.toList(),
             )
@@ -148,7 +148,7 @@ class SyncWindowPickerScaleTest {
     @Test fun `the Everything strings are still shipped, they are just not shown any more`() {
         // Nothing may be deleted: `SyncWindow.All` stays in the enum for ever (its name is on
         // disk), and a string removed today is a string a later volet cannot put back without a
-        // translation round. Nine locales, still there, SyncEverythingLabelTest pins the words.
+        // translation round. Ten locales, still there, SyncEverythingLabelTest pins the words.
         assertEquals(
             "settings_sync_everything was dropped from a locale",
             emptyList<String>(),

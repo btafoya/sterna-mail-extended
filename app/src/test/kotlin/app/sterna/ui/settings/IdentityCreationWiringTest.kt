@@ -190,7 +190,7 @@ class IdentityCreationWiringTest {
         assertEquals(
             "the two places that report an address the server did not take must hand the screen a " +
                 "detail with its final punctuation removed. `settings_identity_not_created` ends " +
-                "'…on the server: %2\$s.' — the full stop is in the template, in nine languages — " +
+                "'…on the server: %2\$s.' — the full stop is in the template, in ten languages — " +
                 "and a server sentence ('E-mail address not configured for this account.') brings " +
                 "its own, which is the double stop measured on the S7 on 2026-08-31. Passing " +
                 "`e.message` raw at either site puts it back, on the READ failure (offline) or on " +

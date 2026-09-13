@@ -277,7 +277,7 @@ class ComposerBodyLeavesTheParcelTest {
         assertEquals(
             "$SLOT must name no string resource at all. This change is invisible on purpose: no " +
                 "\"draft recovered\" banner, no resume error. One new string reopens a bench pass in " +
-                "nine languages for a mechanism the user is not supposed to notice. Found:\n" +
+                "ten languages for a mechanism the user is not supposed to notice. Found:\n" +
                 speaks.joinToString("\n") { "    $it" },
             emptyList<String>(), speaks,
         )

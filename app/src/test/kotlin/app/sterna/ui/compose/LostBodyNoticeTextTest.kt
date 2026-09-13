@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Resource lint, what the two sentences of a refused send are allowed to say, in the nine
+ * Resource lint, what the two sentences of a refused send are allowed to say, in the ten
  */
 class LostBodyNoticeTextTest {
 
@@ -87,7 +87,7 @@ class LostBodyNoticeTextTest {
     }
 
     /**
-     * The ENGLISH, whole, by equality, because it is the source the eight others are translated
+     * The ENGLISH, whole, by equality, because it is the source the nine others are translated
      */
     @Test fun `the English of both sentences is the one that was reviewed`() {
         assertEquals(

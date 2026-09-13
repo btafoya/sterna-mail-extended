@@ -45,13 +45,13 @@ class AccountToastFitTest {
     /**
      * Fail closed on the resources, second half. An id the string map does not resolve is measured
      */
-    @Test fun `every sentence an add ends on resolves in the nine languages`() {
+    @Test fun `every sentence an add ends on resolves in the ten languages`() {
         val strings = locales().associate { it.name to stringsOf(it) }
         val unresolved = toastIds().flatMap { id ->
             strings.filterValues { id !in it }.keys.map { "R.string.$id: not read from $it" }
         }
         assertEquals(
-            "every sentence an add can end on must be READABLE by this rule in all nine locales, " +
+            "every sentence an add can end on must be READABLE by this rule in all ten locales, " +
                 "or the length rule is measuring nothing while reporting success. An id that " +
                 "resolves nowhere is not a translation problem — TranslationParityTest is happy " +
                 "with a key that is consistently absent from THIS rule's view — it is this rule " +
@@ -79,7 +79,7 @@ class AccountToastFitTest {
                 "Verbindung wurde a…\". What is lost is the clause saying the connection was " +
                 "REFRESHED — so the reader is left unable to tell whether the sign-in did " +
                 "anything, and adds the same mailbox again. A sentence shown in a toast must hold " +
-                "in $maxToastChars characters in all nine languages (see the derivation on " +
+                "in $maxToastChars characters in all ten languages (see the derivation on " +
                 "maxToastChars: a 411 dp bench reading brought back to the 360 dp bench, with a " +
                 "margin for scripts that set wider than Latin). Too long:\n" +
                 offenders.joinToString("\n"),
@@ -289,7 +289,7 @@ class AccountToastFitTest {
         return line.trimEnd()
     }
 
-    /** The nine shipped locales, as `SenderRuleDialogFitTest.locales()` counts them: a tenth
+    /** The ten shipped locales, as `SenderRuleDialogFitTest.locales()` counts them: an eleventh
      *  language added without a translation of these sentences must not slip through as
      *  "not checked". */
     private fun locales(): List<File> = (res.listFiles() ?: emptyArray())

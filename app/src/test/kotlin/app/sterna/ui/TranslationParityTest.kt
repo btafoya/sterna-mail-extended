@@ -10,9 +10,9 @@ import java.io.File
  * rule the build cannot: a string the app shows exists in every language it ships, or in none.
  *
  * Android has no complaint to make about a half-translated string, it silently falls back to
- * English, so a new label added to `values/` alone reaches eight of nine users as a stray English
+ * English, so a new label added to `values/` alone reaches nine of ten users as a stray English
  * word, and nothing says so. That has happened here before, which is why it is a test and not a
- * habit. Nine languages is the real cost of one new label, and this is where that cost is stated.
+ * habit. Ten languages is the real cost of one new label, and this is where that cost is stated.
  */
 class TranslationParityTest {
 
@@ -58,16 +58,16 @@ class TranslationParityTest {
     }
 
     /**
-     * The home-screen widget's two texts, by name in the nine languages, the general rule at the
+     * The home-screen widget's two texts, by name in the ten languages, the general rule at the
      * top compares against `values/`, so it would go green on a widget never translated at all.
      *
      * They are the only strings the widget contributes, and they are read in the one place the app
      * cannot explain itself: the system's widget picker, a list of every app's widgets side by
-     * side. Left in English there, eight of nine readers pick from a list where one entry is in a
+     * side. Left in English there, nine of ten readers pick from a list where one entry is in a
      * language they did not choose, before the app has drawn anything.
      */
     @Test
-    fun `the nine languages all name the unread widget`() {
+    fun `the ten languages all name the unread widget`() {
         val files = listOf(File(res, "values/strings.xml")) + translations()
         val expected = setOf("widget_unread_title", "widget_unread_description")
         val missing = files.associate { it.parentFile.name to (expected - keysOf(it)) }
@@ -76,7 +76,7 @@ class TranslationParityTest {
     }
 
     /**
-     * The second widget's four texts, by name in the nine languages. Two of them are read in the
+     * The second widget's four texts, by name in the ten languages. Two of them are read in the
      * widget picker like the counter's; the other two are read on the home screen itself, which is
      * worse ground for a stray English word, the cell has no window, no menu and no way to be
      * asked what it means:
@@ -91,7 +91,7 @@ class TranslationParityTest {
      * weight has no description to translate, the sender's name is read out as itself.
      */
     @Test
-    fun `the nine languages all name the latest-messages widget`() {
+    fun `the ten languages all name the latest-messages widget`() {
         val files = listOf(File(res, "values/strings.xml")) + translations()
         val expected = setOf(
             "widget_latest_title",
@@ -107,15 +107,15 @@ class TranslationParityTest {
     /**
      * The rules above compare against whatever `values-*` happen to exist, so they say nothing
      * about a language that disappears, and nothing about the label added last. Both are pinned
-     * here: the nine directories the app ships, by name, and the black-background switch (#117),
-     * which is the setting that would otherwise reach eight of nine users as two English lines in
+     * here: the ten directories the app ships, by name, and the black-background switch (#117),
+     * which is the setting that would otherwise reach nine of ten users as two English lines in
      * the middle of a translated Appearance screen.
      */
     @Test
-    fun `the nine languages all label the black-background switch`() {
+    fun `the ten languages all label the black-background switch`() {
         val files = listOf(File(res, "values/strings.xml")) + translations()
         assertEquals(
-            "the app ships nine languages; a directory that vanishes takes its own parity rule " +
+            "the app ships ten languages; a directory that vanishes takes its own parity rule " +
                 "with it and nothing else notices",
             listOf(
                 "values", "values-de", "values-es", "values-fr", "values-it",
@@ -130,14 +130,14 @@ class TranslationParityTest {
     }
 
     /**
-     * The read-receipt switch (#148), by name in the nine languages, the general parity rule
+     * The read-receipt switch (#148), by name in the ten languages, the general parity rule
      * above compares against `values/`, so it would go green on a switch never translated at all.
      *
-     * It is a privacy switch: left in English, eight of nine readers meet a stray sentence about
+     * It is a privacy switch: left in English, nine of ten readers meet a stray sentence about
      * something being sent to a stranger, in the middle of a translated Privacy screen.
      */
     @Test
-    fun `the nine languages all label the read-receipt switch`() {
+    fun `the ten languages all label the read-receipt switch`() {
         val files = listOf(File(res, "values/strings.xml")) + translations()
         val missing = files.associate { it.parentFile.name to (READ_RECEIPT_ENGLISH.keys - keysOf(it)) }
             .filterValues { it.isNotEmpty() }
@@ -154,7 +154,7 @@ class TranslationParityTest {
      *
      * Whole-value equality on purpose: `contains` is blind to anything a reword appends.
      *
-     * Not checked here, and stated as debt: that the eight translations say "ask" rather than
+     * Not checked here, and stated as debt: that the nine translations say "ask" rather than
      * "send". Their keys are held above; their meaning is read by nobody.
      */
     @Test
@@ -170,15 +170,15 @@ class TranslationParityTest {
     }
 
     /**
-     * The strip that puts the question on the message (#148), by name in the nine languages.
+     * The strip that puts the question on the message (#148), by name in the ten languages.
      *
      * Same reason as the switch, one degree worse: this is the row that offers to tell a stranger
      * something, and it appears in the middle of a message the reader is reading. Left in English,
-     * eight of nine readers are asked in a language they did not choose to make a decision they
+     * nine of ten readers are asked in a language they did not choose to make a decision they
      * cannot undo.
      */
     @Test
-    fun `the nine languages all carry the read-receipt strip`() {
+    fun `the ten languages all carry the read-receipt strip`() {
         val files = listOf(File(res, "values/strings.xml")) + translations()
         val missing = files.associate { it.parentFile.name to (READ_RECEIPT_STRIP_ENGLISH.keys - keysOf(it)) }
             .filterValues { it.isNotEmpty() }
@@ -199,7 +199,7 @@ class TranslationParityTest {
      *
      * Whole-value equality, because `contains` is blind to anything a reword appends.
      *
-     * Not checked here, and stated as debt: that the eight translations obey the same three rules.
+     * Not checked here, and stated as debt: that the nine translations obey the same three rules.
      * Their keys are held above and their format arguments by the rule at the top of this file;
      * their meaning is read by nobody.
      */
@@ -237,7 +237,7 @@ class TranslationParityTest {
      * `values/`, so it would go green on a screen whose strings were never added at all.
      */
     @Test
-    fun `the nine languages all carry the unreadable-accounts screen`() {
+    fun `the ten languages all carry the unreadable-accounts screen`() {
         val files = listOf(File(res, "values/strings.xml")) + translations()
         val missing = files.associate { it.parentFile.name to (UNREADABLE_ENGLISH.keys - keysOf(it)) }
             .filterValues { it.isNotEmpty() }
@@ -257,7 +257,7 @@ class TranslationParityTest {
      * Whole-value equality on purpose: `contains` is blind to anything a reword appends, and this
      * text is a promise made to someone who has just been told her mail is missing.
      *
-     * Not checked here, and stated as debt: that the eight translations say the same three things.
+     * Not checked here, and stated as debt: that the nine translations say the same three things.
      * Their keys are held by the rule above and their fallback to English by
      * [no language leaves the account switch in English]'s sibling rules, but nothing reads their
      * meaning.
@@ -282,7 +282,7 @@ class TranslationParityTest {
      *
      * The two wiring lints of that route pin the resource ID it writes
      * (`_draftLoadFailed.value = R.string.compose_local_draft_gone`), the rules at the top of this
-     * file pin the key in the nine languages and its format arguments, so the English text could
+     * file pin the key in the ten languages and its format arguments, so the English text could
      * be replaced by anything at all, including one of the two sentences it was written not to be,
      * and the whole suite would stay green.
      *
@@ -299,7 +299,7 @@ class TranslationParityTest {
      *
      * Whole-value equality, because `contains` is blind to anything a reword appends.
      *
-     * The eight translations are not pinned here, and that is a decision, not an oversight:
+     * The nine translations are not pinned here, and that is a decision, not an oversight:
      * nobody on this side reads them, so freezing their text would block a translation fix while
      * proving nothing about meaning. Their keys are held by the parity rule at the top of this file.
      */
@@ -333,7 +333,7 @@ class TranslationParityTest {
      * those two strings are what this branch delivers, and nothing else in the build reads their
      * text. The wiring lints pin the resource IDS (`outboxWaitingReasonLabel()`,
      * `R.string.outbox_error_not_armed`) and the rule at the top of this file pins the keys in the
-     * nine languages, so the English could be replaced by anything at all, including
+     * ten languages, so the English could be replaced by anything at all, including
      * "Couldn\'t send: it will go out the next time you open the app", which commits both of the
      * two forbidden acts at once, and the whole suite would stay green.
      *
@@ -356,7 +356,7 @@ class TranslationParityTest {
      *
      * Whole-value equality, because `contains` is blind to anything a reword appends.
      *
-     * The eight translations are not pinned here, for the reason given over
+     * The nine translations are not pinned here, for the reason given over
      * [the draft the phone lost asks for nothing, and blames no network]: nobody on this side
      * reads them, so freezing their text would block a translation fix while proving nothing about
      * meaning. Their keys are held by the parity rule at the top of this file.
@@ -393,18 +393,18 @@ class TranslationParityTest {
     }
 
     /**
-     * The help line under "Clear this account's cache", by name in the nine languages.
+     * The help line under "Clear this account's cache", by name in the ten languages.
      *
      * Named keys rather than the general parity rule at the top of this file: that rule compares
      * whatever `values/` happens to carry, so it stays green on a sentence that was never added
      * anywhere at all, which is exactly the state this button was in.
      *
-     * Left in English, eight of nine readers meet the only warning they get about the button
+     * Left in English, nine of ten readers meet the only warning they get about the button
      * erasing another account's downloaded files in a language they did not choose, one tap before
      * the files go.
      */
     @Test
-    fun `the nine languages all carry the account-cache help line`() {
+    fun `the ten languages all carry the account-cache help line`() {
         val files = listOf(File(res, "values/strings.xml")) + translations()
         val missing = files.associate { it.parentFile.name to (ACCOUNT_CACHE_ENGLISH.keys - keysOf(it)) }
             .filterValues { it.isNotEmpty() }
@@ -415,8 +415,8 @@ class TranslationParityTest {
         )
         // A key is not a sentence. `keysOf` matches the tag, so `<string name="…"></string>` and
         // the English text pasted into `values-de` both satisfy the rule above, the first leaves the
-        // button with a blank line where its only warning should be, the second warns eight readers
-        // out of nine in a language they did not choose. Neither can be seen from a key list.
+        // button with a blank line where its only warning should be, the second warns nine readers
+        // out of ten in a language they did not choose. Neither can be seen from a key list.
         val blank = files.filter { valuesOf(it)[ACCOUNT_CACHE_HELP_KEY].isNullOrBlank() }
         assertEquals("the account-cache help line is present but EMPTY in", emptyList<String>(), blank.map { it.parentFile.name })
         val english = valuesOf(File(res, "values/strings.xml"))[ACCOUNT_CACHE_HELP_KEY]
@@ -451,9 +451,9 @@ class TranslationParityTest {
      *
      * Whole-value equality, because `contains` is blind to anything a reword appends.
      *
-     * The eight translations are not pinned here, and that is a decision: nobody on this side
+     * The nine translations are not pinned here, and that is a decision: nobody on this side
      * reads them, so freezing their text would block a translation fix while proving nothing. Their
-     * keys are held by the rule above. Stated as debt: that the eight say "all your accounts" and
+     * keys are held by the rule above. Stated as debt: that the nine say "all your accounts" and
      * not "this account".
      */
     @Test
@@ -490,7 +490,7 @@ class TranslationParityTest {
 
     /**
      * And that the screen actually shows it. Everything above reads XML; nothing in it touches a
-     * call site, so the sentence can exist, translated nine times, and be read by nobody, which
+     * call site, so the sentence can exist, translated ten times, and be read by nobody, which
      * leaves the button erasing the other account's downloaded files in silence, the state this
      * branch exists to end.
      *
@@ -509,7 +509,7 @@ class TranslationParityTest {
      *
      * And the whole block, arguments included: pinning the `stringResource` line alone leaves
      * `color = Color.Transparent` (or `Modifier.height(0.dp)`) green, a warning that is present,
-     * translated nine times, and invisible.
+     * translated ten times, and invisible.
      *
      * Still deliberately not pinned: the padding values and that the block sits in the storage
      * section rather than elsewhere in the same screen. Slicing a composable body by counting braces
@@ -520,7 +520,7 @@ class TranslationParityTest {
         val lines = codeLines(SETTINGS_SCREEN.readText())
         assertEquals(
             "the account detail screen must READ settings_clear_account_cache_help — with the " +
-                "string translated nine times and no call site, the button still erases every " +
+                "string translated ten times and no call site, the button still erases every " +
                 "account's downloaded attachments without a word",
             listOf("stringResource(R.string.settings_clear_account_cache_help),"),
             lines.filter { ACCOUNT_CACHE_HELP_KEY in it },
@@ -599,7 +599,7 @@ class TranslationParityTest {
     /**
      * The failure the key-parity rules above cannot see: a `values-*` that carries the key and the
      * ENGLISH text under it. For a label being reworded that is the likely accident, copy the new
-     * English into the eight files, translate seven of them, and it ships as a screen where one
+     * English into the nine files, translate eight of them, and it ships as a screen where one
      * language silently reverts to the old, wrong promise.
      *
      * One pair reads exactly as the English does and is legitimate, so it is written down as the
@@ -682,7 +682,7 @@ class TranslationParityTest {
      * languages. Shape added nothing for that key, and only English was really held, by the
      * whole-value equality of [ENGLISH], which reads `values/strings.xml` and nothing else.
      *
-     * What this rule adds is a requirement of presence on the eight translations, where nothing
+     * What this rule adds is a requirement of presence on the nine translations, where nothing
      * distinguished the good text from the bad one: each language has to name half (a), the
      * background fetch, in its own words (see [BACKGROUND_FETCH]), in both labels.
      *
@@ -728,7 +728,7 @@ class TranslationParityTest {
      * was required, and what kills it is that the tail of an abbreviation resumes in lower case.
      *
      * The price is a translation whose second sentence starts on a lower-case word (a "de Vries",
-     * an "e-mail"): the eight languages here do not, and a rewrite that wants to must widen this
+     * an "e-mail"): the nine languages here do not, and a rewrite that wants to must widen this
      * rule on purpose rather than by accident.
      */
     private fun sentencesOf(text: String): List<String> = text.split(SENTENCE_END)
@@ -815,7 +815,7 @@ class TranslationParityTest {
          * The heading is hyphenated on purpose. `ReadReceiptMailTest` screens
          * `values/strings.xml` for the MDN's own fixed English, "Read receipt", the subject that
          * leaves the device, so that nobody "tidies" it into a translatable resource where the
-         * nine languages would claim it. A section titled "Read receipts" collides with that guard
+         * ten languages would claim it. A section titled "Read receipts" collides with that guard
          * as a plain substring; "Read-receipt requests" is also the truer name, since what the
          * section governs is what happens to a request somebody else made.
          */

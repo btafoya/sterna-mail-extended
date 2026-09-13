@@ -23,7 +23,7 @@ class UnifiedTitleWiringLintTest {
             "The title of the unified view must come from the translated resource, not from the " +
                 "name carried in the UI state: in the unified view no mailbox is selected, so " +
                 "mailboxDisplayName has no role to key on and hands back the raw name, which is the " +
-                "internal literal UNIFIED_LABEL = \"All inboxes\" — English in all nine locales, " +
+                "internal literal UNIFIED_LABEL = \"All inboxes\" — English in all ten locales, " +
                 "under a drawer entry that is translated. It is resolved HERE and not in the " +
                 "ViewModel because a ViewModel outlives a configuration change and would keep the " +
                 "old language after a hot locale switch. Compared as the whole argument, because " +

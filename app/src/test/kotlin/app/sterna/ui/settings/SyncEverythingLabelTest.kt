@@ -5,11 +5,11 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The nine "Everything" labels, and the fact that they are still shipped.
+ * The ten "Everything" labels, and the fact that they are still shipped.
  */
 class SyncEverythingLabelTest {
 
-    @Test fun `the nine labels are unchanged, and none of them hedges`() {
+    @Test fun `the ten labels are unchanged, and none of them hedges`() {
         assertEquals(
             "settings_sync_everything changed or was deleted. It is not on the picker any more, " +
                 "but an account can still CARRY that window and the row has to name it — see " +

@@ -74,7 +74,7 @@ class QuoteFoldTest {
         assertTrue(
             "the argument must reach the <summary>. This is the only thing that proves the " +
                 "localised string travels all the way to the button; a hard-coded label here " +
-                "would read 'Quoted text' in nine languages.\nGot:\n$out",
+                "would read 'Quoted text' in ten languages.\nGot:\n$out",
             "$open$label</summary>" in out,
         )
         assertTrue(

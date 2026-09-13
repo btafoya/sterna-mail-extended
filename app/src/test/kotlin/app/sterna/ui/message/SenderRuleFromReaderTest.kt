@@ -323,7 +323,7 @@ class SenderRuleFromReaderTest {
         )
         assertTrue(
             "and its body must say where the rule can be undone, in the app's own localised " +
-                "labels rather than an English path typed into nine translations",
+                "labels rather than an English path typed into ten translations",
             "R.string.sender_volume_block_body," in screen,
         )
         // Ordered. The three ids used to be checked with three unordered `in`: swapping the two
