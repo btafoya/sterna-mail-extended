@@ -28,9 +28,16 @@ class ComposeTextTest {
             "Zie de bijlage",                        // nl
             "Смотри вложение",                       // ru
             "W załączeniu przesyłam plik",           // pl
+            "请查收附件",
         )
         positives.forEach { assertTrue("should flag: $it", mentionsAttachment(it)) }
     }
+
+    @Test fun flagsChineseFushangWithoutTheWordForAttachment() =
+        assertTrue(mentionsAttachment("我已附上本月的报告"))
+
+    @Test fun flagsChineseSuifuWithoutTheWordForAttachment() =
+        assertTrue(mentionsAttachment("随附合同草案，请审阅"))
 
     @Test fun caseInsensitive() {
         assertTrue(mentionsAttachment("SEE THE ATTACHED FILE"))
@@ -43,6 +50,7 @@ class ComposeTextTest {
             "Thanks for the quick reply",
             "Bonjour, à demain",
             "Re: Project Phoenix review",
+            "下周我们在公司附近碰面",
         ).forEach { assertFalse("should not flag: $it", mentionsAttachment(it)) }
     }
 

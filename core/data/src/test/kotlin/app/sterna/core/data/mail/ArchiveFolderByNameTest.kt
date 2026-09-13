@@ -53,5 +53,15 @@ class ArchiveFolderByNameTest {
             "mb-ru",
             archiveFolderByName(listOf(mailbox("mb-ru", "Архив"))),
         )
+        assertEquals(
+            "a Simplified Chinese account's 存档 is the folder the Archive button already files into",
+            "mb-zh",
+            archiveFolderByName(listOf(mailbox("mb-zh", "存档"))),
+        )
+        assertEquals(
+            "归档 is the other spelling Simplified Chinese clients give an archive",
+            "mb-zh2",
+            archiveFolderByName(listOf(mailbox("mb-zh2", "归档"))),
+        )
     }
 }

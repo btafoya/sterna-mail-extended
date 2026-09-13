@@ -10,8 +10,8 @@ import java.util.Locale
  *
  * What is at stake is mail, not tidiness: with no folder carrying the "trash" role,
  * `MailRepository.deleteWouldDestroy` answers "this delete destroys" for every message, and the
- * delete swipe erases instead of moving. A German, Polish or Russian mailbox on a server without
- * RFC 6154 got exactly that.
+ * delete swipe erases instead of moving. A German, Polish, Russian or Simplified Chinese mailbox
+ * on a server without RFC 6154 got exactly that.
  *
  * Every expectation here is a LITERAL. Nothing recomputes the rule the code applies, or the
  * shipped condition could be inverted and this file would still pass.
@@ -28,7 +28,7 @@ class FolderRolesTest {
 
     private fun roles(vararg names: String) = mute(*names).map { it.role }
 
-    // ── the nine locales, trash and junk first: the two roles whose absence destroys or pollutes ──
+    // ── the name tables, trash and junk first: the two roles whose absence destroys or pollutes ──
 
     @Test fun english() =
         assertEquals(listOf("trash", "junk", "sent", "drafts", "archive"), roles("Trash", "Junk", "Sent", "Drafts", "Archive"))
@@ -86,6 +86,40 @@ class FolderRolesTest {
                 "&BBAEQARFBDgEMg-", // Архив
             ),
         )
+
+    @Test fun chinese() {
+        assertEquals(
+            listOf("trash", "junk", "sent", "drafts", "archive"),
+            roles(
+                "&XfJSIJZk-",
+                "&V4NXPpCuTvY-",
+                "&XfJT0ZAB-",
+                "&g0l6P3ux-",
+                "&W1hoYw-",
+            ),
+        )
+        assertEquals(listOf("trash", "junk", "sent", "drafts", "archive"), roles("已删除", "垃圾邮件", "已发送", "草稿箱", "存档"))
+        assertEquals(listOf("drafts"), roles("草稿"))
+    }
+
+    @Test fun chineseDeletedMailIsTheTrash() = assertEquals(listOf("trash"), roles("已删除邮件"))
+
+    @Test fun chineseRecycleBinIsTheTrash() = assertEquals(listOf("trash"), roles("回收站"))
+
+    @Test fun chineseWastebasketIsTheTrash() = assertEquals(listOf("trash"), roles("废纸篓"))
+
+    @Test fun chineseJunkMailboxIsTheJunk() = assertEquals(listOf("junk"), roles("垃圾邮件箱"))
+
+    @Test fun chineseGarbageBinIsTheJunkNotTheTrash() = assertEquals(listOf("junk"), roles("垃圾箱"))
+
+    @Test fun chineseBareGarbageIsTheJunk() = assertEquals(listOf("junk"), roles("垃圾"))
+
+    @Test fun chineseSentMailIsTheSent() = assertEquals(listOf("sent"), roles("已发送邮件"))
+
+    @Test fun chineseFiledIsTheArchive() = assertEquals(listOf("archive"), roles("归档"))
+
+    @Test fun chineseGarbageBinBesideADeletedFolderIsElectedJunkAndStealsNoTrash() =
+        assertEquals(listOf("trash", "junk"), roles("已删除", "垃圾箱"))
 
     /**
      * The English table as it stood before the other eight locales were added to it.

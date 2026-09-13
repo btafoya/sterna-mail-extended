@@ -67,7 +67,7 @@ class ListFoldersOnTheWireTest {
             // this server's BAD would have thrown and left the account with no mailboxes at all.
             assertEquals(listOf("INBOX", "Corbeille"), folders.map { it.path })
             // This server withholds the attributes, so the role can only come from the name,
-            // which is now read in nine languages (`FolderRolesTest`), French among them.
+            // which is now read in several languages (`FolderRolesTest`), French among them.
             assertEquals("trash", folders.single { it.path == "Corbeille" }.role)
         }
     }

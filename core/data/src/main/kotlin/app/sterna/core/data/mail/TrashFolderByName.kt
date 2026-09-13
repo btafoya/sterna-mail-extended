@@ -16,7 +16,7 @@ val TRASH_FOLDER_NAMES = listOf(
     "kosz", "elementy usunięte", // pl
     "lixeira", "lixo", "itens excluídos", "itens eliminados", // pt
     "корзина", "удалённые", "удаленные", // ru
-    "çöp", "削除済み", "papperskorg", "koš", // beyond the app's locales, common on servers
+    "已删除", "已删除邮件", "回收站", "废纸篓", "çöp", "削除済み", "papperskorg", "koš", // beyond the app's locales, common on servers
 )
 
 /**

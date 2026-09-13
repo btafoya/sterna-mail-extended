@@ -30,8 +30,8 @@ import java.time.ZonedDateTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
-/** Heuristic "forgot the attachment?" check on subject + body, in the app's languages: lower-cased,
- *  matched loosely (stems cover inflections), kept conservative to avoid false alarms. */
+/** Heuristic "forgot the attachment?" check on subject + body: lower-cased, matched loosely (stems
+ *  cover inflections), conservative. Simplified Chinese takes whole words: a bare 附 matches 附近. */
 internal val ATTACHMENT_HINTS = listOf(
     // en
     "attach",
@@ -51,6 +51,7 @@ internal val ATTACHMENT_HINTS = listOf(
     "вложени", "прикреп",
     // pl
     "załącznik", "załączeniu", "załączam",
+    "附件", "附上", "随附",
 )
 
 internal fun mentionsAttachment(text: String): Boolean {

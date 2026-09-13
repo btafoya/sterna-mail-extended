@@ -1365,6 +1365,7 @@ internal fun roleFromName(name: String): String? = when (name.lowercase()) {
     "kosz", "elementy usunięte", // pl
     "lixeira", "lixo", "itens excluídos", "itens eliminados", // pt
     "корзина", "удалённые", "удаленные", // ru
+    "已删除", "已删除邮件", "回收站", "废纸篓",
     -> "trash"
 
     "junk", "spam", "junk e-mail", "junk email", // en
@@ -1376,6 +1377,7 @@ internal fun roleFromName(name: String): String? = when (name.lowercase()) {
     "wiadomości-śmieci", // pl
     "lixo eletrônico", "lixo eletrónico", // pt
     "спам", "нежелательная почта", // ru
+    "垃圾邮件", "垃圾邮件箱", "垃圾箱", "垃圾",
     -> "junk"
 
     "sent", "sent mail", "sent items", "sent messages", // en
@@ -1387,6 +1389,7 @@ internal fun roleFromName(name: String): String? = when (name.lowercase()) {
     "wysłane", "elementy wysłane", // pl
     "itens enviados", // pt
     "отправленные", // ru
+    "已发送", "已发送邮件",
     -> "sent"
 
     "drafts", // en
@@ -1398,6 +1401,7 @@ internal fun roleFromName(name: String): String? = when (name.lowercase()) {
     "kopie robocze", "wersje robocze", "robocze", // pl
     "rascunhos", // pt
     "черновики", // ru
+    "草稿箱", "草稿",
     -> "drafts"
 
     "archive", "archives", // en + fr
@@ -1408,6 +1412,7 @@ internal fun roleFromName(name: String): String? = when (name.lowercase()) {
     "archiwum", // pl
     "arquivo", // pt
     "архив", // ru
+    "存档", "归档",
     -> "archive"
 
     else -> null

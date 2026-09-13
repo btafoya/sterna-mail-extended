@@ -62,6 +62,7 @@ class TrashFolderByNameTest {
             "Posta eliminata", "Elementi eliminati", "Prullenmand", "Verwijderde items",
             "Elementy usunięte", "Lixo", "Itens excluídos", "Itens eliminados",
             "Удалённые", "Удаленные",
+            "已删除", "已删除邮件", "回收站", "废纸篓",
         ).filter { idFor(it) == null }
         assertEquals(
             "a bin the server actually names this way must be FOUND, not duplicated by a new " +
@@ -80,14 +81,18 @@ class TrashFolderByNameTest {
             // sent
             "Sent", "Sent Items", "Gesendete Objekte", "Éléments envoyés", "Posta inviata",
             "Verzonden items", "Elementy wysłane", "Itens enviados", "Отправленные",
+            "已发送", "已发送邮件",
             // archive
             "Archive", "Archives", "Archiv", "Archivio", "Archiwum", "Arquivo", "Архив",
+            "存档", "归档",
             // drafts
             "Drafts", "Entwürfe", "Brouillons", "Bozze", "Concepten", "Rascunhos", "Черновики",
+            "草稿箱", "草稿",
             // junk, a bin that is really the spam folder is filtered out of every list, and many
             // servers empty it on a timer: mail deleted there is mail destroyed on a schedule
             "Junk", "Spam", "Junk E-mail", "Courrier indésirable", "Posta indesiderata",
             "Correo no deseado", "Lixo eletrônico", "Спам",
+            "垃圾邮件", "垃圾邮件箱", "垃圾箱", "垃圾",
         ).filter { idFor(it) != null }
         assertEquals(
             "these are folders the user reads, sends from, files into — a delete routed to any of " +
