@@ -409,6 +409,7 @@
     <string name="settings_vacation_save">Salvar</string>
     <string name="settings_vacation_saved">Resposta automática salva</string>
     <string name="settings_vacation_unsupported">Seu servidor de e-mail não oferece suporte a respostas automáticas.</string>
+    <string name="settings_vacation_imap_account">As respostas automáticas só estão disponíveis em contas adicionadas com JMAP.</string>
     <string name="settings_vacation_no_account">Nenhuma conta disponível.</string>
     <string name="settings_vacation_invalid_dates">A data de início deve ser anterior à data de término.</string>
     <string name="settings_vacation_save_error">Não foi possível salvar: %1$s</string>
@@ -419,6 +420,7 @@
     <string name="settings_filters_summary">Regras no servidor (Sieve)</string>
     <string name="settings_filters_screen_title">Filtros</string>
     <string name="settings_filters_unsupported">O seu servidor de e-mail não suporta regras de filtro.</string>
+    <string name="settings_filters_imap_account">As regras de filtro só estão disponíveis em contas adicionadas com JMAP.</string>
     <string name="settings_filters_empty">Ainda não há regras. Adicione uma para filtrar o correio recebido no servidor.</string>
     <string name="settings_filters_add">Adicionar regra</string>
     <string name="settings_filters_saved">Filtros guardados</string>

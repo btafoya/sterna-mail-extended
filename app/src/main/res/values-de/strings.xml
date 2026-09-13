@@ -409,6 +409,7 @@
     <string name="settings_vacation_save">Speichern</string>
     <string name="settings_vacation_saved">Automatische Antwort gespeichert</string>
     <string name="settings_vacation_unsupported">Ihr Mailserver unterstützt keine automatischen Antworten.</string>
+    <string name="settings_vacation_imap_account">Automatische Antworten sind nur für Konten verfügbar, die mit JMAP hinzugefügt wurden.</string>
     <string name="settings_vacation_no_account">Kein Konto verfügbar.</string>
     <string name="settings_vacation_invalid_dates">Das Startdatum muss vor dem Enddatum liegen.</string>
     <string name="settings_vacation_save_error">Speichern fehlgeschlagen: %1$s</string>
@@ -419,6 +420,7 @@
     <string name="settings_filters_summary">Serverseitige Regeln (Sieve)</string>
     <string name="settings_filters_screen_title">Filter</string>
     <string name="settings_filters_unsupported">Dein Mailserver unterstützt keine Filterregeln.</string>
+    <string name="settings_filters_imap_account">Filterregeln sind nur für Konten verfügbar, die mit JMAP hinzugefügt wurden.</string>
     <string name="settings_filters_empty">Noch keine Regeln. Füge eine hinzu, um eingehende Mails auf dem Server zu filtern.</string>
     <string name="settings_filters_add">Regel hinzufügen</string>
     <string name="settings_filters_saved">Filter gespeichert</string>

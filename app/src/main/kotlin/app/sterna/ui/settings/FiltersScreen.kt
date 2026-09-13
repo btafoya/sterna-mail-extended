@@ -145,7 +145,7 @@ fun FiltersScreen(
             when {
                 state.loading -> LoadingRing(Modifier.align(Alignment.Center))
                 state.noAccount -> FiltersNote(stringResource(R.string.settings_vacation_no_account))
-                !state.supported -> FiltersNote(stringResource(R.string.settings_filters_unsupported))
+                !state.supported -> FiltersNote(stringResource(filtersUnavailableText(state.unavailableCause)))
                 state.errorKind == FiltersError.LOAD -> FiltersNote(
                     stringResource(R.string.settings_vacation_load_error, state.errorDetail),
                     onRetry = viewModel::load,

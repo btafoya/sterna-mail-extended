@@ -409,6 +409,7 @@
     <string name="settings_vacation_save">Opslaan</string>
     <string name="settings_vacation_saved">Automatisch antwoord opgeslagen</string>
     <string name="settings_vacation_unsupported">Je mailserver ondersteunt geen automatische antwoorden.</string>
+    <string name="settings_vacation_imap_account">Automatische antwoorden zijn alleen beschikbaar voor accounts die met JMAP zijn toegevoegd.</string>
     <string name="settings_vacation_no_account">Geen account beschikbaar.</string>
     <string name="settings_vacation_invalid_dates">De begindatum moet vóór de einddatum liggen.</string>
     <string name="settings_vacation_save_error">Opslaan mislukt: %1$s</string>
@@ -419,6 +420,7 @@
     <string name="settings_filters_summary">Serverregels (Sieve)</string>
     <string name="settings_filters_screen_title">Filters</string>
     <string name="settings_filters_unsupported">Je mailserver ondersteunt geen filterregels.</string>
+    <string name="settings_filters_imap_account">Filterregels zijn alleen beschikbaar voor accounts die met JMAP zijn toegevoegd.</string>
     <string name="settings_filters_empty">Nog geen regels. Voeg er een toe om inkomende e-mail op de server te filteren.</string>
     <string name="settings_filters_add">Regel toevoegen</string>
     <string name="settings_filters_saved">Filters opgeslagen</string>

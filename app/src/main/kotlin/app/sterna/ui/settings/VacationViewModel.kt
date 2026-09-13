@@ -23,6 +23,7 @@ data class VacationUiState(
     val loading: Boolean = true,
     val noAccount: Boolean = false,
     val supported: Boolean = true,
+    val unavailableCause: UnavailableCause? = null,
     val accountLabel: String = "",
     val enabled: Boolean = false,
     val subject: String = "",
@@ -70,9 +71,8 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
             try {
                 when (val result = repo.accounts.loadVacation(credentials)) {
                     VacationState.Unsupported ->
-                        _state.value = VacationUiState(
-                            loading = false,
-                            supported = false,
+                        _state.value = vacationUnavailableState(
+                            protocol = credentials.protocol,
                             accountLabel = store.accountLabel(),
                         )
                     is VacationState.Loaded -> {

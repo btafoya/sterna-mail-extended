@@ -409,6 +409,7 @@
     <string name="settings_vacation_save">Сохранить</string>
     <string name="settings_vacation_saved">Автоответ сохранён</string>
     <string name="settings_vacation_unsupported">Ваш почтовый сервер не поддерживает автоматические ответы.</string>
+    <string name="settings_vacation_imap_account">Автоответы доступны только для аккаунтов, добавленных через JMAP.</string>
     <string name="settings_vacation_no_account">Нет доступных аккаунтов.</string>
     <string name="settings_vacation_invalid_dates">Дата начала должна быть раньше даты окончания.</string>
     <string name="settings_vacation_save_error">Не удалось сохранить: %1$s</string>
@@ -419,6 +420,7 @@
     <string name="settings_filters_summary">Правила на стороне сервера (Sieve)</string>
     <string name="settings_filters_screen_title">Фильтры</string>
     <string name="settings_filters_unsupported">Ваш почтовый сервер не поддерживает правила фильтрации.</string>
+    <string name="settings_filters_imap_account">Правила фильтрации доступны только для аккаунтов, добавленных через JMAP.</string>
     <string name="settings_filters_empty">Пока нет правил. Добавьте правило, чтобы фильтровать входящую почту на сервере.</string>
     <string name="settings_filters_add">Добавить правило</string>
     <string name="settings_filters_saved">Фильтры сохранены</string>

@@ -574,6 +574,7 @@
     <string name="settings_vacation_save">Save</string>
     <string name="settings_vacation_saved">Auto-reply saved</string>
     <string name="settings_vacation_unsupported">Your mail server doesn\'t support automatic replies.</string>
+    <string name="settings_vacation_imap_account">Automatic replies are only available on accounts added with JMAP.</string>
     <string name="settings_vacation_no_account">No account available.</string>
     <string name="settings_vacation_invalid_dates">The start date must be before the end date.</string>
     <string name="settings_vacation_save_error">Couldn\'t save: %1$s</string>
@@ -584,6 +585,7 @@
     <string name="settings_filters_summary">Server-side rules (Sieve)</string>
     <string name="settings_filters_screen_title">Filters</string>
     <string name="settings_filters_unsupported">Your mail server doesn\'t support filter rules.</string>
+    <string name="settings_filters_imap_account">Filter rules are only available on accounts added with JMAP.</string>
     <string name="settings_filters_empty">No rules yet. Add one to filter incoming mail on the server.</string>
     <string name="settings_filters_add">Add rule</string>
     <string name="settings_filters_saved">Filters saved</string>

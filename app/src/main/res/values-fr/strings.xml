@@ -409,6 +409,7 @@
     <string name="settings_vacation_save">Enregistrer</string>
     <string name="settings_vacation_saved">Réponse automatique enregistrée</string>
     <string name="settings_vacation_unsupported">Votre serveur de messagerie ne prend pas en charge les réponses automatiques.</string>
+    <string name="settings_vacation_imap_account">Les réponses automatiques ne sont disponibles que pour les comptes ajoutés en JMAP.</string>
     <string name="settings_vacation_no_account">Aucun compte disponible.</string>
     <string name="settings_vacation_invalid_dates">La date de début doit être antérieure à la date de fin.</string>
     <string name="settings_vacation_save_error">Échec de l\'enregistrement : %1$s</string>
@@ -419,6 +420,7 @@
     <string name="settings_filters_summary">Règles côté serveur (Sieve)</string>
     <string name="settings_filters_screen_title">Filtres</string>
     <string name="settings_filters_unsupported">Votre serveur de messagerie ne prend pas en charge les règles de filtrage.</string>
+    <string name="settings_filters_imap_account">Les règles de filtrage ne sont disponibles que pour les comptes ajoutés en JMAP.</string>
     <string name="settings_filters_empty">Aucune règle pour l\'instant. Ajoutez-en une pour filtrer le courrier entrant sur le serveur.</string>
     <string name="settings_filters_add">Ajouter une règle</string>
     <string name="settings_filters_saved">Filtres enregistrés</string>

@@ -19,6 +19,7 @@ data class FiltersUiState(
     val loading: Boolean = true,
     val noAccount: Boolean = false,
     val supported: Boolean = true,
+    val unavailableCause: UnavailableCause? = null,
     val foreignActive: Boolean = false,
     /** The rules below are on the server but not running: the script carrying them is not the active
      *  one. Distinct from [foreignActive], which is false in the very state this flag exists for:
@@ -80,8 +81,9 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
                 when (val result = repo.accounts.loadFilterRules(credentials)) {
                     FilterRulesState.Unsupported -> {
                         serverRules = emptyList()
-                        _state.value = FiltersUiState(
-                            loading = false, supported = false, accountLabel = store.accountLabel(),
+                        _state.value = filtersUnavailableState(
+                            protocol = credentials.protocol,
+                            accountLabel = store.accountLabel(),
                         )
                     }
                     is FilterRulesState.Loaded -> {

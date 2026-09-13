@@ -2589,7 +2589,7 @@ private fun VacationScreen(
             when {
                 state.loading -> LoadingRing(Modifier.align(Alignment.Center))
                 state.noAccount -> VacationNote(stringResource(R.string.settings_vacation_no_account))
-                !state.supported -> VacationNote(stringResource(R.string.settings_vacation_unsupported))
+                !state.supported -> VacationNote(stringResource(vacationUnavailableText(state.unavailableCause)))
                 state.errorKind == VacationError.LOAD -> VacationNote(
                     stringResource(R.string.settings_vacation_load_error, state.errorDetail),
                     onRetry = viewModel::load,
