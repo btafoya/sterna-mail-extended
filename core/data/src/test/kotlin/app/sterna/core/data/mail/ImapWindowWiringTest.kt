@@ -59,6 +59,7 @@ class ImapWindowWiringTest {
             credentials.id, load.targetMailboxId, keepIds, spare,
             evictableIds = evictable.takeIf { mailboxId != null && mailboxId == load.targetMailboxId },
             )
+            flightsOffMain { reread(credentials.id, load.targetMailboxId) }
             },
             )
             }

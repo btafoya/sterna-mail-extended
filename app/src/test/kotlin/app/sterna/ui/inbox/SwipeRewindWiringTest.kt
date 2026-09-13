@@ -92,7 +92,7 @@ class SwipeRewindWiringTest {
                 "suspended: without both, endRemoval is never reached, the key stays in the " +
                 "repository for the life of the process, and every page read from the server is " +
                 "filtered against a message that is still in its folder — it is in no list until " +
-                "the process restarts. Body was:\n${body.joinToString("\n")}",
+                "the process restarts and a sync reads that folder whole. Body was:\n${body.joinToString("\n")}",
             finally >= 0 && back > finally &&
                 body.subList(finally, back).any { it.startsWith("withContext(NonCancellable)") },
         )

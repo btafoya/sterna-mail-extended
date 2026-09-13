@@ -3,6 +3,7 @@ package app.sterna.core.data
 import android.content.Context
 import app.sterna.core.data.account.AccountStorage
 import app.sterna.core.data.db.SternaDatabase
+import app.sterna.core.data.mail.FlightMarkerPrefs
 import app.sterna.core.data.mail.ImapMailService
 import app.sterna.core.data.mail.LOCAL_DRAFT_FILES_DIR
 import app.sterna.core.data.mail.MailboxUidValidityStore
@@ -68,6 +69,7 @@ object DataFactory {
                 pgpEngine = pgpEngine,
                 settings = settings,
                 syncStateStore = SyncStateStore(appContext),
+                flightMarkerStore = FlightMarkerPrefs(appContext),
                 logInfo = { tag, message, error ->
                     if (error == null) android.util.Log.i(tag, message) else android.util.Log.i(tag, message, error)
                 },

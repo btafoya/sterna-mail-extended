@@ -79,10 +79,13 @@ import app.sterna.core.jmap.model.VacationResponse
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
@@ -851,7 +854,9 @@ class MailRepository(
     /** App settings (null in tests): consulted for behavior toggles like mark-read-on-delete. */
     private val settings: SettingsRepository? = null,
     /** Persisted sync cursors (null in tests): deltas survive process death (issue #17). */
-    private val syncStateStore: SyncStateStore? = null,
+    private val syncStateStore: SyncCursorStore? = null,
+    /** Swipes whose server write was still out, on disk (null in tests); see [OrphanedFlights]. */
+    flightMarkerStore: FlightMarkerStore? = null,
     private val logInfo: (String, String, Throwable?) -> Unit = { _, _, _ -> },
     private val logWarn: (String, String, Throwable?) -> Unit = { _, _, _ -> },
 ) : MailSendHost, MailDraftHost, MailFolderHost, MailAccountHost {
@@ -952,10 +957,22 @@ class MailRepository(
      */
     private val syncStates = SyncCursors(syncStateStore)
 
+    private val flights = OrphanedFlights(
+        store = flightMarkerStore,
+        configuredAccountIds = { if (accountStore.accountsUnreadable()) null else accountStore.accounts().map { it.id } },
+        dropCursors = { dropSyncCursors(it) },
+    )
+
+    /** Every touch of [flights] may read or `commit()` a preferences file. */
+    private suspend fun <T> flightsOffMain(block: OrphanedFlights.() -> T): T =
+        withContext(Dispatchers.IO) { flights.block() }
+
     private fun putSyncState(key: String, state: SyncState) = syncStates.put(key, state)
 
     private fun dropSyncState(key: String) = syncStates.drop(key)
 
+    // Not settled here: `advanceEmailState` reads through this on the main thread. A cursor it
+    // advances before the settle is dropped by that settle, which `syncMailbox` runs before resuming.
     private fun loadSyncState(key: String): SyncState? = syncStates.load(key)
 
     /**
@@ -1030,6 +1047,8 @@ class MailRepository(
         // to start, every branch below asks again immediately before each of its writes.
         checkAccountStillConfigured(localAccountId, accountStore.accounts().map { it.id })
         val key = syncKey(localAccountId, mailboxId)
+        // Before the cursor read: an orphan's cursors must be gone before any of them is resumed from.
+        flightsOffMain { settle() }
         val stored = loadSyncState(key)
         if (stored != null) {
             val queryChanges = client.emailQueryChanges(session, accountId, mailboxId, stored.queryState, MAX_CHANGES, auth)
@@ -1121,6 +1140,9 @@ class MailRepository(
             spareIds = { recentlyMutatedIds(localAccountId) },
             reconcile = { _, keepIds, spare, evictable -> emailDao.reconcileMailbox(localAccountId, mailboxId, keepIds, spare, evictableIds = evictable) },
         )
+        // Read whole only on the verdict `keepIds` reconciled with: a resumed or muted walk may have
+        // skipped the very row an orphan is waiting for.
+        if (reconcilableWindowIds(walked) != null) flightsOffMain { reread(localAccountId, mailboxId) }
         logInfo(
             "MailSync",
             "full query $mailboxId: ${walked.ids.size} emails " +
@@ -1131,7 +1153,11 @@ class MailRepository(
         )
         val queryState = walked.queryState
         val emailState = walked.emailState
-        if (queryState != null && emailState != null) {
+        // An orphan this walk did not settle keeps the folder off the delta: `settle` drops cursors
+        // once per process life, and a delta never fetches a row the cache lost while the server
+        // still files it, so resuming here hides the message until the process dies.
+        val orphanWaits = flightsOffMain { awaitsReread(localAccountId, mailboxId) }
+        if (queryState != null && emailState != null && !orphanWaits) {
             putSyncState(key, SyncState(queryState, emailState))
         } else {
             dropSyncState(key)
@@ -1824,6 +1850,7 @@ class MailRepository(
                     credentials.id, load.targetMailboxId, keepIds, spare,
                     evictableIds = evictable.takeIf { mailboxId != null && mailboxId == load.targetMailboxId },
                 )
+                flightsOffMain { reread(credentials.id, load.targetMailboxId) }
             },
         )
     }
@@ -2506,11 +2533,34 @@ class MailRepository(
      *  spared: the mover's own [EmailDao.deleteById] takes it on the ack, and nothing could
      *  rebuild it for a put-back. Null when nothing was cached, and then nothing was evicted. */
     suspend fun beginRemoval(accountId: String, emailId: String): InFlightRemoval? {
+        // Before this flight's own marker exists, or it would be read back as an orphan.
+        flightsOffMain { settle() }
         val row = emailDao.emailsByIds(accountId, listOf(emailId)).firstOrNull() ?: return null
+        var evictionSent = false
+        var decounted = false
         // Marked before the eviction, never after: in between, a sync page would write it back.
         inFlightRemovals[flightKey(accountId, emailId)] = row
-        emailDao.evictFromCacheKeepingIndex(accountId, listOf(emailId))
-        adjustCountsForRemoval(listOf(row), destMailboxId = null)
+        try {
+            // On disk before the eviction too: killed past it, the process leaves the marker as the only
+            // record that this row is missing while the server still files the message.
+            flightsOffMain { begin(FlightMarker(accountId, emailId, row.mailboxId)) }
+            // Set before the call: a write cancelled on its way back may have landed, and rewriting
+            // the held row is harmless where crediting a folder never decounted is not.
+            evictionSent = true
+            emailDao.evictFromCacheKeepingIndex(accountId, listOf(emailId))
+            // Not cancellable, so that `decounted` is exact: the nudge is two writes, and a cut
+            // between them would leave no way to credit back only the half that happened.
+            withContext(NonCancellable) { adjustCountsForRemoval(listOf(row), destMailboxId = null) }
+            decounted = true
+            currentCoroutineContext().ensureActive()
+        } catch (e: Throwable) {
+            // All or nothing: a caller this call never returned to holds no flight it could end.
+            withContext(NonCancellable) {
+                runCatching { closeFlight(accountId, emailId, rewrite = row.takeIf { evictionSent }, credit = row.takeIf { decounted }) }
+                    .exceptionOrNull()?.let { if (it !== e) e.addSuppressed(it) }
+            }
+            throw e
+        }
         return InFlightRemoval(accountId, emailId)
     }
 
@@ -2518,14 +2568,24 @@ class MailRepository(
      *  no network at all, and credits its folder again. A row the server declared gone is no
      *  longer held ([pruneServerGone]) and stays away whatever the caller asks. */
     suspend fun endRemoval(flight: InFlightRemoval, restore: Boolean) {
-        val key = flightKey(flight.accountId, flight.emailId)
-        val row = inFlightRemovals[key]
-        if (restore && row != null) {
-            emailDao.upsertAll(listOf(row))
-            creditFolderBack(row)
+        val held = inFlightRemovals[flightKey(flight.accountId, flight.emailId)]?.takeIf { restore }
+        closeFlight(flight.accountId, flight.emailId, rewrite = held, credit = held)
+    }
+
+    /** The one put-back of a flight: [rewrite] back into the cache, [credit]'s folder counted
+     *  again, the marker erased, and the key lifted even when one of those throws. */
+    private suspend fun closeFlight(accountId: String, emailId: String, rewrite: EmailEntity?, credit: EmailEntity?) {
+        try {
+            rewrite?.let { row -> emailDao.upsertAll(listOf(row)) }
+            credit?.let { creditFolderBack(it) }
+            // After the put-back: erased before it, a kill in between loses the row again.
+            flightsOffMain { end(accountId, emailId) }
+        } finally {
+            // Lifted last: while the mark stands, no sync page can write the row back under us.
+            // Lifted whatever failed above: a key left standing hides the message from every page
+            // until the process dies.
+            inFlightRemovals.remove(flightKey(accountId, emailId))
         }
-        // Lifted last: while the mark stands, no sync page can write the row back under us.
-        inFlightRemovals.remove(key)
     }
 
     /** Put back the count nudge [beginRemoval] made. Not [nudgeCounts]: that one moves rows from
@@ -2543,6 +2603,7 @@ class MailRepository(
     private suspend fun forfeitInFlight(accountId: String, emailIds: Collection<String>) {
         val held = emailIds.filter { inFlightRemovals.remove(flightKey(accountId, it)) != null }
         if (held.isNotEmpty()) deleteFromCacheAndIndex(accountId, held)
+        if (held.isNotEmpty()) flightsOffMain { held.forEach { end(accountId, it) } }
     }
 
     /** The row a mover works from. [evicted] says it comes from a flight, so its source folder was
