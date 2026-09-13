@@ -50,7 +50,7 @@ class ImapWindowWiringTest {
             walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, cachedPreviewsFor = listPreviewCache(credentials.id)) },
             writePage = { page ->
             checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
-            emailDao.upsertAll(page)
+            emailDao.upsertAll(sparingInFlight(page))
             },
             keepIds = { load -> reconcilableIds(load, credentials.id) },
             spareIds = { recentlyMutatedIds(credentials.id) },

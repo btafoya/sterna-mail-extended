@@ -103,9 +103,17 @@ per-account sources.
 
 ## Actions & safety
 
-- **Network-first:** delete, archive and move write to the server first and only
-  then drop the cached row; optimistic count nudges are reconciled by the next
-  sync. A failure surfaces instead of silently diverging.
+- **A swipe takes the row with the finger:** delete, archive, unarchive and
+  move-to-folder drop the cached row when the gesture commits and write to the
+  server behind it, so the list never waits on the network. The repository holds
+  the row while the write is out: a refusal puts it and its count nudge back
+  where they were, reading nothing from the network, and surfaces the error. A
+  message the server no longer holds does not come back, and no page read from
+  the server can put a held row back on screen.
+- **Selections and collapsed conversations are still network-first:** acting on
+  a selection, or swiping a whole thread, drops the cached rows only once the
+  server has taken the write. Optimistic count nudges are reconciled by the next
+  sync either way.
 - **Destroy is held back:** a permanent destroy (delete-from-Trash, Empty trash)
   only ever runs through a persisted WorkManager job (`MessageDestroyWorker`)
   delayed past the Undo window, killing the app cannot drop a confirmed destroy,

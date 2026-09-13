@@ -110,7 +110,7 @@ class PushPassKeepsCachedPreviewsTest {
                 "must be scoped to one load's messages",
             listOf(
                 "val cached = emailDao.cachedPreviews(credentials.id, load.messages.map { it.id }, load.uidValidity)",
-                "emailDao.upsertAll(keepingCachedPreviews(load.messages, cached.associate { it.id to it.preview }))",
+                "emailDao.upsertAll(sparingInFlight(keepingCachedPreviews(load.messages, cached.associate { it.id to it.preview })))",
             ),
             codeLines("cachedPreviews(") + codeLines("upsertAll("),
         )

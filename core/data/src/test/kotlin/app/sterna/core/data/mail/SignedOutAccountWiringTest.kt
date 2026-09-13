@@ -56,7 +56,7 @@ class SignedOutAccountWiringTest {
             listOf(
                 "writePage = { fresh ->",
                 "$guard(localAccountId, accountStore.accounts().map { it.id })",
-                "emailDao.upsertAll(fresh.map { it.toEntity(localAccountId, mailboxId) })",
+                "emailDao.upsertAll(sparingInFlight(fresh.map { it.toEntity(localAccountId, mailboxId) }))",
                 "},",
             ),
             block("syncMailbox", "writePage = { fresh ->", 4),
@@ -111,7 +111,7 @@ class SignedOutAccountWiringTest {
             listOf(
                 "val fetched = client.getEmailsByIds(session, accountId, toFetch, auth)",
                 "$guard(localAccountId, accountStore.accounts().map { it.id })",
-                "emailDao.upsertAll(fetched.map { it.toEntity(localAccountId, mailboxId) })",
+                "emailDao.upsertAll(sparingInFlight(fetched.map { it.toEntity(localAccountId, mailboxId) }))",
             ),
             block("syncMailbox", "val fetched = client.getEmailsByIds(session, accountId, toFetch, auth)", 3),
         )
@@ -127,7 +127,7 @@ class SignedOutAccountWiringTest {
             listOf(
                 "writePage = { page ->",
                 "$guard(credentials.id, accountStore.accounts().map { it.id })",
-                "emailDao.upsertAll(page)",
+                "emailDao.upsertAll(sparingInFlight(page))",
                 "},",
             ),
             block("imapWriteThrough", "writePage = { page ->", 4),
@@ -164,7 +164,7 @@ class SignedOutAccountWiringTest {
                 // row, so the page's blank `preview` column has to take back what the folder walk
                 "loads.forEach { load ->",
                 "val cached = emailDao.cachedPreviews(credentials.id, load.messages.map { it.id }, load.uidValidity)",
-                "emailDao.upsertAll(keepingCachedPreviews(load.messages, cached.associate { it.id to it.preview }))",
+                "emailDao.upsertAll(sparingInFlight(keepingCachedPreviews(load.messages, cached.associate { it.id to it.preview })))",
             ),
             block("refreshAccountFolders", "missing.forEach(onMissing)", 5),
         )

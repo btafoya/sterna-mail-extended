@@ -51,6 +51,7 @@ import app.sterna.ui.search.searchDisplay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,7 +67,9 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class MailUi(
     /** The current account, whatever view is on screen; the unified inbox spans every account and
@@ -180,25 +183,6 @@ data class SwipeConfig(val right: SwipeAction, val left: SwipeAction)
  * Not the repository's defaults: a second copy of them is free to drift. */
 internal val SWIPE_CONFIG_UNLOADED = SwipeConfig(SwipeAction.NONE, SwipeAction.NONE)
 
-/** One message that can be moved back to its original mailbox by an Undo. [mailboxId] is the
- *  source folder to restore to; [destMailboxId] is where the forward action put it (Trash /
- *  Archive / target), so the undo can reverse the drawer-count nudge (null = it was destroyed). */
-data class UndoEntry(
-    val emailId: String,
-    val accountId: String?,
-    val mailboxId: String,
-    val destMailboxId: String? = null,
-)
-
-/**
- * A reversible swipe action, surfaced as an "Undo" snackbar. Holds one entry for a single-message
- * swipe, or every message of a thread for a collapsed-conversation swipe.
- */
-data class UndoAction(
-    val entries: List<UndoEntry>,
-    val label: String,
-)
-
 /** The saved-state keys of the reading pane's anchor (#103), the quintuplet of the `message/…` route. */
 private const val PANE_EMAIL_ID = "pane.emailId"
 private const val PANE_ACCOUNT_ID = "pane.accountId"
@@ -272,6 +256,9 @@ class InboxViewModel(
 
     /** The deadline that takes the current Undo action's banners down, cancelled by [undo]. */
     private var undoDepartureJob: Job? = null
+
+    /** The swipe write still on the wire, if any: [undo] waits for it, its bar is up first. */
+    private var swipeFlight: Job? = null
 
     /** Non-null label while an "empty trash" purge is held back and can still be undone. */
     private val _pendingPurge = MutableStateFlow<String?>(null)
@@ -972,6 +959,9 @@ class InboxViewModel(
             localDrafts = { accountId -> repo.drafts.observeLocalDrafts(accountId) },
         ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LocalDraftRows())
 
+    /** Above [pagedListRows], whose initializer reads it: below, it is null there and construction throws an NPE. */
+    private val swipeMask = MutableStateFlow(SwipeMask())
+
     /**
      * What the LIST screen pages, and nothing else may: [pagedEmails] with the phone's own drafts
      * on top and the server copies they replace taken out (see [withLocalDrafts]).
@@ -979,7 +969,9 @@ class InboxViewModel(
      * cannot load and a swipe-delete announcing a deletion IMAP never performed.
      */
     val pagedListRows: Flow<PagingData<InboxRow>> =
-        combine(pagedEmails, localDraftRows) { paged, local -> withLocalDrafts(paged, local) }
+        combine(maskedGenerations(pagedEmails, swipeMask), localDraftRows) { masked, local ->
+            withLocalDrafts(withoutSwipedRows(masked.generation, masked.hidden), local)
+        }
 
     /** The accounts' Sent folders backing the chip's "plus Sent replies" scope, live from the
      *  folder cache in conversation mode, none in flat mode. Kept in [listScope] with the folder(s)
@@ -1815,36 +1807,70 @@ class InboxViewModel(
         }
     }
 
-    /** Remove [email] optimistically (so the row leaves instantly, never stuck mid-swipe), run the
-     *  server [op], then either offer Undo on success or restore the row and report the error. */
     private fun swipeRemove(email: Email, label: String, op: suspend (AccountCredentials, String) -> String?) {
         val credentials = credentialsFor(email) ?: return
-        viewModelScope.launch {
-            // No pre-evict: the repo op is network-first, it drops the row and nudges the drawer
-            // counts once the server acknowledged. It returns the destination, for the Undo.
+        swipeMask.update { it.posed(email.emailKey()) }
+        swipeFlight = viewModelScope.launch {
             dropSearchResults(setOf(email.emailKey()))
-            // The UI row may not carry its source folder (e.g. a server-fetched thread member), so
-            // fall back to the cached row, captured before the op drops it, so Undo still works.
+            // The UI row may not carry its source folder, and the cache stops answering once evicted.
             val source = email.mailboxId ?: repo.cachedEmail(credentials.id, email.id)?.mailboxId
-            hidingThreadMembers(setOf(email.emailKey())) { runCatching { op(credentials, email.id) } }
-                .onSuccess { dest ->
-                    if (source != null) {
-                        _undo.value = UndoAction(listOf(UndoEntry(email.id, email.accountId, source, dest)), label)
-                        scheduleUndoneDeparture()
-                    }
-                }
-                .onFailure {
-                    val app = getApplication<Application>()
-                    // The exception text is raw and English-only: logcat, not the snackbar.
-                    android.util.Log.w("SternaInbox", "swipe action failed", it)
-                    _message.value = app.getString(actionFailureMessage(it, online = hasUsableNetwork(app)))
+            // The line goes at the finger, not on the ack, seconds away on a phone. The row travels
+            // with the flight: the cache was its only copy, and a refused write has no network.
+            val flight = repo.beginRemoval(credentials.id, email.id)
+            swipeMask.update { it.removalBegun(email.emailKey(), evicted = flight != null) }
+            val posted = source?.let {
+                UndoAction(listOf(UndoEntry(email.id, email.accountId, it)), label, landed = false)
+            }
+            if (posted != null) {
+                _undo.value = posted
+                scheduleUndoneDeparture()
+            }
+            var outcome: SwipeWrite? = null
+            try {
+                val written = hidingThreadMembers(setOf(email.emailKey())) { runCatching { op(credentials, email.id) } }
+                val verdict = swipeWrite(written)
+                outcome = verdict
+                if (verdict.putsRowBack) {
+                    retractUndo(posted)
                     restoreSearchResults(listOf(email.emailKey()))
-                    // The browse list's row was never removed: it flew off, and the flight is not
-                    // undone by re-emitting it. Say the swipe did not take; the row rewinds.
+                    // The list re-emits the flown row under the same key: it must be told to come home.
                     _swipeRewind.value = _swipeRewind.value + email.emailKey()
-                    refresh() // the failed row was never dropped locally, just reconcile the list
                 }
+                written
+                    .onSuccess { dest -> if (verdict.offersUndo) recordLanding(posted, dest) }
+                    .onFailure {
+                        val app = getApplication<Application>()
+                        // The exception text is raw and English-only: logcat, not the snackbar.
+                        android.util.Log.w("SternaInbox", "swipe action failed", it)
+                        _message.value = app.getString(actionFailureMessage(it, online = hasUsableNetwork(app)))
+                    }
+            } finally {
+                // The scope dies with the activity, and a write cut off mid-flight moved nothing.
+                // The put-back has to outlive the cancellation, or the key stays in the repository
+                // for the life of the process and every page read from the server is filtered
+                // against a message that is still in its folder.
+                withContext(NonCancellable) {
+                    flight?.let { repo.endRemoval(it, restore = outcome?.putsRowBack ?: true) }
+                    if (outcome?.putsRowBack ?: true) swipeMask.update { it.lifted(listOf(email.emailKey())) }
+                }
+            }
         }
+    }
+
+    /** Tell the bar where its write landed, even once a later gesture or [undo] has taken it. */
+    private fun recordLanding(posted: UndoAction?, dest: String?) {
+        if (posted == null || dest == null) return
+        posted.landedIn(dest)
+        // A window that closed while the write was still out left the banners up for a departure it
+        // could not vouch for yet. This is what vouches for it.
+        if (posted.bannersMayGo) dismissBanners(undoBannerKeys(posted.entries))
+    }
+
+    /** Take back an offer for a gesture that did not happen, deadline included. */
+    private fun retractUndo(posted: UndoAction?) {
+        if (posted == null || _undo.value !== posted) return
+        _undo.value = null
+        undoDepartureJob?.cancel()
     }
 
     /** Move the last deleted/archived message(s) back to their original mailbox(es). */
@@ -1855,7 +1881,12 @@ class InboxViewModel(
         // restore, not after, the restore suspends, and the window is measured in seconds.
         undoDepartureJob?.cancel()
         restoreSearchResults(action.entries.map { EmailKey(it.accountId, it.emailId) })
+        swipeMask.update { mask -> mask.lifted(action.entries.map { EmailKey(it.accountId, it.emailId) }) }
         viewModelScope.launch {
+            // The bar is up before the write is out: reversing a move not yet sent races it.
+            swipeFlight?.join()
+            // And what never landed is not reversed: the row is already back where it was.
+            if (!action.mayReverse) return@launch
             // One batch per account, so a large undo does not hit per-message server limits (#29).
             var unrestored = 0
             action.entries.groupBy { it.accountId }.forEach { (accountId, entries) ->
@@ -1905,7 +1936,8 @@ class InboxViewModel(
             // The window closes here, not on screen: the bar is Indefinite, so clearing `_undo` takes
             // it down with the banners, one clock. Identity check: a second gesture may own it now.
             if (_undo.value === action) _undo.value = null
-            dismissBanners(keys)
+            action.windowClosed = true
+            if (action.bannersMayGo) dismissBanners(keys)
         }
     }
 

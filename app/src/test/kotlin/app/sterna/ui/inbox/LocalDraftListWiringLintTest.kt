@@ -14,12 +14,15 @@ class LocalDraftListWiringLintTest {
     fun `the browse list's local drafts are inserted downstream of cachedIn, in its own property`() {
         assertEquals(
             "InboxViewModel.pagedListRows must be exactly a combine of the ALREADY-cachedIn " +
-                "pagedEmails with the local rows, handed to withLocalDrafts. Compared whole and in " +
-                "order: a stage inserted, removed or moved must redden this. Body was:\n" +
+                "pagedEmails (through the swipe mask, SwipeMaskWiringTest) with the local rows, " +
+                "handed to withLocalDrafts. Compared whole and in order: a stage inserted, removed " +
+                "or moved must redden this. Body was:\n" +
                 member(INBOX_VIEW_MODEL, "pagedListRows").joinToString("\n"),
             listOf(
                 "val pagedListRows: Flow<PagingData<InboxRow>> =",
-                "combine(pagedEmails, localDraftRows) { paged, local -> withLocalDrafts(paged, local) }",
+                "combine(maskedGenerations(pagedEmails, swipeMask), localDraftRows) { masked, local ->",
+                "withLocalDrafts(withoutSwipedRows(masked.generation, masked.hidden), local)",
+                "}",
             ),
             member(INBOX_VIEW_MODEL, "pagedListRows"),
         )

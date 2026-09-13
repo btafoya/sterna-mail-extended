@@ -56,7 +56,7 @@ class LocalRemovalDropsItsBannerTest {
      * The three sites are exactly the three that offer an Undo, and the deadline is posted there,
      * on the line right after the offer, so the pair is pinned whole, in order.
      */
-    @Test fun `the swipe posts its deadline in the success arm, right after the Undo it belongs to`() {
+    @Test fun `the swipe posts its deadline at the finger, right after the Undo it belongs to`() {
         val body = bodyAt(INBOX_VIEW_MODEL, "private fun swipeRemove(")
         assertEquals(
             "swipeRemove() must post exactly one banner deadline. Body was:\n$body",
@@ -64,14 +64,12 @@ class LocalRemovalDropsItsBannerTest {
             codeLinesNaming(body, "scheduleUndoneDeparture("),
         )
         assertEquals(
-            "the deadline must sit in the .onSuccess arm, immediately after the Undo it belongs " +
-                "to — never before the runCatching, never in .onFailure: offline the op fails, the " +
-                "row is restored, and the banner would be gone for a departure that never " +
-                "happened. Body was:\n$body",
-            listOf(
-                "_undo.value = UndoAction(listOf(UndoEntry(email.id, email.accountId, source, dest)), label)",
-                DEADLINE,
-            ),
+            "the deadline must sit immediately after the Undo it belongs to, and that offer is " +
+                "made when the finger leaves, with the row: what it reverses has already happened " +
+                "on screen. A refused write takes the two back together (retractUndo), which is " +
+                "what keeps a banner from being dismissed for a departure that never happened. " +
+                "Body was:\n$body",
+            listOf("_undo.value = posted", DEADLINE),
             deadlineWithItsNeighbour(body),
         )
     }
@@ -112,13 +110,17 @@ class LocalRemovalDropsItsBannerTest {
     /**
      * The deadline is a `viewModelScope` coroutine, and its body is pinned as a sequence, every
      */
-    @Test fun `the deadline waits, closes its own window, then dismisses — in that order`() {
+    @Test fun `the deadline waits, closes its own window, then dismisses what departed`() {
         val body = bodyAt(INBOX_VIEW_MODEL, "private fun scheduleUndoneDeparture()")
         assertEquals(
             "the deadline's body is pinned WHOLE and IN ORDER: it must wait the named window, " +
-                "close the very window it was posted for (identity, not equality), and only then " +
-                "take the banners down. Any other order or any missing line reverses what the " +
-                "branch promises. Body was:\n$body",
+                "close the very window it was posted for (identity, not equality), record that " +
+                "the window is closed, and take the banners down only for a departure that " +
+                "happened. The swipe now offers its Undo when the finger leaves, so this deadline " +
+                "can run out while the write is still on the wire: an unconditional dismiss there " +
+                "takes down the notification of a message that may still be in the folder, and no " +
+                "later refusal can put it back. UndoFlightTest runs what `bannersMayGo` answers. " +
+                "Body was:\n$body",
             listOf(
                 "private fun scheduleUndoneDeparture() {",
                 "val action = _undo.value ?: return",
@@ -126,7 +128,8 @@ class LocalRemovalDropsItsBannerTest {
                 "undoDepartureJob = viewModelScope.launch {",
                 "delay(UNDO_BANNER_DISMISS_MS)",
                 "if (_undo.value === action) _undo.value = null",
-                "dismissBanners(keys)",
+                "action.windowClosed = true",
+                "if (action.bannersMayGo) dismissBanners(keys)",
                 "}",
                 "}",
             ),

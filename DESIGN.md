@@ -79,7 +79,7 @@ bounce) so it stays alive yet sober.
 | Row appearance | `animateItem()` on `LazyColumn` | default, subtle |
 | Swipe actions | `SwipeableEmailRow`, action icon fades in, and out with the row | tracks the finger |
 | Top bar / FAB collapse | `exitUntilCollapsedScrollBehavior`, FAB `expanded` | native |
-| Delete | row collapses (height → 0) | ~200ms ease-out |
+| Delete / archive by swipe | the row flies off the way the finger sent it and leaves the list without waiting on the server; a refused write flies it back | 300ms, `FastOutSlowIn` |
 | Pull-to-refresh | `PullToRefreshBox`, `TernRefreshIndicator` settles with no bounce | native, short |
 
 ## Settings & secondary screens
@@ -139,7 +139,7 @@ Reuse the existing `SettingSwitch`; add a small, consistent kit:
 | `SettingsCategoryRow` | Hub row: icon, title, value-summary, chevron. |
 | `SettingsSection` | Accent-tinted header grouping rows in a detail screen. |
 | `SettingSwitch` *(existing)* | Boolean toggle. |
-| `SettingChoiceRow` + `SettingChoiceDialog` | Single choice (theme, undo window, image policy, app lock). |
+| `SettingChoiceRow` + `SettingChoiceDialog` | Single choice (theme, image policy, app lock). |
 | `AccountRow` | Monogram + label + email (reuses the monogram avatar). |
 
 The full kit lives in `SettingsComponents.kt`; this table lists only the main pieces.

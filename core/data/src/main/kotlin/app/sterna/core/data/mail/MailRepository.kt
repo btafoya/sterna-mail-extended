@@ -1070,7 +1070,7 @@ class MailRepository(
                 if (toFetch.isNotEmpty()) {
                     val fetched = client.getEmailsByIds(session, accountId, toFetch, auth)
                     checkAccountStillConfigured(localAccountId, accountStore.accounts().map { it.id })
-                    emailDao.upsertAll(fetched.map { it.toEntity(localAccountId, mailboxId) })
+                    emailDao.upsertAll(sparingInFlight(fetched.map { it.toEntity(localAccountId, mailboxId) }))
                 }
                 putSyncState(key, SyncState(queryChanges.newQueryState!!, changes.newState!!))
                 // Ghost sweep: a destroy can reach us through neither delta (Stalwart omits a
@@ -1115,7 +1115,7 @@ class MailRepository(
             walk = { onPage -> client.queryEmailsWindow(session, accountId, mailboxId, full.windowTarget, full.pageSize, auth, onPage) },
             writePage = { fresh ->
                 checkAccountStillConfigured(localAccountId, accountStore.accounts().map { it.id })
-                emailDao.upsertAll(fresh.map { it.toEntity(localAccountId, mailboxId) })
+                emailDao.upsertAll(sparingInFlight(fresh.map { it.toEntity(localAccountId, mailboxId) }))
             },
             keepIds = { reconcilableWindowIds(it) },
             spareIds = { recentlyMutatedIds(localAccountId) },
@@ -1250,6 +1250,9 @@ class MailRepository(
     /** Only for an explicit per-id `notFound`. The index delete is guarded: an index that cannot be
      *  written (#71) must never abort the removal of the cached row. */
     private suspend fun pruneServerGone(localAccountId: String, emailIds: List<String>) {
+        // A message the server no longer holds has no way back. A swipe holding its row in flight
+        // loses it here, or a write refused later in the same gesture would put a dead row back.
+        forfeitInFlight(localAccountId, emailIds)
         // Chunked: every id goes into an `in (...)`, and SQLite refuses more than 999 bindings.
         emailIds.chunked(MAX_CHANGES).forEach { chunk ->
             val ids = emailDao.emailsByIds(localAccountId, chunk).map { it.id }
@@ -1407,7 +1410,7 @@ class MailRepository(
                     val (added, total) = if (credentials.protocol == MailProtocol.IMAP) {
                         val offset = emailDao.countForMailbox(credentials.id, mailboxId)
                         val (entities, exists) = imap.fetchOlderPage(credentials, mailboxId, offset, PAGE_SIZE, listPreviewCache(credentials.id))
-                        if (entities.isNotEmpty()) emailDao.upsertAll(entities)
+                        if (entities.isNotEmpty()) emailDao.upsertAll(sparingInFlight(entities))
                         entities.size to exists
                     } else {
                         val ctx = jmapSession(credentials)
@@ -1438,7 +1441,7 @@ class MailRepository(
                             )
                         }
                         if (page.emails.isNotEmpty()) {
-                            emailDao.upsertAll(page.emails.map { it.toEntity(credentials.id, mailboxId) })
+                            emailDao.upsertAll(sparingInFlight(page.emails.map { it.toEntity(credentials.id, mailboxId) }))
                         }
                         // The collapsed list's rows are threads: keep fetching at the window edge
                         // until enough new rows land, bounded.
@@ -1464,7 +1467,7 @@ class MailRepository(
                                 anchorOffset = 1,
                             )
                             if (page.emails.isNotEmpty()) {
-                                emailDao.upsertAll(page.emails.map { it.toEntity(credentials.id, mailboxId) })
+                                emailDao.upsertAll(sparingInFlight(page.emails.map { it.toEntity(credentials.id, mailboxId) }))
                             }
                             fetches++
                         }
@@ -1812,7 +1815,7 @@ class MailRepository(
             walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, cachedPreviewsFor = listPreviewCache(credentials.id)) },
             writePage = { page ->
                 checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
-                emailDao.upsertAll(page)
+                emailDao.upsertAll(sparingInFlight(page))
             },
             keepIds = { load -> reconcilableIds(load, credentials.id) },
             spareIds = { recentlyMutatedIds(credentials.id) },
@@ -2484,6 +2487,90 @@ class MailRepository(
 
     private fun imapTarget(emailId: String): Pair<String, Long>? = ImapMailService.targetOf(emailId)
 
+    // ---- rows held in flight (the swipe that drops its line at the finger) --------------
+
+    /** A row [beginRemoval] took out of the cache before its server write went out, named by the
+     *  pair that identifies it. The row itself stays here: two accounts of one server share
+     *  message ids (#31), and nothing outside may hold the last copy of a message. */
+    data class InFlightRemoval(val accountId: String, val emailId: String)
+
+    // The held rows, whole, because the cache was their only copy: `restoreAll` and `undoDelete`
+    // put a row back by re-fetching it, and the write a swipe has to survive is the one that had
+    // no network to begin with.
+    private val inFlightRemovals = java.util.concurrent.ConcurrentHashMap<String, EmailEntity>()
+
+    private fun flightKey(accountId: String, emailId: String) = "$accountId:$emailId"
+
+    /** Take [emailId] out of the list now, holding its row, so a swipe drops its line when the
+     *  finger leaves and not when the server answers, seconds later on a phone. The index row is
+     *  spared: the mover's own [EmailDao.deleteById] takes it on the ack, and nothing could
+     *  rebuild it for a put-back. Null when nothing was cached, and then nothing was evicted. */
+    suspend fun beginRemoval(accountId: String, emailId: String): InFlightRemoval? {
+        val row = emailDao.emailsByIds(accountId, listOf(emailId)).firstOrNull() ?: return null
+        // Marked before the eviction, never after: in between, a sync page would write it back.
+        inFlightRemovals[flightKey(accountId, emailId)] = row
+        emailDao.evictFromCacheKeepingIndex(accountId, listOf(emailId))
+        adjustCountsForRemoval(listOf(row), destMailboxId = null)
+        return InFlightRemoval(accountId, emailId)
+    }
+
+    /** End the flight [beginRemoval] opened. [restore] puts the held row back where it was, with
+     *  no network at all, and credits its folder again. A row the server declared gone is no
+     *  longer held ([pruneServerGone]) and stays away whatever the caller asks. */
+    suspend fun endRemoval(flight: InFlightRemoval, restore: Boolean) {
+        val key = flightKey(flight.accountId, flight.emailId)
+        val row = inFlightRemovals[key]
+        if (restore && row != null) {
+            emailDao.upsertAll(listOf(row))
+            creditFolderBack(row)
+        }
+        // Lifted last: while the mark stands, no sync page can write the row back under us.
+        inFlightRemovals.remove(key)
+    }
+
+    /** Put back the count nudge [beginRemoval] made. Not [nudgeCounts]: that one moves rows from
+     *  one folder to another, and this row moved nowhere, it never left the folder it is in. */
+    private suspend fun creditFolderBack(row: EmailEntity) {
+        val unread = if (row.seen) 0 else 1
+        accountStore.adjustInboxUnread(row.accountId, row.mailboxId, unread)
+        if (!isImapAccount(row.accountId)) {
+            mailboxDao.adjustCounts(row.accountId, row.mailboxId, totalDelta = 1, unreadDelta = unread)
+        }
+    }
+
+    /** Take the way back away from [emailIds]: they are gone server-side. Their index rows go with
+     *  them, since the ack that would have taken those ([EmailDao.deleteById]) is being skipped. */
+    private suspend fun forfeitInFlight(accountId: String, emailIds: Collection<String>) {
+        val held = emailIds.filter { inFlightRemovals.remove(flightKey(accountId, it)) != null }
+        if (held.isNotEmpty()) deleteFromCacheAndIndex(accountId, held)
+    }
+
+    /** The row a mover works from. [evicted] says it comes from a flight, so its source folder was
+     *  decounted at the finger and the ack owes the destination only. */
+    private class MovingRow(val entity: EmailEntity?, val evicted: Boolean)
+
+    private suspend fun movingRow(accountId: String, emailId: String): MovingRow =
+        inFlightRemovals[flightKey(accountId, emailId)]?.let { MovingRow(it, evicted = true) }
+            ?: MovingRow(emailDao.emailsByIds(accountId, listOf(emailId)).firstOrNull(), evicted = false)
+
+    /** What the opt-in mark-read-on-the-way-out reads before it fires: the held row when there is
+     *  one, or the cache stops answering and the option quietly stops working on a swipe. */
+    private suspend fun movingSeen(accountId: String, emailId: String): Boolean? =
+        movingRow(accountId, emailId).entity?.seen
+
+    /** Record on the held row what the opt-in mark-read just did, so the destination's badge and a
+     *  put-back both see the state the server now holds (#67). */
+    private fun flightMarkedSeen(accountId: String, emailId: String) {
+        inFlightRemovals.computeIfPresent(flightKey(accountId, emailId)) { _, row -> row.copy(seen = true) }
+    }
+
+    /** No page read from the server may write back a row a swipe is holding: the server still
+     *  holds the message until the move lands, so the page names it, and writing it would put the
+     *  line back on screen a second after the finger took it off. */
+    private fun sparingInFlight(rows: List<EmailEntity>): List<EmailEntity> =
+        if (inFlightRemovals.isEmpty()) rows
+        else rows.filterNot { inFlightRemovals.containsKey(flightKey(it.accountId, it.id)) }
+
     /** Archive a message. Resolution order, a real Archive folder, else All Mail (Gmail-style
      *  accounts have none), else create an Archive folder as a last resort. */
     suspend fun archive(credentials: AccountCredentials, emailId: String): String? {
@@ -2491,10 +2578,12 @@ class MailRepository(
         unlistFromTrashPurge(credentials.id, listOf(emailId))
         // Opt-in: flag the message read on its way out. Best-effort before the move (the id changes
         // with an IMAP move) and before [row] is read, so the count nudge sees the new state (#67).
-        if (settings?.markReadOnArchive?.first() == true && emailDao.seenOf(credentials.id, emailId) == false) {
+        if (settings?.markReadOnArchive?.first() == true && movingSeen(credentials.id, emailId) == false) {
             runCatching { setRead(credentials, emailId, true) }
+                .onSuccess { flightMarkedSeen(credentials.id, emailId) }
         }
-        val row = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull()
+        val moving = movingRow(credentials.id, emailId)
+        val row = moving.entity
         if (credentials.protocol == MailProtocol.IMAP) {
             val dest = imapRoleFolder(credentials, "archive", "all")
                 ?: run { imap.createFolder(credentials, "Archive"); "Archive" }
@@ -2514,15 +2603,16 @@ class MailRepository(
                 return null
             }
             emailDao.deleteById(credentials.id, emailId)
-            adjustCountsForRemoval(listOfNotNull(row), dest)
+            adjustCountsForRemoval(listOfNotNull(row), dest, sourceAlreadyLeft = moving.evicted)
             return dest
         }
         val ctx = jmapSession(credentials)
         val mb = row?.mailboxId ?: emailDao.mailboxOf(credentials.id, emailId)
         val target = archiveMailboxId(ctx) ?: ctx.rolesToMailboxId["all"] ?: createArchiveFolder(ctx)
         if (mb == target) return null // already in the archive/all folder, nothing to do
-        // Network-first: the local row is dropped only after the server acknowledged, so a failed
-        // archive never hides a message that is still on the server.
+        // The local row is dropped on the ack, unless a swipe already took it out at the finger
+        // and the repository is holding it ([beginRemoval]): nothing else hides a message before
+        // the server has answered for it.
         val newState = try {
             client.move(ctx.session, ctx.accountId, emailId, target, ctx.auth)
         } catch (e: JmapException) {
@@ -2532,7 +2622,7 @@ class MailRepository(
         }
         recentLocalMoves.mark(credentials.id, emailId)
         emailDao.deleteById(credentials.id, emailId)
-        adjustCountsForRemoval(listOfNotNull(row), target)
+        adjustCountsForRemoval(listOfNotNull(row), target, sourceAlreadyLeft = moving.evicted)
         advanceEmailState(newState, credentials.id, mb)
         return target
     }
@@ -2584,12 +2674,17 @@ class MailRepository(
     suspend fun moveToMailbox(credentials: AccountCredentials, emailId: String, targetMailboxId: String): String? {
         // Rescue path of #99: filing a message elsewhere during the undo window takes it off the list.
         unlistFromTrashPurge(credentials.id, listOf(emailId))
-        markReadOnMoveOutOfInbox(credentials, listOf(emailId), targetMailboxId)
-        // Captured before the local row is dropped, to nudge the drawer's cached counts (INV-count).
-        val moved = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull()
+        markReadOnMoveOutOfInbox(
+            credentials, listOf(emailId), targetMailboxId,
+            alsoInHand = listOfNotNull(movingRow(credentials.id, emailId).entity),
+        )
+        // Captured before the local row is dropped, to nudge the drawer's cached counts (INV-count),
+        // and read after the opt-in above, so the nudge sees the state the server now holds (#67).
+        val moving = movingRow(credentials.id, emailId)
+        val moved = moving.entity
         if (moved != null && moved.mailboxId == targetMailboxId) return null
-        // Network-first: report-spam / not-spam reach this path and don't restore the row on failure,
-        // so a failed move must never leave the cache short of a row still on the server.
+        // Report-spam / not-spam reach this path without a flight and never restore the row on
+        // failure, so for them a failed move must leave the cache exactly as it found it.
         if (credentials.protocol == MailProtocol.IMAP) {
             val already = imapTarget(emailId)?.let { (mb, uid) ->
                 if (mb == targetMailboxId) return@let true
@@ -2606,7 +2701,7 @@ class MailRepository(
                 return null
             }
             emailDao.deleteById(credentials.id, emailId)
-            adjustCountsForRemoval(listOfNotNull(moved), targetMailboxId)
+            adjustCountsForRemoval(listOfNotNull(moved), targetMailboxId, sourceAlreadyLeft = moving.evicted)
             return targetMailboxId
         }
         val ctx = jmapSession(credentials)
@@ -2620,27 +2715,40 @@ class MailRepository(
         }
         recentLocalMoves.mark(credentials.id, emailId)
         emailDao.deleteById(credentials.id, emailId)
-        adjustCountsForRemoval(listOfNotNull(moved), targetMailboxId)
+        adjustCountsForRemoval(listOfNotNull(moved), targetMailboxId, sourceAlreadyLeft = moving.evicted)
         advanceEmailState(newState, credentials.id, mb)
         return targetMailboxId
     }
 
     /** Nudge the drawer's cached counters when [rows] leave for [destMailboxId] (null when destroyed).
      *  Each row is decremented from its own mailboxId (INV-source); the next sync reconciles. */
-    private suspend fun adjustCountsForRemoval(rows: List<EmailEntity>, destMailboxId: String?) =
+    private suspend fun adjustCountsForRemoval(
+        rows: List<EmailEntity>,
+        destMailboxId: String?,
+        sourceAlreadyLeft: Boolean = false,
+    ) =
         rows.groupBy { it.accountId }.forEach { (accountId, group) ->
-            nudgeCounts(accountId, group.map { it.mailboxId to it.seen }, destMailboxId)
+            nudgeCounts(accountId, group.map { it.mailboxId to it.seen }, destMailboxId, sourceAlreadyLeft)
         }
 
     /** The count-nudge primitive: [sources] is (sourceMailboxId, seen) per row; an Undo reuses it in
-     *  reverse. Scoped to [accountId], or a nudge from the unified inbox moves a sibling's badge. */
-    private suspend fun nudgeCounts(accountId: String, sources: List<Pair<String, Boolean>>, destMailboxId: String?) {
+     *  reverse. Scoped to [accountId], or a nudge from the unified inbox moves a sibling's badge.
+     *  [sourceAlreadyLeft] is the swipe that evicted its row at the finger ([beginRemoval]): the
+     *  source was decounted there, and decounting it again takes the message off its folder twice. */
+    private suspend fun nudgeCounts(
+        accountId: String,
+        sources: List<Pair<String, Boolean>>,
+        destMailboxId: String?,
+        sourceAlreadyLeft: Boolean = false,
+    ) {
         val imap = isImapAccount(accountId)
-        sources.groupBy { it.first }.forEach { (src, group) ->
-            if (src == destMailboxId) return@forEach
-            val unread = group.count { !it.second }
-            accountStore.adjustInboxUnread(accountId, src, -unread)
-            if (!imap) mailboxDao.adjustCounts(accountId, src, totalDelta = -group.size, unreadDelta = -unread)
+        if (!sourceAlreadyLeft) {
+            sources.groupBy { it.first }.forEach { (src, group) ->
+                if (src == destMailboxId) return@forEach
+                val unread = group.count { !it.second }
+                accountStore.adjustInboxUnread(accountId, src, -unread)
+                if (!imap) mailboxDao.adjustCounts(accountId, src, totalDelta = -group.size, unreadDelta = -unread)
+            }
         }
         if (destMailboxId != null) {
             val incoming = sources.filter { it.first != destMailboxId }
@@ -2767,12 +2875,19 @@ class MailRepository(
 
     /** Opt-in mark-read-on-archive/delete for a bulk action. Must run before the mover reads its rows
      *  for the count nudge, or the unread badge is decremented twice. */
-    private suspend fun markSelectionRead(credentials: AccountCredentials, emailIds: List<String>) {
+    private suspend fun markSelectionRead(
+        credentials: AccountCredentials,
+        emailIds: List<String>,
+        alsoInHand: List<EmailEntity> = emptyList(),
+    ) {
         // Account-scoped read (#31): same-server sub-accounts can hold colliding email ids.
-        val unread = byIdsChunked(emailIds) { chunk -> emailDao.emailsByIds(credentials.id, chunk) }
-            .filter { !it.seen }.map { it.id }
+        val cached = byIdsChunked(emailIds) { chunk -> emailDao.emailsByIds(credentials.id, chunk) }
+        // [alsoInHand] is the row a swipe is holding: the cache no longer answers for it, and this
+        // read is the whole of what decides whether the option fires.
+        val unread = (cached + alsoInHand).distinctBy { it.id }.filter { !it.seen }.map { it.id }
         if (unread.isEmpty()) return
         runCatching { setReadAll(credentials, unread, true) }
+            .onSuccess { unread.forEach { flightMarkedSeen(credentials.id, it) } }
     }
 
     /** Opt-in mark-read-on-move (#67), scoped to messages leaving the Inbox: a move between two other
@@ -2781,6 +2896,7 @@ class MailRepository(
         credentials: AccountCredentials,
         emailIds: List<String>,
         targetMailboxId: String,
+        alsoInHand: List<EmailEntity> = emptyList(),
     ) {
         if (settings?.markReadOnMove?.first() != true) return
         val inbox = runCatching { roleMailboxId(credentials, "inbox") }.getOrNull() ?: return
@@ -2789,10 +2905,10 @@ class MailRepository(
             emailIds.filter { ImapMailService.mailboxOf(it) == inbox }
         } else {
             // Account-scoped (issue #31): resolve source folders within this account only.
-            byIdsChunked(emailIds) { chunk -> emailDao.emailsByIds(credentials.id, chunk) }
-                .filter { it.mailboxId == inbox }.map { it.id }
+            (byIdsChunked(emailIds) { chunk -> emailDao.emailsByIds(credentials.id, chunk) } + alsoInHand)
+                .distinctBy { it.id }.filter { it.mailboxId == inbox }.map { it.id }
         }
-        if (leaving.isNotEmpty()) markSelectionRead(credentials, leaving)
+        if (leaving.isNotEmpty()) markSelectionRead(credentials, leaving, alsoInHand)
     }
 
     /** Archive a whole selection (one account). [expectedUidValidity] is each source folder's numbering
@@ -3201,10 +3317,12 @@ class MailRepository(
         // Same rule as every other mover (#99): an individual gesture leaves the destroy list.
         unlistFromTrashPurge(credentials.id, listOf(emailId))
         // Opt-in: flag the message read on its way out, best-effort before the move (the id changes).
-        if (settings?.markReadOnDelete?.first() == true && emailDao.seenOf(credentials.id, emailId) == false) {
+        if (settings?.markReadOnDelete?.first() == true && movingSeen(credentials.id, emailId) == false) {
             runCatching { setRead(credentials, emailId, true) }
+                .onSuccess { flightMarkedSeen(credentials.id, emailId) }
         }
-        val row = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull()
+        val moving = movingRow(credentials.id, emailId)
+        val row = moving.entity
         if (credentials.protocol == MailProtocol.IMAP) {
             val trash = imapRoleFolder(credentials, "trash") ?: run { imap.createFolder(credentials, "Trash"); "Trash" }
             imapTarget(emailId)?.let { (mb, uid) ->
@@ -3224,7 +3342,7 @@ class MailRepository(
                 }
             }
             emailDao.deleteById(credentials.id, emailId)
-            adjustCountsForRemoval(listOfNotNull(row), trash)
+            adjustCountsForRemoval(listOfNotNull(row), trash, sourceAlreadyLeft = moving.evicted)
             return trash
         }
         val ctx = jmapSession(credentials)
@@ -3239,7 +3357,7 @@ class MailRepository(
         }
         recentLocalMoves.mark(credentials.id, emailId)
         emailDao.deleteById(credentials.id, emailId)
-        adjustCountsForRemoval(listOfNotNull(row), trash)
+        adjustCountsForRemoval(listOfNotNull(row), trash, sourceAlreadyLeft = moving.evicted)
         advanceEmailState(newState, credentials.id, mb)
         return trash
     }
@@ -3515,7 +3633,7 @@ class MailRepository(
             e.toEntity(credentials.id, mailbox)
         }
         if (entities.isNotEmpty()) runCatching {
-            emailDao.upsertAll(entities)
+            emailDao.upsertAll(sparingInFlight(entities))
             // Guard the fresh rows through the reconcile window, or the next full re-query prunes every
             // non-representative member back out, leaving the chip at 1 with its members unreachable.
             entities.forEach { markRecentlyMutated(credentials.id, it.id) }
@@ -3639,7 +3757,7 @@ class MailRepository(
             // reads no body, so raw rows would blank the `preview` column (#187).
             loads.forEach { load ->
                 val cached = emailDao.cachedPreviews(credentials.id, load.messages.map { it.id }, load.uidValidity)
-                emailDao.upsertAll(keepingCachedPreviews(load.messages, cached.associate { it.id to it.preview }))
+                emailDao.upsertAll(sparingInFlight(keepingCachedPreviews(load.messages, cached.associate { it.id to it.preview })))
             }
             // No departures on IMAP: re-reading a folder says what it holds, never what left (#134).
             return loads.map { load ->

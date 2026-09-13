@@ -2,6 +2,7 @@ package app.sterna.ui.inbox
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -13,15 +14,16 @@ class SwipeRewindWiringTest {
 
     // -- the view model: who says a swipe did not take --------------------------------------------
 
-    @Test fun `the swipe's failure arm reports the row, by its account-qualified key`() {
-        val writes = failureArmLines().filter { "_swipeRewind" in it }
+    @Test fun `the swipe reports the row it put back, by its account-qualified key`() {
+        val block = putBackLines()
         assertEquals(
-            "swipeRemove's onFailure must report exactly one thing to the rewind set: the key of " +
-                "the row that flew off. Compared whole, so `+ emptySet()`, `+ EmailKey(null, " +
-                "email.id)` or a bare id are all a different line. Arm was:\n" +
-                failureArmLines().joinToString("\n"),
+            "the put-back must report exactly one thing to the rewind set: the key of the row that " +
+                "flew off. Compared whole, so `+ emptySet()`, `+ EmailKey(null, email.id)` or a " +
+                "bare id are all a different line. It sits here and not in the failure arm because " +
+                "a write that moved nothing puts the row back too, and that row flew off the same " +
+                "way. Block was:\n" + block.joinToString("\n"),
             listOf("_swipeRewind.value = _swipeRewind.value + email.emailKey()"),
-            writes,
+            block.filter { "_swipeRewind" in it },
         )
     }
 
@@ -49,7 +51,7 @@ class SwipeRewindWiringTest {
     @Test fun `nothing else in the view model writes the set`() {
         val writes = codeLines(INBOX_VIEW_MODEL).map { it.trim() }.filter { "_swipeRewind.value =" in it }
         assertEquals(
-            "exactly two writers: the swipe's failure arm (report) and swipeRewound (forget). A " +
+            "exactly two writers: the swipe's put-back (report) and swipeRewound (forget). A " +
                 "third is another path quietly rewinding rows, and the folded-thread twin " +
                 "(threadSwipeRemove) is deliberately NOT one of them — that path is out of this " +
                 "branch's scope. Writers found:\n${writes.joinToString("\n")}",
@@ -57,14 +59,77 @@ class SwipeRewindWiringTest {
         )
     }
 
-    /** Witness, deliberately out of scope: the failure arm must still do everything it already did. */
-    @Test fun `the failure arm still restores and reconciles, and still drops nothing locally`() {
-        val arm = failureArmLines()
+    /** The order this branch inverted, and the verdict the put-back must rest on. */
+    @Test fun `the row goes out before the write, and only the write brings it back`() {
+        val body = swipeRemoveLines()
+        val evicted = body.indexOfFirst { it.startsWith("val flight = repo.beginRemoval(") }
+        val written = body.indexOfFirst { "runCatching { op(credentials, email.id) }" in it }
+        val back = body.indexOfFirst { "repo.endRemoval(" in it }
         assertTrue(
-            "the row was never dropped locally (network-first), so the arm must keep " +
-                "restoreSearchResults + refresh() and must NOT have gained a local eviction — " +
-                "that would hide a message still on the server. Arm was:\n${arm.joinToString("\n")}",
-            "restoreSearchResults(listOf(email.emailKey()))" in arm && "refresh()" in arm,
+            "the eviction must come FIRST, then the write, then the put-back. That order is the " +
+                "whole branch: an eviction that waits for the ack is the reported defect (the " +
+                "line sits under the finger for up to ten seconds), and a put-back decided before " +
+                "the write is a row that never leaves at all. Found beginRemoval at $evicted, the " +
+                "write at $written, endRemoval at $back. Body was:\n${body.joinToString("\n")}",
+            evicted >= 0 && written > evicted && back > written,
+        )
+        assertEquals(
+            "and the put-back must rest on the write's own verdict, whole, with no verdict at all " +
+                "reading as `put it back`: a constant there undoes the branch in one word, and an " +
+                "`outcome!!` turns a cancelled gesture into a crash.",
+            listOf("flight?.let { repo.endRemoval(it, restore = outcome?.putsRowBack ?: true) }"),
+            body.filter { "repo.endRemoval(" in it },
+        )
+    }
+
+    @Test fun `the flight is ended even when the scope dies mid-write`() {
+        val body = swipeRemoveLines()
+        val finally = body.indexOfFirst { it.startsWith("} finally {") }
+        val back = body.indexOfFirst { "repo.endRemoval(" in it }
+        assertTrue(
+            "the put-back must sit in a `finally`, under withContext(NonCancellable). A system " +
+                "back gesture ends the activity and cancels this scope while the write is " +
+                "suspended: without both, endRemoval is never reached, the key stays in the " +
+                "repository for the life of the process, and every page read from the server is " +
+                "filtered against a message that is still in its folder — it is in no list until " +
+                "the process restarts. Body was:\n${body.joinToString("\n")}",
+            finally >= 0 && back > finally &&
+                body.subList(finally, back).any { it.startsWith("withContext(NonCancellable)") },
+        )
+    }
+
+    @Test fun `the put-back takes the offer back with the row, and reconciles nothing`() {
+        val block = putBackLines()
+        assertTrue(
+            "the put-back must take back the Undo offered when the finger left — an Undo standing " +
+                "over a write that moved nothing offers to reverse a departure that never " +
+                "happened — and put the row back into the search results it was taken out of. " +
+                "Block was:\n" + block.joinToString("\n"),
+            "retractUndo(posted)" in block && "restoreSearchResults(listOf(email.emailKey()))" in block,
+        )
+        assertFalse(
+            "and nothing here may reconcile: the row is back from the copy the repository held, " +
+                "with no network at all, and a refresh() would race that put-back exactly as it " +
+                "would race undo()'s optimistic restore. Body was:\n" +
+                swipeRemoveLines().joinToString("\n"),
+            swipeRemoveLines().any { it == "refresh()" },
+        )
+    }
+
+    @Test fun `undo sends nothing for a write that never landed`() {
+        val body = functionBody(INBOX_VIEW_MODEL, "fun undo()")
+        val gate = body.indexOfFirst { it.startsWith("if (!action.mayReverse) return@launch") }
+        val join = body.indexOfFirst { it.startsWith("swipeFlight?.join()") }
+        val send = body.indexOfFirst { "repo.restoreAll(" in it }
+        assertTrue(
+            "undo() must wait for the swipe's own write and then refuse to reverse one that never " +
+                "landed. The bar is on screen from the moment the finger leaves, so Undo can be " +
+                "pressed while the write is still out: without the wait the two writes race, and " +
+                "without the gate a refused swipe sends a move back for a message that never " +
+                "moved — offline that fails too, and the reader gets a second error banner over a " +
+                "row that is already home. UndoFlightTest runs what `mayReverse` answers. Body " +
+                "was:\n${body.joinToString("\n")}",
+            join >= 0 && gate > join && send > gate,
         )
     }
 
@@ -216,6 +281,20 @@ class SwipeRewindWiringTest {
 
     /** The body of `SwipeableEmailRow`, comments stripped. */
     private fun row(): String = body(INBOX_SCREEN, "SwipeableEmailRow")
+
+    private fun putBackLines(): List<String> {
+        val text = code(INBOX_VIEW_MODEL)
+        val start = text.indexOf("if (verdict.putsRowBack) {")
+        check(start >= 0) { "swipeRemove has no put-back block any more — what puts the row back?" }
+        return balanced(text, start, '{', '}').lines().map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    private fun swipeRemoveLines(): List<String> {
+        val text = code(INBOX_VIEW_MODEL)
+        val start = text.indexOf("private fun swipeRemove(")
+        check(start >= 0) { "InboxViewModel.kt declares no swipeRemove — did it get renamed?" }
+        return balanced(text, start, '{', '}').lines().map { it.trim() }.filter { it.isNotEmpty() }
+    }
 
     /**
      * The code lines of the `.onFailure { … }` arm of `swipeRemove`, trimmed, comments already off.

@@ -13,11 +13,14 @@ class ActionFailureWiringTest {
 
     @Test fun `the swipe's failure arm is pinned whole`() {
         assertEquals(
-            "swipeRemove's onFailure must log the throwable, show the sentence the shared decision " +
-                "picks, put the row back in the search results and reconcile the list — in that " +
-                "order and nothing else. The `refresh()` and `restoreSearchResults` calls are part " +
-                "of the pin on purpose: the failed row was never dropped locally, and dropping " +
-                "either leaves the list lying about what is on the server.",
+            "swipeRemove's onFailure must log the throwable and show the sentence the shared " +
+                "decision picks — in that order and nothing else. Putting the row back, taking " +
+                "the Undo offer down and sending the flown row home are NOT here any more and " +
+                "must not come back: a write that moved nothing owes the reader all three and no " +
+                "banner at all, so they live in the put-back this arm shares with it " +
+                "(SwipeRewindWiringTest pins that block). `refresh()` is gone for its own reason: " +
+                "the row comes back from the copy the repository held, and a reconcile would race " +
+                "that put-back the way it would race undo()'s restore.",
             SWIPE_ARM, arm("private fun swipeRemove("),
         )
     }
@@ -248,10 +251,7 @@ class ActionFailureWiringTest {
         private val SWIPE_ARM =
             "val app = getApplication<Application>() " +
                 "android.util.Log.w(\"SternaInbox\", \"swipe action failed\", it) " +
-                "_message.value = app.getString(actionFailureMessage(it, online = hasUsableNetwork(app))) " +
-                "restoreSearchResults(listOf(email.emailKey())) " +
-                "_swipeRewind.value = _swipeRewind.value + email.emailKey() " +
-                "refresh()"
+                "_message.value = app.getString(actionFailureMessage(it, online = hasUsableNetwork(app)))"
 
         private val UNDO_ARM =
             "unrestored += entries.size " +
