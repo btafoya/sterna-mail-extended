@@ -53,6 +53,7 @@ import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
@@ -107,10 +108,11 @@ class JmapClient internal constructor(
                             httpCode = response.code,
                         )
                     }
-                    runCatching { json.decodeFromString<JmapSession>(body) }
+                    val parsed = runCatching { json.decodeFromString<JmapSession>(body) }
                         .getOrElse { throw JmapException("Could not parse JMAP session", it) }
+                    upgradeSessionUrls(parsed, landedAt.toString())
                 }
-                if (session != null) return@withContext upgradeSessionUrls(session, url)
+                if (session != null) return@withContext session
             }
             @Suppress("UNREACHABLE_CODE")
             throw IllegalStateException("unreachable")
@@ -2602,19 +2604,61 @@ class JmapClient internal constructor(
             return requested.host != landedAt.host || requested.port != landedAt.port
         }
 
-            /**
-             * Defensively upgrade the session-advertised URLs from http:// to https:// when the
-             * session itself was fetched over an https [sessionUrl]: a TLS reverse proxy that does
-             * not honour X-Forwarded-Proto advertises http:// URLs it never serves.
-             */
+        /** URLs without a scheme made absolute against [sessionUrl], the address the session came from after
+         *  redirects, then http:// moved to https:// if that is https (a proxy ignoring X-Forwarded-Proto). */
         internal fun upgradeSessionUrls(session: JmapSession, sessionUrl: String): JmapSession {
-            if (!sessionUrl.startsWith("https://", ignoreCase = true)) return session
-            return session.copy(
-                apiUrl = upgradeScheme(session.apiUrl)!!,
-                downloadUrl = upgradeScheme(session.downloadUrl),
-                uploadUrl = upgradeScheme(session.uploadUrl),
-                eventSourceUrl = upgradeScheme(session.eventSourceUrl),
+            val base = sessionUrl.toHttpUrlOrNull()
+            fun resolved(url: String?) = if (url != null && base != null) resolveReference(url, base) else url
+            val absolute = session.copy(
+                apiUrl = resolved(session.apiUrl)!!,
+                downloadUrl = resolved(session.downloadUrl),
+                uploadUrl = resolved(session.uploadUrl),
+                eventSourceUrl = resolved(session.eventSourceUrl),
             )
+            if (!sessionUrl.startsWith("https://", ignoreCase = true)) return absolute
+            return absolute.copy(
+                apiUrl = upgradeScheme(absolute.apiUrl)!!,
+                downloadUrl = upgradeScheme(absolute.downloadUrl),
+                uploadUrl = upgradeScheme(absolute.uploadUrl),
+                eventSourceUrl = upgradeScheme(absolute.eventSourceUrl),
+            )
+        }
+
+        private val URI_SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.-]*:")
+
+        /** RFC 3986 §5.2 on the string: `HttpUrl.resolve` percent-encodes the braces of the RFC 6570 templates
+         *  `downloadBlob` fills with `replace("{blobId}", …)`, leaving each placeholder unfilled without an
+         *  error. [reference] is kept verbatim but for its `.`/`..` segments; empty or `#`-only stays as is. */
+        internal fun resolveReference(reference: String, base: HttpUrl): String {
+            if (reference.isEmpty() || reference.startsWith("#") || URI_SCHEME.containsMatchIn(reference)) {
+                return reference
+            }
+            if (reference.startsWith("//")) return "${base.scheme}:$reference"
+            val host = if (':' in base.host) "[${base.host}]" else base.host
+            val port = if (base.port == HttpUrl.defaultPort(base.scheme)) "" else ":${base.port}"
+            val origin = "${base.scheme}://$host$port"
+            if (reference.startsWith("?")) return origin + base.encodedPath + reference
+            val merged = if (reference.startsWith("/")) {
+                reference
+            } else {
+                base.encodedPath.substringBeforeLast('/') + "/" + reference
+            }
+            val pathEnd = merged.indexOfAny(charArrayOf('?', '#')).let { if (it < 0) merged.length else it }
+            return origin + removeDotSegments(merged.substring(0, pathEnd)) + merged.substring(pathEnd)
+        }
+
+        private fun removeDotSegments(path: String): String {
+            val segments = path.split('/')
+            val out = ArrayList<String>(segments.size)
+            segments.forEachIndexed { i, segment ->
+                when (segment) {
+                    "." -> Unit
+                    ".." -> if (out.size > 1) out.removeAt(out.lastIndex)
+                    else -> out.add(segment)
+                }
+                if ((segment == "." || segment == "..") && i == segments.lastIndex) out.add("")
+            }
+            return out.joinToString("/")
         }
 
         /** Rewrite a leading `http://` to `https://`; leave null and already-https URLs untouched. */

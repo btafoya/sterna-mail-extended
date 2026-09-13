@@ -330,6 +330,168 @@ class JmapClientTest {
         assertEquals("http://mail.example.com/jmap/download/", session.downloadUrl)
     }
 
+    @Test fun fetchSession_resolvesHostlessSessionUrlsSoTheirCallsReachTheServer() = runBlocking {
+        val origin = server.url("/").toString().removeSuffix("/")
+        server.enqueue(MockResponse().setResponseCode(301).setHeader("Location", "/jmap"))
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(HOSTLESS_SESSION_JSON),
+        )
+        server.enqueue(MockResponse().setBody(MAILBOX_JSON))
+        server.enqueue(MockResponse().setBody("%PDF-1.4"))
+        val auth = BasicAuth("u", "p")
+
+        val session = client.fetchSession(server.url("/.well-known/jmap").toString(), auth)
+        assertEquals(2, client.getMailboxes(session, "acc1", auth).size)
+        val bytes = client.downloadBlob(session, "acc1", "blob-1", "application/pdf", "report.pdf", auth)
+
+        assertEquals("%PDF-1.4", String(bytes))
+        assertEquals("/.well-known/jmap", server.takeRequest().path)
+        assertEquals("/jmap", server.takeRequest().path)
+        assertEquals("/jmap/", server.takeRequest().path)
+        assertEquals("/jmap/download/acc1/blob-1/report.pdf?accept=application%2Fpdf", server.takeRequest().path)
+        assertEquals("$origin/jmap/", session.apiUrl)
+        assertEquals("$origin/jmap/upload/{accountId}/", session.uploadUrl)
+        assertEquals("$origin/jmap/eventsource/?types={types}&closeafter={closeafter}&ping={ping}", session.eventSourceUrl)
+    }
+
+    @Test fun fetchSession_resolvesAPathRelativeApiUrlAgainstWhereTheRedirectLanded() = runBlocking {
+        val origin = server.url("/").toString().removeSuffix("/")
+        server.enqueue(MockResponse().setResponseCode(301).setHeader("Location", "/jmap/session"))
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json")
+                .setBody(SESSION_JSON.replace("\"https://mail.example.com/jmap/api/\"", "\"api/\"")),
+        )
+        server.enqueue(MockResponse().setBody(MAILBOX_JSON))
+        val auth = BasicAuth("u", "p")
+
+        val session = client.fetchSession(server.url("/.well-known/jmap").toString(), auth)
+        assertEquals(2, client.getMailboxes(session, "acc1", auth).size)
+
+        server.takeRequest()
+        server.takeRequest()
+        assertEquals("/jmap/api/", server.takeRequest().path)
+        assertEquals("$origin/jmap/api/", session.apiUrl)
+    }
+
+    @Test fun upgradeSessionUrls_resolvesAPathRelativeUrlAgainstTheDirectoryOfTheSessionAddress() {
+        val raw = JmapSession(apiUrl = "api/")
+
+        val resolved = JmapClient.upgradeSessionUrls(raw, "https://mail.example.com/jmap/session")
+
+        assertEquals("https://mail.example.com/jmap/api/", resolved.apiUrl)
+    }
+
+    @Test fun upgradeSessionUrls_givesANetworkPathUrlTheSchemeOfTheSessionAddress() {
+        val raw = JmapSession(apiUrl = "//api.example.net/jmap/")
+
+        val resolved = JmapClient.upgradeSessionUrls(raw, "https://mail.example.com/.well-known/jmap")
+
+        assertEquals("https://api.example.net/jmap/", resolved.apiUrl)
+    }
+
+    @Test fun upgradeSessionUrls_keepsANonStandardPortWhenResolvingARootRelativeUrl() {
+        val raw = JmapSession(apiUrl = "/jmap/api/")
+
+        val resolved = JmapClient.upgradeSessionUrls(raw, "https://mail.example.com:8443/jmap")
+
+        assertEquals("https://mail.example.com:8443/jmap/api/", resolved.apiUrl)
+    }
+
+    @Test fun upgradeSessionUrls_bracketsAnIpv6HostWhenResolvingARootRelativeUrl() {
+        val raw = JmapSession(apiUrl = "/jmap/api/")
+
+        val resolved = JmapClient.upgradeSessionUrls(raw, "http://[::1]:8080/jmap")
+
+        assertEquals("http://[::1]:8080/jmap/api/", resolved.apiUrl)
+    }
+
+    @Test fun upgradeSessionUrls_bracketsAnIpv6HostThatDoesNotStartWithAColon() {
+        val raw = JmapSession(apiUrl = "/jmap/api/")
+
+        val resolved = JmapClient.upgradeSessionUrls(raw, "http://[2001:db8::1]:8080/jmap")
+
+        assertEquals("http://[2001:db8::1]:8080/jmap/api/", resolved.apiUrl)
+    }
+
+    @Test fun upgradeSessionUrls_neverClimbsAboveTheRootOnDotDotSegments() {
+        val raw = JmapSession(apiUrl = "../../../g", downloadUrl = "/../g")
+
+        val resolved = JmapClient.upgradeSessionUrls(raw, "https://a.example/b/c/d;p?q")
+
+        assertEquals("https://a.example/g", resolved.apiUrl)
+        assertEquals("https://a.example/g", resolved.downloadUrl)
+    }
+
+    @Test fun upgradeSessionUrls_endsWithASlashWhenTheLastSegmentIsADotOrDotDot() {
+        val raw = JmapSession(apiUrl = "g/.", downloadUrl = "..")
+
+        val resolved = JmapClient.upgradeSessionUrls(raw, "https://a.example/b/c/d;p?q")
+
+        assertEquals("https://a.example/b/c/g/", resolved.apiUrl)
+        assertEquals("https://a.example/b/", resolved.downloadUrl)
+    }
+
+    @Test fun upgradeSessionUrls_keepsTheWholeBasePathForAQueryOnlyReference() {
+        val raw = JmapSession(apiUrl = "?y")
+
+        val resolved = JmapClient.upgradeSessionUrls(raw, "https://a.example/b/c/d;p?q")
+
+        assertEquals("https://a.example/b/c/d;p?y", resolved.apiUrl)
+    }
+
+    @Test fun upgradeSessionUrls_leavesAnAbsoluteUrlOnAnotherHostWhereItPoints() {
+        val raw = JmapSession(apiUrl = "https://api.example.net/jmap/")
+
+        val resolved = JmapClient.upgradeSessionUrls(raw, "https://mail.example.com/.well-known/jmap")
+
+        assertEquals("https://api.example.net/jmap/", resolved.apiUrl)
+    }
+
+    @Test fun upgradeSessionUrls_keepsTemplateBracesOfAResolvedUrlVerbatim() {
+        val raw = JmapSession(
+            apiUrl = "/jmap/",
+            downloadUrl = "/jmap/download/{accountId}/{blobId}/{name}?accept={type}",
+            uploadUrl = "upload/{accountId}/",
+            eventSourceUrl = "/jmap/eventsource/?types={types}&closeafter={closeafter}&ping={ping}",
+        )
+
+        val resolved = JmapClient.upgradeSessionUrls(raw, "https://mail.example.com/jmap")
+
+        assertEquals("https://mail.example.com/jmap/download/{accountId}/{blobId}/{name}?accept={type}", resolved.downloadUrl)
+        assertEquals("https://mail.example.com/upload/{accountId}/", resolved.uploadUrl)
+        assertEquals(
+            "https://mail.example.com/jmap/eventsource/?types={types}&closeafter={closeafter}&ping={ping}",
+            resolved.eventSourceUrl,
+        )
+    }
+
+    @Test fun upgradeSessionUrls_resolvesHostlessUrlsOfASessionReadInTheClear() {
+        val raw = JmapSession(apiUrl = "/jmap/api/", downloadUrl = "http://mail.example.com/jmap/download/")
+
+        val resolved = JmapClient.upgradeSessionUrls(raw, "http://mail.example.com:8080/jmap")
+
+        assertEquals("http://mail.example.com:8080/jmap/api/", resolved.apiUrl)
+        assertEquals("http://mail.example.com/jmap/download/", resolved.downloadUrl)
+    }
+
+    @Test fun upgradeSessionUrls_removesDotSegmentsOfAPathRelativeUrl() {
+        val raw = JmapSession(apiUrl = "../api/./", uploadUrl = "/jmap/../upload/")
+
+        val resolved = JmapClient.upgradeSessionUrls(raw, "https://mail.example.com/jmap/session/get")
+
+        assertEquals("https://mail.example.com/jmap/api/", resolved.apiUrl)
+        assertEquals("https://mail.example.com/upload/", resolved.uploadUrl)
+    }
+
+    @Test fun upgradeSessionUrls_leavesAnUnresolvableReferenceAsItCame() {
+        val raw = JmapSession(apiUrl = "", downloadUrl = "#download")
+
+        val resolved = JmapClient.upgradeSessionUrls(raw, "https://mail.example.com/jmap")
+
+        assertEquals("", resolved.apiUrl)
+        assertEquals("#download", resolved.downloadUrl)
+    }
+
     @Test fun getMailboxes_parsesList() = runBlocking {
         server.enqueue(MockResponse().setBody(MAILBOX_JSON))
 
@@ -2300,6 +2462,25 @@ class JmapClientTest {
               "downloadUrl": "http://mail.example.com/jmap/download/",
               "uploadUrl": "http://mail.example.com/jmap/upload/",
               "eventSourceUrl": "http://mail.example.com/jmap/eventsource/",
+              "state": "s1"
+            }
+        """
+
+        const val HOSTLESS_SESSION_JSON = """
+            {
+              "capabilities": {
+                "urn:ietf:params:jmap:core": {},
+                "urn:ietf:params:jmap:mail": {}
+              },
+              "accounts": {
+                "acc1": { "name": "u" }
+              },
+              "primaryAccounts": { "urn:ietf:params:jmap:mail": "acc1" },
+              "username": "u",
+              "apiUrl": "/jmap/",
+              "downloadUrl": "/jmap/download/{accountId}/{blobId}/{name}?accept={type}",
+              "uploadUrl": "/jmap/upload/{accountId}/",
+              "eventSourceUrl": "/jmap/eventsource/?types={types}&closeafter={closeafter}&ping={ping}",
               "state": "s1"
             }
         """

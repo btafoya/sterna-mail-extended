@@ -110,7 +110,9 @@ Out of scope:
 - **The session document carries the same trust.** The `apiUrl`, `downloadUrl`, `uploadUrl`
   and `eventSourceUrl` a server advertises are called with your credentials, whichever host
   they name. An `http://` URL advertised over a session that was itself fetched over HTTPS is
-  rewritten to `https://` rather than followed in the clear.
+  rewritten to `https://` rather than followed in the clear. A URL given without a host is
+  resolved against the address the session was served from, after redirects, and so goes to
+  that server.
 - **The OAuth calls that carry a secret follow no redirect at all.** The four POSTs of the
   OAuth flows (device authorization, device-token polling, the authorization-code exchange,
   and every token refresh) use a client of their own, not the JMAP one, built with
