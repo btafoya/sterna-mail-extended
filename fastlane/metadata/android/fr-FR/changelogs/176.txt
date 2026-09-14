@@ -1,0 +1,7 @@
+Les comptes IMAP ont les filtres, le blocage d'expéditeur et la réponse automatique quand leur serveur les propose par ManageSieve.
+
+Le chinois simplifié devient la dixième langue, avec des préréglages IMAP pour QQ, 163, 126, Yeah et Sina Mail.
+
+Un message balayé n'attend plus le serveur pour quitter la liste.
+
+Corrigé : un message balayé juste avant l'arrêt de l'app revient au lieu d'être perdu ; une session JMAP à adresses relatives ne fait plus échouer la première synchro.

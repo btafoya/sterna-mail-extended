@@ -1,0 +1,7 @@
+IMAP accounts get filter rules, sender blocking and the automatic reply when their server offers them over ManageSieve.
+
+Simplified Chinese is the tenth language, with IMAP presets for QQ, 163, 126, Yeah and Sina Mail.
+
+A swiped message no longer waits for the server before leaving the list.
+
+Fixed: a message swiped just before the app was killed comes back instead of being lost; a JMAP session giving relative addresses no longer fails the first sync.
