@@ -567,12 +567,15 @@
     <string name="settings_vacation_save">保存</string>
     <string name="settings_vacation_saved">自动回复已保存</string>
     <string name="settings_vacation_unsupported">您的邮件服务器不支持自动回复。</string>
-    <string name="settings_vacation_imap_account">自动回复仅适用于通过 JMAP 添加的账户。</string>
+    <string name="settings_vacation_imap_account">此账户的登录方式不支持自动回复。</string>
     <string name="settings_vacation_no_account">没有可用账户。</string>
     <string name="settings_vacation_invalid_dates">开始日期必须早于结束日期。</string>
     <string name="settings_vacation_save_error">无法保存：%1$s</string>
     <string name="settings_vacation_load_error">无法加载：%1$s</string>
     <string name="settings_vacation_retry">重试</string>
+    <string name="settings_vacation_overwrite_title">替换过滤脚本？</string>
+    <string name="settings_vacation_overwrite_body">此账户上启用的是其他应用的过滤脚本，或 Sterna Mail 无法读取自己脚本的部分内容。保存将停用该其他脚本，Sterna Mail 在自己脚本中无法读取的内容都将丢失。</string>
+    <string name="settings_vacation_overwrite_confirm">替换</string>
     <string name="settings_ok">确定</string>
     <string name="settings_filters_title">过滤规则</string>
     <string name="settings_filters_summary">服务器端规则 (Sieve)</string>

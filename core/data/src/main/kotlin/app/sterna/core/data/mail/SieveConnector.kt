@@ -9,6 +9,9 @@ import app.sterna.core.imap.SieveScriptInfo
 
 /** The ManageSieve commands [MailAccounts] sends inside one authenticated connection. */
 interface SieveScripts {
+    /** The Sieve extensions the server advertised after `STARTTLS`, as listed. */
+    val sieveExtensions: List<String>
+
     fun listScripts(): List<SieveScriptInfo>
 
     fun getScript(name: String): String
@@ -40,6 +43,7 @@ internal class ManageSieveConnector(private val client: ManageSieveClient = Mana
     ): T = client.session(host, port, username, password) { SessionScripts(this).block() }
 
     private class SessionScripts(private val session: ManageSieveSession) : SieveScripts {
+        override val sieveExtensions: List<String> get() = session.capabilities.sieveExtensions
         override fun listScripts(): List<SieveScriptInfo> = session.listScripts()
         override fun getScript(name: String): String = session.getScript(name)
         override fun checkScript(script: String): Boolean = session.checkScript(script)

@@ -136,4 +136,73 @@ class SieveCodecTest {
         assertTrue(SieveCodec.parseRules("# STERNA-RULES-V1: {oops").isEmpty())
         assertTrue(SieveCodec.parseRules("if true { keep; }").isEmpty())
     }
+
+    private val boss = FilterRule(name = "Boss", value = "boss@example.com", moveTo = "Work")
+
+    @Test fun `the auto-reply marker gives back what was written, rules untouched`() {
+        val vacations = listOf(
+            SieveVacation(),
+            SieveVacation(isEnabled = true, textBody = "Back soon"),
+            SieveVacation(
+                isEnabled = true, fromDate = "2026-09-14T00:00:00Z", toDate = "2026-09-20T23:59:59Z",
+                subject = "休假中 \"out\"", textBody = "Line one\r\nLine two\n\n# STERNA-VACATION-V1: {}\\",
+                addresses = listOf("me@example.com", "alias@example.com"),
+            ),
+            SieveVacation(isEnabled = false, toDate = "2026-09-20T23:59:59.250Z", subject = "", addresses = listOf("x@y.z")),
+            SieveVacation(isEnabled = true, textBody = "Back soon", trashFolder = "INBOX/项目 \"Trash\""),
+        )
+        for (vacation in vacations) {
+            val script = SieveCodec.generate(listOf(boss), vacation)
+            assertEquals(VacationMarker.Found(vacation), SieveCodec.readVacation(script))
+            assertEquals(listOf(boss), SieveCodec.parseRulesOrNull(script))
+            assertEquals(
+                "a multi-line text must fit the marker on ONE line, the second: $vacation",
+                VacationMarker.Found(vacation),
+                SieveCodec.readVacation(script.lines()[1]),
+            )
+        }
+    }
+
+    @Test fun `an auto-reply marker written without a Trash is found, with no Trash`() {
+        assertEquals(
+            VacationMarker.Found(
+                SieveVacation(isEnabled = true, subject = "Away", textBody = "Back soon", addresses = listOf("me@example.com")),
+            ),
+            SieveCodec.readVacation(
+                "# STERNA-RULES-V1: []\n" +
+                    """# STERNA-VACATION-V1: {"isEnabled":true,"fromDate":null,"toDate":null,""" +
+                    """"subject":"Away","textBody":"Back soon","addresses":["me@example.com"]}""" + "\n",
+            ),
+        )
+    }
+
+    @Test fun `a script with no auto-reply marker reads as absent`() {
+        assertEquals(VacationMarker.Absent, SieveCodec.readVacation(SieveCodec.generate(listOf(boss))))
+        assertEquals(VacationMarker.Absent, SieveCodec.readVacation(""))
+        assertEquals(VacationMarker.Absent, SieveCodec.readVacation("if true { keep; }"))
+    }
+
+    @Test fun `a broken auto-reply marker is unreadable, not absent`() {
+        for (payload in listOf("{oops", "[]", "", """{"isEnabled":"maybe"}""", """{"fromDate":"2026-09-14"}""", """{"toDate":"tomorrow"}""")) {
+            assertEquals(
+                payload,
+                VacationMarker.Unreadable,
+                SieveCodec.readVacation("# STERNA-RULES-V1: []\n# STERNA-VACATION-V1: $payload\n"),
+            )
+        }
+    }
+
+    @Test fun `sieveBody drops both marker lines`() {
+        assertEquals(
+            "require [\"vacation\"];\n\nvacation \"x\";",
+            SieveCodec.sieveBody(
+                "# STERNA-RULES-V1: []\r\n  # STERNA-VACATION-V1: {} \r\nrequire [\"vacation\"];\n\nvacation \"x\";\n",
+            ),
+        )
+        assertEquals(
+            "a second auto-reply marker is content like any other",
+            "keep;\n# STERNA-VACATION-V1: {}",
+            SieveCodec.sieveBody("# STERNA-VACATION-V1: {}\nkeep;\n# STERNA-VACATION-V1: {}\n"),
+        )
+    }
 }

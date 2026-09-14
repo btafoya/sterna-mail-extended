@@ -39,6 +39,7 @@ class ManageSieveConnectorWiringTest {
                 "block: SieveScripts.() -> T,",
                 "): T = client.session(host, port, username, password) { SessionScripts(this).block() }",
                 "private class SessionScripts(private val session: ManageSieveSession) : SieveScripts {",
+                "override val sieveExtensions: List<String> get() = session.capabilities.sieveExtensions",
                 "override fun listScripts(): List<SieveScriptInfo> = session.listScripts()",
                 "override fun getScript(name: String): String = session.getScript(name)",
                 "override fun checkScript(script: String): Boolean = session.checkScript(script)",

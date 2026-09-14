@@ -2,33 +2,30 @@ package app.sterna.ui.settings
 
 import androidx.annotation.StringRes
 import app.sterna.R
-import app.sterna.core.data.account.MailProtocol
+import app.sterna.core.data.mail.VacationState
 import app.sterna.core.imap.ManageSieveException
 
 /** Why the responder screen shows a note instead of its form. */
 enum class UnavailableCause {
-    /** The account was added over IMAP/SMTP; the responder goes through JMAP only. */
+    /** An IMAP account ManageSieve is never tried on: signed in with OAuth, or without an IMAP host. */
     IMAP_ACCOUNT,
 
-    /** A JMAP server that does not advertise the capability. */
+    /** The server was asked and lacks the support, over JMAP or ManageSieve. */
     SERVER,
 }
 
-/**
- * `loadVacation` answers the same bare `Unsupported` for both causes, and that type stays shared, so
- * the account's protocol is what tells them apart. No round trip: an IMAP account is refused before
- * the server is asked anything.
- */
-internal fun unavailableCauseOf(protocol: MailProtocol): UnavailableCause = when (protocol) {
-    MailProtocol.IMAP -> UnavailableCause.IMAP_ACCOUNT
-    MailProtocol.JMAP -> UnavailableCause.SERVER
+/** Null for a loaded responder, which has no cause to show. */
+internal fun unavailableCauseOf(state: VacationState): UnavailableCause? = when (state) {
+    VacationState.AccountUnsupported -> UnavailableCause.IMAP_ACCOUNT
+    VacationState.Unsupported -> UnavailableCause.SERVER
+    is VacationState.Loaded -> null
 }
 
-internal fun vacationUnavailableState(protocol: MailProtocol, accountLabel: String): VacationUiState =
+internal fun vacationUnavailableState(state: VacationState, accountLabel: String): VacationUiState =
     VacationUiState(
         loading = false,
         supported = false,
-        unavailableCause = unavailableCauseOf(protocol),
+        unavailableCause = unavailableCauseOf(state),
         accountLabel = accountLabel,
     )
 

@@ -1,7 +1,7 @@
 package app.sterna.ui.settings
 
 import app.sterna.R
-import app.sterna.core.data.account.MailProtocol
+import app.sterna.core.data.mail.VacationState
 import app.sterna.core.imap.ManageSieveException
 import app.sterna.widget.DeclarationSource
 import org.junit.Assert.assertEquals
@@ -13,10 +13,10 @@ import java.io.IOException
 
 /**
  * Which sentence the responder and filters screens show when they cannot offer their form, or when
- * a filters load or save fails (#211). The responder is still JMAP only, so `loadVacation` answers
- * the same bare `Unsupported` for an IMAP account and for a JMAP server without the capability, and
- * the account's protocol tells them apart. The filters of a password IMAP account go through
- * ManageSieve, so their `Unsupported` no longer depends on the protocol, and a failed ManageSieve
+ * a filters load or save fails (#211). `loadVacation` answers `AccountUnsupported` for an IMAP
+ * account ManageSieve is never tried on, and `Unsupported` for a server that was asked and lacks the
+ * support, on either protocol, so the state tells the causes apart. The filters of a password IMAP
+ * account go through ManageSieve, so their `Unsupported` no longer depends on the protocol, and a failed ManageSieve
  * dialogue is worded by the kind of its `ManageSieveException`. The first half of this class executes
  * those decisions. The second half is a source lint, same instrument and same disclaimer as
  * [SettingsScreenHonestyTest]: it only proves the ViewModels and screens call the decisions with
@@ -26,21 +26,25 @@ class FeatureUnavailableTest {
 
     // -- the decision, executed ---------------------------------------------------------------
 
-    @Test fun `an IMAP account is told the responder depends on the account type, not the server`() {
-        val state = vacationUnavailableState(MailProtocol.IMAP, accountLabel = "alex@example.org")
+    @Test fun `an IMAP account ManageSieve is never tried on is told it depends on the account type`() {
+        val state = vacationUnavailableState(VacationState.AccountUnsupported, accountLabel = "alex@example.org")
         assertFalse("no form, so no Save, on an IMAP account", state.supported)
         assertEquals(
-            "an IMAP account must carry the IMAP cause: the server was never asked, blaming it is false",
+            "this account must carry the IMAP cause: the server was never asked, blaming it is false",
             UnavailableCause.IMAP_ACCOUNT, state.unavailableCause,
         )
         assertEquals(R.string.settings_vacation_imap_account, vacationUnavailableText(state.unavailableCause))
         assertEquals("alex@example.org", state.accountLabel)
     }
 
-    @Test fun `a JMAP server without the capability keeps the server sentence for the responder`() {
-        val state = vacationUnavailableState(MailProtocol.JMAP, accountLabel = "alex@example.org")
+    @Test fun `a server that was asked and lacks the support keeps the server sentence, on IMAP too`() {
+        val state = vacationUnavailableState(VacationState.Unsupported, accountLabel = "alex@example.org")
         assertFalse(state.supported)
-        assertEquals(UnavailableCause.SERVER, state.unavailableCause)
+        assertEquals(
+            "a JMAP server without the capability and a ManageSieve server without vacation, date or " +
+                "relational are the same fact: the server said no",
+            UnavailableCause.SERVER, state.unavailableCause,
+        )
         assertEquals(R.string.settings_vacation_unsupported, vacationUnavailableText(state.unavailableCause))
     }
 
@@ -149,15 +153,17 @@ class FeatureUnavailableTest {
 
     // -- the wiring, read as text -------------------------------------------------------------
 
-    @Test fun `the responder ViewModel decides the cause from the loaded account's protocol`() {
+    @Test fun `the responder ViewModel decides the cause from the loaded state, not the protocol`() {
         assertTrue(
-            "VacationViewModel must answer VacationState.Unsupported with " +
-                "vacationUnavailableState(protocol = credentials.protocol, accountLabel = store.accountLabel())",
+            "VacationViewModel must answer both unavailable states with " +
+                "vacationUnavailableState(state = result, accountLabel = store.accountLabel())",
             Regex(
-                "VacationState\\.Unsupported\\s*->\\s*_state\\.value\\s*=\\s*vacationUnavailableState\\(\\s*" +
-                    "protocol\\s*=\\s*credentials\\.protocol\\s*,\\s*accountLabel\\s*=\\s*store\\.accountLabel\\(\\)\\s*,?\\s*\\)",
+                "VacationState\\.Unsupported\\s*,\\s*VacationState\\.AccountUnsupported\\s*->\\s*" +
+                    "_state\\.value\\s*=\\s*vacationUnavailableState\\(\\s*" +
+                    "state\\s*=\\s*result\\s*,\\s*accountLabel\\s*=\\s*store\\.accountLabel\\(\\)\\s*,?\\s*\\)",
             ).containsMatchIn(text(VACATION_VM)),
         )
+        assertFalse("the protocol no longer says why the responder is unavailable", "credentials.protocol" in text(VACATION_VM))
     }
 
     @Test fun `the filters ViewModel answers unsupported without the account's protocol`() {

@@ -7,6 +7,7 @@ import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.OAuthCredentials
 import app.sterna.core.data.account.StoredIdentity
+import app.sterna.core.data.account.accountAddresses
 import app.sterna.core.data.account.accountKeyOf
 import app.sterna.core.data.account.resolveExistingLogin
 import app.sterna.core.data.account.resolveExistingLoginAmong
@@ -18,13 +19,16 @@ import app.sterna.core.data.db.SnoozedDao
 import app.sterna.core.data.filter.FilterRule
 import app.sterna.core.data.filter.FilterScriptStatus
 import app.sterna.core.data.filter.SieveCodec
+import app.sterna.core.data.filter.SieveVacation
 import app.sterna.core.data.filter.VACATION_SCRIPT_NAME
+import app.sterna.core.data.filter.VacationMarker
 import app.sterna.core.data.filter.enabledRuleCount
 import app.sterna.core.data.filter.loadedFilterRules
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.mail.MailRepository.DiscoveryResult
 import app.sterna.core.data.rethrowIfCancelled
 import app.sterna.core.imap.MANAGESIEVE_PORT
+import app.sterna.core.imap.SieveScriptInfo
 import app.sterna.core.jmap.BasicAuth
 import app.sterna.core.jmap.BearerAuth
 import app.sterna.core.jmap.DeviceAuthorization
@@ -433,16 +437,32 @@ class MailAccounts(
         }.rethrowIfCancelled()
     }
 
-    /** The server-side vacation responder; Unsupported for IMAP and without the capability. */
+    /**
+     * The server-side vacation responder: JMAP `VacationResponse`, or on IMAP the auto-reply kept in
+     * the `sterna` script over ManageSieve. A failed ManageSieve dialogue throws, never Unsupported.
+     */
     suspend fun loadVacation(credentials: AccountCredentials): VacationState {
-        if (credentials.protocol == MailProtocol.IMAP) return VacationState.Unsupported
+        if (credentials.protocol == MailProtocol.IMAP) return loadVacationBySieve(credentials)
         val ctx = host.jmapSession(credentials)
         val response = client.getVacationResponse(ctx.session, ctx.accountId, ctx.auth)
             ?: return VacationState.Unsupported
         return VacationState.Loaded(response)
     }
 
-    suspend fun saveVacation(credentials: AccountCredentials, vacation: VacationResponse): VacationResponse {
+    /** [trashFolder] is read on IMAP only: a JMAP `VacationResponse` has no place for it. */
+    suspend fun saveVacation(
+        credentials: AccountCredentials,
+        vacation: VacationResponse,
+        trashFolder: String? = null,
+    ): VacationResponse {
+        when (credentials.protocol) {
+            MailProtocol.IMAP -> {
+                val sieveHost = manageSieveHost(credentials)
+                    ?: throw IllegalStateException("Automatic replies are not available for this account")
+                return saveVacationBySieve(sieveHost, credentials, vacation, trashFolder)
+            }
+            MailProtocol.JMAP -> Unit
+        }
         val ctx = host.jmapSession(credentials)
         return client.setVacationResponse(ctx.session, ctx.accountId, ctx.auth, vacation)
     }
@@ -608,13 +628,76 @@ class MailAccounts(
      * client's `ManageSieveException`, the server's text and its kind intact.
      */
     private suspend fun saveFilterRulesBySieve(sieveHost: String, credentials: AccountCredentials, rules: List<FilterRule>) {
-        val script = SieveCodec.generate(rules)
         sieveSession(sieveHost, credentials) {
+            // An unreadable responder marker is not carried over: the filters screen has already
+            // asked before replacing a script it could not read.
+            val kept = sternaScript(listScripts())?.let { SieveCodec.readVacation(it) } as? VacationMarker.Found
+            val script = SieveCodec.generate(rules, kept?.vacation)
             checkScript(script)
             putScript(SieveCodec.SCRIPT_NAME, script)
             setActive(SieveCodec.SCRIPT_NAME)
         }
     }
+
+    /** [loadVacation] over ManageSieve: the capability gate, one listing, then the `sterna` script by name. */
+    private suspend fun loadVacationBySieve(credentials: AccountCredentials): VacationState {
+        val sieveHost = manageSieveHost(credentials) ?: return VacationState.AccountUnsupported
+        return sieveSession(sieveHost, credentials) {
+            if (!sieveExtensions.map { it.lowercase() }.containsAll(VACATION_SIEVE_EXTENSIONS)) {
+                return@sieveSession VacationState.Unsupported
+            }
+            val scripts = listScripts()
+            val script = sternaScript(scripts)
+            val marker = script?.let { SieveCodec.readVacation(it) } as? VacationMarker.Found
+            VacationState.Loaded(
+                response = marker?.vacation?.toVacationResponse() ?: VacationResponse(),
+                foreignActiveScript = loadedFilterRules(
+                    sternaScript = script,
+                    otherActiveScript = scripts.any { it.isActive && it.name != SieveCodec.SCRIPT_NAME },
+                ).foreignActiveScript,
+            )
+        }
+    }
+
+    /**
+     * [saveVacation] over ManageSieve, in one connection: the rules of the `sterna` script are kept,
+     * empty when it cannot be read (the responder screen has asked first), and the responder replaced.
+     */
+    private suspend fun saveVacationBySieve(
+        sieveHost: String,
+        credentials: AccountCredentials,
+        vacation: VacationResponse,
+        trashFolder: String?,
+    ): VacationResponse {
+        val written = SieveVacation(
+            isEnabled = vacation.isEnabled,
+            fromDate = vacation.fromDate,
+            toDate = vacation.toDate,
+            subject = vacation.subject,
+            textBody = vacation.textBody,
+            addresses = accountAddresses(accountStore.identities(credentials.id), credentials.username).distinct(),
+            trashFolder = trashFolder,
+        )
+        sieveSession(sieveHost, credentials) {
+            val rules = sternaScript(listScripts())?.let { SieveCodec.parseRulesOrNull(it) }.orEmpty()
+            val script = SieveCodec.generate(rules, written)
+            checkScript(script)
+            putScript(SieveCodec.SCRIPT_NAME, script)
+            setActive(SieveCodec.SCRIPT_NAME)
+        }
+        return written.toVacationResponse()
+    }
+
+    private fun SieveScripts.sternaScript(scripts: List<SieveScriptInfo>): String? =
+        scripts.firstOrNull { it.name == SieveCodec.SCRIPT_NAME }?.let { getScript(it.name) }
+
+    private fun SieveVacation.toVacationResponse() = VacationResponse(
+        isEnabled = isEnabled,
+        fromDate = fromDate,
+        toDate = toDate,
+        subject = subject,
+        textBody = textBody,
+    )
 
     /** [sieveHost] comes from [manageSieveHost]; the login is the one `ImapMailService` gives the IMAP server. */
     private suspend fun <T> sieveSession(sieveHost: String, credentials: AccountCredentials, block: SieveScripts.() -> T): T =
@@ -633,3 +716,6 @@ class MailAccounts(
         }
     }
 }
+
+/** What a dated auto-reply requires of a ManageSieve server; the responder is not offered without all three. */
+private val VACATION_SIEVE_EXTENSIONS = listOf("vacation", "date", "relational")

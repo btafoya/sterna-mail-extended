@@ -409,12 +409,15 @@
     <string name="settings_vacation_save">Salvar</string>
     <string name="settings_vacation_saved">Resposta automática salva</string>
     <string name="settings_vacation_unsupported">Seu servidor de e-mail não oferece suporte a respostas automáticas.</string>
-    <string name="settings_vacation_imap_account">As respostas automáticas só estão disponíveis em contas adicionadas com JMAP.</string>
+    <string name="settings_vacation_imap_account">As respostas automáticas não estão disponíveis para o método de início de sessão desta conta.</string>
     <string name="settings_vacation_no_account">Nenhuma conta disponível.</string>
     <string name="settings_vacation_invalid_dates">A data de início deve ser anterior à data de término.</string>
     <string name="settings_vacation_save_error">Não foi possível salvar: %1$s</string>
     <string name="settings_vacation_load_error">Não foi possível carregar: %1$s</string>
     <string name="settings_vacation_retry">Tentar novamente</string>
+    <string name="settings_vacation_overwrite_title">Substituir o script de filtro?</string>
+    <string name="settings_vacation_overwrite_body">Nesta conta está ativo o script de filtro de outra aplicação, ou o Sterna Mail não conseguiu ler parte do seu. Ao guardar, esse outro script é desativado e perde-se tudo o que o Sterna Mail não conseguiu ler no seu próprio script.</string>
+    <string name="settings_vacation_overwrite_confirm">Substituir</string>
     <string name="settings_ok">OK</string>
     <string name="settings_filters_title">Filtros</string>
     <string name="settings_filters_summary">Regras no servidor (Sieve)</string>

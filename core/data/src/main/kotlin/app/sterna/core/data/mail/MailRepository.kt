@@ -790,9 +790,21 @@ sealed interface FilterRulesState {
 
 /** Outcome of loading an account's server-side vacation responder. */
 sealed interface VacationState {
-    /** The account's server has no vacation-responder support (IMAP, or capability absent). */
+    /** The server was asked and has no vacation-responder support: a JMAP server without the
+     *  capability, or a ManageSieve server that does not list `vacation`, `date` and `relational`. */
     data object Unsupported : VacationState
-    data class Loaded(val response: VacationResponse) : VacationState
+
+    /** Not offered to this account, whose server is never asked: IMAP signed in with OAuth or
+     *  without an IMAP host. Kept apart from [Unsupported] so the screen does not blame the server. */
+    data object AccountUnsupported : VacationState
+
+    data class Loaded(
+        val response: VacationResponse,
+        /** True if a save must be confirmed first: on IMAP it activates Sterna's script over
+         *  another active one, or replaces a `sterna` script that could not be read. Always false
+         *  on JMAP, whose responder is not a script this app writes. */
+        val foreignActiveScript: Boolean = false,
+    ) : VacationState
 }
 
 /** A message body ready to render: the full [Email] plus its inline images (cid → data: URI). */

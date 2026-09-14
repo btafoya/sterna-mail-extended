@@ -409,12 +409,15 @@
     <string name="settings_vacation_save">Opslaan</string>
     <string name="settings_vacation_saved">Automatisch antwoord opgeslagen</string>
     <string name="settings_vacation_unsupported">Je mailserver ondersteunt geen automatische antwoorden.</string>
-    <string name="settings_vacation_imap_account">Automatische antwoorden zijn alleen beschikbaar voor accounts die met JMAP zijn toegevoegd.</string>
+    <string name="settings_vacation_imap_account">Automatische antwoorden zijn niet beschikbaar voor de aanmeldmethode van dit account.</string>
     <string name="settings_vacation_no_account">Geen account beschikbaar.</string>
     <string name="settings_vacation_invalid_dates">De begindatum moet vóór de einddatum liggen.</string>
     <string name="settings_vacation_save_error">Opslaan mislukt: %1$s</string>
     <string name="settings_vacation_load_error">Laden mislukt: %1$s</string>
     <string name="settings_vacation_retry">Opnieuw proberen</string>
+    <string name="settings_vacation_overwrite_title">Filterscript vervangen?</string>
+    <string name="settings_vacation_overwrite_body">Op dit account is het filterscript van een andere app actief, of Sterna Mail kon een deel van het eigen script niet lezen. Bij het opslaan wordt dat andere script uitgeschakeld en gaat alles verloren wat Sterna Mail in het eigen script niet kon lezen.</string>
+    <string name="settings_vacation_overwrite_confirm">Vervangen</string>
     <string name="settings_ok">OK</string>
     <string name="settings_filters_title">Filters</string>
     <string name="settings_filters_summary">Serverregels (Sieve)</string>

@@ -315,6 +315,10 @@ class SenderRuleDialogFitTest {
                     File(root, "app/src/main/kotlin/app/sterna/ui/settings/FiltersScreen.kt"),
                     "settings_filters_overwrite_title",
                 ),
+                Confirmation(
+                    File(root, "app/src/main/kotlin/app/sterna/ui/settings/SettingsScreen.kt"),
+                    "settings_vacation_overwrite_title",
+                ),
             )
         }
     }

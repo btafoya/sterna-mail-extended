@@ -21,5 +21,10 @@ fun loadedFilterRules(sternaScript: String?, otherActiveScript: Boolean): Filter
  */
 internal fun holdsForeignSieve(script: String, parsed: List<FilterRule>): Boolean {
     if (script.isBlank()) return false
-    return SieveCodec.sieveBody(script) != SieveCodec.sieveBody(SieveCodec.generate(parsed))
+    val vacation = when (val marker = SieveCodec.readVacation(script)) {
+        VacationMarker.Absent -> null
+        VacationMarker.Unreadable -> return true
+        is VacationMarker.Found -> marker.vacation
+    }
+    return SieveCodec.sieveBody(script) != SieveCodec.sieveBody(SieveCodec.generate(parsed, vacation))
 }

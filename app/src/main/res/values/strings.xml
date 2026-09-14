@@ -574,12 +574,15 @@
     <string name="settings_vacation_save">Save</string>
     <string name="settings_vacation_saved">Auto-reply saved</string>
     <string name="settings_vacation_unsupported">Your mail server doesn\'t support automatic replies.</string>
-    <string name="settings_vacation_imap_account">Automatic replies are only available on accounts added with JMAP.</string>
+    <string name="settings_vacation_imap_account">Automatic replies aren\'t available for this account\'s sign-in method.</string>
     <string name="settings_vacation_no_account">No account available.</string>
     <string name="settings_vacation_invalid_dates">The start date must be before the end date.</string>
     <string name="settings_vacation_save_error">Couldn\'t save: %1$s</string>
     <string name="settings_vacation_load_error">Couldn\'t load: %1$s</string>
     <string name="settings_vacation_retry">Retry</string>
+    <string name="settings_vacation_overwrite_title">Replace the filter script?</string>
+    <string name="settings_vacation_overwrite_body">Another app\'s filter script is active on this account, or Sterna Mail could not read part of its own. Saving turns that other script off, and anything Sterna Mail could not read in its own script is lost.</string>
+    <string name="settings_vacation_overwrite_confirm">Replace</string>
     <string name="settings_ok">OK</string>
     <string name="settings_filters_title">Filters</string>
     <string name="settings_filters_summary">Server-side rules (Sieve)</string>

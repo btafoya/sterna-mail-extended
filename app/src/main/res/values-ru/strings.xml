@@ -409,12 +409,15 @@
     <string name="settings_vacation_save">Сохранить</string>
     <string name="settings_vacation_saved">Автоответ сохранён</string>
     <string name="settings_vacation_unsupported">Ваш почтовый сервер не поддерживает автоматические ответы.</string>
-    <string name="settings_vacation_imap_account">Автоответы доступны только для аккаунтов, добавленных через JMAP.</string>
+    <string name="settings_vacation_imap_account">Автоответы недоступны для способа входа этого аккаунта.</string>
     <string name="settings_vacation_no_account">Нет доступных аккаунтов.</string>
     <string name="settings_vacation_invalid_dates">Дата начала должна быть раньше даты окончания.</string>
     <string name="settings_vacation_save_error">Не удалось сохранить: %1$s</string>
     <string name="settings_vacation_load_error">Не удалось загрузить: %1$s</string>
     <string name="settings_vacation_retry">Повторить</string>
+    <string name="settings_vacation_overwrite_title">Заменить скрипт фильтрации?</string>
+    <string name="settings_vacation_overwrite_body">В этой учётной записи активен скрипт фильтрации другого приложения, или Sterna Mail не смогла прочитать часть своего. При сохранении этот другой скрипт будет отключён, а всё, что Sterna Mail не смогла прочитать в своём скрипте, будет потеряно.</string>
+    <string name="settings_vacation_overwrite_confirm">Заменить</string>
     <string name="settings_ok">ОК</string>
     <string name="settings_filters_title">Фильтры</string>
     <string name="settings_filters_summary">Правила на стороне сервера (Sieve)</string>

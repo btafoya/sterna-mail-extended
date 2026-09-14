@@ -5,11 +5,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.sterna.container
 import app.sterna.core.data.filter.FilterScriptWarning
+import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.filter.refreshedFilterWarning
 import app.sterna.core.data.mail.VacationState
 import app.sterna.core.jmap.model.VacationResponse
+import app.sterna.ui.sender.trashFilePath
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -41,6 +44,7 @@ data class VacationUiState(
     /** What the account's Sieve scripts say about the user's filter rules, or null for nothing to
      *  say. Never part of [edits]: it describes the server, not the form. */
     val filterWarning: FilterScriptWarning? = null,
+    val foreignActiveScript: Boolean = false,
 ) {
     /** The fields a Save actually writes, what "changed" is measured on. */
     internal fun edits(): List<Any?> = listOf(enabled, subject, message, fromDate, toDate)
@@ -70,9 +74,9 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             try {
                 when (val result = repo.accounts.loadVacation(credentials)) {
-                    VacationState.Unsupported ->
+                    VacationState.Unsupported, VacationState.AccountUnsupported ->
                         _state.value = vacationUnavailableState(
-                            protocol = credentials.protocol,
+                            state = result,
                             accountLabel = store.accountLabel(),
                         )
                     is VacationState.Loaded -> {
@@ -95,6 +99,7 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
                             fromDate = r.fromDate?.let { parseMillis(it) },
                             toDate = r.toDate?.let { parseMillis(it) },
                             filterWarning = warning,
+                            foreignActiveScript = result.foreignActiveScript,
                         )
                         serverEdits = _state.value.edits()
                     }
@@ -143,9 +148,11 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
                     textBody = s.message.ifBlank { null },
                     htmlBody = null,
                 )
-                repo.accounts.saveVacation(credentials, vacation)
+                val mailboxes = runCatching { repo.observeMailboxes(credentials.id).first() }
+                    .getOrElseUnlessCancelled { emptyList() }
+                repo.accounts.saveVacation(credentials, vacation, trashFolder = trashFilePath(mailboxes))
                 serverEdits = s.edits()
-                _state.update { it.copy(saving = false, savedTick = it.savedTick + 1, dirty = false) }
+                _state.update { vacationSavedState(it) }
                 written = true
             } catch (t: Throwable) {
                 _state.update {

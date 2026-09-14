@@ -2562,12 +2562,20 @@ private fun VacationScreen(
     // Saving from the dialog is a network round-trip, so the screen leaves only once the server
     // has taken it; a refusal keeps the screen and its error in front of the user.
     var leaveAfterSave by remember { mutableStateOf(false) }
+    var confirmOverwrite by remember { mutableStateOf(false) }
+    var overwriteThenLeave by remember { mutableStateOf(false) }
     LaunchedEffect(leaveAfterSave, state.saving, state.dirty, state.errorKind) {
         if (!leaveAfterSave) return@LaunchedEffect
         when (pendingExitStep(state.saving, state.dirty, failed = state.errorKind != null)) {
             PendingExit.LEAVE -> { leaveAfterSave = false; onBack() }
             PendingExit.STAY -> leaveAfterSave = false
             PendingExit.WAIT -> Unit
+        }
+    }
+    fun requestSave(thenLeave: Boolean) {
+        when (vacationSaveStep(foreignActiveScript = state.foreignActiveScript)) {
+            FiltersSaveStep.CONFIRM_OVERWRITE -> { overwriteThenLeave = thenLeave; confirmOverwrite = true }
+            FiltersSaveStep.WRITE -> { leaveAfterSave = thenLeave; viewModel.save() }
         }
     }
     BackHandler(enabled = state.dirty) { confirmExit = true }
@@ -2577,7 +2585,27 @@ private fun VacationScreen(
             canSave = !state.saving,
             onCancel = { confirmExit = false },
             onDiscard = { confirmExit = false; onBack() },
-            onSave = { confirmExit = false; leaveAfterSave = true; viewModel.save() },
+            onSave = { confirmExit = false; requestSave(thenLeave = true) },
+        )
+    }
+    if (confirmOverwrite) {
+        AlertDialog(
+            onDismissRequest = { confirmOverwrite = false },
+            title = { Text(stringResource(R.string.settings_vacation_overwrite_title)) },
+            text = {
+                Text(
+                    stringResource(R.string.settings_vacation_overwrite_body),
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmOverwrite = false; leaveAfterSave = overwriteThenLeave; viewModel.save() }) {
+                    Text(stringResource(R.string.settings_vacation_overwrite_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmOverwrite = false }) { Text(stringResource(R.string.settings_cancel)) }
+            },
         )
     }
 
@@ -2594,7 +2622,7 @@ private fun VacationScreen(
                     stringResource(R.string.settings_vacation_load_error, state.errorDetail),
                     onRetry = viewModel::load,
                 )
-                else -> VacationForm(state, viewModel)
+                else -> VacationForm(state, viewModel, onSave = { requestSave(thenLeave = false) })
             }
         }
     }
@@ -2621,7 +2649,7 @@ private fun BoxScope.VacationNote(text: String, onRetry: (() -> Unit)? = null) {
 }
 
 @Composable
-private fun VacationForm(state: VacationUiState, viewModel: VacationViewModel) {
+private fun VacationForm(state: VacationUiState, viewModel: VacationViewModel, onSave: () -> Unit) {
     // imePadding before verticalScroll: the keyboard shrinks the scrolling viewport instead of
     // covering it, so the focused subject/message field stays visible while typing (#52).
     Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState())) {
@@ -2709,7 +2737,7 @@ private fun VacationForm(state: VacationUiState, viewModel: VacationViewModel) {
             )
         }
         Button(
-            onClick = viewModel::save,
+            onClick = onSave,
             // Nothing to push until a field actually differs from what the server holds (#34).
             enabled = !state.saving && state.dirty,
             modifier = Modifier

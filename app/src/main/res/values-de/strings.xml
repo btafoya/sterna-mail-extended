@@ -409,12 +409,15 @@
     <string name="settings_vacation_save">Speichern</string>
     <string name="settings_vacation_saved">Automatische Antwort gespeichert</string>
     <string name="settings_vacation_unsupported">Ihr Mailserver unterstützt keine automatischen Antworten.</string>
-    <string name="settings_vacation_imap_account">Automatische Antworten sind nur für Konten verfügbar, die mit JMAP hinzugefügt wurden.</string>
+    <string name="settings_vacation_imap_account">Automatische Antworten sind für die Anmeldemethode dieses Kontos nicht verfügbar.</string>
     <string name="settings_vacation_no_account">Kein Konto verfügbar.</string>
     <string name="settings_vacation_invalid_dates">Das Startdatum muss vor dem Enddatum liegen.</string>
     <string name="settings_vacation_save_error">Speichern fehlgeschlagen: %1$s</string>
     <string name="settings_vacation_load_error">Laden fehlgeschlagen: %1$s</string>
     <string name="settings_vacation_retry">Erneut versuchen</string>
+    <string name="settings_vacation_overwrite_title">Filterskript ersetzen?</string>
+    <string name="settings_vacation_overwrite_body">Auf diesem Konto ist das Filterskript einer anderen App aktiv, oder Sterna Mail konnte einen Teil seines eigenen nicht lesen. Beim Speichern wird dieses andere Skript deaktiviert, und alles, was Sterna Mail in seinem eigenen Skript nicht lesen konnte, geht verloren.</string>
+    <string name="settings_vacation_overwrite_confirm">Ersetzen</string>
     <string name="settings_ok">OK</string>
     <string name="settings_filters_title">Filter</string>
     <string name="settings_filters_summary">Serverseitige Regeln (Sieve)</string>

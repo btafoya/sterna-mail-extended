@@ -328,6 +328,133 @@ class FilterRulesReadTest {
         assertFalse("what we write is never foreign", holdsForeignSieve(SieveCodec.generate(listOf(rule)), listOf(rule)))
     }
 
+    private val dated = SieveVacation(
+        isEnabled = true, fromDate = "2026-09-14T00:00:00Z", toDate = "2026-09-20T23:59:59Z",
+        subject = "Away", textBody = "Back soon", addresses = listOf("me@example.com"),
+    )
+
+    private val datedMarker =
+        """# STERNA-VACATION-V1: {"isEnabled":true,"fromDate":"2026-09-14T00:00:00Z",""" +
+            """"toDate":"2026-09-20T23:59:59Z","subject":"Away","textBody":"Back soon",""" +
+            """"addresses":["me@example.com"]}"""
+
+    private val datedSieve = arrayOf(
+        """require ["fileinto", "vacation", "date", "relational"];""",
+        "",
+        """if address :is "from" "boss@example.com" {""",
+        """    fileinto "Work";""",
+        "}",
+        """if allof (currentdate :zone "+0000" :value "ge" "date" "2026-09-14", """ +
+            """currentdate :zone "+0000" :value "le" "date" "2026-09-20") {""",
+        """    vacation :subject "Away" :addresses ["me@example.com"] "Back soon";""",
+        "}",
+    )
+
+    @Test fun `a script this app wrote with an auto-reply is never foreign`() {
+        val vacations = listOf(
+            dated,
+            dated.copy(fromDate = null),
+            dated.copy(toDate = null, subject = null, addresses = emptyList()),
+            dated.copy(isEnabled = false),
+            dated.copy(subject = "休假中", textBody = "我下周一回来。\n\n谢谢 \"a\\b\""),
+        )
+        for (list in listOf(emptyList(), listOf(rule))) for (vacation in vacations) {
+            val script = SieveCodec.generate(list, vacation)
+            assertFalse("we wrote this one: $vacation", holdsForeignSieve(script, list))
+            val state = loadedFilterRules(script, otherActiveScript = false)
+            assertEquals(list, state.rules)
+            assertFalse("we wrote this one: $vacation", state.foreignActiveScript)
+            assertFalse("we wrote this one: $vacation", state.scriptUnreadable)
+            assertFalse("CRLF from the server: $vacation", holdsForeignSieve(script.replace("\n", "\r\n"), list))
+        }
+    }
+
+    @Test fun `the literal dated auto-reply script is ours`() {
+        assertFalse(holdsForeignSieve(script(bossMarker, datedMarker, *datedSieve), listOf(rule)))
+    }
+
+    @Test fun `a script that leaves blocked senders out of its auto-reply is ours`() {
+        val rules = listOf(rule, blockRule("spam@example.com", "Trash"))
+        for (vacation in listOf(dated.copy(trashFolder = "Trash"), dated.copy(fromDate = null, toDate = null, trashFolder = "Trash"))) {
+            val script = SieveCodec.generate(rules, vacation)
+            check("not anyof" in script) { "no exclusion was emitted, so this proves nothing: $script" }
+            val state = loadedFilterRules(script, otherActiveScript = false)
+            assertEquals(rules, state.rules)
+            assertFalse("we wrote this one: $vacation", state.foreignActiveScript)
+            assertFalse("we wrote this one: $vacation", state.scriptUnreadable)
+        }
+    }
+
+    @Test fun `an auto-reply whose Trash exclusion was removed by hand is foreign`() {
+        val rules = listOf(rule, blockRule("spam@example.com", "Trash"))
+        val marker =
+            """# STERNA-VACATION-V1: {"isEnabled":true,"fromDate":null,"toDate":null,"subject":"Away",""" +
+                """"textBody":"Back soon","addresses":["me@example.com"],"trashFolder":"Trash"}"""
+        val withoutExclusion = script(
+            """# STERNA-RULES-V1: [{"name":"Boss","enabled":true,"field":"FROM","match":"IS",""" +
+                """"value":"boss@example.com","moveTo":"Work","markRead":false,"flag":false},""" +
+                """{"name":"spam@example.com","enabled":true,"field":"FROM","match":"IS",""" +
+                """"value":"spam@example.com","moveTo":"Trash","markRead":true,"flag":false}]""",
+            marker,
+            """require ["fileinto", "imap4flags", "vacation"];""",
+            "",
+            """if address :is "from" "boss@example.com" {""",
+            """    fileinto "Work";""",
+            "}",
+            """if address :is "from" "spam@example.com" {""",
+            """    addflag "\\Seen";""",
+            """    fileinto "Trash";""",
+            "}",
+            """vacation :subject "Away" :addresses ["me@example.com"] "Back soon";""",
+        )
+        assertEquals(rules, SieveCodec.parseRulesOrNull(withoutExclusion))
+        assertTrue(holdsForeignSieve(withoutExclusion, rules))
+    }
+
+    @Test fun `an auto-reply marker with an unknown key is not foreign`() {
+        val marker = datedMarker.removeSuffix("}") + ""","signature":"--"}"""
+        assertFalse(holdsForeignSieve(script(bossMarker, marker, *datedSieve), listOf(rule)))
+    }
+
+    @Test fun `an auto-reply block edited by hand is foreign`() {
+        val condition = 5
+        val command = 6
+        val edits = listOf(
+            Triple("text", command, """    vacation :subject "Away" :addresses ["me@example.com"] "Back Tuesday";"""),
+            Triple("addresses", command, """    vacation :subject "Away" "Back soon";"""),
+            Triple("days", command, """    vacation :days 3 :subject "Away" :addresses ["me@example.com"] "Back soon";"""),
+            Triple(
+                "end day", condition,
+                """if allof (currentdate :zone "+0000" :value "ge" "date" "2026-09-14", """ +
+                    """currentdate :zone "+0000" :value "le" "date" "2026-09-27") {""",
+            ),
+        )
+        for ((what, index, line) in edits) {
+            val edited = datedSieve.copyOf().also { it[index] = line }
+            check(edited[index] != datedSieve[index]) { "the edit '$what' replaced nothing" }
+            val state = loadedFilterRules(script(bossMarker, datedMarker, *edited), otherActiveScript = false)
+            assertTrue("hand-edited $what must be foreign", state.foreignActiveScript)
+            assertTrue("hand-edited $what must ask before Save replaces it", state.scriptUnreadable)
+        }
+    }
+
+    @Test fun `an auto-reply marker whose block was deleted is foreign`() {
+        assertTrue(holdsForeignSieve(script(bossMarker, datedMarker, *datedSieve.dropLast(3).toTypedArray()), listOf(rule)))
+    }
+
+    @Test fun `a vacation block with no auto-reply marker is foreign`() {
+        assertTrue(holdsForeignSieve(script(bossMarker, *datedSieve), listOf(rule)))
+    }
+
+    @Test fun `a broken auto-reply marker makes the script unreadable`() {
+        for (marker in listOf("# STERNA-VACATION-V1: {oops", """# STERNA-VACATION-V1: {"toDate":"soon"}""")) {
+            val state = loadedFilterRules(script(bossMarker, marker, *bossSieve), otherActiveScript = false)
+            assertEquals(listOf(rule), state.rules)
+            assertTrue(marker, state.foreignActiveScript)
+            assertTrue(marker, state.scriptUnreadable)
+        }
+    }
+
     // ---- the wiring, read out of the shipped source: a last resort, not the proof ----
 
     /**

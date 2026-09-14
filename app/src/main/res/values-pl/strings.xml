@@ -409,12 +409,15 @@
     <string name="settings_vacation_save">Zapisz</string>
     <string name="settings_vacation_saved">Automatyczna odpowiedź zapisana</string>
     <string name="settings_vacation_unsupported">Twój serwer poczty nie obsługuje automatycznych odpowiedzi.</string>
-    <string name="settings_vacation_imap_account">Automatyczne odpowiedzi są dostępne tylko dla kont dodanych przez JMAP.</string>
+    <string name="settings_vacation_imap_account">Automatyczne odpowiedzi nie są dostępne dla metody logowania tego konta.</string>
     <string name="settings_vacation_no_account">Brak dostępnego konta.</string>
     <string name="settings_vacation_invalid_dates">Data początkowa musi być wcześniejsza niż data końcowa.</string>
     <string name="settings_vacation_save_error">Nie udało się zapisać: %1$s</string>
     <string name="settings_vacation_load_error">Nie udało się wczytać: %1$s</string>
     <string name="settings_vacation_retry">Ponów</string>
+    <string name="settings_vacation_overwrite_title">Zastąpić skrypt filtrujący?</string>
+    <string name="settings_vacation_overwrite_body">Na tym koncie aktywny jest skrypt filtrujący innej aplikacji albo Sterna Mail nie potrafi odczytać części własnego. Zapisanie wyłączy tamten skrypt, a wszystko, czego Sterna Mail nie potrafi odczytać we własnym skrypcie, zostanie utracone.</string>
+    <string name="settings_vacation_overwrite_confirm">Zastąp</string>
     <string name="settings_ok">OK</string>
     <string name="settings_filters_title">Filtry</string>
     <string name="settings_filters_summary">Reguły po stronie serwera (Sieve)</string>

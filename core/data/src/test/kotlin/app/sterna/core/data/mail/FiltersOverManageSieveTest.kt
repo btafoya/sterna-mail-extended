@@ -7,6 +7,7 @@ import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.OAuthCredentials
 import app.sterna.core.data.account.RecordingAccountStorage
+import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
@@ -17,6 +18,9 @@ import app.sterna.core.data.filter.FilterScriptStatus
 import app.sterna.core.data.filter.FilterScriptWarning
 import app.sterna.core.data.filter.RuleField
 import app.sterna.core.data.filter.SieveCodec
+import app.sterna.core.data.filter.SieveVacation
+import app.sterna.core.data.filter.VacationMarker
+import app.sterna.core.data.filter.blockRule
 import app.sterna.core.data.filter.refreshedFilterWarning
 import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.ImapFolder
@@ -26,6 +30,7 @@ import app.sterna.core.imap.SmtpClient
 import app.sterna.core.jmap.JmapAuth
 import app.sterna.core.jmap.JmapClient
 import app.sterna.core.jmap.OAuthClient
+import app.sterna.core.jmap.model.VacationResponse
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,7 +44,7 @@ import org.junit.Test
 import java.lang.reflect.Proxy
 
 /**
- * The filters of an IMAP account, executed through `MailAccounts` against an in-memory ManageSieve
+ * The filters and the auto-reply of an IMAP account, executed through `MailAccounts` against an in-memory ManageSieve
  * server behind the [SieveConnector] seam.
  *
  * What this does NOT cover:
@@ -59,6 +64,9 @@ class FiltersOverManageSieveTest {
         private val refuse: (verb: String) -> Exception? = { null },
         /** The command at which the connection is lost, before the server receives it. */
         private val cutAt: String? = null,
+        private val extensions: List<String> = listOf("fileinto", "imap4flags", "vacation", "date", "relational"),
+        /** Thrown by the connection itself, before any command: offline, refused, timed out. */
+        private val unreachable: Exception? = null,
     ) : SieveConnector {
         val scripts = scripts.toMutableMap()
         val logins = mutableListOf<List<Any>>()
@@ -73,10 +81,13 @@ class FiltersOverManageSieveTest {
             block: SieveScripts.() -> T,
         ): T {
             logins += listOf(host, port, username, password)
+            unreachable?.let { throw it }
             return Session().block()
         }
 
         private inner class Session : SieveScripts {
+            override val sieveExtensions: List<String> get() = extensions
+
             private fun receive(command: String) {
                 val verb = command.substringBefore(' ')
                 if (verb == cutAt) {
@@ -142,8 +153,7 @@ class FiltersOverManageSieveTest {
 
     private val host = Host()
 
-    private fun accounts(sieve: FakeSieve): MailAccounts {
-        val store = RecordingAccountStorage()
+    private fun accounts(sieve: FakeSieve, store: RecordingAccountStorage = RecordingAccountStorage()): MailAccounts {
         return MailAccounts(
             client = JmapClient(),
             imap = ImapMailService(ImapClient(), SmtpClient(), OAuthTokenRefresher(OAuthClient(), store)),
@@ -370,7 +380,7 @@ class FiltersOverManageSieveTest {
 
         runBlocking { accounts(sieve).saveFilterRules(imapAccount, rules) }
 
-        assertEquals(listOf("CHECKSCRIPT", "PUTSCRIPT sterna", "SETACTIVE sterna"), sieve.commands)
+        assertEquals(listOf("LISTSCRIPTS", "CHECKSCRIPT", "PUTSCRIPT sterna", "SETACTIVE sterna"), sieve.commands)
         assertEquals(listOf(SieveCodec.generate(rules)), sieve.checked)
         assertEquals(SieveCodec.generate(rules), sieve.scripts["sterna"])
         assertEquals("sterna", sieve.active)
@@ -383,7 +393,7 @@ class FiltersOverManageSieveTest {
 
         runBlocking { accounts(sieve).saveFilterRules(imapAccount, rules) }
 
-        assertEquals(listOf("PUTSCRIPT sterna", "SETACTIVE sterna"), sieve.commands)
+        assertEquals(listOf("LISTSCRIPTS", "PUTSCRIPT sterna", "SETACTIVE sterna"), sieve.commands)
         assertEquals("sterna", sieve.active)
     }
 
@@ -397,7 +407,7 @@ class FiltersOverManageSieveTest {
         val thrown = thrownBy<ManageSieveException> { runBlocking { accounts(sieve).saveFilterRules(imapAccount, rules) } }
 
         assertEquals("line 4: unknown extension", thrown.serverText)
-        assertEquals(listOf("CHECKSCRIPT", "PUTSCRIPT sterna"), sieve.commands)
+        assertEquals(listOf("LISTSCRIPTS", "CHECKSCRIPT", "PUTSCRIPT sterna"), sieve.commands)
         assertEquals("roundcube", sieve.active)
     }
 
@@ -407,7 +417,7 @@ class FiltersOverManageSieveTest {
         val thrown = thrownBy<ManageSieveException> { runBlocking { accounts(sieve).saveFilterRules(imapAccount, rules) } }
 
         assertEquals("fileinto: unknown", thrown.serverText)
-        assertEquals(listOf("CHECKSCRIPT"), sieve.commands)
+        assertEquals(listOf("LISTSCRIPTS", "CHECKSCRIPT"), sieve.commands)
         assertNull(sieve.scripts["sterna"])
     }
 
@@ -442,6 +452,200 @@ class FiltersOverManageSieveTest {
             runBlocking { accounts.loadFilterRules(imapAccount) },
         )
         assertNull(refreshedFilterWarning(previous = null, status = status, responderEnabled = null))
+    }
+
+    // ---- the auto-reply -------------------------------------------------------------------------
+
+    private val away = VacationResponse(
+        isEnabled = true,
+        fromDate = "2026-09-20T00:00:00Z",
+        toDate = "2026-09-27T23:59:59Z",
+        subject = "Away",
+        textBody = "Back on the 28th.",
+    )
+
+    /** [away] as the `sterna` script keeps it for [imapAccount] and [identified]. */
+    private val awayInScript = SieveVacation(
+        isEnabled = true,
+        fromDate = "2026-09-20T00:00:00Z",
+        toDate = "2026-09-27T23:59:59Z",
+        subject = "Away",
+        textBody = "Back on the 28th.",
+        addresses = listOf("alex@example.test", "a.martin@example.test"),
+    )
+
+    private class IdentifiedStorage : RecordingAccountStorage() {
+        override fun identities(accountId: String?): List<StoredIdentity> {
+            super.identities(accountId)
+            return listOf(
+                StoredIdentity(id = "i1", name = "Alex", email = "alex@example.test"),
+                StoredIdentity(id = "i2", name = "Alex Martin", email = "a.martin@example.test"),
+            )
+        }
+    }
+
+    private val identified = IdentifiedStorage()
+
+    @Test fun `the auto-reply is read out of the sterna script, with nothing to confirm`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules, awayInScript)), active = "sterna")
+
+        val state = runBlocking { accounts(sieve).loadVacation(imapAccount) }
+
+        assertEquals(VacationState.Loaded(response = away, foreignActiveScript = false), state)
+        assertEquals(listOf(login), sieve.logins)
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna"), sieve.commands)
+        assertEquals(0, host.jmapSessions)
+    }
+
+    @Test fun `without a sterna script, or without a responder in it, the auto-reply is off and empty`() {
+        for (scripts in listOf(emptyMap(), mapOf("sterna" to SieveCodec.generate(rules)))) {
+            val sieve = FakeSieve(scripts = scripts, active = scripts.keys.firstOrNull())
+
+            val state = runBlocking { accounts(sieve).loadVacation(imapAccount) }
+
+            assertEquals("scripts $scripts", VacationState.Loaded(response = VacationResponse(), foreignActiveScript = false), state)
+        }
+    }
+
+    @Test fun `another active script asks before writing, and the read writes nothing`() {
+        val sieve = FakeSieve(
+            scripts = mapOf("sterna" to SieveCodec.generate(rules, awayInScript), "roundcube" to "keep;\n"),
+            active = "roundcube",
+        )
+
+        val state = runBlocking { accounts(sieve).loadVacation(imapAccount) }
+
+        assertEquals(VacationState.Loaded(response = away, foreignActiveScript = true), state)
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna"), sieve.commands)
+        assertEquals("roundcube", sieve.active)
+    }
+
+    @Test fun `an unreadable sterna script asks before writing and reads as an empty auto-reply`() {
+        val handEdited = SieveCodec.generate(rules, awayInScript) + "if header :contains \"subject\" \"x\" { discard; }\n"
+        val badMarker = SieveCodec.generate(rules) + "# STERNA-VACATION-V1: {not json\n"
+        for (script in listOf(handEdited, badMarker)) {
+            val sieve = FakeSieve(scripts = mapOf("sterna" to script), active = "sterna")
+
+            val state = runBlocking { accounts(sieve).loadVacation(imapAccount) }
+
+            val expected = if (script == handEdited) away else VacationResponse()
+            assertEquals(script, VacationState.Loaded(response = expected, foreignActiveScript = true), state)
+        }
+    }
+
+    @Test fun `a server missing vacation, date or relational is Unsupported, the server's own cause`() {
+        for (missing in listOf("vacation", "date", "relational")) {
+            val sieve = FakeSieve(
+                scripts = mapOf("sterna" to SieveCodec.generate(rules, awayInScript)),
+                active = "sterna",
+                extensions = listOf("fileinto", "imap4flags", "vacation", "date", "relational") - missing,
+            )
+
+            val state = runBlocking { accounts(sieve).loadVacation(imapAccount) }
+
+            assertSame("without $missing", VacationState.Unsupported, state)
+            assertEquals("without $missing", listOf(login), sieve.logins)
+        }
+    }
+
+    @Test fun `an IMAP account ManageSieve is never tried on is AccountUnsupported, without a connection`() {
+        for (account in listOf(imapAccount.copy(oauth = oauth, authType = AuthType.OAUTH), imapAccount.copy(imap = null))) {
+            val sieve = FakeSieve()
+            val accounts = accounts(sieve)
+
+            assertSame(VacationState.AccountUnsupported, runBlocking { accounts.loadVacation(account) })
+            val thrown = thrownBy<IllegalStateException> { runBlocking { accounts.saveVacation(account, away) } }
+
+            assertEquals("Automatic replies are not available for this account", thrown.message)
+            assertEquals(emptyList<List<Any>>(), sieve.logins)
+            assertEquals(0, host.jmapSessions)
+        }
+    }
+
+    @Test fun `a failed connection throws out of the auto-reply read, never Unsupported`() {
+        val offline = ManageSieveException("ManageSieve connection failed: timeout", ManageSieveException.Kind.UNREACHABLE)
+        val sieve = FakeSieve(unreachable = offline)
+
+        val thrown = thrownBy<ManageSieveException> { runBlocking { accounts(sieve).loadVacation(imapAccount) } }
+
+        assertSame(offline, thrown)
+    }
+
+    @Test fun `saving the auto-reply keeps the rules and replies for the account's own addresses`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules)), active = "sterna")
+
+        val written = runBlocking { accounts(sieve, identified).saveVacation(imapAccount, away) }
+
+        val expected = SieveCodec.generate(rules, awayInScript)
+        assertEquals(away, written)
+        assertEquals(expected, sieve.scripts["sterna"])
+        assertEquals(listOf(expected), sieve.checked)
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna", "CHECKSCRIPT", "PUTSCRIPT sterna", "SETACTIVE sterna"), sieve.commands)
+        assertEquals("sterna", sieve.active)
+        assertEquals(listOf(login), sieve.logins)
+        assertEquals("account-1", identified.args("identities")["accountId"])
+        assertTrue(expected, ":addresses [\"alex@example.test\", \"a.martin@example.test\"]" in expected)
+    }
+
+    @Test fun `saving the auto-reply names the account's Trash, and a filters save keeps it`() {
+        val blocked = rules + blockRule("spam@example.test", "INBOX.Trash")
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(blocked)), active = "sterna")
+        val accounts = accounts(sieve, identified)
+
+        runBlocking { accounts.saveVacation(imapAccount, away, trashFolder = "INBOX.Trash") }
+
+        val withTrash = awayInScript.copy(trashFolder = "INBOX.Trash")
+        val stored = sieve.scripts.getValue("sterna")
+        assertEquals(VacationMarker.Found(withTrash), SieveCodec.readVacation(stored))
+        assertEquals(SieveCodec.generate(blocked, withTrash), stored)
+        assertTrue(stored, "if allof (not anyof (address :is \"from\" \"spam@example.test\"), currentdate" in stored)
+
+        runBlocking { accounts.saveFilterRules(imapAccount, blocked) }
+
+        assertEquals(VacationMarker.Found(withTrash), SieveCodec.readVacation(sieve.scripts.getValue("sterna")))
+    }
+
+    @Test fun `the auto-reply then the filters, and the final script carries both`() {
+        val sieve = FakeSieve()
+        val accounts = accounts(sieve, identified)
+
+        runBlocking { accounts.saveVacation(imapAccount, away) }
+        runBlocking { accounts.saveFilterRules(imapAccount, rules) }
+
+        val stored = sieve.scripts.getValue("sterna")
+        assertEquals(SieveCodec.generate(rules, awayInScript), stored)
+        assertEquals(VacationMarker.Found(awayInScript), SieveCodec.readVacation(stored))
+        assertEquals(VacationState.Loaded(response = away), runBlocking { accounts.loadVacation(imapAccount) })
+    }
+
+    @Test fun `the filters then the auto-reply, and the final script carries both`() {
+        val sieve = FakeSieve()
+        val accounts = accounts(sieve, identified)
+
+        runBlocking { accounts.saveFilterRules(imapAccount, rules) }
+        runBlocking { accounts.saveVacation(imapAccount, away) }
+
+        assertEquals(SieveCodec.generate(rules, awayInScript), sieve.scripts.getValue("sterna"))
+        assertEquals(
+            FilterRulesState.Loaded(rules = rules, foreignActiveScript = false, scriptUnreadable = false),
+            runBlocking { accounts.loadFilterRules(imapAccount) },
+        )
+    }
+
+    @Test fun `a filters save over an unreadable auto-reply marker writes no responder`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules) + "# STERNA-VACATION-V1: {not json\n"), active = "sterna")
+
+        runBlocking { accounts(sieve).saveFilterRules(imapAccount, rules) }
+
+        assertEquals(SieveCodec.generate(rules), sieve.scripts["sterna"])
+    }
+
+    @Test fun `saving the auto-reply over an unreadable sterna script drops what could not be read`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to "require \"fileinto\";\nfileinto \"Hand\";\n"), active = "sterna")
+
+        runBlocking { accounts(sieve, identified).saveVacation(imapAccount, away) }
+
+        assertEquals(SieveCodec.generate(emptyList(), awayInScript), sieve.scripts["sterna"])
     }
 
     // ---- accounts ManageSieve does not serve -----------------------------------------------------
@@ -484,8 +688,10 @@ class FiltersOverManageSieveTest {
         thrownBy<JmapReached> { runBlocking { accounts.loadFilterRules(jmap) } }
         assertNull(runBlocking { accounts.loadFilterScriptStatus(jmap) })
         thrownBy<JmapReached> { runBlocking { accounts.saveFilterRules(jmap, rules) } }
+        thrownBy<JmapReached> { runBlocking { accounts.loadVacation(jmap) } }
+        thrownBy<JmapReached> { runBlocking { accounts.saveVacation(jmap, away) } }
 
-        assertEquals(3, host.jmapSessions)
+        assertEquals(5, host.jmapSessions)
         assertEquals(emptyList<List<Any>>(), sieve.logins)
     }
 
