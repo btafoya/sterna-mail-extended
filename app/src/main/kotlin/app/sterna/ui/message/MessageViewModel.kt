@@ -127,13 +127,13 @@ sealed interface CryptoUiState {
     data class Locked(val kind: CryptoKind, val decrypting: Boolean = false) : CryptoUiState
 
     /** The provider needs the user (passphrase/key); launch [pendingIntent] to continue. */
-    data class NeedsInteraction(val pendingIntent: PendingIntent) : CryptoUiState
+    data class NeedsInteraction(val pendingIntent: PendingIntent, val kind: CryptoKind) : CryptoUiState
 
     /** Decrypted and/or verified. */
     data class Decrypted(val result: MessageCrypto.Decrypted) : CryptoUiState
 
     /** Decrypt/verify failed; null message = no OpenPGP provider installed. */
-    data class Failed(val message: String?) : CryptoUiState
+    data class Failed(val message: String?, val kind: CryptoKind) : CryptoUiState
 }
 
 /** What the sender's row in the participants panel offers about the per-sender filter rule. */
@@ -1279,10 +1279,14 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                         else -> CryptoUiState.None
                     }
                 }
-                is PgpResult.UserInteractionRequired ->
-                    _crypto.value = CryptoUiState.NeedsInteraction(result.pendingIntent)
-                is PgpResult.Error -> _crypto.value = CryptoUiState.Failed(result.message)
-                PgpResult.NotAvailable -> _crypto.value = CryptoUiState.Failed(null)
+                is PgpResult.UserInteractionRequired -> _crypto.value = CryptoUiState.NeedsInteraction(
+                    result.pendingIntent,
+                    lockedKind ?: CryptoKind.PGP_ENCRYPTED,
+                )
+                is PgpResult.Error -> _crypto.value =
+                    CryptoUiState.Failed(result.message, lockedKind ?: CryptoKind.PGP_ENCRYPTED)
+                PgpResult.NotAvailable -> _crypto.value =
+                    CryptoUiState.Failed(null, lockedKind ?: CryptoKind.PGP_ENCRYPTED)
             }
         }
     }

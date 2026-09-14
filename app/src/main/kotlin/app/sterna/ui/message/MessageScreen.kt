@@ -11,7 +11,6 @@ import app.sterna.core.data.text.attachmentFileName
 import app.sterna.core.data.text.safeFileName
 import app.sterna.core.data.pgp.PgpSignatureState
 import app.sterna.core.data.unsubscribe.UnsubscribeFailure
-import app.sterna.core.imap.CryptoKind
 import app.sterna.pgp.rememberPgpInteractionLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -2048,9 +2047,7 @@ private fun MessageHeader(
             // state. Mirrors the star/paperclip style.
             if (crypto != CryptoUiState.None) {
                 val decrypted = (crypto as? CryptoUiState.Decrypted)?.result
-                val encrypted = decrypted?.wasEncrypted
-                    ?: (crypto !is CryptoUiState.Decrypted) // locked/failed = still sealed
-                if (encrypted) {
+                if (pgpLook(crypto).headerLock) {
                     Spacer(Modifier.width(8.dp))
                     Icon(
                         Icons.Filled.Lock,
@@ -2580,6 +2577,7 @@ private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        val look = pgpLook(crypto)
         when (crypto) {
             is CryptoUiState.Locked -> {
                 Icon(
@@ -2589,13 +2587,7 @@ private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit) {
                     modifier = Modifier.size(20.dp),
                 )
                 Text(
-                    text = stringResource(
-                        if (crypto.kind == CryptoKind.PGP_SIGNED) {
-                            R.string.message_pgp_signed_title
-                        } else {
-                            R.string.message_pgp_encrypted_title
-                        },
-                    ),
+                    text = look.title?.let { stringResource(it) }.orEmpty(),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f),
                 )
@@ -2603,15 +2595,7 @@ private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 } else {
                     OutlinedButton(onClick = onAction) {
-                        Text(
-                            stringResource(
-                                if (crypto.kind == CryptoKind.PGP_SIGNED) {
-                                    R.string.message_pgp_verify
-                                } else {
-                                    R.string.message_pgp_unlock
-                                },
-                            ),
-                        )
+                        Text(look.action?.let { stringResource(it) }.orEmpty())
                     }
                 }
             }
@@ -2623,12 +2607,12 @@ private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit) {
                     modifier = Modifier.size(20.dp),
                 )
                 Text(
-                    text = stringResource(R.string.message_pgp_encrypted_title),
+                    text = look.title?.let { stringResource(it) }.orEmpty(),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f),
                 )
                 Button(onClick = onAction) {
-                    Text(stringResource(R.string.message_pgp_unlock))
+                    Text(look.action?.let { stringResource(it) }.orEmpty())
                 }
             }
             is CryptoUiState.Decrypted -> {
