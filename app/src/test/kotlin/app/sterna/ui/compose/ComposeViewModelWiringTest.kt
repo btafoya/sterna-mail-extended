@@ -84,12 +84,23 @@ class ComposeViewModelWiringTest {
             "buildPrefill must address replies through ComposeText's replyRecipient/" +
                 "replyAllRecipients and nothing else. Reading `original.from` here is the defect: " +
                 "Reply-To names where the sender wants the answer, and answering the From posts " +
-                "it to an address they deliberately set aside. Body was:\n$body",
+                "it to an address they deliberately set aside. The reply-all branch must also keep " +
+                "the original's Cc in its Cc, joined like the To, and unfold the Cc row whenever " +
+                "that Cc holds someone: a Cc prefilled behind a folded row is a copy the user sends " +
+                "without seeing, and the plain reply carries no Cc at all. Body was:\n$body",
             listOf(
-                "to = replyAllRecipients(original, selves),",
+                "val replyAll = replyAllRecipients(original, selves)",
+                "to = replyAll.to.joinToString(\", \"),",
+                "cc = replyAll.cc.joinToString(\", \"),",
+                "expand = replyAll.cc.isNotEmpty(),",
                 "to = replyRecipient(original),",
             ),
-            body.lines().map { it.trim() }.filter { it.startsWith("to = ") && it != "to = \"\"," },
+            body.lines().map { it.trim() }.filter {
+                (it.startsWith("to = ") && it != "to = \"\",") ||
+                    it.startsWith("cc = ") ||
+                    it.startsWith("expand = ") ||
+                    "replyAllRecipients(" in it
+            },
         )
     }
 

@@ -31,24 +31,59 @@ class GroupEntryIsNeverARecipientTest {
 
     @Test fun replyAllDropsTheGroupEntryFromTheCc() {
         val o = original.copy(cc = listOf(EmailAddress(email = "carol@example.com"), token))
-        assertEquals("alice@example.com, bob@example.com, carol@example.com", replyAllRecipients(o, mine))
+        assertEquals(
+            ReplyAllRecipients(to = listOf("alice@example.com", "bob@example.com"), cc = listOf("carol@example.com")),
+            replyAllRecipients(o, mine),
+        )
     }
 
     @Test fun replyAllWithoutTheGroupEntryInTheCcIsTheSameField() {
         val o = original.copy(cc = listOf(EmailAddress(email = "carol@example.com")))
-        assertEquals("alice@example.com, bob@example.com, carol@example.com", replyAllRecipients(o, mine))
+        assertEquals(
+            ReplyAllRecipients(to = listOf("alice@example.com", "bob@example.com"), cc = listOf("carol@example.com")),
+            replyAllRecipients(o, mine),
+        )
+    }
+
+    @Test fun replyAllWithACcOfOnlyTheGroupEntryLeavesTheCcEmpty() {
+        val o = original.copy(cc = listOf(token))
+        assertEquals(
+            ReplyAllRecipients(to = listOf("alice@example.com", "bob@example.com"), cc = emptyList()),
+            replyAllRecipients(o, mine),
+        )
+    }
+
+    @Test fun replyAllMovingTheCcToTheToLeavesTheGroupEntryBehind() {
+        val o = original.copy(
+            from = listOf(EmailAddress(email = "me@example.com")),
+            to = listOf(EmailAddress(email = "me@example.com")),
+            cc = listOf(token, EmailAddress(email = "carol@example.com")),
+        )
+        assertEquals(
+            ReplyAllRecipients(to = listOf("carol@example.com"), cc = emptyList()),
+            replyAllRecipients(o, mine),
+        )
+    }
+
+    @Test fun replyAllWhoseCcIsOnlyTheGroupEntryMovesNothingToTheTo() {
+        val o = original.copy(
+            from = listOf(EmailAddress(email = "me@example.com")),
+            to = listOf(EmailAddress(email = "me@example.com")),
+            cc = listOf(token),
+        )
+        assertEquals(ReplyAllRecipients(to = emptyList(), cc = emptyList()), replyAllRecipients(o, mine))
     }
 
     // 2, the entry is the whole To, and there is no Cc: only the sender is left to answer.
 
     @Test fun replyAllToAMailWhoseToIsOnlyTheGroupEntryAnswersTheSenderAlone() {
         val o = original.copy(to = listOf(token), cc = emptyList())
-        assertEquals("alice@example.com", replyAllRecipients(o, mine))
+        assertEquals(ReplyAllRecipients(to = listOf("alice@example.com"), cc = emptyList()), replyAllRecipients(o, mine))
     }
 
     @Test fun replyAllToAMailWithNoToAndNoCcAnswersTheSenderAlone() {
         val o = original.copy(to = emptyList(), cc = emptyList())
-        assertEquals("alice@example.com", replyAllRecipients(o, mine))
+        assertEquals(ReplyAllRecipients(to = listOf("alice@example.com"), cc = emptyList()), replyAllRecipients(o, mine))
     }
 
     // 3, the entry is the whole Reply-To. Counting it as a Reply-To would displace the From and
@@ -70,12 +105,12 @@ class GroupEntryIsNeverARecipientTest {
 
     @Test fun replyAllWithAReplyToOfOnlyTheGroupEntryAnswersTheSenderAlone() {
         val o = original.copy(replyTo = listOf(token), to = listOf(EmailAddress(email = "me@example.com")), cc = emptyList())
-        assertEquals("alice@example.com", replyAllRecipients(o, mine))
+        assertEquals(ReplyAllRecipients(to = listOf("alice@example.com"), cc = emptyList()), replyAllRecipients(o, mine))
     }
 
     @Test fun replyAllWithNoReplyToAndNothingButSelfAnswersTheSenderAlone() {
         val o = original.copy(replyTo = emptyList(), to = listOf(EmailAddress(email = "me@example.com")), cc = emptyList())
-        assertEquals("alice@example.com", replyAllRecipients(o, mine))
+        assertEquals(ReplyAllRecipients(to = listOf("alice@example.com"), cc = emptyList()), replyAllRecipients(o, mine))
     }
 
     // 5, the entry must not be mistaken for "which of my addresses got this", nor hide the real

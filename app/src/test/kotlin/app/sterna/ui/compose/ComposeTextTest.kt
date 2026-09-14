@@ -790,7 +790,76 @@ class ComposeTextTest {
 
     @Test fun replyAllIncludesSenderToAndCcButNotSelf() {
         val all = replyAllRecipients(originalToReply, setOf("me@example.com"))
-        assertEquals("alice@example.com, bob@example.com, carol@example.com", all)
+        assertEquals(
+            ReplyAllRecipients(to = listOf("alice@example.com", "bob@example.com"), cc = listOf("carol@example.com")),
+            all,
+        )
+    }
+
+    @Test fun replyAllToAMailYouWereCopiedOnKeepsTheCopyInTheCc() {
+        val o = Email(
+            id = "m4",
+            from = listOf(EmailAddress(email = "bob@example.com")),
+            to = listOf(EmailAddress(email = "me@example.com")),
+            cc = listOf(EmailAddress(email = "carol@example.com")),
+        )
+        assertEquals(
+            ReplyAllRecipients(to = listOf("bob@example.com"), cc = listOf("carol@example.com")),
+            replyAllRecipients(o, setOf("me@example.com")),
+        )
+    }
+
+    @Test fun replyAllToAMailYouSentKeepsTheCopyInTheCc() {
+        val o = Email(
+            id = "m5",
+            from = listOf(EmailAddress(email = "me@example.com")),
+            to = listOf(EmailAddress(email = "bob@example.com")),
+            cc = listOf(EmailAddress(email = "carol@example.com")),
+        )
+        assertEquals(
+            ReplyAllRecipients(to = listOf("bob@example.com"), cc = listOf("carol@example.com")),
+            replyAllRecipients(o, setOf("me@example.com")),
+        )
+    }
+
+    @Test fun replyAllWithNobodyLeftInTheToMovesTheWholeCcThere() {
+        val o = Email(
+            id = "m6",
+            from = listOf(EmailAddress(email = "me@example.com")),
+            to = listOf(EmailAddress(email = "me@example.com")),
+            cc = listOf(EmailAddress(email = "carol@example.com"), EmailAddress(email = "dave@example.com")),
+        )
+        assertEquals(
+            ReplyAllRecipients(to = listOf("carol@example.com", "dave@example.com"), cc = emptyList()),
+            replyAllRecipients(o, setOf("me@example.com")),
+        )
+    }
+
+    @Test fun replyAllKeepsAnAddressOnBothTheToAndTheCcInTheToOnly() {
+        val o = Email(
+            id = "m7",
+            from = listOf(EmailAddress(email = "me@example.com")),
+            to = listOf(EmailAddress(email = "bob@example.com")),
+            cc = listOf(EmailAddress(email = "BOB@example.com"), EmailAddress(email = "carol@example.com")),
+        )
+        assertEquals(
+            ReplyAllRecipients(to = listOf("bob@example.com"), cc = listOf("carol@example.com")),
+            replyAllRecipients(o, setOf("me@example.com")),
+        )
+    }
+
+    @Test fun replyAllKeepsAReplyToAlsoInTheCcInTheToOnly() {
+        val o = Email(
+            id = "m8",
+            from = listOf(EmailAddress(email = "alice@example.com")),
+            replyTo = listOf(EmailAddress(email = "support@example.com")),
+            to = listOf(EmailAddress(email = "me@example.com")),
+            cc = listOf(EmailAddress(email = "Support@Example.com"), EmailAddress(email = "carol@example.com")),
+        )
+        assertEquals(
+            ReplyAllRecipients(to = listOf("support@example.com"), cc = listOf("carol@example.com")),
+            replyAllRecipients(o, setOf("me@example.com")),
+        )
     }
 
     @Test fun replyAllDropsSelfCaseInsensitivelyAndDeduplicates() {
@@ -798,7 +867,10 @@ class ComposeTextTest {
             cc = listOf(EmailAddress(email = "ME@Example.com"), EmailAddress(email = "alice@example.com")),
         )
         // "ME@Example.com" == self (ignore case) is removed; the duplicate alice is collapsed.
-        assertEquals("alice@example.com, bob@example.com", replyAllRecipients(o, setOf("me@example.com")))
+        assertEquals(
+            ReplyAllRecipients(to = listOf("alice@example.com", "bob@example.com"), cc = emptyList()),
+            replyAllRecipients(o, setOf("me@example.com")),
+        )
     }
 
     @Test fun replyAllExcludesEveryAliasOfTheAccount() {
@@ -815,7 +887,10 @@ class ComposeTextTest {
             ),
             cc = listOf(EmailAddress(email = "THIRD@example.com")),
         )
-        assertEquals("alice@example.com, bob@example.com", replyAllRecipients(o, mine))
+        assertEquals(
+            ReplyAllRecipients(to = listOf("alice@example.com", "bob@example.com"), cc = emptyList()),
+            replyAllRecipients(o, mine),
+        )
     }
 
     @Test fun replyAllToYourOwnAliasStillAnswersTheSender() {
@@ -826,7 +901,7 @@ class ComposeTextTest {
             to = listOf(EmailAddress(email = "bob@example.com")),
         )
         assertEquals(
-            "bob@example.com",
+            ReplyAllRecipients(to = listOf("bob@example.com"), cc = emptyList()),
             replyAllRecipients(o, setOf("me@example.com", "alias@example.com")),
         )
     }
@@ -882,7 +957,7 @@ class ComposeTextTest {
         val o = originalToReply.copy(replyTo = listOf(EmailAddress(email = "ALICE@example.com")))
         assertEquals("ALICE@example.com", replyRecipient(o))
         assertEquals(
-            "ALICE@example.com, bob@example.com, carol@example.com",
+            ReplyAllRecipients(to = listOf("ALICE@example.com", "bob@example.com"), cc = listOf("carol@example.com")),
             replyAllRecipients(o, setOf("me@example.com")),
         )
     }
@@ -905,14 +980,14 @@ class ComposeTextTest {
     @Test fun replyAllUsesTheReplyToAndDropsTheSender() {
         // alice@example.com (the From) must not be here: the sender displaced it.
         assertEquals(
-            "support@example.com, bob@example.com, carol@example.com",
+            ReplyAllRecipients(to = listOf("support@example.com", "bob@example.com"), cc = listOf("carol@example.com")),
             replyAllRecipients(originalWithReplyTo, setOf("me@example.com")),
         )
     }
 
     @Test fun replyAllWithoutAReplyToIsExactlyWhatItWas() {
         assertEquals(
-            "alice@example.com, bob@example.com, carol@example.com",
+            ReplyAllRecipients(to = listOf("alice@example.com", "bob@example.com"), cc = listOf("carol@example.com")),
             replyAllRecipients(originalToReply, setOf("me@example.com")),
         )
     }
@@ -925,14 +1000,17 @@ class ComposeTextTest {
             ),
         )
         assertEquals(
-            "support@example.com, list@example.org, bob@example.com, carol@example.com",
+            ReplyAllRecipients(
+                to = listOf("support@example.com", "list@example.org", "bob@example.com"),
+                cc = listOf("carol@example.com"),
+            ),
             replyAllRecipients(o, setOf("me@example.com")),
         )
     }
 
     @Test fun replyAllCollapsesAReplyToAlreadyOnTheOriginal() {
-        // The list's posting address is both the Reply-To and a To/Cc entry: one occurrence. Joined
-        // into one string it would slip past the dedup and be written twice.
+        // The list's posting address is both the Reply-To and a To/Cc entry: one occurrence, in the
+        // To. Joined into one string it would slip past the dedup and be written twice.
         val o = originalToReply.copy(
             replyTo = listOf(
                 EmailAddress(email = "BOB@example.com"),
@@ -940,7 +1018,7 @@ class ComposeTextTest {
             ),
         )
         assertEquals(
-            "BOB@example.com, Carol@Example.com",
+            ReplyAllRecipients(to = listOf("BOB@example.com", "Carol@Example.com"), cc = emptyList()),
             replyAllRecipients(o, setOf("me@example.com")),
         )
     }
@@ -950,7 +1028,7 @@ class ComposeTextTest {
         // the From does not come back to fill the hole.
         val o = originalToReply.copy(replyTo = listOf(EmailAddress(email = "Alias@Example.com")))
         assertEquals(
-            "bob@example.com, carol@example.com",
+            ReplyAllRecipients(to = listOf("bob@example.com"), cc = listOf("carol@example.com")),
             replyAllRecipients(o, setOf("me@example.com", "alias@example.com")),
         )
     }
@@ -1067,7 +1145,10 @@ class ComposeTextTest {
         )
         val mine = aliasOptions.map { it.identity.email }
         assertEquals(FromOption("acc", identity("alias@example.com")), receivingFromOption(aliasOptions, "acc", o))
-        assertEquals("alice@example.com, bob@example.com", replyAllRecipients(o, mine))
+        assertEquals(
+            ReplyAllRecipients(to = listOf("alice@example.com", "bob@example.com"), cc = emptyList()),
+            replyAllRecipients(o, mine),
+        )
     }
 
     @Test fun subjectGetsRePrefixOnlyWhenMissing() {

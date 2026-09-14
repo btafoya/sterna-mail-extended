@@ -1887,6 +1887,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // opening, with the switch on, that beat would write local time.
         val zone = resolveOutgoingDateZone(settings.quotedDatesUtc)
         val opening = composeOpening(mode)
+        val replyAll = replyAllRecipients(original, selves)
         return when (opening) {
             // Same fields for both forwards: what differs (carried inline vs. attached as .eml)
             // happens in prepare(), after this prefill.
@@ -1899,7 +1900,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 body = replyBody(""),
             )
             ComposeOpening.REPLY_ALL -> DraftFields(
-                to = replyAllRecipients(original, selves),
+                to = replyAll.to.joinToString(", "),
+                cc = replyAll.cc.joinToString(", "),
+                expand = replyAll.cc.isNotEmpty(),
                 subject = withPrefix(original.subject, opening.subjectPrefix),
                 body = replyBody(if (quoteBody) quote(original, zone) else ""),
                 // Travels with the body above and says exactly what that body holds: when the original

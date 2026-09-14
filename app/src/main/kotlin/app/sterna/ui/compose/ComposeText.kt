@@ -977,18 +977,23 @@ internal fun replyRecipients(o: Email): List<String> {
 internal fun replyRecipient(o: Email): String =
     replyRecipients(o).joinToString(", ")
 
+internal data class ReplyAllRecipients(val to: List<String>, val cc: List<String>)
+
 /**
- * The recipients of a reply-all: [replyRecipients] plus everyone on the original's To and Cc, minus
- * your own addresses and blanks/duplicates. [selves] is every address the account can send as, not
- * just the login, or an account with aliases replies to its own other alias (B5).
+ * A reply-all's To ([replyRecipients], then the original's To) and Cc (its Cc, minus that To), each
+ * without your addresses, blanks or case-insensitive duplicates; with nobody left in the To, the Cc
+ * moves there. [selves] is every send-as address, or an alias replies to its own other alias (B5).
  */
-internal fun replyAllRecipients(o: Email, selves: Collection<String>): String {
+internal fun replyAllRecipients(o: Email, selves: Collection<String>): ReplyAllRecipients {
     val mine = selves.map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
-    val all = (replyRecipients(o) + o.to.map { it.email } + o.cc.map { it.email })
+    fun others(addresses: List<String>): List<String> = addresses
         .map { it.trim() }
         .filter { it.isNotEmpty() && it.lowercase() !in mine }
         .distinctBy { it.lowercase() }
-    return all.joinToString(", ")
+    val to = others(replyRecipients(o) + o.to.map { it.email })
+    val inTo = to.map { it.lowercase() }.toSet()
+    val cc = others(o.cc.map { it.email }).filter { it.lowercase() !in inTo }
+    return if (to.isEmpty()) ReplyAllRecipients(to = cc, cc = emptyList()) else ReplyAllRecipients(to, cc)
 }
 
 /**
