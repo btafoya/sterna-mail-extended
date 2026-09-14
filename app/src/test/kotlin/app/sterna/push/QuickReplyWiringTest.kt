@@ -197,9 +197,11 @@ class QuickReplyWiringTest {
             codeLinesNaming(body, "notifySendFailed("),
         )
         assertEquals(
-            "and that read is GUARDED. The DataStore has no corruption handler, so `first()` can " +
-                "throw; onReceive's catch would swallow it and NO banner would be posted — the " +
-                "typed text, which lives in the broadcast intent and nowhere else, would die there",
+            "and that read is GUARDED. A corrupt settings file now reads as the defaults, " +
+                "notification at its quietest, but a read that fails for another reason may still " +
+                "make `first()` throw; onReceive's catch would swallow it and NO banner would be " +
+                "posted — the typed text, which lives in the broadcast intent and nowhere else, " +
+                "would die there",
             listOf("val content = runCatching { settings.notificationContent.first() }"),
             codeLinesNaming(body, "notificationContent"),
         )

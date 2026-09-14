@@ -2,8 +2,10 @@ package app.sterna.core.data.settings
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.preferencesOf
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -46,7 +48,9 @@ enum class DeliveryMode { INSTANT, BATTERY_SAVER }
  */
 enum class NotificationContent { BODY_PREVIEW, SENDER_AND_SUBJECT, SENDER_ONLY, NONE }
 
-private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+internal val settingsCorruptionHandler: ReplaceFileCorruptionHandler<Preferences> = ReplaceFileCorruptionHandler { preferencesOf(KEY_NOTIFICATION_CONTENT to NotificationContent.NONE.name) }
+
+private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings", corruptionHandler = settingsCorruptionHandler)
 
 /**
  * Reactive app-preferences store backed by a Preferences [DataStore].

@@ -106,8 +106,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
             QuickReplyAct.DoNothing -> Unit
             QuickReplyAct.Dismiss -> dismiss(context, accountId, credentials, emailId, notifId)
             // Read here and not before: the setting is only needed on the end that posts a banner.
-            // Guarded, and not for tidiness: the DataStore has no corruption handler, so a
-            // out whatever the user had chosen).
+            // Guarded: a corrupt settings file reads as the defaults, notification at its quietest;
+            // another read failure may still throw, and onReceive's catch would drop the typed text.
             is QuickReplyAct.HandBack -> {
                 val content = runCatching { settings.notificationContent.first() }
                     .getOrDefault(NotificationContent.NONE)

@@ -74,9 +74,9 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
                 // now-overdue row. The banner names the message only as much as the
                 // notification-content setting allows.
                 //
-                // GUARDED: this read sits inside the catch, and the DataStore has no corruption
-                // handler, so a throw would escape doWork() and skip both the banner and the
-                // delete. An unreadable setting falls back to the quietest position.
+                // Guarded: a corrupt settings file reads as defaults, notification at its quietest;
+                // another read failure may still throw, escape doWork() and skip both the banner and
+                // the delete. A read that throws falls back to the quietest position as well.
                 val content = runCatching { container.settingsRepository.notificationContent.first() }
                     .getOrDefault(NotificationContent.NONE)
                 Notifications.notifySendFailed(applicationContext, row.subject, content)
