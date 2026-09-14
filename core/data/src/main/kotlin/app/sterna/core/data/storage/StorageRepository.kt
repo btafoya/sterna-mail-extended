@@ -140,8 +140,7 @@ class StorageRepository(
     /** Write a downloaded attachment to the cache, then enforce the size/age cap. */
     suspend fun cacheAttachment(name: String?, bytes: ByteArray): File = withContext(Dispatchers.IO) {
         val dir = attachmentsDir.apply { mkdirs() }
-        val safeName = (name ?: "attachment").replace(Regex("[^A-Za-z0-9._-]"), "_")
-        val file = File(dir, safeName).apply { writeBytes(bytes) }
+        val file = cacheAttachmentInto(dir, name, bytes)
         enforceAttachmentCap()
         file
     }
@@ -187,4 +186,34 @@ class StorageRepository(
 internal fun clearAttachmentTrees(attachmentsDir: File, outgoingDir: File) {
     attachmentsDir.listFiles()?.forEach { it.delete() }
     outgoingDir.listFiles()?.forEach { it.delete() }
+}
+
+internal const val CACHED_ATTACHMENT_NAME_ATTEMPTS = 1000
+
+internal fun cacheAttachmentInto(dir: File, name: String?, bytes: ByteArray): File {
+    val safeName = (name ?: "attachment").replace(Regex("[^A-Za-z0-9._-]"), "_")
+        .takeUnless { it.isEmpty() || it == "." || it == ".." } ?: "attachment"
+    return reserveAttachmentName(dir, safeName).apply { writeBytes(bytes) }
+}
+
+private fun reserveAttachmentName(dir: File, safeName: String): File {
+    val dot = safeName.lastIndexOf('.')
+    val base = if (dot > 0) safeName.substring(0, dot) else safeName
+    val extension = if (dot > 0) safeName.substring(dot) else ""
+    for (attempt in 1..CACHED_ATTACHMENT_NAME_ATTEMPTS) {
+        val candidate = File(dir, if (attempt == 1) safeName else numberedAttachmentName(base, "-$attempt", extension))
+        if (candidate.createNewFile()) return candidate
+    }
+    while (true) {
+        val prefix = "${System.nanoTime()}-"
+        val candidate = File(dir, prefix + safeName.take(MAX_ATTACHMENT_NAME_BYTES - prefix.length))
+        if (candidate.createNewFile()) return candidate
+    }
+}
+
+private const val MAX_ATTACHMENT_NAME_BYTES = 255
+
+private fun numberedAttachmentName(base: String, suffix: String, extension: String): String {
+    val kept = if (suffix.length + extension.length < MAX_ATTACHMENT_NAME_BYTES) extension else ""
+    return base.take(MAX_ATTACHMENT_NAME_BYTES - suffix.length - kept.length) + suffix + kept
 }
