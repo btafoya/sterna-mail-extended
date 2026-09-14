@@ -50,8 +50,8 @@ import app.sterna.core.data.filter.foreignScriptNotice
 import app.sterna.core.data.filter.showsNoRulesNote
 import app.sterna.ui.components.LoadingRing
 
-/** Server-side filter rules (JMAP Sieve) for the current account: edited as a form and pushed on
- *  Save. Network-backed, so the screen carries loading / saving / error state. */
+/** Server-side filter rules (Sieve, over JMAP or ManageSieve) for the current account: edited as a
+ *  form and pushed on Save. Network-backed, so the screen carries loading / saving / error state. */
 @Composable
 fun FiltersScreen(
     onBack: () -> Unit,
@@ -145,9 +145,9 @@ fun FiltersScreen(
             when {
                 state.loading -> LoadingRing(Modifier.align(Alignment.Center))
                 state.noAccount -> FiltersNote(stringResource(R.string.settings_vacation_no_account))
-                !state.supported -> FiltersNote(stringResource(filtersUnavailableText(state.unavailableCause)))
+                !state.supported -> FiltersNote(stringResource(R.string.settings_filters_unsupported))
                 state.errorKind == FiltersError.LOAD -> FiltersNote(
-                    stringResource(R.string.settings_vacation_load_error, state.errorDetail),
+                    stringResource(filtersErrorText(FiltersError.LOAD, state.errorSieveKind), state.errorDetail),
                     onRetry = viewModel::load,
                 )
                 else -> FiltersList(
@@ -258,7 +258,7 @@ private fun FiltersList(
 
         if (state.errorKind == FiltersError.SAVE) {
             Text(
-                stringResource(R.string.settings_vacation_save_error, state.errorDetail),
+                stringResource(filtersErrorText(FiltersError.SAVE, state.errorSieveKind), state.errorDetail),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),

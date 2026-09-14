@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import app.sterna.R
 import app.sterna.container
 import app.sterna.core.data.account.AccountCredentials
+import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.accountAddresses
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.filter.BlockOutcome
@@ -18,6 +19,7 @@ import app.sterna.core.data.mail.FilterRulesState
 import app.sterna.core.data.mail.ImapMailService
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.SenderVolume
+import app.sterna.core.imap.ManageSieveException
 import app.sterna.core.jmap.model.Mailbox
 import app.sterna.ui.inbox.BulkOutcome
 import app.sterna.ui.inbox.bulkOutcome
@@ -37,16 +39,22 @@ internal fun cachedTotal(rows: List<SenderVolume>): Int = rows.sumOf { it.total 
 internal fun trashFilePath(mailboxes: List<Mailbox>): String? =
     mailboxes.firstOrNull { it.role == "trash" }?.let { mailboxFilePath(it, mailboxes) }
 
-/**
- * Whether the "future mail to Trash" entry may appear, from the account's script read ([state],
- * answered ([state], null when the read failed) and whether the Trash can be named [trashPath].
- */
+/** Whether the "future mail to Trash" entry may appear: [blockAvailability] answered it is offered. */
 internal fun canBlockSender(state: FilterRulesState?, trashPath: String?): Boolean =
     blockAvailability(state, trashPath) == BlockAvailability.OFFERED
 
 /**
- * The four answers behind [canBlockSender], kept apart because only one can be explained.
+ * On IMAP a `ManageSieveException` of any kind most often means a provider without ManageSieve, where
+ * the entry would fail at every tap. On JMAP a failed read is a passing outage, and keeps the entry.
  */
+internal fun failedReadWithdrawsBlock(protocol: MailProtocol, failure: Throwable): Boolean =
+    protocol == MailProtocol.IMAP && failure is ManageSieveException
+
+/** `Unsupported` because this screen withdraws that entry in silence, with no note blaming the server. */
+internal fun rulesAfterFailedRead(protocol: MailProtocol, failure: Throwable): FilterRulesState? =
+    if (failedReadWithdrawsBlock(protocol, failure)) FilterRulesState.Unsupported else null
+
+/** The four answers behind [canBlockSender], kept apart because only one can be explained. */
 internal enum class BlockAvailability { OFFERED, NO_TRASH, UNSUPPORTED, FOREIGN_SCRIPT }
 
 internal fun blockAvailability(state: FilterRulesState?, trashPath: String?): BlockAvailability = when {
@@ -245,7 +253,7 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
                 ownAddresses = ownAddresses(credentials),
             )
             val loaded = runCatching { repo.accounts.loadFilterRules(credentials) }
-                .getOrElseUnlessCancelled { null }
+                .getOrElseUnlessCancelled { rulesAfterFailedRead(credentials.protocol, it) }
             _state.value = _state.value.copy(
                 canBlock = canBlockSender(loaded, trashPath),
                 // From the same two readings the availability is decided from, so the note and the

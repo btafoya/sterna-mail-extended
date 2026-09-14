@@ -1,13 +1,17 @@
 package app.sterna.ui.message
 
+import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.filter.FilterRule
 import app.sterna.core.data.filter.RuleField
 import app.sterna.core.data.filter.RuleMatch
 import app.sterna.core.data.mail.FilterRulesState
+import app.sterna.core.imap.ManageSieveException
+import app.sterna.widget.DeclarationSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 
 /**
  * The per-sender filter rule offered from the message being read (the ⋮ of the sender's row in
@@ -89,6 +93,7 @@ class SenderRuleFromReaderTest {
             read(ruled("alex.rivera@masto.top")),
             read(FilterRulesState.Loaded(emptyList(), foreignActiveScript = true)),
             read(FilterRulesState.Unsupported),
+            senderScriptAfterFailure(MailProtocol.IMAP, sieveFailure(ManageSieveException.Kind.UNREACHABLE)),
         )
         assertEquals(
             states.map { SenderRuleEntry.ABSENT },
@@ -166,13 +171,38 @@ class SenderRuleFromReaderTest {
     }
 
     @Test fun `a read that got no answer leaves the entry offered`() {
-        // And this is the state that must not be hidden, which is the whole reason the two are
-        // told apart. Hiding the entry offline makes an unreachable server look like an IMAP
+        // And this is the state that must not be hidden on JMAP, which is the whole reason the two
+        // are told apart: offline, the entry stays, and tapping it reports the failure.
         assertEquals(SenderRuleEntry.OFFERED, entry(script = SenderScript.Unreachable))
         assertEquals(
             "…but a Trash that cannot be named is still nothing to offer",
             SenderRuleEntry.ABSENT,
             entry(script = SenderScript.Unreachable, trashPath = null),
+        )
+    }
+
+    private fun sieveFailure(kind: ManageSieveException.Kind) = ManageSieveException("ManageSieve failed", kind)
+
+    @Test fun `an IMAP read that ManageSieve did not serve withdraws the entry, whatever the kind`() {
+        ManageSieveException.Kind.entries.forEach { kind ->
+            assertEquals(
+                "$kind on IMAP most often means a provider without ManageSieve: offered, the entry " +
+                    "would fail at every tap",
+                SenderRuleEntry.ABSENT,
+                entry(script = senderScriptAfterFailure(MailProtocol.IMAP, sieveFailure(kind))),
+            )
+        }
+    }
+
+    @Test fun `a JMAP read that failed still leaves the entry offered`() {
+        assertEquals(
+            SenderRuleEntry.OFFERED,
+            entry(script = senderScriptAfterFailure(MailProtocol.JMAP, IOException("offline"))),
+        )
+        assertEquals(
+            "on IMAP, a failure that is not ManageSieve's is the ordinary unanswered read",
+            SenderRuleEntry.OFFERED,
+            entry(script = senderScriptAfterFailure(MailProtocol.IMAP, IllegalStateException("boom"))),
         )
     }
 
@@ -267,11 +297,12 @@ class SenderRuleFromReaderTest {
         // A read that answers Unread where it should answer Unreachable strands the entry on any
         val vm = VIEW_MODEL.readText()
         assertTrue(
-            "a read that fails must answer SenderScript.Unreachable, and a CANCELLED read must " +
-                "answer nothing at all: '.getOrElseUnlessCancelled { SenderScript.Unreachable }' " +
+            "a read that fails must answer through senderScriptAfterFailure with the account's " +
+                "protocol, and a CANCELLED read must answer nothing at all: " +
+                "'.getOrElseUnlessCancelled { senderScriptAfterFailure(credentials.protocol, it) }' " +
                 "(issue #99). The reader is a pager — this coroutine dies on every swipe, and " +
                 "reading that as 'unreachable' answers for a message nobody is looking at",
-            ".getOrElseUnlessCancelled { SenderScript.Unreachable }" in vm &&
+            ".getOrElseUnlessCancelled { senderScriptAfterFailure(credentials.protocol, it) }" in vm &&
                 "getOrDefault(SenderScript" !in vm,
         )
         assertTrue(
@@ -279,11 +310,20 @@ class SenderRuleFromReaderTest {
                 "'_senderRules.value = SenderScript.Unread'",
             "_senderRules.value = SenderScript.Unread" in vm,
         )
-        assertTrue(
+        assertEquals(
             "re-opening the panel may only skip the round-trip once the server ANSWERED — " +
-                "'if (_senderRules.value is SenderScript.Read) return'. Skipping on Unreachable " +
-                "as well would strand the entry on one failed read until the message is left",
-            "if (_senderRules.value is SenderScript.Read) return" in vm,
+                "'if (_senderRules.value is SenderScript.Read) return', and no other guard. Skipping " +
+                "on Unreachable or Withdrawn as well would strand the entry on one failed read until " +
+                "the message is left",
+            listOf(
+                "fun loadSenderRules() {",
+                "if (_senderRules.value is SenderScript.Read) return",
+                "val credentials = credentials() ?: return",
+                "viewModelScope.launch {",
+                "_senderRules.value = readSenderScript(credentials)",
+                "}",
+            ),
+            DeclarationSource.functionBody(VIEW_MODEL, "fun loadSenderRules()"),
         )
     }
 

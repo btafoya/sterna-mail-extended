@@ -435,11 +435,6 @@ class FilterStatusRefreshTest {
                 "warning at the moment it becomes true",
             body.contains(".getOrElseUnlessCancelled { null }"),
         )
-        assertTrue(
-            "IMAP stays a known fact, not a failure — a null there would freeze whatever the " +
-                "screen happened to be showing",
-            body.contains("if (credentials.protocol == MailProtocol.IMAP) return FilterScriptStatus()"),
-        )
     }
 
     /**

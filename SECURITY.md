@@ -52,6 +52,17 @@ Out of scope:
   `SSLSocket`, for implicit TLS and after every STARTTLS upgrade, so a certificate that
   chains to a valid CA but does not match the server hostname is rejected. Credentials are
   only ever sent after the TLS handshake completes.
+- **ManageSieve never carries a password in the clear.** The filters of an IMAP account signed
+  in with a password are read and saved over ManageSieve (RFC 5804), on port 4190 of the
+  account's IMAP host; there is no setting for another port. The client requires STARTTLS
+  with the same hostname verification as above. The capabilities read before the handshake
+  decide nothing but whether STARTTLS is offered; the ones the server repeats over TLS are the
+  ones used. The password leaves only after the handshake, in SASL PLAIN, and only if PLAIN is
+  offered over TLS. When STARTTLS is not offered, or PLAIN is not offered once encrypted, the
+  connection is closed without the password, and the filters screen says Sterna could not sign
+  in over a secure connection. It names no culprit on purpose: a server that only offers other
+  mechanisms and someone on the network stripping STARTTLS look the same from the client. An
+  account signed in with OAuth never connects to ManageSieve at all.
 - **Certificate authorities installed by the user count as valid.** Since Android 7 an app
   trusts only the system CA store by default, which leaves a self-hosted server with its own
   authority unreachable. The app's network security configuration

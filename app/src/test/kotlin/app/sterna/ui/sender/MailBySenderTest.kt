@@ -1,14 +1,17 @@
 package app.sterna.ui.sender
 
+import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.mail.FilterRulesState
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.SenderVolume
+import app.sterna.core.imap.ManageSieveException
 import app.sterna.core.jmap.model.Mailbox
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 
 /**
  * The decisions the "Mail by sender" screen makes, taken out of the ViewModel so a JVM test can
@@ -111,8 +114,8 @@ class MailBySenderTest {
     }
 
     @Test fun `no server support, no entry`() {
-        // IMAP, or a JMAP server without the Sieve capability: exactly where the Filters screen
-        // shows its "not supported" note. Nothing local is invented to stand in for it.
+        // An IMAP account on OAuth, or a JMAP server without the Sieve capability: exactly where
+        // the Filters screen shows its "not supported" note. Nothing local is invented for it.
         assertFalse(
             "the server would refuse the rule; offering it promises something that cannot happen",
             canBlockSender(FilterRulesState.Unsupported, trashPath = "Trash"),
@@ -142,14 +145,37 @@ class MailBySenderTest {
     }
 
     @Test fun `a read that failed keeps the entry`() {
-        // Offline is not "unsupported". Hiding the entry here makes an unreachable server
-        // indistinguishable from an IMAP account, no word, no retry, and the difference is
-        // never explained. Tapping it reads again and reports the failure honestly.
+        // On JMAP, offline is not "unsupported". Hiding the entry there makes an unreachable
+        // server indistinguishable from one without Sieve, no word, no retry. Tapping it reads
+        // again and reports the failure honestly.
         assertTrue(
-            "a read that failed is not an unsupported account: hiding the entry makes an " +
-                "unreachable server look like IMAP, with no word and no retry",
-            canBlockSender(null, trashPath = "Trash"),
+            "a failed JMAP read is not an unsupported account: hiding the entry makes an " +
+                "unreachable server look like one without Sieve, with no word and no retry",
+            canBlockSender(rulesAfterFailedRead(MailProtocol.JMAP, IOException("offline")), trashPath = "Trash"),
         )
+        assertTrue(
+            "on IMAP, a failure that is not ManageSieve's is the ordinary failed read",
+            canBlockSender(rulesAfterFailedRead(MailProtocol.IMAP, IllegalStateException("boom")), trashPath = "Trash"),
+        )
+    }
+
+    @Test fun `a password IMAP account blocks when ManageSieve answers, and loses the entry when it does not`() {
+        assertTrue(
+            "an IMAP account whose ManageSieve read answered is the case the gesture exists for",
+            canBlockSender(FilterRulesState.Loaded(emptyList()), trashPath = "Trash"),
+        )
+        ManageSieveException.Kind.entries.forEach { kind ->
+            val loaded = rulesAfterFailedRead(MailProtocol.IMAP, ManageSieveException("ManageSieve failed", kind))
+            assertFalse(
+                "$kind on IMAP most often means a provider without ManageSieve: offered, the entry " +
+                    "would fail at every tap",
+                canBlockSender(loaded, trashPath = "Trash"),
+            )
+            assertNull(
+                "$kind: withdrawn in silence, no note that would blame the server",
+                blockNoteRes(blockAvailability(loaded, "Trash")),
+            )
+        }
     }
 
     // -- what an Undo has to move back ------------------------------------------------------------
@@ -250,9 +276,9 @@ class MailBySenderTest {
 
     @Test fun `what the account cannot do at all is absent, not greyed`() {
         // The other half of the distinction, and the reason both cases cannot share a rendering:
-        // canDelete/canBlock false mean "this account will never be able to do this" (no Trash,
-        // IMAP, no Sieve, another script running). There is nothing to wait for, so there is
-        // nothing to grey out, and an entry that greys out forever reads as a bug.
+        // canDelete/canBlock false mean "not on this account for now" (no Trash, no Sieve, another
+        // script running, or an IMAP read ManageSieve did not serve, which the next load retries).
+        // No batch in flight explains it, so a greyed entry would read as a bug.
         assertEquals(
             "the search needs nothing of the account and never goes away",
             listOf(SenderAction.SEARCH),
@@ -452,7 +478,7 @@ class MailBySenderTest {
 
     @Test fun `only the foreign script gets a note, and it names one`() {
         // The one "no" that is invisible and explicable. The other two are the Filters screen's
-        // own silences: an IMAP account gets a "not supported" note over there and nothing here,
+        // own silences: an account without Sieve gets a "not supported" note there and nothing here,
         // and an account with no nameable Trash is offered nothing rather than told about a
         // folder it does not have.
         assertEquals(

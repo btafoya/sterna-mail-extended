@@ -21,6 +21,7 @@ import app.sterna.push.Notifications
 import app.sterna.snooze.Snoozes
 import app.sterna.ui.compose.receivingAddress
 import app.sterna.core.data.account.AccountCredentials
+import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.account.accountAddresses
 import app.sterna.core.data.account.folderHidingOf
@@ -57,6 +58,7 @@ import app.sterna.ui.inbox.moveTargets
 import app.sterna.ui.inbox.pickerAccount
 import app.sterna.ui.inbox.pickerExcludedMailbox
 import app.sterna.ui.inbox.showOnlySubscribedFor
+import app.sterna.ui.sender.failedReadWithdrawsBlock
 import app.sterna.ui.sender.trashFilePath
 import app.sterna.ui.showsRecipients
 import kotlinx.coroutines.CancellationException
@@ -156,12 +158,18 @@ sealed interface SenderScript {
     /** Nothing has been asked. The panel arms the read; until it answers there is no opinion. */
     data object Unread : SenderScript
 
-    /** A read was made and did not answer, offline, a dead connection, a server that threw. */
+    /** A failed read that keeps the entry: offline on JMAP, a dead connection, a server that threw. */
     data object Unreachable : SenderScript
 
     /** The server answered, with whatever it had to say. */
     data class Read(val state: FilterRulesState) : SenderScript
+
+    /** Withdrawn by [failedReadWithdrawsBlock]. Not an answer either, so the next opening reads again. */
+    data object Withdrawn : SenderScript
 }
+
+fun senderScriptAfterFailure(protocol: MailProtocol, failure: Throwable): SenderScript =
+    if (failedReadWithdrawsBlock(protocol, failure)) SenderScript.Withdrawn else SenderScript.Unreachable
 
 /**
  * Whether the open message may offer the block rule at all, and which refusal it names when it may not.
@@ -181,6 +189,7 @@ fun senderRuleEntry(
         !blockableSender(address, ownAddresses) -> SenderRuleEntry.ABSENT
         trashPath == null -> SenderRuleEntry.ABSENT
         script is SenderScript.Unread -> SenderRuleEntry.ABSENT
+        script is SenderScript.Withdrawn -> SenderRuleEntry.ABSENT
         rules is FilterRulesState.Unsupported -> SenderRuleEntry.ABSENT
         // "Already there" answers before "cannot", as addBlockRule does: neither case writes
         // anything, and "another script is active" on an address already handled reports an obstacle
@@ -498,9 +507,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         if (id == null) flowOf(emptyList()) else repo.observeMailboxes(id)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /**
-     * The account's filter rules as last read; see [senderRuleEntry] for what each of the three states
-     */
+    /** The account's filter rules as last read; [senderRuleEntry] decides what each state offers. */
     private val _senderRules = MutableStateFlow<SenderScript>(SenderScript.Unread)
     val senderRules = _senderRules.asStateFlow()
 
@@ -530,9 +537,9 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     fun clearActionStatus() { _actionStatus.value = null }
 
-    /** Read the account's script, once, when the participants panel opens. Idempotent while it holds an
-     *  answer, so reopening the panel does not go back to the server; a read that failed leaves
-     *  [SenderScript.Unreachable], which is not an answer, so the next opening tries again. */
+    /** Read the account's script when the participants panel opens; reopening skips the server once it
+     *  answered. A failed read leaves [SenderScript.Withdrawn] after a ManageSieve failure on IMAP,
+     *  [SenderScript.Unreachable] otherwise: neither is an answer, so the next opening tries again. */
     fun loadSenderRules() {
         if (_senderRules.value is SenderScript.Read) return
         val credentials = credentials() ?: return
@@ -541,12 +548,12 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** One read of the account's script, as the three-state answer the entry is decided on.
+    /** One read of the account's script, as the four-state answer the entry is decided on.
      *  `getOrElseUnlessCancelled` and not `getOrDefault` (#99): a cancelled read is not a failed one,
      *  and this coroutine dies every time a page is swiped away. */
     private suspend fun readSenderScript(credentials: AccountCredentials): SenderScript =
         runCatching { SenderScript.Read(repo.accounts.loadFilterRules(credentials)) }
-            .getOrElseUnlessCancelled { SenderScript.Unreachable }
+            .getOrElseUnlessCancelled { senderScriptAfterFailure(credentials.protocol, it) }
 
     /**
      * Add the "future mail to Trash, marked read" rule for [address] to the account's script. The whole

@@ -148,10 +148,8 @@ class MailboxPathTest {
 
     // ---- what a server-side rule must name -------------------------------------------------
     //
-    // Server-side rules are JMAP-only: MailAccounts.loadFilterRules answers Unsupported for
-    // every IMAP account, and the rule editor is this function's single caller. So only the
-    // JMAP cases below describe something that reaches a wire today; the IMAP ones pin the
-    // behaviour of a branch kept for the day IMAP filters exist, and say so in their name.
+    // Called by the rule editor and by `trashFilePath` (the block-sender rule). The value reaches the
+    // server as a Sieve `fileinto`: over `SieveScript/set` on JMAP, over ManageSieve on IMAP.
 
     @Test fun `a JMAP rule names the chain of folder names`() {
         val work = jmap("mb1", "Work")
@@ -192,7 +190,7 @@ class MailboxPathTest {
         assertEquals("Bills", mailboxFilePath(opaque, listOf(opaque)))
     }
 
-    @Test fun `IMAP, not reachable today - a rule would name the whole path, own delimiter`() {
+    @Test fun `IMAP, a rule would name the whole path, own delimiter`() {
         val done = imap("INBOX.ProjectA.Done")
         assertEquals("INBOX.ProjectA.Done", mailboxFilePath(done, listOf(done)))
         val q1 = imap("Work/2026/Q1", delimiter = '/')
@@ -201,14 +199,21 @@ class MailboxPathTest {
         assertEquals("Bills", mailboxFilePath(root, listOf(root)))
     }
 
-    @Test fun `IMAP, not reachable today - a standard folder is named by path, not by label`() {
+    @Test fun `IMAP, a Chinese child folder is named by its UTF-8 path with the server's delimiter`() {
+        val slash = imap("项目/报告", delimiter = '/')
+        assertEquals("项目/报告", mailboxFilePath(slash, listOf(slash, imap("项目", delimiter = '/'))))
+        val dot = imap("INBOX.项目.报告")
+        assertEquals("INBOX.项目.报告", mailboxFilePath(dot, listOf(dot)))
+    }
+
+    @Test fun `IMAP, a standard folder is named by path, not by label`() {
         // The display hides the path here; the value must not - a rule filing into Trash on a
         // Dovecot server has to say INBOX.Trash.
         val trash = imap("INBOX.Trash", role = "trash")
         assertEquals("INBOX.Trash", mailboxFilePath(trash, listOf(trash)))
     }
 
-    @Test fun `IMAP, not reachable today - the value keeps what the display filters out`() {
+    @Test fun `IMAP, the value keeps what the display filters out`() {
         // A path sent to a server must reproduce the folder the server named, byte for byte;
         // only the label is sanitized.
         val spoof = Mailbox(id = "INBOX.pro\u202EjectA.Done", name = "Done")

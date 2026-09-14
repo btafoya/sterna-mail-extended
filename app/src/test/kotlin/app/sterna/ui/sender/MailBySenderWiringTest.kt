@@ -134,6 +134,12 @@ class MailBySenderWiringTest {
         // a mutation drops half of.
         val body = functionBody(VIEW_MODEL, "load")
         assertTrue(
+            "load() must turn a failed rules read into 'loaded' through the pure decision, as " +
+                "'.getOrElseUnlessCancelled { rulesAfterFailedRead(credentials.protocol, it) }'. " +
+                "Body was:\n$body",
+            ".getOrElseUnlessCancelled { rulesAfterFailedRead(credentials.protocol, it) }" in body,
+        )
+        assertTrue(
             "load() must set 'canBlock = canBlockSender(loaded, trashPath)'. Body was:\n$body",
             "canBlock = canBlockSender(loaded, trashPath)," in body,
         )

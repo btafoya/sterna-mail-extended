@@ -61,6 +61,17 @@ internal object ImapSource {
         return text.substring(declaration.range.first, close + 1).lines().map { it.trim() }.filter { it.isNotEmpty() }
     }
 
+    fun fileLines(fileName: String): List<String> =
+        source(fileName).lines().map { it.trim() }.filter { it.isNotEmpty() }
+
+    fun fileNames(): List<String> {
+        val anyFile = locate("${DIR}ImapClient.kt")
+        return anyFile.parentFile.listFiles(java.io.FileFilter { f -> f.isFile && f.name.endsWith(".kt") })
+            .orEmpty()
+            .map { it.name.removeSuffix(".kt") }
+            .sorted()
+    }
+
     private fun declarationOf(text: String, fileName: String, functionName: String): MatchResult =
         Regex("""\bfun\s+(<[^>()]*>\s*)?$functionName\s*\(""").find(text)
             ?: error("$fileName has no function named '$functionName' — did it get renamed?")

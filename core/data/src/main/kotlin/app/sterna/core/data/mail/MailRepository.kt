@@ -774,7 +774,8 @@ data class NotifyRead(val emails: List<Email>, val baselineIds: List<String>)
 
 /** Outcome of loading an account's server-side filter rules. */
 sealed interface FilterRulesState {
-    /** No Sieve support (IMAP account, or capability absent). */
+    /** Not offered: a JMAP server without the Sieve capability, or an IMAP account signed in with
+     *  OAuth or without an IMAP host. */
     data object Unsupported : FilterRulesState
     data class Loaded(
         val rules: List<FilterRule>,

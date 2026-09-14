@@ -24,6 +24,7 @@ import app.sterna.core.data.filter.loadedFilterRules
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.mail.MailRepository.DiscoveryResult
 import app.sterna.core.data.rethrowIfCancelled
+import app.sterna.core.imap.MANAGESIEVE_PORT
 import app.sterna.core.jmap.BasicAuth
 import app.sterna.core.jmap.BearerAuth
 import app.sterna.core.jmap.DeviceAuthorization
@@ -80,6 +81,7 @@ class MailAccounts(
     private val bgScope: CoroutineScope,
     private val host: MailAccountHost,
     private val logWarn: (String, String, Throwable?) -> Unit = { _, _, _ -> },
+    private val sieve: SieveConnector = ManageSieveConnector(),
 ) {
 
     /**
@@ -479,9 +481,12 @@ class MailAccounts(
         }.getOrDefault(emptyList())
     }
 
-    /** The account's Sterna-managed Sieve rules; Unsupported for IMAP and without the capability. */
+    /**
+     * The account's Sterna-managed Sieve rules; Unsupported for an IMAP account on OAuth or without
+     * an IMAP host, and for JMAP without the capability. A failed ManageSieve read throws.
+     */
     suspend fun loadFilterRules(credentials: AccountCredentials): FilterRulesState {
-        if (credentials.protocol == MailProtocol.IMAP) return FilterRulesState.Unsupported
+        if (credentials.protocol == MailProtocol.IMAP) return loadFilterRulesBySieve(credentials)
         val ctx = host.jmapSession(credentials)
         if (!ctx.session.capabilities.containsKey(app.sterna.core.jmap.Jmap.SIEVE_CAPABILITY)) {
             return FilterRulesState.Unsupported
@@ -503,7 +508,7 @@ class MailAccounts(
      * Whether the filter rules are actually running server-side, and whether the vacation responder
      */
     suspend fun loadFilterScriptStatus(credentials: AccountCredentials): FilterScriptStatus? {
-        if (credentials.protocol == MailProtocol.IMAP) return FilterScriptStatus()
+        if (credentials.protocol == MailProtocol.IMAP) return loadFilterScriptStatusBySieve(credentials)
         return runCatching {
             val ctx = host.jmapSession(credentials)
             if (!ctx.session.capabilities.containsKey(app.sterna.core.jmap.Jmap.SIEVE_CAPABILITY)) {
@@ -535,8 +540,19 @@ class MailAccounts(
         }.getOrElseUnlessCancelled { null }
     }
 
-    /** Compile [rules] to Sieve, validate server-side, then save and activate. Throws on refusal. */
+    /**
+     * Compile [rules] to Sieve, validate server-side, then save and activate. Throws on refusal, and
+     * before any network for an account no transport serves: the screen hiding Save is not the guard.
+     */
     suspend fun saveFilterRules(credentials: AccountCredentials, rules: List<FilterRule>) {
+        when (credentials.protocol) {
+            MailProtocol.IMAP -> {
+                val sieveHost = manageSieveHost(credentials)
+                    ?: throw IllegalStateException("Server-side filters are not available for this account")
+                return saveFilterRulesBySieve(sieveHost, credentials, rules)
+            }
+            MailProtocol.JMAP -> Unit
+        }
         val ctx = host.jmapSession(credentials)
         val script = SieveCodec.generate(rules)
         val blob = client.uploadBlob(
@@ -551,6 +567,58 @@ class MailAccounts(
             ctx.session, ctx.accountId, SieveCodec.SCRIPT_NAME, blob.blobId, existing?.id, ctx.auth,
         )
     }
+
+    /** [loadFilterRules] over ManageSieve: one listing, then the `sterna` script by name, as on JMAP. */
+    private suspend fun loadFilterRulesBySieve(credentials: AccountCredentials): FilterRulesState {
+        val sieveHost = manageSieveHost(credentials) ?: return FilterRulesState.Unsupported
+        return sieveSession(sieveHost, credentials) {
+            val scripts = listScripts()
+            val script = scripts.firstOrNull { it.name == SieveCodec.SCRIPT_NAME }?.let { getScript(it.name) }
+            loadedFilterRules(
+                sternaScript = script,
+                otherActiveScript = scripts.any { it.isActive && it.name != SieveCodec.SCRIPT_NAME },
+            )
+        }
+    }
+
+    /** [loadFilterScriptStatus] over ManageSieve, the same facts from one listing; null when the read fails. */
+    private suspend fun loadFilterScriptStatusBySieve(credentials: AccountCredentials): FilterScriptStatus? {
+        val sieveHost = manageSieveHost(credentials) ?: return FilterScriptStatus()
+        return runCatching {
+            sieveSession(sieveHost, credentials) {
+                val scripts = listScripts()
+                val managed = scripts.firstOrNull { it.name == SieveCodec.SCRIPT_NAME }
+                val script = managed?.let { getScript(it.name) }
+                FilterScriptStatus(
+                    scriptExists = managed != null,
+                    scriptActive = managed?.isActive == true,
+                    enabledRuleCount = script?.let { enabledRuleCount(SieveCodec.parseRules(it)) } ?: 0,
+                    vacationScriptExists = scripts.any { it.name == VACATION_SCRIPT_NAME },
+                    vacationScriptActive = scripts.any { it.name == VACATION_SCRIPT_NAME && it.isActive },
+                    foreignActive = scripts.any { it.isActive && it.name != SieveCodec.SCRIPT_NAME },
+                )
+            }
+        }.getOrElseUnlessCancelled { null }
+    }
+
+    /**
+     * [saveFilterRules] over ManageSieve, in one connection. A connection lost before `SETACTIVE`
+     * leaves a first save stored and inactive; over an active `sterna`, `PUTSCRIPT` has already put
+     * the new rules in service, though the save reports a failure. A rejection passes through as the
+     * client's `ManageSieveException`, the server's text and its kind intact.
+     */
+    private suspend fun saveFilterRulesBySieve(sieveHost: String, credentials: AccountCredentials, rules: List<FilterRule>) {
+        val script = SieveCodec.generate(rules)
+        sieveSession(sieveHost, credentials) {
+            checkScript(script)
+            putScript(SieveCodec.SCRIPT_NAME, script)
+            setActive(SieveCodec.SCRIPT_NAME)
+        }
+    }
+
+    /** [sieveHost] comes from [manageSieveHost]; the login is the one `ImapMailService` gives the IMAP server. */
+    private suspend fun <T> sieveSession(sieveHost: String, credentials: AccountCredentials, block: SieveScripts.() -> T): T =
+        sieve.session(sieveHost, MANAGESIEVE_PORT, credentials.username, credentials.password, block)
 
     /** Best-effort (#32). [accountId] is the JMAP account, [localAccountId] the record. */
     internal suspend fun refreshServerIdentities(

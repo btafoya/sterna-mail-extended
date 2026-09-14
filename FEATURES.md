@@ -184,9 +184,10 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 
 - ✅ ⭐ Vacation responder (JMAP `VacationResponse`, RFC 8621), per account.
 - ✅ ⭐ Mailbox quota (RFC 9425), shown in Settings → Storage.
-- ✅ Server-side filters where the server supports Sieve (RFC 9661), built from a
-  form. A script Sterna cannot read is never silently overwritten: the screen says
-  so and asks before replacing it.
+- ✅ Server-side filters where the server supports Sieve (RFC 9661), or ManageSieve
+  (RFC 5804) for a password-based IMAP account, built from a form. A script Sterna
+  cannot read is never silently overwritten: the screen says so and asks before
+  replacing it.
 - ✅ Calendar invites: the first event of a `.ics` shown as a card above the body,
   parsed by a small built-in reader. "Add to calendar" hands it to your calendar
   app, so Sterna takes no calendar permission.

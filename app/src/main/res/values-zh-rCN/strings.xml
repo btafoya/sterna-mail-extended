@@ -578,7 +578,8 @@
     <string name="settings_filters_summary">服务器端规则 (Sieve)</string>
     <string name="settings_filters_screen_title">过滤规则</string>
     <string name="settings_filters_unsupported">您的邮件服务器不支持过滤规则。</string>
-    <string name="settings_filters_imap_account">过滤规则仅适用于通过 JMAP 添加的账户。</string>
+    <string name="settings_filters_sieve_unreachable">Sterna 无法连接到服务器的过滤服务（ManageSieve，端口 4190）。</string>
+    <string name="settings_filters_sieve_insecure">Sterna 无法通过安全连接登录服务器的过滤服务，因此没有发送您的密码。</string>
     <string name="settings_filters_empty">还没有规则。添加一条规则，在服务器端过滤收到的邮件。</string>
     <string name="settings_filters_add">添加规则</string>
     <string name="settings_filters_saved">过滤规则已保存</string>

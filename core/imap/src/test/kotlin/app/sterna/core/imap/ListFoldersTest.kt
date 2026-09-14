@@ -47,4 +47,17 @@ class ListFoldersTest {
         val result = folders("* LIST (\\Noselect) \"/\" \"INBOX\"\r\n")
         assertEquals("inbox", result.single().role)
     }
+
+    @Test
+    fun aChineseChildFolderPathIsDecodedWithTheServersDelimiter() {
+        assertEquals("&mHl27g-/&YqVUSg-", encodeModifiedUtf7("项目/报告"))
+        val slash = folders("* LIST (\\HasNoChildren) \"/\" \"&mHl27g-/&YqVUSg-\"\r\n").single()
+        assertEquals("项目/报告", slash.path)
+        assertEquals("报告", slash.name)
+        assertEquals("/", slash.delimiter)
+        val dot = folders("* LIST (\\HasNoChildren) \".\" \"INBOX.&mHl27g-.&YqVUSg-\"\r\n").single()
+        assertEquals("INBOX.项目.报告", dot.path)
+        assertEquals("报告", dot.name)
+        assertEquals(".", dot.delimiter)
+    }
 }

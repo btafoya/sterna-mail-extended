@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import app.sterna.container
 import app.sterna.core.data.filter.FilterRule
 import app.sterna.core.data.mail.FilterRulesState
+import app.sterna.core.imap.ManageSieveException
 import app.sterna.ui.inbox.mailboxFilePath
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,7 +20,6 @@ data class FiltersUiState(
     val loading: Boolean = true,
     val noAccount: Boolean = false,
     val supported: Boolean = true,
-    val unavailableCause: UnavailableCause? = null,
     val foreignActive: Boolean = false,
     /** The rules below are on the server but not running: the script carrying them is not the active
      *  one. Distinct from [foreignActive], which is false in the very state this flag exists for:
@@ -41,6 +41,7 @@ data class FiltersUiState(
     val saving: Boolean = false,
     val errorKind: FiltersError? = null,
     val errorDetail: String = "",
+    val errorSieveKind: ManageSieveException.Kind? = null,
     /** Bumped after each successful save; the screen shows a confirmation while > 0. */
     val savedTick: Int = 0,
     /** Whether [rules] still differ from what the server holds. Gates Save, so the button is offered
@@ -48,8 +49,8 @@ data class FiltersUiState(
     val dirty: Boolean = false,
 )
 
-/** Drives the server-side filter rules (JMAP Sieve): edited locally and pushed in one Save
- *  (compile, validate, activate). Every read and write is a network round-trip. */
+/** Drives the server-side filter rules (Sieve, over JMAP or ManageSieve): edited locally and pushed
+ *  in one Save (compile, validate, activate). Every read and write is a network round-trip. */
 class FiltersViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = application.container.mailRepository
     private val store = application.container.accountStore
@@ -82,7 +83,6 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
                     FilterRulesState.Unsupported -> {
                         serverRules = emptyList()
                         _state.value = filtersUnavailableState(
-                            protocol = credentials.protocol,
                             accountLabel = store.accountLabel(),
                         )
                     }
@@ -106,13 +106,7 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
                     }
                 }
             } catch (t: Throwable) {
-                _state.update {
-                    it.copy(
-                        loading = false,
-                        errorKind = FiltersError.LOAD,
-                        errorDetail = t.message ?: t.javaClass.simpleName,
-                    )
-                }
+                _state.update { filtersFailedState(it.copy(loading = false), FiltersError.LOAD, t) }
             }
         }
     }
@@ -155,13 +149,7 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
                 _state.update { it.copy(saving = false, savedTick = it.savedTick + 1, dirty = false) }
                 written = true
             } catch (t: Throwable) {
-                _state.update {
-                    it.copy(
-                        saving = false,
-                        errorKind = FiltersError.SAVE,
-                        errorDetail = t.message ?: t.javaClass.simpleName,
-                    )
-                }
+                _state.update { filtersFailedState(it.copy(saving = false), FiltersError.SAVE, t) }
             }
             // Outside the try, and after the state that lets a "save then leave" go: that exit
             // cancels this read, and inside the catch above a cancellation would be painted as a
