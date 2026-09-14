@@ -52,8 +52,8 @@ import java.lang.reflect.Proxy
  *   script, STARTTLS and the `CHECKSCRIPT`-without-`VERSION` decision this fake only mirrors.
  * - `ManageSieveConnector`, the delegations from the seam to `ManageSieveSession`: a swapped one
  *   passes here, and only the source lint `ManageSieveConnectorWiringTest` holds them.
- * - The JMAP bodies of the three functions, which have no executed test; only their dispatch is
- *   run below.
+ * - The JMAP bodies of the three functions; only their dispatch is run below. The JMAP filters
+ *   save is run in `FiltersOverJmapKeepTheResponderTest`.
  */
 class FiltersOverManageSieveTest {
 

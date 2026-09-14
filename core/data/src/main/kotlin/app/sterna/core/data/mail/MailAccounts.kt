@@ -574,15 +574,22 @@ class MailAccounts(
             MailProtocol.JMAP -> Unit
         }
         val ctx = host.jmapSession(credentials)
-        val script = SieveCodec.generate(rules)
+        val existing = client.getSieveScripts(ctx.session, ctx.accountId, ctx.auth)
+            .firstOrNull { it.name == SieveCodec.SCRIPT_NAME }
+        val kept = keptVacation(
+            existing?.let {
+                client.downloadBlob(
+                    ctx.session, ctx.accountId, it.blobId, "application/sieve", "sterna.siv", ctx.auth,
+                ).toString(Charsets.UTF_8)
+            },
+        )
+        val script = SieveCodec.generate(rules, kept)
         val blob = client.uploadBlob(
             ctx.session, ctx.accountId, script.toByteArray(Charsets.UTF_8), "application/sieve", ctx.auth,
         )
         client.validateSieve(ctx.session, ctx.accountId, blob.blobId, ctx.auth)?.let {
             throw IllegalStateException("The server rejected the filters: $it")
         }
-        val existing = client.getSieveScripts(ctx.session, ctx.accountId, ctx.auth)
-            .firstOrNull { it.name == SieveCodec.SCRIPT_NAME }
         client.saveSieveScript(
             ctx.session, ctx.accountId, SieveCodec.SCRIPT_NAME, blob.blobId, existing?.id, ctx.auth,
         )
@@ -629,10 +636,7 @@ class MailAccounts(
      */
     private suspend fun saveFilterRulesBySieve(sieveHost: String, credentials: AccountCredentials, rules: List<FilterRule>) {
         sieveSession(sieveHost, credentials) {
-            // An unreadable responder marker is not carried over: the filters screen has already
-            // asked before replacing a script it could not read.
-            val kept = sternaScript(listScripts())?.let { SieveCodec.readVacation(it) } as? VacationMarker.Found
-            val script = SieveCodec.generate(rules, kept?.vacation)
+            val script = SieveCodec.generate(rules, keptVacation(sternaScript(listScripts())))
             checkScript(script)
             putScript(SieveCodec.SCRIPT_NAME, script)
             setActive(SieveCodec.SCRIPT_NAME)
@@ -690,6 +694,14 @@ class MailAccounts(
 
     private fun SieveScripts.sternaScript(scripts: List<SieveScriptInfo>): String? =
         scripts.firstOrNull { it.name == SieveCodec.SCRIPT_NAME }?.let { getScript(it.name) }
+
+    /**
+     * The responder a filters save carries over from the `sterna` [script] it replaces, on either
+     * protocol. An unreadable responder marker is not carried over: the filters screen has already
+     * asked before replacing a script it could not read.
+     */
+    private fun keptVacation(script: String?): SieveVacation? =
+        (script?.let { SieveCodec.readVacation(it) } as? VacationMarker.Found)?.vacation
 
     private fun SieveVacation.toVacationResponse() = VacationResponse(
         isEnabled = isEnabled,
