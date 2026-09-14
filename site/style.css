@@ -113,7 +113,11 @@
 
 /* `clip`, not `hidden`: the hero's background and the flight arc deliberately
    run past the text column, and `hidden` would turn the page into a scroll
-   container and break the sticky top bar. */
+   container and break the sticky top bar.
+   The clip that holds is the one on `body`. The root's overflow is handed to
+   the viewport, which mobile Chrome widens to fit the overflow anyway, so the
+   page could be panned sideways. `html` keeps its own clip because it is what
+   stops `body`'s from being handed to the viewport in turn. */
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
@@ -121,6 +125,7 @@ html {
 }
 
 body {
+  overflow-x: clip;
   margin: 0;
   background: var(--bg);
   color: var(--ink);
@@ -230,6 +235,7 @@ code { font-family: var(--mono); }
 }
 .langpick summary::-webkit-details-marker { display: none; }
 .langpick summary:hover { background: var(--bg-deep); color: var(--ink); }
+.langpick summary span { white-space: nowrap; }
 .langpick summary svg {
   width: 18px;
   height: 18px;
@@ -316,6 +322,45 @@ code { font-family: var(--mono); }
   height: 1px;
   overflow: hidden;
   clip-path: inset(50%);
+}
+
+/* Nothing in the bar may shrink: a squeezed flex item lets its neighbour draw
+   over it instead of showing that the bar is too narrow. */
+.brand, .topbar-nav > * { flex-shrink: 0; }
+
+/* The bar sheds words as it narrows: the language name first, then the
+   wordmark. The globe and the logo stay, the `aria-label`s still name them,
+   and the hero's title repeats the name right below. Each threshold is where
+   the longest label, German or Russian, stops fitting. */
+@media (max-width: 36rem) {
+  .topbar { gap: 0.5rem; }
+  .topbar-nav { gap: 0.35rem; }
+  .brand-mark { width: 34px; height: 34px; }
+  .langpick summary { padding: 0.45rem; }
+  .langpick summary span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .themepick label { padding: 0.32rem 0.45rem; }
+  .btn-small { padding-inline: 0.8rem; }
+}
+@media (max-width: 28rem) {
+  .topbar .brand-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+@media (max-width: 22.5rem) {
+  .topbar { gap: 0.25rem; padding-inline: 0.625rem; }
+  .topbar-nav { gap: 0.25rem; }
+  .themepick label { padding-inline: 0.35rem; }
+  .btn-small { padding-inline: 0.6rem; }
 }
 
 /* --------------------------------------------------------------- buttons */
