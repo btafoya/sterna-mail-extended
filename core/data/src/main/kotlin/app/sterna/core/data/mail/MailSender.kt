@@ -509,11 +509,17 @@ class MailSender(
         val choice = SubmissionIdentity.choose(fromEmail, serverIdentities, onBehalf)
             ?: error("This account has no sending identity.")
         val identity = choice.identity
-        // Trimmed like the envelope below: untrimmed, From: " a@b " faces an `a@b` mail from.
+        // Trimmed like the address `choose` names: untrimmed, From: " a@b " faces an `a@b` mail from.
         val from = if (!fromEmail.isNullOrBlank()) EmailAddress(name = fromName, email = fromEmail.trim())
         else EmailAddress(name = identity.name, email = identity.email)
+        // The bytes a pre-built send imports carry no `Bcc:`, and a server left to derive `rcptTo`
+        // reads it from the headers: a blind copy is then never delivered, and nothing says so.
+        // Its envelope takes the submitting identity's address, which on a delegated send is the
+        // login's and not the `From:`, the address the submission is created under.
+        val mailFrom = choice.envelopeMailFrom
+            ?: identity.email.takeIf { prebuiltEntity != null && bccAddrs.isNotEmpty() }
         // rcptTo carries to + cc + bcc: RFC 8621 §7.5 makes both envelope fields mandatory.
-        val envelope = choice.envelopeMailFrom?.let {
+        val envelope = mailFrom?.let {
             SubmissionEnvelope(
                 mailFrom = it,
                 rcptTo = (recipients + ccAddrs + bccAddrs).map { a -> a.email },

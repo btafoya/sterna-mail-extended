@@ -33,9 +33,13 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.lang.reflect.Proxy
 
@@ -51,15 +55,18 @@ import java.lang.reflect.Proxy
  *
  * What this does NOT cover:
  * - Attachments, on either branch: every item here carries none.
- * - The pre-built entity fork, on either branch: no item here carries one, so neither the PGP/MIME
- *   send nor the RFC 8098 read receipt is executed, and both stay held by [PrebuiltEntityTest] on
- *   the source alone.
- * - The on-behalf sub-account fork: the session below exposes one mail account, so `onBehalf` is
- *   false throughout and the re-filing of the Sent copy is never taken.
+ * - The pre-built entity fork on IMAP: no IMAP item here carries one. On JMAP it is taken, but only
+ *   the submission's identity and envelope and the absence of a `Bcc:` in the imported bytes are
+ *   read; the entity's own bytes stay held by [PrebuiltEntityTest].
+ * - The on-behalf sub-account fork is taken once, for its envelope; the re-filing of the Sent copy
+ *   into the sub-account (`Email/copy`) is answered with an error the send swallows, and nothing
+ *   here checks it.
  */
 class MailSenderDeliversOnBothProtocolsTest {
 
     private lateinit var server: MockWebServer
+
+    @get:Rule val tmp = TemporaryFolder()
 
     @Before fun start() {
         server = MockWebServer()
@@ -173,6 +180,7 @@ class MailSenderDeliversOnBothProtocolsTest {
         bcc: String? = null,
         draftEmailId: String? = null,
         draftUidValidity: Long? = null,
+        pgpEntityPath: String? = null,
     ) = OutboxEntity(
         id = 7,
         accountId = "account-1",
@@ -187,6 +195,7 @@ class MailSenderDeliversOnBothProtocolsTest {
         notBeforeMillis = 1_000,
         draftEmailId = draftEmailId,
         draftUidValidity = draftUidValidity,
+        pgpEntityPath = pgpEntityPath,
     )
 
     private fun credentials(protocol: MailProtocol) = AccountCredentials(
@@ -305,10 +314,17 @@ class MailSenderDeliversOnBothProtocolsTest {
 
     // ---- JMAP
 
+    /** The bytes of every blob uploaded, in order: on the pre-built path, the message as submitted. */
+    private val uploaded = mutableListOf<String>()
+
     private fun serveJmap(identities: String) {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val body = request.body.readUtf8()
+                if (request.path.orEmpty().startsWith("/jmap/upload/")) {
+                    uploaded += body
+                    return json("""{"blobId":"blob-1","type":"message/rfc822","size":${body.length}}""")
+                }
                 val calls = Json.parseToJsonElement(body).jsonObject["methodCalls"]!!.jsonArray
                 // Every call of the request, not just the first: the send puts `Email/set` and
                 // `EmailSubmission/set` in one request, and the submission is the second.
@@ -316,9 +332,20 @@ class MailSenderDeliversOnBothProtocolsTest {
                 return when (calls[0].jsonArray[0].jsonPrimitive.content) {
                     "Identity/get" ->
                         json("""{"methodResponses":[["Identity/get",{"list":[$identities]},"i0"]]}""")
+                    "Mailbox/get" ->
+                        json(
+                            """{"methodResponses":[["Mailbox/get",{"list":[""" +
+                                """{"id":"login-drafts","name":"Drafts","role":"drafts"},""" +
+                                """{"id":"login-sent","name":"Sent","role":"sent"}]},"c0"]]}""",
+                        )
                     "Email/set" ->
                         json(
                             """{"methodResponses":[["Email/set",{"created":{"draft":{"id":"sent-1"}}},"e0"],""" +
+                                """["EmailSubmission/set",{"created":{"sub":{"id":"sub-1"}}},"s0"]]}""",
+                        )
+                    "Email/import" ->
+                        json(
+                            """{"methodResponses":[["Email/import",{"created":{"draft":{"id":"sent-1"}}},"i0"],""" +
                                 """["EmailSubmission/set",{"created":{"sub":{"id":"sub-1"}}},"s0"]]}""",
                         )
                     "EmailSubmission/get" ->
@@ -332,20 +359,34 @@ class MailSenderDeliversOnBothProtocolsTest {
     private fun json(body: String): MockResponse =
         MockResponse().setHeader("Content-Type", "application/json").setBody(body)
 
-    /** A warm session handed straight to the sender: the seam exists so no `fetchSession` is owed. */
-    private fun jmapSession(): MailRepository.JmapAccountSession = MailRepository.JmapAccountSession(
-        credentials = credentials(MailProtocol.JMAP),
-        session = JmapSession(
-            capabilities = mapOf(Jmap.CORE_CAPABILITY to JsonObject(emptyMap()), Jmap.MAIL_CAPABILITY to JsonObject(emptyMap())),
-            accounts = mapOf("acc1" to JmapAccount(name = "Alex")),
-            primaryAccounts = mapOf(Jmap.MAIL_CAPABILITY to "acc1"),
-            username = "alex",
-            apiUrl = server.url("/jmap/api").toString(),
-        ),
-        accountId = "acc1",
-        auth = BasicAuth("alex", "secret"),
-        rolesToMailboxId = mapOf("drafts" to "mb-drafts", "sent" to "mb-sent"),
-    )
+    /**
+     * A warm session handed straight to the sender: the seam exists so no `fetchSession` is owed.
+     * [accountId] other than the login's primary `acc1` is a delegated sub-account (#31), which is
+     * what makes `onBehalf` true.
+     */
+    private fun jmapSession(accountId: String = "acc1"): MailRepository.JmapAccountSession =
+        MailRepository.JmapAccountSession(
+            credentials = credentials(MailProtocol.JMAP),
+            session = JmapSession(
+                capabilities = mapOf(Jmap.CORE_CAPABILITY to JsonObject(emptyMap()), Jmap.MAIL_CAPABILITY to JsonObject(emptyMap())),
+                accounts = mapOf("acc1" to JmapAccount(name = "Alex"), "shared" to JmapAccount(name = "Team")),
+                primaryAccounts = mapOf(Jmap.MAIL_CAPABILITY to "acc1"),
+                username = "alex",
+                apiUrl = server.url("/jmap/api").toString(),
+                // Concatenated, not `server.url(...)`: HttpUrl would percent-encode the braces and
+                // the `{accountId}` substitution would find nothing to replace.
+                uploadUrl = server.url("/").toString() + "jmap/upload/{accountId}/",
+            ),
+            accountId = accountId,
+            auth = BasicAuth("alex", "secret"),
+            rolesToMailboxId = mapOf("drafts" to "mb-drafts", "sent" to "mb-sent"),
+        )
+
+    /** A signed entity on disk, where the outbox row points for a pre-built send. */
+    private fun prebuiltEntityFile(): String =
+        tmp.newFile("prebuilt-entity.mime").apply {
+            writeText("Content-Type: text/plain; charset=utf-8\r\n\r\nOne o'clock?\r\n")
+        }.absolutePath
 
     /** The arguments of the one call to [method] the server received. */
     private fun argsOf(method: String): JsonObject =
@@ -399,7 +440,8 @@ class MailSenderDeliversOnBothProtocolsTest {
      * The recipients of the message itself, on a send the server derives the envelope for: with a
      * `From:` it has an identity for there IS no envelope, so the `Email/set` create is the only
      * thing naming who is written to. A dropped `bcc` there delivers to nobody hidden and says
-     * nothing, and the submission the other tests read cannot see it.
+     * nothing, and the submission the other tests read cannot see it. The blind copy is the point:
+     * the envelope a pre-built send owes its hidden recipients is not owed here.
      */
     @Test fun `the message handed to the server carries to, cc and bcc in their own fields`() {
         serveJmap("""{"id":"identity-7","name":"Alex","email":"alex@example.test"}""")
@@ -416,6 +458,82 @@ class MailSenderDeliversOnBothProtocolsTest {
         assertEquals(listOf("bob@example.test"), draftAddresses("to"))
         assertEquals(listOf("carol@example.test", "erin@example.test"), draftAddresses("cc"))
         assertEquals(listOf("dave@example.test", "frank@example.test"), draftAddresses("bcc"))
+    }
+
+    /**
+     * A signed message with a blind copy, from an address the server has an identity for. The
+     * imported bytes carry no `Bcc:` (they reach the visible recipients as they are), so the
+     * submission is the only place the hidden recipient can be named: without an envelope the
+     * server derives `rcptTo` from the headers and the blind copy is never delivered.
+     */
+    @Test fun `a pre-built send with a blind copy names every recipient in an envelope from its identity`() {
+        serveJmap("""{"id":"identity-7","name":"Alex","email":"alex@example.test"}""")
+        val sender = sender(host = RecordingHost(jmapSession()))
+
+        runBlocking {
+            sender.performSend(
+                credentials(MailProtocol.JMAP),
+                item(cc = "carol@example.test", bcc = "dave@example.test", pgpEntityPath = prebuiltEntityFile()),
+            )
+        }
+
+        val submission = argsOf("EmailSubmission/set")["create"]!!.jsonObject
+        assertEquals("identity-7", submissionIdentity(submission))
+        assertEquals("alex@example.test", submissionEnvelope(submission))
+        assertEquals(
+            listOf("bob@example.test", "carol@example.test", "dave@example.test"),
+            submissionRcptTo(submission),
+        )
+        assertFalse(
+            "the hidden address must not be written into the bytes the visible recipients receive",
+            uploaded.single().contains("dave@example.test"),
+        )
+    }
+
+    /**
+     * The same on a delegated sub-account (#31): the submission is created on the login's account
+     * under the login's identity, while `From:` keeps the delegated address. The envelope's
+     * `mailFrom` is the login's, the identity the submission is created under; the delegated `From:`
+     * there would be a sender the login has no identity for.
+     */
+    @Test fun `a delegated pre-built send with a blind copy takes its envelope from the login's identity`() {
+        serveJmap("""{"id":"identity-login","name":"Alex","email":"alex@example.test"}""")
+        val sender = sender(host = RecordingHost(jmapSession(accountId = "shared")))
+
+        runBlocking {
+            sender.performSend(
+                credentials(MailProtocol.JMAP),
+                item(fromEmail = "team@example.test", bcc = "dave@example.test", pgpEntityPath = prebuiltEntityFile()),
+            )
+        }
+
+        val submissionArgs = argsOf("EmailSubmission/set")
+        assertEquals("the submission goes through the login's account", "acc1", submissionArgs["accountId"]!!.jsonPrimitive.content)
+        val submission = submissionArgs["create"]!!.jsonObject
+        assertEquals("identity-login", submissionIdentity(submission))
+        assertEquals("alex@example.test", submissionEnvelope(submission))
+        assertEquals(listOf("bob@example.test", "dave@example.test"), submissionRcptTo(submission))
+        assertTrue(
+            "the imported message must still say it is from the delegated address",
+            uploaded.single().lines().any { it.startsWith("From:") && "team@example.test" in it },
+        )
+    }
+
+    /** A signed message with no blind copy: its headers name every recipient, and nothing is added. */
+    @Test fun `a pre-built send with no blind copy carries no envelope`() {
+        serveJmap("""{"id":"identity-7","name":"Alex","email":"alex@example.test"}""")
+        val sender = sender(host = RecordingHost(jmapSession()))
+
+        runBlocking {
+            sender.performSend(
+                credentials(MailProtocol.JMAP),
+                item(cc = "carol@example.test", pgpEntityPath = prebuiltEntityFile()),
+            )
+        }
+
+        val submission = argsOf("EmailSubmission/set")["create"]!!.jsonObject
+        assertEquals("identity-7", submissionIdentity(submission))
+        assertNull(sub(submission)["envelope"])
     }
 
     /** One address field of the created message, empty when the create does not name that field. */

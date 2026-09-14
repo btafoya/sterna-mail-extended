@@ -38,13 +38,32 @@ class SubmissionEnvelopeWiringTest {
         )
     }
 
+    private fun codeLinesFrom(body: String, first: String, last: String): List<String> {
+        val code = body.lines().map { it.trim() }
+            .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
+        val start = code.indexOfFirst { it.startsWith(first) }
+        if (start < 0) return emptyList()
+        val end = (start until code.size).firstOrNull { code[it].startsWith(last) } ?: return code.drop(start)
+        return code.subList(start, end + 1)
+    }
+
     @Test fun onlyTheAbsenceOfAnEnvelopeAddressCanWithholdTheEnvelope() {
         assertEquals(
             "the envelope must be built whenever choose named an address, on that condition and " +
-                "no other: any narrowing here (a ?.takeIf, an extra flag) both brings #172 back " +
-                "for ordinary accounts and can pose an envelope on the delegated path (#31), " +
-                "while every executable test stays green",
-            listOf("val envelope = choice.envelopeMailFrom?.let {"),
+                "no other: any narrowing of choice.envelopeMailFrom (a ?.takeIf, an extra flag) " +
+                "brings #172 back for ordinary accounts. The one widening is the pre-built send " +
+                "with a blind copy, whose imported bytes carry no Bcc: and whose hidden recipients " +
+                "only the envelope can name; it takes the submitting identity's address.\nFound:",
+            listOf(
+                "val mailFrom = choice.envelopeMailFrom",
+                "?: identity.email.takeIf { prebuiltEntity != null && bccAddrs.isNotEmpty() }",
+                "val envelope = mailFrom?.let {",
+            ),
+            codeLinesFrom(bodyOf("performDelivery"), "val mailFrom =", "val envelope ="),
+        )
+        assertEquals(
+            "choice.envelopeMailFrom must be read on that one line and nowhere else in performDelivery",
+            listOf("val mailFrom = choice.envelopeMailFrom"),
             codeLinesNaming(bodyOf("performDelivery"), "choice.envelopeMailFrom"),
         )
     }

@@ -1832,7 +1832,7 @@ class JmapClient internal constructor(
         rawMessage: ByteArray,
         draftMailboxId: String,
         sentMailboxId: String,
-        /** As in [sendEmail]: an explicit SMTP envelope, or null to let the server derive one. */
+        /** As in [sendEmail], and owed for blind copies a [rawMessage] names in no `Bcc:`. */
         envelope: SubmissionEnvelope? = null,
     ): String? = withContext(Dispatchers.IO) {
         val blobId = uploadBlob(session, accountId, rawMessage, "message/rfc822", auth).blobId
