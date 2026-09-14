@@ -2619,7 +2619,7 @@ private fun VacationScreen(
                 state.noAccount -> VacationNote(stringResource(R.string.settings_vacation_no_account))
                 !state.supported -> VacationNote(stringResource(vacationUnavailableText(state.unavailableCause)))
                 state.errorKind == VacationError.LOAD -> VacationNote(
-                    stringResource(R.string.settings_vacation_load_error, state.errorDetail),
+                    stringResource(vacationErrorText(VacationError.LOAD, state.errorSieveKind), state.errorDetail),
                     onRetry = viewModel::load,
                 )
                 else -> VacationForm(state, viewModel, onSave = { requestSave(thenLeave = false) })
@@ -2730,7 +2730,7 @@ private fun VacationForm(state: VacationUiState, viewModel: VacationViewModel, o
         }
         if (state.errorKind == VacationError.SAVE) {
             Text(
-                stringResource(R.string.settings_vacation_save_error, state.errorDetail),
+                stringResource(vacationErrorText(VacationError.SAVE, state.errorSieveKind), state.errorDetail),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),

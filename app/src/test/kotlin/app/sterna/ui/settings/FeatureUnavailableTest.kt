@@ -6,6 +6,7 @@ import app.sterna.core.imap.ManageSieveException
 import app.sterna.widget.DeclarationSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -13,7 +14,7 @@ import java.io.IOException
 
 /**
  * Which sentence the responder and filters screens show when they cannot offer their form, or when
- * a filters load or save fails (#211). `loadVacation` answers `AccountUnsupported` for an IMAP
+ * a filters or responder load or save fails (#211). `loadVacation` answers `AccountUnsupported` for an IMAP
  * account ManageSieve is never tried on, and `Unsupported` for a server that was asked and lacks the
  * support, on either protocol, so the state tells the causes apart. The filters of a password IMAP
  * account go through ManageSieve, so their `Unsupported` no longer depends on the protocol, and a failed ManageSieve
@@ -114,6 +115,85 @@ class FeatureUnavailableTest {
         }
     }
 
+    @Test fun `an unreachable ManageSieve on the responder is never worded as a failed load or save`() {
+        val unreachable = ManageSieveException(
+            "ManageSieve connection failed: java.net.SocketTimeoutException: connect timed out",
+            ManageSieveException.Kind.UNREACHABLE,
+        )
+        listOf(
+            VacationError.LOAD to R.string.settings_vacation_load_error,
+            VacationError.SAVE to R.string.settings_vacation_save_error,
+        ).forEach { (kind, generic) ->
+            val state = vacationFailedState(VacationUiState(loading = false), kind, unreachable)
+            assertEquals(kind, state.errorKind)
+            assertEquals("$kind: the responder state must keep the kind of its ManageSieve failure", ManageSieveException.Kind.UNREACHABLE, state.errorSieveKind)
+            val sentence = vacationErrorText(kind, state.errorSieveKind)
+            assertNotEquals("$kind: a timeout on port 4190 must not print the exception after \"Couldn't\"", generic, sentence)
+            assertEquals(R.string.settings_filters_sieve_unreachable, sentence)
+        }
+    }
+
+    @Test fun `a responder without a secure ManageSieve says the password was not sent`() {
+        val insecure = ManageSieveException("the server does not offer STARTTLS", ManageSieveException.Kind.INSECURE)
+        listOf(VacationError.LOAD, VacationError.SAVE).forEach { kind ->
+            val state = vacationFailedState(VacationUiState(saving = false), kind, insecure)
+            assertEquals(ManageSieveException.Kind.INSECURE, state.errorSieveKind)
+            assertEquals("$kind", R.string.settings_filters_sieve_insecure, vacationErrorText(kind, state.errorSieveKind))
+        }
+    }
+
+    @Test fun `a responder refusal shows the server's words and a failure outside ManageSieve keeps the generic error`() {
+        val refused = ManageSieveException(
+            "PUTSCRIPT: NO quota exceeded",
+            ManageSieveException.Kind.REFUSED,
+            serverText = "quota exceeded",
+        )
+        val loaded = vacationFailedState(VacationUiState(loading = false), VacationError.LOAD, refused)
+        assertEquals(ManageSieveException.Kind.REFUSED, loaded.errorSieveKind)
+        assertEquals("quota exceeded", loaded.errorDetail)
+        assertEquals(R.string.settings_vacation_load_error, vacationErrorText(VacationError.LOAD, loaded.errorSieveKind))
+        val saved = vacationFailedState(VacationUiState(saving = false), VacationError.SAVE, refused)
+        assertEquals(R.string.settings_vacation_save_error, vacationErrorText(VacationError.SAVE, saved.errorSieveKind))
+
+        val offline = vacationFailedState(VacationUiState(loading = false), VacationError.LOAD, IOException("offline"))
+        assertEquals("a JMAP or network failure carries no ManageSieve kind", null, offline.errorSieveKind)
+        assertEquals("offline", offline.errorDetail)
+        assertEquals(R.string.settings_vacation_load_error, vacationErrorText(VacationError.LOAD, offline.errorSieveKind))
+    }
+
+    @Test fun `the responder and the filters word the same ManageSieve failure alike`() {
+        val kinds = ManageSieveException.Kind.values().toList() + null
+        listOf(
+            FiltersError.LOAD to VacationError.LOAD,
+            FiltersError.SAVE to VacationError.SAVE,
+        ).forEach { (filters, vacation) ->
+            kinds.forEach { sieveKind ->
+                assertEquals(
+                    "$vacation / $sieveKind",
+                    filtersErrorText(filters, sieveKind),
+                    vacationErrorText(vacation, sieveKind),
+                )
+            }
+        }
+        assertEquals(
+            "a date check never reached the server: a kind left from an earlier failure must not word it",
+            R.string.settings_vacation_invalid_dates,
+            vacationErrorText(VacationError.INVALID_DATES, ManageSieveException.Kind.UNREACHABLE),
+        )
+        listOf(
+            IOException("offline"),
+            ManageSieveException("AUTHENTICATE: NO", ManageSieveException.Kind.REFUSED, serverText = " "),
+            ManageSieveException("PUTSCRIPT: NO x", ManageSieveException.Kind.REFUSED, serverText = "x"),
+            IllegalStateException(),
+        ).forEach { failure ->
+            assertEquals(
+                "$failure",
+                filtersFailedState(FiltersUiState(), FiltersError.LOAD, failure).errorDetail,
+                vacationFailedState(VacationUiState(), VacationError.LOAD, failure).errorDetail,
+            )
+        }
+    }
+
     // -- the resources ----------------------------------------------------------------------------
 
     @Test fun `the filters no longer blame the account type, the responder still does, in ten languages`() {
@@ -191,6 +271,47 @@ class FeatureUnavailableTest {
             )
         }
         assertFalse("no error detail may be built outside filtersFailedState", "errorDetail =" in text(FILTERS_VM))
+    }
+
+    @Test fun `the responder ViewModel words each failure in its own function, through the pure decision`() {
+        listOf(
+            Triple("fun load()", "loading = false", "VacationError.LOAD"),
+            Triple("fun save()", "saving = false", "VacationError.SAVE"),
+        ).forEach { (signature, flag, kind) ->
+            val failures = DeclarationSource.functionBody(VACATION_VM, signature).filter { "vacationFailedState(" in it }
+            assertEquals(
+                "the body of '$signature' must record its failure as exactly this one line, the kind " +
+                    "of that gesture and no other",
+                listOf("_state.update { vacationFailedState(it.copy($flag), $kind, t) }"),
+                failures,
+            )
+        }
+        assertFalse("no error detail may be built outside vacationFailedState", "errorDetail =" in text(VACATION_VM))
+    }
+
+    @Test fun `the responder screen words both failures through the table, with the ManageSieve kind`() {
+        val screen = text(SETTINGS_SCREEN)
+        assertTrue(
+            "SettingsScreen's responder load error must keep Retry and word its sentence as " +
+                "stringResource(vacationErrorText(VacationError.LOAD, state.errorSieveKind), state.errorDetail)",
+            Regex(
+                "state\\.errorKind\\s*==\\s*VacationError\\.LOAD\\s*->\\s*VacationNote\\(\\s*" +
+                    "stringResource\\(vacationErrorText\\(VacationError\\.LOAD, state\\.errorSieveKind\\), state\\.errorDetail\\),\\s*" +
+                    "onRetry\\s*=\\s*viewModel::load,",
+            ).containsMatchIn(screen),
+        )
+        assertTrue(
+            "SettingsScreen's responder save error must be " +
+                "stringResource(vacationErrorText(VacationError.SAVE, state.errorSieveKind), state.errorDetail)",
+            Regex(
+                "if\\s*\\(state\\.errorKind\\s*==\\s*VacationError\\.SAVE\\)\\s*\\{\\s*Text\\(\\s*" +
+                    "stringResource\\(vacationErrorText\\(VacationError\\.SAVE, state\\.errorSieveKind\\), state\\.errorDetail\\),",
+            ).containsMatchIn(screen),
+        )
+        assertFalse(
+            "no generic error sentence may be named in SettingsScreen outside vacationErrorText",
+            "R.string.settings_vacation_load_error" in screen || "R.string.settings_vacation_save_error" in screen,
+        )
     }
 
     @Test fun `the filters screen names the unsupported sentence once, in the unsupported branch`() {

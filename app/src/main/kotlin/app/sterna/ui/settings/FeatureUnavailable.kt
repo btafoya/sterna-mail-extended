@@ -47,30 +47,56 @@ internal fun vacationUnavailableText(cause: UnavailableCause?): Int = when (caus
 }
 
 /**
- * [state] after a failed load or save. A refusal shows the server's own words when it gave some:
- * the exception's message also carries the command and the status, which say nothing to the reader.
+ * The detail of a failed load or save, on either screen. A refusal shows the server's own words when
+ * it gave some: the exception's message also carries the command and the status, which say nothing
+ * to the reader.
  */
-internal fun filtersFailedState(state: FiltersUiState, kind: FiltersError, failure: Throwable): FiltersUiState {
-    val sieve = failure as? ManageSieveException
-    return state.copy(
+private fun failureDetail(failure: Throwable): String =
+    (failure as? ManageSieveException)?.serverText?.takeIf { it.isNotBlank() }
+        ?: failure.message
+        ?: failure.javaClass.simpleName
+
+internal fun filtersFailedState(state: FiltersUiState, kind: FiltersError, failure: Throwable): FiltersUiState =
+    state.copy(
         errorKind = kind,
-        errorSieveKind = sieve?.kind,
-        errorDetail = sieve?.serverText?.takeIf { it.isNotBlank() }
-            ?: failure.message
-            ?: failure.javaClass.simpleName,
+        errorSieveKind = (failure as? ManageSieveException)?.kind,
+        errorDetail = failureDetail(failure),
     )
-}
+
+/** An IMAP account's responder is a Sieve script, so its failures are the filters' failures. */
+internal fun vacationFailedState(state: VacationUiState, kind: VacationError, failure: Throwable): VacationUiState =
+    state.copy(
+        errorKind = kind,
+        errorSieveKind = (failure as? ManageSieveException)?.kind,
+        errorDetail = failureDetail(failure),
+    )
 
 /**
- * The sentence of a failed load or save. An unreachable ManageSieve never says the server lacks
- * filters: a firewall on port 4190 or the network look exactly the same from here.
+ * The sentence of a failed load or save, on either screen, [fallback] taking the detail. An
+ * unreachable ManageSieve never says the server lacks filters or a responder, and never falls back
+ * to `settings_vacation_unsupported`: a firewall on port 4190 or the network look exactly the same
+ * from here.
  */
 @StringRes
-internal fun filtersErrorText(kind: FiltersError, sieveKind: ManageSieveException.Kind?): Int = when (sieveKind) {
+private fun sieveErrorText(sieveKind: ManageSieveException.Kind?, @StringRes fallback: Int): Int = when (sieveKind) {
     ManageSieveException.Kind.UNREACHABLE -> R.string.settings_filters_sieve_unreachable
     ManageSieveException.Kind.INSECURE -> R.string.settings_filters_sieve_insecure
-    ManageSieveException.Kind.REFUSED, null -> when (kind) {
+    ManageSieveException.Kind.REFUSED, null -> fallback
+}
+
+@StringRes
+internal fun filtersErrorText(kind: FiltersError, sieveKind: ManageSieveException.Kind?): Int = sieveErrorText(
+    sieveKind,
+    when (kind) {
         FiltersError.LOAD -> R.string.settings_vacation_load_error
         FiltersError.SAVE -> R.string.settings_vacation_save_error
-    }
+    },
+)
+
+/** A date check never reached the server, so a kind left over from an earlier failure never words it. */
+@StringRes
+internal fun vacationErrorText(kind: VacationError, sieveKind: ManageSieveException.Kind?): Int = when (kind) {
+    VacationError.LOAD -> sieveErrorText(sieveKind, R.string.settings_vacation_load_error)
+    VacationError.SAVE -> sieveErrorText(sieveKind, R.string.settings_vacation_save_error)
+    VacationError.INVALID_DATES -> R.string.settings_vacation_invalid_dates
 }

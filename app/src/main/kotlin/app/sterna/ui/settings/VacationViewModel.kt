@@ -8,6 +8,7 @@ import app.sterna.core.data.filter.FilterScriptWarning
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.filter.refreshedFilterWarning
 import app.sterna.core.data.mail.VacationState
+import app.sterna.core.imap.ManageSieveException
 import app.sterna.core.jmap.model.VacationResponse
 import app.sterna.ui.sender.trashFilePath
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +37,7 @@ data class VacationUiState(
     val saving: Boolean = false,
     val errorKind: VacationError? = null,
     val errorDetail: String = "",
+    val errorSieveKind: ManageSieveException.Kind? = null,
     /** Bumped after each successful save; the screen shows a confirmation while > 0. */
     val savedTick: Int = 0,
     /** Whether the edited fields still differ from what the server holds. Gates Save, so the button
@@ -105,13 +107,7 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
                     }
                 }
             } catch (t: Throwable) {
-                _state.update {
-                    it.copy(
-                        loading = false,
-                        errorKind = VacationError.LOAD,
-                        errorDetail = t.message ?: t.javaClass.simpleName,
-                    )
-                }
+                _state.update { vacationFailedState(it.copy(loading = false), VacationError.LOAD, t) }
             }
         }
     }
@@ -155,13 +151,7 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
                 _state.update { vacationSavedState(it) }
                 written = true
             } catch (t: Throwable) {
-                _state.update {
-                    it.copy(
-                        saving = false,
-                        errorKind = VacationError.SAVE,
-                        errorDetail = t.message ?: t.javaClass.simpleName,
-                    )
-                }
+                _state.update { vacationFailedState(it.copy(saving = false), VacationError.SAVE, t) }
             }
             // Outside the try, and after the state that lets a "save then leave" go: that exit
             // cancels this read, and inside the catch above a cancellation would be painted as a

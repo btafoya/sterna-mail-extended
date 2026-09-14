@@ -61,8 +61,10 @@ Out of scope:
   offered over TLS. When STARTTLS is not offered, or PLAIN is not offered once encrypted, the
   connection is closed without the password, and the filters screen says Sterna could not sign
   in over a secure connection. It names no culprit on purpose: a server that only offers other
-  mechanisms and someone on the network stripping STARTTLS look the same from the client. An
-  account signed in with OAuth never connects to ManageSieve at all.
+  mechanisms and someone on the network stripping STARTTLS look the same from the client. The
+  automatic reply of such an account goes through the same ManageSieve service, and its screen
+  shows the same sentences as the filters screen. An account signed in with OAuth never connects
+  to ManageSieve at all.
 - **Certificate authorities installed by the user count as valid.** Since Android 7 an app
   trusts only the system CA store by default, which leaves a self-hosted server with its own
   authority unreachable. The app's network security configuration
