@@ -825,6 +825,29 @@ code { font-family: var(--mono); }
   .footer-links { justify-content: flex-start; }
 }
 
+/* ---------------------------------------------------------- han script */
+
+/* A Han glyph is a full em wide, twice the `ch` the measures above are
+   written in, so each measure is halved into em. Negative tracking makes
+   ideographs touch, and there is no italic: the browser would slant them.
+   Han faces come after the Latin ones, so "Sterna Mail" keeps its letters. */
+:lang(zh) {
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", sans-serif;
+  --serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, "Georgia", "Songti SC", "Noto Serif CJK SC", "Noto Serif SC", "SimSun", serif;
+}
+:lang(zh) body { line-height: 1.8; }
+:lang(zh) :is(h2, h3, .tagline) { letter-spacing: 0; }
+:lang(zh) .tern-note { font-style: normal; }
+:lang(zh) .kicker { letter-spacing: 0.08em; }
+:lang(zh) .lede { max-width: 17em; }
+:lang(zh) .band h2 { max-width: 11em; }
+:lang(zh) .body { max-width: 30em; }
+:lang(zh) .body-wide { max-width: 36em; }
+:lang(zh) .footer-note { max-width: 31em; }
+@media (max-width: 900px) {
+  :lang(zh) .lede { max-width: 23em; }
+}
+
 /* ------------------------------------------------------------ deference */
 
 @media (prefers-reduced-motion: reduce) {

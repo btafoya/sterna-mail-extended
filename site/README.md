@@ -1,6 +1,6 @@
 # `site/`: the sternamail.org brochure
 
-One page, nine languages, no CMS, no framework, no build chain. `build.py` reads the texts that
+One page, ten languages, no CMS, no framework, no build chain. `build.py` reads the texts that
 already exist in the repository, fills `template.html`, and writes a finished site into `_out/`.
 
 Decisions behind all this live in the maintainer's notes, outside this repository.
@@ -44,7 +44,7 @@ to produce a half-filled page, when:
 | Logo, and the browser-tab icon | `docs/logo.png` | one mark, one file, nothing to redraw |
 
 **Never copy an app feature into `i18n/`.** The rule that keeps this page cheap is that the app's
-own description is the only description. Adding a bullet here means writing it twice, in nine
+own description is the only description. Adding a bullet here means writing it twice, in ten
 languages, forever.
 
 **Nothing on the page ages by itself**: no version number, no release date, no counters, no news.
@@ -79,6 +79,11 @@ list lives at the top of `build.py`, next to the caption keys they use.
    the HTML language code, and the URL folder.
 3. Rebuild. `hreflang`, the language menu and the sitemap follow on their own.
 
+A heading in `full_description.txt` is recognised by a trailing ASCII `:`. Chinese punctuation writes the
+full-width `：`, which the parser does not see: keep the ASCII colon on the four headings, or the build
+finds no feature blocks. Scripts without spaces between words also need the `:lang()` block at the end of
+`style.css`, since every measure above it is written in `ch`.
+
 A language only becomes available once fastlane carries its two description files, since that is
 where the body of the page comes from.
 
@@ -96,6 +101,6 @@ config, not a rebuild of every listing that points here. `nginx-snippet.conf` is
 
 ## Translations to review
 
-`i18n/en.txt` and `i18n/fr.txt` are written by the maintainer. The other seven were drafted with
+`i18n/en.txt` and `i18n/fr.txt` are written by the maintainer. The other eight were drafted with
 the English as reference and have not been reviewed by a native speaker. They are short and factual,
 but if a reporter offers a correction, it is worth taking.

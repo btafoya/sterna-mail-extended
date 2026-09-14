@@ -1,0 +1,1 @@
+支持 JMAP 和 IMAP/SMTP 的私密电子邮件客户端。无需 Google 服务，无追踪。

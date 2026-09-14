@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the sternamail.org brochure — one static page, nine languages.
+"""Generate the sternamail.org brochure — one static page, ten languages.
 
 Standard library only, on purpose: this script has to run in any bare Python
 container today and in two years, without a single `pip install`.
@@ -62,6 +62,7 @@ LOCALES = [
     Locale("pl", "pl", "pl"),
     Locale("pt", "pt", "pt"),
     Locale("ru", "ru", "ru"),
+    Locale("zh-CN", "zh-Hans", "zh"),
 ]
 
 # Rule of the site: the page never names a forge. Every outgoing link goes
@@ -100,7 +101,7 @@ URLS = {
     "privacy": "/privacy",
 }
 
-# Asset paths, root-relative so all nine pages share one copy.
+# Asset paths, root-relative so all ten pages share one copy.
 ASSETS = {
     "css": "/style.css",
     # The logo is the site's icon too: one mark, one file, nothing to redraw.
@@ -231,7 +232,7 @@ def read_strings(path: Path) -> dict[str, str]:
 def parse_description(text: str, where: str) -> tuple[str, list[dict]]:
     """Split a fastlane full description into its intro and its four blocks.
 
-    The nine files share one shape — two paragraphs, then `Heading:` followed
+    The ten files share one shape — two paragraphs, then `Heading:` followed
     by `* bullet` lines, then a closing paragraph. Anything else means a
     translation drifted, and that must be loud rather than silently rendered.
     """

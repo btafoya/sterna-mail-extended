@@ -1,0 +1,60 @@
+# sternamail.org — page chrome, Simplified Chinese. See en.txt for the rules.
+
+language_name = 简体中文
+page_title = Sterna Mail，适用于 Android 的私密 JMAP 和 IMAP 电子邮件客户端
+skip_link = 跳到正文
+lang_label = 语言
+nav_install = 安装
+theme_label = 主题
+theme_auto = 跟随系统
+theme_light = 浅色
+theme_dark = 深色
+
+tagline = 您的全部邮件，没有多余之物。
+hero_note = 基于 GPLv3 的自由软件。无广告，无追踪，无 Google 服务。
+cta_primary = 从 F-Droid 获取
+cta_secondary = 其他安装方式
+tern_note = 名字取自北极燕鸥，它完成动物界最长的迁徙。我喜欢这样的意象：邮件轻装远行，总能找到归途。
+
+jmap_kicker = 协议
+jmap_title = 为 JMAP 而生，IMAP 同样得心应手
+jmap_body = JMAP 是 IMAP 的现代继任者。它不必逐个询问每个文件夹有什么变化，一次请求就能取回所有新内容：邮件来得更早，电池也更耐用。传统的 IMAP 和 SMTP 同样运行良好，因此现有的邮箱都能使用。
+jmap_old_label = IMAP：每次检查，每个文件夹往返一次
+jmap_new_label = JMAP：一次请求，取回所有变化
+
+promises_kicker = 承诺
+promises_title = 它做什么，不做什么
+promise_1_title = 无 Google，无 FCM
+promise_1_body = 新邮件通过 JMAP EventSource、IMAP IDLE 或 UnifiedPush 从您的服务器推送到手机，从不需要 Play 服务。
+promise_2_title = 没有人在看着您
+promise_2_body = 没有统计分析，没有广告，没有崩溃报告，没有第三方 SDK。应用只连接您选择的服务器或收到的邮件所指向的服务器，项目本身也没有任何用来接收数据的服务器。
+promise_3_title = 远程内容默认拦截
+promise_3_body = 在您主动要求之前，远程图片和跟踪像素不会加载；打开链接前还可以去除其中的跟踪参数。
+promise_4_title = 可重现构建
+promise_4_body = F-Droid 会根据公开的源代码重新构建每个版本，并与交给您的应用逐字节比对。这些源代码任何人都可以阅读和核查。
+
+features_kicker = 日常使用
+features_title = 功能完整的邮件客户端
+screens_kicker = 一览
+screens_title = 浅色深色，同样自在
+shot_inbox_light = 统一收件箱，Arctic 浅色主题
+shot_inbox_dark = 同一收件箱，Pelagic 深色主题
+shot_message = 阅读邮件，远程内容已拦截
+shot_compose = 撰写邮件，支持多个身份和附件
+shot_settings = 外观设置
+
+install_kicker = 安装
+install_title = 在手机上安装
+install_fdroid_title = F-Droid
+install_fdroid_body = 最简单的方式。通过 F-Droid 应用或其网站安装，更新会自动送达。
+install_obtainium_title = Obtainium
+install_obtainium_body = 直接跟踪项目发布的版本，新版本一出即可更新。
+install_apk_title = 直接下载 APK
+install_apk_body = 下载最新版本，在手机上打开文件，并允许浏览器安装应用。
+install_fingerprint_label = 签名证书，SHA-256
+
+footer_source = 源代码
+footer_issues = 报告问题
+footer_licence = 许可证 (GPLv3)
+footer_privacy = 隐私
+footer_note = 本页面不从别处加载任何字体、脚本或图片，不设置 Cookie，也不统计访问。所以它也没有 Cookie 同意横幅。
