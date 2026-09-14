@@ -60,7 +60,7 @@ internal class ImapParser(private val input: InputStream) {
             when (peek()) {
                 ')'.code -> { read(); return list }
                 ' '.code -> read()
-                -1 -> return list
+                -1, '\r'.code, '\n'.code -> return list
                 else -> list.add(readToken())
             }
         }

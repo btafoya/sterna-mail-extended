@@ -265,6 +265,27 @@ class ImapParserTest {
         assertEquals(listOf("*", "2", "EXISTS"), parser.readResponse())
     }
 
+    @Test(timeout = 5_000)
+    fun aListUnclosedAfterAnUnclosedSectionEndsWithItsLine() {
+        val parser = ImapParser(ByteArrayInputStream(
+            "* 1 FETCH (UID 1 BODY[HEADER.FIELDS (REFERENCES)\r\n* 2 FETCH (UID 2)\r\n".toByteArray(Charsets.UTF_8),
+        ))
+        assertEquals(
+            listOf("*", "1", "FETCH", listOf("UID", "1", "BODY[HEADER.FIELDS (REFERENCES)")),
+            parser.readResponse(),
+        )
+        assertEquals(listOf("*", "2", "FETCH", listOf("UID", "2")), parser.readResponse())
+    }
+
+    @Test(timeout = 5_000)
+    fun aBareListUnclosedEndsWithItsLine() {
+        val parser = ImapParser(ByteArrayInputStream(
+            "* 1 FETCH (UID 1\r\n* 2 FETCH (UID 2)\r\n".toByteArray(Charsets.UTF_8),
+        ))
+        assertEquals(listOf("*", "1", "FETCH", listOf("UID", "1")), parser.readResponse())
+        assertEquals(listOf("*", "2", "FETCH", listOf("UID", "2")), parser.readResponse())
+    }
+
     /**
      * A `[` never closed inside a list leaves the list its `)`: the parenthesis that answers no
      */
