@@ -81,6 +81,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -92,8 +93,8 @@ sealed interface ComposeState {
     /** [whileSaving] distinguishes a failed draft save from a failed send, for the banner text. */
     data class Error(val message: String, val whileSaving: Boolean = false) : ComposeState
 
-    /** The OpenPGP provider needs the user (passphrase/key pick) to finish the send:
-     *  launch [pendingIntent] and hand the result to ComposeViewModel.retryPgpSend. */
+    /** The OpenPGP provider needs the user (passphrase/key pick) to finish the send: consume it with
+     *  ComposeViewModel.consumePgpInteraction, then launch [pendingIntent], result to ComposeViewModel.retryPgpSend. */
     data class PgpInteraction(val pendingIntent: PendingIntent) : ComposeState
 }
 
@@ -1427,6 +1428,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     )
 
     private var pendingSendArgs: SendArgs? = null
+
+    fun consumePgpInteraction(pause: ComposeState.PgpInteraction) {
+        _state.update { composeStateAfterPgpLaunch(it, pause) }
+    }
 
     /**
      * Continue a send paused on [ComposeState.PgpInteraction]. [interactionResult]

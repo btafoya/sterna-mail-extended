@@ -264,10 +264,13 @@ fun ComposeScreen(
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let(viewModel::attach)
     }
-    // OpenKeychain's passphrase/key dialog round-trip during a PGP send.
+    // OpenKeychain's dialog round-trip: consume the pause, then launch, nothing between (`composeStateAfterPgpLaunch`).
     val pgpLauncher = rememberPgpInteractionLauncher { data -> viewModel.retryPgpSend(data) }
     LaunchedEffect(state) {
-        (state as? ComposeState.PgpInteraction)?.let { pgpLauncher(it.pendingIntent) }
+        (state as? ComposeState.PgpInteraction)?.let {
+            viewModel.consumePgpInteraction(it)
+            pgpLauncher(it.pendingIntent)
+        }
     }
     // Plain-language feedback when the user cycles the lock toggle, so the icon states are not a
     // mystery. Only manual toggles announce; an automatic opportunistic switch stays silent (#35).
