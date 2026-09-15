@@ -309,24 +309,27 @@ object MimeParser {
     private fun rawFirstPart(body: String, boundary: String): String? {
         val delimiter = "--$boundary"
         var open = body.indexOf(delimiter)
-        while (open > 0 && body[open - 1] != '\n') {
-            open = body.indexOf(delimiter, open + 1)
-            if (open < 0) return null
-        }
+        while (open >= 0 && !isBoundaryLine(body, open, delimiter)) open = body.indexOf(delimiter, open + 1)
         if (open < 0) return null
         var start = open + delimiter.length
-        // Skip to the end of the boundary line (tolerating trailing whitespace).
         while (start < body.length && body[start] != '\n') start++
         if (start >= body.length) return null
         start++
-        var close = body.indexOf("\n$delimiter", start - 1)
-        // The first candidate may be the opening boundary itself; move past it.
-        while (close >= 0 && close < start) close = body.indexOf("\n$delimiter", close + 1)
+        var close = body.indexOf(delimiter, start)
+        while (close >= 0 && !isBoundaryLine(body, close, delimiter)) close = body.indexOf(delimiter, close + 1)
         if (close < 0) return null
         // The CRLF (or LF) before the closing delimiter belongs to the boundary.
-        var end = close
+        var end = close - 1
         if (end > start && body[end - 1] == '\r') end--
         return if (end > start) body.substring(start, end) else null
+    }
+
+    /** Kept out of `splitMultipart`, which splits every multipart body and would cut them differently. */
+    private fun isBoundaryLine(body: String, at: Int, delimiter: String): Boolean {
+        if (at > 0 && body[at - 1] != '\n') return false
+        var i = at + delimiter.length
+        while (i < body.length && (body[i] == ' ' || body[i] == '\t')) i++
+        return i == body.length || body[i] == '\r' || body[i] == '\n'
     }
 
     /** The first complete armored PGP block in [text], or null. */

@@ -63,6 +63,97 @@ class CryptoDetectTest {
         assertTrue(env.signatureArmor!!.contains("BEGIN PGP SIGNATURE"))
     }
 
+    private fun signedUnderSig(
+        entity: String,
+        preamble: String = "",
+        openLine: String = "--SIG",
+        closeLine: String = "--SIG",
+    ) = buildString {
+        append("From: a@b.c\r\n")
+        append("Content-Type: multipart/signed; micalg=pgp-sha256;\r\n")
+        append(" protocol=\"application/pgp-signature\"; boundary=\"SIG\"\r\n\r\n")
+        append(preamble)
+        append("$openLine\r\n")
+        append(entity)
+        append("\r\n$closeLine\r\n")
+        append("Content-Type: application/pgp-signature\r\n\r\n")
+        append("-----BEGIN PGP SIGNATURE-----\r\n\r\nabc\r\n-----END PGP SIGNATURE-----\r\n")
+        append("--SIG--\r\n")
+    }
+
+    private fun alternativeEntity(innerBoundary: String) = buildString {
+        append("Content-Type: multipart/alternative; boundary=\"$innerBoundary\"\r\n\r\n")
+        append("--$innerBoundary\r\n")
+        append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+        append("Hello\r\n")
+        append("--$innerBoundary\r\n")
+        append("Content-Type: text/html; charset=utf-8\r\n\r\n")
+        append("<p>Hello</p>\r\n")
+        append("--$innerBoundary--")
+    }
+
+    @Test
+    fun innerBoundaryExtendingTheOuterOneDoesNotCloseTheSignedEntity() {
+        val entity = alternativeEntity("SIG-alt")
+        val env = MimeParser.detectCrypto(signedUnderSig(entity))
+        assertNotNull(env)
+        assertEquals(CryptoKind.PGP_SIGNED, env!!.kind)
+        assertEquals(entity, env.signedEntityRaw)
+    }
+
+    @Test
+    fun innerBoundaryWithDoubleDashAfterTheOuterNameDoesNotCloseTheSignedEntity() {
+        val entity = alternativeEntity("SIG--x")
+        val env = MimeParser.detectCrypto(signedUnderSig(entity))
+        assertNotNull(env)
+        assertEquals(entity, env!!.signedEntityRaw)
+    }
+
+    @Test
+    fun innerBoundaryWithAnotherCharacterAfterTheOuterNameDoesNotCloseTheSignedEntity() {
+        val entity = alternativeEntity("SIG2")
+        val env = MimeParser.detectCrypto(signedUnderSig(entity))
+        assertNotNull(env)
+        assertEquals(entity, env!!.signedEntityRaw)
+    }
+
+    @Test
+    fun signedMessageWrittenWithBareLineFeedsKeepsTheExactEntity() {
+        val entity = "Content-Type: text/plain; charset=utf-8\n\nHello  signed\nworld"
+        val raw = buildString {
+            append("From: a@b.c\n")
+            append("Content-Type: multipart/signed; protocol=\"application/pgp-signature\"; boundary=\"SIG\"\n\n")
+            append("--SIG\n")
+            append(entity)
+            append("\n--SIG\n")
+            append("Content-Type: application/pgp-signature\n\n")
+            append("-----BEGIN PGP SIGNATURE-----\n\nabc\n-----END PGP SIGNATURE-----\n")
+            append("--SIG--\n")
+        }
+        val env = MimeParser.detectCrypto(raw)
+        assertNotNull(env)
+        assertEquals(CryptoKind.PGP_SIGNED, env!!.kind)
+        assertEquals(entity, env.signedEntityRaw)
+    }
+
+    @Test
+    fun linearWhitespaceAfterTheOuterBoundaryStillDelimitsTheSignedEntity() {
+        val entity = "Content-Type: text/plain; charset=utf-8\r\n\r\nHello  signed\r\nworld"
+        val raw = signedUnderSig(entity, openLine = "--SIG  ", closeLine = "--SIG\t")
+        val env = MimeParser.detectCrypto(raw)
+        assertNotNull(env)
+        assertEquals(entity, env!!.signedEntityRaw)
+    }
+
+    @Test
+    fun preambleLinesStartingLikeTheBoundaryAreNotTheOpening() {
+        val entity = "Content-Type: text/plain; charset=utf-8\r\n\r\nsee --SIG here\r\nbye"
+        val preamble = "This is an OpenPGP/MIME signed message.\r\n--SIG-alt\r\nquoted --SIG\r\n\r\n"
+        val env = MimeParser.detectCrypto(signedUnderSig(entity, preamble = preamble))
+        assertNotNull(env)
+        assertEquals(entity, env!!.signedEntityRaw)
+    }
+
     @Test
     fun detectsInlinePgpInPlainText() {
         val raw = "Content-Type: text/plain; charset=utf-8\r\n\r\nsee below\r\n$armor\r\ncheers"
