@@ -351,3 +351,9 @@ val MIGRATION_26_27 = object : Migration(26, 27) {
         )
     }
 }
+
+val MIGRATION_27_28 = object : Migration(27, 28) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `scheduled_sends` ADD COLUMN `failedAttempts` INTEGER NOT NULL DEFAULT 0")
+    }
+}

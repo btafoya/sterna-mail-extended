@@ -28,4 +28,5 @@ data class ScheduledSendEntity(
     /** Read receipt request (RFC 8098); duplicated from [OutboxEntity] for the same reason as
      *  [draftUidValidity], missing here at hand-over, the message goes out without asking. */
     val requestReceipt: Boolean = false,
+    val failedAttempts: Int = 0,
 )

@@ -374,8 +374,8 @@ class SubscribedFolderMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "the schema declares v27: `emails` gains the (accountId, mailboxId, sortKey) index",
-            27,
+            "the schema declares v28: `scheduled_sends` gains `failedAttempts`",
+            28,
             SCHEMA_VERSION,
         )
     }

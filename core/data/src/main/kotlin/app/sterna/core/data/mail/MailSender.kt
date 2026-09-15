@@ -723,6 +723,9 @@ class MailSender(
 
     suspend fun deleteScheduledSend(id: Long) = scheduledSendDao.delete(id)
 
+    suspend fun setScheduledSendFailedAttempts(id: Long, failedAttempts: Int) =
+        scheduledSendDao.setFailedAttempts(id, failedAttempts)
+
     suspend fun scheduledSends(): List<ScheduledSendEntity> = scheduledSendDao.all()
 
     fun scheduledSendsFlow(): Flow<List<ScheduledSendEntity>> = scheduledSendDao.observeAll()

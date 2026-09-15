@@ -19,6 +19,9 @@ interface ScheduledSendDao {
     @Query("SELECT * FROM scheduled_sends ORDER BY sendAtMillis ASC")
     fun observeAll(): Flow<List<ScheduledSendEntity>>
 
+    @Query("UPDATE scheduled_sends SET failedAttempts = :failedAttempts WHERE id = :id")
+    suspend fun setFailedAttempts(id: Long, failedAttempts: Int)
+
     @Query("DELETE FROM scheduled_sends WHERE id = :id")
     suspend fun delete(id: Long)
 }

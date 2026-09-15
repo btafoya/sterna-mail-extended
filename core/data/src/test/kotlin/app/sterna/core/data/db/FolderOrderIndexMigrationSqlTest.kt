@@ -476,8 +476,8 @@ class FolderOrderIndexMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "this branch takes the schema to v27 (the emails index (accountId, mailboxId, sortKey))",
-            27,
+            "the schema declares v28: `scheduled_sends` gains `failedAttempts`",
+            28,
             SCHEMA_VERSION,
         )
     }

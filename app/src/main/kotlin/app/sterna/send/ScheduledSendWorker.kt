@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import app.sterna.container
+import app.sterna.core.data.mail.ScheduledSendRetry
 import app.sterna.core.data.mail.accountDepartureIsProven
 import app.sterna.core.data.settings.NotificationContent
 import app.sterna.push.Notifications
@@ -67,12 +68,13 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
             repo.sending.deleteScheduledSend(id)
             Result.success()
         } catch (_: Throwable) {
-            if (runAttemptCount < MAX_ATTEMPTS) {
+            if (ScheduledSendRetry.shouldRetry(row.failedAttempts)) {
+                // Retried uncounted if this throws: a refused write must never open the destroying arm.
+                runCatching { repo.sending.setScheduledSendFailedAttempts(id, row.failedAttempts + 1) }
                 Result.retry()
             } else {
-                // Give up after retries, but notify instead of dropping it silently, and clear the
-                // now-overdue row. The banner names the message only as much as the
-                // notification-content setting allows.
+                // Out of retries: notify, never drop silently, then clear the row. The banner names
+                // the message only as much as the notification-content setting allows.
                 //
                 // Guarded: a corrupt settings file reads as defaults, notification at its quietest;
                 // another read failure may still throw, escape doWork() and skip both the banner and
@@ -88,6 +90,5 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
 
     companion object {
         const val KEY_ID = "scheduled_send_id"
-        private const val MAX_ATTEMPTS = 3
     }
 }
