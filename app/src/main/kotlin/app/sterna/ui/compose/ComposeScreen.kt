@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -1275,18 +1276,24 @@ fun ComposeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                // The header stays put and the body fills the space above the keyboard; the body owns
-                // its own scroll, so writing a long message keeps the cursor in view (#26). Pad the
-                // bottom by whichever is taller, the keyboard or the nav bar, with no double inset.
+                // The body fills the space above the keyboard and scrolls its own content, so the cursor
+                // stays in view (#26); it keeps three lines, the header scrolling past that (`yieldToBody`).
+                // Pad the bottom by whichever is taller, the keyboard or the nav bar, with no double inset.
                 .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .graphicsLayer {
                     translationY = -fly * 64.dp.toPx()
                     alpha = 1f - fly
                 },
         ) {
+          val bodyMinHeight = composeBodyMinHeight(LocalTextStyle.current.lineHeight, LocalDensity.current)
           // The header sits on a faint tint so the writing area below reads as a distinct zone; its
           // dividers run full width.
-          Column(Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f))) {
+          Column(
+              Modifier
+                  .yieldToBody(bodyMinHeight, barShown = bodyFocused)
+                  .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f))
+                  .verticalScroll(rememberScrollState()),
+          ) {
             // From, switch sending account / identity (only when there's a choice).
             if (fromOptions.size > 1) {
                 var fromMenu by remember { mutableStateOf(false) }
@@ -1537,7 +1544,7 @@ fun ComposeScreen(
                         Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp)
-                            .padding(top = 12.dp, bottom = 16.dp),
+                            .padding(top = BODY_PADDING_TOP, bottom = BODY_PADDING_BOTTOM),
                     ) {
                         // …and no list either: a bullet tapped on an empty composer is drawn at the
                         // start of the first line, exactly where the placeholder sits, and the two
@@ -2170,6 +2177,7 @@ private fun FormattingBar(
     Row(
         Modifier
             .fillMaxWidth()
+            .height(FORMATTING_BAR_HEIGHT)
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = 4.dp),
     ) {
