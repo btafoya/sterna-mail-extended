@@ -135,6 +135,10 @@ object MimeParser {
                 attachments.add(MimeAttachment(section, filename ?: "image", mime, body.length, cte, cid))
                 null to null
             }
+            mime == "message/rfc822" -> {
+                attachments.add(MimeAttachment(section, filename ?: "message.eml", mime, body.length, cte))
+                null to null
+            }
             mime == "text/html" -> decode(body, cte, charsetOf(contentType)) to null
             mime == "text/plain" -> null to TextLeaf(body, cte, charsetOf(contentType))
             // A calendar invite (text/calendar, e.g. Method:request) is usually an inline

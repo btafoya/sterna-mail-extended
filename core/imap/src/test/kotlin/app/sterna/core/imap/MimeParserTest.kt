@@ -126,6 +126,164 @@ class MimeParserTest {
         assertEquals(fileB64, MimeParser.partAt(raw, "2")?.second?.trim())
     }
 
+    private fun assertAttachedMessage(att: MimeAttachment, section: String, name: String = "message.eml") {
+        assertEquals(section, att.section)
+        assertEquals(name, att.name)
+        assertEquals("message/rfc822", att.type)
+        assertEquals("7bit", att.encoding)
+        assertNull(att.cid)
+    }
+
+    @Test
+    fun anUnnamedAttachedMessageIsAnAttachment() {
+        val raw = buildString {
+            append("From: Sam Fixture <sam.fixture@example.org>\r\n")
+            append("Subject: JOINT-SANS-NOM-02 porteur\r\n")
+            append("MIME-Version: 1.0\r\n")
+            append("Content-Type: multipart/mixed; boundary=\"B2\"\r\n\r\n")
+            append("--B2\r\n")
+            append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+            append("Ce message porte un mail joint SANS nom ni disposition.\r\n\r\n")
+            append("--B2\r\n")
+            append("Content-Type: message/rfc822\r\n\r\n")
+            append("From: Interne Trois <interne.trois@example.org>\r\n")
+            append("To: Interne Quatre <interne.quatre@example.org>\r\n")
+            append("Subject: JOINT-INTERNE-02 sans nom\r\n")
+            append("MIME-Version: 1.0\r\n")
+            append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+            append("Corps du message joint sans nom.\r\n\r\n")
+            append("--B2--\r\n")
+        }
+        val body = MimeParser.parseBody(raw)
+        assertEquals("Ce message porte un mail joint SANS nom ni disposition.", body.text?.trim())
+        assertEquals(1, body.attachments.size)
+        assertAttachedMessage(body.attachments.first(), section = "2")
+    }
+
+    @Test
+    fun eachUnnamedMessageOfADigestIsAnAttachment() {
+        val raw = buildString {
+            append("Content-Type: multipart/mixed; boundary=\"OUT\"\r\n\r\n")
+            append("--OUT\r\n")
+            append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+            append("Un digest de deux messages.\r\n\r\n")
+            append("--OUT\r\n")
+            append("Content-Type: multipart/digest; boundary=\"DIG\"\r\n\r\n")
+            append("--DIG\r\n")
+            append("Content-Type: message/rfc822\r\n\r\n")
+            append("From: Interne Cinq <interne.cinq@example.org>\r\n")
+            append("Subject: DIGEST-INTERNE-10A premier\r\n")
+            append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+            append("Premier message du digest.\r\n\r\n")
+            append("--DIG\r\n")
+            append("Content-Type: message/rfc822\r\n\r\n")
+            append("From: Interne Sept <interne.sept@example.org>\r\n")
+            append("Subject: DIGEST-INTERNE-10B second\r\n")
+            append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+            append("Second message du digest.\r\n\r\n")
+            append("--DIG--\r\n\r\n")
+            append("--OUT--\r\n")
+        }
+        val body = MimeParser.parseBody(raw)
+        assertEquals("Un digest de deux messages.", body.text?.trim())
+        assertEquals(2, body.attachments.size)
+        assertAttachedMessage(body.attachments[0], section = "2.1")
+        assertAttachedMessage(body.attachments[1], section = "2.2")
+    }
+
+    @Test
+    fun aBounceKeepsTheReturnedMessageButNotTheDeliveryStatus() {
+        val raw = buildString {
+            append("Content-Type: multipart/report; report-type=delivery-status; boundary=\"R11\"\r\n\r\n")
+            append("--R11\r\n")
+            append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+            append("Le message ci-joint n'a pas pu etre remis.\r\n\r\n")
+            append("--R11\r\n")
+            append("Content-Type: message/delivery-status\r\n\r\n")
+            append("Reporting-MTA: dns; mx.example.org\r\n\r\n")
+            append("Final-Recipient: rfc822; personne@example.org\r\n")
+            append("Action: failed\r\n")
+            append("Status: 5.1.1\r\n\r\n")
+            append("--R11\r\n")
+            append("Content-Type: message/rfc822\r\n\r\n")
+            append("From: Banc <banc@masto.top>\r\n")
+            append("Subject: NON-REMISE-INTERNE-11 original\r\n")
+            append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+            append("Le message d'origine, revenu.\r\n\r\n")
+            append("--R11--\r\n")
+        }
+        val body = MimeParser.parseBody(raw)
+        assertEquals("Le message ci-joint n'a pas pu etre remis.", body.text?.trim())
+        assertEquals(1, body.attachments.size)
+        assertAttachedMessage(body.attachments.first(), section = "3")
+    }
+
+    @Test
+    fun aNamedAttachedMessageKeepsItsName() {
+        val raw = buildString {
+            append("Content-Type: multipart/mixed; boundary=\"BND\"\r\n\r\n")
+            append("--BND\r\n")
+            append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+            append("Voir le rapport.\r\n")
+            append("--BND\r\n")
+            append("Content-Type: message/rfc822; name=\"rapport.eml\"\r\n\r\n")
+            append("Subject: rapport\r\n\r\n")
+            append("Corps.\r\n")
+            append("--BND--\r\n")
+        }
+        val body = MimeParser.parseBody(raw)
+        assertEquals(1, body.attachments.size)
+        assertAttachedMessage(body.attachments.first(), section = "2", name = "rapport.eml")
+    }
+
+    @Test
+    fun anUnnamedAttachedMessageIsNotWalkedInto() {
+        val pdfB64 = Base64.getEncoder().encodeToString("PDF-INTERNE".toByteArray())
+        val raw = buildString {
+            append("Content-Type: multipart/mixed; boundary=\"CARRIER\"\r\n\r\n")
+            append("--CARRIER\r\n")
+            append("Content-Type: message/rfc822\r\n\r\n")
+            append("From: Interne <interne@example.org>\r\n")
+            append("Subject: message joint avec son propre fichier\r\n")
+            append("MIME-Version: 1.0\r\n")
+            append("Content-Type: multipart/mixed; boundary=\"INNER\"\r\n\r\n")
+            append("--INNER\r\n")
+            append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+            append("Texte du message interne.\r\n")
+            append("--INNER\r\n")
+            append("Content-Type: application/pdf; name=\"interne.pdf\"\r\n")
+            append("Content-Transfer-Encoding: base64\r\n")
+            append("Content-Disposition: attachment; filename=\"interne.pdf\"\r\n\r\n")
+            append("$pdfB64\r\n")
+            append("--INNER--\r\n\r\n")
+            append("--CARRIER--\r\n")
+        }
+        val body = MimeParser.parseBody(raw)
+        assertNull(body.text)
+        assertNull(body.html)
+        assertEquals(1, body.attachments.size)
+        assertAttachedMessage(body.attachments.first(), section = "1")
+    }
+
+    @Test
+    fun aReadReceiptHasNoAttachment() {
+        val raw = buildString {
+            append("Content-Type: multipart/report; report-type=disposition-notification; boundary=\"MDN\"\r\n\r\n")
+            append("--MDN\r\n")
+            append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+            append("Votre message a ete affiche.\r\n")
+            append("--MDN\r\n")
+            append("Content-Type: message/disposition-notification\r\n\r\n")
+            append("Reporting-UA: mail.example.org; Sterna\r\n")
+            append("Final-Recipient: rfc822; personne@example.org\r\n")
+            append("Disposition: manual-action/MDN-sent-manually; displayed\r\n")
+            append("--MDN--\r\n")
+        }
+        val body = MimeParser.parseBody(raw)
+        assertEquals("Votre message a ete affiche.", body.text?.trim())
+        assertEquals(0, body.attachments.size)
+    }
+
     // ---- 8-bit bodies and their declared charset ---------------------------------------------
 
     /**

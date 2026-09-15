@@ -1016,16 +1016,19 @@ class ImapSession(private var socket: Socket) : Closeable {
         }
         return map
     }
+}
 
-    private fun hasAttachment(bodystructure: Any?): Boolean {
-        fun walk(node: Any?): Boolean = when (node) {
-            is List<*> -> node.any { child ->
-                (child is String && child.equals("attachment", true)) || walk(child)
-            }
-            else -> false
+internal fun hasAttachment(bodystructure: Any?): Boolean {
+    fun isAttachedMessage(node: List<*>): Boolean =
+        node.take(2).joinToString("/").equals("message/rfc822", ignoreCase = true)
+
+    fun walk(node: Any?): Boolean = when (node) {
+        is List<*> -> isAttachedMessage(node) || node.any { child ->
+            (child is String && child.equals("attachment", true)) || walk(child)
         }
-        return walk(bodystructure)
+        else -> false
     }
+    return walk(bodystructure)
 }
 
 /** The FETCH item every list fetch asks for beside the envelope: the `References` header alone. */
