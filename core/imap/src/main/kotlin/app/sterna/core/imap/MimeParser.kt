@@ -402,17 +402,19 @@ object MimeParser {
     private fun charsetOf(contentType: String): java.nio.charset.Charset =
         charsetNamed(paramOf(contentType, "charset"))
 
-        /**
-         * The children of a multipart body, at most [MAX_PARTS] of them. Deliberately not
-         */
+    /**
+     * The children of a multipart body, at most [MAX_PARTS] of them. What precedes the first occurrence
+     * of the delimiter is dropped, as the IMAP server numbers no preamble; with no delimiter at all the
+     * body stays one part rather than vanish.
+     */
     private fun splitMultipart(body: String, boundary: String): List<String> {
         val delimiter = "--$boundary"
         val parts = mutableListOf<String>()
-        var start = 0
+        val first = body.indexOf(delimiter)
+        var start = if (first < 0) 0 else first + delimiter.length
         while (parts.size < MAX_PARTS) {
             val next = body.indexOf(delimiter, start)
             val end = if (next < 0) body.length else next
-            // A segment that is blank, or the closing "--boundary--", is not a part.
             var from = start
             while (from < end && (body[from] == '\r' || body[from] == '\n')) from++
             if (from < end && !body.startsWith("--", from)) parts.add(body.substring(from, end))

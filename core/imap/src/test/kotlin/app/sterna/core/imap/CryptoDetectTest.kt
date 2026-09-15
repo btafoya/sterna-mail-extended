@@ -165,6 +165,22 @@ class CryptoDetectTest {
     }
 
     @Test
+    fun detectsInlinePgpBehindAPreamble() {
+        val raw = buildString {
+            append("Content-Type: multipart/mixed; boundary=\"BND\"\r\n\r\n")
+            append("This is a multi-part message in MIME format.\r\n\r\n")
+            append("--BND\r\n")
+            append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+            append("see below\r\n$armor\r\ncheers\r\n")
+            append("--BND--\r\n")
+        }
+        val env = MimeParser.detectCrypto(raw)
+        assertNotNull(env)
+        assertEquals(CryptoKind.PGP_INLINE, env!!.kind)
+        assertTrue(env.encryptedArmor!!.endsWith("-----END PGP MESSAGE-----"))
+    }
+
+    @Test
     fun detectsInlineCleartextSigned() {
         val block = "-----BEGIN PGP SIGNED MESSAGE-----\r\nHash: SHA256\r\n\r\nhi\r\n" +
             "-----BEGIN PGP SIGNATURE-----\r\n\r\nxyz\r\n-----END PGP SIGNATURE-----"

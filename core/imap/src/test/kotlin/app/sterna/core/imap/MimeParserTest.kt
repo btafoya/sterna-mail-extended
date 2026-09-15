@@ -126,6 +126,159 @@ class MimeParserTest {
         assertEquals(fileB64, MimeParser.partAt(raw, "2")?.second?.trim())
     }
 
+    private val preamble = "This is a multi-part message in MIME format.\r\n\r\n"
+
+    private fun pdfPart(boundary: String, name: String, b64: String) = buildString {
+        append("--$boundary\r\n")
+        append("Content-Type: application/pdf; name=\"$name\"\r\n")
+        append("Content-Transfer-Encoding: base64\r\n")
+        append("Content-Disposition: attachment; filename=\"$name\"\r\n\r\n")
+        append("$b64\r\n")
+    }
+
+    @Test
+    fun aRootPreambleIsNotAPart() {
+        val fileB64 = Base64.getEncoder().encodeToString("PDF-DATA".toByteArray())
+        val raw = buildString {
+            append("Content-Type: multipart/mixed; boundary=\"BND\"\r\n\r\n")
+            append(preamble)
+            append("--BND\r\n")
+            append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+            append("See attached\r\n")
+            append(pdfPart("BND", "doc.pdf", fileB64))
+            append("--BND--\r\n")
+        }
+        val body = MimeParser.parseBody(raw)
+        assertEquals("See attached", body.text?.trim())
+        assertEquals(1, body.attachments.size)
+        assertEquals("doc.pdf", body.attachments.first().name)
+        assertEquals("2", body.attachments.first().section)
+    }
+
+    @Test
+    fun aSignedMessageWithARootPreambleKeepsTheServerSections() {
+        val fileB64 = Base64.getEncoder().encodeToString("PDF-DATA".toByteArray())
+        val sigB64 = Base64.getEncoder().encodeToString("P7S".toByteArray())
+        val raw = buildString {
+            append("Content-Type: multipart/signed; protocol=\"application/pkcs7-signature\";\r\n")
+            append(" micalg=sha-256; boundary=\"SIG\"\r\n\r\n")
+            append("This is an S/MIME signed message\r\n\r\n")
+            append("--SIG\r\n")
+            append("Content-Type: multipart/mixed; boundary=\"MIX\"\r\n\r\n")
+            append("--MIX\r\n")
+            append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+            append("Please find the invoice\r\n")
+            append(pdfPart("MIX", "invoice.pdf", fileB64))
+            append("--MIX--\r\n")
+            append("--SIG\r\n")
+            append("Content-Type: application/pkcs7-signature; name=\"smime.p7s\"\r\n")
+            append("Content-Transfer-Encoding: base64\r\n")
+            append("Content-Disposition: attachment; filename=\"smime.p7s\"\r\n\r\n")
+            append("$sigB64\r\n")
+            append("--SIG--\r\n")
+        }
+        val body = MimeParser.parseBody(raw)
+        assertEquals("Please find the invoice", body.text?.trim())
+        assertEquals(
+            listOf("invoice.pdf" to "1.2", "smime.p7s" to "2"),
+            body.attachments.map { it.name to it.section },
+        )
+    }
+
+    @Test
+    fun aNestedPreambleShiftsNothingButItsOwnChildren() {
+        val aB64 = Base64.getEncoder().encodeToString("A".toByteArray())
+        val bB64 = Base64.getEncoder().encodeToString("B".toByteArray())
+        val raw = buildString {
+            append("Content-Type: multipart/mixed; boundary=\"OUT\"\r\n\r\n")
+            append("--OUT\r\n")
+            append("Content-Type: multipart/mixed; boundary=\"IN\"\r\n\r\n")
+            append(preamble)
+            append("--IN\r\n")
+            append("Content-Type: text/plain\r\n\r\ninner text\r\n")
+            append(pdfPart("IN", "a.pdf", aB64))
+            append("--IN--\r\n")
+            append(pdfPart("OUT", "b.pdf", bB64))
+            append("--OUT--\r\n")
+        }
+        val body = MimeParser.parseBody(raw)
+        assertEquals("inner text", body.text?.trim())
+        assertEquals(
+            listOf("a.pdf" to "1.2", "b.pdf" to "2"),
+            body.attachments.map { it.name to it.section },
+        )
+    }
+
+    @Test
+    fun twoAttachmentsUnderAPreambleEachKeepTheirSection() {
+        val aB64 = Base64.getEncoder().encodeToString("A".toByteArray())
+        val bB64 = Base64.getEncoder().encodeToString("B".toByteArray())
+        val raw = buildString {
+            append("Content-Type: multipart/mixed; boundary=\"BND\"\r\n\r\n")
+            append(preamble)
+            append("--BND\r\n")
+            append("Content-Type: text/plain\r\n\r\nbody\r\n")
+            append(pdfPart("BND", "a.pdf", aB64))
+            append(pdfPart("BND", "b.pdf", bB64))
+            append("--BND--\r\n")
+        }
+        assertEquals(
+            listOf("a.pdf" to "2", "b.pdf" to "3"),
+            MimeParser.parseBody(raw).attachments.map { it.name to it.section },
+        )
+    }
+
+    @Test
+    fun partAtUnderAPreambleReturnsThePartParseBodyNamed() {
+        val aB64 = Base64.getEncoder().encodeToString("A-BYTES".toByteArray())
+        val bB64 = Base64.getEncoder().encodeToString("B-BYTES".toByteArray())
+        val raw = buildString {
+            append("Content-Type: multipart/mixed; boundary=\"BND\"\r\n\r\n")
+            append(preamble)
+            append("--BND\r\n")
+            append("Content-Type: text/plain\r\n\r\nbody\r\n")
+            append(pdfPart("BND", "a.pdf", aB64))
+            append(pdfPart("BND", "b.pdf", bB64))
+            append("--BND--\r\n")
+        }
+        val sections = MimeParser.parseBody(raw).attachments.associate { it.name to it.section }
+        assertEquals("3", sections["b.pdf"])
+        val b = MimeParser.partAt(raw, sections.getValue("b.pdf"))
+        assertEquals("base64" to bB64, b?.let { it.first to it.second.trim() })
+        assertEquals(aB64, MimeParser.partAt(raw, sections.getValue("a.pdf"))?.second?.trim())
+        assertEquals("body", MimeParser.partAt(raw, "1")?.second?.trim())
+    }
+
+    @Test
+    fun theEpilogueIsNotAPart() {
+        val fileB64 = Base64.getEncoder().encodeToString("PDF-DATA".toByteArray())
+        val raw = buildString {
+            append("Content-Type: multipart/mixed; boundary=\"BND\"\r\n\r\n")
+            append("--BND\r\n")
+            append("Content-Type: text/plain\r\n\r\nbody\r\n")
+            append(pdfPart("BND", "doc.pdf", fileB64))
+            append("--BND--\r\n")
+            append("Content-Type: application/pdf\r\n")
+            append("Content-Disposition: attachment; filename=\"ghost.pdf\"\r\n\r\n")
+            append("ghost\r\n")
+        }
+        val body = MimeParser.parseBody(raw)
+        assertEquals("body", body.text?.trim())
+        assertEquals(listOf("doc.pdf" to "2"), body.attachments.map { it.name to it.section })
+        assertNull(MimeParser.partAt(raw, "3"))
+    }
+
+    @Test
+    fun aMultipartBodyWithNoDelimiterIsKeptWhole() {
+        val raw = buildString {
+            append("Content-Type: multipart/mixed; boundary=\"BND\"\r\n\r\n")
+            append("Content-Type: text/html\r\n\r\n")
+            append("<p>no delimiter</p>\r\n")
+        }
+        assertEquals("<p>no delimiter</p>", MimeParser.parseBody(raw).html?.trim())
+        assertEquals("<p>no delimiter</p>", MimeParser.partAt(raw, "1")?.second?.trim())
+    }
+
     private fun assertAttachedMessage(att: MimeAttachment, section: String, name: String = "message.eml") {
         assertEquals(section, att.section)
         assertEquals(name, att.name)
@@ -457,6 +610,25 @@ class MimeParserTest {
             append("--F--\r\n")
         }
         assertEquals(cap, MimeParser.parseBody(raw).attachments.size)
+    }
+
+    @Test
+    fun aPreambleDoesNotTakeASlotUnderTheSiblingCap() {
+        val cap = MimeParser.MAX_PARTS
+        val raw = buildString {
+            append("Content-Type: multipart/mixed; boundary=\"F\"\r\n\r\n")
+            append(preamble)
+            repeat(cap) { i ->
+                append("--F\r\n")
+                append("Content-Type: application/pdf\r\n")
+                append("Content-Disposition: attachment; filename=\"f$i.pdf\"\r\n\r\n")
+                append("x\r\n")
+            }
+            append("--F--\r\n")
+        }
+        val attachments = MimeParser.parseBody(raw).attachments
+        assertEquals(cap, attachments.size)
+        assertEquals("f${cap - 1}.pdf" to "$cap", attachments.last().let { it.name to it.section })
     }
 
     @Test

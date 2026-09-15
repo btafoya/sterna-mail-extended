@@ -35,6 +35,10 @@ class BodyCacheUpgradeTest {
         assertEquals(172, BODY_CACHE_PURGE_VERSION_3)
     }
 
+    @Test fun `the fourth threshold is the release that needs it, by number`() {
+        assertEquals(177, BODY_CACHE_PURGE_VERSION_4)
+    }
+
     @Test fun `arriving at the threshold purges, and records the version it purged for`() {
         assertEquals(
             BODY_CACHE_PURGE_VERSION,
@@ -86,17 +90,30 @@ class BodyCacheUpgradeTest {
         )
     }
 
+    @Test fun `a 176 install purges on arriving at the preamble release`() {
+        assertEquals(
+            "a 176 install must purge on arrival, or attachments keep sections shifted by a MIME preamble",
+            177,
+            bodyCachePurgeVersion(purgedForVersion = 176, currentVersion = 177),
+        )
+    }
+
     /** Crossed, not equalled, for the third threshold too: 171 straight to 173 purges once. */
     @Test fun `jumping over the third threshold purges on arrival`() {
         assertEquals(173, bodyCachePurgeVersion(purgedForVersion = 171, currentVersion = 173))
         assertEquals(300, bodyCachePurgeVersion(purgedForVersion = 171, currentVersion = 300))
     }
 
-    /** Once per threshold. Having purged for 172, nothing purges again at 172, 173, or ever. */
+    /** Once per threshold. Having purged for 172, nothing purges again for 172 at 172, 173, or ever. */
     @Test fun `the third threshold purges once and never again`() {
         assertNull(bodyCachePurgeVersion(purgedForVersion = 172, currentVersion = 172))
         assertNull(bodyCachePurgeVersion(purgedForVersion = 172, currentVersion = 173))
-        assertNull(bodyCachePurgeVersion(purgedForVersion = 172, currentVersion = 999))
+        assertNull(bodyCachePurgeVersion(purgedForVersion = 172, currentVersion = 176))
+        assertEquals(
+            "999 is past the FOURTH threshold, so it purges for that one, not a second time for 172",
+            999,
+            bodyCachePurgeVersion(purgedForVersion = 172, currentVersion = 999),
+        )
     }
 
     /** Crossed, not equalled, for the second threshold too: 169 straight to 171 purges once. */
