@@ -55,6 +55,56 @@ class LocalDraftReopenWiringTest {
         )
     }
 
+    @Test fun `a server draft a local row stands in for opens that row, never the server copy`() {
+        val prepare = codeLines(bodyOf(COMPOSE_VIEW_MODEL, "prepare"))
+        val at = prepare.indexOf("val standIn = draftToOpen(draftId, repo.drafts.localDraftReplacing(credentials.id, draftId))")
+        assertTrue(
+            "the server arm of prepare() no longer asks the phone's own store for a row standing in " +
+                "for the draft (#216: the search lists a server draft this phone rewrote and has " +
+                "not uploaded yet, and the tap arrives here with the server's id), under the " +
+                "account the fetch reads with, before choosing what to open. `draftToOpen` is " +
+                "executed by LocalDraftReopenTest, and `draftToOpen(draftId, null)` compiles and " +
+                "leaves it green: the " +
+                "composer then fetches the text the row replaced, and the next save writes it over " +
+                "the row by its server id. Body was:\n${prepare.joinToString("\n")}",
+            at >= 0,
+        )
+        assertEquals(
+            "the lookup, the redirect and the fetch, whole, adjacent and in order: the row is " +
+                "opened by the local route and the arm RETURNS, so nothing of the server copy is " +
+                "ever read, and with no fallback to it when the row is busy or gone. Arm was:",
+            listOf(
+                "val standIn = draftToOpen(draftId, repo.drafts.localDraftReplacing(credentials.id, draftId))",
+                "if (standIn is DraftToOpen.Local) {",
+                "prepareStandInLocalDraft(standIn.id)",
+                "return@launch",
+                "}",
+                "val draft = repo.fetchEmail(credentials, draftId)",
+            ),
+            prepare.subList(at, (at + 6).coerceAtMost(prepare.size)),
+        )
+        val credentials = prepare.indexOf("val credentials = credentials() ?: run {")
+        assertTrue(
+            "…and the account it is asked under is the one resolved in that arm, above the lookup. " +
+                "Body was:\n${prepare.joinToString("\n")}",
+            credentials in 0 until at,
+        )
+        assertEquals(
+            "the hand-over, whole: the server draft armed at the entry of the arm (armed there " +
+                "because the lookup is already a suspension) is disarmed BEFORE the row is taken. " +
+                "Left armed through the take, and for good when the row is busy or gone, a save " +
+                "or an emptying still names the server draft as the original, while the row holds " +
+                "the text; and the server account left beside the row's breaks the exclusivity " +
+                "`carriedDraftAccountId` relies on. Body was:",
+            listOf(
+                "editingDraftId = null",
+                "editingDraftAccountId = null",
+                "prepareLocalDraft(id)",
+            ),
+            functionBody(COMPOSE_VIEW_MODEL, "private suspend fun prepareStandInLocalDraft("),
+        )
+    }
+
     @Test fun `the local reopen touches the network nowhere`() {
         assertEquals(
             "⛔ THE rule of this branch. prepareLocalDraft must reach the repository EXACTLY once, " +

@@ -633,6 +633,11 @@ private fun MainNavHost(
                         nav.navigate("message/${Uri.encode(id)}?accountId=${Uri.encode(accountId.orEmpty())}")
                     }
                 },
+                onEditDraft = { id, accountId ->
+                    entry.navigateOnce {
+                        nav.navigate("compose?draftId=${Uri.encode(id)}&accountId=${Uri.encode(accountId.orEmpty())}")
+                    }
+                },
             )
         }
         composable(

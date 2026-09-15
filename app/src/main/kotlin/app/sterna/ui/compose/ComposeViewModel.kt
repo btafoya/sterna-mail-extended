@@ -23,6 +23,7 @@ import app.sterna.core.data.db.OutboxState
 import app.sterna.core.data.db.ScheduledSendEntity
 import app.sterna.core.data.mail.DraftOpenRoute
 import app.sterna.core.data.mail.DraftSaveOutcome
+import app.sterna.core.data.mail.DraftToOpen
 import app.sterna.core.data.mail.LocalDraftEdit
 import app.sterna.core.data.mail.SendDraftTarget
 import app.sterna.core.data.mail.abandonPlan
@@ -32,6 +33,7 @@ import app.sterna.core.data.mail.draftOpenRoute
 import app.sterna.core.data.mail.draftSaveConsumesTheQueuedRow
 import app.sterna.core.data.mail.draftSaveNeedsNotice
 import app.sterna.core.data.mail.draftSaveParksTheQueuedRowAs
+import app.sterna.core.data.mail.draftToOpen
 import app.sterna.core.data.mail.localDraftLeaseAfterSave
 import app.sterna.core.data.mail.localDraftPrefill
 import app.sterna.core.data.mail.reopenedDraftIsLossy
@@ -944,10 +946,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // The name stays `draftId` below, deliberately: the numbering freeze, the id and the
                 // lossy verdict of this branch are pinned line by line by four wiring rules.
                 val draftId: String = draftId!!
-                // Raised here, before the coroutine, and not on its first line: the flag is up before
-                // the first suspension point, so before any frame the fetch could delay. Set inside,
-                // the editor is on screen, editable, with Save, Send and the padlock, which is
-                // exactly the window a fast finger types into. Same reservation as the local arm.
+                // Raised here, before the coroutine, and not on its first line: set inside, the editor
+                // is on screen, editable, with Save, Send and the padlock, for the frames the first
+                // suspension delays, the window a fast finger types into. Same reservation as the local arm.
                 _draftLoading.value = true
                 // The ID and its verdict, armed as one gesture, before the first suspension point.
                 // The invariant is not "the id is laid last" but "the licence to destroy is laid
@@ -958,11 +959,16 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 editingDraftLossyOnOpen = true
                 viewModelScope.launch {
                     try {
-                        // No account to ask means the draft cannot be read either, so this path says
-                        // so like any other failure rather than opening a blank editable composer.
-                        // Not "offline": the link may be perfect.
+                        // No account means the draft cannot be read either: said like any other failure,
+                        // never as a blank editable composer. Not "offline": the link may be perfect.
                         val credentials = credentials() ?: run {
                             _draftLoadFailed.value = draftLoadNoticeFor(offline = false)
+                            return@launch
+                        }
+                        // Asked under the account the fetch reads with, never another: ids collide (#31).
+                        val standIn = draftToOpen(draftId, repo.drafts.localDraftReplacing(credentials.id, draftId))
+                        if (standIn is DraftToOpen.Local) {
+                            prepareStandInLocalDraft(standIn.id)
                             return@launch
                         }
                         val draft = repo.fetchEmail(credentials, draftId)
@@ -1004,9 +1010,8 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         val app = getApplication<Application>()
                         _draftLoadFailed.value = draftLoadNoticeFor(isOfflineFailure(t, online = hasUsableNetwork(app)))
                     } finally {
-                        // Every way out of the body lowers it, not just the two above: the silent
-                        // `return@launch` with no credentials, and any throw from outside the try,
-                        // would otherwise leave the composer waiting on a fetch that is over.
+                        // Every way out lowers it: both `return@launch`, the stand-in row's included, and
+                        // any throw from outside the try, or the composer waits on a read that is over.
                         _draftLoading.value = false
                     }
                 }
@@ -1156,6 +1161,14 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 _replyQuote.value = replyBody(quote(original, resolveOutgoingDateZone(settings.quotedDatesUtc)))
             }
         }
+    }
+
+    /** The server draft `prepare` armed is disarmed first: left beside the row, a save or an emptying
+     *  names it the original to replace, and `carriedDraftAccountId` finds both accounts set. */
+    private suspend fun prepareStandInLocalDraft(id: String) {
+        editingDraftId = null
+        editingDraftAccountId = null
+        prepareLocalDraft(id)
     }
 
     /**

@@ -97,6 +97,24 @@ class LocalDraftSaveWiringTest {
         )
     }
 
+    @Test fun `a reopen looks for the row a save would land on, with the same statement`() {
+        assertEquals(
+            "MailDrafts must name forServerDraft on exactly these two lines, whole (#216): the save's " +
+                "lookup and the reopen's, scoped by the same account and handing back the row's " +
+                "id. A reopen that asks anything else fetches the server copy of a draft this " +
+                "phone has rewritten since, and the next save writes that copy over the newer text:",
+            listOf(
+                "forServerDraft = { localDraftDao.forServerDraft(credentials.id, it) },",
+                "localDraftDao.forServerDraft(accountId, serverDraftId)?.id",
+            ),
+            codeOf(DaoQuerySource.mailSource("MailDrafts")).filter { "forServerDraft(" in it },
+        )
+        assertEquals(
+            listOf("suspend fun localDraftReplacing(accountId: String, serverDraftId: String): String? ="),
+            codeOf(DaoQuerySource.mailSource("MailDrafts")).filter { "fun localDraftReplacing(" in it },
+        )
+    }
+
     @Test fun `the things saveDraftLocalFirst is given are the real store, whole lines`() {
         // `record` is the newest of them and the easiest to drop: a save that fails offline
         // leaves the row for the upload worker, and if the attempt is not written down the row's

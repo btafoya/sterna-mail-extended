@@ -85,6 +85,9 @@ import app.sterna.ui.components.EmptyArt
 import app.sterna.ui.components.EmptyState
 import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.accountColorOf
+import app.sterna.ui.inbox.RowTap
+import app.sterna.ui.inbox.searchHitTapAction
+import app.sterna.ui.messageFolderRole
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -94,11 +97,13 @@ import java.time.format.FormatStyle
 fun SearchScreen(
     onBack: () -> Unit,
     onOpenEmail: (id: String, accountId: String?) -> Unit,
+    onEditDraft: (id: String, accountId: String?) -> Unit,
     viewModel: SearchViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val form by viewModel.form.collectAsStateWithLifecycle()
     val accounts by viewModel.accounts.collectAsStateWithLifecycle()
+    val folderRoles by viewModel.folderRoles.collectAsStateWithLifecycle()
     val query = form.query
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -344,7 +349,12 @@ fun SearchScreen(
                                         }
                                         EmailListItem(
                                             email = email,
-                                            onClick = { onOpenEmail(email.id, email.accountId) },
+                                            onClick = {
+                                                when (searchHitTapAction(messageFolderRole(email.accountId, email.mailboxId, folderRoles))) {
+                                                    RowTap.EDIT_DRAFT -> onEditDraft(email.id, email.accountId)
+                                                    else -> onOpenEmail(email.id, email.accountId)
+                                                }
+                                            },
                                             originLabel = owner?.label(),
                                             originColor = accountColorOf(owner?.color),
                                         )

@@ -1258,11 +1258,9 @@ fun InboxScreen(
                         else performSwipe(action, email, viewModel, ui, rowRole)
                     },
                     onClick = {
-                        // The decision lives in [rowTapAction]; this `when` only acts on it. A
-                        // local draft opens in the composer like any other (#95) and is the first
-                        // argument, because the selection branch would refuse the row and the tap
-                        // would do nothing. In Drafts a tap edits rather than opening the reader.
-                        when (rowTapAction(isLocalDraftRow(email.id), selectionActive, expandable, fromSearch, rowRole)) {
+                        // A local draft is the first argument, or the selection branch would refuse it and the tap do nothing (#95).
+                        // A search hit is judged by its own folder, never by `rowRole`, which is the screen's (#216).
+                        when (rowTapAction(isLocalDraftRow(email.id), selectionActive, expandable, fromSearch, rowRole, messageFolderRole(email.accountId, email.mailboxId, folderRoles))) {
                             RowTap.EDIT_DRAFT -> onEditDraft(email.id, email.accountId)
                             // A collapsed conversation selects/deselects all its members at once.
                             RowTap.SELECT_THREAD -> viewModel.toggleSelectThread(email)
@@ -2605,17 +2603,24 @@ internal fun rowTapAction(
     expandable: Boolean,
     fromSearch: Boolean,
     rowRole: String?,
+    hitRole: String?,
 ): RowTap = when {
     localDraft -> RowTap.EDIT_DRAFT
     selectionActive -> if (expandable) RowTap.SELECT_THREAD else RowTap.SELECT_ROW
-    !fromSearch && isDraftsContext(rowRole) -> RowTap.EDIT_DRAFT
+    fromSearch -> searchHitTapAction(hitRole)
+    isDraftsContext(rowRole) -> RowTap.EDIT_DRAFT
     else -> RowTap.OPEN
 }
+
+/** What a tap on a search result does, from [hitRole], the role of the folder the result is filed in.
+ *  Never the screen's role as fallback: a search run from Drafts also lists received mail (#216). */
+internal fun searchHitTapAction(hitRole: String?): RowTap =
+    if (isDraftsContext(hitRole)) RowTap.EDIT_DRAFT else RowTap.OPEN
 
 /**
  * What a tap on a child of an unfolded conversation does, from the role of its own folder, the one
  */
-internal fun childTapAction(childRole: String?): RowTap = rowTapAction(localDraft = false, selectionActive = false, expandable = false, fromSearch = false, rowRole = childRole)
+internal fun childTapAction(childRole: String?): RowTap = rowTapAction(localDraft = false, selectionActive = false, expandable = false, fromSearch = false, rowRole = childRole, hitRole = null)
 
 /** The string resource shown on the swipe background for [action] on [email] (0 = none). */
 private fun swipeActionLabel(action: SwipeAction, email: Email, unarchiveContext: Boolean, trashContext: Boolean): Int = when (action) {

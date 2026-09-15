@@ -126,7 +126,7 @@ class LocalDraftListWiringLintTest {
                 "its answers. Compared whole and in order. Body of the row's onClick was:\n" +
                 functionBody(INBOX_SCREEN, "onClick = {", after = "val emailRow:").joinToString("\n"),
             listOf(
-                "when (rowTapAction(isLocalDraftRow(email.id), selectionActive, expandable, fromSearch, rowRole)) {",
+                "when (rowTapAction(isLocalDraftRow(email.id), selectionActive, expandable, fromSearch, rowRole, messageFolderRole(email.accountId, email.mailboxId, folderRoles))) {",
                 "RowTap.EDIT_DRAFT -> onEditDraft(email.id, email.accountId)",
                 "RowTap.SELECT_THREAD -> viewModel.toggleSelectThread(email)",
                 "RowTap.SELECT_ROW -> viewModel.toggleSelect(email)",

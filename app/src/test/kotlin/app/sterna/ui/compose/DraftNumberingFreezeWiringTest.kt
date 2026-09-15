@@ -163,10 +163,22 @@ class DraftNumberingFreezeWiringTest {
                 "TWO after the freeze moved up to the entry of the reopen branch: MOVED, not " +
                 "duplicated. A second write a few lines below the first is a value free to go " +
                 "stale against the id it describes, and the later one wins — which on this path " +
-                "means the account is whatever the picker was showing by then. Lines were:\n" +
+                "means the account is whatever the picker was showing by then. The one other " +
+                "write is no account at all: `null`, in the hand-over to a local row standing in " +
+                "for the server draft (#216), pinned just below beside the id it clears. Lines " +
+                "were:\n" +
                 lines.filter { "editingDraftAccountId" in it }.joinToString("\n"),
-            listOf("editingDraftAccountId = d.fromAccountId", FREEZE_ACCOUNT),
+            listOf("editingDraftAccountId = d.fromAccountId", FREEZE_ACCOUNT, "editingDraftAccountId = null"),
             lines.filter { ASSIGNS_ACCOUNT.containsMatchIn(it) },
+        )
+        val cleared = lines.indexOf("editingDraftAccountId = null")
+        assertEquals(
+            "…and that null is written with the id it describes, in the same breath and in that " +
+                "order: the server draft id cleared first, so no line ever sees a server id armed " +
+                "with a null account, the value `unlessDraftBelongsElsewhere` lets through. Lines " +
+                "were:",
+            listOf("editingDraftId = null", "editingDraftAccountId = null"),
+            lines.subList((cleared - 1).coerceAtLeast(0), cleared + 1),
         )
         assertEquals(
             "…and it is declared once, as a plain field of this class. Lines were:",

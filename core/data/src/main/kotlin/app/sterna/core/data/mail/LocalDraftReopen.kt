@@ -16,10 +16,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 
-/*
- * Reopening a draft the phone holds and the server has not (#95), without asking a server about a
- * draft it has never heard of.
- */
+/* Reopening a draft the phone holds and the server has not (#95), without asking a server about a
+ * draft it has never heard of, nor reading back a server draft this phone has rewritten since. */
 
 enum class DraftOpenRoute {
     NONE,
@@ -35,6 +33,22 @@ fun draftOpenRoute(draftId: String?): DraftOpenRoute = when {
     draftId == null -> DraftOpenRoute.NONE
     draftId.startsWith(LOCAL_DRAFT_ID_PREFIX) -> DraftOpenRoute.LOCAL
     else -> DraftOpenRoute.SERVER
+}
+
+sealed interface DraftToOpen {
+    object None : DraftToOpen
+
+    data class Local(val id: String) : DraftToOpen
+
+    data class Server(val id: String) : DraftToOpen
+}
+
+/** [localReplacementId] is newer than the server copy: fetched instead, that copy would be saved over the row (#216). */
+fun draftToOpen(draftId: String?, localReplacementId: String?): DraftToOpen = when {
+    draftId == null -> DraftToOpen.None
+    draftOpenRoute(draftId) == DraftOpenRoute.LOCAL -> DraftToOpen.Local(draftId)
+    localReplacementId != null -> DraftToOpen.Local(localReplacementId)
+    else -> DraftToOpen.Server(draftId)
 }
 
 data class LocalDraftPrefill(

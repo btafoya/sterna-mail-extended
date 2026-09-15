@@ -89,6 +89,7 @@ class RowFolderRoleWiringLintTest {
             "performSwipe(",
             "performThreadSwipe(",
             "visibleFolderRole(",
+            "messageFolderRole(",
         )
 
         /**
@@ -111,8 +112,8 @@ class RowFolderRoleWiringLintTest {
             "trashContext = isTrashContext(rowRole),",
             "if (expandable) performThreadSwipe(action, email, viewModel, ui, rowRole)",
             "else performSwipe(action, email, viewModel, ui, rowRole)",
-            // The tap hands rowTapAction the row's role, last; rowRole's fallback is the search guard.
-            "when (rowTapAction(isLocalDraftRow(email.id), selectionActive, expandable, fromSearch, rowRole)) {",
+            // The tap also gets the result's own folder, no fallback: a search from Drafts never edits received mail.
+            "when (rowTapAction(isLocalDraftRow(email.id), selectionActive, expandable, fromSearch, rowRole, messageFolderRole(email.accountId, email.mailboxId, folderRoles))) {",
             // The unfolded children: each one judged by its own folder, never the representative's.
             // Trusted because a child comes from the cache, search results never unfold.
             "unarchiveContextFor = { child -> isUnarchiveContext(rowFolderRole(child, ui, folderRoles, folderTrusted = true)) },",

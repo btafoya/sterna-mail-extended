@@ -199,6 +199,10 @@ class MailDrafts(
     fun observeLocalDrafts(accountId: String): Flow<List<LocalDraftEntity>> =
         localDraftDao.observeForAccount(accountId)
 
+    /** The row a save of [serverDraftId] would land on, the one a reopen must read instead (#216). */
+    suspend fun localDraftReplacing(accountId: String, serverDraftId: String): String? =
+        localDraftDao.forServerDraft(accountId, serverDraftId)?.id
+
     /** Open a local draft in the composer (#95), held [LocalDraftState.Editing] against the worker. */
     suspend fun takeLocalDraftForEdit(accountId: String, id: String): LocalDraftEdit =
         takeLocalDraftEdit(

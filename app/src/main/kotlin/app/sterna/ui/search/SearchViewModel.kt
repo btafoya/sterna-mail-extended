@@ -9,9 +9,12 @@ import app.sterna.R
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.SearchQuery
+import app.sterna.ui.inbox.folderRolesFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 sealed interface SearchState {
@@ -85,6 +88,10 @@ class SearchViewModel(
 
     /** Accounts, for the result rows' account pill (shown only when there is more than one). */
     val accounts: StateFlow<List<StoredAccount>> = store.accountsFlow
+
+    val folderRoles: StateFlow<Map<Pair<String, String>, String>> =
+        folderRolesFlow(store.accountsFlow) { accountIds -> repo.observeFolderRoles(accountIds) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     init {
         // The screen was showing results when the process died: run the restored criteria again
