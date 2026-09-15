@@ -263,8 +263,8 @@ class ConnectPresetTest {
 
     @Test fun aDiscoveryThatFoundNothingLeadsToTheManualForm() {
         assertEquals(
-            "manual configuration appears on FAILURE and only on failure — offered next to a " +
-                "working verdict it would put the protocol question back on screen.",
+            "the walk lands on the manual form by itself on FAILURE and only on failure — after a " +
+                "working verdict it is a button at the credentials step, never the page she lands on.",
             ConnectStep.MANUAL,
             stepAfterAddress(MailAutoconfigResult.NotFound, null, walkEmail),
         )

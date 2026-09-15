@@ -154,14 +154,14 @@ internal fun connectReady(
 // ---- The three steps of adding an account ------------------------------------------------------
 
 /** Which page of the add-account walk is on screen: the address, then what discovery decided, then
- *  the manual form if it found nothing. */
+ *  the manual form if it found nothing or she asked for it at the credentials step. */
 internal enum class ConnectStep {
     ADDRESS,
 
     /** What discovery decided, plus the secret it needs. Renders only with a verdict in hand. */
     CREDENTIALS,
 
-    /** The prefilled fallback, reached only when discovery found nothing. */
+    /** The prefilled manual form: where discovery found nothing, and the credentials step's way out. */
     MANUAL,
 }
 

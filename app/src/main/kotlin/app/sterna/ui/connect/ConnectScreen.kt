@@ -513,8 +513,8 @@ fun ConnectScreen(
                                 ),
                             )
                         }
-                        // Only once a probe for this address came back with nothing: beside a
-                        // verdict that worked, it is the protocol question walking back on screen.
+                        // Only once a probe for this address came back with nothing: a verdict that
+                        // worked offers it one step along, beside what it found.
                         if (offersManualSetup(verdict, oauthVerdict, username)) {
                             OutlinedButton(
                                 onClick = { rememberedStep = ConnectStep.MANUAL },
@@ -613,10 +613,10 @@ fun ConnectScreen(
                             }
                         }
                     }
-                    // The way out (#55): with the invitation and nothing else, a server refusing
-                    // this app's client id would leave the account addable by no gesture, Back
-                    // landing on the address step, which withholds "Set up manually" on a `Found`.
-                    credentialsExit(credentialsPane(ask, state, handedOver))?.let { exit ->
+                    // The way to the manual form (#55, #211), under the `when` and not in a branch:
+                    // Back lands on the address step, which withholds "Set up manually" on a
+                    // `Found`, so a refused client id or password would leave no gesture at all.
+                    credentialsExit(credentialsPane(ask, state, handedOver), state)?.let { exit ->
                         OutlinedButton(
                             onClick = { rememberedStep = exit },
                             modifier = Modifier.fillMaxWidth(),
@@ -625,7 +625,7 @@ fun ConnectScreen(
                         }
                     }
                 }
-                // ---- 3. The manual fallback, reached only when discovery came back empty -----
+                // ---- 3. The manual form: discovery came back empty, or step 2 led here -------
                 ConnectStep.MANUAL -> {
                     Text(stringResource(R.string.connect_protocol), style = MaterialTheme.typography.labelLarge)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

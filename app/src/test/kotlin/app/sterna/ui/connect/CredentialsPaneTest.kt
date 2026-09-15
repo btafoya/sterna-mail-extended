@@ -122,7 +122,7 @@ class CredentialsPaneTest {
                 "step, which offers no manual setup either because its verdict FOUND something. " +
                 "Without this exit the account cannot be added at all, by any gesture.",
             ConnectStep.MANUAL,
-            credentialsExit(CredentialsPane.SIGN_IN_OFFER),
+            credentialsExit(CredentialsPane.SIGN_IN_OFFER, ConnectState.Idle),
         )
     }
 
@@ -131,16 +131,52 @@ class CredentialsPaneTest {
             "⛔ The browser is open, or its panel is one frame from taking the screen. A manual " +
                 "form offered under a sign-in still running is a second account added behind " +
                 "the first, on a walk the reader thinks she left.",
-            credentialsExit(CredentialsPane.WAITING),
+            credentialsExit(CredentialsPane.WAITING, ConnectState.Connecting),
+        )
+        assertNull(
+            "the wheel owes no exit even when the attempt reads as over: under WAITING with Idle " +
+                "the trigger is one frame from opening the browser, and the pane alone says so.",
+            credentialsExit(CredentialsPane.WAITING, ConnectState.Idle),
+        )
+        assertNull(
+            "and the same with an error in hand: the state is not what opens the wheel's door.",
+            credentialsExit(CredentialsPane.WAITING, ConnectState.Error("invalid_client")),
         )
     }
 
-    @Test fun `beside the password field the way out is the field itself`() {
-        assertNull(
-            "she can sign in right here, and a 'Set up manually' beside the field is the " +
-                "protocol question (JMAP? IMAP/SMTP?) walking back on screen for everyone — the " +
-                "one thing this whole walk exists to take off it.",
-            credentialsExit(CredentialsPane.PASSWORD),
+    @Test fun `beside the password field the manual form stays reachable while nothing runs`() {
+        assertEquals(
+            "#211: a domain that publishes an autoconfig gets no 'Set up manually' at the address " +
+                "step (its verdict is a Found), so the credentials step is the only place left to " +
+                "offer it. The manual form must stay reachable whatever the first step found, as " +
+                "in K-9 and Gmail: a discovered server can be the wrong one, or refuse her.",
+            ConnectStep.MANUAL,
+            credentialsExit(CredentialsPane.PASSWORD, ConnectState.Idle),
+        )
+        assertEquals(
+            "#211 as reported: the password was refused. The error is drawn, and under it the " +
+                "manual form must be one tap away, not behind a Back that leads to a step with no " +
+                "door either.",
+            ConnectStep.MANUAL,
+            credentialsExit(CredentialsPane.PASSWORD, ConnectState.Error("Wrong password")),
+        )
+    }
+
+    @Test fun `beside the password field no manual form is offered while an attempt runs`() {
+        val running = listOf(
+            ConnectState.Discovering,
+            ConnectState.Connecting,
+            ConnectState.NeedsServer,
+            ConnectState.Connected,
+            ConnectState.AwaitingApproval("ABCD-EFGH", "https://example.org/device", null),
+            ConnectState.AwaitingBrowser("https://example.org/authorize"),
+        )
+        assertEquals(
+            "the state is read because connectAuto can still succeed after a tap on 'Set up " +
+                "manually': the account would be created behind the manual form she thinks she " +
+                "moved to. No door while an attempt runs, whichever it is.",
+            running.map { it to null },
+            running.map { it to credentialsExit(CredentialsPane.PASSWORD, it) },
         )
     }
 
@@ -152,32 +188,40 @@ class CredentialsPaneTest {
                 "the manual form — otherwise the reader is looking at a button that cannot ever " +
                 "work, on a screen nothing leads out of.",
             ConnectStep.MANUAL,
-            credentialsExit(
-                credentialsPane(browser, ConnectState.Error("invalid_client"), handoverStarted = true),
-            ),
+            ConnectState.Error("invalid_client").let { state ->
+                credentialsExit(credentialsPane(browser, state, handoverStarted = true), state)
+            },
         )
         assertEquals(
             "and after Cancel on the panel, the same screen and the same need: the invitation " +
                 "is back, no password was ever asked for, and nothing else is on offer.",
             ConnectStep.MANUAL,
-            credentialsExit(credentialsPane(browser, ConnectState.Idle, handoverStarted = true)),
+            ConnectState.Idle.let { state ->
+                credentialsExit(credentialsPane(browser, state, handoverStarted = true), state)
+            },
         )
         assertNull(
             "but NOT while the browser panel owns the screen: the sign-in she started is still " +
                 "running, and a manual form opened over it adds an account behind it.",
-            credentialsExit(
-                credentialsPane(
-                    browser,
-                    ConnectState.AwaitingBrowser("https://example.org/authorize"),
-                    handoverStarted = true,
-                ),
-            ),
+            ConnectState.AwaitingBrowser("https://example.org/authorize").let { state ->
+                credentialsExit(credentialsPane(browser, state, handoverStarted = true), state)
+            },
+        )
+        assertEquals(
+            "#211, composed the same way: an autoconfig was found, the password was refused, and " +
+                "the manual form must be offered under the error, since the address step withholds " +
+                "it on a Found and Back leads nowhere else.",
+            ConnectStep.MANUAL,
+            ConnectState.Error("Wrong password").let { state ->
+                credentialsExit(credentialsPane(CredentialsAsk.Password, state, handoverStarted = false), state)
+            },
         )
         assertNull(
-            "and not on the majority path, where the password field is already the way through.",
-            credentialsExit(
-                credentialsPane(CredentialsAsk.Password, ConnectState.Idle, handoverStarted = false),
-            ),
+            "and not while that password sign-in is running: it can still add the account behind " +
+                "a manual form opened over it.",
+            ConnectState.Connecting.let { state ->
+                credentialsExit(credentialsPane(CredentialsAsk.Password, state, handoverStarted = false), state)
+            },
         )
     }
 
@@ -377,10 +421,10 @@ class HandoverBackWiringTest {
     }
 
     @Test fun `the way out of the dead end is drawn under the whole guard, not inside a branch`() {
-        assertPinned("credentialsExit(credentialsPane(ask, state, handedOver))?.let { exit ->")
+        assertPinned("credentialsExit(credentialsPane(ask, state, handedOver), state)?.let { exit ->")
         assertPinned("onClick = { rememberedStep = exit },")
         assertPinned("Text(stringResource(R.string.connect_step_manual))")
-        val exit = lines.indexOf("credentialsExit(credentialsPane(ask, state, handedOver))?.let { exit ->")
+        val exit = lines.indexOf("credentialsExit(credentialsPane(ask, state, handedOver), state)?.let { exit ->")
         val lastBranch = branchLabels.maxOf { it.second }
         val manualStep = lines.indexOf("ConnectStep.MANUAL -> {")
         assertTrue(
@@ -389,8 +433,8 @@ class HandoverBackWiringTest {
                 "$lastBranch), i.e. under the closed `when`, and BEFORE the manual step's own " +
                 "branch (line index $manualStep), i.e. still inside the credentials step. Drop " +
                 "the whole block inside WAITING or PASSWORD instead — indentation and all, not " +
-                "one character of any line changed — and the guard above answers null in that " +
-                "branch, so the button is never drawn at all: the dead end of #55 is back, the " +
+                "one character of any line changed — and the guard never sees SIGN_IN_OFFER " +
+                "there, so the invitation is never given its button: the dead end of #55 is back, the " +
                 "executed tests below stay green because the decision itself is untouched, and " +
                 "every other pinned line in this repo stays green too. Inside SIGN_IN_OFFER it " +
                 "draws, but the offer's own branch then owns a decision that is made twice.",
@@ -409,8 +453,8 @@ class HandoverBackWiringTest {
         assertEquals(
             "the exit must stand at exactly the indentation of the `when` it follows " +
                 "($guardDepth spaces) in $SCREEN, and it stands at $depth. Deeper means it is " +
-                "inside a branch — inside PASSWORD or WAITING the decision answers null there and " +
-                "the button is never drawn, with every executed test and every other pin green.",
+                "inside a branch — inside PASSWORD or WAITING the decision never sees SIGN_IN_OFFER " +
+                "and the invitation loses its button, with every executed test and every other pin green.",
             guardDepth, depth,
         )
     }

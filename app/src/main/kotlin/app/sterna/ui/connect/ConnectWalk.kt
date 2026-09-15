@@ -76,9 +76,8 @@ internal fun awaitedAnswer(awaiting: Boolean, advance: AddressAdvance): AwaitedA
     else -> AwaitedAnswer.Wait
 }
 
-/** Whether the address step may offer "Set up manually", only after a probe for this address came
- *  back with nothing. A drivable OAuth answer counts as one that worked; the door moves to
- *  [CredentialsPane.SIGN_IN_OFFER] rather than disappearing. */
+/** Whether the address step may offer "Set up manually": only once a probe for this address found
+ *  nothing. On a verdict that worked, OAuth included, the door moves to [credentialsExit]. */
 internal fun offersManualSetup(
     verdict: DiscoveryVerdict?,
     oauth: OAuthDiscovery?,
@@ -223,11 +222,17 @@ internal fun credentialsPane(
     else -> CredentialsPane.WAITING
 }
 
-/** The step the credentials step must offer as a way out under [pane], or null when it owes none.
- *  A discovery that worked must not take a door away (#55): on [CredentialsPane.SIGN_IN_OFFER]
- *  there is no password field, and the address step's door is withheld on a `Found`. */
-internal fun credentialsExit(pane: CredentialsPane): ConnectStep? =
-    if (pane == CredentialsPane.SIGN_IN_OFFER) ConnectStep.MANUAL else null
+/** The way out to the manual form, the only one left after the address step withholds it on a
+ *  `Found` (#55, #211). Beside the password field it opens only while no attempt runs ([state] Idle
+ *  or Error), since `connectAuto` could still add the account behind the manual form. */
+internal fun credentialsExit(pane: CredentialsPane, state: ConnectState): ConnectStep? = when (pane) {
+    CredentialsPane.SIGN_IN_OFFER -> ConnectStep.MANUAL
+    CredentialsPane.PASSWORD -> when (state) {
+        ConnectState.Idle, is ConnectState.Error -> ConnectStep.MANUAL
+        else -> null
+    }
+    CredentialsPane.WAITING -> null
+}
 
 /** Whether a hand-over panel (device code, or browser authorization) owns the screen. Those panels
  *  return out of the column early, so a Back handler declared below them is never composed. */
