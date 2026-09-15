@@ -170,7 +170,7 @@ class QuickReplyWiringTest {
         assertEquals(
             "the queueing must be the guarded thing: a throw from enqueueSend (require() on an " +
                 "empty recipient, a full disk) has to read as NOT queued",
-            listOf("runCatching { send(repo, credentials, emailId, outcome) }.isSuccess"),
+            listOf("runCatching { send(repo, store, credentials, accountId, emailId, cached, outcome) }.isSuccess"),
             codeLinesNaming(body, "runCatching { send("),
         )
         assertEquals(
@@ -283,6 +283,71 @@ class QuickReplyWiringTest {
                 "the next change to it — Reply-To — has to be made twice and will be made once",
             listOf("val to = cached?.let { replyRecipient(it) }.orEmpty().trim()"),
             codeLinesNaming(QUICK_REPLY.readText(), "replyRecipient("),
+        )
+    }
+
+    @Test fun `the quick reply is sent as the identity the decision picked, of the notification's account`() {
+        val body = bodyOf(RECEIVER, "send")
+        assertEquals(
+            "EVERY line of `send` naming the sender, enumerated: the decision, then its answer in " +
+                "BOTH fields. A missing `fromEmail` is the server's first identity again, on JMAP",
+            listOf(
+                "val from = quickReplyFrom(accountId, identities, store.defaultIdentityId(accountId), cached)",
+                "fromName = from?.name,",
+                "fromEmail = from?.email,",
+            ),
+            codeLinesNaming(body, "from"),
+        )
+        val receiver = RECEIVER.readText()
+        assertEquals(
+            "the identities are those of the INTENT's account, argument pinned: " +
+                "`AccountStore.identities(null)` is the current account, and a notification of " +
+                "account B would answer as account A",
+            listOf("val identities = store.identities(accountId)"),
+            codeLinesNaming(receiver, "identities("),
+        )
+        assertEquals(
+            "…and so is the default identity, for the same reason",
+            listOf("val from = quickReplyFrom(accountId, identities, store.defaultIdentityId(accountId), cached)"),
+            codeLinesNaming(receiver, "defaultIdentityId("),
+        )
+        assertEquals(
+            "the send is handed the account and the cached row `reply` already read: no second read",
+            listOf("runCatching { send(repo, store, credentials, accountId, emailId, cached, outcome) }.isSuccess"),
+            codeLinesNaming(bodyOf(RECEIVER, "reply"), "runCatching { send("),
+        )
+    }
+
+    @Test fun `the sender is chosen by the composer's own functions, not a second copy`() {
+        val decision = bodyOf(QUICK_REPLY, "quickReplyFrom")
+        assertEquals(
+            "the address the mail came to (#81) is the composer's `receivingFromOption`, which " +
+                "reads To then Cc through `receivingAddress`",
+            listOf("val received = cached?.let { receivingFromOption(options, accountId, it) }"),
+            codeLinesNaming(decision, "receivingFromOption("),
+        )
+        assertEquals(
+            "and without one, the composer's `defaultFromOption`: default identity, then the first",
+            listOf("return (received ?: defaultFromOption(options, accountId, defaultIdentityId))?.identity"),
+            codeLinesNaming(decision, "defaultFromOption("),
+        )
+        val source = QUICK_REPLY.readText()
+        assertEquals(
+            "no second walk over the recipients or the identities in this file: a copy is the rule " +
+                "changed in the composer and not here",
+            emptyList<String>(),
+            listOf("receivingAddress(", ".cc", "firstOrNull").flatMap { codeLinesNaming(source, it) },
+        )
+        val prepare = bodyOf(COMPOSE_VM, "prepare")
+        assertEquals(
+            "the composer opens on the same function, with the account it prefers",
+            listOf("_selectedFrom.value = defaultFromOption(options, preferred, defaultIdentityId)"),
+            codeLinesNaming(prepare, "defaultFromOption("),
+        )
+        assertEquals(
+            "…and keeps no copy of it beside the call",
+            emptyList<String>(),
+            codeLinesNaming(prepare, "firstOrNull { it.accountId == preferred"),
         )
     }
 
@@ -484,6 +549,7 @@ class QuickReplyWiringTest {
         private const val QUICK_REPLY_PATH = "$PUSH_SOURCES/QuickReply.kt"
         private const val NOTIFICATIONS_PATH = "$PUSH_SOURCES/Notifications.kt"
         private const val SCHEDULED_PATH = "app/src/main/kotlin/app/sterna/send/ScheduledSendWorker.kt"
+        private const val COMPOSE_VM_PATH = "app/src/main/kotlin/app/sterna/ui/compose/ComposeViewModel.kt"
 
         private val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
@@ -498,5 +564,6 @@ class QuickReplyWiringTest {
         private val QUICK_REPLY: File by lazy { File(root, QUICK_REPLY_PATH) }
         private val NOTIFICATIONS: File by lazy { File(root, NOTIFICATIONS_PATH) }
         private val SCHEDULED: File by lazy { File(root, SCHEDULED_PATH) }
+        private val COMPOSE_VM: File by lazy { File(root, COMPOSE_VM_PATH) }
     }
 }

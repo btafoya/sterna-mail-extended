@@ -1,6 +1,10 @@
 package app.sterna.push
 
+import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.jmap.model.Email
+import app.sterna.ui.compose.FromOption
+import app.sterna.ui.compose.defaultFromOption
+import app.sterna.ui.compose.receivingFromOption
 import app.sterna.ui.compose.replyRecipient
 
 /**
@@ -46,6 +50,17 @@ fun quickReplyOutcome(text: String?, cached: Email?): QuickReplyOutcome {
     val to = cached?.let { replyRecipient(it) }.orEmpty().trim()
     if (to.isEmpty()) return QuickReplyOutcome.HandBack(subject, text)
     return QuickReplyOutcome.Send(to, subject, text)
+}
+
+fun quickReplyFrom(
+    accountId: String,
+    identities: List<StoredIdentity>,
+    defaultIdentityId: String?,
+    cached: Email?,
+): StoredIdentity? {
+    val options = identities.map { FromOption(accountId, it) }
+    val received = cached?.let { receivingFromOption(options, accountId, it) }
+    return (received ?: defaultFromOption(options, accountId, defaultIdentityId))?.identity
 }
 
 private fun replySubject(subject: String?): String =

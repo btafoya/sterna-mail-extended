@@ -1136,6 +1136,35 @@ class ComposeTextTest {
         )
     }
 
+    @Test fun defaultFromIsTheAccountsChosenDefaultIdentity() {
+        assertEquals(
+            FromOption("acc", identity("third@example.com")),
+            defaultFromOption(aliasOptions, "acc", "third@example.com"),
+        )
+    }
+
+    @Test fun defaultFromFallsBackToTheAccountsFirstIdentity() {
+        assertEquals(FromOption("acc", identity("me@example.com")), defaultFromOption(aliasOptions, "acc", null))
+        assertEquals(FromOption("acc", identity("me@example.com")), defaultFromOption(aliasOptions, "acc", "gone"))
+    }
+
+    @Test fun defaultFromNeverTakesAnotherAccountsIdentityOfTheSameId() {
+        val options = listOf(FromOption("other", identity("shared-id@example.com"))) +
+            aliasOptions + FromOption("acc", identity("shared-id@example.com"))
+        assertEquals(
+            FromOption("acc", identity("shared-id@example.com")),
+            defaultFromOption(options, "acc", "shared-id@example.com"),
+        )
+        assertEquals(FromOption("acc", identity("me@example.com")), defaultFromOption(options, "acc", "absent"))
+    }
+
+    @Test fun defaultFromFallsBackToTheVeryFirstOptionOfAnyAccount() {
+        val options = listOf(FromOption("other", identity("work@example.com"))) + aliasOptions
+        assertEquals(FromOption("other", identity("work@example.com")), defaultFromOption(options, "gone", null))
+        assertEquals(FromOption("other", identity("work@example.com")), defaultFromOption(options, null, null))
+        assertEquals(null, defaultFromOption(emptyList(), "acc", "me@example.com"))
+    }
+
     @Test fun replyAllStillExcludesEveryAliasIncludingTheOneNowSending() {
         // The B5 guarantee, with #81 on top: the mail came in on alias@, so the reply goes out from
         // alias@, and none of the account's addresses (alias@ included) may land in the recipients.

@@ -1027,6 +1027,15 @@ internal fun receivingFromOption(
     return mine.firstOrNull { it.identity.email.trim().lowercase() == received }
 }
 
+internal fun defaultFromOption(
+    options: List<FromOption>,
+    accountId: String?,
+    defaultIdentityId: String?,
+): FromOption? =
+    options.firstOrNull { it.accountId == accountId && it.identity.id == defaultIdentityId }
+        ?: options.firstOrNull { it.accountId == accountId }
+        ?: options.firstOrNull()
+
 /** [subject] with [prefix] ("Re:"/"Fwd:") prepended, unless it already carries it (any case). */
 internal fun withPrefix(subject: String?, prefix: String): String {
     val s = subject.orEmpty()

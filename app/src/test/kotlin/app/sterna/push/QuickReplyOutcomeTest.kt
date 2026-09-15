@@ -1,5 +1,6 @@
 package app.sterna.push
 
+import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailAddress
 import org.junit.Assert.assertEquals
@@ -153,6 +154,52 @@ class QuickReplyOutcomeTest {
     @Test fun `nothing typed leaves everything exactly as it was`() {
         assertEquals(QuickReplyAct.DoNothing, quickReplyAct(QuickReplyOutcome.Ignore, queued = false))
         assertEquals(QuickReplyAct.DoNothing, quickReplyAct(QuickReplyOutcome.Ignore, queued = true))
+    }
+
+    private val rivera = StoredIdentity(id = "id-rivera", name = "Alex Rivera", email = "alex.rivera@example.com")
+    private val pro = StoredIdentity(id = "id-pro", name = "Alex Pro", email = "alex.pro@example.com")
+    private val perso = StoredIdentity(id = "id-perso", name = "Alex", email = "alex.perso@example.com")
+    private val identities = listOf(rivera, pro, perso)
+
+    private fun addressedTo(to: List<String>, cc: List<String> = emptyList()) = original.copy(
+        to = to.map { EmailAddress(email = it) },
+        cc = cc.map { EmailAddress(email = it) },
+    )
+
+    @Test fun `the reply goes out from the identity the message was addressed to`() {
+        val toPro = addressedTo(listOf("alex.pro@example.com"))
+        assertEquals(pro, quickReplyFrom("acc", identities, "id-perso", toPro))
+        assertEquals(pro, quickReplyFrom("acc", identities, "id-pro", toPro))
+    }
+
+    @Test fun `an identity named only in Cc is found there`() {
+        val o = addressedTo(listOf("bob@example.com"), cc = listOf("alex.pro@example.com"))
+        assertEquals(pro, quickReplyFrom("acc", identities, "id-perso", o))
+    }
+
+    @Test fun `an address spelled in another case or padded still matches`() {
+        val o = addressedTo(listOf("  Alex.PRO@Example.com "))
+        assertEquals(pro, quickReplyFrom("acc", identities, "id-perso", o))
+    }
+
+    @Test fun `a list or blind-copy delivery answers from the default identity`() {
+        val list = addressedTo(listOf("team@lists.example.org"))
+        assertEquals(perso, quickReplyFrom("acc", identities, "id-perso", list))
+        val blindCopy = addressedTo(emptyList())
+        assertEquals(perso, quickReplyFrom("acc", identities, "id-perso", blindCopy))
+        assertEquals(perso, quickReplyFrom("acc", identities, "id-perso", null))
+    }
+
+    @Test fun `with no default, or a default that is gone, the first identity of the account answers`() {
+        val list = addressedTo(listOf("team@lists.example.org"))
+        assertEquals(rivera, quickReplyFrom("acc", identities, null, list))
+        assertEquals(rivera, quickReplyFrom("acc", identities, "id-deleted", list))
+    }
+
+    @Test fun `no identity at all means no sender, left to the server as before`() {
+        val toPro = addressedTo(listOf("alex.pro@example.com"))
+        assertEquals(null, quickReplyFrom("acc", emptyList(), "id-pro", toPro))
+        assertEquals(null, quickReplyFrom("acc", emptyList(), null, null))
     }
 
     @Test fun `an address that is only whitespace is no address`() {

@@ -7,6 +7,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
 import app.sterna.SternaApplication
 import app.sterna.core.data.account.AccountCredentials
+import app.sterna.core.data.account.AccountStore
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.settings.NotificationContent
 import app.sterna.core.data.settings.SettingsRepository
@@ -41,7 +42,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 if (action == ACTION_REPLY) {
                     reply(
                         appContext, container.mailRepository, container.settingsRepository,
-                        credentials, accountId, emailId, notifId, replyText,
+                        container.accountStore, credentials, accountId, emailId, notifId, replyText,
                     )
                     return@launch
                 }
@@ -90,6 +91,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         context: Context,
         repo: MailRepository,
         settings: SettingsRepository,
+        store: AccountStore,
         credentials: AccountCredentials?,
         accountId: String,
         emailId: String,
@@ -101,7 +103,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         }
         val outcome = quickReplyOutcome(text, cached)
         val queued = outcome is QuickReplyOutcome.Send && credentials != null &&
-            runCatching { send(repo, credentials, emailId, outcome) }.isSuccess
+            runCatching { send(repo, store, credentials, accountId, emailId, cached, outcome) }.isSuccess
         when (val act = quickReplyAct(outcome, queued)) {
             QuickReplyAct.DoNothing -> Unit
             QuickReplyAct.Dismiss -> dismiss(context, accountId, credentials, emailId, notifId)
@@ -122,16 +124,23 @@ class NotificationActionReceiver : BroadcastReceiver() {
      */
     private suspend fun send(
         repo: MailRepository,
+        store: AccountStore,
         credentials: AccountCredentials,
+        accountId: String,
         emailId: String,
+        cached: Email?,
         outcome: QuickReplyOutcome.Send,
     ) {
+        val identities = store.identities(accountId)
+        val from = quickReplyFrom(accountId, identities, store.defaultIdentityId(accountId), cached)
         val fetched = fetchWithinBudget(repo, credentials, emailId)
         repo.sending.enqueueSend(
             credentials = credentials,
             to = listOf(outcome.to),
             subject = outcome.subject,
             body = outcome.body,
+            fromName = from?.name,
+            fromEmail = from?.email,
             inReplyTo = fetched?.messageId.orEmpty(),
             references = fetched?.references.orEmpty() + fetched?.messageId.orEmpty(),
             // A quick reply is typed in the shade and replaces no saved draft.
