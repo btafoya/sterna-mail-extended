@@ -597,6 +597,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private var prepared = false
+
+    private val linkBodyClaim = LinkBodyClaim(application.container.linkBodies)
+
+    fun claimLinkBody(token: String?): String? = linkBodyClaim.body(token)
     // Threading headers for a reply (empty for new/forward).
     private var inReplyTo: List<String> = emptyList()
     private var references: List<String> = emptyList()

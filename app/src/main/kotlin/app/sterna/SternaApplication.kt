@@ -42,6 +42,8 @@ class AppContainer(context: Context) {
      *  screen (#45). A one-shot handoff; the compose screen reads and clears it. */
     var pendingShareUris: List<android.net.Uri> = emptyList()
 
+    val linkBodies = app.sterna.ui.compose.LinkBodyHandOff()
+
     val accountStore: AccountStore = AccountStore(context.applicationContext)
     val settingsRepository: SettingsRepository = SettingsRepository(context.applicationContext)
     /** `core/jmap` is plain Kotlin/JVM and cannot see `android.util.Log`, so the app hands it the

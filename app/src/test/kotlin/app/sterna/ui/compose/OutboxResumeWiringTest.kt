@@ -120,7 +120,7 @@ class OutboxResumeWiringTest {
         val app = codeLines(STERNA_APP).map { it.trim() }
         for (line in listOf(
             // The route pattern: the twin of draftId.
-            "\"&to={to}&cc={cc}&bcc={bcc}&subject={subject}&body={body}&draftId={draftId}&outboxId={outboxId}\",",
+            "\"&to={to}&cc={cc}&bcc={bcc}&subject={subject}&bodyToken={bodyToken}&draftId={draftId}&outboxId={outboxId}\",",
             "navArgument(\"outboxId\") { type = NavType.StringType; nullable = true; defaultValue = null },",
             "outboxId = entry.arguments?.getString(\"outboxId\")?.toLongOrNull(),",
             // Outbox → Edit: the id travels in the route, so it survives the process.

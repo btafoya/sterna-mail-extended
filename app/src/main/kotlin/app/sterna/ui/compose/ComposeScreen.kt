@@ -197,7 +197,8 @@ fun ComposeScreen(
     cc: String? = null,
     bcc: String? = null,
     subject: String? = null,
-    body: String? = null,
+    /** The key a mailto: link's or a share's body is parked under, never the body (`composeLinkRoute`). */
+    bodyToken: String? = null,
     draftId: String? = null,
     /**
      * The queued row this composer was opened on by Edit from the Outbox (#70), from the route, the twin
@@ -303,6 +304,7 @@ fun ComposeScreen(
     var quoteLanded by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
+        val body = viewModel.claimLinkBody(bodyToken)
         viewModel.prepare(
             replyTo, mode, accountId, restore, to, cc, bcc, subject, body, draftId,
             quoteAlreadyOnScreen = quoteLanded,
@@ -450,11 +452,6 @@ fun ComposeScreen(
             linkSubject = subject,
         )
     }
-    // How much body the composer was opened with, a mailto: link's `body=`, nothing otherwise. Read
-    // here because below, the editable state shadows the parameter. It tells the prefilled body's own
-    // text from the signature appended under it, so the caret can start after the former (#83).
-    val linkBodyLength = remember { if (body.isNullOrBlank()) 0 else body.length }
-
     var to by rememberSaveable { mutableStateOf("") }
     var cc by rememberSaveable { mutableStateOf("") }
     var bcc by rememberSaveable { mutableStateOf("") }
@@ -538,7 +535,9 @@ fun ComposeScreen(
                     bodyLength = it.body.length,
                     focus = initialFocus,
                     isDraft = draftId != null,
-                    linkBodyLength = linkBodyLength,
+                    // The link's own body, told from the signature appended under it (#83). Asked of
+                    // the ViewModel, which still has it after a rotation empties the hand-off.
+                    linkBodyLength = viewModel.claimLinkBody(bodyToken)?.takeIf { it.isNotBlank() }?.length ?: 0,
                 )
                 body = TextFieldValue(it.body, TextRange(caret ?: 0))
                 // …with the styling the prefill carried (#131). `emptyMap()` here opens a styled

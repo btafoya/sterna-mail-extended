@@ -235,17 +235,16 @@ private fun MainNavHost(
     // The window width decides whether a reading pane sits beside the list (#103), never the
     // orientation. null = one pane.
     val panes = paneSplit(LocalConfiguration.current.screenWidthDp)
+    val app = LocalContext.current.applicationContext as Application
     // A tapped mailto: opens the composer prefilled (#15), consumed at once so a recomposition
     // cannot re-navigate.
     LaunchedEffect(pendingMailto) {
         val m = pendingMailto ?: return@LaunchedEffect
         onMailtoConsumed()
+        val bodyToken = app.container.linkBodies.put(m.body)
         // unguarded: a single consumption, not a repeatable tap. Dropping it would lose the
         // user's action rather than de-duplicate it. See navigateOnce's KDoc.
-        nav.navigate(
-            "compose?to=${Uri.encode(m.to)}&cc=${Uri.encode(m.cc)}&bcc=${Uri.encode(m.bcc)}" +
-                "&subject=${Uri.encode(m.subject)}&body=${Uri.encode(m.body)}",
-        )
+        nav.navigate(composeLinkRoute(m, bodyToken) { Uri.encode(it) })
     }
     // The inbox's own ViewModel, so the notification path can ask what the list behind shows.
     // Deliberately not remembered and not collected as state, so it neither subscribes this host to
@@ -562,7 +561,7 @@ private fun MainNavHost(
         }
         composable(
             route = "compose?replyTo={replyTo}&mode={mode}&accountId={accountId}&restore={restore}" +
-                "&to={to}&cc={cc}&bcc={bcc}&subject={subject}&body={body}&draftId={draftId}&outboxId={outboxId}",
+                "&to={to}&cc={cc}&bcc={bcc}&subject={subject}&bodyToken={bodyToken}&draftId={draftId}&outboxId={outboxId}",
             arguments = listOf(
                 navArgument("replyTo") { type = NavType.StringType; nullable = true; defaultValue = null },
                 // A saved draft reopened for editing (#63).
@@ -578,7 +577,7 @@ private fun MainNavHost(
                 navArgument("cc") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("bcc") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("subject") { type = NavType.StringType; nullable = true; defaultValue = null },
-                navArgument("body") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("bodyToken") { type = NavType.StringType; nullable = true; defaultValue = null },
             ),
         ) { entry ->
             // The inbox's own ViewModel, so deleting the draft being edited is the Drafts list's own
@@ -612,7 +611,7 @@ private fun MainNavHost(
                     cc = entry.arguments?.getString("cc")?.let { Uri.decode(it) }?.ifBlank { null },
                     bcc = entry.arguments?.getString("bcc")?.let { Uri.decode(it) }?.ifBlank { null },
                     subject = entry.arguments?.getString("subject")?.let { Uri.decode(it) }?.ifBlank { null },
-                    body = entry.arguments?.getString("body")?.let { Uri.decode(it) }?.ifBlank { null },
+                    bodyToken = entry.arguments?.getString("bodyToken"),
                     draftId = entry.arguments?.getString("draftId")?.let { Uri.decode(it) }?.ifBlank { null },
                     outboxId = entry.arguments?.getString("outboxId")?.toLongOrNull(),
                 )
