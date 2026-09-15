@@ -134,6 +134,13 @@ private const val BODY_CACHE_CAP = 100
  *  cursor window can be inserted but never read back. */
 internal const val MAX_CACHED_BODY_CHARS = 1_000_000
 
+/** Tolerant JSON for the on-disk body cache (schema may add fields across versions). */
+private val bodyCacheJson = Json { ignoreUnknownKeys = true }
+
+/** A cached body row read back into its [Email], through the same `Email.serializer()` as a fresh fetch. */
+internal fun decodeCachedEmail(bodyJson: String): Email =
+    bodyCacheJson.decodeFromString(Email.serializer(), bodyJson)
+
 /** Whether a body row of this size may be written without becoming unreadable later. */
 internal fun fitsBodyCache(bodyJson: String, inlineImagesJson: String): Boolean =
     bodyJson.length + inlineImagesJson.length <= MAX_CACHED_BODY_CHARS
@@ -956,8 +963,7 @@ class MailRepository(
 
     private val tokenRefresher = OAuthTokenRefresher(oauthClient, accountStore)
 
-    /** Tolerant JSON for the on-disk body cache (schema may add fields across versions). */
-    private val cacheJson = Json { ignoreUnknownKeys = true }
+    private val cacheJson = bodyCacheJson
     private val inlineImagesSerializer = MapSerializer(String.serializer(), String.serializer())
 
     /**
@@ -2339,7 +2345,7 @@ class MailRepository(
             read = {
                 val row = emailBodyDao.byId(accountId, emailId) ?: return@readCachedOrPurge null
                 MessageBody(
-                    email = cacheJson.decodeFromString(Email.serializer(), row.bodyJson),
+                    email = decodeCachedEmail(row.bodyJson),
                     inlineImages = cacheJson.decodeFromString(inlineImagesSerializer, row.inlineImagesJson),
                 )
             },

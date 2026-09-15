@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 /** An email address with optional display name (RFC 8621 §4.1.2.3). */
 @Serializable
 data class EmailAddress(
+    @Serializable(with = DisplayTextSerializer::class)
     val name: String? = null,
     val email: String = "",
 ) {
@@ -21,6 +22,7 @@ data class EmailBodyPart(
     val size: Long = 0,
     val type: String? = null,
     val charset: String? = null,
+    @Serializable(with = DisplayTextSerializer::class)
     val name: String? = null,
     val disposition: String? = null,
     val cid: String? = null,
@@ -64,6 +66,7 @@ data class Email(
          *  under its real folder when caching it. */
     val mailboxIds: Map<String, Boolean> = emptyMap(),
     val threadId: String? = null,
+    @Serializable(with = DisplayTextSerializer::class)
     val subject: String? = null,
     val preview: String? = null,
     val receivedAt: String? = null,

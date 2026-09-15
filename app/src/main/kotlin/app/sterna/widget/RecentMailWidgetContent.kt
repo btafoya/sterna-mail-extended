@@ -6,6 +6,7 @@ import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.mail.RecentInbox
 import app.sterna.core.data.settings.NotificationContent
+import app.sterna.core.jmap.model.withoutBidiAndControls
 import app.sterna.push.MailNotificationText
 import app.sterna.ui.components.MonogramSlot
 import app.sterna.ui.components.initialOf
@@ -104,29 +105,33 @@ internal object RecentMailWidgetContent {
         today: LocalDate = LocalDate.now(zone),
         locale: Locale = appLocale,
     ): RecentWidgetRow {
+        val shown = row.copy(
+            subject = row.subject?.let(::withoutBidiAndControls),
+            fromName = row.fromName?.let(::withoutBidiAndControls),
+        )
         val drawn = MailNotificationText.widgetRow(
             content = content,
             appLockEnabled = appLockEnabled,
-            sender = sender(row, unknownSender),
-            subject = row.subject.orBlankTo(noSubject),
+            sender = sender(shown, unknownSender),
+            subject = shown.subject.orBlankTo(noSubject),
             generic = generic,
         )
         return RecentWidgetRow(
             primary = drawn.primary,
             secondary = drawn.secondary,
-            date = MailDates.formatListDate(row.receivedAt, zone, today, locale),
-            unread = !row.seen,
+            date = MailDates.formatListDate(shown.receivedAt, zone, today, locale),
+            unread = !shown.seen,
             // The badge is drawn only where the row already names its sender, and that answer
             // comes from the rule above, the only place that has seen the app lock fold the
             // position onto NONE: an initial is a letter of somebody's name, and a badge on a
             // locked home screen would be the lock's promise broken in one character.
             monogram = if (!listMonogram || !drawn.namesSender) null else RecentRowMonogram(
-                initial = initialOf(row.fromName.orEmpty(), sender(row, unknownSender)),
-                slot = monogramSlot(seed(row, unknownSender)),
+                initial = initialOf(shown.fromName.orEmpty(), sender(shown, unknownSender)),
+                slot = monogramSlot(seed(shown, unknownSender)),
             ),
             // THIS row's account, by THIS row's id: a colour taken from anywhere else paints the
             // whole list one colour, which reads like a working feature.
-            accountColor = accountColors[row.accountId],
+            accountColor = accountColors[shown.accountId],
         )
     }
 

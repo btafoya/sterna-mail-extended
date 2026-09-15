@@ -7,6 +7,7 @@ import app.sterna.core.data.db.EmailRecipients
 import app.sterna.core.data.db.FtsHit
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailAddress
+import app.sterna.core.jmap.model.withoutBidiAndControls
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.Collections
@@ -82,11 +83,11 @@ internal fun EmailEntity.toEmail(): Email = Email(
     accountId = accountId,
     mailboxId = mailboxId,
     threadId = threadId,
-    subject = subject,
+    subject = subject?.let(::withoutBidiAndControls),
     preview = preview,
     receivedAt = receivedAt,
     from = if (fromEmail != null || fromName != null) {
-        listOf(EmailAddress(name = fromName, email = fromEmail.orEmpty()))
+        listOf(EmailAddress(name = fromName?.let(::withoutBidiAndControls), email = fromEmail.orEmpty()))
     } else {
         emptyList()
     },
@@ -138,11 +139,11 @@ internal fun FtsHit.toEmail(): Email = Email(
     accountId = accountId,
     mailboxId = mailboxId,
     threadId = threadId,
-    subject = subject.ifBlank { null },
+    subject = withoutBidiAndControls(subject).ifBlank { null },
     preview = preview,
     receivedAt = receivedAt,
     from = if (fromEmail != null || fromName != null) {
-        listOf(EmailAddress(name = fromName, email = fromEmail.orEmpty()))
+        listOf(EmailAddress(name = fromName?.let(::withoutBidiAndControls), email = fromEmail.orEmpty()))
     } else {
         emptyList()
     },
