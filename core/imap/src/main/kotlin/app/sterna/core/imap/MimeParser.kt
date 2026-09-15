@@ -54,6 +54,7 @@ data class CryptoEnvelope(
     val signedEntityRaw: String? = null,
     /** ASCII-armored detached signature (application/pgp-signature part). */
     val signatureArmor: String? = null,
+    val inlineArmorOctets: InlineArmorOctets? = null,
 )
 
     /**
@@ -72,20 +73,28 @@ object MimeParser {
          *  parse is refused and the caller reports it (see [MimeBody.tooLarge]). */
     const val MAX_BODY_CHARS = 25 * 1024 * 1024
 
-    fun parseBody(raw: String): MimeBody {
-        if (raw.length > MAX_BODY_CHARS) return MimeBody(null, null, emptyList(), tooLarge = true)
-        val attachments = mutableListOf<MimeAttachment>()
-        val (html, text) = walk(raw, prefix = "", attachments = attachments, depth = 0)
-        return MimeBody(html, text, attachments)
+    fun parseBody(raw: String): MimeBody = parseWithTextLeaf(raw).first
+
+    private class TextLeaf(val body: String, val cte: String, val charset: java.nio.charset.Charset) {
+        fun text(): String = decode(body, cte, charset)
+
+        fun octets(): String = String(decodeBytes(body, cte), Charsets.ISO_8859_1)
     }
 
-    /** Returns (html, text) for [part]; appends any attachments found beneath it. */
+    private fun parseWithTextLeaf(raw: String): Pair<MimeBody, TextLeaf?> {
+        if (raw.length > MAX_BODY_CHARS) return MimeBody(null, null, emptyList(), tooLarge = true) to null
+        val attachments = mutableListOf<MimeAttachment>()
+        val (html, textLeaf) = walk(raw, prefix = "", attachments = attachments, depth = 0)
+        return MimeBody(html, textLeaf?.text(), attachments) to textLeaf
+    }
+
+    /** (html, text leaf) for [part], text read from that leaf and never re-selected; appends attachments. */
     private fun walk(
         part: String,
         prefix: String,
         attachments: MutableList<MimeAttachment>,
         depth: Int,
-    ): Pair<String?, String?> {
+    ): Pair<String?, TextLeaf?> {
         val (headerText, body) = splitHeaders(part)
         val headers = parseHeaders(headerText)
         val contentType = headers["content-type"] ?: "text/plain"
@@ -101,7 +110,7 @@ object MimeParser {
             if (depth >= MAX_DEPTH) return null to null
             val boundary = paramOf(contentType, "boundary") ?: return null to null
             var html: String? = null
-            var text: String? = null
+            var text: TextLeaf? = null
             splitMultipart(body, boundary).forEachIndexed { index, sub ->
                 val childPrefix = if (prefix.isEmpty()) "${index + 1}" else "$prefix.${index + 1}"
                 val (h, t) = walk(sub, childPrefix, attachments, depth + 1)
@@ -127,7 +136,7 @@ object MimeParser {
                 null to null
             }
             mime == "text/html" -> decode(body, cte, charsetOf(contentType)) to null
-            mime == "text/plain" -> null to decode(body, cte, charsetOf(contentType))
+            mime == "text/plain" -> null to TextLeaf(body, cte, charsetOf(contentType))
             // A calendar invite (text/calendar, e.g. Method:request) is usually an inline
             // part with no filename/disposition, so it would otherwise be lost here. Capture
             // it as a downloadable part (named invite.ics) so the reader can fetch + preview it.
@@ -266,9 +275,13 @@ object MimeParser {
         }
 
         // Legacy inline PGP: an armored block inside the displayable text body.
-        val text = parseBody(raw).text ?: return null
+        val (parsed, leaf) = parseWithTextLeaf(raw)
+        val text = parsed.text ?: return null
         val armor = extractInlineArmor(text) ?: return null
-        return CryptoEnvelope(CryptoKind.PGP_INLINE, encryptedArmor = armor)
+        val octets = leaf?.let { part ->
+            extractInlineArmor(part.octets())?.let { InlineArmorOctets(it, part.charset) }
+        }
+        return CryptoEnvelope(CryptoKind.PGP_INLINE, encryptedArmor = armor, inlineArmorOctets = octets)
     }
 
     /** The lowercased content type of a multipart child (its own headers). */

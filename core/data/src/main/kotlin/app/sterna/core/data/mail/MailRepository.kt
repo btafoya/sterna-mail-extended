@@ -57,6 +57,8 @@ import app.sterna.core.imap.CryptoEnvelope
 import app.sterna.core.imap.CryptoKind
 import app.sterna.core.imap.ImapUidValidityChanged
 import app.sterna.core.imap.inlineArmorKind
+import app.sterna.core.imap.inlineDisplayText
+import app.sterna.core.imap.inlineVerifyBytes
 import app.sterna.core.imap.decodeMailboxPath
 import app.sterna.core.imap.MimeBody
 import app.sterna.core.imap.MimeParser
@@ -2229,8 +2231,13 @@ class MailRepository(
         // Contain any escaping exception as an Error so the reader shows the status card (#14).
         val result = runCatching {
             when (envelope.kind) {
-                CryptoKind.PGP_ENCRYPTED, CryptoKind.PGP_INLINE -> pgp.decryptVerify(
+                CryptoKind.PGP_ENCRYPTED -> pgp.decryptVerify(
                     envelope.encryptedArmor!!.toByteArray(Charsets.UTF_8),
+                    senderAddress = sender,
+                    interactionResult = interactionResult,
+                )
+                CryptoKind.PGP_INLINE -> pgp.decryptVerify(
+                    inlineVerifyBytes(envelope),
                     senderAddress = sender,
                     interactionResult = interactionResult,
                 )
@@ -2301,7 +2308,7 @@ class MailRepository(
                 DecryptedEntry(MessageBody(display, inline, crypto), entity)
             }
             CryptoKind.PGP_INLINE -> {
-                val text = decrypted.plaintext.toString(Charsets.UTF_8)
+                val text = inlineDisplayText(envelope, decrypted.plaintext)
                 val display = email.copy(
                     htmlBody = emptyList(),
                     textBody = listOf(EmailBodyPart(partId = "text")),
