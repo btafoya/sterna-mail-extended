@@ -165,6 +165,9 @@ object NewMailNotifier {
             // pass, recomputing it there would read a shade the cancels have not reached (#134).
             val live = Notifications.liveChildIdsAfter(active, credentials.id, readIds + departed, newMail.map { it.id })
             val summarised = Notifications.summaryShownFor(live.size)
+            val accountStore = (context.applicationContext as Application).container.accountStore
+            val accountCount = accountStore.accounts().size
+            val accountLabel = accountStore.account(credentials.id)?.label()
             // The openings are read here, in one pre-pass, before the first notification. A
             // round trip between two posts would put an exception mid-batch and skip the [seed]
             // below: the next pass would re-announce every message, and a re-announcement MOVES
@@ -198,6 +201,8 @@ object NewMailNotifier {
                         email.copy(preview = preview ?: email.preview),
                         credentials.id,
                         silent,
+                        accountCount,
+                        accountLabel,
                         folderName,
                         mailboxId,
                         // The privacy setting this pass read, on its own line because a positional

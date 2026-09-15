@@ -392,6 +392,7 @@
     <string name="settings_quiet_hours_end">Fin</string>
     <string name="notif_group_count">%1$d mensajes nuevos · %2$s</string>
     <string name="notif_group_line">%1$s — %2$s</string>
+    <string name="notif_account_folder">%1$s · %2$s</string>
     <string name="settings_vacation_screen_title">Respuesta de vacaciones</string>
     <string name="settings_vacation_section">Respuesta automática</string>
     <string name="settings_vacation_account">Cuenta: %1$s</string>

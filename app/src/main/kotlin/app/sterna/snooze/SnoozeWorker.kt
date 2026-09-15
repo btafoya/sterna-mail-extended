@@ -33,6 +33,8 @@ class SnoozeWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                 email,
                 accountId,
                 silent = silent,
+                accountCount = container.accountStore.accounts().size,
+                accountLabel = container.accountStore.account(accountId)?.label(),
                 folderName = null,
                 // The reported case of #91: a message snoozed out of Archive wakes up in
                 // Archive, so opening the notification must put the list there and not in the

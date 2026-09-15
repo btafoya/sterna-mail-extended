@@ -17,6 +17,13 @@ import app.sterna.core.jmap.model.Email
 
 enum class MailNotificationAction { REPLY, MARK_READ, DELETE }
 
+sealed interface MailSubText {
+    data object None : MailSubText
+    data class Account(val account: String) : MailSubText
+    data class Folder(val folder: String) : MailSubText
+    data class AccountAndFolder(val account: String, val folder: String) : MailSubText
+}
+
 /** Notification channels + helpers. No telemetry, no third-party push. */
 object Notifications {
     const val CHANNEL_MAIL = "new_mail"
@@ -32,6 +39,16 @@ object Notifications {
      *  posted now (#56). Only one of the two may alert, but a single arrival gets no summary, so
      *  the child speaks exactly when it stands alone. */
     fun summaryShownFor(liveChildren: Int): Boolean = liveChildren >= SUMMARY_MIN_CHILDREN
+
+    fun subTextFor(accountCount: Int, accountLabel: String?, folderName: String?): MailSubText {
+        val account = accountLabel?.takeIf { accountCount > 1 }
+        return when {
+            account != null && folderName != null -> MailSubText.AccountAndFolder(account, folderName)
+            account != null -> MailSubText.Account(account)
+            folderName != null -> MailSubText.Folder(folderName)
+            else -> MailSubText.None
+        }
+    }
 
     private val ALL_ACTIONS = listOf(
         MailNotificationAction.REPLY,
@@ -190,6 +207,8 @@ object Notifications {
         email: Email,
         accountId: String,
         silent: Boolean,
+        accountCount: Int,
+        accountLabel: String?,
         folderName: String?,
         mailboxId: String?,
         content: NotificationContent,
@@ -214,6 +233,12 @@ object Notifications {
             hasSubject = realSubject != null,
         )
         val notifId = childId(accountId, email.id)
+        val subText = when (val line = subTextFor(accountCount, accountLabel, folderName)) {
+            MailSubText.None -> null
+            is MailSubText.Account -> line.account
+            is MailSubText.Folder -> line.folder
+            is MailSubText.AccountAndFolder -> context.getString(R.string.notif_account_folder, line.account, line.folder)
+        }
         // Carry the message identity so a tap opens that email even when the app is running. Its
         // account (#31) and folder (#91) travel along so the list ends up where the message is.
         val intent = Intent(context, MainActivity::class.java)
@@ -246,7 +271,7 @@ object Notifications {
                 },
             )
             .setSilent(silent)
-            .apply { if (folderName != null) setSubText(folderName) }
+            .apply { if (subText != null) setSubText(subText) }
             .apply {
                 actions.forEach { action ->
                     addAction(
