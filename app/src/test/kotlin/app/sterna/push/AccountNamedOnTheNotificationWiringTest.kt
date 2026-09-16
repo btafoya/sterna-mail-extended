@@ -15,8 +15,13 @@ class AccountNamedOnTheNotificationWiringTest {
     @Test fun `the poster sets the sub-text from the decision, account first and folder second`() {
         val body = bodyOf(NOTIFICATIONS, "notifyNewMail")
         assertEquals(
-            "the decision is the only thing that reads the count, the name and the folder",
-            listOf("val subText = when (val line = subTextFor(accountCount, accountLabel, folderName)) {"),
+            "the decision is the only thing that reads the count, the name and the folder, and it " +
+                "is handed the setting: without `content` the header line names the account and " +
+                "the folder to a reader who asked for neither (#84)",
+            listOf(
+                "val subText = when (val line = MailNotificationText.subTextFor(content, accountCount, " +
+                    "accountLabel, folderName)) {",
+            ),
             codeLinesNaming(body, "subTextFor("),
         )
         assertEquals(
@@ -42,8 +47,13 @@ class AccountNamedOnTheNotificationWiringTest {
         val body = bodyOf(NOTIFIER, "notifyDiff")
         assertEquals(
             "label() is the drawer's name; credentials.username is the login, the same address on " +
-                "every shared mailbox under it",
-            listOf("val accountLabel = accountStore.account(credentials.id)?.label()", "accountLabel,"),
+                "every shared mailbox under it. Read once and handed over twice: to the banners, " +
+                "and to the group summary standing above them, which cannot go by another name",
+            listOf(
+                "val accountLabel = accountStore.account(credentials.id)?.label()",
+                "accountLabel,",
+                "accountLabel,",
+            ),
             codeLinesNaming(body, "accountLabel"),
         )
         assertEquals(

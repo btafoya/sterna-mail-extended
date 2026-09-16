@@ -38,6 +38,7 @@ import app.sterna.core.data.mail.MailSearchResult
 import app.sterna.core.data.mail.UidValidity
 import app.sterna.core.data.mail.deleteDestroysMessage
 import app.sterna.core.data.mail.emailKey
+import app.sterna.core.data.settings.NotificationContent
 import app.sterna.core.data.settings.SortOrder
 import app.sterna.core.data.settings.SwipeAction
 import app.sterna.core.jmap.model.Email
@@ -203,6 +204,7 @@ class InboxViewModel(
     private val repo = application.container.mailRepository
     private val settings = application.container.settingsRepository
     private val outbox = application.container.sendOutbox
+    private val appScope = application.container.appScope
 
     /** Undo-send: a message held in the outbox during its cancellable window. */
     val outboxPending: StateFlow<SendOutbox.Pending?> = outbox.pending
@@ -2027,22 +2029,26 @@ class InboxViewModel(
     private fun credentialsFor(key: EmailKey): AccountCredentials? =
         key.accountId?.let { store.credentials(it) } ?: store.load()
 
-    /** Clear the new-mail notifications of the messages [keys] just marked read locally, grouped by
-     *  account so the group summary is refreshed once per account (#19). Keys and not messages:
-     *  "mark all read" reaches this with a folder's worth of them. */
     private fun dismissReadNotifications(keys: List<EmailKey>) = dismissBanners(keys)
 
-    /** The same thing without "read" in its name: the account-qualified dismissal of [keys]'
-     *  banners. Nothing in it ever depended on the messages having been read. */
+    /** The same thing without "read" in its name: [keys]' banners dismissed per account, so each
+     *  summary is refreshed once (#19). Keys and not messages: "mark all read" reaches this with a
+     *  folder's worth. It re-posts the summary, so it owes it the setting (#84) and the drawer's
+     *  label (#193). On [appScope] and not the view model's: the read suspends, and this view model
+     *  dies with its navigation entry, so a back gesture just after would strand the banners. */
     private fun dismissBanners(keys: List<EmailKey>) {
         if (keys.isEmpty()) return
         val app = getApplication<Application>()
-        keys.mapNotNull { e -> credentialsFor(e)?.let { it.id to it.username to e.emailId } }
+        val byAccount = keys.mapNotNull { e -> credentialsFor(e)?.let { it.id to e.emailId } }
             .groupBy({ it.first }, { it.second })
-            .forEach { (account, ids) ->
-                val (accountId, label) = account
-                Notifications.dismiss(app, accountId, label, ids)
+        if (byAccount.isEmpty()) return
+        appScope.launch {
+            val content = runCatching { settings.notificationContent.first() }
+                .getOrDefault(NotificationContent.NONE)
+            byAccount.forEach { (accountId, ids) ->
+                Notifications.dismiss(app, accountId, store.account(accountId)?.label(), content, ids)
             }
+        }
     }
 
     /** Mailbox ids backing the current view (one folder, or all inboxes when unified). */

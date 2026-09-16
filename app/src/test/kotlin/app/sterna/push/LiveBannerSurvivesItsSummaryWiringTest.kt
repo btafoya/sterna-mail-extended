@@ -105,7 +105,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
                 "?: context.getString(R.string.message_no_subject)",
                 "context.getString(R.string.notif_group_line, sender, subject)",
                 "}",
-                "notifyGroupSummary(context, accountId, accountLabel, live.size, lines, silent)",
+                "notifyGroupSummary(context, accountId, accountLabel, content, live.size, lines, silent)",
                 "}",
             ),
             lines,
@@ -151,7 +151,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
                 "posted, the shade does not show them yet, and the summary goes up saying " +
                 "\"0 new messages\" over the two banners it is summarising (notif_group_count is " +
                 "a bare %1\$d in all ten languages)",
-            listOf("notifyGroupSummary(context, accountId, accountLabel, live.size, lines, silent)"),
+            listOf("notifyGroupSummary(context, accountId, accountLabel, content, live.size, lines, silent)"),
             codeLinesNaming(body, "notifyGroupSummary("),
         )
     }
@@ -249,6 +249,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
                 "context,",
                 "accountId,",
                 "accountLabel,",
+                "content,",
                 "silent = true,",
                 "expectedChildIds = liveChildIdsAfter(active, accountId, cleared = hit, added = emptyList()),",
                 "cancelledChildIds = childIdsOf(accountId, hit),",
@@ -269,9 +270,13 @@ class LiveBannerSurvivesItsSummaryWiringTest {
                 "{",
                 "val active = Notifications.activeChildIds(context, accountId)",
                 "NotificationManagerCompat.from(context).cancel(notifId)",
-                "credentials?.let {",
+                "if (credentials != null) {",
+                "val container = (context.applicationContext as SternaApplication).container",
+                "val content = runCatching { container.settingsRepository.notificationContent.first() }",
+                ".getOrDefault(NotificationContent.NONE)",
                 "Notifications.updateGroupSummary(",
-                "context, accountId, it.username, silent = true,",
+                "context, accountId, container.accountStore.account(accountId)?.label(), content,",
+                "silent = true,",
                 "expectedChildIds = Notifications.liveChildIdsAfter(active, accountId, listOf(emailId), emptyList()),",
                 "cancelledChildIds = Notifications.childIdsOf(accountId, listOf(emailId)),",
                 ")",

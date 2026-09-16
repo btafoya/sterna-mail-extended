@@ -1,39 +1,138 @@
 package app.sterna.push
 
 import app.sterna.core.data.account.StoredAccount
+import app.sterna.core.data.settings.NotificationContent
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
  * Codeberg #193: with two accounts or more, a per-message notification says which one it came from.
+ * And the setting that may take that away again (#84): "No sender or subject" promises just that
+ * new mail arrived, and an account label with a folder name beside it is neither just that nor
+ * nothing: it says who writes and about what.
  */
 class MailSubTextTest {
 
+    /** The three settings that reveal something, so each case below is stated for all of them. */
+    private val telling = listOf(
+        NotificationContent.BODY_PREVIEW,
+        NotificationContent.SENDER_AND_SUBJECT,
+        NotificationContent.SENDER_ONLY,
+    )
+
+    private fun eachTelling(expected: MailSubText, accountCount: Int, label: String?, folder: String?) =
+        telling.forEach { content ->
+            assertEquals("$content", expected, MailNotificationText.subTextFor(content, accountCount, label, folder))
+        }
+
     @Test fun `one account, inbox, names nothing`() {
-        assertEquals(MailSubText.None, Notifications.subTextFor(1, PERSO, folderName = null))
+        eachTelling(MailSubText.None, 1, PERSO, folder = null)
     }
 
     @Test fun `one account, another folder, names the folder alone`() {
-        assertEquals(MailSubText.Folder(folder = ARCHIVE), Notifications.subTextFor(1, PERSO, ARCHIVE))
+        eachTelling(MailSubText.Folder(folder = ARCHIVE), 1, PERSO, ARCHIVE)
     }
 
     @Test fun `two accounts, inbox, names the account alone`() {
-        assertEquals(MailSubText.Account(account = PERSO), Notifications.subTextFor(2, PERSO, folderName = null))
+        eachTelling(MailSubText.Account(account = PERSO), 2, PERSO, folder = null)
     }
 
     @Test fun `two accounts, another folder, names the account then the folder`() {
-        assertEquals(MailSubText.AccountAndFolder(account = PERSO, folder = ARCHIVE), Notifications.subTextFor(2, PERSO, ARCHIVE))
-        assertEquals(MailSubText.AccountAndFolder(account = PERSO, folder = ARCHIVE), Notifications.subTextFor(5, PERSO, ARCHIVE))
+        eachTelling(MailSubText.AccountAndFolder(account = PERSO, folder = ARCHIVE), 2, PERSO, ARCHIVE)
+        eachTelling(MailSubText.AccountAndFolder(account = PERSO, folder = ARCHIVE), 5, PERSO, ARCHIVE)
     }
 
     @Test fun `no account counted reads as one`() {
-        assertEquals(MailSubText.None, Notifications.subTextFor(0, PERSO, folderName = null))
-        assertEquals(MailSubText.Folder(folder = ARCHIVE), Notifications.subTextFor(0, PERSO, ARCHIVE))
+        eachTelling(MailSubText.None, 0, PERSO, folder = null)
+        eachTelling(MailSubText.Folder(folder = ARCHIVE), 0, PERSO, ARCHIVE)
     }
 
     @Test fun `an account signed out mid-pass has no name to show`() {
-        assertEquals(MailSubText.None, Notifications.subTextFor(2, accountLabel = null, folderName = null))
-        assertEquals(MailSubText.Folder(folder = ARCHIVE), Notifications.subTextFor(2, accountLabel = null, ARCHIVE))
+        eachTelling(MailSubText.None, 2, label = null, folder = null)
+        eachTelling(MailSubText.Folder(folder = ARCHIVE), 2, label = null, ARCHIVE)
+    }
+
+    // -- the setting that names nothing ----------------------------------------------------------
+
+    @Test fun `no sender or subject names neither the account nor the folder`() {
+        assertEquals(
+            MailSubText.None,
+            MailNotificationText.subTextFor(NotificationContent.NONE, 2, PERSO, ARCHIVE),
+        )
+    }
+
+    @Test fun `no sender or subject names nothing whatever the count and the folder`() {
+        val cases = listOf(
+            Triple(2, PERSO, ARCHIVE),
+            Triple(2, PERSO, null),
+            Triple(1, PERSO, ARCHIVE),
+            Triple(1, PERSO, null),
+            Triple(5, PERSO, ARCHIVE),
+            Triple(2, null, ARCHIVE),
+        )
+        cases.forEach { (count, label, folder) ->
+            assertEquals(
+                "count=$count label=$label folder=$folder",
+                MailSubText.None,
+                MailNotificationText.subTextFor(NotificationContent.NONE, count, label, folder),
+            )
+        }
+    }
+
+    /** The header line, position by position, for the one arrangement where every setting has
+     *  something to hide: two accounts and a folder that is not the inbox. */
+    @Test fun `what the header line may name, position by position`() {
+        val expected = mapOf(
+            NotificationContent.BODY_PREVIEW to MailSubText.AccountAndFolder(PERSO, ARCHIVE),
+            NotificationContent.SENDER_AND_SUBJECT to MailSubText.AccountAndFolder(PERSO, ARCHIVE),
+            NotificationContent.SENDER_ONLY to MailSubText.AccountAndFolder(PERSO, ARCHIVE),
+            NotificationContent.NONE to MailSubText.None,
+        )
+        assertEquals(
+            "a position was added to the setting without deciding what the header line may name there",
+            NotificationContent.entries.toSet(),
+            expected.keys,
+        )
+        assertEquals(
+            expected,
+            NotificationContent.entries.associateWith {
+                MailNotificationText.subTextFor(it, accountCount = 2, accountLabel = PERSO, folderName = ARCHIVE)
+            },
+        )
+    }
+
+    // -- the group summary's headline ------------------------------------------------------------
+
+    @Test fun `the summary names the account wherever the setting reveals anything`() {
+        telling.forEach { content ->
+            assertEquals("$content", PERSO, MailNotificationText.summaryAccountFor(content, PERSO))
+        }
+    }
+
+    @Test fun `the summary names no account under no sender or subject`() {
+        assertEquals(
+            "the summary is the last place the label survives once its children say nothing",
+            null,
+            MailNotificationText.summaryAccountFor(NotificationContent.NONE, PERSO),
+        )
+    }
+
+    @Test fun `what the summary headline may name, position by position`() {
+        val expected = mapOf(
+            NotificationContent.BODY_PREVIEW to PERSO,
+            NotificationContent.SENDER_AND_SUBJECT to PERSO,
+            NotificationContent.SENDER_ONLY to PERSO,
+            NotificationContent.NONE to null,
+        )
+        assertEquals(
+            "a position was added to the setting without deciding what the summary may name there",
+            NotificationContent.entries.toSet(),
+            expected.keys,
+        )
+        assertEquals(
+            expected,
+            NotificationContent.entries.associateWith { MailNotificationText.summaryAccountFor(it, PERSO) },
+        )
     }
 
     @Test fun `the account name is the drawer's, falling back to the address when left blank`() {

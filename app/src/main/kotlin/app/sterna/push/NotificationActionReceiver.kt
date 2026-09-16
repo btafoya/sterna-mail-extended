@@ -20,9 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
-/**
- * Handles new-mail notification quick actions (reply / mark read / delete) in the background.
- */
+/** Handles new-mail notification quick actions (reply / mark read / delete) in the background. */
 class NotificationActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
@@ -163,7 +161,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         return fetched
     }
 
-    private fun dismiss(
+    private suspend fun dismiss(
         context: Context,
         accountId: String,
         credentials: AccountCredentials?,
@@ -175,9 +173,15 @@ class NotificationActionReceiver : BroadcastReceiver() {
         // shows the banner just taken down and the summary would put it back (#134).
         val active = Notifications.activeChildIds(context, accountId)
         NotificationManagerCompat.from(context).cancel(notifId)
-        credentials?.let {
+        if (credentials != null) {
+            // Re-posting the summary owes the setting the same reading, and the same guard, as the
+            // banner it stands over (#84); the account is named as its banners name it (#193).
+            val container = (context.applicationContext as SternaApplication).container
+            val content = runCatching { container.settingsRepository.notificationContent.first() }
+                .getOrDefault(NotificationContent.NONE)
             Notifications.updateGroupSummary(
-                context, accountId, it.username, silent = true,
+                context, accountId, container.accountStore.account(accountId)?.label(), content,
+                silent = true,
                 expectedChildIds = Notifications.liveChildIdsAfter(active, accountId, listOf(emailId), emptyList()),
                 cancelledChildIds = Notifications.childIdsOf(accountId, listOf(emailId)),
             )

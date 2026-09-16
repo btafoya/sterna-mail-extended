@@ -17,13 +17,6 @@ import app.sterna.core.jmap.model.Email
 
 enum class MailNotificationAction { REPLY, MARK_READ, DELETE }
 
-sealed interface MailSubText {
-    data object None : MailSubText
-    data class Account(val account: String) : MailSubText
-    data class Folder(val folder: String) : MailSubText
-    data class AccountAndFolder(val account: String, val folder: String) : MailSubText
-}
-
 /** Notification channels + helpers. No telemetry, no third-party push. */
 object Notifications {
     const val CHANNEL_MAIL = "new_mail"
@@ -40,25 +33,13 @@ object Notifications {
      *  the child speaks exactly when it stands alone. */
     fun summaryShownFor(liveChildren: Int): Boolean = liveChildren >= SUMMARY_MIN_CHILDREN
 
-    fun subTextFor(accountCount: Int, accountLabel: String?, folderName: String?): MailSubText {
-        val account = accountLabel?.takeIf { accountCount > 1 }
-        return when {
-            account != null && folderName != null -> MailSubText.AccountAndFolder(account, folderName)
-            account != null -> MailSubText.Account(account)
-            folderName != null -> MailSubText.Folder(folderName)
-            else -> MailSubText.None
-        }
-    }
-
     private val ALL_ACTIONS = listOf(
         MailNotificationAction.REPLY,
         MailNotificationAction.MARK_READ,
         MailNotificationAction.DELETE,
     )
 
-    /**
-     * The buttons a new-mail notification carries (#57).
-     */
+    /** The buttons a new-mail notification carries (#57). */
     fun actionsFor(
         content: NotificationContent,
         hasSender: Boolean,
@@ -199,9 +180,7 @@ object Notifications {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-    /**
-     * [folderName] marks non-inbox mail (#16), null for the inbox;
-     */
+    /** [folderName] marks non-inbox mail (#16), null for the inbox. */
     fun notifyNewMail(
         context: Context,
         email: Email,
@@ -233,7 +212,7 @@ object Notifications {
             hasSubject = realSubject != null,
         )
         val notifId = childId(accountId, email.id)
-        val subText = when (val line = subTextFor(accountCount, accountLabel, folderName)) {
+        val subText = when (val line = MailNotificationText.subTextFor(content, accountCount, accountLabel, folderName)) {
             MailSubText.None -> null
             is MailSubText.Account -> line.account
             is MailSubText.Folder -> line.folder
@@ -308,13 +287,14 @@ object Notifications {
     fun teardownRepairable(expectedChildIds: Set<Int>, shownChildIds: Set<Int>): Boolean =
         shownChildIds.containsAll(expectedChildIds)
 
-    /**
-     * Rebuild the account's group summary from the currently active children, so successive
-     */
+    /** Rebuild the account's group summary from the currently active children. No parameter here
+     *  defaults: a forgotten one must fail to compile, not tear a summary down silently nor name an
+     *  account over banners told to say nothing. */
     fun updateGroupSummary(
         context: Context,
         accountId: String,
-        accountLabel: String,
+        accountLabel: String?,
+        content: NotificationContent,
         silent: Boolean,
         expectedChildIds: Set<Int>,
         cancelledChildIds: Set<Int>,
@@ -354,7 +334,7 @@ object Notifications {
                 ?: context.getString(R.string.message_no_subject)
             context.getString(R.string.notif_group_line, sender, subject)
         }
-        notifyGroupSummary(context, accountId, accountLabel, live.size, lines, silent)
+        notifyGroupSummary(context, accountId, accountLabel, content, live.size, lines, silent)
     }
 
     /**
@@ -411,7 +391,13 @@ object Notifications {
 
     /** Dismiss the notifications for [emailIds] that just became read, here or on another device,
      *  and refresh the group summary. A no-op for ids with no live notification (#19). */
-    fun dismiss(context: Context, accountId: String, accountLabel: String, emailIds: Collection<String>) {
+    fun dismiss(
+        context: Context,
+        accountId: String,
+        accountLabel: String?,
+        content: NotificationContent,
+        emailIds: Collection<String>,
+    ) {
         val active = activeChildIds(context, accountId)
         val hit = emailIds.filter { isChildActive(active, accountId, it) }
         if (hit.isEmpty()) return
@@ -422,6 +408,7 @@ object Notifications {
             context,
             accountId,
             accountLabel,
+            content,
             silent = true,
             expectedChildIds = liveChildIdsAfter(active, accountId, cleared = hit, added = emptyList()),
             // …and exactly what the loop above cancelled, both id shapes, no more.
@@ -433,13 +420,22 @@ object Notifications {
     fun notifyGroupSummary(
         context: Context,
         accountId: String,
-        accountLabel: String,
+        accountLabel: String?,
+        content: NotificationContent,
         count: Int,
         lines: List<String>,
         silent: Boolean = false,
     ) {
         ensureMailChannel(context)
-        val title = context.getString(R.string.notif_group_count, count, accountLabel)
+        // The setting rules the summary as it rules its children (#84): named here, the account is
+        // back above banners told to say nothing. A null label is an account gone mid-pass, with no
+        // name left to show, and its login is not one (#193).
+        val account = accountLabel?.let { MailNotificationText.summaryAccountFor(content, it) }
+        val title = if (account == null) {
+            context.getString(R.string.notif_group_count_no_account, count)
+        } else {
+            context.getString(R.string.notif_group_count, count, account)
+        }
         val style = NotificationCompat.InboxStyle().setBigContentTitle(title)
         lines.take(6).forEach { style.addLine(it) }
         if (lines.size > 6) style.setSummaryText("+${lines.size - 6}")
@@ -453,8 +449,8 @@ object Notifications {
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_MAIL)
             .setSmallIcon(R.drawable.ic_stat_mail)
-            .setContentTitle(accountLabel)
-            .setContentText(title)
+            .setContentTitle(account ?: title)
+            .apply { if (account != null) setContentText(title) }
             .setStyle(style)
             .setGroup(GROUP_PREFIX + accountId)
             .setGroupSummary(true)

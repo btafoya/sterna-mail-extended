@@ -2,10 +2,17 @@ package app.sterna.push
 
 import app.sterna.core.data.settings.NotificationContent
 
-/** What a mail notification is allowed to put on screen, per the notification-content setting (#25).
- *  Pure and resource-free, so the rule is unit-testable. Every path that posts a mail notification
- *  goes through here, the snooze wake-up (#84) included: posted with the defaults, it would show
- *  sender and subject to a user who asked for neither. */
+sealed interface MailSubText {
+    data object None : MailSubText
+    data class Account(val account: String) : MailSubText
+    data class Folder(val folder: String) : MailSubText
+    data class AccountAndFolder(val account: String, val folder: String) : MailSubText
+}
+
+/** What a mail notification is allowed to put on screen, per the notification-content setting (#25):
+ *  its texts, the header line under them, and the headline of the summary above them. Pure and
+ *  resource-free, so the rule is unit-testable. Every path that posts goes through here, the snooze
+ *  wake-up (#84) included: posted with the defaults, it shows what its reader asked to hide. */
 object MailNotificationText {
 
     /** [title] is always shown; [text] is the collapsed line, [bigText] the expanded one, and null
@@ -51,9 +58,7 @@ object MailNotificationText {
         },
     )
 
-    /**
-     * The line a send-failure banner may put under its title, or null. That banner was the one
-     */
+    /** The line a send-failure banner may put under its title, or null. */
     fun sendFailureLine(
         content: NotificationContent,
         subject: String,
@@ -65,9 +70,39 @@ object MailNotificationText {
         NotificationContent.SENDER_ONLY, NotificationContent.NONE -> null
     }
 
-    /**
-     * One row of the latest-mail widget.
-     */
+    /** The header line of a banner: the account it came to (#193), the folder it sits in (#16), or
+     *  neither, those two being what is left to say who writes about what once the texts do not. */
+    fun subTextFor(
+        content: NotificationContent,
+        accountCount: Int,
+        accountLabel: String?,
+        folderName: String?,
+    ): MailSubText = when (content) {
+        NotificationContent.BODY_PREVIEW,
+        NotificationContent.SENDER_AND_SUBJECT,
+        NotificationContent.SENDER_ONLY,
+        -> {
+            val account = accountLabel?.takeIf { accountCount > 1 }
+            when {
+                account != null && folderName != null -> MailSubText.AccountAndFolder(account, folderName)
+                account != null -> MailSubText.Account(account)
+                folderName != null -> MailSubText.Folder(folderName)
+                else -> MailSubText.None
+            }
+        }
+        NotificationContent.NONE -> MailSubText.None
+    }
+
+    /** The account a group summary may headline: the last place a label survives its banners. */
+    fun summaryAccountFor(content: NotificationContent, accountLabel: String): String? = when (content) {
+        NotificationContent.BODY_PREVIEW,
+        NotificationContent.SENDER_AND_SUBJECT,
+        NotificationContent.SENDER_ONLY,
+        -> accountLabel
+        NotificationContent.NONE -> null
+    }
+
+    /** One row of the latest-mail widget. */
     data class WidgetRow(val primary: String, val secondary: String?, val namesSender: Boolean)
 
     /**

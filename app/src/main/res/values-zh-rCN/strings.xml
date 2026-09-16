@@ -549,6 +549,7 @@
     <string name="settings_quiet_hours_start">开始</string>
     <string name="settings_quiet_hours_end">结束</string>
     <string name="notif_group_count">%1$d 封新邮件 · %2$s</string>
+    <string name="notif_group_count_no_account">%1$d 封新邮件</string>
     <string name="notif_group_line">%1$s — %2$s</string>
     <string name="notif_account_folder">%1$s · %2$s</string>
     <string name="settings_vacation_screen_title">休假自动回复</string>

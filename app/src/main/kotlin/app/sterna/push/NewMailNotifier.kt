@@ -123,9 +123,7 @@ object NewMailNotifier {
         }
     }
 
-    /**
-     * Post notifications for a folder's messages not in its baseline, then advance it.
-     */
+    /** Post notifications for a folder's messages not in its baseline, then advance it. */
     suspend fun notifyDiff(
         context: Context,
         credentials: AccountCredentials,
@@ -219,7 +217,10 @@ object NewMailNotifier {
             Notifications.updateGroupSummary(
                 context,
                 credentials.id,
-                credentials.username,
+                // The drawer's name, not the login one address answers for on every shared mailbox
+                // (#193), and what this pass may reveal, the summary being re-posted by it (#84).
+                accountLabel,
+                content,
                 silent = silent || newMail.isEmpty(),
                 // The set computed before anything was posted or cancelled, never recomputed here.
                 expectedChildIds = live,

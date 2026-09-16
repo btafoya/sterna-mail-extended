@@ -42,6 +42,7 @@ import app.sterna.core.data.mail.preferredAction
 import app.sterna.core.data.mail.unsubscribePreview
 import app.sterna.core.data.settings.REPLY_BAR_DEFAULT
 import app.sterna.core.data.settings.MessageTextSize
+import app.sterna.core.data.settings.NotificationContent
 import app.sterna.core.data.text.attachmentMimeType
 import app.sterna.core.data.unsubscribe.UnsubscribeFailure
 import app.sterna.core.data.unsubscribe.UnsubscribeResult
@@ -1296,9 +1297,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         _crypto.value = CryptoUiState.Locked(lockedKind ?: CryptoKind.PGP_ENCRYPTED)
     }
 
-    /**
-     * Mark the anchor read (once) when this page is both settled and loaded. The one place
-     */
+    /** Mark the anchor read (once) when this page is both settled and loaded. */
     private fun maybeMarkRead() {
         if (!active || anchorMarked) return
         val current = (_state.value as? MessageState.Loaded)?.email ?: return
@@ -1320,8 +1319,18 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val credentials = credentials() ?: return@launch
             runCatching { repo.setRead(credentials, current.id, true) }
-            // Clear the mail's notification now that it's been read (Codeberg #19).
-            Notifications.dismiss(getApplication(), credentials.id, credentials.username, listOf(current.id))
+            // Clear the mail's notification now that it's been read (Codeberg #19). The summary is
+            // re-posted from there, so the setting travels with it (#84), and the account is named
+            // by the drawer's label (#193).
+            val content = runCatching { settings.notificationContent.first() }
+                .getOrDefault(NotificationContent.NONE)
+            Notifications.dismiss(
+                getApplication(),
+                credentials.id,
+                store.account(credentials.id)?.label(),
+                content,
+                listOf(current.id),
+            )
         }
     }
 
