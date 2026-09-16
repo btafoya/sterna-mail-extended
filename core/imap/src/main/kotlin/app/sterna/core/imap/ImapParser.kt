@@ -22,9 +22,7 @@ internal class ImapParser(private val input: InputStream) {
         return peeked
     }
 
-        /**
-         * Read one full response line (following any literals) into a token list.
-         */
+    /** Read one full response line (following any literals) into a token list. */
     fun readResponse(maxTokens: Int = Int.MAX_VALUE): List<Any?> {
         val tokens = mutableListOf<Any?>()
         while (true) {
@@ -33,6 +31,8 @@ internal class ImapParser(private val input: InputStream) {
                 '\r'.code -> { read(); if (peek() == '\n'.code) read(); return tokens }
                 '\n'.code -> { read(); return tokens }
                 ' '.code -> read()
+                // `consumeAtom` returns on `)` without consuming it: the loop would turn forever.
+                ')'.code -> read()
                 else -> if (tokens.size < maxTokens) tokens.add(readToken()) else skipToken()
             }
         }

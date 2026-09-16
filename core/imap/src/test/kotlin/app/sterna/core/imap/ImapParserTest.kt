@@ -300,4 +300,32 @@ class ImapParserTest {
     fun aResponseCodeIsNotASectionAtom() {
         assertEquals(listOf("*", "OK", "[UIDVALIDITY", "7]", "ok"), parse("* OK [UIDVALIDITY 7] ok\r\n"))
     }
+
+    @Test(timeout = 5_000)
+    fun aClosingParenthesisLeftOverAtTheStartOfALineIsConsumedAndTheNextLineParses() {
+        val parser = ImapParser(ByteArrayInputStream(
+            "* 1 FETCH (UID 1 BODY[HEADER.FIELDS (REFERENCES)\r\n)\r\n* 2 FETCH (UID 2)\r\n"
+                .toByteArray(Charsets.UTF_8),
+        ))
+        assertEquals(
+            listOf("*", "1", "FETCH", listOf("UID", "1", "BODY[HEADER.FIELDS (REFERENCES)")),
+            parser.readResponse(),
+        )
+        assertEquals(emptyList<Any?>(), parser.readResponse())
+        assertEquals(listOf("*", "2", "FETCH", listOf("UID", "2")), parser.readResponse())
+    }
+
+    @Test(timeout = 5_000)
+    fun aClosingParenthesisLeftOverIsConsumedOnALineWhoseTokensRunPastTheCap() {
+        val parser = ImapParser(ByteArrayInputStream(
+            "* 1 FETCH (UID 1 BODY[HEADER.FIELDS (REFERENCES)\r\n) 2 EXISTS\r\n* 2 FETCH (UID 2)\r\n"
+                .toByteArray(Charsets.UTF_8),
+        ))
+        assertEquals(
+            listOf("*", "1", "FETCH", listOf("UID", "1", "BODY[HEADER.FIELDS (REFERENCES)")),
+            parser.readResponse(),
+        )
+        assertEquals(listOf("2"), parser.readResponse(maxTokens = 1))
+        assertEquals(listOf("*", "2", "FETCH", listOf("UID", "2")), parser.readResponse())
+    }
 }
