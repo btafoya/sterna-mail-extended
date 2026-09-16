@@ -1,0 +1,7 @@
+Pièces jointes IMAP : les parties après un préambule ne se téléchargent plus vides, et un message transféré ou retourné s'ouvre en pièce jointe.
+
+OpenPGP : un message signé n'est plus dit chiffré avant vérification, la signature survit à une rotation, et l'écran du fournisseur s'ouvre sur Android 14+.
+
+Une réponse depuis une notification part de l'adresse du compte, et un brouillon trouvé par la recherche s'ouvre en édition.
+
+Des réglages illisibles sont remis par défaut au lieu de planter.

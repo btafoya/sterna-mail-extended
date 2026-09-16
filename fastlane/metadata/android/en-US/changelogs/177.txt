@@ -1,0 +1,7 @@
+IMAP attachments: parts behind a preamble no longer download empty, and a forwarded or bounced message shows as an attachment you can open.
+
+OpenPGP: a signed message is no longer called encrypted before it is checked, signing survives a rotation, and the provider's screen opens again on Android 14+.
+
+A notification reply uses the account's own address, and a draft found by search opens in the composer.
+
+Unreadable settings are reset to defaults instead of crashing the app.
