@@ -15,11 +15,19 @@ import java.io.File
  * the summary name, is executed in [MailSubTextTest]; this file only pins that the decision is
  * what reaches the builder, and that every path re-posting a summary hands the setting over.
  *
+ * It has since grown a second charge on `maybeMarkRead`, the same instrument for the same reason:
+ * that the banner of a message just read is cleared only when the write of the read mark returned.
+ * `ReadMarkCleanupTest` executes that decision; here it is the wiring, and the one dismissal in the
+ * body, that are pinned.
+ *
  * What it cannot see: that the builder calls do anything (nothing renders here); the position of a
  * pinned line inside an `if`, or the order two lines run in; what a repository actually returns for
  * the setting; and that an argument named `content` is bound to the setting rather than to
  * something else of the same type. Where a body is pinned by a window of its lines rather than
- * whole, a substitution outside that window is invisible to it.
+ * whole, a substitution outside that window is invisible to it, which is why the dismissal is
+ * counted as well as placed. Nor does it see what a log line reaches, or whether a reader ever
+ * sees a banner: that a kept banner is the whole of what a failed mark tells anyone is a claim no
+ * test in this module can hold.
  */
 class GroupSummaryObeysTheContentSettingWiringTest {
 
@@ -142,9 +150,43 @@ class GroupSummaryObeysTheContentSettingWiringTest {
                 "val key = credentials.id to current.id",
                 "if (!markingRead.add(key)) return@launch",
                 "try {",
-                "runCatching { repo.setRead(credentials, current.id, true) }",
+                "val write = runCatching { repo.setRead(credentials, current.id, true) }",
+                "when (readMarkCleanup(write)) {",
+                "ReadMarkCleanup.DISMISS -> {",
             ),
-            linesFrom(body, "appScope.launch {", 6),
+            linesFrom(body, "appScope.launch {", 8),
+        )
+        assertEquals(
+            "…and what the write handed back is what everything below is decided on, all three " +
+                "answers spelled out. A discarded `runCatching` is the offline defect: `setRead` " +
+                "writes the cache only after the round trip, so a throw leaves the mark nowhere, " +
+                "and dismissing anyway destroys the one banner that said this mail arrived: the " +
+                "next sync brings the unread dot back and posts nothing behind it. The `when` is " +
+                "exhaustive on purpose: a fourth answer will not compile until this body says what " +
+                "it does about the shade",
+            listOf(
+                "ReadMarkCleanup.DISMISS -> {",
+                "ReadMarkCleanup.KEEP_AND_LOG -> write.exceptionOrNull()?.let { failure ->",
+                "ReadMarkCleanup.KEEP_AND_RETHROW -> write.getOrThrow()",
+            ),
+            codeLinesNaming(body, "ReadMarkCleanup."),
+        )
+        assertEquals(
+            "…and the write that threw is written down, with the throwable and the message it was " +
+                "about. What the reader is told is the banner this branch leaves standing; the log " +
+                "is the only place the cause exists, and a refused STORE, a dead socket and a bug " +
+                "are one and the same event without it",
+            listOf("android.util.Log.w(\"SternaMessage\", \"mark read failed: \${current.id}\", failure)"),
+            codeLinesNaming(body, "Log.w("),
+        )
+        assertEquals(
+            "…and nothing on this path writes to `_actionStatus`. This view model is held by a store " +
+                "owner disposed with its pager page, and this block runs on `appScope` exactly " +
+                "because it outlives that page: a status written here is collected by nobody in the " +
+                "case the branch exists for. It would also fire on a settle rather than on a " +
+                "gesture, one refusal per message read offline",
+            emptyList<String>(),
+            codeLinesNaming(body, "_actionStatus") + codeLinesNaming(body, "readerActionFailureText"),
         )
         assertEquals(
             "…and it is given back in a finally: a claim left behind by anything thrown on the way " +
@@ -177,6 +219,28 @@ class GroupSummaryObeysTheContentSettingWiringTest {
                 "a cancelled read as a settings file that would not parse",
             emptyList<String>(),
             codeLinesNaming(body, "getOrDefault"),
+        )
+        assertEquals(
+            "…and the reading and the dismissal are the first two things the branch taken by a " +
+                "write that returned does, in that order: the setting is read for this dismissal " +
+                "and not for another one further down",
+            listOf(
+                "ReadMarkCleanup.DISMISS -> {",
+                "val content = runCatching { settings.notificationContent.first() }",
+                ".getOrElseUnlessCancelled { NotificationContent.NONE }",
+                "Notifications.dismiss(",
+            ),
+            linesFrom(body, "ReadMarkCleanup.DISMISS -> {", 4),
+        )
+        assertEquals(
+            "…and there is exactly one dismissal in the whole body, so that window is the whole " +
+                "truth. A count and not a window, because every other assertion here pins lines it " +
+                "expects to find: a second `Notifications.dismiss` anywhere below, in the branch " +
+                "for a write that threw or after the `when`, passes them all one by one and puts " +
+                "the original defect back whole, the shade emptied of the one banner that survived " +
+                "a mark this device never managed to write",
+            1,
+            codeLinesNaming(body, "Notifications.dismiss(").size,
         )
         assertEquals(
             "…and the dismissal carries that reading, with the account named by the drawer's label",

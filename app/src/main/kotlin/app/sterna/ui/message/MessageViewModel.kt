@@ -1323,18 +1323,26 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             val key = credentials.id to current.id
             if (!markingRead.add(key)) return@launch
             try {
-                runCatching { repo.setRead(credentials, current.id, true) }
-                // Clear the mail's notification now that it's been read (Codeberg #19). The summary
-                // is re-posted from there with the setting (#84) and the drawer's label (#193).
-                val content = runCatching { settings.notificationContent.first() }
-                    .getOrElseUnlessCancelled { NotificationContent.NONE }
-                Notifications.dismiss(
-                    getApplication(),
-                    credentials.id,
-                    store.account(credentials.id)?.label(),
-                    content,
-                    listOf(current.id),
-                )
+                val write = runCatching { repo.setRead(credentials, current.id, true) }
+                when (readMarkCleanup(write)) {
+                    ReadMarkCleanup.DISMISS -> {
+                        // Clear the mail's notification, the mark being persisted (Codeberg #19). The summary is
+                        // re-posted from there with the setting (#84) and the drawer's label (#193).
+                        val content = runCatching { settings.notificationContent.first() }
+                            .getOrElseUnlessCancelled { NotificationContent.NONE }
+                        Notifications.dismiss(
+                            getApplication(),
+                            credentials.id,
+                            store.account(credentials.id)?.label(),
+                            content,
+                            listOf(current.id),
+                        )
+                    }
+                    ReadMarkCleanup.KEEP_AND_LOG -> write.exceptionOrNull()?.let { failure ->
+                        android.util.Log.w("SternaMessage", "mark read failed: ${current.id}", failure)
+                    }
+                    ReadMarkCleanup.KEEP_AND_RETHROW -> write.getOrThrow()
+                }
             } finally {
                 markingRead.remove(key)
             }
