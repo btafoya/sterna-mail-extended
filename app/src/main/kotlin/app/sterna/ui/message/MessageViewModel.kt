@@ -80,6 +80,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 sealed interface MessageState {
     data object Loading : MessageState
@@ -337,6 +338,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     private val repo = application.container.mailRepository
     private val storage = application.container.storageRepository
     private val settings = application.container.settingsRepository
+    private val appScope = application.container.appScope
 
     /** Whether tapped links should have tracking params stripped before opening. */
     val stripTracking = settings.stripTrackingParams.stateIn(
@@ -1315,22 +1317,27 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         // Reflect the read state immediately so the unread dot clears on settle…
         updateMessage(current.id) { it.copy(header = it.header.markRead(), body = it.body?.markRead()) }
         _state.value = MessageState.Loaded(current.markRead())
-        // …then persist it (server + cache).
-        viewModelScope.launch {
+        // …then persist it (server + cache) on the app's scope: a rotation clears this view model mid-write.
+        appScope.launch {
             val credentials = credentials() ?: return@launch
-            runCatching { repo.setRead(credentials, current.id, true) }
-            // Clear the mail's notification now that it's been read (Codeberg #19). The summary is
-            // re-posted from there, so the setting travels with it (#84), and the account is named
-            // by the drawer's label (#193).
-            val content = runCatching { settings.notificationContent.first() }
-                .getOrDefault(NotificationContent.NONE)
-            Notifications.dismiss(
-                getApplication(),
-                credentials.id,
-                store.account(credentials.id)?.label(),
-                content,
-                listOf(current.id),
-            )
+            val key = credentials.id to current.id
+            if (!markingRead.add(key)) return@launch
+            try {
+                runCatching { repo.setRead(credentials, current.id, true) }
+                // Clear the mail's notification now that it's been read (Codeberg #19). The summary
+                // is re-posted from there with the setting (#84) and the drawer's label (#193).
+                val content = runCatching { settings.notificationContent.first() }
+                    .getOrElseUnlessCancelled { NotificationContent.NONE }
+                Notifications.dismiss(
+                    getApplication(),
+                    credentials.id,
+                    store.account(credentials.id)?.label(),
+                    content,
+                    listOf(current.id),
+                )
+            } finally {
+                markingRead.remove(key)
+            }
         }
     }
 
@@ -1546,5 +1553,11 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 _actionStatus.value = readerActionFailureText(t) { res -> getApplication<Application>().getString(res) }
             }
         }
+    }
+
+    companion object {
+        /** Read marks in flight, one per (account, message), shared by every instance: `anchorMarked` closes
+         *  only the one a rotation throws away, and a second mark takes the folder's unread count down twice. */
+        private val markingRead = ConcurrentHashMap.newKeySet<Pair<String, String>>()
     }
 }

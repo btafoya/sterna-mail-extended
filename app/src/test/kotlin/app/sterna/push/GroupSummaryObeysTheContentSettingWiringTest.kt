@@ -106,18 +106,77 @@ class GroupSummaryObeysTheContentSettingWiringTest {
         )
     }
 
-    @Test fun `the read receipt path reads the setting before it re-posts the summary`() {
+    @Test fun `the read mark and its dismissal outlive the page, and a cancelled read is no setting`() {
         val body = bodyOf(MESSAGE_VM, "maybeMarkRead")
         assertEquals(
+            "the persistence must be launched on the app's scope: one of these view models exists " +
+                "per pager page and is cleared the moment the page is, so on `viewModelScope` a " +
+                "rotation, a back gesture out of the reader or a second swipe kills the block " +
+                "mid-flight — the dot cleared on screen, the server never told, and the message " +
+                "unread again after a sync",
+            listOf("appScope.launch {"),
+            codeLinesNaming(body, "appScope"),
+        )
+        assertEquals(
+            "…and not one line of this body may still name `viewModelScope`: a single straggler " +
+                "there is a straggler that dies with the page",
+            emptyList<String>(),
+            codeLinesNaming(body, "viewModelScope"),
+        )
+        assertEquals(
+            "…and the field is the application's own scope. A local `appScope` handed the view " +
+                "model's job would pass every line above while dying with the page just the same",
+            listOf("private val appScope = application.container.appScope"),
+            codeLinesNaming(MESSAGE_VM.readText(), "private val appScope"),
+        )
+        assertEquals(
+            "…and the write claims the (account, message) pair before it goes out. The block " +
+                "outlives the page now: a rotation builds a second view model, whose own `anchorMarked` " +
+                "is fresh and whose read of the cache still says unread, because the mark is written " +
+                "there only after the round trip. It marks the same message a second time, both marks " +
+                "read it unread, and both take one off the folder's count: three unread, one opened, " +
+                "and the drawer says one",
+            listOf(
+                "appScope.launch {",
+                "val credentials = credentials() ?: return@launch",
+                "val key = credentials.id to current.id",
+                "if (!markingRead.add(key)) return@launch",
+                "try {",
+                "runCatching { repo.setRead(credentials, current.id, true) }",
+            ),
+            linesFrom(body, "appScope.launch {", 6),
+        )
+        assertEquals(
+            "…and it is given back in a finally: a claim left behind by anything thrown on the way " +
+                "out is a message this process will never mark read again, on any page",
+            listOf("} finally {"),
+            codeLinesNaming(body, "finally"),
+        )
+        assertEquals(
+            "…and the claims are held by the class, not by the instance: a field of this view model " +
+                "is exactly what the rotation throws away, which is how the pair reaches two of them. " +
+                "A set safe for `Dispatchers.Default`, where both blocks run",
+            listOf("private val markingRead = ConcurrentHashMap.newKeySet<Pair<String, String>>()"),
+            codeLinesNaming(MESSAGE_VM.readText(), "markingRead ="),
+        )
+        assertEquals(
             "marking a message read re-posts the group summary, so this path owes the same reading " +
-                "of the setting as the pass that first posted it. `getOrDefault(NONE)` and not the " +
-                "app's default: an unreadable settings file must fall back on the quietest, never " +
-                "on the most talkative",
+                "of the setting as the pass that first posted it. The fallback is NONE and not the " +
+                "app's default: a settings file that will not parse must leave the summary the " +
+                "quietest, never the most talkative. `getOrElseUnlessCancelled` is depth and not a " +
+                "live guard, nothing cancels this scope today; it is what keeps a cancelled read " +
+                "from ever being counted as a file that would not parse",
             listOf(
                 "val content = runCatching { settings.notificationContent.first() }",
-                ".getOrDefault(NotificationContent.NONE)",
+                ".getOrElseUnlessCancelled { NotificationContent.NONE }",
             ),
-            codeLinesNaming(body, "notificationContent") + codeLinesNaming(body, "getOrDefault"),
+            codeLinesNaming(body, "notificationContent") + codeLinesNaming(body, "getOrElseUnlessCancelled"),
+        )
+        assertEquals(
+            "…and no line of this body may read the setting with `getOrDefault`, which would count " +
+                "a cancelled read as a settings file that would not parse",
+            emptyList<String>(),
+            codeLinesNaming(body, "getOrDefault"),
         )
         assertEquals(
             "…and the dismissal carries that reading, with the account named by the drawer's label",
@@ -208,6 +267,14 @@ class GroupSummaryObeysTheContentSettingWiringTest {
                 params.lines().map { it.trim() }.filter { it.startsWith("content") && "=" in it },
             )
         }
+    }
+
+    /** [count] code lines of [body] from the one line equal to [anchor]. */
+    private fun linesFrom(body: String, anchor: String, count: Int): List<String> {
+        val lines = codeLinesNaming(body, "")
+        val at = lines.indexOf(anchor)
+        if (at < 0) error("no line '$anchor' in this body — did it get renamed or reflowed?")
+        return lines.subList(at, minOf(at + count, lines.size))
     }
 
     private fun callLines(body: String, opener: String): List<String> {
