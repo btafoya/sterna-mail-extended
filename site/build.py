@@ -383,7 +383,7 @@ def build_page(locale: Locale, page_tpl: str, blocks: dict[str, str],
 
 def sitemap() -> str:
     # Each entry lists every translation of the page, so a crawler that finds one
-    # language knows about the eight others without visiting them first.
+    # language knows about the nine others without visiting them first.
     alternates = "".join(
         f'    <xhtml:link rel="alternate" hreflang="{loc.lang}" href="{page_url(loc)}"/>\n'
         for loc in LOCALES

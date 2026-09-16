@@ -10,7 +10,7 @@ works is in [ARCHITECTURE.md](ARCHITECTURE.md).
 - 💡 **Proposed**, not scheduled.
 - ⭐ **JMAP-native**, RFC 8620/8621 gives it almost for free.
 
-Status is read against `main`, not against the latest release (1.5.4), so a ✅ can
+Status is read against `main`, not against the latest release (1.5.7), so a ✅ can
 be ahead of the version you have installed.
 
 ---
