@@ -107,4 +107,99 @@ class SubmissionIdentityTest {
 
         assertEquals("theo@mydomain.com", choice.envelopeMailFrom)
     }
+
+    @Test fun `a sub-address of a server identity submits under that identity with no envelope`() {
+        val choice = SubmissionIdentity.choose(
+            fromEmail = "theo+news@tb.pro",
+            serverIdentities = listOf(house, other),
+            onBehalf = false,
+        )!!
+
+        assertEquals("i-house", choice.identity.id)
+        assertNull("issue #212: Stalwart answers forbiddenFrom to an envelope naming the tag",
+            choice.envelopeMailFrom)
+    }
+
+    @Test fun `a sub-address on another domain still names an envelope`() {
+        val choice = SubmissionIdentity.choose(
+            fromEmail = "theo+news@other.com",
+            serverIdentities = listOf(house, other),
+            onBehalf = false,
+        )!!
+
+        assertEquals("i-house", choice.identity.id)
+        assertEquals("issue #172 still applies: another domain is another address",
+            "theo+news@other.com", choice.envelopeMailFrom)
+    }
+
+    @Test fun `a sub-address with several plus signs folds at the first one`() {
+        val choice = SubmissionIdentity.choose(
+            fromEmail = "theo+a+b@tb.pro",
+            serverIdentities = listOf(house, other),
+            onBehalf = false,
+        )!!
+
+        assertEquals("i-house", choice.identity.id)
+        assertNull(choice.envelopeMailFrom)
+    }
+
+    @Test fun `an address whose local part is only a tag folds to nothing`() {
+        val choice = SubmissionIdentity.choose(
+            fromEmail = "+tag@tb.pro",
+            serverIdentities = listOf(house, other),
+            onBehalf = false,
+        )!!
+
+        assertEquals("i-house", choice.identity.id)
+        assertEquals("an empty local part is nobody's sub-address; no fixture pins the guard itself",
+            "+tag@tb.pro", choice.envelopeMailFrom)
+    }
+
+    @Test fun `a sub-address match trims and ignores case too`() {
+        val choice = SubmissionIdentity.choose(
+            fromEmail = " Theo+News@TB.pro ",
+            serverIdentities = listOf(house, other),
+            onBehalf = false,
+        )!!
+
+        assertEquals("i-house", choice.identity.id)
+        assertNull(choice.envelopeMailFrom)
+    }
+
+    @Test fun `a server identity that is itself a sub-address wins over the base it looks like`() {
+        val tagged = Identity(id = "i-tag", email = "theo+x@tb.pro")
+        val choice = SubmissionIdentity.choose(
+            fromEmail = "theo+x@tb.pro",
+            serverIdentities = listOf(house, tagged),
+            onBehalf = false,
+        )!!
+
+        assertEquals("the exact match wins; nothing is measured on what a server derives from it",
+            "i-tag", choice.identity.id)
+        assertNull(choice.envelopeMailFrom)
+    }
+
+    @Test fun `a delegated send of a sub-address still names no envelope`() {
+        val choice = SubmissionIdentity.choose(
+            fromEmail = "theo+news@tb.pro",
+            serverIdentities = listOf(house, other),
+            onBehalf = true,
+        )!!
+
+        assertEquals("i-house", choice.identity.id)
+        assertNull("#31 and the fold agree here; the guard alone is pinned where nothing folds",
+            choice.envelopeMailFrom)
+    }
+
+    @Test fun `a sub-address submits under the identity it matched, not the first one`() {
+        val choice = SubmissionIdentity.choose(
+            fromEmail = "theo+news@tb.pro",
+            serverIdentities = listOf(other, house),
+            onBehalf = false,
+        )!!
+
+        assertEquals("the fold must yield its own match, not `serverIdentities.first()`",
+            "i-house", choice.identity.id)
+        assertNull(choice.envelopeMailFrom)
+    }
 }
