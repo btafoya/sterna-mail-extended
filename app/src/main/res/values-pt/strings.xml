@@ -198,6 +198,7 @@
     <string name="message_unsubscribe">Cancelar subscrição</string>
     <string name="message_unsubscribe_banner">Este remetente oferece uma forma de cancelar a subscrição</string>
     <string name="message_unsubscribe_open_page">Abrir página</string>
+    <string name="message_unsubscribe_via_page">Cancelar subscrição (página web)</string>
     <string name="message_unsubscribe_confirm_title">Cancelar subscrição?</string>
     <string name="message_unsubscribe_confirm_post">O Sterna enviará um pedido de cancelamento para %1$s. Sem navegador, sem página, nada é carregado.</string>
     <string name="message_unsubscribe_confirm_mail">O Sterna enviará um e-mail de cancelamento para %1$s.</string>

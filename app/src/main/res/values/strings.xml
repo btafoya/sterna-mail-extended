@@ -327,10 +327,11 @@
     <string name="message_report_spam">Report spam</string>
     <string name="message_not_spam">Not spam</string>
     <string name="message_snooze">Snooze…</string>
-    <!-- Reader: one-gesture unsubscribe (RFC 2369 / RFC 8058). "Open page" is a separate label on purpose: that path loads a page in a browser, the other two do not. -->
+    <!-- Reader: one-gesture unsubscribe (RFC 2369 / RFC 8058). message_unsubscribe_open_page is now only the dialog's confirm button, under the sentence naming the whole URL, where "Open page" is the exact consent being given. The label the reader meets first, on the strip and in the menu, is message_unsubscribe_via_page: it is clamped to one line with an ellipsis, so keep the subject first and the gesture last in brackets, and the ellipsis will eat the gesture rather than the word for unsubscribing. -->
     <string name="message_unsubscribe">Unsubscribe</string>
     <string name="message_unsubscribe_banner">This sender offers a way to unsubscribe</string>
     <string name="message_unsubscribe_open_page">Open page</string>
+    <string name="message_unsubscribe_via_page">Unsubscribe (web page)</string>
     <string name="message_unsubscribe_confirm_title">Unsubscribe?</string>
     <string name="message_unsubscribe_confirm_post">Sterna will send an unsubscribe request to %1$s. No browser, no page, nothing loaded.</string>
     <string name="message_unsubscribe_confirm_mail">Sterna will send an unsubscribe email to %1$s.</string>

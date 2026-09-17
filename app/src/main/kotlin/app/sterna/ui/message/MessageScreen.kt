@@ -1000,15 +1000,15 @@ private fun MessageActions(
             // Unsubscribe (RFC 2369 / RFC 8058), shown only when the message carries a usable way
             // out and that way out has not already been taken, so the entry is never a dead end and
             // never a second request. The same decision drives the banner's button, so the two
-            // cannot disagree and going round by the menu cannot send the POST again. The label says which
-            // gesture it is, "Open page" is a browser and everything a page load implies.
+            // cannot disagree and going round by the menu cannot send the POST again. The label names the
+            // subject and puts the gesture in brackets: a page load is what a sender offering no POST gets.
             offeredUnsubscribeAction(unsubscribe, unsubscribeState)?.let { action ->
                 DropdownMenuItem(
                     text = {
                         Text(
                             stringResource(
                                 if (action == UnsubscribeAction.OPEN_PAGE) {
-                                    R.string.message_unsubscribe_open_page
+                                    R.string.message_unsubscribe_via_page
                                 } else {
                                     R.string.message_unsubscribe
                                 },
@@ -2798,10 +2798,13 @@ private fun UnsubscribeStrip(
                     stringResource(
                         when {
                             body == UnsubscribeStripBody.SENDING -> R.string.message_unsubscribe_sending
-                            action == UnsubscribeAction.OPEN_PAGE -> R.string.message_unsubscribe_open_page
+                            action == UnsubscribeAction.OPEN_PAGE -> R.string.message_unsubscribe_via_page
                             else -> R.string.message_unsubscribe
                         },
                     ),
+                    // The label may not wrap: heightIn is a floor, and a taller header reloads the body.
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

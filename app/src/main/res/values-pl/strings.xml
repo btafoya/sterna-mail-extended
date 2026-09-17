@@ -198,6 +198,7 @@
     <string name="message_unsubscribe">Wypisz się</string>
     <string name="message_unsubscribe_banner">Ten nadawca udostępnia sposób wypisania się</string>
     <string name="message_unsubscribe_open_page">Otwórz stronę</string>
+    <string name="message_unsubscribe_via_page">Wypisz się (strona WWW)</string>
     <string name="message_unsubscribe_confirm_title">Wypisać się?</string>
     <string name="message_unsubscribe_confirm_post">Sterna wyśle żądanie wypisania do %1$s. Bez przeglądarki, bez strony, nic nie jest wczytywane.</string>
     <string name="message_unsubscribe_confirm_mail">Sterna wyśle e-mail z prośbą o wypisanie do %1$s.</string>

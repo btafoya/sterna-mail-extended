@@ -323,10 +323,11 @@
     <string name="message_report_spam">举报为垃圾邮件</string>
     <string name="message_not_spam">不是垃圾邮件</string>
     <string name="message_snooze">稍后提醒…</string>
-    <!-- Reader: one-gesture unsubscribe (RFC 2369 / RFC 8058). "Open page" is a separate label on purpose: that path loads a page in a browser, the other two do not. -->
+    <!-- Reader: one-gesture unsubscribe (RFC 2369 / RFC 8058). message_unsubscribe_open_page is now only the dialog's confirm button, under the sentence naming the whole URL, where "Open page" is the exact consent being given. The label the reader meets first, on the strip and in the menu, is message_unsubscribe_via_page: it is clamped to one line with an ellipsis, so keep the subject first and the gesture last in brackets, and the ellipsis will eat the gesture rather than the word for unsubscribing. -->
     <string name="message_unsubscribe">退订</string>
     <string name="message_unsubscribe_banner">此发件人提供了退订方式</string>
     <string name="message_unsubscribe_open_page">打开页面</string>
+    <string name="message_unsubscribe_via_page">退订（网页）</string>
     <string name="message_unsubscribe_confirm_title">退订？</string>
     <string name="message_unsubscribe_confirm_post">Sterna 将向 %1$s 发送退订请求。无需浏览器、无需页面、不会加载任何内容。</string>
     <string name="message_unsubscribe_confirm_mail">Sterna 将向 %1$s 发送一封退订邮件。</string>

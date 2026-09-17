@@ -148,6 +148,94 @@ class UnsubscribeStripTest {
         )
     }
 
+    @Test fun `the fallback label names its subject in both places, and cannot grow the strip`() {
+        val strip = stripSource()
+        val button = stripButtonSource()
+        val buttonLines = button.lines().map { it.trim() }
+        assertTrue(
+            "the clamp must sit on the BUTTON's own label, which is why it is read on the slice " +
+                "starting at TextButton(onClick = onUnsubscribe) and not on the whole strip: the " +
+                "failure line above the button is the one shape allowed to wrap, and read as part " +
+                "of the strip it would answer this rule for a button that grows freely. Checked " +
+                "as a whole line rather than with a contains, since 'maxLines = 1, softWrap = " +
+                "false' also contains 'maxLines = 1,' and is another rule entirely. Button was:" +
+                "\n$button",
+            buttonLines.any { it == "maxLines = 1," },
+        )
+        assertTrue(
+            "…and that same button must overflow to an ellipsis rather than to a second line: " +
+                "heightIn is a floor, so a label that wraps grows the strip, grows the header, and " +
+                "the header's height keys the remember of the body document underneath",
+            buttonLines.any { it == "overflow = TextOverflow.Ellipsis," },
+        )
+        val openPage = strip.lines()
+            .map { it.trim() }
+            .filter { "UnsubscribeAction.OPEN_PAGE" in it && "R.string." in it }
+        assertEquals("exactly one OPEN_PAGE label branch in the strip", 1, openPage.size)
+        assertTrue(
+            "the button must name what the gesture is ABOUT and not only what it does: " +
+                "message_unsubscribe_via_page puts the subject first and the page in brackets, so " +
+                "an ellipsis eats the gesture and never the word 'unsubscribe' — which today is " +
+                "nowhere on the screen for the commonest sender of all, the one publishing no " +
+                "List-Unsubscribe-Post. Branch read:\n${openPage.single()}",
+            "R.string.message_unsubscribe_via_page" in openPage.single(),
+        )
+        val entry = overflowEntrySource()
+        assertTrue(
+            "the overflow entry must take the same label as the strip for OPEN_PAGE: both read " +
+                "the one action offeredUnsubscribeAction returned, so naming it two ways would be " +
+                "two names for one gesture. Entry was:\n$entry",
+            "R.string.message_unsubscribe_via_page" in entry &&
+                "R.string.message_unsubscribe_open_page" !in entry,
+        )
+    }
+
+    @Test fun `only the confirmation is still allowed to say just 'open page'`() {
+        val screen = SOURCE.readText()
+        assertEquals(
+            "R.string.message_unsubscribe_open_page must be left with exactly one use, the " +
+                "confirmation's own button: this count holds both halves of the label change at " +
+                "once, that the strip and the overflow entry left the bare gesture behind, and " +
+                "that the dialog did not. Under the sentence naming the whole URL and what a page " +
+                "load shows the sender, \"Open page\" is the exact consent being asked for, and a " +
+                "wider word there would consent to something else",
+            1,
+            Regex("R\\.string\\.message_unsubscribe_open_page").findAll(screen).count(),
+        )
+        val confirm = confirmDialogSource()
+        assertTrue(
+            "…and that single use is the confirmation's button. Confirmation was:\n$confirm",
+            "R.string.message_unsubscribe_open_page" in confirm,
+        )
+    }
+
+    private fun stripButtonSource(): String {
+        val strip = stripSource()
+        val at = strip.indexOf("TextButton(onClick = onUnsubscribe")
+        check(at >= 0) {
+            "UnsubscribeStrip no longer draws its gesture as a TextButton(onClick = onUnsubscribe)"
+        }
+        return strip.substring(at)
+    }
+
+    private fun overflowEntrySource(): String {
+        val text = SOURCE.readText()
+        val at = text.indexOf("offeredUnsubscribeAction(unsubscribe, unsubscribeState)?.let { action ->")
+        check(at >= 0) { "MessageScreen.kt no longer gates an overflow entry on offeredUnsubscribeAction" }
+        val end = text.indexOf("R.string.message_view_headers", at)
+        check(end > at) { "the raw-headers entry no longer follows the unsubscribe entry" }
+        return text.substring(at, end)
+    }
+
+    private fun confirmDialogSource(): String {
+        val text = SOURCE.readText()
+        val at = text.indexOf("R.string.message_unsubscribe_confirm_title")
+        check(at >= 0) { "MessageScreen.kt no longer draws the unsubscribe confirmation" }
+        val end = text.indexOf("R.string.settings_cancel", at)
+        check(end > at) { "the confirmation no longer ends on its cancel button" }
+        return text.substring(at, end)
+    }
+
     private fun stripSource(): String {
         val text = SOURCE.readText()
         val at = text.indexOf("private fun UnsubscribeStrip(")

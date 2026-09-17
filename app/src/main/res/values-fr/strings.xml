@@ -198,6 +198,7 @@
     <string name="message_unsubscribe">Se désabonner</string>
     <string name="message_unsubscribe_banner">Cet expéditeur propose un moyen de se désabonner</string>
     <string name="message_unsubscribe_open_page">Ouvrir la page</string>
+    <string name="message_unsubscribe_via_page">Se désabonner (page web)</string>
     <string name="message_unsubscribe_confirm_title">Se désabonner ?</string>
     <string name="message_unsubscribe_confirm_post">Sterna enverra une demande de désabonnement à %1$s. Aucun navigateur, aucune page, rien de chargé.</string>
     <string name="message_unsubscribe_confirm_mail">Sterna enverra un e-mail de désabonnement à %1$s.</string>

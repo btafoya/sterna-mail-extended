@@ -198,6 +198,7 @@
     <string name="message_unsubscribe">Uitschrijven</string>
     <string name="message_unsubscribe_banner">Deze afzender biedt een manier om je uit te schrijven</string>
     <string name="message_unsubscribe_open_page">Pagina openen</string>
+    <string name="message_unsubscribe_via_page">Uitschrijven (webpagina)</string>
     <string name="message_unsubscribe_confirm_title">Uitschrijven?</string>
     <string name="message_unsubscribe_confirm_post">Sterna stuurt een uitschrijfverzoek naar %1$s. Geen browser, geen pagina, niets geladen.</string>
     <string name="message_unsubscribe_confirm_mail">Sterna stuurt een uitschrijf-e-mail naar %1$s.</string>

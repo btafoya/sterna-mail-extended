@@ -198,6 +198,7 @@
     <string name="message_unsubscribe">Отписаться</string>
     <string name="message_unsubscribe_banner">Отправитель предлагает способ отписаться</string>
     <string name="message_unsubscribe_open_page">Открыть страницу</string>
+    <string name="message_unsubscribe_via_page">Отписаться (веб-страница)</string>
     <string name="message_unsubscribe_confirm_title">Отписаться?</string>
     <string name="message_unsubscribe_confirm_post">Sterna отправит запрос на отписку на %1$s. Без браузера, без страницы, ничего не загружается.</string>
     <string name="message_unsubscribe_confirm_mail">Sterna отправит письмо с отпиской на %1$s.</string>
