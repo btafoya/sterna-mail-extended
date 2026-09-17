@@ -17,6 +17,7 @@ import app.sterna.core.jmap.BasicAuth
 import app.sterna.core.jmap.Jmap
 import app.sterna.core.jmap.JmapAuth
 import app.sterna.core.jmap.JmapClient
+import app.sterna.core.jmap.jmapDiscoveryClient
 import app.sterna.core.jmap.OAuthClient
 import app.sterna.core.jmap.model.JmapAccount
 import app.sterna.core.jmap.model.JmapSession
@@ -155,6 +156,7 @@ class MailAccountsPruneFollowsTheStoreTest {
 
     private fun accounts(host: MailAccountHost = RecordingHost()) = MailAccounts(
         client = JmapClient(),
+        discoveryClient = jmapDiscoveryClient(),
         imap = ImapMailService(ImapClient(), SmtpClient(), OAuthTokenRefresher(OAuthClient(), store)),
         emailDao = daoRecording<EmailDao>("deleteForAccount", purged.emails),
         emailFtsDao = daoRecording<EmailFtsDao>("clearAccount", purged.index),

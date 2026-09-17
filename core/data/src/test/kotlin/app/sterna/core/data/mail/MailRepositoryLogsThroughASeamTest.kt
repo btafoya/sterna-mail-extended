@@ -216,6 +216,7 @@ class MailRepositoryLogsThroughASeamTest {
             listOf(
                 "val accounts: MailAccounts = MailAccounts(",
                 "client = client,",
+                "discoveryClient = discoveryClient,",
                 "imap = imap,",
                 "emailDao = emailDao,",
                 "emailFtsDao = emailFtsDao,",

@@ -73,6 +73,7 @@ interface MailAccountHost {
  */
 class MailAccounts(
     private val client: JmapClient,
+    private val discoveryClient: JmapClient,
     private val imap: ImapMailService,
     private val emailDao: EmailDao,
     private val emailFtsDao: EmailFtsDao,
@@ -103,7 +104,7 @@ class MailAccounts(
         val auth = if (token != null) BearerAuth(token) else BasicAuth(email.trim(), password)
         // No budget passed on purpose: the shipped value lives once, in JMAP_DISCOVERY_BUDGET_MS.
         return discoverJmapAmong(hosts) { host ->
-            probeHost { client.fetchSession(Jmap.sessionUrlFor(host), auth) }
+            probeHost { discoveryClient.fetchSession(Jmap.sessionUrlFor(host), auth) }
         }
     }
 

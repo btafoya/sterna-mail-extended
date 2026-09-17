@@ -29,6 +29,7 @@ import app.sterna.core.imap.SieveScriptInfo
 import app.sterna.core.imap.SmtpClient
 import app.sterna.core.jmap.JmapAuth
 import app.sterna.core.jmap.JmapClient
+import app.sterna.core.jmap.jmapDiscoveryClient
 import app.sterna.core.jmap.OAuthClient
 import app.sterna.core.jmap.model.VacationResponse
 import kotlinx.coroutines.CancellationException
@@ -156,6 +157,7 @@ class FiltersOverManageSieveTest {
     private fun accounts(sieve: FakeSieve, store: RecordingAccountStorage = RecordingAccountStorage()): MailAccounts {
         return MailAccounts(
             client = JmapClient(),
+            discoveryClient = jmapDiscoveryClient(),
             imap = ImapMailService(ImapClient(), SmtpClient(), OAuthTokenRefresher(OAuthClient(), store)),
             emailDao = untouched<EmailDao>(),
             emailFtsDao = untouched<EmailFtsDao>(),

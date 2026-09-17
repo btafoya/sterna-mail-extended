@@ -52,6 +52,7 @@ import app.sterna.core.jmap.Jmap
 import app.sterna.core.jmap.JmapAuth
 import app.sterna.core.jmap.JmapClient
 import app.sterna.core.jmap.JmapException
+import app.sterna.core.jmap.jmapDiscoveryClient
 import app.sterna.core.jmap.WindowWalk
 import app.sterna.core.imap.CryptoEnvelope
 import app.sterna.core.imap.CryptoKind
@@ -871,6 +872,9 @@ class MailRepository(
     outboxFilesDir: java.io.File,
     localDraftFilesDir: java.io.File,
     private val oauthClient: OAuthClient = OAuthClient(),
+    /** Autodiscovery's client, apart from [client] because it alone bounds how long one candidate
+     *  host may take to connect; the shared bound outlives the whole discovery budget (#221). */
+    private val discoveryClient: JmapClient = jmapDiscoveryClient(),
     /** OpenPGP operations (null = no provider wired; all PGP features disabled). */
     private val pgpEngine: PgpEngine? = null,
     /** App settings (null in tests): consulted for behavior toggles like mark-read-on-delete. */
@@ -926,6 +930,7 @@ class MailRepository(
     /** Every account: found, proved, created, reconciled, with its identities and settings; see [MailAccounts]. */
     val accounts: MailAccounts = MailAccounts(
         client = client,
+        discoveryClient = discoveryClient,
         imap = imap,
         emailDao = emailDao,
         emailFtsDao = emailFtsDao,

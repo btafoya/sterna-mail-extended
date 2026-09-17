@@ -210,6 +210,46 @@ class JmapClientTest {
         assertTrue(JmapClient.defaultHttpClient().followRedirects)
     }
 
+    @Test fun discoveryHttpClient_boundsTheConnectAloneAndLeavesTheSharedClientAlone() {
+        assertEquals(
+            "autodiscovery's connect bound must be JMAP_DISCOVERY_CONNECT_TIMEOUT_MS. What that " +
+                "value has to satisfy is not testable from this module, which cannot see the " +
+                "discovery budget: it is weighed against it by DiscoveryIsBoundedTest in " +
+                "core/data, and what is pinned here is only that the client carries it.",
+            JMAP_DISCOVERY_CONNECT_TIMEOUT_MS.toInt(),
+            discoveryHttpClient().connectTimeoutMillis,
+        )
+        assertEquals(
+            "the client jmapDiscoveryClient() hands out must carry that bound, not merely be " +
+                "named for it. Built on the shared client instead, discovery is back to waiting " +
+                "20 s on rank 0 — longer than the whole budget — and the three subdomains are " +
+                "never asked (#221), with every other assertion here still green.",
+            JMAP_DISCOVERY_CONNECT_TIMEOUT_MS.toInt(),
+            jmapDiscoveryClient().httpClient.connectTimeoutMillis,
+        )
+        assertEquals(
+            "autodiscovery must keep the shared read timeout. A bare domain slow to ANSWER is " +
+                "kept this way, where a bare domain slow to CONNECT is now lost to mail. — that " +
+                "much is the branch's deliberate trade. Bounding the read too would give away " +
+                "both, and the host discovery elects is written into the account, which she can " +
+                "only correct by typing the whole thing again.",
+            JmapClient.defaultHttpClient().readTimeoutMillis,
+            discoveryHttpClient().readTimeoutMillis,
+        )
+        assertEquals(
+            "the shared client's connect timeout must stay 20 s. It serves sync, sending and " +
+                "push, where waiting on a slow server is the right thing to do and no budget is " +
+                "counting.",
+            20_000,
+            JmapClient.defaultHttpClient().connectTimeoutMillis,
+        )
+        assertFalse(
+            "autodiscovery must not follow a redirect across a scheme change either: it is the " +
+                "half of the posture that differs from following 3xx at all.",
+            discoveryHttpClient().followSslRedirects,
+        )
+    }
+
     // ---- the decision itself, run on its arguments (issue #137) ----
     //
     // What made the header fall off is the origin triplet (scheme + host + port) changing, that

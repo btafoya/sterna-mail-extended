@@ -66,7 +66,7 @@ import java.util.concurrent.TimeUnit
  * Pure JVM (no Android), so it is unit-testable with MockWebServer.
  */
 class JmapClient internal constructor(
-    private val httpClient: OkHttpClient,
+    internal val httpClient: OkHttpClient,
     private val json: Json,
         /**
          * Where the few push-connection lines go. Silent by default so this module keeps no logging

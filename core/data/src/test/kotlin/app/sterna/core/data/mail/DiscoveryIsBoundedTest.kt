@@ -1,6 +1,7 @@
 package app.sterna.core.data.mail
 
 import app.sterna.core.jmap.Jmap
+import app.sterna.core.jmap.JMAP_DISCOVERY_CONNECT_TIMEOUT_MS
 import app.sterna.core.jmap.JmapException
 import app.sterna.core.jmap.model.JmapSession
 import kotlinx.coroutines.NonCancellable
@@ -98,6 +99,37 @@ class DiscoveryIsBoundedTest {
 
         assertEquals(MailRepository.DiscoveryResult.NotFound, result)
         assertEquals(10_000L, currentTime)
+    }
+
+    @Test
+    fun `an unreachable rank 0 leaves room for a guessed subdomain to connect and answer`() = runTest {
+        val bench = Bench(
+            answers = mapOf(
+                "masto.top" to (JMAP_DISCOVERY_CONNECT_TIMEOUT_MS to HostProbe.NoAnswer),
+                "mail.masto.top" to (JMAP_DISCOVERY_CONNECT_TIMEOUT_MS + 500 to HostProbe.Usable),
+                "jmap.masto.top" to (60_000L to HostProbe.NoAnswer),
+                "api.masto.top" to (60_000L to HostProbe.NoAnswer),
+            ),
+            deaf = setOf("masto.top", "jmap.masto.top", "api.masto.top"),
+        )
+
+        val result = discoverJmapAmong(hosts) { bench.probe(it) }
+
+        assertEquals(
+            "two connections happen one after the other before a sign-in can succeed: rank 0 has " +
+                "to give up, and only then may a guessed subdomain connect in its turn. Either of " +
+                "them can cost JMAP_DISCOVERY_CONNECT_TIMEOUT_MS in full, and the subdomain " +
+                "still has to serve /.well-known/jmap afterwards, so twice that bound plus an " +
+                "answer has to fit inside JMAP_DISCOVERY_BUDGET_MS. A bound that leaves room for " +
+                "nothing but an instant answer leaves room for no answer at all, and one that " +
+                "leaves no room for the second connection is #221 intact: rank 0 eats the budget " +
+                "alone and mail./jmap./api. are never heard from. No budget is passed here on " +
+                "purpose — the two shipped values are what is being weighed against each other",
+            MailRepository.DiscoveryResult.Found("mail.masto.top"),
+            result,
+        )
+        assertEquals(hosts, bench.asked)
+        assertEquals(2 * JMAP_DISCOVERY_CONNECT_TIMEOUT_MS + 500, currentTime)
     }
 
     // ── Who gets the password ────────────────────────────────────────────────────────────────

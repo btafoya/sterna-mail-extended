@@ -11,14 +11,17 @@ import java.io.File
  */
 class DiscoveryWiringTest {
 
-    @Test fun `autodiscovery asks each host through the probe the tests run`() {
+    @Test fun `autodiscovery asks each host through the probe the tests run, on its own client`() {
         val body = discoverJmapServerBody()
         assertTrue(
-            "MailAccounts.discoverJmapServer must ask each candidate through probeHost { … }, " +
-                "which is where a session, a 401/403 and a cancellation are turned into a " +
-                "HostProbe — and the only version of that translation any test executes. Spelled " +
-                "out at this call site instead, it is a decision nothing can hold: replacing it " +
-                "with a constant leaves the whole suite green. Body was:\n$body",
+            "MailAccounts.discoverJmapServer must ask each candidate through " +
+                "probeHost { discoveryClient.fetchSession(…) }. probeHost is where a session, a " +
+                "401/403 and a cancellation are turned into a HostProbe — and the only version of " +
+                "that translation any test executes; spelled out at this call site instead, it is " +
+                "a decision nothing can hold, and replacing it with a constant leaves the whole " +
+                "suite green. The client has to be discoveryClient and not the shared one: only " +
+                "it bounds a candidate's connect below the discovery budget, and on the shared " +
+                "client an unreachable bare domain spends that budget alone (#221). Body was:\n$body",
             PROBE_WIRING.containsMatchIn(body),
         )
     }
@@ -65,6 +68,20 @@ class DiscoveryWiringTest {
         )
     }
 
+    @Test fun `autodiscovery is handed a client of its own, bounded for an unreachable host`() {
+        val body = MAIL_REPOSITORY.readText()
+        assertTrue(
+            "MailRepository must build autodiscovery's client as:\n  $DISCOVERY_CLIENT_LINE\n" +
+                "Given the shared `client` instead, discovery inherits its 20 s connect timeout, " +
+                "which outlives JMAP_DISCOVERY_BUDGET_MS whole: a bare domain that swallows SYNs " +
+                "on 443 then takes the entire budget by itself, mail./jmap./api. are never asked, " +
+                "and she is sent back to 'tell me your server' (#221) — with nothing red " +
+                "anywhere. Pinned whole and never by fragment: `= client` leaves the name " +
+                "discoveryClient, and every rule above, standing. Not found in MailRepository.kt.",
+            body.lines().map { it.trim() }.contains(DISCOVERY_CLIENT_LINE),
+        )
+    }
+
     private fun discoverJmapServerBody(): String {
         val text = MAIL_ACCOUNTS.readText()
         val start = text.indexOf(DECLARATION)
@@ -94,23 +111,31 @@ class DiscoveryWiringTest {
          */
         const val HOSTS_LINE = """val hosts = Jmap.autodiscoverHosts(email)"""
 
-        /** The probe, as a whole call: `probeHost { … fetchSession … }`. */
-        val PROBE_WIRING = Regex("""probeHost \{[^}]*client\.fetchSession\(""")
+        const val DISCOVERY_CLIENT_LINE =
+            """private val discoveryClient: JmapClient = jmapDiscoveryClient(),"""
+
+        /** The probe, as a whole call: `probeHost { discoveryClient.fetchSession(…) }`. */
+        val PROBE_WIRING = Regex("""probeHost \{[^}]*discoveryClient\.fetchSession\(""")
 
         /** `discoverJmapAmong(hosts)` with exactly one argument before the trailing lambda. */
         val BUDGET_LESS_CALL = Regex("""discoverJmapAmong\(hosts\)\s*\{""")
 
-        /** The shipped file, in the tree that was actually built. */
-        val MAIL_ACCOUNTS: File by lazy {
+        /** The module whose classes are running: the files read are then the tree that was built. */
+        val MODULE: File by lazy {
             val classes = DiscoveryWiringTest::class.java.protectionDomain?.codeSource?.location
                 ?: error("no code source; cannot tell which tree was built")
             var dir: File? = File(classes.toURI()).absoluteFile
             while (dir != null && dir.name != "build") dir = dir.parentFile
-            val module = dir?.parentFile
+            dir?.parentFile
                 ?: error("$classes is not under a 'build' directory; cannot locate the module source")
-            File(module, "src/main/kotlin/app/sterna/core/data/mail/MailAccounts.kt").also {
-                check(it.isFile) { "no MailAccounts.kt in the tree that was built ($module)" }
-            }
         }
+
+        fun shippedFile(name: String): File =
+            File(MODULE, "src/main/kotlin/app/sterna/core/data/mail/$name").also {
+                check(it.isFile) { "no $name in the tree that was built ($MODULE)" }
+            }
+
+        val MAIL_ACCOUNTS: File by lazy { shippedFile("MailAccounts.kt") }
+        val MAIL_REPOSITORY: File by lazy { shippedFile("MailRepository.kt") }
     }
 }

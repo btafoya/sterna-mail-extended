@@ -19,6 +19,7 @@ import app.sterna.core.jmap.BasicAuth
 import app.sterna.core.jmap.Jmap
 import app.sterna.core.jmap.JmapAuth
 import app.sterna.core.jmap.JmapClient
+import app.sterna.core.jmap.jmapDiscoveryClient
 import app.sterna.core.jmap.OAuthClient
 import app.sterna.core.jmap.model.JmapAccount
 import app.sterna.core.jmap.model.JmapSession
@@ -184,6 +185,7 @@ class FiltersOverJmapKeepTheResponderTest {
         val store = RecordingAccountStorage()
         return MailAccounts(
             client = JmapClient(),
+            discoveryClient = jmapDiscoveryClient(),
             imap = ImapMailService(ImapClient(), SmtpClient(), OAuthTokenRefresher(OAuthClient(), store)),
             emailDao = untouched<EmailDao>(),
             emailFtsDao = untouched<EmailFtsDao>(),
