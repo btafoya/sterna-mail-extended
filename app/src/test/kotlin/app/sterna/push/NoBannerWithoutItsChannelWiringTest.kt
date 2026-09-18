@@ -5,44 +5,79 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Source lint, and it has to be: [Notifications] is an Android object, every function here
+ * Source lint ([Notifications] needs Android to run); the holes it leaves are named in [HOLES].
  */
 class NoBannerWithoutItsChannelWiringTest {
 
-    @Test fun `every function that posts a new-mail banner ensures its channel first`() {
+    @Test fun `every function that posts a banner ensures that banner's channel first`() {
         val sites = postingSites()
         assertEquals(
-            "a function of Notifications.kt builds a NotificationCompat.Builder on CHANNEL_MAIL " +
-                "without ensuring the channel first. On an install whose push was never armed in " +
-                "direct mode nothing else creates 'new_mail', and Android throws the banner away " +
-                "in silence. The first code line of each posting site must be " +
-                "'$ENSURE' — exactly as notifySendFailed already does.",
-            sites.map { it.name to ENSURE },
+            "a function of Notifications.kt builds a NotificationCompat.Builder without ensuring " +
+                "the channel it names first, or on a channel this lint does not know. On a fresh " +
+                "install nothing else has created the channel, and Android throws the banner away " +
+                "in silence. The first code line of each posting site must be the ensure of the " +
+                "channel its builder names: ${ENSURE_FOR.entries.joinToString { (b, e) -> "'$b' needs '$e'" }}. " +
+                HOLES,
+            sites.map { it.name to (ENSURE_FOR[it.builderLine] ?: "a channel listed in ENSURE_FOR") },
             sites.map { it.name to it.firstCodeLine },
         )
     }
 
-    /**
-     * The banner path must ensure the mail channel alone. `ensureChannels` also creates
-     */
-    @Test fun `the mail channel is created alone, at the importance a banner needs`() {
+    @Test fun `a mail banner is built on its own account's channel, never on a shared one`() {
         assertEquals(
-            "ensureMailChannel is the body every banner runs before posting, and no test reaches " +
-                "past its NAME. Pinned whole: the channel id (CHANNEL_SERVICE here would leave " +
-                "'new_mail' uncreated and the original silence intact), the importance " +
-                "(IMPORTANCE_HIGH — anything lower ships banners with no heads-up and no sound, " +
-                "the reported symptom minus its logcat signature), and the absence of any second " +
-                "channel.",
+            "a new-mail banner or its summary built on a channel common to every account puts all " +
+                "the accounts back behind one sound: the setting a user changes in Android for " +
+                "one account would change them all",
+            listOf(
+                "notifyNewMail" to "NotificationCompat.Builder(context, mailChannelId(accountId))",
+                "notifyGroupSummary" to "NotificationCompat.Builder(context, mailChannelId(accountId))",
+            ),
+            postingSites().filter { it.name in MAIL_SITES }.map { it.name to it.builderLine },
+        )
+        assertEquals(
+            "the channel of older builds is only ever deleted, never posted on: a banner put on it " +
+                "keeps it alive, and rings with whatever the user had set for every account at once",
+            emptyList<String>(),
+            membersOf(NOTIFICATIONS).flatten().filter { "LEGACY_CHANNEL_MAIL" in it && "Builder(" in it },
+        )
+    }
+
+    @Test fun `each channel is created alone, on its own id, at the importance a banner needs`() {
+        assertEquals(
+            "ensureMailChannel must create the channel of THIS account: the id built by " +
+                "mailChannelId(accountId), named from notif_channel_mail_account when the label is " +
+                "known and never left unnamed, at IMPORTANCE_HIGH (anything lower ships banners " +
+                "with no heads-up and no sound), and no second channel",
+            listOf(
+                "val manager = context.getSystemService(NotificationManager::class.java)",
+                "val id = mailChannelId(accountId)",
+                "val name = accountLabel?.let { context.getString(R.string.notif_channel_mail_account, it) }",
+                "?: manager.getNotificationChannel(id)?.name",
+                "?: context.getString(R.string.notif_channel_mail)",
+                "manager.createNotificationChannel(NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH))",
+            ),
+            memberBody("ensureMailChannel"),
+        )
+        assertEquals(
+            "…and the account's channel id is the account id behind a fixed prefix: the name " +
+                "the account shows changes, and a channel keyed on it would be a new channel, " +
+                "with Android's defaults, at every rename",
+            listOf("MAIL_CHANNEL_PREFIX + accountId"),
+            memberBody("mailChannelId"),
+        )
+        assertEquals(
+            "ensureSendFailedChannel creates the send-failure channel and nothing else, at " +
+                "IMPORTANCE_HIGH",
             listOf(
                 "context.getSystemService(NotificationManager::class.java).createNotificationChannel(",
                 "NotificationChannel(",
-                "CHANNEL_MAIL,",
-                "context.getString(R.string.notif_channel_mail),",
+                "CHANNEL_SEND_FAILED,",
+                "context.getString(R.string.notif_channel_send_failed),",
                 "NotificationManager.IMPORTANCE_HIGH,",
                 "),",
                 ")",
             ),
-            memberBody("ensureMailChannel"),
+            memberBody("ensureSendFailedChannel"),
         )
     }
 
@@ -51,28 +86,33 @@ class NoBannerWithoutItsChannelWiringTest {
             "the source scan no longer finds the known posting sites of Notifications.kt — a " +
                 "rename or a refactor moved them, and the rule above is now comparing two empty " +
                 "lists. Fix the scan (or this list) before trusting it again.",
-            listOf("notifySendFailed", "notifyNewMail", "notifyGroupSummary"),
-            postingSites().map { it.name }.filter { it in KNOWN_SITES },
+            listOf(
+                "notifySendFailed" to "NotificationCompat.Builder(context, CHANNEL_SEND_FAILED)",
+                "notifyNewMail" to "NotificationCompat.Builder(context, mailChannelId(accountId))",
+                "notifyGroupSummary" to "NotificationCompat.Builder(context, mailChannelId(accountId))",
+            ),
+            postingSites().filter { it.name in KNOWN_SITES }.map { it.name to it.builderLine },
         )
     }
 
     // -- reading the source ----------------------------------------------------------------------
 
-    private data class PostingSite(val name: String, val firstCodeLine: String)
+    private data class PostingSite(val name: String, val firstCodeLine: String, val builderLine: String)
 
-    /** The code lines of `fun [name]`'s body in [notifications]. */
+    /** The code lines of `fun [name]`'s body in [NOTIFICATIONS]. */
     private fun memberBody(name: String): List<String> = membersOf(NOTIFICATIONS)
         .firstOrNull { member -> member.any { FUN_DECL.find(it)?.groupValues?.get(1) == name } }
         ?.let { bodyOf(it) }
         ?: error("Notifications.kt has no function named '$name' — did it get renamed?")
 
-    /** Every function of [notifications] whose body builds a notification on [CHANNEL_MAIL]. */
+    /** Every function of [NOTIFICATIONS] building a notification on any channel but the service's. */
     private fun postingSites(): List<PostingSite> = membersOf(NOTIFICATIONS).mapNotNull { member ->
         val name = FUN_DECL.find(member.firstOrNull { FUN_DECL.containsMatchIn(it) } ?: "")
             ?.groupValues?.get(1) ?: return@mapNotNull null
         val body = bodyOf(member)
-        val posts = body.any { "NotificationCompat.Builder(" in it } && body.any { "CHANNEL_MAIL" in it }
-        if (posts) PostingSite(name, body.firstOrNull().orEmpty()) else null
+        val builder = body.firstOrNull { "NotificationCompat.Builder(" in it } ?: return@mapNotNull null
+        val line = "NotificationCompat.Builder(" + builder.substringAfter("NotificationCompat.Builder(")
+        if ("CHANNEL_SERVICE" in line) null else PostingSite(name, body.firstOrNull().orEmpty(), line)
     }
 
     /**
@@ -119,8 +159,19 @@ class NoBannerWithoutItsChannelWiringTest {
     }
 
     private companion object {
-        const val ENSURE = "ensureMailChannel(context)"
+        val ENSURE_FOR = mapOf(
+            "NotificationCompat.Builder(context, mailChannelId(accountId))" to
+                "ensureMailChannel(context, accountId, accountLabel)",
+            "NotificationCompat.Builder(context, CHANNEL_SEND_FAILED)" to "ensureSendFailedChannel(context)",
+        )
         val KNOWN_SITES = listOf("notifySendFailed", "notifyNewMail", "notifyGroupSummary")
+        val MAIL_SITES = listOf("notifyNewMail", "notifyGroupSummary")
+
+        const val HOLES = "What this lint does not hold (CONTRIBUTING.md, holes 1 and 3): that " +
+            "`accountId` in the ensure and in the builder are bound to the same value, and that " +
+            "no `return` stands between the first line and the post. A banner posted without " +
+            "`NotificationCompat.Builder` (repostSilently) is outside this scan and pinned in " +
+            "LiveBannerSurvivesItsSummaryWiringTest."
 
         /** A member of the object: four spaces, then something that is not a continuation. */
         val MEMBER_START = Regex("""^ {4}[^\s)}]""")

@@ -34,10 +34,15 @@ class GroupSummaryObeysTheContentSettingWiringTest {
     @Test fun `the summary's own label comes from the decision, never from the parameter`() {
         val body = bodyOf(NOTIFICATIONS, "notifyGroupSummary")
         assertEquals(
-            "the raw parameter is read exactly once, to be put to the decision. Every other use of " +
-                "it is the defect: `setContentTitle(accountLabel)` alone puts the account back on " +
-                "screen above banners that were told to say nothing",
-            listOf("val account = accountLabel?.let { MailNotificationText.summaryAccountFor(content, it) }"),
+            "the raw parameter is read exactly twice: to name the account's channel, a name read " +
+                "in Android's notification settings and not printed on the notification, and to " +
+                "be put to the decision. Every other use of it is the defect: " +
+                "`setContentTitle(accountLabel)` alone puts the account back on screen above " +
+                "banners that were told to say nothing",
+            listOf(
+                "ensureMailChannel(context, accountId, accountLabel)",
+                "val account = accountLabel?.let { MailNotificationText.summaryAccountFor(content, it) }",
+            ),
             codeLinesNaming(body, "accountLabel"),
         )
         assertEquals(

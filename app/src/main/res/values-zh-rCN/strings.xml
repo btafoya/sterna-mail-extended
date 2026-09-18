@@ -986,6 +986,8 @@
 
     <!-- Notifications -->
     <string name="notif_channel_mail">新邮件</string>
+    <string name="notif_channel_mail_account">新邮件 · %1$s</string>
+    <string name="notif_channel_send_failed">未发送的邮件</string>
     <string name="notif_send_failed_title">邮件未发送</string>
     <string name="notif_channel_sync">邮件同步</string>
     <string name="notif_channel_sync_desc">保持与邮件服务器的实时连接，以便即时接收新邮件。</string>

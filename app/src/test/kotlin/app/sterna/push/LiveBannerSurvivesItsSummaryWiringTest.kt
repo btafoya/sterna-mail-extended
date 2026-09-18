@@ -17,7 +17,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
                 "child captured above must be posted straight back under its own id. Without this " +
                 "line the surviving unread message loses its banner and is never announced again " +
                 "— mail the server still holds, silently gone from the shade",
-            listOf("children.forEach { child -> repostSilently(context, manager, child) }"),
+            listOf("children.forEach { child -> repostSilently(context, manager, child, accountId, accountLabel) }"),
             codeLinesNaming(body, "repostSilently("),
         )
 
@@ -40,7 +40,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
                 "that neither a second cancel nor a re-post moved above it can hide in between",
             listOf(
                 "manager.cancel(summaryId)",
-                "children.forEach { child -> repostSilently(context, manager, child) }",
+                "children.forEach { child -> repostSilently(context, manager, child, accountId, accountLabel) }",
             ),
             lines.filter { "manager.cancel(summaryId)" in it || "repostSilently(" in it },
         )
@@ -94,7 +94,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
                 "if (teardownRepairable(expectedChildIds, shownChildIds) &&",
                 "active.any { it.id == summaryId && it.notification.group == group }) {",
                 "manager.cancel(summaryId)",
-                "children.forEach { child -> repostSilently(context, manager, child) }",
+                "children.forEach { child -> repostSilently(context, manager, child, accountId, accountLabel) }",
                 "}",
                 "return",
                 "}",
@@ -224,7 +224,7 @@ class LiveBannerSurvivesItsSummaryWiringTest {
         )
         assertEquals(
             "…and the one loop in this function walks `children`, that same filtered list",
-            listOf("children.forEach { child -> repostSilently(context, manager, child) }"),
+            listOf("children.forEach { child -> repostSilently(context, manager, child, accountId, accountLabel) }"),
             codeLinesNaming(body, ".forEach"),
         )
     }
@@ -337,16 +337,34 @@ class LiveBannerSurvivesItsSummaryWiringTest {
                 "one it replaces",
             listOf(
                 "{",
-                "ensureMailChannel(context)",
+                "ensureMailChannel(context, accountId, accountLabel)",
                 "manager.notify(",
                 "child.id,",
                 "Notification.Builder.recoverBuilder(context, child.notification)",
+                ".setChannelId(mailChannelId(accountId))",
                 ".setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY)",
                 ".build(),",
                 ")",
                 "}",
             ),
             codeLinesNaming(body, ""),
+        )
+    }
+
+    @Test fun `the re-posted banner goes back on this account's channel, never on the one it came from`() {
+        val body = bodyOf(NOTIFICATIONS, "repostSilently")
+        assertEquals(
+            "`recoverBuilder` keeps the channel the banner was first posted on, and a banner of an " +
+                "older build was posted on the shared `new_mail` channel. The reconcile deletes that " +
+                "channel as soon as nothing is shown on it, which is exactly the moment the " +
+                "summary's cascade has taken every child down: the re-post then lands on a deleted " +
+                "channel, Android drops it, and unread mail leaves the shade for good. The channel " +
+                "set here must be the one the first line of the body ensures",
+            listOf(
+                "ensureMailChannel(context, accountId, accountLabel)",
+                ".setChannelId(mailChannelId(accountId))",
+            ),
+            codeLinesNaming(body, "hannel"),
         )
     }
 

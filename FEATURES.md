@@ -133,6 +133,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Notifications beyond the Inbox, with a watch switch per folder.
 - ✅ Quick actions on a notification: reply inline, mark read, delete.
 - ✅ Notifications bundled per account, and quiet hours at night.
+- ✅ A notification channel per account, so each can have its own sound in
+  Android's settings.
 - ✅ Push reconnects on its own and catches what it missed.
 - ✅ A linked sub-account answers for its own switch rather than its login's. Its
   guaranteed delivery is the 30-minute cycle: a server does not push the changes of

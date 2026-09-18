@@ -789,6 +789,8 @@
 
     <!-- Notifications -->
     <string name="notif_channel_mail">Neue E-Mails</string>
+    <string name="notif_channel_mail_account">Neue E-Mails · %1$s</string>
+    <string name="notif_channel_send_failed">Nicht gesendete Nachrichten</string>
     <string name="notif_send_failed_title">Nachricht nicht gesendet</string>
     <string name="notif_channel_sync">E-Mail-Synchronisierung</string>
     <string name="notif_channel_sync_desc">Hält eine aktive Verbindung zu deinem Mailserver für sofortige E-Mails aufrecht.</string>

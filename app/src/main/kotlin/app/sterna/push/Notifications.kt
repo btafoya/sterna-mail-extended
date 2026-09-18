@@ -19,8 +19,11 @@ enum class MailNotificationAction { REPLY, MARK_READ, DELETE }
 
 /** Notification channels + helpers. No telemetry, no third-party push. */
 object Notifications {
-    const val CHANNEL_MAIL = "new_mail"
+    /** Shared by every account on phones upgraded from an older build; only ever deleted. */
+    const val LEGACY_CHANNEL_MAIL = "new_mail"
+    const val MAIL_CHANNEL_PREFIX = "new_mail:"
     const val CHANNEL_SERVICE = "push_service"
+    const val CHANNEL_SEND_FAILED = "send_failed"
     const val SERVICE_ID = 1
 
     private const val GROUP_PREFIX = "mail:"
@@ -100,25 +103,33 @@ object Notifications {
     private fun actionRequestCode(accountId: String, emailId: String, action: String): Int =
         "$accountId $emailId $action".hashCode()
 
-    /**
-     * The new-mail channel, and only it. Every function that posts a banner calls this first,
-     * because nothing else guarantees the channel exists: on an install whose push was never
-     * armed in direct mode [PushService] never starts, and Android drops each banner in silence.
-     */
-    fun ensureMailChannel(context: Context) {
+    /** Keyed on `StoredAccount.id`, never on the name: a rename keeps the channel and its settings. */
+    fun mailChannelId(accountId: String): String = MAIL_CHANNEL_PREFIX + accountId
+
+    /** Called first by every function posting a banner: nothing else is sure to have created it on a
+     *  fresh install, and Android drops the banner in silence. A null [accountLabel] renames nothing. */
+    fun ensureMailChannel(context: Context, accountId: String, accountLabel: String?) {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        val id = mailChannelId(accountId)
+        val name = accountLabel?.let { context.getString(R.string.notif_channel_mail_account, it) }
+            ?: manager.getNotificationChannel(id)?.name
+            ?: context.getString(R.string.notif_channel_mail)
+        manager.createNotificationChannel(NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH))
+    }
+
+    /** Called first by [notifySendFailed], for the reason [ensureMailChannel] gives. */
+    fun ensureSendFailedChannel(context: Context) {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(
-                CHANNEL_MAIL,
-                context.getString(R.string.notif_channel_mail),
+                CHANNEL_SEND_FAILED,
+                context.getString(R.string.notif_channel_send_failed),
                 NotificationManager.IMPORTANCE_HIGH,
             ),
         )
     }
 
-    /** Both channels. Called by [PushService] and nothing else: the service channel belongs to a
-     *  service that is actually running. */
+    /** Called by [PushService] and nothing else: the service channel belongs to a running service. */
     fun ensureChannels(context: Context) {
-        ensureMailChannel(context)
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(
                 CHANNEL_SERVICE,
@@ -132,7 +143,7 @@ object Notifications {
      * A one-off notification that a queued message could not be sent.
      */
     fun notifySendFailed(context: Context, subject: String, content: NotificationContent, body: String = "") {
-        ensureMailChannel(context)
+        ensureSendFailedChannel(context)
         // Keyed on the body too, or a second salvaged text replaces the first.
         val key = if (body.isBlank()) "sendfail:$subject" else "sendfail:$subject:$body"
         val target = if (body.isBlank()) {
@@ -148,7 +159,7 @@ object Notifications {
         )
         val noSubject = context.getString(R.string.message_no_subject)
         val line = MailNotificationText.sendFailureLine(content, subject, noSubject)
-        val notification = NotificationCompat.Builder(context, CHANNEL_MAIL)
+        val notification = NotificationCompat.Builder(context, CHANNEL_SEND_FAILED)
             .setSmallIcon(R.drawable.ic_stat_mail)
             .setContentTitle(context.getString(R.string.notif_send_failed_title))
             // Nothing at all when the setting hides subjects, rather than an empty line.
@@ -193,7 +204,7 @@ object Notifications {
         content: NotificationContent,
         summarised: Boolean,
     ) {
-        ensureMailChannel(context)
+        ensureMailChannel(context, accountId, accountLabel)
         val generic = context.getString(R.string.notif_new_message)
         // Kept apart from the stand-ins below: whether the mail names itself decides the action
         // buttons, and "New message" / "(no subject)" name nothing (#57).
@@ -231,7 +242,7 @@ object Notifications {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification = NotificationCompat.Builder(context, CHANNEL_MAIL)
+        val notification = NotificationCompat.Builder(context, mailChannelId(accountId))
             .setSmallIcon(R.drawable.ic_stat_mail)
             .setContentTitle(title)
             .apply {
@@ -323,7 +334,7 @@ object Notifications {
             if (teardownRepairable(expectedChildIds, shownChildIds) &&
                 active.any { it.id == summaryId && it.notification.group == group }) {
                 manager.cancel(summaryId)
-                children.forEach { child -> repostSilently(context, manager, child) }
+                children.forEach { child -> repostSilently(context, manager, child, accountId, accountLabel) }
             }
             return
         }
@@ -340,11 +351,19 @@ object Notifications {
     /**
      * Put a per-message banner back under its own id after the summary's cascade took it.
      */
-    private fun repostSilently(context: Context, manager: NotificationManager, child: StatusBarNotification) {
-        ensureMailChannel(context)
+    private fun repostSilently(
+        context: Context,
+        manager: NotificationManager,
+        child: StatusBarNotification,
+        accountId: String,
+        accountLabel: String?,
+    ) {
+        ensureMailChannel(context, accountId, accountLabel)
         manager.notify(
             child.id,
             Notification.Builder.recoverBuilder(context, child.notification)
+                // An older banner recovers `LEGACY_CHANNEL_MAIL`, which `MailChannels.reconcile` may have just deleted.
+                .setChannelId(mailChannelId(accountId))
                 .setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY)
                 .build(),
         )
@@ -426,7 +445,7 @@ object Notifications {
         lines: List<String>,
         silent: Boolean = false,
     ) {
-        ensureMailChannel(context)
+        ensureMailChannel(context, accountId, accountLabel)
         // The setting rules the summary as it rules its children (#84): named here, the account is
         // back above banners told to say nothing. A null label is an account gone mid-pass, with no
         // name left to show, and its login is not one (#193).
@@ -447,7 +466,7 @@ object Notifications {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification = NotificationCompat.Builder(context, CHANNEL_MAIL)
+        val notification = NotificationCompat.Builder(context, mailChannelId(accountId))
             .setSmallIcon(R.drawable.ic_stat_mail)
             .setContentTitle(account ?: title)
             .apply { if (account != null) setContentText(title) }

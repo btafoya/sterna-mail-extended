@@ -25,6 +25,7 @@ import app.sterna.core.jmap.model.Mailbox
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.data.settings.DeliveryMode
 import app.sterna.pgp.PgpProviders
+import app.sterna.push.MailChannels
 import app.sterna.push.NewMailNotifier
 import app.sterna.push.Notifications
 import app.sterna.push.PushController
@@ -340,6 +341,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
             // Saving a password signs in an inert BASIC import, take it off the pending list.
             store.setImportPending(id, false)
         }
+        MailChannels.sync(getApplication<Application>(), store)
         refresh()
         createIdentitiesOnServer(id, before, identities)
     }
@@ -602,6 +604,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         // The banners, which the line above does not touch. Strictly `removed`, never every
         // account, and not from inside NewMailNotifier.clear, whose callers re-seed live accounts.
         removed.forEach { Notifications.cancelAccount(app, it) }
+        MailChannels.sync(app, store)
         // The two preferences filed under an account but living outside the account blob, which
         // removeCascading does not touch: the last view shown (an IMAP folder path in cleartext)
         val removedIds = removed.toSet()
