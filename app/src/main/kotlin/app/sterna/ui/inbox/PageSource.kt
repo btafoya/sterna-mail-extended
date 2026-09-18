@@ -83,6 +83,9 @@ internal fun unreadRefreshTargets(
 internal fun refreshedInboxId(refreshedIds: List<String>, inboxId: String?): String? =
     inboxId?.takeIf { it in refreshedIds }
 
+internal fun realignedInboxId(requested: String?, storedInboxId: String?, roleInboxId: String?): String? =
+    roleInboxId.takeIf { requested != null && requested == storedInboxId && it != storedInboxId }
+
 /** Whether the list is filtered to unread, one answer, for the pager and for "Select all".
  * One function called from both: the pager forcing the filter while `selectAll` reads the raw
  *  toggle is the destructive half of #126, "Select all" then "Delete" trashes every read message. */

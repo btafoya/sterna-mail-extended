@@ -33,7 +33,7 @@ class SyncWindowIsWhatTheRefreshSendsTest {
 
     // -- the plug -----------------------------------------------------------------------------------
 
-    @Test fun `refreshFolder is these five statements, and the window is what it sends`() {
+    @Test fun `refreshFolder is these statements, and the window is what both requests send`() {
         assertEquals(
             "InboxViewModel.refreshFolder is no longer, line for line, what this test was written " +
                 "against. Read the new body before updating it: a number substituted for " +
@@ -46,9 +46,12 @@ class SyncWindowIsWhatTheRefreshSendsTest {
             val pruneBefore = window.maxAgeDays?.let {
             System.currentTimeMillis() - it.toLong() * MILLIS_PER_DAY
             }
-            val updated = repo.refresh(credentials, mailboxId, window.limit, pruneBefore)
-            if (updated.mailboxId == store.inboxMailboxId() || mailboxId == null) {
-            store.saveInboxMeta(updated.mailboxId, updated.mailboxName, updated.accountName, updated.unreadCount)
+            val storedInbox = store.account(credentials.id)?.inboxId
+            val first = repo.refresh(credentials, mailboxId, window.limit, pruneBefore)
+            val realigned = realignedInboxId(mailboxId, storedInbox, repo.cachedInboxMailboxId(credentials))
+            val updated = if (realigned == null) first else repo.refresh(credentials, realigned, window.limit, pruneBefore)
+            if (updated.mailboxId == storedInbox || realigned != null || mailboxId == null) {
+            store.saveInboxMetaFor(credentials.id, updated.mailboxId, updated.mailboxName, updated.accountName, updated.unreadCount)
             runCatching { FetchAndNotify.onInboxRefreshed(getApplication(), credentials, updated.mailboxId) }
             }
             selection.value = Sel.Folder(updated.mailboxId)

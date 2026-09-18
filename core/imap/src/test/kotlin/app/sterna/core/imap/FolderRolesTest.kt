@@ -307,6 +307,49 @@ class FolderRolesTest {
         )
     }
 
+    @Test fun aNestedInboxListedFirstDoesNotTakeTheInbox() {
+        val listed = folders(
+            "* LIST (\\HasNoChildren) \"/\" \"XYZ/INBOX\"\r\n",
+            "* LIST (\\HasNoChildren) \"/\" \"INBOX\"\r\n",
+        )
+        assertEquals(listOf(null, "inbox"), listed.map { it.role })
+        assertEquals(listOf(null, null), listed.map { it.unelectedRole })
+    }
+
+    @Test fun aNestedInboxUnderADotSeparatorDoesNotTakeTheInbox() {
+        val listed = folders(
+            "* LIST (\\HasNoChildren) \".\" \"XYZ.INBOX\"\r\n",
+            "* LIST (\\HasNoChildren) \".\" \"INBOX\"\r\n",
+        )
+        assertEquals(listOf(null, "inbox"), listed.map { it.role })
+        assertEquals(listOf(null, null), listed.map { it.unelectedRole })
+    }
+
+    @Test fun aNestedInboxListedSecondClaimsNothing() {
+        val listed = folders(
+            "* LIST (\\HasNoChildren) \"/\" \"INBOX\"\r\n",
+            "* LIST (\\HasNoChildren) \"/\" \"XYZ/INBOX\"\r\n",
+        )
+        assertEquals(listOf("inbox", null), listed.map { it.role })
+        assertEquals(listOf(null, null), listed.map { it.unelectedRole })
+    }
+
+    @Test fun aLowercaseTopLevelInboxIsTheInbox() =
+        assertEquals(
+            listOf("inbox"),
+            folders("* LIST (\\HasNoChildren) \"/\" \"inbox\"\r\n").map { it.role },
+        )
+
+    @Test fun dovecotPrefixedFoldersKeepTheirRolesBesideTheInbox() =
+        assertEquals(
+            listOf("inbox", "sent", "trash"),
+            folders(
+                "* LIST (\\HasChildren) \".\" \"INBOX\"\r\n",
+                "* LIST (\\HasNoChildren) \".\" \"INBOX.Sent\"\r\n",
+                "* LIST (\\HasNoChildren) \".\" \"INBOX.Trash\"\r\n",
+            ).map { it.role },
+        )
+
     /**
      * The Cyrillic name has to survive [stripBidiAndControls] character for character, in both
      * forms a server sends it: conforming modified UTF-7, and the raw UTF-8 an older client wrote

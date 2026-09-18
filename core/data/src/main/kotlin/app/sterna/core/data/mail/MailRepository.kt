@@ -2849,6 +2849,10 @@ class MailRepository(
     suspend fun hasCachedTrash(accountId: String): Boolean =
         mailboxDao.idForRole(accountId, "trash") != null
 
+    /** The folder the cache gives the `inbox` role for this account, without a round trip. */
+    suspend fun cachedInboxMailboxId(credentials: AccountCredentials): String? =
+        mailboxDao.idForRole(credentials.id, "inbox")
+
     /** The bin off the folder cache, so no finger waits on a socket. By name on JMAP alone: the IMAP
      *  cache leaves that name on the loser of the role claim, a folder a delete moves out of. */
     suspend fun cachedTrashMailboxId(credentials: AccountCredentials): String? {

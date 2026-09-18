@@ -1303,9 +1303,9 @@ internal data class ListedFolder(
     /**
      * The whole list, because both rules are properties of it: a role the server stated beats a role
      * guessed from a name wherever either sits, and a folder that stated a recognised attribute never
-     * falls back on the name table even when the role it stated was taken; and a role is carried once,
-     * INBOX included (RFC 3501 §5.1). A folder that lost its claim stays ordinary; what crosses to
-     * `:core:data` is the bare fact ([ImapFolder.unelectedRole]), keeping it out of search.
+     * falls back on the name table even when its role was taken. A role is carried once, and the inbox
+     * only by the top-level path INBOX (RFC 3501 §5.1): a nested `XYZ/INBOX` claims nothing. A loser
+     * stays ordinary; `:core:data` gets the bare fact ([ImapFolder.unelectedRole]), out of search.
      */
 internal fun assignRoles(listed: List<ListedFolder>): List<FolderRole> {
     val stated = listed.map { roleFromAttributes(it.attrs) }
@@ -1323,6 +1323,7 @@ internal fun assignRoles(listed: List<ListedFolder>): List<FolderRole> {
             return@forEachIndexed
         }
         val guessed = roleFromName(folder.name) ?: return@forEachIndexed
+        if (guessed == "inbox" && !folder.path.equals("INBOX", ignoreCase = true)) return@forEachIndexed
         if (taken.add(guessed)) roles[i] = guessed else unelected[i] = guessed
     }
     return List(listed.size) { FolderRole(elected = roles[it], unelected = unelected[it]) }

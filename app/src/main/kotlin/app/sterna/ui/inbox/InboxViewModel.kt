@@ -1284,10 +1284,13 @@ class InboxViewModel(
         val pruneBefore = window.maxAgeDays?.let {
             System.currentTimeMillis() - it.toLong() * MILLIS_PER_DAY
         }
-        val updated = repo.refresh(credentials, mailboxId, window.limit, pruneBefore)
-        if (updated.mailboxId == store.inboxMailboxId() || mailboxId == null) {
-            // Keep the cached inbox metadata fresh for offline display.
-            store.saveInboxMeta(updated.mailboxId, updated.mailboxName, updated.accountName, updated.unreadCount)
+        val storedInbox = store.account(credentials.id)?.inboxId
+        val first = repo.refresh(credentials, mailboxId, window.limit, pruneBefore)
+        val realigned = realignedInboxId(mailboxId, storedInbox, repo.cachedInboxMailboxId(credentials))
+        // By name, never `null`: `imapWriteThrough` bounds its eviction by the folder named (#165).
+        val updated = if (realigned == null) first else repo.refresh(credentials, realigned, window.limit, pruneBefore)
+        if (updated.mailboxId == storedInbox || realigned != null || mailboxId == null) {
+            store.saveInboxMetaFor(credentials.id, updated.mailboxId, updated.mailboxName, updated.accountName, updated.unreadCount)
             // Codeberg #50: a reply landed by this refresh must trigger unarchive-on-reply too, since
             // in the foreground this is the path new mail arrives by. No-op unless the toggle is on.
             runCatching { FetchAndNotify.onInboxRefreshed(getApplication(), credentials, updated.mailboxId) }
