@@ -1042,4 +1042,6 @@
     <string name="folders_manage_show_title">显示此文件夹</string>
     <string name="folders_manage_show_subtitle">隐藏的文件夹仍会保留其中的邮件，搜索也仍能找到它</string>
     <string name="folders_manage_watch_subtitle">在后台获取此文件夹的邮件</string>
+    <string name="shortcut_compose_short">写邮件</string>
+    <string name="shortcut_compose_long">新邮件</string>
 </resources>

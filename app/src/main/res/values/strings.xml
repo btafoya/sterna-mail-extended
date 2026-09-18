@@ -1055,4 +1055,6 @@
     <string name="folders_manage_show_title">Show this folder</string>
     <string name="folders_manage_show_subtitle">A hidden folder keeps its mail, and search still finds it</string>
     <string name="folders_manage_watch_subtitle">Fetches this folder in the background</string>
+    <string name="shortcut_compose_short">Compose</string>
+    <string name="shortcut_compose_long">New message</string>
 </resources>

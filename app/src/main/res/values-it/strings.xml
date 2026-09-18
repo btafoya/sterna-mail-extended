@@ -1006,4 +1006,6 @@
     <string name="folders_manage_show_title">Mostra questa cartella</string>
     <string name="folders_manage_show_subtitle">Una cartella nascosta conserva le sue email e resta ricercabile</string>
     <string name="folders_manage_watch_subtitle">Scarica questa cartella in secondo piano</string>
+    <string name="shortcut_compose_short">Scrivi</string>
+    <string name="shortcut_compose_long">Nuovo messaggio</string>
 </resources>

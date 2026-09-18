@@ -1010,4 +1010,6 @@
     <string name="folders_manage_show_title">Mostrar esta pasta</string>
     <string name="folders_manage_show_subtitle">Uma pasta oculta mantém as mensagens e a pesquisa encontra-as</string>
     <string name="folders_manage_watch_subtitle">Transfere esta pasta em segundo plano</string>
+    <string name="shortcut_compose_short">Escrever</string>
+    <string name="shortcut_compose_long">Nova mensagem</string>
 </resources>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- targetPackage is a literal because shortcuts.xml takes no ${applicationId} placeholder. The
+     test app installs beside production, so its twin in src/testApp/res/xml, which wins over main
+     under -PtestApp, must name app.sterna.test or its shortcut would open production.
+     targetClass is the relay `ComposeShortcutActivity`, never MainActivity. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="compose"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_compose"
+        android:shortcutShortLabel="@string/shortcut_compose_short"
+        android:shortcutLongLabel="@string/shortcut_compose_long">
+        <intent
+            android:action="android.intent.action.SENDTO"
+            android:data="mailto:"
+            android:targetPackage="app.sterna.test"
+            android:targetClass="app.sterna.ComposeShortcutActivity" />
+    </shortcut>
+</shortcuts>

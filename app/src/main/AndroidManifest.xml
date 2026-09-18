@@ -90,7 +90,20 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="*/*" />
             </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
+
+        <!-- The "New message" shortcut's target; why it has a task of its own is in
+             `ComposeShortcutActivity`. -->
+        <activity
+            android:name=".ComposeShortcutActivity"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay" />
 
         <!-- specialUse (not dataSync): Android 15+ budgets dataSync FGS and then blocks
              background restarts, which silently killed push on newer devices (#11). The

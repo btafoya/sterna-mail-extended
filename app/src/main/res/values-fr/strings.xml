@@ -1012,4 +1012,6 @@
     <string name="folders_manage_show_title">Afficher ce dossier</string>
     <string name="folders_manage_show_subtitle">Un dossier masqué garde son courrier, et la recherche le trouve</string>
     <string name="folders_manage_watch_subtitle">Récupère ce dossier en arrière-plan</string>
+    <string name="shortcut_compose_short">Écrire</string>
+    <string name="shortcut_compose_long">Nouveau message</string>
 </resources>

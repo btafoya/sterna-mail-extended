@@ -1023,4 +1023,6 @@
     <string name="folders_manage_show_title">Показывать эту папку</string>
     <string name="folders_manage_show_subtitle">Скрытая папка сохраняет письма, и поиск их находит</string>
     <string name="folders_manage_watch_subtitle">Загружает эту папку в фоновом режиме</string>
+    <string name="shortcut_compose_short">Написать</string>
+    <string name="shortcut_compose_long">Новое письмо</string>
 </resources>

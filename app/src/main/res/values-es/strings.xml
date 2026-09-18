@@ -1006,4 +1006,6 @@
     <string name="folders_manage_show_title">Mostrar esta carpeta</string>
     <string name="folders_manage_show_subtitle">Una carpeta oculta conserva su correo y la búsqueda lo encuentra</string>
     <string name="folders_manage_watch_subtitle">Descarga esta carpeta en segundo plano</string>
+    <string name="shortcut_compose_short">Redactar</string>
+    <string name="shortcut_compose_long">Nuevo mensaje</string>
 </resources>
