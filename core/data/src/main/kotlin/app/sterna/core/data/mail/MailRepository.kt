@@ -2590,6 +2590,10 @@ class MailRepository(
                 runCatching { closeFlight(accountId, emailId, rewrite = row.takeIf { evictionSent }, credit = row.takeIf { decounted }) }
                     .exceptionOrNull()?.let { if (it !== e) e.addSuppressed(it) }
             }
+            // A caller launched on `viewModelScope` has no handler, so a rethrow here would take the
+            // process down over a full disk. Refusing the flight says the same thing safely: the row
+            // stays in the list and the write goes out behind it.
+            if (e is FlightMarkersRefused) return null
             throw e
         }
         return InFlightRemoval(accountId, emailId)
@@ -2605,28 +2609,124 @@ class MailRepository(
 
     /** The one put-back of a flight: [rewrite] back into the cache, [credit]'s folder counted
      *  again, the marker erased, and the key lifted even when one of those throws. */
-    private suspend fun closeFlight(accountId: String, emailId: String, rewrite: EmailEntity?, credit: EmailEntity?) {
-        try {
-            rewrite?.let { row -> emailDao.upsertAll(listOf(row)) }
-            credit?.let { creditFolderBack(it) }
-            // After the put-back: erased before it, a kill in between loses the row again.
-            flightsOffMain { end(accountId, emailId) }
-        } finally {
-            // Lifted last: while the mark stands, no sync page can write the row back under us.
-            // Lifted whatever failed above: a key left standing hides the message from every page
-            // until the process dies.
-            inFlightRemovals.remove(flightKey(accountId, emailId))
+    private suspend fun closeFlight(accountId: String, emailId: String, rewrite: EmailEntity?, credit: EmailEntity?) =
+        closeFlightAll(accountId, listOf(emailId), listOfNotNull(rewrite), listOfNotNull(credit))
+
+    /** Put back the count nudge [beginRemoval] made. Not [nudgeCounts]: that one moves rows from
+     *  one folder to another, and these rows moved nowhere, they never left the folder they are in.
+     *  Grouped by folder: a batch put-back of forty rows is two writes per folder, not per row. */
+    private suspend fun creditFoldersBack(rows: List<EmailEntity>) {
+        rows.groupBy { it.accountId to it.mailboxId }.forEach { (where, group) ->
+            val (accountId, mailboxId) = where
+            val unread = group.count { !it.seen }
+            accountStore.adjustInboxUnread(accountId, mailboxId, unread)
+            if (!isImapAccount(accountId)) {
+                mailboxDao.adjustCounts(accountId, mailboxId, totalDelta = group.size, unreadDelta = unread)
+            }
         }
     }
 
-    /** Put back the count nudge [beginRemoval] made. Not [nudgeCounts]: that one moves rows from
-     *  one folder to another, and this row moved nowhere, it never left the folder it is in. */
-    private suspend fun creditFolderBack(row: EmailEntity) {
-        val unread = if (row.seen) 0 else 1
-        accountStore.adjustInboxUnread(row.accountId, row.mailboxId, unread)
-        if (!isImapAccount(row.accountId)) {
-            mailboxDao.adjustCounts(row.accountId, row.mailboxId, totalDelta = 1, unreadDelta = unread)
+    /** The rows one bulk action took out of the list at the tap, named by the account that owns
+     *  them: two accounts of one server share message ids (#31), so a ticket is never mixed.
+     *  [emailIds] is what was really held, which can be less than what the caller asked for. */
+    data class InFlightBatch(val accountId: String, val emailIds: List<String>)
+
+    /** [beginRemoval] for a whole selection: its lines leave at the tap, not at the server's answer.
+     *  Not a loop over [beginRemoval]: the marker store commits to disk synchronously, so a loop
+     *  would stall that tap on one commit per message. Null when nothing was cached, and then
+     *  nothing was evicted and there is no ticket to close. */
+    suspend fun beginRemovalAll(accountId: String, emailIds: Collection<String>): InFlightBatch? {
+        if (emailIds.isEmpty()) return null
+        // Before this batch's own markers exist, or they would be read back as orphans.
+        flightsOffMain { settle() }
+        val asked = emailIds.distinct()
+        val cached = byIdsChunked(asked) { chunk -> emailDao.emailsByIds(accountId, chunk) }.associateBy { it.id }
+        if (cached.isEmpty()) return null
+        // The ticket's order is the caller's, never the database's: `emailsByIds` has no ORDER BY,
+        // so a ticket built from what it hands back would come out in an order no caller asked for.
+        val ids = asked.filter { it in cached }
+        val rows = ids.map { cached.getValue(it) }
+        var evictionSent = false
+        var decounted = false
+        // Marked before the eviction, never after: in between, a sync page would write them back.
+        rows.forEach { inFlightRemovals[flightKey(accountId, it.id)] = it }
+        try {
+            // On disk before the eviction too: killed past it, the process leaves the markers as the
+            // only record that these rows are missing while the server still files the messages.
+            flightsOffMain { beginAll(rows.map { FlightMarker(accountId, it.id, it.mailboxId) }) }
+            // Set before the first call: a write cancelled on its way back may have landed, and
+            // rewriting a held row is harmless where crediting a folder never decounted is not.
+            evictionSent = true
+            ids.chunked(MAX_CHANGES).forEach { emailDao.evictFromCacheKeepingIndex(accountId, it) }
+            // Not cancellable, so that `decounted` is exact: the nudge is two writes per folder, and
+            // a cut between them would leave no way to credit back only the half that happened.
+            withContext(NonCancellable) { adjustCountsForRemoval(rows, destMailboxId = null) }
+            decounted = true
+            currentCoroutineContext().ensureActive()
+        } catch (e: Throwable) {
+            // All or nothing: a caller this call never returned to holds no ticket it could close.
+            withContext(NonCancellable) {
+                runCatching {
+                    closeFlightAll(
+                        accountId,
+                        ids,
+                        rewrite = if (evictionSent) rows else emptyList(),
+                        credit = if (decounted) rows else emptyList(),
+                    )
+                }.exceptionOrNull()?.let { if (it !== e) e.addSuppressed(it) }
+            }
+            if (e is FlightMarkersRefused) return null
+            throw e
         }
+        return InFlightBatch(accountId, ids)
+    }
+
+    /** End the batch [beginRemovalAll] opened. [restore] names the ids to put back where they were,
+     *  with no network at all; every other id of the ticket is let go. A row the server declared
+     *  gone is no longer held ([pruneServerGone]) and stays away whatever the caller asks. */
+    suspend fun endRemovalAll(batch: InFlightBatch, restore: Collection<String>) {
+        val wanted = restore.toSet()
+        val held = batch.emailIds
+            .filter { it in wanted }
+            .mapNotNull { inFlightRemovals[flightKey(batch.accountId, it)] }
+        closeFlightAll(batch.accountId, batch.emailIds, rewrite = held, credit = held)
+    }
+
+    /** The one put-back of a batch: [rewrite] back into the cache, [credit]'s folders counted again,
+     *  the markers erased in one store write, and every key of [emailIds] lifted even when one of
+     *  those throws. */
+    private suspend fun closeFlightAll(
+        accountId: String,
+        emailIds: List<String>,
+        rewrite: List<EmailEntity>,
+        credit: List<EmailEntity>,
+    ) {
+        try {
+            rewrite.chunked(MAX_CHANGES).forEach { putBack -> emailDao.upsertAll(putBack) }
+            creditFoldersBack(credit)
+            // After the put-back: erased before it, a kill in between loses the rows again.
+            flightsOffMain { endAll(accountId, emailIds) }
+        } finally {
+            // Lifted last: while a mark stands, no sync page can write that row back under us.
+            // Lifted whatever failed above: a key left standing hides the message from every page
+            // until the process dies.
+            emailIds.forEach { inFlightRemovals.remove(flightKey(accountId, it)) }
+        }
+    }
+
+    /** The rows a ticket is holding, of the ids it was asked for. The cache no longer answers for
+     *  any of them: this list is the whole of what a mover, or the opt-in mark-read, can read. */
+    private fun heldRows(accountId: String, emailIds: Collection<String>): List<EmailEntity> =
+        emailIds.mapNotNull { inFlightRemovals[flightKey(accountId, it)] }
+
+    /** Give a ticket's row back the decount [beginRemovalAll] took when the action turns out to
+     *  move it nowhere: nothing else credits a folder a message never left, and its badge would sit
+     *  short until a whole re-read. The flight ends here, so a ticket closed afterwards cannot
+     *  credit twice; the row stays out of the cache, where the calling branch has just put it. */
+    private suspend fun creditWhatNeverLeft(accountId: String, emailIds: Collection<String>) {
+        val held = heldRows(accountId, emailIds)
+        if (held.isEmpty()) return
+        closeFlightAll(accountId, held.map { it.id }, rewrite = emptyList(), credit = held)
     }
 
     /** Take the way back away from [emailIds]: they are gone server-side. Their index rows go with
@@ -2634,7 +2734,7 @@ class MailRepository(
     private suspend fun forfeitInFlight(accountId: String, emailIds: Collection<String>) {
         val held = emailIds.filter { inFlightRemovals.remove(flightKey(accountId, it)) != null }
         if (held.isNotEmpty()) deleteFromCacheAndIndex(accountId, held)
-        if (held.isNotEmpty()) flightsOffMain { held.forEach { end(accountId, it) } }
+        if (held.isNotEmpty()) flightsOffMain { endAll(accountId, held) }
     }
 
     /** The row a mover works from. [evicted] says it comes from a flight, so its source folder was
@@ -2644,6 +2744,19 @@ class MailRepository(
     private suspend fun movingRow(accountId: String, emailId: String): MovingRow =
         inFlightRemovals[flightKey(accountId, emailId)]?.let { MovingRow(it, evicted = true) }
             ?: MovingRow(emailDao.emailsByIds(accountId, listOf(emailId)).firstOrNull(), evicted = false)
+
+    /** The rows a bulk mover works from. [held] come from a batch ticket, whose source folders were
+     *  decounted at the tap; [cached] are the rest, read from the cache, which answers nothing for
+     *  an id a ticket is holding. */
+    private class MovingRows(val held: List<EmailEntity>, val cached: List<EmailEntity>) {
+        val all: List<EmailEntity> = held + cached
+    }
+
+    private suspend fun movingRows(accountId: String, emailIds: List<String>): MovingRows {
+        val held = heldRows(accountId, emailIds)
+        val rest = if (held.isEmpty()) emailIds else emailIds - held.mapTo(mutableSetOf()) { it.id }
+        return MovingRows(held, byIdsChunked(rest) { chunk -> emailDao.emailsByIds(accountId, chunk) })
+    }
 
     /** What the opt-in mark-read-on-the-way-out reads before it fires: the held row when there is
      *  one, or the cache stops answering and the option quietly stops working on a swipe. */
@@ -2823,6 +2936,15 @@ class MailRepository(
             nudgeCounts(accountId, group.map { it.mailboxId to it.seen }, destMailboxId, sourceAlreadyLeft)
         }
 
+    /** [adjustCountsForRemoval] for a bulk path reading through a ticket: [ids] is what the server
+     *  confirmed. The held rows are nudged apart, under [nudgeCounts]'s `sourceAlreadyLeft`, since
+     *  their source folder lost them at the tap and a second decount takes its badge down twice.
+     *  Partitioned rather than decided for the batch: one batch can hold both kinds. */
+    private suspend fun adjustCountsForRemoval(moving: MovingRows, ids: Set<String>, destMailboxId: String?) {
+        adjustCountsForRemoval(moving.cached.filter { it.id in ids }, destMailboxId)
+        adjustCountsForRemoval(moving.held.filter { it.id in ids }, destMailboxId, sourceAlreadyLeft = true)
+    }
+
     /** The count-nudge primitive: [sources] is (sourceMailboxId, seen) per row; an Undo reuses it in
      *  reverse. Scoped to [accountId], or a nudge from the unified inbox moves a sibling's badge.
      *  [sourceAlreadyLeft] is the swipe that evicted its row at the finger ([beginRemoval]): the
@@ -2892,8 +3014,9 @@ class MailRepository(
         val uidToId = ids.mapNotNull { id -> ImapMailService.uidOf(id)?.let { it to id } }.toMap()
         failed += ids.filter { ImapMailService.uidOf(it) == null }
         if (uidToId.isEmpty()) return
-        // Captured before the local rows are dropped, to nudge the drawer counts (INV-count).
-        val rows = byIdsChunked(uidToId.values.toList()) { chunk -> emailDao.emailsByIds(credentials.id, chunk) }
+        // The rows a batch ticket holds, plus the cache for the rest, read before the local rows are
+        // dropped, to nudge the drawer counts (INV-count).
+        val moving = movingRows(credentials.id, uidToId.values.toList())
         runCatching { imap.moveBatch(credentials, source, uidToId.keys.toList(), dest, expectedUidValidity) }
             .onSuccess { landed ->
                 uidToId.forEach { (uid, id) ->
@@ -2908,7 +3031,7 @@ class MailRepository(
                 succeeded += outcome.gone
                 failed += outcome.unproven
                 deleteFromCacheAndIndex(credentials.id, outcome.gone)
-                adjustCountsForRemoval(rows.filter { it.id in outcome.gone }, dest)
+                adjustCountsForRemoval(moving, outcome.gone.toSet(), dest)
             }
             .onFailure { failed += uidToId.values }
     }
@@ -2923,26 +3046,27 @@ class MailRepository(
         val uidToId = ids.mapNotNull { id -> ImapMailService.uidOf(id)?.let { it to id } }.toMap()
         failed += ids.filter { ImapMailService.uidOf(it) == null }
         if (uidToId.isEmpty()) return
-        val rows = byIdsChunked(uidToId.values.toList()) { chunk -> emailDao.emailsByIds(credentials.id, chunk) }
+        val moving = movingRows(credentials.id, uidToId.values.toList())
         imap.deleteBatch(credentials, source, uidToId.keys.toList(), expectedUidValidity)
         deleteFromCacheAndIndex(credentials.id, uidToId.values)
         succeeded += uidToId.values
-        adjustCountsForRemoval(rows, destMailboxId = null)
+        adjustCountsForRemoval(moving, uidToId.values.toSet(), destMailboxId = null)
     }
 
     /** JMAP: move every id to [target], then drop the local rows. Only ids the server confirmed are
      *  dropped; anything else keeps its row and lands in [BulkResult.failed]. */
     private suspend fun jmapMoveAll(ctx: JmapAccountSession, emailIds: List<String>, target: String): BulkResult {
         val localAccountId = ctx.credentials.id
-        val rows = byIdsChunked(emailIds) { chunk -> emailDao.emailsByIds(localAccountId, chunk) }
+        val moving = movingRows(localAccountId, emailIds)
         return runCatching { client.move(ctx.session, ctx.accountId, emailIds, target, ctx.auth) }
             .map { result ->
                 val moved = emailIds.filter { it in result.done }.toSet()
                 moved.forEach { recentLocalMoves.mark(localAccountId, it) }
-                val alreadyThere = idsAlreadyIn(rows, moved, target)
+                val alreadyThere = idsAlreadyIn(moving.all, moved, target)
                 evictAlreadyThere(localAccountId, target, alreadyThere)
                 deleteFromCacheAndIndex(localAccountId, moved - alreadyThere.toSet())
-                adjustCountsForRemoval(rows.filter { it.id in moved }, target)
+                adjustCountsForRemoval(moving, moved, target)
+                creditWhatNeverLeft(localAccountId, alreadyThere)
                 // Prune the notFound rows but keep them in `failed`: they must not feed a move-Undo.
                 pruneServerGone(localAccountId, emailIds.filter { result.failed[it] == SET_ERROR_NOT_FOUND })
                 BulkResult(moved, emailIds.toSet() - moved, dest = target)
@@ -2954,11 +3078,11 @@ class MailRepository(
      *  ids failed; the worker replays the list and an already-destroyed id returns `notFound`. */
     private suspend fun jmapDestroyAll(ctx: JmapAccountSession, emailIds: List<String>): BulkResult {
         val localAccountId = ctx.credentials.id
-        val rows = byIdsChunked(emailIds) { chunk -> emailDao.emailsByIds(localAccountId, chunk) }
+        val moving = movingRows(localAccountId, emailIds)
         val result = client.destroy(ctx.session, ctx.accountId, emailIds, ctx.auth)
         val destroyed = emailIds.filter { it in result.done }.toSet()
         deleteFromCacheAndIndex(localAccountId, destroyed)
-        adjustCountsForRemoval(rows.filter { it.id in destroyed }, destMailboxId = null)
+        adjustCountsForRemoval(moving, destroyed, destMailboxId = null)
         // Already destroyed: the requested end state holds, so prune the row and report success.
         val gone = emailIds.filter { result.failed[it] == SET_ERROR_NOT_FOUND }.toSet()
         pruneServerGone(localAccountId, gone.toList())
@@ -3013,7 +3137,9 @@ class MailRepository(
         if (emailIds.isEmpty()) return BulkResult.EMPTY
         unlistFromTrashPurge(credentials.id, emailIds) // leaving a folder cancels a pending purge order (#99)
         // Opt-in mark-read-on-archive: best-effort before the move (a \Seen store keeps the UID).
-        if (settings?.markReadOnArchive?.first() == true) markSelectionRead(credentials, emailIds)
+        if (settings?.markReadOnArchive?.first() == true) {
+            markSelectionRead(credentials, emailIds, heldRows(credentials.id, emailIds))
+        }
         if (credentials.protocol == MailProtocol.IMAP) {
             val dest = imapRoleFolder(credentials, "archive", "all")
                 ?: run { imap.createFolder(credentials, "Archive"); "Archive" }
@@ -3022,7 +3148,11 @@ class MailRepository(
                 when {
                     source == null -> failed += ids
                     // Already in the archive: nothing moved, and [evictAlreadyThere] decides the index row.
-                    source == dest -> { evictAlreadyThere(credentials.id, dest, ids); succeeded += ids }
+                    source == dest -> {
+                        evictAlreadyThere(credentials.id, dest, ids)
+                        creditWhatNeverLeft(credentials.id, ids)
+                        succeeded += ids
+                    }
                     else -> imapMoveGroup(credentials, source, ids, dest, succeeded, failed, expectedUidValidity[source])
                 }
             }
@@ -3079,7 +3209,7 @@ class MailRepository(
     ): BulkResult {
         if (emailIds.isEmpty()) return BulkResult.EMPTY
         unlistFromTrashPurge(credentials.id, emailIds) // bulk rescue out of the Trash (#99)
-        markReadOnMoveOutOfInbox(credentials, emailIds, targetMailboxId)
+        markReadOnMoveOutOfInbox(credentials, emailIds, targetMailboxId, heldRows(credentials.id, emailIds))
         if (credentials.protocol == MailProtocol.IMAP) {
             val succeeded = mutableSetOf<String>(); val failed = mutableSetOf<String>()
             emailIds.groupBy { ImapMailService.mailboxOf(it) }.forEach { (source, ids) ->
@@ -3087,7 +3217,9 @@ class MailRepository(
                     source == null -> failed += ids
                     // Already in the destination: nothing moved; [evictAlreadyThere] decides the index row.
                     source == targetMailboxId -> {
-                        evictAlreadyThere(credentials.id, targetMailboxId, ids); succeeded += ids
+                        evictAlreadyThere(credentials.id, targetMailboxId, ids)
+                        creditWhatNeverLeft(credentials.id, ids)
+                        succeeded += ids
                     }
                     else -> imapMoveGroup(credentials, source, ids, targetMailboxId, succeeded, failed, expectedUidValidity[source])
                 }
@@ -3107,7 +3239,9 @@ class MailRepository(
         if (emailIds.isEmpty()) return BulkResult.EMPTY
         unlistFromTrashPurge(credentials.id, emailIds) // see [archiveAll] (#99)
         // Opt-in mark-read-on-delete: best-effort before the move (a \Seen store keeps the UID).
-        if (settings?.markReadOnDelete?.first() == true) markSelectionRead(credentials, emailIds)
+        if (settings?.markReadOnDelete?.first() == true) {
+            markSelectionRead(credentials, emailIds, heldRows(credentials.id, emailIds))
+        }
         if (credentials.protocol == MailProtocol.IMAP) {
             val succeeded = mutableSetOf<String>(); val failed = mutableSetOf<String>()
             // Resolve or create, as [delete] does. Offline it throws and the batch goes down, creating nothing.
@@ -3116,7 +3250,10 @@ class MailRepository(
                 when {
                     source == null -> failed += ids
                     // Already in Trash: drop the row locally, in neither set, and un-indexed (an orphan otherwise).
-                    source == trash -> deleteFromCacheAndIndex(credentials.id, ids)
+                    source == trash -> {
+                        deleteFromCacheAndIndex(credentials.id, ids)
+                        creditWhatNeverLeft(credentials.id, ids)
+                    }
                     else -> imapMoveGroup(credentials, source, ids, trash, succeeded, failed, expectedUidValidity[source])
                 }
             }

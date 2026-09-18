@@ -51,11 +51,21 @@ class SwipeRewindWiringTest {
     @Test fun `nothing else in the view model writes the set`() {
         val writes = codeLines(INBOX_VIEW_MODEL).map { it.trim() }.filter { "_swipeRewind.value =" in it }
         assertEquals(
-            "exactly two writers: the swipe's put-back (report) and swipeRewound (forget). A " +
-                "third is another path quietly rewinding rows, and the folded-thread twin " +
-                "(threadSwipeRemove) is deliberately NOT one of them — that path is out of this " +
-                "branch's scope. Writers found:\n${writes.joinToString("\n")}",
-            2, writes.size,
+            "exactly three writers, pinned whole and in file order: swipeRewound (forget), the " +
+                "folded-thread flight's put-back, and the single swipe's. A fourth is another " +
+                "path quietly rewinding rows. The thread's is the representative's key and no " +
+                "other: that is the row the finger flew off, the children were never on screen, " +
+                "and a member's key here rewinds whatever row happens to be drawn under it. Its " +
+                "guard is pinned with it, and it reads what came BACK: a representative the " +
+                "server took is drawn nowhere, so nobody would ever call swipeRewound for it and " +
+                "its key would sit in the set for the life of the view model. " +
+                "Writers found:\n${writes.joinToString("\n")}",
+            listOf(
+                "_swipeRewind.value = _swipeRewind.value - key",
+                "if (rep.emailKey() !in landed) _swipeRewind.value = _swipeRewind.value + rep.emailKey()",
+                "_swipeRewind.value = _swipeRewind.value + email.emailKey()",
+            ),
+            writes,
         )
     }
 
@@ -119,11 +129,12 @@ class SwipeRewindWiringTest {
     @Test fun `undo sends nothing for a write that never landed`() {
         val body = functionBody(INBOX_VIEW_MODEL, "fun undo()")
         val gate = body.indexOfFirst { it.startsWith("if (!action.mayReverse) return@launch") }
-        val join = body.indexOfFirst { it.startsWith("swipeFlight?.join()") }
+        val join = body.indexOfFirst { it.startsWith("action.flight?.join()") }
         val send = body.indexOfFirst { "repo.restoreAll(" in it }
         assertTrue(
-            "undo() must wait for the swipe's own write and then refuse to reverse one that never " +
-                "landed. The bar is on screen from the moment the finger leaves, so Undo can be " +
+            "undo() must wait for the write of the very offer it took — `action.flight`, never a " +
+                "field a later gesture may have overwritten — and then refuse to reverse one that " +
+                "never landed. The bar is on screen from the moment the finger leaves, so Undo can be " +
                 "pressed while the write is still out: without the wait the two writes race, and " +
                 "without the gate a refused swipe sends a move back for a message that never " +
                 "moved — offline that fails too, and the reader gets a second error banner over a " +

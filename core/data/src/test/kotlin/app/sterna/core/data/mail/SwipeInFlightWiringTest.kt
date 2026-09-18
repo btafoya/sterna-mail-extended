@@ -96,7 +96,7 @@ class SwipeInFlightWiringTest {
         )
         assertEquals(
             "these are the writes that may reach the cache WITHOUT sparing the rows a swipe is " +
-                "holding, and each is on this list for its own reason: `listOf(row)` IS the " +
+                "holding, and each is on this list for its own reason: `putBack` IS the " +
                 "put-back; the two `fetched` writes are the Undo's own restore, which exists to " +
                 "bring a row back; `refiled` is a bulk move the app itself just made, with the " +
                 "rows it computed, not a page any server sent. Anything else here is a page read " +
@@ -104,7 +104,7 @@ class SwipeInFlightWiringTest {
                 "page names it, and writing it puts the line back on screen a second after the " +
                 "finger took it off.",
             listOf(
-                "listOf(row)",
+                "putBack",
                 "refiled",
                 "fetched",
                 "fetched.map { it.toEntity(ctx.credentials.id, source) }",

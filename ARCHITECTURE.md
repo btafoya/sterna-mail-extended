@@ -110,10 +110,21 @@ per-account sources.
   where they were, reading nothing from the network, and surfaces the error. A
   message the server no longer holds does not come back, and no page read from
   the server can put a held row back on screen.
-- **Selections and collapsed conversations are still network-first:** acting on
-  a selection, or swiping a whole thread, drops the cached rows only once the
-  server has taken the write. Optimistic count nudges are reconciled by the next
-  sync either way.
+- **A selection leaves the list at the tap:** acting on a selection takes its
+  rows off the list when the button is tapped and writes to the server behind
+  them, one batch per account, so a hundred messages are one command per source
+  folder and not one per message. A ticked row standing for a whole conversation
+  is the exception: its members are written the same way, but that row keeps
+  being drawn until the list reloads.
+- **A collapsed conversation leaves at the finger, written message by message:**
+  swiping a whole thread takes its row off the list and holds every member of
+  the conversation the same way, but the movers it uses take one id each, so its
+  writes go out in turn rather than as one batch. In both cases the repository
+  holds the rows while the writes are out and puts back only the ones the server
+  refused, reading nothing from the network. Undo is offered with the rows and
+  narrowed at the verdict to what really left, so a partly refused gesture
+  offers back only what departed; the count nudges made when the rows leave are
+  given back with a row the server refused.
 - **Destroy is held back:** a permanent destroy (delete-from-Trash, Empty trash)
   only ever runs through a persisted WorkManager job (`MessageDestroyWorker`)
   delayed past the Undo window, killing the app cannot drop a confirmed destroy,

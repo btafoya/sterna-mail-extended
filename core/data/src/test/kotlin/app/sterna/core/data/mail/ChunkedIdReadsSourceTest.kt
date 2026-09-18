@@ -73,13 +73,11 @@ class ChunkedIdReadsSourceTest {
         // search page). Each must hand it to byIdsChunked rather than to the DAO directly.
         val routed = listOf(
             "cachedEmailsByIds",
-            "jmapMoveAll",
-            "jmapDestroyAll",
+            "movingRows",
+            "beginRemovalAll",
             "markSelectionRead",
             "markReadOnMoveOutOfInbox",
             "restoreCounts",
-            "imapMoveGroup",
-            "imapDestroyGroup",
             "search",
             "fetchThreadMembers",
             // The freeze of a held-back destroy (`numberingRowsWereReadUnder`, #99) is not in
@@ -94,7 +92,10 @@ class ChunkedIdReadsSourceTest {
         assertEquals(
             "these MailRepository paths no longer chunk their id reads (a path may leave this " +
                 "list only by handing its split to a helper a JVM test EXECUTES, the way " +
-                "numberingRowsWereReadUnder did)",
+                "numberingRowsWereReadUnder did). The four bulk movers left it that way: they " +
+                "read through movingRows, which is on the list, and BulkActionCountsTheSourceOnce" +
+                "Test and BulkImapCountsWhatLeftTheFolderTest EXECUTE all four and read the " +
+                "counts they produce, which a mover reading past the ticket no longer gets right",
             emptyList<String>(), missing,
         )
     }

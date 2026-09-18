@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.update
  */
 internal data class SwipeMask(
     private val holds: Map<EmailKey, Hold> = emptyMap(),
+    private val conversations: Map<ThreadKey, Hold> = emptyMap(),
     private val generation: Any? = null,
 ) {
     /** Why a key is held. */
@@ -39,15 +40,35 @@ internal data class SwipeMask(
 
     val hiddenKeys: Set<EmailKey> get() = holds.keys
 
+    val hiddenThreads: Set<ThreadKey> get() = conversations.keys
+
     /** At the gesture, before anything suspends. */
-    fun posed(key: EmailKey): SwipeMask = SwipeMask(holds + (key to Evicting), generation)
+    fun posed(key: EmailKey): SwipeMask = SwipeMask(holds + (key to Evicting), conversations, generation)
+
+    /** A whole selection at the tap, in one state write: posed key by key, the list is handed a
+     *  generation that hides the first row and still draws the tenth. */
+    fun posed(keys: Collection<EmailKey>): SwipeMask =
+        if (keys.isEmpty()) this else SwipeMask(holds + keys.associateWith { Evicting }, conversations, generation)
+
+    /** A collapsed conversation at the finger, whole: a row that draws several messages is hidden
+     *  by this and by nothing else, see [hidesSwipedRow]. */
+    fun posedThread(key: ThreadKey): SwipeMask = SwipeMask(holds, conversations + (key to Evicting), generation)
 
     /** `beginRemoval` has returned. Nothing [evicted] means no generation is coming that could
      *  lift the key, so it goes now. A key no longer held was lifted meanwhile and stays lifted. */
     fun removalBegun(key: EmailKey, evicted: Boolean): SwipeMask = when {
         holds[key] != Evicting -> this
         !evicted -> lifted(listOf(key))
-        else -> SwipeMask(holds + (key to Evicted(generation)), generation)
+        else -> SwipeMask(holds + (key to Evicted(generation)), conversations, generation)
+    }
+
+    /** The flight that took a whole conversation is over. Nothing [evicted] means no generation is
+     *  coming that could lift the veil, so the row goes back on the list now; otherwise the veil
+     *  waits for the generation paged after the eviction, as an evicted key's mask does. */
+    fun threadSettled(key: ThreadKey, evicted: Boolean): SwipeMask = when {
+        conversations[key] != Evicting -> this
+        !evicted -> SwipeMask(holds, conversations - key, generation)
+        else -> SwipeMask(holds, conversations + (key to Evicted(generation)), generation)
     }
 
     /**
@@ -61,30 +82,53 @@ internal data class SwipeMask(
      */
     fun received(generation: Any): SwipeMask {
         val kept = holds.filterValues { it !is Evicted || it.seen === generation }
-        return if (generation === this.generation && kept.size == holds.size) this else SwipeMask(kept, generation)
+        val keptThreads = conversations.filterValues { it !is Evicted || it.seen === generation }
+        val unchanged = generation === this.generation &&
+            kept.size == holds.size && keptThreads.size == conversations.size
+        return if (unchanged) this else SwipeMask(kept, keptThreads, generation)
     }
 
     /** A row put back is lifted after `endRemoval` has restored it, not before: unmasked first, it
      *  shows from the generation still on screen, goes with the one that evicted it, and returns. */
     fun lifted(keys: Collection<EmailKey>): SwipeMask =
-        if (keys.none { it in holds }) this else SwipeMask(holds - keys.toSet(), generation)
+        if (keys.none { it in holds }) this else SwipeMask(holds - keys.toSet(), conversations, generation)
 }
 
-/** A list generation and the keys the mask hides from it. */
-internal data class MaskedGeneration<G : Any>(val generation: G, val hidden: Set<EmailKey>)
+/** A list generation, the keys the mask hides from it and the conversations it hides whole. */
+internal data class MaskedGeneration<G : Any>(
+    val generation: G,
+    val hidden: Set<EmailKey>,
+    val hiddenThreads: Set<ThreadKey>,
+)
 
 /** Each generation with what [mask] hides from it, recording in [mask] that it was received. A
  *  change of mask re-filters the generation on screen; a generation that lifts keys is handed
  *  over once, not once masked and again when the lift it wrote comes back. */
 internal fun <G : Any> maskedGenerations(generations: Flow<G>, mask: MutableStateFlow<SwipeMask>): Flow<MaskedGeneration<G>> =
-    combine(generations, mask) { generation, held -> MaskedGeneration(generation, held.received(generation).hiddenKeys) }
+    combine(generations, mask) { generation, held ->
+        val shown = held.received(generation)
+        MaskedGeneration(generation, shown.hiddenKeys, shown.hiddenThreads)
+    }
         .onEach { shown -> mask.update { it.received(shown.generation) } }
         .distinctUntilChanged()
 
-/** A conversation of several messages is never hidden: a swiped child can be its representative,
- *  and the others stay in the folder. */
-internal fun hidesSwipedRow(row: InboxRow, hidden: Set<EmailKey>): Boolean =
-    row.threadCount <= 1 && row.email.emailKey() in hidden
+/**
+ * A key hides a row only while the list draws that row as one message: a swiped member can be the
+ * representative of a conversation drawn as several, and the others stay in the folder. What hides
+ * such a row is a veil over the conversation itself ([SwipeMask.posedThread]).
+ *
+ * A gesture on a collapsed conversation poses both, and owes both: the swipe is offered on
+ * [InboxRow.threadExpandable], which counts the thread account-wide, where this branches on
+ * [InboxRow.threadCount], which counts the viewed folders' members only. A conversation whose other
+ * messages sit outside those folders is swiped whole on a row this reads as one message.
+ */
+internal fun hidesSwipedRow(row: InboxRow, hidden: Set<EmailKey>, hiddenThreads: Set<ThreadKey>): Boolean =
+    if (row.threadCount <= 1) row.email.emailKey() in hidden
+    else ConversationExpansion.threadKey(row.email.accountId, row.email.threadId, row.email.id) in hiddenThreads
 
-internal fun withoutSwipedRows(paged: PagingData<InboxRow>, hidden: Set<EmailKey>): PagingData<InboxRow> =
-    paged.filter { row -> !hidesSwipedRow(row, hidden) }
+internal fun withoutSwipedRows(
+    paged: PagingData<InboxRow>,
+    hidden: Set<EmailKey>,
+    hiddenThreads: Set<ThreadKey>,
+): PagingData<InboxRow> =
+    paged.filter { row -> !hidesSwipedRow(row, hidden, hiddenThreads) }

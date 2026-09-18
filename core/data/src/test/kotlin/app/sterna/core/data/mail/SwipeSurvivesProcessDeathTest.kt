@@ -81,15 +81,15 @@ class SwipeSurvivesProcessDeathTest {
         var afterWrite: () -> Unit = {}
         var eraseFails = false
         val readOn = mutableListOf<Thread>()
-        override fun write(marker: FlightMarker) {
-            calls += "writeMarker(${marker.emailId})"
-            disk[flightMarkerKey(marker.accountId, marker.emailId)] = marker
+        override fun write(markers: List<FlightMarker>) {
+            calls += "writeMarker(${markers.joinToString { it.emailId }})"
+            markers.forEach { disk[flightMarkerKey(it.accountId, it.emailId)] = it }
             afterWrite()
         }
-        override fun erase(accountId: String, emailId: String) {
-            calls += "eraseMarker($emailId)"
+        override fun erase(accountId: String, emailIds: List<String>) {
+            calls += "eraseMarker(${emailIds.joinToString()})"
             check(!eraseFails) { "disk full" }
-            disk.remove(flightMarkerKey(accountId, emailId))
+            emailIds.forEach { disk.remove(flightMarkerKey(accountId, it)) }
         }
         override fun all(): List<FlightMarker> {
             readOn += Thread.currentThread()
@@ -520,6 +520,29 @@ class SwipeSurvivesProcessDeathTest {
         assertEquals(listOf(FlightMarker("acc", "m1", "inbox")), markers.all())
     }
 
+    @Test fun `a full page naming the rows a batch holds writes none of them back`() {
+        syncedInbox()
+        // No cursors: the next sync is a full query, the one branch that writes whole pages back.
+        cursors.disk.clear()
+        val repository = repository()
+        runBlocking { repository.beginRemovalAll("acc", listOf("m0", "m1")) }
+
+        sync(repository)
+
+        assertEquals(listOf("session", "Mailbox/get", "Email/query"), wire)
+        assertEquals(
+            "the batch's keys live in the same map as a single swipe's, which is the only thing " +
+                "`sparingInFlight` reads: held in a map of its own, the page would put all ten " +
+                "lines back on screen a second after the finger took them off",
+            emptyList<String>(),
+            inboxIds(),
+        )
+        assertEquals(
+            listOf(FlightMarker("acc", "m0", "inbox"), FlightMarker("acc", "m1", "inbox")),
+            markers.all(),
+        )
+    }
+
     @Test fun `an orphan swiped again belongs to the new flight, and the full read leaves that marker`() {
         syncedInbox()
         cached.remove("acc/m1")
@@ -552,11 +575,42 @@ class SwipeSurvivesProcessDeathTest {
         // and that kill is the only reason the store exists.
         val lines = DaoQuerySource.mailSource("FlightMarkerPrefs").lines().map { it.trim() }
         listOf(
-            "val ok = prefs.edit().putString(flightMarkerKey(marker.accountId, marker.emailId), marker.mailboxId).commit()",
-            "val ok = prefs.edit().remove(flightMarkerKey(accountId, emailId)).commit()",
+            "markers.forEach { edit.putString(flightMarkerKey(it.accountId, it.emailId), it.mailboxId) }",
+            "emailIds.forEach { edit.remove(flightMarkerKey(accountId, it)) }",
             "private val prefs = context.getSharedPreferences(\"swipes_in_flight\", Context.MODE_PRIVATE)",
         ).forEach { assertTrue("FlightMarkerPrefs no longer carries the line:\n  $it", it in lines) }
         assertEquals(emptyList<String>(), lines.filter { "apply()" in it && !it.startsWith("//") })
+        val commits = lines.filter { "edit.commit()" in it && !it.startsWith("//") }
+        // Two, one per write function: a third would be a commit inside a loop, which is the
+        // synchronous disk write per message a bulk action must not pay.
+        assertEquals("FlightMarkerPrefs must put a whole batch down in one commit()", 2, commits.size)
+        // The write hands its verdict to the decision; the erase does not, and the asymmetry is the
+        // point: a marker still on disk is an orphan the next start settles, a marker missing from
+        // it is a row nothing brings back.
+        assertEquals(
+            "the marker write must hand its verdict to flightMarkersCommitted",
+            1,
+            commits.count { it.startsWith("flightMarkersCommitted(edit.commit()) {") },
+        )
+        assertEquals(
+            "and the erase must not: a failed erase heals itself at the next start",
+            1,
+            commits.count { it.startsWith("if (!edit.commit())") },
+        )
+    }
+
+    @Test fun `a refused marker write is raised as its own kind, and one that landed returns`() {
+        // The decision the write above hands its verdict to, executed. `commit()` returning false
+        // is a disk that refused the write: logged and returned from, the rows would be evicted
+        // with no marker behind them and one kill would take them away for good.
+        val thrown = runCatching { flightMarkersCommitted(false) { "not written: acc/m1" } }.exceptionOrNull()
+        assertEquals("swipe markers not written: acc/m1", thrown?.message)
+        // Its own kind, because `beginRemoval` answers this one refusal with no flight and lets
+        // every other throwable out: caught by message or by `Throwable`, a database failure would
+        // be swallowed with it.
+        assertTrue("a refused write must be a FlightMarkersRefused, not a bare state error", thrown is FlightMarkersRefused)
+        // The inverse witness: "always throw" would refuse every swipe there is.
+        flightMarkersCommitted(true) { "never read" }
     }
 
     @Test fun `a full query that fetched none of the ids it listed leaves the orphan for a whole read`() {

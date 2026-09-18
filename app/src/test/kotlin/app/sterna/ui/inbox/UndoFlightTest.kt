@@ -1,7 +1,14 @@
 package app.sterna.ui.inbox
 
+import app.sterna.core.data.mail.EmailKey
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -18,6 +25,53 @@ import org.junit.Test
 class UndoFlightTest {
 
     private fun entry(id: String = "m1") = UndoEntry(id, "acc", "inbox")
+
+    // -- which bar a verdict leaves standing ----------------------------------------------------
+
+    private fun landed(id: String) = UndoEntry(id, "acc", "inbox", "archive")
+
+    @Test fun `a verdict that took every row leaves the very bar the gesture posted`() = runTest {
+        val posted = UndoAction(listOf(entry("m1"), entry("m2")), "Archived", landed = false)
+
+        assertSame(
+            "nothing was refused, so the deadline already posted names exactly these rows: a " +
+                "second bar here would be a second deadline over one gesture, and the first one " +
+                "would still be running",
+            posted,
+            narrowedUndo(posted, listOf(landed("m1"), landed("m2")), "Archived"),
+        )
+    }
+
+    @Test fun `a partly refused verdict answers a new bar over what really left`() = runTest {
+        val posted = UndoAction(listOf(entry("m1"), entry("m2"), entry("m3")), "Archived", landed = false)
+
+        val standing = narrowedUndo(posted, listOf(landed("m1")), "Archived")
+
+        assertNotSame(
+            "the deadline posted at the gesture froze the banner keys of all three. Narrowed in " +
+                "place, it runs out six seconds later over rows the server refused: they are back " +
+                "in the list, back in the folder, and their notifications are taken down with " +
+                "nothing left to bring them back. A new bar is what the caller re-posts, with a " +
+                "deadline of its own.",
+            posted, standing,
+        )
+        assertEquals(
+            "and it names only what left: the keys this bar's deadline will carry",
+            listOf(EmailKey("acc", "m1")),
+            undoBannerKeys(standing!!.entries),
+        )
+        assertTrue("landed, since what it holds is what the server took", standing!!.landed)
+    }
+
+    @Test fun `a verdict that moved nothing leaves no bar at all`() = runTest {
+        val posted = UndoAction(listOf(entry("m1")), "Archived", landed = false)
+
+        assertNull(
+            "nothing departed, so there is nothing to offer back and no banner to take down: the " +
+                "caller retracts the bar it put up at the finger",
+            narrowedUndo(posted, emptyList(), "Archived"),
+        )
+    }
 
     @Test fun `a gesture that offers Undo on an ack it already has is reversible at once`() {
         val action = UndoAction(listOf(entry()), "Deleted")
@@ -92,5 +146,48 @@ class UndoFlightTest {
                 "back into the folder and its notification must stay",
             undone.bannersMayGo,
         )
+    }
+
+    // -- the write an offer reverses ------------------------------------------------------------
+
+    @Test fun `an offer holds the write that is making it, not the last one made`() = runTest {
+        val letGo = CompletableDeferred<Unit>()
+        lateinit var swipe: UndoAction
+        lateinit var batch: UndoAction
+
+        val swiping = launch {
+            swipe = undoOffer(listOf(entry("m1")), "Archived", landed = false)
+            letGo.await()
+        }
+        val batching = launch { batch = undoOffer(listOf(entry("m2")), "Deleted", landed = false) }
+        batching.join()
+
+        assertSame(
+            "undo() joins the write of the bar it took, and the bar on screen can be the swipe's " +
+                "while a later selection is the last thing to have written a field. Joined against " +
+                "that later job, the put-back leaves while the move it reverses is still on the " +
+                "wire, which is the one thing the wait exists to prevent.",
+            swiping,
+            swipe.flight,
+        )
+        assertSame(batching, batch.flight)
+        assertTrue("and the later gesture being over says nothing about the swipe's write", swiping.isActive)
+
+        letGo.complete(Unit)
+        swiping.join()
+    }
+
+    @Test fun `an offer narrowed to what really left forgets what the server refused`() {
+        val posted = UndoAction(listOf(entry("m1"), entry("m2")), "Archived 2", landed = false)
+
+        posted.landedOn(listOf(UndoEntry("m1", "acc", "inbox", "archive")))
+
+        assertEquals(
+            "m2 was refused: it never left its folder, and reversing it would move it out of the " +
+                "folder it is sitting in. The object is the one Undo holds while it waits.",
+            listOf("m1"),
+            posted.entries.map { it.emailId },
+        )
+        assertTrue("and what did leave may now be reversed", posted.mayReverse)
     }
 }

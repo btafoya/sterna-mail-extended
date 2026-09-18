@@ -98,9 +98,9 @@ class MoveCreditsOnlyWhatLeftTheSourceTest {
             codeLinesNaming(body, "deleteFromCacheAndIndex("),
         )
         assertEquals(
-            "and the drawer-count nudge must count the same ids — the filter is what keeps the " +
-                "two in step (INV-COUNT). Body was:\n$body",
-            listOf("adjustCountsForRemoval(rows.filter { it.id in outcome.gone }, dest)"),
+            "and the drawer-count nudge must count the same ids — naming `outcome.gone` on both " +
+                "lines is what keeps the two in step (INV-COUNT). Body was:\n$body",
+            listOf("adjustCountsForRemoval(moving, outcome.gone.toSet(), dest)"),
             codeLinesNaming(body, "adjustCountsForRemoval("),
         )
         assertEquals(

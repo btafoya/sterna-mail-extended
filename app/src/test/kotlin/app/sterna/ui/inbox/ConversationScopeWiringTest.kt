@@ -483,14 +483,15 @@ class ConversationScopeWiringTest {
 
         /**
          * The paths that take a member off the unfolded rows, and must therefore mask it, the
-         * swipe of one message, the held-back destroy, and the two selection-bar batches, each
-         * with the messages it must mask: the ones it is itself taking away, never fewer.
+         * swipe of one message or of a whole conversation, the held-back destroy, and the two
+         * selection-bar batches, each with the messages it masks: the ones it takes away, never fewer.
          */
         private val MASKED_PATHS: List<Pair<String, Regex>> = listOf(
             // Every message whose row it evicts.
             "heldBackDestroy" to Regex("""^emails\b[\s\S]*\bemailKey\(\)"""),
-            // The one message the swipe flew away.
+            // The one message the swipe flew away, and every member of a conversation swiped whole.
             "swipeRemove" to Regex("""^setOf\(\s*email\.emailKey\(\)\s*,?\s*\)$"""),
+            "threadSwipeRemove" to Regex("""^acting\.mapTo\(\s*mutableSetOf\(\)\s*\)\s*\{\s*it\.emailKey\(\)\s*\}$"""),
             // The whole selection the batch is about to act on.
             "bulk" to Regex("""^keys$"""),
             "bulkBatched" to Regex("""^targetKeys$"""),

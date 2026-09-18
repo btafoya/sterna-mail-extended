@@ -6,11 +6,30 @@ data class FlightMarker(val accountId: String, val emailId: String, val mailboxI
 
 /** The durable half of the rows `MailRepository.beginRemoval` holds, implemented by [FlightMarkerPrefs].
  *  A write must be on disk when it returns: the kill a marker exists for is exactly the one that
- *  loses a write still queued in memory. */
+ *  loses a write still queued in memory. Both writes take a whole batch, and the batch is what they
+ *  must put down in one go: a bulk action holds tens of rows at one tap, and a store that took them
+ *  one at a time would stall that tap on one synchronous disk write per message. */
 interface FlightMarkerStore {
-    fun write(marker: FlightMarker)
-    fun erase(accountId: String, emailId: String)
+    fun write(markers: List<FlightMarker>)
+    fun erase(accountId: String, emailIds: List<String>)
     fun all(): List<FlightMarker>
+}
+
+/** A [FlightMarkerStore] write the disk refused. It reaches `MailRepository.beginRemoval`, which
+ *  answers it with no flight at all: the gesture then writes to the server with its rows still in
+ *  the list, which is the behaviour this whole mechanism replaced, and nothing is lost. */
+class FlightMarkersRefused(message: String) : IllegalStateException(message)
+
+/** What a [FlightMarkerStore] write does when the disk refuses its `commit()`: refuse the flight,
+ *  rather than log and return as if the marker had landed. The caller evicts its rows on the
+ *  strength of the marker being down, and that marker is the only record a kill leaves that those
+ *  rows are missing while the server still files the messages. [what] describes the refused write.
+ *
+ *  An erase has no such claim on the caller, and does not come through here: a marker left on disk
+ *  is read back as an orphan at the next start, which drops the account's cursors and settles it on
+ *  a whole folder read. Too many markers heals itself; too few does not. */
+fun flightMarkersCommitted(ok: Boolean, what: () -> String) {
+    if (!ok) throw FlightMarkersRefused("swipe markers ${what()}")
 }
 
 /** Length-prefixed rather than separated: an IMAP id carries its folder path, and neither half of
@@ -55,14 +74,21 @@ internal class OrphanedFlights(
 
     /** Called before the eviction. A key that was an orphan becomes this flight's: the row is back in
      *  the cache or it could not have been swiped again, and the re-read must not erase this marker. */
-    fun begin(marker: FlightMarker) {
+    fun begin(marker: FlightMarker) = beginAll(listOf(marker))
+
+    /** [begin] for the rows one bulk action holds at once, down in a single store write. */
+    fun beginAll(markers: List<FlightMarker>) {
+        if (markers.isEmpty()) return
         val orphans = orphans
-        synchronized(orphans) { orphans.remove(flightMarkerKey(marker.accountId, marker.emailId)) }
-        store?.write(marker)
+        synchronized(orphans) { markers.forEach { orphans.remove(flightMarkerKey(it.accountId, it.emailId)) } }
+        store?.write(markers)
     }
 
-    fun end(accountId: String, emailId: String) {
-        store?.erase(accountId, emailId)
+    fun end(accountId: String, emailId: String) = endAll(accountId, listOf(emailId))
+
+    fun endAll(accountId: String, emailIds: List<String>) {
+        if (emailIds.isEmpty()) return
+        store?.erase(accountId, emailIds)
     }
 
     /** [mailboxId] of [accountId] was just read whole: every orphan evicted from it is settled, its
@@ -72,10 +98,8 @@ internal class OrphanedFlights(
         val orphans = orphans
         synchronized(orphans) {
             val settled = orphans.filterValues { it.accountId == accountId && it.mailboxId == mailboxId }
-            settled.forEach { (key, marker) ->
-                disk.erase(marker.accountId, marker.emailId)
-                orphans.remove(key)
-            }
+            disk.erase(accountId, settled.values.map { it.emailId })
+            settled.keys.forEach { orphans.remove(it) }
         }
     }
 
@@ -91,7 +115,9 @@ internal class OrphanedFlights(
         if (found.isEmpty()) return HashMap()
         val configured = configuredAccountIds()
         val (kept, signedOut) = found.partition { configured == null || it.accountId in configured }
-        signedOut.forEach { disk.erase(it.accountId, it.emailId) }
+        signedOut.groupBy { it.accountId }.forEach { (accountId, markers) ->
+            disk.erase(accountId, markers.map { it.emailId })
+        }
         kept.map { it.accountId }.distinct().forEach(dropCursors)
         return kept.associateByTo(HashMap()) { flightMarkerKey(it.accountId, it.emailId) }
     }

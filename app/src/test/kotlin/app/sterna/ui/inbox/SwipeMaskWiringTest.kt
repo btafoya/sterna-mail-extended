@@ -17,17 +17,40 @@ class SwipeMaskWiringTest {
             "every line of InboxViewModel naming swipeMask, in file order. The declaration comes " +
                 "before pagedListRows because that property's initializer reads it: declared after " +
                 "it, the field is still null there, maskedGenerations' non-null parameter check " +
-                "throws a NullPointerException, and the view model cannot be built. Four writers and no " +
-                "fifth: the pose at the gesture, the eviction's return (whose `flight != null` is " +
-                "what lifts a mask nothing will ever lift otherwise), the put-back, and Undo. " +
-                "Lines found:\n" + maskLines().joinToString("\n"),
+                "throws a NullPointerException, and the view model cannot be built. Eighteen " +
+                "writers and no nineteenth. The conversation's are five: the close of a delete " +
+                "where nothing flies at all, the pose of both halves of what its row may be drawn " +
+                "under (`SwipeMaskTest` runs why a veil alone is not enough), the lift of a " +
+                "representative's key no flight will carry, the three its flight is handed, and " +
+                "the settle that takes the veil down. Then the swipe's pose at the finger, its " +
+                "eviction's return (whose `flight != null` is what lifts a mask nothing will ever " +
+                "lift otherwise), its put-back; Undo; the batch's unmasking of what it will not " +
+                "fly and the three the bulk flight is handed (whose order `BulkFlightTest` runs); " +
+                "and the delete's three: the pose at the tap, ahead of the plan's LIST round " +
+                "trips, the destroyed rows handed to the generation that drops them, and the " +
+                "put-back of everything this gesture never acted on. Lines found:\n" +
+                maskLines().joinToString("\n"),
             listOf(
                 "private val swipeMask = MutableStateFlow(SwipeMask())",
                 "combine(maskedGenerations(pagedEmails, swipeMask), localDraftRows) { masked, local ->",
+                "swipeMask.update { it.threadSettled(threadKeyOf(rep), evicted = destroy.isNotEmpty()).removalBegun(rep.emailKey(), evicted = destroy.isNotEmpty()) }",
+                "swipeMask.update { it.posedThread(threadKeyOf(rep)).posed(rep.emailKey()) }",
+                "if (flying.none { it.emailKey() == rep.emailKey() }) swipeMask.update { it.lifted(listOf(rep.emailKey())) }",
+                "pose = { posed -> swipeMask.update { it.posed(posed) } },",
+                "begun = { key, evicted -> swipeMask.update { it.removalBegun(key, evicted = evicted) } },",
+                "lift = { back -> swipeMask.update { it.lifted(back) } },",
+                "swipeMask.update { it.threadSettled(conversation, evicted = flown.any { (_, verdict) -> verdict.succeeded.isNotEmpty() }) }",
                 "swipeMask.update { it.posed(email.emailKey()) }",
                 "swipeMask.update { it.removalBegun(email.emailKey(), evicted = flight != null) }",
                 "if (outcome?.putsRowBack ?: true) swipeMask.update { it.lifted(listOf(email.emailKey())) }",
                 "swipeMask.update { mask -> mask.lifted(action.entries.map { EmailKey(it.accountId, it.emailId) }) }",
+                "swipeMask.update { it.lifted(targetKeys - flying.mapTo(mutableSetOf()) { row -> row.email.emailKey() }) }",
+                "pose = { posed -> swipeMask.update { it.posed(posed) } },",
+                "begun = { key, evicted -> swipeMask.update { it.removalBegun(key, evicted = evicted) } },",
+                "lift = { back -> swipeMask.update { it.lifted(back) } },",
+                "swipeMask.update { it.posed(keys) }",
+                "split.kept.forEach { e -> swipeMask.update { it.removalBegun(e.emailKey(), evicted = true) } }",
+                "swipeMask.update { it.lifted(stillPosed) }",
             ),
             maskLines(),
         )
@@ -39,10 +62,13 @@ class SwipeMaskWiringTest {
         check(at >= 0) { "InboxViewModel declares no pagedListRows of that type any more" }
         assertEquals(
             "the generation handed to withoutSwipedRows must be the masked one with ITS hidden " +
-                "keys: a hidden set taken from anywhere else is not the one the generation lifted.",
+                "keys AND its veiled conversations: a hidden set taken from anywhere else is not " +
+                "the one the generation lifted, and a generation filtered on the keys alone draws " +
+                "the conversation row of a thread that left whole, every member being masked by a " +
+                "key that cannot hide it.",
             listOf(
                 "combine(maskedGenerations(pagedEmails, swipeMask), localDraftRows) { masked, local ->",
-                "withLocalDrafts(withoutSwipedRows(masked.generation, masked.hidden), local)",
+                "withLocalDrafts(withoutSwipedRows(masked.generation, masked.hidden, masked.hiddenThreads), local)",
                 "}",
             ),
             lines.subList(at + 1, minOf(at + 4, lines.size)),
@@ -51,13 +77,17 @@ class SwipeMaskWiringTest {
             "and the filter must ask the executed predicate, on every row: `paged` alone is the " +
                 "mask posed and never applied, the blank band back with every other test green.",
             listOf(
-                "internal fun withoutSwipedRows(paged: PagingData<InboxRow>, hidden: Set<EmailKey>): PagingData<InboxRow> =",
-                "paged.filter { row -> !hidesSwipedRow(row, hidden) }",
+                "internal fun withoutSwipedRows(",
+                "paged: PagingData<InboxRow>,",
+                "hidden: Set<EmailKey>,",
+                "hiddenThreads: Set<ThreadKey>,",
+                "): PagingData<InboxRow> =",
+                "paged.filter { row -> !hidesSwipedRow(row, hidden, hiddenThreads) }",
             ),
             codeLines(SWIPE_MASK).map { it.trim() }.let { mask ->
                 val start = mask.indexOfFirst { it.startsWith("internal fun withoutSwipedRows(") }
                 check(start >= 0) { "SwipeMask.kt declares no withoutSwipedRows" }
-                mask.subList(start, minOf(start + 2, mask.size))
+                mask.subList(start, minOf(start + 6, mask.size))
             },
         )
     }
@@ -69,7 +99,7 @@ class SwipeMaskWiringTest {
             "the pose must be the line right after the credentials guard and right before the " +
                 "launch: inside the coroutine it waits for a dispatch and at least one suspension, " +
                 "and the list draws the row once more. Body was:\n" + body.joinToString("\n"),
-            listOf("val credentials = credentialsFor(email) ?: return", "swipeFlight = viewModelScope.launch {"),
+            listOf("val credentials = credentialsFor(email) ?: return", "viewModelScope.launch {"),
             listOf(body.getOrNull(pose - 1), body.getOrNull(pose + 1)),
         )
     }

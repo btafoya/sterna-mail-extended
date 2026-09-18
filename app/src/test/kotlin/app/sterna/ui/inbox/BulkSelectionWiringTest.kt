@@ -141,7 +141,7 @@ class BulkSelectionWiringTest {
         )
         assertEquals(
             "bulkBatched() must count that whole account's group as failed.",
-            listOf("if (credentials == null) { failedKeys += group.map { it.email.emailKey() }; return@forEach }"),
+            listOf("if (credentials == null) { failedKeys += rows.map { it.key }; return@forEach }"),
             codeLinesNaming(body(INBOX_VIEW_MODEL, "bulkBatched"), "credentials == null"),
         )
     }
@@ -165,13 +165,111 @@ class BulkSelectionWiringTest {
         )
     }
 
+    @Test fun `the batched path takes one ticket per account, under that account's id`() {
+        val body = body(INBOX_VIEW_MODEL, "bulkBatched")
+        assertEquals(
+            "one group per account, and what may fly under it is `bulkGroupUnder`'s decision, which " +
+                "BulkFlightTest executes: the ticket is taken under the credentials' own id, and a " +
+                "row whose key names another account is left out of it. Two accounts of one server " +
+                "share message ids (#31), so that row's ticket would evict THIS account's message " +
+                "of the same id and count its folder down. Body was:\n$body",
+            listOf("val under = bulkGroupUnder(credentials, credentials.id, rows)"),
+            codeLinesNaming(body, "bulkGroupUnder("),
+        )
+        assertEquals(
+            "and no group is assembled beside that guard. Body was:\n$body",
+            listOf("under.group?.let { groups += it }"),
+            codeLinesNaming(body, "groups +="),
+        )
+        assertEquals(
+            "nor any BulkGroup built here by hand. Body was:\n$body",
+            emptyList<String>(),
+            codeLinesNaming(body, "BulkGroup("),
+        )
+    }
+
+    @Test fun `the batched path hands the flight the mask, the ticket and the batch op`() {
+        val body = body(INBOX_VIEW_MODEL, "bulkBatched")
+        val call = callArguments(body, "flyBulkGroups").singleOrNull()
+        checkNotNull(call) {
+            "bulkBatched() must hand its groups to flyBulkGroups(...) exactly once — that call is " +
+                "what takes the lines off the list at the tap. Body was:\n$body"
+        }
+        assertEquals(
+            "flyBulkGroups(...) must be handed exactly these, whole — what it then does with " +
+                "them, and in which order, BulkFlightTest executes: the mask's three writes, the " +
+                "repository's ticket on both ends, and the batch op under the runCatching that " +
+                "keeps the first throwable for the closing message. A `begin` that is not the " +
+                "repository's, or an `end` that restores anything but what the flight hands it, " +
+                "and the selection either sits on screen until the server answers or comes back " +
+                "after it left. Arguments were:\n$call",
+            listOf(
+                "groups = groups",
+                "pose = { posed -> swipeMask.update { it.posed(posed) } }",
+                "begun = { key, evicted -> swipeMask.update { it.removalBegun(key, evicted = evicted) } }",
+                "lift = { back -> swipeMask.update { it.lifted(back) } }",
+                "begin = { accountId, ids -> repo.beginRemovalAll(accountId, ids) }",
+                "write = { credentials, ids -> runCatching { batchOp(credentials, ids) }.getOrElse { " +
+                    "android.util.Log.w(\"SternaBulk\", \"batch op failed for \${credentials.id}\", it) " +
+                    "if (batchFailure == null) batchFailure = it " +
+                    "MailRepository.BulkResult(emptySet(), ids.toSet()) } }",
+                "end = { ticket, restore -> repo.endRemovalAll(ticket, restore) }",
+            ),
+            arguments(call),
+        )
+    }
+
+    @Test fun `no bar is ever built beside the write it reverses`() {
+        val source = INBOX_VIEW_MODEL.readText()
+        assertEquals(
+            "every Undo must be built by undoOffer(...), which stamps it with the coroutine making " +
+                "that very write. Built directly, a bar carries no write at all and undo() reverses " +
+                "a move that may still be on the wire; kept in a field instead, it carries whichever " +
+                "gesture wrote that field last — a swipe's bar joined against a selection's batch. " +
+                "Lines found:\n$source",
+            emptyList<String>(),
+            codeLinesNaming(source, "UndoAction("),
+        )
+    }
+
+    @Test fun `the reconciling refresh is no longer what removes the rows`() {
+        val body = body(INBOX_VIEW_MODEL, "bulkBatched").lines()
+            .map { it.replace(Regex("""\s+"""), " ").trim() }
+        val opens = body.indexOfFirst { it.startsWith("val flown = hidingThreadMembers(") }
+        val flight = closingLineOf(body, opens)
+        val putBack = body.indexOf("restoreSearchResults(failedKeys)")
+        val refresh = body.indexOf("refresh()")
+        assertEquals(
+            "refresh() may stay — the folders the batch wrote into are still owed a reconcile — " +
+                "but measured against the line the flight closes on, never the one it opens on: " +
+                "against the opening line, a put-back moved inside the block, ahead of every " +
+                "ticket, still reads as coming after the flight. " +
+                "but only after the flight has closed every ticket and the refused rows are back: " +
+                "run before that, it races the put-back, and run instead of the flight it is once " +
+                "more the only thing that takes the lines off the list, which is the report. Body " +
+                "was:\n" + body.joinToString("\n"),
+            listOf(true, true, true),
+            listOf(opens >= 0 && flight > opens, putBack > flight, refresh > putBack),
+        )
+    }
+
+    private fun closingLineOf(body: List<String>, from: Int): Int {
+        if (from < 0) return -1
+        var depth = 0
+        for (i in from until body.size) {
+            depth += body[i].count { it == '(' || it == '{' } - body[i].count { it == ')' || it == '}' }
+            if (depth == 0) return i
+        }
+        return -1
+    }
+
     // -- B. Undo: never built on a folder that is a crawl artefact ------------------------------
 
     /**
      * `restoreAll` moves a message back with `client.move(..., sourceMailboxId)`, which overwrites
      */
-    @Test fun `neither writing path builds an Undo entry of its own`() {
-        for (name in listOf("bulk", "bulkBatched")) {
+    @Test fun `no writing path builds an Undo entry of its own`() {
+        for (name in listOf("bulk", "bulkBatched", "selectionOffer")) {
             val body = body(INBOX_VIEW_MODEL, name)
             assertEquals(
                 "$name() must not construct UndoEntry itself: the trust and empty-folder guards " +
@@ -179,12 +277,24 @@ class BulkSelectionWiringTest {
                 emptyList<String>(),
                 codeLinesNaming(body, "UndoEntry("),
             )
-            assertEquals(
-                "$name() must take its Undo entries from the shared decision. Body was:\n$body",
-                listOf("val undoEntries = selectionUndoEntries(undoCandidates)"),
-                codeLinesNaming(body, "selectionUndoEntries("),
-            )
         }
+        assertEquals(
+            "bulk() (the snooze) must take its Undo entries from the shared decision.",
+            listOf("val undoEntries = selectionUndoEntries(undoCandidates)"),
+            codeLinesNaming(body(INBOX_VIEW_MODEL, "bulk"), "selectionUndoEntries("),
+        )
+        assertEquals(
+            "and the batched path asks it through selectionOffer(), which answers both for the bar " +
+                "put up at the tap and for the bar left on screen. Asked once, for the second only, " +
+                "the bar at the tap would be offered for rows whose folder cannot be believed.",
+            listOf("val entries = selectionUndoEntries(wrote)"),
+            codeLinesNaming(body(INBOX_VIEW_MODEL, "selectionOffer"), "selectionUndoEntries("),
+        )
+        assertEquals(
+            "bulkBatched() must not reach the decision any other way.",
+            emptyList<String>(),
+            codeLinesNaming(body(INBOX_VIEW_MODEL, "bulkBatched"), "selectionUndoEntries("),
+        )
     }
 
     /**
@@ -197,7 +307,7 @@ class BulkSelectionWiringTest {
             "bulk() must offer the entries unchanged, only when there are some. Body was:\n$body",
             listOf(
                 "if (undoLabel != null && undoEntries.isNotEmpty()) {",
-                "_undo.value = UndoAction(undoEntries, undoLabel)",
+                "_undo.value = undoOffer(undoEntries, undoLabel)",
             ),
             codeLinesNaming(body, "undoEntries") - listOf("val undoEntries = selectionUndoEntries(undoCandidates)"),
         )
@@ -208,15 +318,15 @@ class BulkSelectionWiringTest {
      * both halves of it are the batch's business:
      */
     @Test fun `the batched path offers its entries under a counted plural`() {
-        val body = body(INBOX_VIEW_MODEL, "bulkBatched")
+        val body = body(INBOX_VIEW_MODEL, "selectionOffer")
         assertEquals(
-            "bulkBatched() must ask selectionBanner() — with the CANDIDATES, which is where the " +
+            "selectionOffer() must ask selectionBanner() — with the rows WROTE, which is where the " +
                 "count comes from — and offer the entries unchanged under its answer. Body was:\n$body",
             listOf(
-                "selectionBanner(undoLabelRes, undoCandidates, undoEntries)?.let { banner ->",
-                "_undo.value = UndoAction(undoEntries, label)",
+                "val banner = selectionBanner(labelRes, wrote, entries) ?: return null",
+                "return undoOffer(entries, label, landed = landed)",
             ),
-            codeLinesNaming(body, "undoEntries") - listOf("val undoEntries = selectionUndoEntries(undoCandidates)"),
+            codeLinesNaming(body, "entries") - listOf("val entries = selectionUndoEntries(wrote)"),
         )
         assertEquals(
             "and the plural is resolved with that count TWICE: once to pick the CLDR category, " +
@@ -230,10 +340,44 @@ class BulkSelectionWiringTest {
             "nothing else may read off the banner, and no count of its own may be built here. " +
                 "Body was:\n$body",
             listOf(
-                "selectionBanner(undoLabelRes, undoCandidates, undoEntries)?.let { banner ->",
+                "val banner = selectionBanner(labelRes, wrote, entries) ?: return null",
                 "val label = resources.getQuantityString(banner.labelRes, banner.count, banner.count)",
             ),
             codeLinesNaming(body, "banner"),
+        )
+    }
+
+    @Test fun `the batched path offers its Undo at the tap and corrects it at the verdict`() {
+        val body = body(INBOX_VIEW_MODEL, "bulkBatched")
+        assertEquals(
+            "one offer built on the rows about to fly, `landed = false` so nothing may be reversed " +
+                "before the write is back, and one built on the rows that flew. A single offer at " +
+                "the end is the report's second half, an Undo that only appears once the server has " +
+                "answered. Body was:\n$body",
+            listOf(
+                "val posted = selectionOffer(undoLabelRes, flying.map { UndoCandidate(it, null) }, landed = false)",
+                "val landedOffer = selectionOffer(undoLabelRes, moved, landed = true)",
+            ),
+            codeLinesNaming(body, "selectionOffer("),
+        )
+        assertEquals(
+            "and the correction is identity-checked against the very bar this gesture put up: a bar " +
+                "another gesture owns now must not be taken down by this one. Nothing left, the bar " +
+                "is withdrawn whole — an Undo offered for a gesture that did not happen puts rows " +
+                "back that never moved. Body was:\n$body",
+            listOf(
+                "val landedOffer = selectionOffer(undoLabelRes, moved, landed = true)",
+                "recordLanding(posted, landedOffer?.entries.orEmpty())",
+                "if (_undo.value === posted && landedOffer != posted) {",
+                "if (landedOffer != null) {",
+                "_undo.value = landedOffer",
+            ),
+            codeLinesNaming(body, "landedOffer"),
+        )
+        assertEquals(
+            "and the withdrawal is the swipe's own, deadline included. Body was:\n$body",
+            listOf("retractUndo(posted)"),
+            codeLinesNaming(body, "retractUndo("),
         )
     }
 
@@ -245,13 +389,55 @@ class BulkSelectionWiringTest {
             codeLinesNaming(body(INBOX_VIEW_MODEL, "bulk"), "UndoCandidate"),
         )
         assertEquals(
-            "bulkBatched() records one candidate per id the batch reported as succeeded, with the " +
-                "folder the batch put it in. Body was:",
+            "bulkBatched() builds its candidates twice: the rows about to fly, with no destination " +
+                "known yet, and then the rows the flight reported as moved, each with the folder " +
+                "its own batch put it in. `movedKeys` is executed by BulkFlightTest. Body was:",
             listOf(
-                "val undoCandidates = mutableListOf<UndoCandidate>()",
-                "if (target.email.id in result.succeeded) undoCandidates += UndoCandidate(target, result.dest)",
+                "val posted = selectionOffer(undoLabelRes, flying.map { UndoCandidate(it, null) }, landed = false)",
+                "val moved = movedKeys(flown).mapNotNull { (key, dest) -> byKey[key]?.let { UndoCandidate(it, dest) } }",
             ),
             codeLinesNaming(body(INBOX_VIEW_MODEL, "bulkBatched"), "UndoCandidate"),
+        )
+    }
+
+    @Test fun `the delete takes its lines at the tap, ahead of the plan's server reads`() {
+        val body = body(INBOX_VIEW_MODEL, "deleteSelected").lines()
+            .map { it.replace(Regex("""\s+"""), " ").trim() }
+        val pose = body.indexOf("swipeMask.update { it.posed(keys) }")
+        val launch = body.indexOf("viewModelScope.launch {")
+        val plan = body.indexOfFirst { it.startsWith("val plan = planSelectionDelete(") }
+        assertEquals(
+            "the whole selection must be masked before the launch, and so before the plan: posed " +
+                "inside the coroutine it waits for a dispatch, and posed after the plan the rows " +
+                "sit drawn for a server round trip per account, which is the report itself. Body " +
+                "was:\n" + body.joinToString("\n"),
+            listOf(true, true, true),
+            listOf(pose >= 0, launch > pose, plan > launch),
+        )
+        assertEquals(
+            "and every key this gesture does not act on comes back, whatever happens: a row the " +
+                "plan left untreated, a key nothing resolved, a destroy the numbering refused. " +
+                "Nothing else would ever lift them, and a key left standing hides its message from " +
+                "every page read from the server for the life of the process. Body was:\n" +
+                body.joinToString("\n"),
+            listOf("} finally {", "swipeMask.update { it.lifted(stillPosed) }"),
+            body.indexOf("swipeMask.update { it.lifted(stillPosed) }").let { at ->
+                listOf(body.getOrElse(at - 1) { "<nothing above>" }, body.getOrElse(at) { "<no put-back>" })
+            },
+        )
+        assertEquals(
+            "and the two hand-overs are what keeps that put-back off the rows this gesture did act " +
+                "on: the destroyed ones, which the eviction's generation unmasks, and the moved " +
+                "ones, which the flight owns from its pose to its close. Dropped, the put-back " +
+                "runs the moment bulkBatched() has been launched and shows the rows it is flying. " +
+                "Body was:\n" + body.joinToString("\n"),
+            listOf(
+                "val stillPosed = keys.toMutableSet()",
+                "stillPosed -= split.kept.mapTo(mutableSetOf()) { it.emailKey() }",
+                "stillPosed -= moving",
+                "swipeMask.update { it.lifted(stillPosed) }",
+            ),
+            body.filter { "stillPosed" in it },
         )
     }
 
@@ -300,9 +486,11 @@ class BulkSelectionWiringTest {
             codeLinesNaming(body, "heldBackDestroy("),
         )
         assertEquals(
-            "the batched delete takes the plan's move leg. Body was:\n$body",
-            listOf("keys = plan.move.mapTo(mutableSetOf()) { it.emailKey() },"),
-            codeLinesNaming(body, "plan.move.mapTo"),
+            "the batched delete takes the plan's move leg, cut once: the same set is what the mask " +
+                "hands over to the flight, and a second cut is a second chance to disagree with it. " +
+                "Body was:\n$body",
+            listOf("val moving = plan.move.mapTo(mutableSetOf()) { it.emailKey() }", "keys = moving,"),
+            codeLinesNaming(body, "plan.move.mapTo") + codeLinesNaming(body, "keys = moving"),
         )
         // And the label it delegates stays CONDITIONAL. Dropping `.takeIf` leaves a mixed
         // destroy+move delete showing a counted "3 messages deleted" on top of "Deleting

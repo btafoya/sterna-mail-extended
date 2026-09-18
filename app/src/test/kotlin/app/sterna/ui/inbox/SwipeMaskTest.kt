@@ -27,10 +27,29 @@ class SwipeMaskTest {
     private val key = EmailKey("acc", "m1")
     private val other = EmailKey("acc", "m2")
 
-    private fun row(k: EmailKey, threadCount: Int = 1) =
-        InboxRow(Email(id = k.emailId, accountId = k.accountId), threadCount = threadCount, unread = false)
+    private fun row(k: EmailKey, threadCount: Int = 1, threadId: String? = null) =
+        InboxRow(
+            Email(id = k.emailId, accountId = k.accountId, threadId = threadId),
+            threadCount = threadCount,
+            unread = false,
+        )
 
-    private fun SwipeMask.hides(k: EmailKey, threadCount: Int = 1) = hidesSwipedRow(row(k, threadCount), hiddenKeys)
+    private fun SwipeMask.hides(k: EmailKey, threadCount: Int = 1) =
+        hidesSwipedRow(row(k, threadCount), hiddenKeys, hiddenThreads)
+
+    @Test fun `a whole selection is posed in one state write`() {
+        val third = EmailKey("acc2", "m1")
+        val mask = SwipeMask().posed(listOf(key, other, third))
+
+        assertEquals(
+            "a bulk action poses its keys together: posed one at a time, the list is handed a " +
+                "generation that hides the first row and still draws the tenth, and the selection " +
+                "empties one line at a time",
+            setOf(key, other, third),
+            mask.hiddenKeys,
+        )
+        assertSame("and posing nothing changes nothing, the list re-emits every unequal copy", mask, mask.posed(emptyList()))
+    }
 
     @Test fun `a posed key hides its one-message row at once`() {
         val mask = SwipeMask().posed(key)
@@ -43,7 +62,152 @@ class SwipeMaskTest {
         assertFalse("and only that row", mask.hides(other))
         assertFalse(
             "the account is part of the key: two accounts of one server share message ids (#92)",
-            hidesSwipedRow(row(EmailKey("acc2", "m1")), mask.hiddenKeys),
+            hidesSwipedRow(row(EmailKey("acc2", "m1")), mask.hiddenKeys, mask.hiddenThreads),
+        )
+    }
+
+    // -- a collapsed conversation, taken whole ----------------------------------------------------
+
+    private val conversation = ThreadKey("acc", "t1")
+
+    /** A row the list draws for a conversation of [threadCount] messages, `t1` in account `acc`. */
+    private fun conversationRow(threadCount: Int = 3) =
+        row(key, threadCount = threadCount, threadId = conversation.threadId)
+
+    @Test fun `a veiled conversation takes its row off the list at the finger`() {
+        val mask = SwipeMask().posedThread(conversation)
+
+        assertTrue(
+            "the whole conversation is leaving, so its row must go with the finger: masking its " +
+                "members' keys hides nothing at all, a row of several messages being drawn under " +
+                "a key that may not hide it",
+            hidesSwipedRow(conversationRow(), mask.hiddenKeys, mask.hiddenThreads),
+        )
+        assertFalse(
+            "and only that conversation, in that account: servers number threads per account, so " +
+                "a bare thread id takes the homonym of the account next to it off the list (#92)",
+            hidesSwipedRow(
+                row(EmailKey("acc2", "m9"), threadCount = 3, threadId = "t1"),
+                mask.hiddenKeys,
+                mask.hiddenThreads,
+            ),
+        )
+    }
+
+    @Test fun `a member swiped out of a conversation still leaves its row drawn`() {
+        val member = SwipeMask().posed(key)
+        val whole = SwipeMask().posedThread(conversation)
+
+        assertFalse(
+            "one member leaving is not the conversation leaving: the swiped message can be the " +
+                "representative, and the others stay in the folder",
+            hidesSwipedRow(conversationRow(), member.hiddenKeys, member.hiddenThreads),
+        )
+        assertTrue(
+            "the gesture that acts on the whole of it is the only one that may take the row, and " +
+                "it says so by veiling the conversation itself",
+            hidesSwipedRow(conversationRow(), whole.hiddenKeys, whole.hiddenThreads),
+        )
+    }
+
+    @Test fun `a conversation that emptied nothing is back on the list at once`() {
+        val mask = SwipeMask().received(Any()).posedThread(conversation).threadSettled(conversation, evicted = false)
+
+        assertEquals(
+            "nothing was evicted, so no generation is coming that could lift the veil: left up, " +
+                "it hides that conversation for as long as the list shows this generation",
+            emptySet<ThreadKey>(),
+            mask.hiddenThreads,
+        )
+    }
+
+    @Test fun `a conversation really emptied stays veiled until the next generation`() {
+        val g1 = Any()
+        val g2 = Any()
+        val armed = SwipeMask().received(g1).posedThread(conversation).threadSettled(conversation, evicted = true)
+
+        assertTrue(
+            "the generation on screen still lists the messages the write took: lifting on it puts " +
+                "the conversation back under the finger that threw it away",
+            hidesSwipedRow(conversationRow(), armed.hiddenKeys, armed.received(g1).hiddenThreads),
+        )
+        val caughtUp = armed.received(g2)
+        assertFalse(
+            "and the first generation paged after the eviction drops the row itself",
+            hidesSwipedRow(conversationRow(), caughtUp.hiddenKeys, caughtUp.hiddenThreads),
+        )
+        assertEquals("the veil is gone from the state, not merely unfiltered", emptySet<ThreadKey>(), caughtUp.hiddenThreads)
+    }
+
+    @Test fun `a veil settled after it was lifted is not raised again`() {
+        val mask = SwipeMask()
+            .received(Any())
+            .posedThread(conversation)
+            .threadSettled(conversation, evicted = false)
+            .threadSettled(conversation, evicted = true)
+
+        assertEquals(
+            "the flight answers once, and a settle reaching a veil nobody holds any more would " +
+                "hide a conversation no gesture is acting on",
+            emptySet<ThreadKey>(),
+            mask.hiddenThreads,
+        )
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun `the flow hands the list the veil, and forgets it on the next generation`() = runTest {
+        val g1 = Any()
+        val g2 = Any()
+        val generations = MutableStateFlow(g1)
+        val mask = MutableStateFlow(SwipeMask())
+        val seen = mutableListOf<MaskedGeneration<Any>>()
+        backgroundScope.launch { maskedGenerations(generations, mask).toList(seen) }
+        runCurrent()
+
+        mask.update { it.posedThread(conversation) }
+        runCurrent()
+        assertEquals(
+            "the veil has to reach the list through this flow: dropped here, it is state nobody " +
+                "reads, the conversation's row is drawn all through the write, and the gesture is " +
+                "back to waiting on the network with every other test green",
+            setOf(conversation),
+            seen.last().hiddenThreads,
+        )
+        assertTrue(
+            "and what the list filters with must hide that row: the hidden set alone cannot, a " +
+                "row of several messages being drawn under a key that may not hide it",
+            hidesSwipedRow(conversationRow(), seen.last().hidden, seen.last().hiddenThreads),
+        )
+
+        mask.update { it.threadSettled(conversation, evicted = true) }
+        runCurrent()
+        assertEquals(
+            "the generation on screen still lists what the write took",
+            setOf(conversation),
+            seen.last().hiddenThreads,
+        )
+
+        generations.value = g2
+        runCurrent()
+        assertEquals("the first generation paged after the eviction is handed over unveiled", emptySet<ThreadKey>(), seen.last().hiddenThreads)
+        assertEquals("and the flow wrote that lift back: a veil kept in the state is unbounded", emptySet<ThreadKey>(), mask.value.hiddenThreads)
+    }
+
+    @Test fun `a veil and a key are held apart`() {
+        val mask = SwipeMask().posed(key).posedThread(conversation)
+
+        assertEquals(setOf(key), mask.hiddenKeys)
+        assertEquals(setOf(conversation), mask.hiddenThreads)
+        assertEquals(
+            "lifting the members' keys leaves the veil standing: the two are taken down by two " +
+                "different answers, the ticket's and the flight's",
+            setOf(conversation),
+            mask.lifted(listOf(key)).hiddenThreads,
+        )
+        assertEquals(
+            "and taking the veil down leaves a member's mask alone",
+            setOf(key),
+            mask.threadSettled(conversation, evicted = false).hiddenKeys,
         )
     }
 

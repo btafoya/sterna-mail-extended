@@ -45,20 +45,26 @@ class DeleteAllResolvesOrCreatesTrashWiringTest {
             "⛔ EVERY line of deleteAll, in order. The bin is resolved the way delete() finds it " +
                 "— role then creation on IMAP, role-then-by-name then creation on JMAP — the only " +
                 "ids that fail are those whose SOURCE folder cannot be read, the already-in-Trash " +
-                "branch still drops the rows locally, and imapMoveGroup still gets the frozen " +
-                "numbering of ITS folder (#99). Body was:\n$body",
+                "branch still drops the rows locally and gives a held row back the count the tap " +
+                "took, and imapMoveGroup still gets the frozen numbering of ITS folder (#99). " +
+                "Body was:\n$body",
             listOf(
                 "{",
                 "if (emailIds.isEmpty()) return BulkResult.EMPTY",
                 "unlistFromTrashPurge(credentials.id, emailIds)",
-                "if (settings?.markReadOnDelete?.first() == true) markSelectionRead(credentials, emailIds)",
+                "if (settings?.markReadOnDelete?.first() == true) {",
+                "markSelectionRead(credentials, emailIds, heldRows(credentials.id, emailIds))",
+                "}",
                 "if (credentials.protocol == MailProtocol.IMAP) {",
                 "val succeeded = mutableSetOf<String>(); val failed = mutableSetOf<String>()",
                 """val trash = imapRoleFolder(credentials, "trash") ?: run { imap.createFolder(credentials, "Trash"); "Trash" }""",
                 "emailIds.groupBy { ImapMailService.mailboxOf(it) }.forEach { (source, ids) ->",
                 "when {",
                 "source == null -> failed += ids",
-                "source == trash -> deleteFromCacheAndIndex(credentials.id, ids)",
+                "source == trash -> {",
+                "deleteFromCacheAndIndex(credentials.id, ids)",
+                "creditWhatNeverLeft(credentials.id, ids)",
+                "}",
                 "else -> imapMoveGroup(credentials, source, ids, trash, succeeded, failed, expectedUidValidity[source])",
                 "}",
                 "}",

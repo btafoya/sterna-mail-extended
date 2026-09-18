@@ -70,40 +70,62 @@ class LocalRemovalDropsItsBannerTest {
                 "what keeps a banner from being dismissed for a departure that never happened. " +
                 "Body was:\n$body",
             listOf("_undo.value = posted", DEADLINE),
-            deadlineWithItsNeighbour(body),
+            everyDeadlineWithItsNeighbour(body),
         )
     }
 
-    @Test fun `the thread swipe posts its deadline right after the Undo it belongs to`() {
+    @Test fun `the thread swipe posts a deadline for each bar it puts up, and no other`() {
         val body = bodyAt(INBOX_VIEW_MODEL, "private fun threadSwipeRemove(")
         assertEquals(
-            "threadSwipeRemove() must post exactly one banner deadline. Body was:\n$body",
-            listOf(DEADLINE),
+            "threadSwipeRemove() puts a bar up twice for one gesture: at the finger, over the rows " +
+                "it is about to fly, and again at the verdict when the server refused part of them. " +
+                "Each owes its own deadline and there is no third. A deadline FREEZES the banner " +
+                "keys of the bar it was posted for, so the first one names rows the verdict may " +
+                "have put back: narrowing the bar in place and leaving that deadline standing " +
+                "takes down the notification of a message still in its folder, and nothing ever " +
+                "puts it back. `UndoFlightTest` runs which bar a verdict leaves standing. Body " +
+                "was:\n$body",
+            listOf(DEADLINE, DEADLINE),
             codeLinesNaming(body, "scheduleUndoneDeparture("),
         )
         assertEquals(
-            "the deadline must follow the Undo offer, which is built from the entries the server " +
-                "ACKNOWLEDGED (the .onSuccess arm feeds them). Body was:\n$body",
-            listOf(
-                "_undo.value = UndoAction(entries, getApplication<Application>().getString(labelRes))",
-                DEADLINE,
-            ),
-            deadlineWithItsNeighbour(body),
+            "and each sits on the line right after the bar it belongs to: a bar put up with no " +
+                "deadline stays on screen for good, and a deadline posted for a bar that was " +
+                "never put up takes down the banners of a departure nobody vouched for. Body " +
+                "was:\n$body",
+            listOf("_undo.value = posted", DEADLINE, "_undo.value = standing", DEADLINE),
+            everyDeadlineWithItsNeighbour(body),
+        )
+        assertEquals(
+            "and the first offer is made unlanded, over the rows the flight is about to carry: " +
+                "the conversation is off the list from the finger, so a bar that waited for the " +
+                "server would come up behind a list that has already changed, and an Undo tapped " +
+                "in that window would reverse a move that has not happened. Body was:\n$body",
+            listOf("val posted = if (entries.isEmpty()) null else undoOffer(entries, label, landed = false)"),
+            codeLinesNaming(body, "undoOffer("),
         )
     }
 
-    @Test fun `the batched selection posts its deadline right after the Undo it belongs to`() {
+    @Test fun `the batched selection posts a deadline for each bar it puts up, and no other`() {
         val body = bodyAt(INBOX_VIEW_MODEL, "private fun bulkBatched(")
         assertEquals(
-            "bulkBatched() must post exactly one banner deadline. Body was:\n$body",
-            listOf(DEADLINE),
+            "bulkBatched() puts a bar up twice for one gesture: at the tap, with the rows, and " +
+                "again at the verdict when the server refused part of them and the bar must say so. " +
+                "Each has its own deadline and there is no third. Body was:\n$body",
+            listOf(DEADLINE, DEADLINE),
             codeLinesNaming(body, "scheduleUndoneDeparture("),
         )
         assertEquals(
-            "the deadline must follow the Undo offer, i.e. the messages the SERVER wrote. " +
-                "Body was:\n$body",
-            listOf("_undo.value = UndoAction(undoEntries, label)", DEADLINE),
-            deadlineWithItsNeighbour(body),
+            "and each sits on the line right after the bar it belongs to: a bar put up with no " +
+                "deadline stays on screen for good, and a deadline posted for a bar that was never " +
+                "put up takes down the banners of a departure nobody vouched for. Body was:\n$body",
+            listOf(
+                "_undo.value = posted",
+                DEADLINE,
+                "_undo.value = landedOffer",
+                DEADLINE,
+            ),
+            everyDeadlineWithItsNeighbour(body),
         )
     }
 
@@ -214,12 +236,11 @@ class LocalRemovalDropsItsBannerTest {
     /** The deadline call, spelled once so the three sites cannot drift apart. */
     private val DEADLINE = "scheduleUndoneDeparture()"
 
-    /** [deadline]'s line and the one directly above it, whitespace-normalised, in order. */
-    private fun deadlineWithItsNeighbour(body: String): List<String> {
+    /** Every [DEADLINE] line and the one directly above it, whitespace-normalised, in order. */
+    private fun everyDeadlineWithItsNeighbour(body: String): List<String> {
         val lines = normalised(body)
-        val at = lines.indexOfFirst { it == DEADLINE }
-        if (at < 0) return listOf("<no $DEADLINE in this body>")
-        return listOf(lines.getOrElse(at - 1) { "<nothing above>" }, lines[at])
+        return lines.withIndex().filter { (_, line) -> line == DEADLINE }
+            .flatMap { (at, line) -> listOf(lines.getOrElse(at - 1) { "<nothing above>" }, line) }
     }
 
     private fun normalised(body: String): List<String> =

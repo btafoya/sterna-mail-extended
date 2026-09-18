@@ -21,7 +21,7 @@ class LocalDraftListWiringLintTest {
             listOf(
                 "val pagedListRows: Flow<PagingData<InboxRow>> =",
                 "combine(maskedGenerations(pagedEmails, swipeMask), localDraftRows) { masked, local ->",
-                "withLocalDrafts(withoutSwipedRows(masked.generation, masked.hidden), local)",
+                "withLocalDrafts(withoutSwipedRows(masked.generation, masked.hidden, masked.hiddenThreads), local)",
                 "}",
             ),
             member(INBOX_VIEW_MODEL, "pagedListRows"),

@@ -259,9 +259,6 @@ class InboxViewModel(
     /** The deadline that takes the current Undo action's banners down, cancelled by [undo]. */
     private var undoDepartureJob: Job? = null
 
-    /** The swipe write still on the wire, if any: [undo] waits for it, its bar is up first. */
-    private var swipeFlight: Job? = null
-
     /** Non-null label while an "empty trash" purge is held back and can still be undone. */
     private val _pendingPurge = MutableStateFlow<String?>(null)
     val pendingPurge: StateFlow<String?> = _pendingPurge.asStateFlow()
@@ -972,7 +969,7 @@ class InboxViewModel(
      */
     val pagedListRows: Flow<PagingData<InboxRow>> =
         combine(maskedGenerations(pagedEmails, swipeMask), localDraftRows) { masked, local ->
-            withLocalDrafts(withoutSwipedRows(masked.generation, masked.hidden), local)
+            withLocalDrafts(withoutSwipedRows(masked.generation, masked.hidden, masked.hiddenThreads), local)
         }
 
     /** The accounts' Sent folders backing the chip's "plus Sent replies" scope, live from the
@@ -1715,6 +1712,7 @@ class InboxViewModel(
      * A stale folder cache routes a move into that destroy, which erases when the window elapses.
      */
     fun deleteThread(rep: Email) {
+        poseConversation(rep)
         viewModelScope.launch {
             val members = threadMessages(rep)
             // Once per account, not once per member: the bin is a property of the account.
@@ -1735,6 +1733,9 @@ class InboxViewModel(
                 // Mixed destroy+move: only the held-back destroy offers Undo, two snackbars would
                 // queue on one host while the destroy clock runs (a pure move keeps its own).
                 threadSwipeRemove(rep, R.string.status_conversation_deleted, members = move, offerUndo = destroy.isEmpty()) { c, id -> repo.delete(c, id) }
+            } else {
+                // Nothing will fly, so no flight would ever take the gesture's pose down.
+                swipeMask.update { it.threadSettled(threadKeyOf(rep), evicted = destroy.isNotEmpty()).removalBegun(rep.emailKey(), evicted = destroy.isNotEmpty()) }
             }
         }
     }
@@ -1774,8 +1775,15 @@ class InboxViewModel(
         }
     }
 
-    /** Remove every message of a thread ([members], or its full cached membership), run [op] per
-     *  message, then offer one Undo that restores the whole batch. Mirrors [swipeRemove]. */
+    private fun poseConversation(rep: Email) {
+        swipeMask.update { it.posedThread(threadKeyOf(rep)).posed(rep.emailKey()) }
+    }
+
+    /** One Undo entry per acting message, [landedIn] being where its group landed; a message with no source folder cannot be put back. */
+    private fun threadUndoEntries(members: List<Email>, landedIn: Map<EmailKey, String?>): List<UndoEntry> =
+        members.mapNotNull { m -> m.mailboxId?.let { UndoEntry(m.id, m.accountId, it, landedIn[m.emailKey()]) } }
+
+    /** Remove a thread's messages ([members], or its full cached membership) behind one Undo: they leave the list at the finger, and only what the server refused comes back. */
     private fun threadSwipeRemove(
         rep: Email,
         labelRes: Int,
@@ -1783,28 +1791,69 @@ class InboxViewModel(
         offerUndo: Boolean = true,
         op: suspend (AccountCredentials, String) -> String?,
     ) {
+        val conversation = threadKeyOf(rep)
+        poseConversation(rep)
         viewModelScope.launch {
             val acting = members ?: threadMessages(rep)
-            dropThreadExpansion(threadKeyOf(rep))
-            val entries = mutableListOf<UndoEntry>()
-            var failed = false
-            acting.forEach { m ->
-                val credentials = credentialsFor(m) ?: return@forEach
-                val mailboxId = m.mailboxId ?: return@forEach
-                // The repo op is network-first: it drops the row and nudges counts on ack.
-                runCatching { op(credentials, m.id) }
-                    .onSuccess { dest -> entries += UndoEntry(m.id, m.accountId, mailboxId, dest) }
-                    .onFailure { failed = true }
+            dropThreadExpansion(conversation)
+            val byKey = acting.associateBy { it.emailKey() }
+            var refused = false
+            val groups = mutableListOf<BulkGroup<AccountCredentials>>()
+            acting.groupBy { credentialsFor(it) }.forEach { (credentials, group) ->
+                if (credentials == null) {
+                    refused = true
+                    return@forEach
+                }
+                val under = bulkGroupUnder(credentials, credentials.id, group.map { BulkRow(it.emailKey(), it.id) })
+                if (under.refused.isNotEmpty()) refused = true
+                under.group?.let { groups += it }
             }
-            if (offerUndo && entries.isNotEmpty()) {
-                _undo.value = UndoAction(entries, getApplication<Application>().getString(labelRes))
+            val flying = groups.flatMap { it.rows }.mapNotNull { byKey[it.key] }
+            // A key posed at the gesture that this flight will not carry: nothing else lifts it.
+            if (flying.none { it.emailKey() == rep.emailKey() }) swipeMask.update { it.lifted(listOf(rep.emailKey())) }
+            val label = getApplication<Application>().getString(labelRes)
+            val entries = if (offerUndo) threadUndoEntries(flying, emptyMap()) else emptyList()
+            val posted = if (entries.isEmpty()) null else undoOffer(entries, label, landed = false)
+            if (posted != null) {
+                _undo.value = posted
                 scheduleUndoneDeparture()
             }
-            if (failed) {
-                _message.value = getApplication<Application>().getString(R.string.status_action_failed)
-                refresh() // failed rows were never dropped locally, just reconcile the list
+            var flown = emptyList<Pair<BulkGroup<AccountCredentials>, MailRepository.BulkResult>>()
+            try {
+                flown = hidingThreadMembers(acting.mapTo(mutableSetOf()) { it.emailKey() }) {
+                    flyBulkGroups(
+                        groups = groups,
+                        pose = { posed -> swipeMask.update { it.posed(posed) } },
+                        begun = { key, evicted -> swipeMask.update { it.removalBegun(key, evicted = evicted) } },
+                        lift = { back -> swipeMask.update { it.lifted(back) } },
+                        begin = { accountId, ids -> repo.beginRemovalAll(accountId, ids) },
+                        write = { credentials, ids -> writeOneByOne(ids, refusal = { refused = true }) { id -> op(credentials, id) } },
+                        end = { ticket, restore -> repo.endRemovalAll(ticket, restore) },
+                    )
+                }
+            } finally {
+                withContext(NonCancellable) {
+                    swipeMask.update { it.threadSettled(conversation, evicted = flown.any { (_, verdict) -> verdict.succeeded.isNotEmpty() }) }
+                }
             }
-            // Re-cache the moved conversation's members under their new folder.
+            val moved = movedKeys(flown)
+            val movedEntries = threadUndoEntries(moved.mapNotNull { byKey[it.first] }, moved.toMap())
+            val standing = narrowedUndo(posted, movedEntries, label)
+            recordLanding(posted, movedEntries)
+            if (_undo.value === posted && standing !== posted) {
+                retractUndo(posted)
+                if (standing != null) {
+                    _undo.value = standing
+                    scheduleUndoneDeparture()
+                }
+            }
+            val landed = moved.mapTo(mutableSetOf()) { it.first }
+            // The list re-emits a row put back under the same key, parked off screen: only a row that came back may be told to come home.
+            if (rep.emailKey() !in landed) _swipeRewind.value = _swipeRewind.value + rep.emailKey()
+            if (refused) {
+                _message.value = getApplication<Application>().getString(R.string.status_action_failed)
+                refresh()
+            }
             completeThreadsAfterAction(acting)
         }
     }
@@ -1812,7 +1861,7 @@ class InboxViewModel(
     private fun swipeRemove(email: Email, label: String, op: suspend (AccountCredentials, String) -> String?) {
         val credentials = credentialsFor(email) ?: return
         swipeMask.update { it.posed(email.emailKey()) }
-        swipeFlight = viewModelScope.launch {
+        viewModelScope.launch {
             dropSearchResults(setOf(email.emailKey()))
             // The UI row may not carry its source folder, and the cache stops answering once evicted.
             val source = email.mailboxId ?: repo.cachedEmail(credentials.id, email.id)?.mailboxId
@@ -1821,7 +1870,7 @@ class InboxViewModel(
             val flight = repo.beginRemoval(credentials.id, email.id)
             swipeMask.update { it.removalBegun(email.emailKey(), evicted = flight != null) }
             val posted = source?.let {
-                UndoAction(listOf(UndoEntry(email.id, email.accountId, it)), label, landed = false)
+                undoOffer(listOf(UndoEntry(email.id, email.accountId, it)), label, landed = false)
             }
             if (posted != null) {
                 _undo.value = posted
@@ -1868,6 +1917,13 @@ class InboxViewModel(
         if (posted.bannersMayGo) dismissBanners(undoBannerKeys(posted.entries))
     }
 
+    /** The batched twin, [moved] being the rows that left: same duty about the banners, same reason. */
+    private fun recordLanding(posted: UndoAction?, moved: List<UndoEntry>) {
+        if (posted == null) return
+        posted.landedOn(moved)
+        if (posted.bannersMayGo) dismissBanners(undoBannerKeys(posted.entries))
+    }
+
     /** Take back an offer for a gesture that did not happen, deadline included. */
     private fun retractUndo(posted: UndoAction?) {
         if (posted == null || _undo.value !== posted) return
@@ -1886,7 +1942,7 @@ class InboxViewModel(
         swipeMask.update { mask -> mask.lifted(action.entries.map { EmailKey(it.accountId, it.emailId) }) }
         viewModelScope.launch {
             // The bar is up before the write is out: reversing a move not yet sent races it.
-            swipeFlight?.join()
+            action.flight?.join()
             // And what never landed is not reversed: the row is already back where it was.
             if (!action.mayReverse) return@launch
             // One batch per account, so a large undo does not hit per-message server limits (#29).
@@ -2261,7 +2317,7 @@ class InboxViewModel(
             refresh()
             val undoEntries = selectionUndoEntries(undoCandidates)
             if (undoLabel != null && undoEntries.isNotEmpty()) {
-                _undo.value = UndoAction(undoEntries, undoLabel)
+                _undo.value = undoOffer(undoEntries, undoLabel)
             }
             // Partial and total are not the same news.
             when (bulkOutcome(attempted = keys.size, failed = failed)) {
@@ -2272,13 +2328,27 @@ class InboxViewModel(
         }
     }
 
+    /** The Undo a batch of [wrote] rows may offer. Asked of the rows about to fly, then of those that flew. */
+    private suspend fun selectionOffer(
+        @PluralsRes labelRes: Int?,
+        wrote: List<UndoCandidate>,
+        landed: Boolean,
+    ): UndoAction? {
+        val entries = selectionUndoEntries(wrote)
+        val banner = selectionBanner(labelRes, wrote, entries) ?: return null
+        val resources = getApplication<Application>().resources
+        // Twice on purpose: the first picks the CLDR plural category, the second fills %1$d.
+        val label = resources.getQuantityString(banner.labelRes, banner.count, banner.count)
+        return undoOffer(entries, label, landed = landed)
+    }
+
     /**
      * Batched bulk action: group the selection by account, then hand each account's ids to a single
      * repo call that itself batches per source folder, one `UID MOVE <set>` or one `Email/set`
      * instead of one command per message (#29). The batches receive the whole selection
-     * ([resolveSelectionTargets]), rows drawn by a search included. [attemptedBefore] and
-     * [failedBefore] are what a delegating caller handled or lost before getting here, counted
-     * separately: 100 attempts with 1 failure is not a total failure.
+     * ([resolveSelectionTargets]), search-drawn rows included. [attemptedBefore] and [failedBefore]
+     * are what a caller handled or lost, counted separately: 100 attempts with 1 failure is not a
+     * total failure.
      */
     private fun bulkBatched(
         clearAfter: Boolean = true,
@@ -2297,48 +2367,62 @@ class InboxViewModel(
                 displayed = searchState.value.results,
             )
             val targets = resolved.targets
-            // Only the acted-on rows leave the search snapshot; the failed ones come back after.
             dropSearchResults(targets.mapTo(mutableSetOf()) { it.email.emailKey() })
             val failedKeys = mutableSetOf<EmailKey>()
-            val undoCandidates = mutableListOf<UndoCandidate>()
-            // The first throwable a batch lets escape, kept for the message at the end. Null is the
-            // ordinary case, a refusal or an unconfirmed numbering is `BulkResult.failed`.
+            val byKey = targets.associateBy { it.email.emailKey() }
+            val groups = mutableListOf<BulkGroup<AccountCredentials>>()
+            // AccountCredentials is a data class: each batch receives exactly its ids.
+            targets.groupBy { credentialsFor(it.email) }.forEach { (credentials, group) ->
+                val rows = group.map { BulkRow(it.email.emailKey(), it.email.id) }
+                if (credentials == null) { failedKeys += rows.map { it.key }; return@forEach }
+                val under = bulkGroupUnder(credentials, credentials.id, rows)
+                failedKeys += under.refused
+                under.group?.let { groups += it }
+            }
+            val flying = groups.flatMap { it.rows }.mapNotNull { byKey[it.key] }
+            // A caller that masked at the tap hid rows this batch will not fly; nothing else lifts them.
+            swipeMask.update { it.lifted(targetKeys - flying.mapTo(mutableSetOf()) { row -> row.email.emailKey() }) }
+            val posted = selectionOffer(undoLabelRes, flying.map { UndoCandidate(it, null) }, landed = false)
+            if (posted != null) {
+                _undo.value = posted
+                scheduleUndoneDeparture()
+            }
+            // The first throwable a batch lets escape, for the message sixty lines down. A refusal,
+            // and an id not dared under an unconfirmed numbering (#99), are `BulkResult.failed`.
             var batchFailure: Throwable? = null
-            hidingThreadMembers(targetKeys) {
-                // AccountCredentials is a data class: each batch receives exactly its ids.
-                targets.groupBy { credentialsFor(it.email) }.forEach { (credentials, group) ->
-                    if (credentials == null) { failedKeys += group.map { it.email.emailKey() }; return@forEach }
-                    val result = runCatching { batchOp(credentials, group.map { it.email.id }) }
-                        .getOrElse {
+            val flown = hidingThreadMembers(targetKeys) {
+                flyBulkGroups(
+                    groups = groups,
+                    pose = { posed -> swipeMask.update { it.posed(posed) } },
+                    begun = { key, evicted -> swipeMask.update { it.removalBegun(key, evicted = evicted) } },
+                    lift = { back -> swipeMask.update { it.lifted(back) } },
+                    begin = { accountId, ids -> repo.beginRemovalAll(accountId, ids) },
+                    write = { credentials, ids ->
+                        runCatching { batchOp(credentials, ids) }.getOrElse {
                             android.util.Log.w("SternaBulk", "batch op failed for ${credentials.id}", it)
                             if (batchFailure == null) batchFailure = it
-                            MailRepository.BulkResult(emptySet(), group.mapTo(mutableSetOf()) { e -> e.email.id })
+                            MailRepository.BulkResult(emptySet(), ids.toSet())
                         }
-                    failedKeys += group.filter { it.email.id in result.failed }.map { it.email.emailKey() }
-                    if (undoLabelRes != null) {
-                        group.forEach { target ->
-                            if (target.email.id in result.succeeded) undoCandidates += UndoCandidate(target, result.dest)
-                        }
-                    }
+                    },
+                    end = { ticket, restore -> repo.endRemovalAll(ticket, restore) },
+                )
+            }
+            failedKeys += refusedKeys(flown)
+            val moved = movedKeys(flown).mapNotNull { (key, dest) -> byKey[key]?.let { UndoCandidate(it, dest) } }
+            val landedOffer = selectionOffer(undoLabelRes, moved, landed = true)
+            recordLanding(posted, landedOffer?.entries.orEmpty())
+            // Identity: another gesture may own the bar now, and its write is the one it reverses.
+            if (_undo.value === posted && landedOffer != posted) {
+                retractUndo(posted)
+                if (landedOffer != null) {
+                    _undo.value = landedOffer
+                    scheduleUndoneDeparture()
                 }
             }
             restoreSearchResults(failedKeys)
             repo.resetSyncState()
             refresh()
-            // Re-cache the touched conversations' members under their new folders.
             completeThreadsAfterAction(targets.map { it.email })
-            // Whether an Undo may be offered is [selectionUndoEntries]' decision: a source folder
-            // read off a row that only exists on screen sends the message somewhere it never was.
-            val undoEntries = selectionUndoEntries(undoCandidates)
-            // What the banner says is [selectionBanner]'s decision too, and it counts the candidates:
-            // a batch that wrote ten messages of which only four can be put back still deleted ten.
-            selectionBanner(undoLabelRes, undoCandidates, undoEntries)?.let { banner ->
-                val resources = getApplication<Application>().resources
-                // Twice on purpose: the first picks the CLDR plural category, the second fills %1$d.
-                val label = resources.getQuantityString(banner.labelRes, banner.count, banner.count)
-                _undo.value = UndoAction(undoEntries, label)
-                scheduleUndoneDeparture()
-            }
             // Partial and total are not the same news, counted over the whole selection: a key
             // nothing resolved for was attempted and failed.
             val failed = failedKeys.size + resolved.unresolved.size + failedBefore
@@ -2380,69 +2464,82 @@ class InboxViewModel(
      */
     fun deleteSelected() {
         val keys = _selectedKeys.value
+        // At the tap, ahead of the plan: it asks each server which folder is its Trash, a round trip.
+        swipeMask.update { it.posed(keys) }
         viewModelScope.launch {
             // The numbering each ticked row carried when it was ticked, awaited, not sampled, and
             // first inside the launch (#99, #189): everything below suspends or clears the
             // selection. Never a re-read: a re-read IS the realigned number, agreeing with itself.
             val ticked = awaitTickedNumbering(keys)
-            // Frozen at the gesture and carried into the batch: an IMAP UID means something only
-            // inside one numbering, and a bulk delete is a MOVE that runs after resolution (#99).
-            val numbering = selectionNumbering(keys)
-            val resolved = resolveSelectionTargets(
-                keys = keys,
-                cached = repo.cachedEmailsByIds(keys),
-                displayed = searchState.value.results,
-            )
-            val plan = planSelectionDelete(
-                targets = resolved.targets,
-                hasTrash = { email -> credentialsFor(email)?.let { c -> runCatching { repo.accountHasTrash(c) }.getOrDefault(false) } ?: false },
-                wouldDestroy = { email -> credentialsFor(email)?.let { c -> runCatching { repo.deleteWouldDestroy(c, email) }.getOrDefault(false) } ?: false },
-            )
-            // The upstream half of #99, the only half that can see a row swapped under a tick.
-            // `recordedNumbering` answers what each row carries now; opposed to the stamp of the
-            // tick, a disagreement means another message wears the same UID text.
-            val destroyTargets = plan.destroy.mapNotNull { e -> credentialsFor(e)?.let { Triple(it, e.id, e.mailboxId.orEmpty()) } }
-            val now = recordedNumbering(destroyTargets)
-            val split = UidValidity.destroyableUnderTheNumberingItWasTickedUnder(
-                rows = plan.destroy,
-                tickedUnder = { ticked[it.emailKey()] },
-                readUnderNow = { email -> credentialsFor(email)?.let { now[it.id to email.id] } },
-            )
-            clearSelection()
-            val lostBefore = resolved.unresolved.size + plan.untreated.size
-            // The rows the split refused were attempted and failed: only the failures side grows.
-            val lost = lostBefore + split.drifted.size
-            if (split.kept.isNotEmpty()) {
-                heldBackDestroy(split.kept, getApplication<Application>().getString(R.string.status_message_deleted_forever))
-            }
-            if (plan.move.isNotEmpty()) {
-                // Mixed destroy+move: only the held-back destroy offers Undo (see deleteThread).
-                // The question is whether a destroy is actually pending (`split.kept`), not whether
-                // one was planned: `plan.destroy` withholds the move's Undo for an unseen snackbar.
-                bulkBatched(
-                    undoLabelRes = R.plurals.status_selection_deleted.takeIf { split.kept.isEmpty() },
-                    keys = plan.move.mapTo(mutableSetOf()) { it.emailKey() },
-                    attemptedBefore = plan.destroy.size + lostBefore,
-                    failedBefore = lost,
-                ) { c, batch -> repo.deleteAll(c, batch, numbering[c.id].orEmpty()) }
-            } else {
-                // Nothing to move: delegating an empty batch just to speak would drop the sync
-                // cursors and re-query the whole folder for an action that wrote nothing.
-                when (bulkOutcome(attempted = keys.size, failed = lost)) {
-                    BulkOutcome.NONE -> Unit
-                    BulkOutcome.TOTAL -> _message.value = getApplication<Application>().getString(R.string.status_action_failed)
-                    BulkOutcome.PARTIAL -> _message.value = getApplication<Application>().getString(R.string.status_action_partly_failed)
+            // Unmasked below unless handed on: a key left standing hides its message for ever.
+            val stillPosed = keys.toMutableSet()
+            try {
+                // Frozen at the gesture and carried into the batch: an IMAP UID means something only
+                // inside one numbering, and a bulk delete is a MOVE that runs after resolution (#99).
+                val numbering = selectionNumbering(keys)
+                val resolved = resolveSelectionTargets(
+                    keys = keys,
+                    cached = repo.cachedEmailsByIds(keys),
+                    displayed = searchState.value.results,
+                )
+                val plan = planSelectionDelete(
+                    targets = resolved.targets,
+                    hasTrash = { email -> credentialsFor(email)?.let { c -> runCatching { repo.accountHasTrash(c) }.getOrDefault(false) } ?: false },
+                    wouldDestroy = { email -> credentialsFor(email)?.let { c -> runCatching { repo.deleteWouldDestroy(c, email) }.getOrDefault(false) } ?: false },
+                )
+                // The upstream half of #99, the only half that can see a row swapped under a tick.
+                // `recordedNumbering` answers what each row carries now; opposed to the stamp of the
+                // tick, a disagreement means another message wears the same UID text.
+                val destroyTargets = plan.destroy.mapNotNull { e -> credentialsFor(e)?.let { Triple(it, e.id, e.mailboxId.orEmpty()) } }
+                val now = recordedNumbering(destroyTargets)
+                val split = UidValidity.destroyableUnderTheNumberingItWasTickedUnder(
+                    rows = plan.destroy,
+                    tickedUnder = { ticked[it.emailKey()] },
+                    readUnderNow = { email -> credentialsFor(email)?.let { now[it.id to email.id] } },
+                )
+                clearSelection()
+                val lostBefore = resolved.unresolved.size + plan.untreated.size
+                // The rows the split refused were attempted and failed: only the failures side grows.
+                val lost = lostBefore + split.drifted.size
+                if (split.kept.isNotEmpty()) {
+                    heldBackDestroy(split.kept, getApplication<Application>().getString(R.string.status_message_deleted_forever))
+                    // Evicted: that generation carries the lift, and undoDelete's restore is one too.
+                    split.kept.forEach { e -> swipeMask.update { it.removalBegun(e.emailKey(), evicted = true) } }
+                    stillPosed -= split.kept.mapTo(mutableSetOf()) { it.emailKey() }
                 }
-            }
-            // Last, after the branch above: `bulkBatched` calls clearSelection() synchronously, so
-            // a re-selection written earlier would be wiped. What was refused goes back, still ticked.
-            if (split.drifted.isNotEmpty()) {
-                // The stamps go back first, and they are the stamps of the tick. The collector
-                // only reads keys it does not know, so keys handed back bare are read as they are
-                // now and the second tap destroys what this refusal saved. Nothing suspends here.
-                tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }
-                _selectionActive.value = true
-                _selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }
+                if (plan.move.isNotEmpty()) {
+                    val moving = plan.move.mapTo(mutableSetOf()) { it.emailKey() }
+                    stillPosed -= moving
+                    // Mixed destroy+move: only the held-back destroy offers Undo (see deleteThread).
+                    // The question is whether a destroy is actually pending (`split.kept`), not whether
+                    // one was planned: `plan.destroy` withholds the move's Undo for an unseen snackbar.
+                    bulkBatched(
+                        undoLabelRes = R.plurals.status_selection_deleted.takeIf { split.kept.isEmpty() },
+                        keys = moving,
+                        attemptedBefore = plan.destroy.size + lostBefore,
+                        failedBefore = lost,
+                    ) { c, batch -> repo.deleteAll(c, batch, numbering[c.id].orEmpty()) }
+                } else {
+                    // Nothing to move: delegating an empty batch just to speak would drop the sync
+                    // cursors and re-query the whole folder for an action that wrote nothing.
+                    when (bulkOutcome(attempted = keys.size, failed = lost)) {
+                        BulkOutcome.NONE -> Unit
+                        BulkOutcome.TOTAL -> _message.value = getApplication<Application>().getString(R.string.status_action_failed)
+                        BulkOutcome.PARTIAL -> _message.value = getApplication<Application>().getString(R.string.status_action_partly_failed)
+                    }
+                }
+                // Last, after the branch above: `bulkBatched` calls clearSelection() synchronously, so
+                // a re-selection written earlier would be wiped. What was refused goes back, still ticked.
+                if (split.drifted.isNotEmpty()) {
+                    // The stamps go back first, and they are the stamps of the tick. The collector
+                    // only reads keys it does not know, so keys handed back bare are read as they are
+                    // now and the second tap destroys what this refusal saved. Nothing suspends here.
+                    tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }
+                    _selectionActive.value = true
+                    _selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }
+                }
+            } finally {
+                swipeMask.update { it.lifted(stillPosed) }
             }
         }
     }
