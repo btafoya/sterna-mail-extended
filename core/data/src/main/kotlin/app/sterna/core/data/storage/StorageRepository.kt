@@ -7,6 +7,7 @@ import app.sterna.core.data.db.EmailFtsDao
 import app.sterna.core.data.db.LocalDraftDao
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.MailboxUidValidityDao
+import app.sterna.core.data.db.PendingExpungeDao
 import app.sterna.core.data.db.PurgeSnapshotDao
 import app.sterna.core.data.db.SnoozedDao
 import app.sterna.core.data.mail.localDraftDirName
@@ -42,6 +43,7 @@ class StorageRepository(
     private val snoozedDao: SnoozedDao,
     private val purgeSnapshotDao: PurgeSnapshotDao,
     private val mailboxUidValidityDao: MailboxUidValidityDao,
+    private val pendingExpungeDao: PendingExpungeDao,
     /** Drafts written on the phone and not yet on the server (#95), user data, not cache. */
     private val localDraftDao: LocalDraftDao,
     /** Where those drafts' attachment bytes are staged; the same tree `MailRepository` writes to. */
@@ -104,6 +106,7 @@ class StorageRepository(
         // A pending Empty-trash destroy list belongs to the account that is going away (#99).
         runCatching { purgeSnapshotDao.deleteForAccount(accountId) }
         runCatching { mailboxUidValidityDao.deleteForAccount(accountId) }
+        runCatching { pendingExpungeDao.deleteForAccount(accountId) }
         // Every row of the account, editing and STAGING ones included, an upload queue read would
         // walk past exactly the draft whose composer was open when the user signed out.
         runCatching {

@@ -460,6 +460,6 @@ class LocalDraftsMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("the schema now declares v28 (`scheduled_sends.failedAttempts`)", 28, SCHEMA_VERSION)
+        assertEquals("the schema now declares v29 (`pending_expunge`)", 29, SCHEMA_VERSION)
     }
 }

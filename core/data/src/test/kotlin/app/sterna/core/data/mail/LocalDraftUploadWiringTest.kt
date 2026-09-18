@@ -388,6 +388,7 @@ class LocalDraftUploadWiringTest {
                 "runCatching { snoozedDao.deleteForAccount(accountId) }",
                 "runCatching { purgeSnapshotDao.deleteForAccount(accountId) }",
                 "runCatching { mailboxUidValidityDao.deleteForAccount(accountId) }",
+                "runCatching { pendingExpungeDao.deleteForAccount(accountId) }",
                 "runCatching {",
                 "purgeLocalDraftsOfAccount(",
                 "ids = { localDraftDao.observeForAccount(accountId).first().map { it.id } },",

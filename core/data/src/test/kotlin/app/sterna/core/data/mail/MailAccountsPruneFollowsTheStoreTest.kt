@@ -150,6 +150,7 @@ class MailAccountsPruneFollowsTheStoreTest {
         val mailboxes = mutableListOf<String>()
         val snoozed = mutableListOf<String>()
         val hook = mutableListOf<String>()
+        val pendingExpunges = InMemoryPendingExpunges()
     }
 
     private val purged = Purged()
@@ -157,7 +158,10 @@ class MailAccountsPruneFollowsTheStoreTest {
     private fun accounts(host: MailAccountHost = RecordingHost()) = MailAccounts(
         client = JmapClient(),
         discoveryClient = jmapDiscoveryClient(),
-        imap = ImapMailService(ImapClient(), SmtpClient(), OAuthTokenRefresher(OAuthClient(), store)),
+        imap = ImapMailService(
+            ImapClient(), SmtpClient(), OAuthTokenRefresher(OAuthClient(), store),
+            pendingExpunges = purged.pendingExpunges,
+        ),
         emailDao = daoRecording<EmailDao>("deleteForAccount", purged.emails),
         emailFtsDao = daoRecording<EmailFtsDao>("clearAccount", purged.index),
         emailBodyDao = daoRecording<EmailBodyDao>("deleteForAccount", purged.bodies),
@@ -243,6 +247,7 @@ class MailAccountsPruneFollowsTheStoreTest {
         assertEquals(listOf("acc2"), purged.bodies)
         assertEquals(listOf("acc2"), purged.mailboxes)
         assertEquals(listOf("acc2"), purged.snoozed)
+        assertEquals(listOf("acc2"), purged.pendingExpunges.forgottenAccounts)
     }
 
     /** Same session, a store that prunes nothing: no table is touched and the hook stays silent. */
@@ -257,6 +262,7 @@ class MailAccountsPruneFollowsTheStoreTest {
         assertEquals(emptyList<String>(), purged.bodies)
         assertEquals(emptyList<String>(), purged.mailboxes)
         assertEquals(emptyList<String>(), purged.snoozed)
+        assertEquals(emptyList<String>(), purged.pendingExpunges.forgottenAccounts)
     }
 
     /** A login with one mail account and no sub-account stored costs neither the store nor the server. */

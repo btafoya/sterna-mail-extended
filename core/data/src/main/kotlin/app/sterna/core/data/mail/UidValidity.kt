@@ -178,14 +178,15 @@ interface UidValidityStore {
     }
 }
 
-/** The one place that says what a renumbering invalidates: the folder's cached bodies and its
- *  pending destroy lists. Surviving rows heal only in columns the walk overwrites unconditionally;
+/** The one place that says what a renumbering invalidates: the folder's cached bodies, its
+ *  pending destroy lists and the UIDs it holds flagged for a later purge. Surviving rows heal only in columns the walk overwrites unconditionally;
  *  `preview` is written back from the cache, so its read is bounded by [UidValidity.stated], and any
  *  future column filled that way owes the same bound (#187). */
 class MailboxUidValidityStore(
     private val dao: MailboxUidValidityDao,
     private val bodies: EmailBodyDao,
     private val purgeSnapshots: PurgeSnapshotDao,
+    private val pendingExpunges: PendingExpungeStore,
 ) : UidValidityStore {
 
     override var onRenumbered: ((String, String) -> Unit)? = null
@@ -201,6 +202,7 @@ class MailboxUidValidityStore(
     override suspend fun invalidate(accountId: String, mailboxId: String, uidValidity: Long) {
         bodies.deleteForIdPrefix(accountId, UidValidity.bodyCacheIdPrefix(accountId, mailboxId))
         purgeSnapshots.deleteForMailbox(accountId, mailboxId)
+        pendingExpunges.forgetMailbox(accountId, mailboxId)
         record(accountId, mailboxId, uidValidity)
         // Last and best effort: the app-layer hook must never cost the invalidation.
         onRenumbered?.let { hook -> runCatching { hook(accountId, mailboxId) } }

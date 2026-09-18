@@ -670,4 +670,45 @@ class ExpungeTest {
             assertEquals("a bare EXPUNGE went out: $issued", 0, issued.bareExpunges())
         }
     }
+
+    @Test
+    fun `flags an earlier purge of ours left behind do not block the next one`() {
+        scriptedServer(uidPlus = false, flaggedByOthers = listOf(500L, 501L)).use { server ->
+            val purge = server.session().use { session ->
+                session.select("Trash")
+                session.delete(listOf(1L, 2L), flaggedEarlier = setOf(500L, 501L))
+            }
+
+            assertEquals("not exactly one EXPUNGE: ${server.issued()}", 1, server.issued().bareExpunges())
+            assertEquals(emptyList<Long>(), server.stillFlagged())
+            assertEquals(ImapPurge(expunged = true, leftFlagged = emptySet()), purge)
+        }
+    }
+
+    @Test
+    fun `a move falling back to copy counts the flags an earlier purge of ours left behind`() {
+        scriptedServer(uidPlus = false, flaggedByOthers = listOf(500L)).use { server ->
+            val moved = server.session().use { session ->
+                session.select("INBOX")
+                session.move(listOf(1L, 2L), "Archive", flaggedEarlier = setOf(500L))
+            }
+
+            assertEquals("not exactly one EXPUNGE: ${server.issued()}", 1, server.issued().bareExpunges())
+            assertEquals(ImapPurge(expunged = true, leftFlagged = emptySet()), moved.purge)
+        }
+    }
+
+    @Test
+    fun `an earlier flag of ours does not make a foreign one ours`() {
+        scriptedServer(uidPlus = false, flaggedByOthers = listOf(500L, 9_000L)).use { server ->
+            val purge = server.session().use { session ->
+                session.select("Trash")
+                session.delete(listOf(1L, 2L), flaggedEarlier = setOf(500L))
+            }
+
+            assertEquals("a bare EXPUNGE went out: ${server.issued()}", 0, server.issued().bareExpunges())
+            assertEquals(listOf(1L, 2L, 500L, 9_000L), server.stillFlagged())
+            assertEquals(ImapPurge(expunged = false, leftFlagged = setOf(1L, 2L)), purge)
+        }
+    }
 }

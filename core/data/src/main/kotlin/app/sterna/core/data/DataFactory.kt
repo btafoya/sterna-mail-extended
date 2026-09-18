@@ -6,6 +6,7 @@ import app.sterna.core.data.db.SternaDatabase
 import app.sterna.core.data.mail.FlightMarkerPrefs
 import app.sterna.core.data.mail.ImapMailService
 import app.sterna.core.data.mail.LOCAL_DRAFT_FILES_DIR
+import app.sterna.core.data.mail.MailboxPendingExpungeStore
 import app.sterna.core.data.mail.MailboxUidValidityStore
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.OAuthTokenRefresher
@@ -41,8 +42,10 @@ object DataFactory {
         val database = SternaDatabase.build(appContext)
         // The IMAP service verifies each folder's UIDVALIDITY through this store, and it is the
         // store, not the service, that says what a renumbering invalidates (Codeberg #99).
+        val pendingExpunges = MailboxPendingExpungeStore(database.pendingExpungeDao())
         val uidValidity = MailboxUidValidityStore(
             database.mailboxUidValidityDao(), database.emailBodyDao(), database.purgeSnapshotDao(),
+            pendingExpunges,
         )
         // One tree, handed to both readers: the repository that stages a draft's bytes there and
         // the sign-out that has to clear them (#95). Two literals would be one rename away from a
@@ -51,6 +54,7 @@ object DataFactory {
         val imapService = ImapMailService(
             ImapClient(clientVersion), SmtpClient(), OAuthTokenRefresher(OAuthClient(), accountStore),
             uidValidity,
+            pendingExpunges,
         )
         return DataLayer(
             mailRepository = MailRepository(
@@ -81,6 +85,7 @@ object DataFactory {
                 appContext, database.emailDao(), database.emailFtsDao(), database.emailBodyDao(),
                 database.mailboxDao(), database.snoozedDao(), database.purgeSnapshotDao(),
                 database.mailboxUidValidityDao(),
+                database.pendingExpungeDao(),
                 // Signing out takes the account's unsent drafts and their staged bytes with it:
                 // user data, so it goes on that event and on no cache purge (#95, #121).
                 localDraftDao = database.localDraftDao(),

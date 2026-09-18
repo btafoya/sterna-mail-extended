@@ -134,6 +134,8 @@ class ImapSession(private var socket: Socket) : Closeable {
     /** Whether the server advertises [name], e.g. `UIDPLUS`. Case-insensitive. */
     fun hasCapability(name: String): Boolean = name.uppercase() in capabilities()
 
+    fun purgesByUidIfKnown(): Boolean? = advertisedCapabilities?.let { CAP_UIDPLUS in it }
+
     /** Take the `[CAPABILITY …]` code of an authentication completion as the session's list: free,
      *  and unlike the greeting's it is the post-authentication one. */
     private fun rememberCapabilities(taggedLine: List<Any?>) {
@@ -381,17 +383,22 @@ class ImapSession(private var socket: Socket) : Closeable {
          * after a `UID COPY` was attempted, answered or not, travels up as [ImapWriteNotReplayable]. Chunks disagreeing
          * on the destination's numbering leave [ImapMoved.destinationUidValidity] null, its refusing value.
          */
-    fun move(uids: List<Long>, destination: String): ImapMoved {
+    fun move(uids: List<Long>, destination: String, flaggedEarlier: Set<Long> = emptySet()): ImapMoved {
         var copySent = false
         try {
-            return moveChunks(uids, destination) { copySent = true }
+            return moveChunks(uids, destination, flaggedEarlier) { copySent = true }
         } catch (failure: Exception) {
             if (!copySent || failure is ImapWriteNotReplayable) throw failure
             throw ImapWriteNotReplayable(failure)
         }
     }
 
-    private fun moveChunks(uids: List<Long>, destination: String, beforeCopy: () -> Unit): ImapMoved {
+    private fun moveChunks(
+        uids: List<Long>,
+        destination: String,
+        flaggedEarlier: Set<Long>,
+        beforeCopy: () -> Unit,
+    ): ImapMoved {
         val mapping = LinkedHashMap<Long, Long>()
         // A set, because the only question asked of it is whether every chunk said the same thing.
         val statedNumbering = LinkedHashSet<Long>()
@@ -443,8 +450,8 @@ class ImapSession(private var socket: Socket) : Closeable {
             landed.destinationUidValidity?.let { statedNumbering += it }
             gone += confirmedGoneInChunk(chunk, set, landed.uids.keys, byMove, presentBefore)
         }
-        finishPurgeWithoutUidPlus(flaggedByFallback)
-        return ImapMoved(mapping, statedNumbering.singleOrNull(), gone)
+        val purge = finishPurgeWithoutUidPlus(flaggedByFallback, flaggedEarlier)
+        return ImapMoved(mapping, statedNumbering.singleOrNull(), gone, purge)
     }
 
         /**
@@ -833,7 +840,7 @@ class ImapSession(private var socket: Socket) : Closeable {
         command("UID STORE $uid $op ($flag)")
     }
 
-    fun delete(uid: Long) = delete(listOf(uid))
+    fun delete(uid: Long): ImapPurge = delete(listOf(uid))
 
         /**
          * One `UID STORE <set> +FLAGS (\Deleted)` per chunk (Codeberg #29), erased with
@@ -842,10 +849,10 @@ class ImapSession(private var socket: Socket) : Closeable {
          * asking per chunk would apply a folder-wide command fifty times over an "Empty trash" (#99).
          * A refused `UID EXPUNGE` on a UIDPLUS server throws, and the destroy worker retries.
          */
-    fun delete(uids: List<Long>) {
+    fun delete(uids: List<Long>, flaggedEarlier: Set<Long> = emptySet()): ImapPurge {
         val flagged = uids.distinct()
         val sets = flagged.chunked(UID_SET_CHUNK).map { compressUidSet(it) }.filter { it.isNotEmpty() }
-        if (sets.isEmpty()) return
+        if (sets.isEmpty()) return ImapPurge.NONE
         val byUid = hasCapability(CAP_UIDPLUS)
         for (set in sets) {
             command("UID STORE $set +FLAGS (\\Deleted)")
@@ -853,18 +860,22 @@ class ImapSession(private var socket: Socket) : Closeable {
         }
         // The union of every chunk: the folder-wide question is asked once, about the whole
         // operation, after the last message has been flagged.
-        if (!byUid) finishPurgeWithoutUidPlus(flagged.toSet())
+        return if (byUid) ImapPurge.NONE else finishPurgeWithoutUidPlus(flagged.toSet(), flaggedEarlier)
     }
 
-    /** Close a purge on a server without UIDPLUS, per [purgeWithoutUidPlus]. Called at most once per
-     *  operation; [flagged] is the union of every chunk it flagged in the selected mailbox. */
-    private fun finishPurgeWithoutUidPlus(flagged: Set<Long>) {
-        if (flagged.isEmpty()) return
-        when (purgeWithoutUidPlus) {
-            PurgeWithoutUidPlus.LEAVE_FLAGGED -> Unit
-            PurgeWithoutUidPlus.EXPUNGE_WHEN_ONLY_OURS -> if (nothingElseIsFlagged(flagged)) command("EXPUNGE")
-            PurgeWithoutUidPlus.EXPUNGE_WHOLE_FOLDER -> command("EXPUNGE")
+    /** Close a purge on a server without UIDPLUS, per [purgeWithoutUidPlus], once per operation; [flagged] joins every chunk
+     *  it flagged, [flaggedEarlier] what earlier ones flagged under this UIDVALIDITY and never saw erased: ours too. */
+    private fun finishPurgeWithoutUidPlus(flagged: Set<Long>, flaggedEarlier: Set<Long>): ImapPurge {
+        if (flagged.isEmpty()) return ImapPurge.NONE
+        val ours = flagged + flaggedEarlier
+        val expunge = when (purgeWithoutUidPlus) {
+            PurgeWithoutUidPlus.LEAVE_FLAGGED -> false
+            PurgeWithoutUidPlus.EXPUNGE_WHEN_ONLY_OURS -> nothingElseIsFlagged(ours)
+            PurgeWithoutUidPlus.EXPUNGE_WHOLE_FOLDER -> true
         }
+        if (!expunge) return ImapPurge(expunged = false, leftFlagged = flagged)
+        command("EXPUNGE")
+        return ImapPurge(expunged = true, leftFlagged = emptySet())
     }
 
         /**
@@ -1194,8 +1205,8 @@ internal enum class PurgeWithoutUidPlus {
 
     /**
      * Ask the server what is flagged, and send one bare `EXPUNGE` only if everything flagged is
-     * something this operation flagged ([ImapSession.nothingElseIsFlagged], which states the
-     * residual race). Otherwise behave as [LEAVE_FLAGGED].
+     * something this client flagged and never saw erased ([ImapSession.nothingElseIsFlagged], which
+     * states the residual race). Otherwise behave as [LEAVE_FLAGGED].
      */
     EXPUNGE_WHEN_ONLY_OURS,
 

@@ -476,8 +476,8 @@ class FolderOrderIndexMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "the schema declares v28: `scheduled_sends` gains `failedAttempts`",
-            28,
+            "the schema declares v29: the `pending_expunge` table",
+            29,
             SCHEMA_VERSION,
         )
     }

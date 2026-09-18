@@ -16,6 +16,7 @@ import app.sterna.core.imap.ImapIdleConnection
 import app.sterna.core.imap.ImapMailboxStatus
 import app.sterna.core.imap.ImapMessage
 import app.sterna.core.imap.ImapMoved
+import app.sterna.core.imap.ImapPurge
 import app.sterna.core.imap.ImapSearchCriteria
 import app.sterna.core.imap.ImapSession
 import app.sterna.core.imap.ImapTextPart
@@ -205,6 +206,7 @@ open class ImapMailService(
     private val tokenRefresher: OAuthTokenRefresher,
     /** Where each folder's UIDVALIDITY is remembered; [UidValidityStore.None] verifies nothing. */
     private val uidValidity: UidValidityStore = UidValidityStore.None,
+    private val pendingExpunges: PendingExpungeStore = PendingExpungeStore.None,
 ) {
     private class Pooled {
         val mutex = Mutex()
@@ -560,7 +562,11 @@ open class ImapMailService(
     ): ImapMoved {
         val (moved, landed) = onMailbox(credentials, sourceMailbox, expectedUidValidity = expectedUidValidity) { session, status ->
             val mayMove = UidValidity.mayDestroyUnderStatedNumbering(expectedUidValidity, status.uidValidity)
-            mayMove to if (mayMove) session.move(uid, destMailbox) else ImapMoved.NONE
+            mayMove to if (!mayMove) ImapMoved.NONE else {
+                pendingExpunges.purging<ImapMoved>(session, credentials.id, sourceMailbox, status.uidValidity, listOf(uid), { it.purge }) { earlier ->
+                    session.move(listOf(uid), destMailbox, earlier)
+                }
+            }
         }
         if (!moved) throw ImapNumberingUnconfirmed(sourceMailbox, expectedUidValidity)
         return landed
@@ -579,7 +585,11 @@ open class ImapMailService(
     ): ImapMoved {
         val (moved, landed) = onMailbox(credentials, sourceMailbox, expectedUidValidity = expectedUidValidity) { session, status ->
             val mayMove = UidValidity.mayDestroyUnderStatedNumbering(expectedUidValidity, status.uidValidity)
-            mayMove to if (mayMove) session.move(uids, destMailbox) else ImapMoved.NONE
+            mayMove to if (!mayMove) ImapMoved.NONE else {
+                pendingExpunges.purging<ImapMoved>(session, credentials.id, sourceMailbox, status.uidValidity, uids, { it.purge }) { earlier ->
+                    session.move(uids, destMailbox, earlier)
+                }
+            }
         }
         if (!moved) throw ImapNumberingUnconfirmed(sourceMailbox, expectedUidValidity)
         return landed
@@ -596,11 +606,13 @@ open class ImapMailService(
     ) {
         val destroyed = onMailbox(credentials, mailboxId, expectedUidValidity = expectedUidValidity) { session, status ->
             val mayDestroy = UidValidity.mayDestroyUnderStatedNumbering(expectedUidValidity, status.uidValidity)
-            if (mayDestroy) session.delete(uids)
+            if (mayDestroy) pendingExpunges.purging<ImapPurge>(session, credentials.id, mailboxId, status.uidValidity, uids, { it }) { session.delete(uids, it) }
             mayDestroy
         }
         if (!destroyed) throw ImapNumberingUnconfirmed(mailboxId, expectedUidValidity)
     }
+
+    suspend fun forgetPendingExpunges(accountId: String) = pendingExpunges.forgetAccount(accountId)
 
     /**
      * At most [cap] UIDs currently in [mailboxId], the folder as the server holds it, "Empty trash"

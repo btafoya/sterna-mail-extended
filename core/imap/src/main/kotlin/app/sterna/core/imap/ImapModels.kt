@@ -121,6 +121,7 @@ data class ImapMoved(
     val uids: Map<Long, Long>,
     val destinationUidValidity: Long?,
     val confirmedGone: Set<Long>,
+    val purge: ImapPurge = ImapPurge.NONE,
 ) {
     companion object {
             /** Nothing moved, nothing stated, nothing proved, what a caller answers when the move never went out. */

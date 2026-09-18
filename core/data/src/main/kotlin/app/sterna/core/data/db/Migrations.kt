@@ -357,3 +357,17 @@ val MIGRATION_27_28 = object : Migration(27, 28) {
         db.execSQL("ALTER TABLE `scheduled_sends` ADD COLUMN `failedAttempts` INTEGER NOT NULL DEFAULT 0")
     }
 }
+
+const val PENDING_EXPUNGE_CREATE_SQL: String =
+    "CREATE TABLE IF NOT EXISTS `pending_expunge` (" +
+        "`accountId` TEXT NOT NULL, " +
+        "`mailboxId` TEXT NOT NULL, " +
+        "`uidValidity` INTEGER NOT NULL, " +
+        "`uid` INTEGER NOT NULL, " +
+        "PRIMARY KEY(`accountId`, `mailboxId`, `uidValidity`, `uid`))"
+
+val MIGRATION_28_29 = object : Migration(28, 29) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(PENDING_EXPUNGE_CREATE_SQL)
+    }
+}

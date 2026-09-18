@@ -57,6 +57,7 @@ class ForbiddenSubAccountWiringTest {
             runCatching { emailBodyDao.deleteForAccount(prunedId) }
             runCatching { mailboxDao.deleteForAccount(prunedId) }
             runCatching { snoozedDao.deleteForAccount(prunedId) }
+            runCatching { imap.forgetPendingExpunges(prunedId) }
             }
             }
             }

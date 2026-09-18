@@ -26,7 +26,9 @@ class ImapServiceDestroysInOnePlaceTest {
      */
     @Test fun `every delete the service writes is the one guarded expunge`() {
         val source = DaoQuerySource.mailSource("ImapMailService")
-        val guarded = listOf("if (mayDestroy) session.delete(uids)")
+        val guarded = listOf(
+            "if (mayDestroy) pendingExpunges.purging<ImapPurge>(session, credentials.id, mailboxId, status.uidValidity, uids, { it }) { session.delete(uids, it) }",
+        )
         val why =
             "the ONLY `delete` ImapMailService may write is `deleteBatch`'s, guarded by the " +
                 "numbering the server just stated. Any other one is an expunge that opposes " +

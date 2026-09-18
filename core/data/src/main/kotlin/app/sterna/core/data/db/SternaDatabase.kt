@@ -8,13 +8,14 @@ import androidx.room.migration.Migration
 
 /** Schema version Room opens, named since `@Database` isn't readable at runtime. Bumping
  *  without a step in [ALL_MIGRATIONS] drops every table. */
-internal const val SCHEMA_VERSION = 28
+internal const val SCHEMA_VERSION = 29
 
 @Database(
     entities = [
         EmailEntity::class, EmailFtsEntity::class, EmailBodyEntity::class, MailboxEntity::class,
         ScheduledSendEntity::class, SnoozedEntity::class, RecentContactEntity::class, OutboxEntity::class,
         PurgeSnapshotEntity::class, MailboxUidValidityEntity::class, LocalDraftEntity::class,
+        PendingExpungeEntity::class,
     ],
     version = SCHEMA_VERSION,
     exportSchema = false,
@@ -31,6 +32,7 @@ abstract class SternaDatabase : RoomDatabase() {
     abstract fun purgeSnapshotDao(): PurgeSnapshotDao
     abstract fun mailboxUidValidityDao(): MailboxUidValidityDao
     abstract fun localDraftDao(): LocalDraftDao
+    abstract fun pendingExpungeDao(): PendingExpungeDao
 
     companion object {
         /**
@@ -46,6 +48,7 @@ abstract class SternaDatabase : RoomDatabase() {
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
             MIGRATION_26_27,
             MIGRATION_27_28,
+            MIGRATION_28_29,
         )
 
         fun build(context: Context): SternaDatabase =
