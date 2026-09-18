@@ -63,6 +63,11 @@ internal class ScriptedImapServer(
                 reader.readLine()
             }
             val answer = responder(tag, line)
+            if (answer == HANG_UP) return
+            if (answer == RESET) {
+                socket.setSoLinger(true, 0)
+                return
+            }
             writer.write(answer)
             writer.flush()
             // A LOGOUT the responder ANSWERED ends the connection, as a real server's does. One it
@@ -93,8 +98,11 @@ internal class ScriptedImapServer(
         thread.interrupt()
     }
 
-    private companion object {
+    companion object {
+        const val HANG_UP = "\u0000hang up"
+        const val RESET = "\u0000reset"
+
         /** The trailing `{123}` of a command that announces a literal. */
-        val LITERAL = Regex("\\{(\\d+)}$")
+        private val LITERAL = Regex("\\{(\\d+)}$")
     }
 }

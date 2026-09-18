@@ -20,6 +20,7 @@ import app.sterna.core.imap.ImapSearchCriteria
 import app.sterna.core.imap.ImapSession
 import app.sterna.core.imap.ImapTextPart
 import app.sterna.core.imap.ImapUidValidityChanged
+import app.sterna.core.imap.ImapWriteNotReplayable
 import app.sterna.core.imap.MailSecurity
 import app.sterna.core.imap.MailServerConfig
 import app.sterna.core.imap.MimeParser
@@ -262,6 +263,10 @@ open class ImapMailService(
             } catch (renumbered: ImapUidValidityChanged) {
                 // Not a transport failure: a fresh connection would answer the same (#99).
                 throw renumbered
+            } catch (sent: ImapWriteNotReplayable) {
+                runCatching { session.close() }
+                pooled.session = null
+                throw sent
             } catch (t: Throwable) {
                 runCatching { session.close() }
                 pooled.session = null

@@ -32,6 +32,10 @@ class ImapUidValidityChanged(
     val observed: Long,
 ) : Exception("UIDVALIDITY of $mailbox changed from $expected to $observed")
 
+/** A write that may have landed went out: `runWithRetry` rethrows it without a replay. Not an [ImapException],
+ *  so that no path treating those as a transport failure absorbs it. See [ImapSession.move]. */
+class ImapWriteNotReplayable(cause: Throwable) : Exception(cause.message, cause)
+
 /**
  * Turn on RFC 2818 endpoint identification: a bare [SSLSocket] validates only the chain, so without
  * this any CA-valid certificate can intercept the connection. Must be called before the handshake.
@@ -372,13 +376,22 @@ class ImapSession(private var socket: Socket) : Closeable {
     fun move(uid: Long, destination: String): ImapMoved = move(listOf(uid), destination)
 
         /**
-         * One `UID MOVE <set> <dest>` per chunk (Codeberg #29), falling back to `UID COPY` + `\Deleted`
-         * + a purge; the caller must have SELECTed the source. That fallback is reserved for a server
-         * that ANSWERED with a tagged NO/BAD and does not advertise MOVE: every other failure travels
-         * up untouched, a read timeout and a lost connection included. Chunks disagreeing on the
-         * destination's numbering leave [ImapMoved.destinationUidValidity] null, its refusing value.
+         * One `UID MOVE <set> <dest>` per chunk (Codeberg #29), falling back to `UID COPY` + `\Deleted` + a purge on the
+         * SELECTed source, only for a server that answered a tagged NO/BAD and does not advertise MOVE. Any failure
+         * after a `UID COPY` was attempted, answered or not, travels up as [ImapWriteNotReplayable]. Chunks disagreeing
+         * on the destination's numbering leave [ImapMoved.destinationUidValidity] null, its refusing value.
          */
     fun move(uids: List<Long>, destination: String): ImapMoved {
+        var copySent = false
+        try {
+            return moveChunks(uids, destination) { copySent = true }
+        } catch (failure: Exception) {
+            if (!copySent || failure is ImapWriteNotReplayable) throw failure
+            throw ImapWriteNotReplayable(failure)
+        }
+    }
+
+    private fun moveChunks(uids: List<Long>, destination: String, beforeCopy: () -> Unit): ImapMoved {
         val mapping = LinkedHashMap<Long, Long>()
         // A set, because the only question asked of it is whether every chunk said the same thing.
         val statedNumbering = LinkedHashSet<Long>()
@@ -414,10 +427,10 @@ class ImapSession(private var socket: Socket) : Closeable {
                 val announcesMove = runCatching { hasCapability(CAP_MOVE) }.getOrDefault(true)
                 if (announcesMove) throw it
                 val byUid = hasCapability(CAP_UIDPLUS)
+                beforeCopy()
                 val copy = command("UID COPY $set ${mailboxArg(destination)}")
                 command("UID STORE $set +FLAGS (\\Deleted)")
-                // Best effort, unlike in [delete]: the copy has already landed, so failing here
-                // would have the caller retry a move that would copy a second time.
+                // Best effort, unlike in [delete]: failing here reports a copied, flagged message as unmoved, and the app puts it back.
                 if (byUid) {
                     runCatching { command("UID EXPUNGE $set") }
                 } else {
