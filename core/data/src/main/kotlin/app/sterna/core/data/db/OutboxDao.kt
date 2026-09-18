@@ -57,6 +57,9 @@ interface OutboxDao {
     @Query("UPDATE outbox SET state = 'FAILED', attemptCount = :maxAttempts, lastError = :lastError WHERE id = :id AND state = 'EDITING'")
     suspend fun parkEditingAsInterrupted(id: Long, maxAttempts: Int, lastError: String)
 
+    @Query("UPDATE outbox SET state = 'QUEUED', attemptCount = 0, lastError = NULL, notBeforeMillis = :now WHERE id = :id AND state NOT IN ('SENDING', 'EDITING')")
+    suspend fun requeueForRetry(id: Long, now: Long): Int
+
     @Query("UPDATE outbox SET state = :state, attemptCount = :attemptCount, lastError = :lastError, lastAttemptMillis = :lastAttemptMillis WHERE id = :id")
     suspend fun updateState(
         id: Long,

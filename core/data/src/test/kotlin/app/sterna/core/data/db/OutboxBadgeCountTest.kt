@@ -126,7 +126,7 @@ class OutboxBadgeCountTest {
      * The coupling declared at MailRepository.retryOutbox: Retry rewrites the row's deadline, which
      * is the very anchor the badge counts from, so a retried row leaves the badge for the length of
      * the grace and returns on its own if it still has not gone out. The Outbox screen offers Retry
-     * on every row, so this is the path for a merely-waiting message as much as for a failed one.
+     * on a waiting row too, so this is the path for a merely-waiting message as for a failed one.
      */
     @Test fun retryingARowTakesItOffTheBadgeForTheGraceThenBringsItBack() = runTest {
         val rows = MutableStateFlow(listOf(OutboxBadgeItem(OutboxState.FAILED, notBeforeMillis = 0)))

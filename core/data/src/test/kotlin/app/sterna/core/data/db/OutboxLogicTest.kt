@@ -118,6 +118,24 @@ class OutboxLogicTest {
         )
     }
 
+    @Test fun onlyARowNobodyHoldsCanBeRetried() {
+        assertEquals(
+            "Retry must be refused exactly on the two rows someone holds: SENDING (the worker is " +
+                "delivering it) and EDITING (the composer has it). Every parked or waiting row is " +
+                "the user's to relaunch, and any new value of the enumeration is classified here by hand",
+            mapOf(
+                OutboxState.QUEUED to true,
+                OutboxState.HELD to true,
+                OutboxState.FAILED to true,
+                OutboxState.INTERRUPTED to true,
+                OutboxState.KEPT_AS_DRAFT to true,
+                OutboxState.SENDING to false,
+                OutboxState.EDITING to false,
+            ),
+            OutboxState.entries.associateWith { OutboxLogic.canRetry(it) },
+        )
+    }
+
     /**
      * The three screen consequences of parking, executed: the row is listed, it counts on the badge
      * at once, and it raises no failure banner.
@@ -332,7 +350,7 @@ class OutboxLogicTest {
     /**
      * #82: Retry rewrites the row's deadline (MailRepository.retryOutbox), and that deadline is the
      * badge's anchor, so a row just retried does not count, by the same rule as a fresh send. The
-     * Outbox screen offers Retry on every row, failed or merely waiting, so this holds for both.
+     * Outbox screen offers Retry on a failed row and a merely waiting one, so this holds for both.
      */
     @Test fun aRowWhoseDeadlineWasJustResetByRetryDoesNotCount() {
         val retriedAt = 100_000L

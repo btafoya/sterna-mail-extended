@@ -267,7 +267,7 @@ class OutboxStateWordingTest {
         assertEquals(
             "OutboxScreen must consult item.state only through outboxStateShowsReason / " +
                 "outboxStateLabel / outboxStateIsError / outboxShowsWaitingReason (and " +
-                "OutboxLogic.canEdit for the button). A `when (item.state)` back in the composable " +
+                "OutboxLogic.canRetry / canEdit for the buttons). A `when (item.state)` back in the composable " +
                 "is unreachable from every test in this module, which is exactly where the " +
                 "`else ->` that printed 'Failed: …' over a saved draft lived. The waiting row's " +
                 "complement goes through a pure function for that same reason: whether a row that " +
@@ -279,6 +279,7 @@ class OutboxStateWordingTest {
                 "stringResource(outboxStateLabel(item.state))",
                 "color = if (outboxStateIsError(item.state)) {",
                 "if (outboxShowsWaitingReason(item.state, item.lastError)) {",
+                "if (OutboxLogic.canRetry(item.state)) {",
                 "if (OutboxLogic.canEdit(item.pgpMode, item.state, unreplayable)) {",
             ),
             lines.map { it.trim() }.filter { "item.state" in it },

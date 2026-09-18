@@ -330,12 +330,8 @@ class MailSender(
     }
 
     /** Re-queue for an immediate retry; `notBeforeMillis` is also the anchor the badge counts from. */
-    suspend fun retryOutbox(id: Long) {
-        val item = outboxDao.byId(id) ?: return
-        val now = System.currentTimeMillis()
-        outboxDao.update(item.copy(state = OutboxState.QUEUED, attemptCount = 0, lastError = null, notBeforeMillis = now))
-        outboxScheduler?.schedule(id, 0)
-    }
+    suspend fun retryOutbox(id: Long) =
+        requeueForRetry(id, System.currentTimeMillis(), { row, now -> outboxDao.requeueForRetry(row, now) }, outboxScheduler)
 
     /** Fields to reopen a queued/failed item in compose (#70); the row is not deleted ([outboxId]). */
     data class OutboxDraft(
@@ -729,4 +725,18 @@ class MailSender(
     suspend fun scheduledSends(): List<ScheduledSendEntity> = scheduledSendDao.all()
 
     fun scheduledSendsFlow(): Flow<List<ScheduledSendEntity>> = scheduledSendDao.observeAll()
+}
+
+/** Retry on one row, [requeue] being `OutboxDao.requeueForRetry`; a JVM test runs it on SQLite. */
+internal suspend fun requeueForRetry(
+    id: Long,
+    now: Long,
+    requeue: suspend (id: Long, now: Long) -> Int,
+    scheduler: OutboxScheduler?,
+) {
+    // A row the worker is delivering or the composer holds is not Retry's to take back: the
+    // schedule would replace its live worker and deliver it twice. `OutboxDao.requeueForRetry` is
+    // one statement with no read before it, so a row already flipped to SENDING is refused; the
+    // worker's own flip is unconditional, so a flip landing after this write is not.
+    if (requeue(id, now) > 0) scheduler?.schedule(id, 0)
 }

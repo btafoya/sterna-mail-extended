@@ -170,8 +170,10 @@ fun OutboxScreen(
                         )
                     }
                     Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                        TextButton(onClick = { viewModel.retry(item.id) }) {
-                            Text(stringResource(R.string.outbox_retry))
+                        if (OutboxLogic.canRetry(item.state)) {
+                            TextButton(onClick = { viewModel.retry(item.id) }) {
+                                Text(stringResource(R.string.outbox_retry))
+                            }
                         }
                         // Edit is offered only for a genuinely waiting row the composer could
                         // rebuild (#70): a row whose entity nothing can produce again (a read

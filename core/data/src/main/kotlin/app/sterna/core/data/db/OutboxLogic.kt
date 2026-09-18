@@ -96,6 +96,13 @@ object OutboxLogic {
                 OutboxState.SENDING, OutboxState.EDITING, OutboxState.INTERRUPTED, OutboxState.KEPT_AS_DRAFT -> false
             }
 
+    fun canRetry(state: OutboxState): Boolean = when (state) {
+        OutboxState.HELD, OutboxState.QUEUED, OutboxState.FAILED,
+        OutboxState.INTERRUPTED, OutboxState.KEPT_AS_DRAFT,
+        -> true
+        OutboxState.SENDING, OutboxState.EDITING -> false
+    }
+
     /**
      * What goes in [OutboxEntity.pgpMode] for a message being queued, a string, deliberately not
      */
