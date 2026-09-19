@@ -134,6 +134,9 @@ class HtmlTextTest {
         assertTrue(looksLikeHtml("<p>hi</p>"))
         assertTrue(looksLikeHtml("<!-- c -->"))
         assertFalse(looksLikeHtml("Alex Rivera\n-- \n1 < 2 > 0"))
+        assertFalse(looksLikeHtml("<jean@example.org>"))
+        assertFalse(looksLikeHtml("<https://x>"))
+        assertTrue(looksLikeHtml("<br/>"))
     }
 
     @Test fun escapingIsReversedByTheDecoder() {

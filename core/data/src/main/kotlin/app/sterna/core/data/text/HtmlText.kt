@@ -5,8 +5,10 @@ package app.sterna.core.data.text
  * signature) and the account layer's legacy HTML signature field. Regex-based, not a parser.
  */
 
-/** Does [s] look like HTML (a tag opener), rather than plain text? */
-fun looksLikeHtml(s: String): Boolean = Regex("<[a-zA-Z/!]").containsMatchIn(s)
+/** Does [s] hold a tag (`<name` then whitespace, `>` or `/`; `</name`; `<!`), not `<a@b.c>` or `<https://x>`? */
+fun looksLikeHtml(s: String): Boolean = TAG_OPENER.containsMatchIn(s)
+
+private val TAG_OPENER = Regex("<(?:[a-zA-Z][a-zA-Z0-9-]*[\\s/>]|/[a-zA-Z]|!)")
 
 /** Escape the three characters that are unsafe in HTML text context. */
 fun htmlEscape(s: String): String =

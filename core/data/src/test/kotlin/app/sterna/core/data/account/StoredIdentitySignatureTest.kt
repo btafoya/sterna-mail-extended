@@ -58,6 +58,33 @@ class StoredIdentitySignatureTest {
         assertEquals("", plain.withSplitSignature().signatureHtml)
     }
 
+    @Test fun plainSignatureWithAnAddressInChevronsIsLeftAlone() {
+        val typed = "Jean Dupont\n<jean@example.org>\nAssociation X"
+        val split = StoredIdentity("a", "Jean", "jean@example.org", typed).withSplitSignature()
+        assertEquals(typed, split.signature)
+        assertEquals("", split.signatureHtml)
+    }
+
+    @Test fun plainSignatureWithAUrlInChevronsIsLeftAlone() {
+        val typed = "Site <https://jean.fr>"
+        val split = StoredIdentity("a", "Jean", "jean@example.org", typed).withSplitSignature()
+        assertEquals(typed, split.signature)
+        assertEquals("", split.signatureHtml)
+    }
+
+    @Test fun legacyHtmlWithOnlyVoidTagsIsStillSplit() {
+        for (raw in listOf(
+            "Alex<br>Acme",
+            "<img src=\"logo.png\">",
+            "Alex<BR>Acme",
+            "Alex<o:p></o:p>",
+            "<img\nsrc=\"logo.png\">",
+        )) {
+            val split = StoredIdentity("a", "Alex", "alex@masto.top", raw).withSplitSignature()
+            assertEquals(raw, split.signatureHtml)
+        }
+    }
+
     @Test fun anAlreadySplitIdentityIsNeverReflattened() {
         val split = StoredIdentity("a", "Alex", "alex@masto.top", "Alex", "<b>Alex</b>")
         assertEquals(split, split.withSplitSignature())
