@@ -23,10 +23,13 @@ fun htmlEscapeMultiline(s: String): String =
 fun htmlToText(html: String): String =
     html
         .replace(Regex("(?is)<(script|style|head)\\b.*?</\\1>"), "")
-        // Source layout between tags is not content: a signature table written one row per line
-        // would otherwise flatten with a blank line between every row. Only whitespace that spans
-        // a line break is dropped, so a deliberate space between two inline tags survives.
+        // HTML renders a source line break as a space, except inside `<pre>`. Layout between two tags
+        // or after a `<br>` or block end is dropped rather than spaced, or each following line would
+        // start indented; a same-line space between two inline tags survives.
+        .replace(Regex("(?is)<pre\\b[^>]*>.*?</pre\\s*>")) { it.value.replace(Regex("\\r?\\n"), "<br>") }
+        .replace(Regex("(?i)(<br\\s*/?>|</(?:p|div|li|tr|h[1-6]|blockquote|ul|ol|table)\\s*>)[ \\t]*\\r?\\n[ \\t\\r\\n]*"), "$1")
         .replace(Regex(">[ \\t]*\\r?\\n[ \\t\\r\\n]*<"), "><")
+        .replace(Regex("[ \\t]*\\r?\\n[ \\t\\r\\n]*"), " ")
         .replace(Regex("(?i)<br\\s*/?>"), "\n")
         .replace(Regex("(?i)</(p|div|li|tr|h[1-6]|blockquote|ul|ol|table)\\s*>"), "\n")
         // A table cell boundary is a column break, not a paragraph one: keep the row on one line.

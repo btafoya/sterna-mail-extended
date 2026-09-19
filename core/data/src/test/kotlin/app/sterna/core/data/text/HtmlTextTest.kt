@@ -42,6 +42,48 @@ class HtmlTextTest {
         )
     }
 
+    @Test fun importedSignatureWithSourceLineBreakBeforeBrHasNoBlankLine() {
+        val html = "Sent via <a href=\"https://sterna.app\">Sterna</a> <a href=\"https://sterna.app\">Mail</a>,\n<BR>Mohamad\n"
+        assertEquals("Sent via Sterna Mail,\nMohamad", htmlToText(html))
+    }
+
+    @Test fun importedSignatureWithCrlfSourceLineBreakHasNoBlankLine() {
+        val html = "Sent via <a href=\"https://sterna.app\">Sterna</a> <a href=\"https://sterna.app\">Mail</a>,\r\n<BR>Mohamad\r\n"
+        assertEquals("Sent via Sterna Mail,\nMohamad", htmlToText(html))
+    }
+
+    @Test fun sourceLineBreakInsideAParagraphIsASpace() {
+        assertEquals("Alex Rivera", htmlToText("<p>Alex\nRivera</p>"))
+    }
+
+    @Test fun sourceLineBreakBeforeABrLeavesOneLineBreak() {
+        assertEquals("Acme,\nParis", htmlToText("Acme,\n<br>Paris"))
+    }
+
+    @Test fun lineBreaksInsidePreSurvive() {
+        assertEquals("a\nb", htmlToText("<pre>a\nb</pre>"))
+    }
+
+    @Test fun sourceLineBreakAfterABrDoesNotIndentTheNextLine() {
+        assertEquals("Name\nTitle\nPhone", htmlToText("Name<br>\nTitle<br>\nPhone"))
+    }
+
+    @Test fun signatureDelimiterAfterABrStaysExactlyTwoDashes() {
+        assertEquals("Best\n--\nAlex", htmlToText("Best<br>\n-- <br>\nAlex"))
+    }
+
+    @Test fun sourceLineBreakAfterABlockEndDoesNotIndentTheNextLine() {
+        assertEquals("a\nb", htmlToText("<p>a</p>\nb"))
+    }
+
+    @Test fun preIsMatchedWhateverItsCaseAndAttributes() {
+        assertEquals("a\nb", htmlToText("<PRE class=\"moz-quote-pre\" wrap=\"\">a\nb</PRE>"))
+    }
+
+    @Test fun indentationAfterALineBreakInsidePreSurvives() {
+        assertEquals("x\n    y", htmlToText("<pre>x\n    y</pre>"))
+    }
+
     @Test fun scriptAndStyleAreDropped() {
         assertEquals("hi", htmlToText("<style>p{color:red}</style><p>hi</p><script>x()</script>"))
     }
