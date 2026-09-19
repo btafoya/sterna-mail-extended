@@ -1,0 +1,5 @@
+Ogni account ha il proprio canale per la nuova posta. Android non riporta le impostazioni del vecchio canale: controlla il suono di ogni account in Informazioni app > Notifiche, in fondo.
+
+Azioni multiple immediate. Tocca il titolo della lista per cambiare account. Pressione lunga sull'icona: nuovo messaggio. JMAP: rubrica, mittente con +etichetta.
+
+Le firme digitate mantengono le righe. Correzioni IMAP: spostamento, eliminazione, INBOX annidata.

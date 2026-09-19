@@ -1,36 +1,20 @@
-Sterna Mail to prywatny, nowoczesny klient poczty dla Androida, zbudowany z myślą o JMAP, szybszym następcy IMAP, z pełną obsługą także klasycznego IMAP/SMTP. Dodawanie konta zaczyna się od samego adresu e-mail: Sterna Mail ustala resztę na podstawie tego, co publikuje Twoja domena, a gdy nie publikuje nic, przechodzi do formularza ręcznego z protokołem i danymi serwera. Działa zarówno z serwerami JMAP takimi jak Stalwart, jak i z każdym zwykłym dostawcą poczty.
+Sterna Mail to wolny i dbający o prywatność klient poczty na Androida. Powstał z myślą o JMAP, nowoczesnym następcy IMAP, i równie dobrze działa z każdym dostawcą IMAP/SMTP.
 
-Aplikacja jest prywatna domyślnie, przyjemna w użyciu i w pełni wolnym oprogramowaniem (GPLv3). Bez śledzenia, bez reklam, bez analityki i bez usług Google.
+Bez śledzenia, bez reklam, bez usług Google. Kod jest na licencji GPLv3, a F-Droid sprawdza, że rozpowszechniana aplikacja jest bajt w bajt tą samą, którą zbudowano z opublikowanego kodu.
 
-Czytanie i porządkowanie:
+Czytanie:
+* Wiele kont, JMAP i IMAP obok siebie, ze wspólną skrzynką odbiorczą działającą offline
+* Wątki, wyszukiwanie podczas pisania i odkładanie
 
-* Wspólna skrzynka odbiorcza dla wielu kont (JMAP i/lub IMAP/SMTP), w pełni offline dzięki lokalnej pamięci podręcznej
-* Wiele kont JMAP w ramach jednego logowania (skrzynki delegowane, współdzielone lub zespołowe), każde z własnymi folderami, własnymi powiadomieniami i własnymi kopiami w Wysłanych
-* Widok konwersacji, zagnieżdżone foldery, konfigurowalne gesty przesunięcia, oznaczenia, archiwizacja i usuwanie z cofnięciem
-* Zaznaczanie wielu wiadomości do działań zbiorczych, odkładanie, zgłaszanie spamu, sortowanie i filtr nieprzeczytanych
-* Wyszukiwanie w trakcie pisania, łączące natychmiastowe wyniki lokalne z wyszukiwaniem na serwerze, oraz filtry według nadawcy, tematu, załączników i daty
-* Zaproszenia kalendarza pojawiają się jako karta wydarzenia i jednym dotknięciem trafiają do twojej aplikacji kalendarza
+Pisanie:
+* Wiele tożsamości, każda z własnym podpisem
+* Cofanie wysyłki i wysyłka zaplanowana
 
-Pisanie i wysyłanie:
+Prywatność i bezpieczeństwo:
+* Szyfrowanie OpenPGP przez aplikację taką jak OpenKeychain
+* Zdalne obrazy i piksele śledzące domyślnie blokowane, blokada odciskiem palca lub kodem PIN
 
-* Tworzenie wiadomości z podpowiadaniem adresatów, wiele tożsamości, każda z własnym podpisem, załączniki i wersje robocze
-* Odpowiedzi wychodzą z adresu, na który wiadomość przyszła, wraz z podpisem tej tożsamości
-* Cofnięcie wysyłki, wysyłka zaplanowana oraz przypomnienia o zapomnianym załączniku lub długiej liście adresatów
-* Otwiera odnośniki mailto: z dowolnej aplikacji lub przeglądarki, już wypełnione
-
-Konta, powiadomienia i szyfrowanie:
-
-* Dodanie konta wyłącznie za pomocą adresu i hasła (automatyczne wykrywanie), logowanie OAuth 2.0 bez hasła albo ręczna konfiguracja IMAP/SMTP z ustawieniami dostawców
-* Powiadomienia push o nowej poczcie bez Google i bez FCM, przez JMAP EventSource, IMAP IDLE lub UnifiedPush, grupowane według kont, z godzinami ciszy
-* Szyfrowanie OpenPGP przez zewnętrzną aplikację OpenPGP, taką jak OpenKeychain, zarówno w JMAP, jak i w IMAP/SMTP. Odszyfrowana treść nigdy nie jest zapisywana na dysku, z wyjątkiem załączników: otwarty załącznik jest zapisywany w pamięci własnej aplikacji do czasu wyczyszczenia pamięci podręcznej, a zapisany załącznik trafia do wybranego przez Ciebie folderu i tam zostaje. Wydrukowanie wiadomości lub zapisanie jej jako PDF przekazuje jej odszyfrowany tekst usłudze drukowania systemu
-* Zdalne obrazy i piksele śledzące domyślnie zablokowane, a parametry śledzące można usunąć z odnośników przed ich otwarciem
-* Dane logowania szyfrowane w Android KeyStore, blokada aplikacji odciskiem palca lub kodem PIN
-
-Funkcje serwera i wykończenie:
-
-* Autoresponder na czas nieobecności, reguły filtrowania Sieve i podgląd limitu skrzynki, po stronie serwera
-* Interfejs Material 3 z własnymi motywami jasnym i ciemnym, opcjonalnym Material You i regulowaną wielkością tekstu wiadomości
-* Dostępny w dziesięciu językach: angielskim, francuskim, niemieckim, hiszpańskim, włoskim, portugalskim, niderlandzkim, polskim, rosyjskim i chińskim uproszczonym
-* Zgodny z czytnikami ekranu, z eksportem i importem ustawień
-
-Sterna Mail ma otwarty kod źródłowy, a jego wydania są odtwarzalne: F-Droid sprawdza, że rozpowszechniana aplikacja jest bajt w bajt tą zbudowaną z opublikowanego kodu. Kod może przeczytać, skontrolować i ulepszyć każdy.
+Konfiguracja i powiadomienia:
+* Konfiguracja na podstawie samego adresu e-mail lub ręczny formularz, gdy domena nic nie publikuje
+* Powiadomienia push bez Google, przez JMAP, IMAP IDLE lub UnifiedPush
+* Dostępny w dziesięciu językach

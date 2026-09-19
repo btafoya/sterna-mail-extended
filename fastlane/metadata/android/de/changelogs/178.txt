@@ -1,0 +1,5 @@
+Jedes Konto hat einen eigenen Kanal für neue E-Mails. Android übernimmt die Einstellungen des alten Kanals nicht: Prüfe den Ton jedes Kontos unter App-Info > Benachrichtigungen, ganz unten.
+
+Sammelaktionen sofort. Listentitel antippen, um das Konto zu wechseln. Symbol lang drücken: neue Nachricht. JMAP: Adressbuch, Absender mit +Tag.
+
+Getippte Signaturen behalten ihre Zeilen. IMAP-Korrekturen: Verschieben, Löschen, verschachtelte INBOX.

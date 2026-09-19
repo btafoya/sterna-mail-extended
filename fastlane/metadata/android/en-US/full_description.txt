@@ -1,36 +1,20 @@
-Sterna Mail is a private, modern email client for Android, built for JMAP, the faster successor to IMAP, with full support for classic IMAP/SMTP too. Adding an account starts from your email address alone: Sterna Mail works out the rest from what your domain publishes, and falls back to a manual form with the protocol and the server details when it publishes nothing. It fits JMAP servers like Stalwart as well as any standard mail provider.
+Sterna Mail is a free, private email client for Android. It is built for JMAP, the modern successor to IMAP, and works just as well with any IMAP/SMTP provider.
 
-It is private by default, pleasant to use, and fully free software (GPLv3). No tracking, no ads, no analytics, and no Google services required.
+No tracking, no ads, no Google services. The code is GPLv3, and F-Droid checks that the app it ships is byte for byte the one built from the published source.
 
-Reading and organising:
+Reading:
+* Several accounts, JMAP and IMAP side by side, with a unified inbox that works offline
+* Conversations, search as you type and snooze
 
-* Unified inbox across multiple accounts (JMAP and/or IMAP/SMTP), fully offline with a local cache
-* Multiple JMAP accounts under a single login (delegated, shared or team mailboxes), each with its own folders, notifications and Sent copies
-* Conversation threading, nested folders, configurable swipe actions, stars, archive and delete with undo
-* Multi-select bulk actions, snooze, report spam, sort and unread-only filter
-* Search as you type, combining instant local results with server-side search, plus filters for sender, subject, attachments and date
-* Calendar invitations preview as an event card and go into your calendar app in one tap
+Writing:
+* Several identities, each with its own signature
+* Undo send and scheduled send
 
-Writing and sending:
+Privacy and security:
+* OpenPGP encryption through an app such as OpenKeychain
+* Remote images and tracking pixels blocked by default, app lock with fingerprint or PIN
 
-* Compose with recipient autocomplete, multiple identities each with its own signature, attachments and drafts
-* Replies come from the address the message was sent to, with that identity's signature
-* Undo send, schedule send, and reminders for a forgotten attachment or a large recipient list
-* Opens mailto: links from any app or browser, prefilled
-
-Accounts, notifications and encryption:
-
-* Add an account with just your email and password (autodiscovery), password-free OAuth 2.0 sign-in, or manual IMAP/SMTP setup with provider presets
-* Push notifications for new mail with no Google and no FCM, over JMAP EventSource, IMAP IDLE or UnifiedPush, grouped per account and with quiet hours
-* OpenPGP encryption through an external OpenPGP app such as OpenKeychain, on both JMAP and IMAP/SMTP. Decrypted content is never written to disk, with attachments as the exception: one you open is written to the app's own storage until the cache is cleared, and one you save goes to the folder you pick and stays there. Printing a message, or saving it as a PDF, hands its decrypted text to the system print service
-* Remote images and tracking pixels blocked by default, and tracking parameters can be stripped from links before they open
-* Credentials encrypted with the Android KeyStore, app lock with biometrics or a PIN
-
-Server features and polish:
-
-* Server-side vacation responder, Sieve filter rules, and mailbox quota display
-* Material 3 interface with its own light and dark themes, optional Material You, and adjustable message text size
-* Available in ten languages: English, French, German, Spanish, Italian, Portuguese, Dutch, Polish, Russian and Simplified Chinese
-* Screen-reader friendly, with settings export and import
-
-Sterna Mail is open source, and its release builds are reproducible: F-Droid checks that the app it distributes is byte for byte the one built from the published source. The code can be read, audited, and improved by anyone.
+Setup and notifications:
+* Setup from your email address alone, or a manual form when the domain publishes nothing
+* Push notifications without Google, over JMAP, IMAP IDLE or UnifiedPush
+* Available in ten languages

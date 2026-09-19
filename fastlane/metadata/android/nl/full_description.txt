@@ -1,36 +1,20 @@
-Sterna Mail is een privacyvriendelijke, moderne e-mailclient voor Android, gebouwd voor JMAP, de snellere opvolger van IMAP, met volledige ondersteuning voor het klassieke IMAP/SMTP erbij. Een account toevoegen begint met alleen uw e-mailadres: Sterna Mail leidt de rest af uit wat uw domein publiceert, en valt terug op een handmatig formulier met het protocol en de servergegevens wanneer het niets publiceert. Het werkt zowel met JMAP-servers als Stalwart als met elke gewone e-mailaanbieder.
+Sterna Mail is een vrije, privacyvriendelijke e-mailapp voor Android. Hij is gebouwd voor JMAP, de moderne opvolger van IMAP, en werkt net zo goed met elke IMAP/SMTP-provider.
 
-De app is standaard privé, prettig in gebruik en volledig vrije software (GPLv3). Geen tracking, geen advertenties, geen analyse en geen Google-diensten nodig.
+Geen tracking, geen advertenties, geen Google-diensten. De code is GPLv3, en F-Droid controleert dat de app die het verspreidt byte voor byte gelijk is aan die uit de gepubliceerde broncode.
 
-Lezen en ordenen:
+Lezen:
+* Meerdere accounts, JMAP en IMAP naast elkaar, met een gezamenlijke inbox die ook offline werkt
+* Gesprekken, zoeken tijdens het typen en uitstellen
 
-* Gecombineerd postvak IN over meerdere accounts (JMAP en/of IMAP/SMTP), volledig offline dankzij een lokale cache
-* Meerdere JMAP-accounts onder één aanmelding (gedelegeerde, gedeelde of teampostvakken), elk met eigen mappen, eigen meldingen en eigen kopieën in Verzonden
-* Gespreksweergave, geneste mappen, instelbare veegacties, markeringen, archiveren en verwijderen met ongedaan maken
-* Meervoudige selectie voor bulkacties, uitstellen, spam melden, sorteren en filter op ongelezen
-* Zoeken tijdens het typen, dat directe lokale resultaten combineert met de zoekfunctie van de server, plus filters op afzender, onderwerp, bijlagen en datum
-* Agenda-uitnodigingen verschijnen als gebeurteniskaart en gaan met één tik naar uw agenda-app
+Schrijven:
+* Meerdere identiteiten, elk met een eigen handtekening
+* Verzenden ongedaan maken en gepland verzenden
 
-Schrijven en verzenden:
+Privacy en beveiliging:
+* OpenPGP-versleuteling via een app zoals OpenKeychain
+* Externe afbeeldingen en trackingpixels standaard geblokkeerd, vergrendeling met vingerafdruk of pincode
 
-* Opstellen met aanvulling van geadresseerden, meerdere identiteiten met elk hun eigen ondertekening, bijlagen en concepten
-* Antwoorden vertrekken vanaf het adres waarop het bericht binnenkwam, met de ondertekening van die identiteit
-* Verzenden ongedaan maken, verzenden op een later tijdstip, en herinneringen bij een vergeten bijlage of een lange lijst geadresseerden
-* Opent mailto:-koppelingen vanuit elke app of browser, al ingevuld
-
-Accounts, meldingen en versleuteling:
-
-* Voeg een account toe met alleen uw adres en wachtwoord (automatische detectie), wachtwoordloze OAuth 2.0-aanmelding, of handmatige IMAP/SMTP-instelling met voorinstellingen per aanbieder
-* Pushmeldingen voor nieuwe post zonder Google en zonder FCM, via JMAP EventSource, IMAP IDLE of UnifiedPush, gegroepeerd per account en met stille uren
-* OpenPGP-versleuteling via een externe OpenPGP-app zoals OpenKeychain, zowel bij JMAP als bij IMAP/SMTP. Ontsleutelde inhoud wordt nooit naar schijf geschreven, met bijlagen als uitzondering: een bijlage die u opent wordt naar de eigen opslag van de app geschreven totdat de cache wordt geleegd, en een bijlage die u opslaat gaat naar de map die u kiest en blijft daar. Een bericht afdrukken, of het als pdf opslaan, geeft de ontsleutelde tekst door aan de afdrukservice van het systeem
-* Externe afbeeldingen en telpixels standaard geblokkeerd, en volgparameters kunnen uit koppelingen worden verwijderd voordat die openen
-* Inloggegevens versleuteld met de Android KeyStore, appvergrendeling met biometrie of pincode
-
-Serverfuncties en afwerking:
-
-* Afwezigheidsassistent, Sieve-filterregels en weergave van het postvakquotum, aan de serverzijde
-* Material 3-interface met eigen lichte en donkere thema's, Material You naar keuze, en instelbare tekstgrootte voor berichten
-* Beschikbaar in tien talen: Engels, Frans, Duits, Spaans, Italiaans, Portugees, Nederlands, Pools, Russisch en vereenvoudigd Chinees
-* Geschikt voor schermlezers, met export en import van de instellingen
-
-Sterna Mail is opensource, en de uitgebrachte versies zijn reproduceerbaar: F-Droid controleert dat de app die het verspreidt byte voor byte dezelfde is als die uit de gepubliceerde broncode is gebouwd. De code kan door iedereen worden gelezen, gecontroleerd en verbeterd.
+Instellen en meldingen:
+* Instellen met alleen je e-mailadres, of een handmatig formulier als het domein niets publiceert
+* Pushmeldingen zonder Google, via JMAP, IMAP IDLE of UnifiedPush
+* Beschikbaar in tien talen

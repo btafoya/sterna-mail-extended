@@ -1,0 +1,5 @@
+Cada conta tem o seu próprio canal de correio novo. O Android não transfere as definições do canal antigo: verifique o som de cada conta em Informações da aplicação > Notificações, no fundo.
+
+Ações em lote imediatas. Toque no título da lista para mudar de conta. Toque longo no ícone: nova mensagem. JMAP: livro de endereços, remetente com +etiqueta.
+
+As assinaturas escritas mantêm as linhas. Correções IMAP: mover, eliminar, INBOX aninhada.

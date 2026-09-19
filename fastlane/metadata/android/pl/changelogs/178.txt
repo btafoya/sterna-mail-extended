@@ -1,0 +1,5 @@
+Każde konto ma własny kanał powiadomień o nowej poczcie. Android nie przenosi ustawień starego kanału: sprawdź dźwięk każdego konta w Informacje o aplikacji > Powiadomienia, na samym dole.
+
+Działania zbiorcze natychmiast. Stuknij tytuł listy, aby zmienić konto. Przytrzymaj ikonę: nowa wiadomość. JMAP: książka adresowa, nadawca z +etykietą.
+
+Wpisane podpisy zachowują wiersze. Poprawki IMAP: przenoszenie, usuwanie, zagnieżdżony INBOX.

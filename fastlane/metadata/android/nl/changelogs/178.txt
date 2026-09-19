@@ -1,0 +1,5 @@
+Elk account heeft een eigen kanaal voor nieuwe mail. Android neemt de instellingen van het oude kanaal niet over: controleer het geluid van elk account bij App-info > Meldingen, helemaal onderaan.
+
+Bulkacties direct. Tik op de lijsttitel om van account te wisselen. Pictogram lang indrukken: nieuw bericht. JMAP: adresboek, afzender met +tag.
+
+Getypte handtekeningen houden hun regels. IMAP-correcties: verplaatsen, verwijderen, geneste INBOX.
