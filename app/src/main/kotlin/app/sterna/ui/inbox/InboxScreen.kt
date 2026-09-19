@@ -995,37 +995,58 @@ fun InboxScreen(
                         },
                     )
                 } else {
+                    var accountMenuOpenIn by remember { mutableStateOf<Int?>(null) }
+                    val titleSwitchTargets = if (!ui.unified) accounts.filter { it.id != currentAccountId } else emptyList()
                     MediumTopAppBar(
                         title = {
-                            Column {
-                                // Both titles are resolved here, not in the ViewModel: a ViewModel
-                                // outlives a configuration change and would keep the old language.
-                                val selectedRole = ui.mailboxes
-                                    .firstOrNull { it.id == ui.selectedMailboxId }?.role
-                                Text(
-                                    // The unread view selects no folder either, so without an arm
-                                    // of its own the title would name the last folder visited.
-                                    if (ui.unreadView) {
-                                        stringResource(R.string.inbox_unread_view)
-                                    } else if (ui.unified) {
-                                        stringResource(R.string.inbox_all_inboxes)
-                                    } else {
-                                        mailboxDisplayName(selectedRole, ui.mailboxName)
-                                    },
-                                    // titleMedium (not titleLarge) so the folder + account
-                                    // both fit the Medium bar's title area at large font scales.
-                                    style = MaterialTheme.typography.titleMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                if (!ui.unified && ui.accountName.isNotBlank()) {
+                            AccountSwitchTitle(
+                                others = titleSwitchTargets,
+                                openIn = accountMenuOpenIn,
+                                onOpenInChange = { accountMenuOpenIn = it },
+                                onSwitchAccount = onSwitchAccount,
+                                collapsedFraction = { scrollBehavior.state.collapsedFraction },
+                            ) {
+                                Column {
+                                    // Both titles are resolved here, not in the ViewModel: a ViewModel
+                                    // outlives a configuration change and would keep the old language.
+                                    val selectedRole = ui.mailboxes
+                                        .firstOrNull { it.id == ui.selectedMailboxId }?.role
                                     Text(
-                                        ui.accountName,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        // The unread view selects no folder either, so without an arm
+                                        // of its own the title would name the last folder visited.
+                                        if (ui.unreadView) {
+                                            stringResource(R.string.inbox_unread_view)
+                                        } else if (ui.unified) {
+                                            stringResource(R.string.inbox_all_inboxes)
+                                        } else {
+                                            mailboxDisplayName(selectedRole, ui.mailboxName)
+                                        },
+                                        // titleMedium (not titleLarge) so the folder + account
+                                        // both fit the Medium bar's title area at large font scales.
+                                        style = MaterialTheme.typography.titleMedium,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
+                                    if (!ui.unified && ui.accountName.isNotBlank()) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                ui.accountName,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false),
+                                            )
+                                            if (titleSwitchTargets.isNotEmpty()) {
+                                                Icon(
+                                                    Icons.Filled.ExpandMore,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(16.dp),
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         },
