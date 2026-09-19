@@ -93,8 +93,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   comes back, with its own screen for waiting, sending and failed mail.
 - ✅ Schedule send, with a screen to cancel a pending one. No attachments yet.
 - ✅ "Forgot attachment?" reminder, in every UI language.
-- ✅ Recipient autocomplete from cached and opt-in device contacts, as removable
-  chips, with address validation.
+- ✅ Recipient autocomplete from cached addresses, the sending account's server
+  address book (read-only, on JMAP servers that publish one) and opt-in device
+  contacts, as removable chips, with address validation.
 - ✅ Several sending identities per account, each with its own signature, chosen
   from a From picker.
 - ✅ Read-receipt requests and responses, both off by default, never sent without a

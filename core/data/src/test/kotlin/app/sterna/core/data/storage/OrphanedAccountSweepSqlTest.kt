@@ -1,5 +1,7 @@
 package app.sterna.core.data.storage
 
+import app.sterna.core.data.db.SERVER_CONTACTS_CREATE_SQL
+import app.sterna.core.data.db.SERVER_CONTACTS_STATE_CREATE_SQL
 import app.sterna.core.data.mail.DaoQuerySource
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -25,6 +27,8 @@ class OrphanedAccountSweepSqlTest {
             st.executeUpdate("CREATE TABLE mailboxes(id TEXT, accountId TEXT, name TEXT, PRIMARY KEY(accountId, id))")
             st.executeUpdate("CREATE TABLE email_fts(emailId TEXT, accountId TEXT, subject TEXT)")
             st.executeUpdate("CREATE TABLE email_bodies(id TEXT, accountId TEXT, html TEXT, PRIMARY KEY(accountId, id))")
+            st.executeUpdate(SERVER_CONTACTS_CREATE_SQL)
+            st.executeUpdate(SERVER_CONTACTS_STATE_CREATE_SQL)
         }
     }
 
@@ -197,6 +201,26 @@ class OrphanedAccountSweepSqlTest {
         }
     }
 
+    @Test fun `an orphan known only to its server address book loses its rows and its state`() {
+        exec("INSERT INTO server_contacts VALUES(?, 'c1', 'Jordan', 'jordan@example.org')", "book-only")
+        exec("INSERT INTO server_contacts_state VALUES(?, 's1')", "state-only")
+        exec("INSERT INTO server_contacts VALUES(?, 'c1', 'Jordan', 'jordan@example.org')", "kept")
+        exec("INSERT INTO server_contacts_state VALUES(?, 's1')", "kept")
+        insertEmail("kept")
+
+        val swept = sweep(listOf("kept"))
+
+        assertEquals(
+            "an account removed while its address book was being read leaves only that copy behind, " +
+                "and the sweep must see it there",
+            listOf("book-only", "state-only"), swept.sorted(),
+        )
+        assertEquals(0, rowCount("server_contacts", "book-only"))
+        assertEquals(0, rowCount("server_contacts_state", "state-only"))
+        assertEquals("the live account lost its address book", 1, rowCount("server_contacts", "kept"))
+        assertEquals("the live account lost its address book state", 1, rowCount("server_contacts_state", "kept"))
+    }
+
     @Test fun `an account listed by several tables is swept once`() {
         insertEmail("gone"); insertMailbox("gone"); insertIndexRow("gone"); insertBody("gone")
         assertEquals(
@@ -329,6 +353,7 @@ class OrphanedAccountSweepSqlTest {
             "mailboxDao.accountIds()",
             "emailFtsDao.accountIds()",
             "emailBodyDao.accountIds()",
+            "serverContactDao.accountIds()",
         ).filterNot { it in SweepShape.code }
         assertEquals(
             "purgeOrphanedAccounts must inventory every table it deletes from. Dropping one back " +

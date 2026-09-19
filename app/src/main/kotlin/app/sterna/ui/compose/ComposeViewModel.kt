@@ -12,7 +12,6 @@ import app.sterna.container
 import app.sterna.R
 import app.sterna.contacts.AndroidContacts
 import app.sterna.contacts.ContactSuggestion
-import app.sterna.contacts.mergeSuggestions
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.StoredAccount
@@ -348,6 +347,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     suspend fun selectFrom(option: FromOption, isReplyOrForward: Boolean = false): SignatureChange? {
         val previous = selectedIdentity()
         _selectedFrom.value = option
+        recipients.senderChanged()
         refreshPgp()
         val old = signatureTextOf(previous)
         val new = signatureTextOf(option.identity)
@@ -571,31 +571,26 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /** Recipient autocomplete suggestions for the field currently being typed. */
-    private val _suggestions = MutableStateFlow<List<ContactSuggestion>>(emptyList())
-    val suggestions: StateFlow<List<ContactSuggestion>> = _suggestions.asStateFlow()
+    private val recipients = RecipientSuggester(viewModelScope, repo.sending::suggestContacts, repo.accounts::serverContacts)
+    val suggestions: StateFlow<List<ContactSuggestion>> = recipients.suggestions
 
     /** Suggest recipients for the last token in [fieldValue] (after the final comma/semicolon). */
     fun suggest(fieldValue: String) {
-        val token = fieldValue.substringAfterLast(',').substringAfterLast(';').trim()
-        if (token.length < 2) {
-            _suggestions.value = emptyList()
-            return
-        }
-        viewModelScope.launch {
-            val recent = repo.sending.suggestContacts(token, 6)
+        recipients.suggest(
+            fieldValue,
+            sender = { composingAccountId(_selectedFrom.value, accountId, store::currentId) },
             // The address book is a content-provider query: off the main thread, since this runs on
             // every keystroke while the keyboard needs it.
-            val device = if (contactsEnabled.value) {
-                withContext(Dispatchers.IO) { AndroidContacts.query(getApplication(), token, 6) }
+            device = if (contactsEnabled.value) {
+                { q, limit -> withContext(Dispatchers.IO) { AndroidContacts.query(getApplication(), q, limit) } }
             } else {
-                emptyList()
-            }
-            _suggestions.value = mergeSuggestions(recent, device, 6)
-        }
+                null
+            },
+        )
     }
 
     fun clearSuggestions() {
-        _suggestions.value = emptyList()
+        recipients.clear()
     }
 
     private var prepared = false

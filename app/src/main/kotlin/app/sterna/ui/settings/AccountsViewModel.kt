@@ -24,6 +24,7 @@ import app.sterna.core.data.mail.OAuthProvider
 import app.sterna.core.jmap.model.Mailbox
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.data.settings.DeliveryMode
+import app.sterna.core.data.storage.OrphanedAccountCache
 import app.sterna.pgp.PgpProviders
 import app.sterna.push.MailChannels
 import app.sterna.push.NewMailNotifier
@@ -619,7 +620,9 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
             }
             // Then anything left by an account no longer configured (#121): the per-id purges
             // above only cover what this sign-out removed. Sweeps nothing on an empty store.
-            storage.purgeOrphanedAccounts { store.accounts().map { it.id } }
+            OrphanedAccountCache.sweptLine(
+                storage.purgeOrphanedAccounts { store.accounts().map { it.id } }
+            )?.let { android.util.Log.i("SternaAccounts", it) }
         }
         PushController.apply(app, userInitiated = true)
     }

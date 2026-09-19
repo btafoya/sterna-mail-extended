@@ -10,6 +10,7 @@ import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
 import app.sterna.core.data.db.MailboxDao
+import app.sterna.core.data.db.ServerContactDao
 import app.sterna.core.data.db.SnoozedDao
 import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.SmtpClient
@@ -149,6 +150,7 @@ class MailAccountsPruneFollowsTheStoreTest {
         val bodies = mutableListOf<String>()
         val mailboxes = mutableListOf<String>()
         val snoozed = mutableListOf<String>()
+        val serverContacts = mutableListOf<String>()
         val hook = mutableListOf<String>()
         val pendingExpunges = InMemoryPendingExpunges()
     }
@@ -167,6 +169,7 @@ class MailAccountsPruneFollowsTheStoreTest {
         emailBodyDao = daoRecording<EmailBodyDao>("deleteForAccount", purged.bodies),
         mailboxDao = daoRecording<MailboxDao>("deleteForAccount", purged.mailboxes),
         snoozedDao = daoRecording<SnoozedDao>("deleteForAccount", purged.snoozed),
+        serverContactDao = daoRecording<ServerContactDao>("deleteForAccount", purged.serverContacts),
         accountStore = store,
         oauthClient = OAuthClient(),
         // Unconfined: the purge is launched, and must have run before the assertion reads it.
@@ -248,6 +251,7 @@ class MailAccountsPruneFollowsTheStoreTest {
         assertEquals(listOf("acc2"), purged.mailboxes)
         assertEquals(listOf("acc2"), purged.snoozed)
         assertEquals(listOf("acc2"), purged.pendingExpunges.forgottenAccounts)
+        assertEquals("the pruned account's copy of the server address book", listOf("acc2"), purged.serverContacts)
     }
 
     /** Same session, a store that prunes nothing: no table is touched and the hook stays silent. */
@@ -263,6 +267,7 @@ class MailAccountsPruneFollowsTheStoreTest {
         assertEquals(emptyList<String>(), purged.mailboxes)
         assertEquals(emptyList<String>(), purged.snoozed)
         assertEquals(emptyList<String>(), purged.pendingExpunges.forgottenAccounts)
+        assertEquals(emptyList<String>(), purged.serverContacts)
     }
 
     /** A login with one mail account and no sub-account stored costs neither the store nor the server. */

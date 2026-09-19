@@ -146,6 +146,7 @@ class BulkImapCountsWhatLeftTheFolderTest {
         outboxDao = unusableDao<OutboxDao>(),
         purgeSnapshotDao = purgeSnapshotDao(),
         localDraftDao = unusableDao<LocalDraftDao>(),
+        serverContactDao = unusableDao<app.sterna.core.data.db.ServerContactDao>(),
         mailboxUidValidityDao = unusableDao<MailboxUidValidityDao>(),
         outboxFilesDir = File("outbox-never-read"),
         localDraftFilesDir = File("drafts-never-read"),

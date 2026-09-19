@@ -393,8 +393,8 @@ class ScheduledSendFailuresMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "the schema now declares v29 (`pending_expunge`)",
-            29,
+            "the schema is at v30 (`server_contacts`), past this branch's v28",
+            30,
             SCHEMA_VERSION,
         )
     }

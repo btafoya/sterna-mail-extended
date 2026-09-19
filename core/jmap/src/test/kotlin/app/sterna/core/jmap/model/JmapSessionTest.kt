@@ -142,4 +142,58 @@ class JmapSessionTest {
         assertEquals(7, setOnly.setBatchSize())
         assertEquals(100, setOnly.getBatchSize())
     }
+
+
+    private val contactsSession = mapOf(
+        Jmap.CORE_CAPABILITY to buildJsonObject { },
+        Jmap.MAIL_CAPABILITY to buildJsonObject { },
+        Jmap.CONTACTS_CAPABILITY to buildJsonObject { },
+    )
+
+    @Test fun contactsAccountId_isThePrimaryContactsAccountNotTheMailOne() {
+        val session = JmapSession(
+            apiUrl = "https://mail.example.com/jmap/api/",
+            capabilities = contactsSession,
+            accounts = mapOf(
+                "mail" to account(Jmap.MAIL_CAPABILITY, Jmap.CONTACTS_CAPABILITY),
+                "book" to account(Jmap.CONTACTS_CAPABILITY),
+            ),
+            primaryAccounts = mapOf(Jmap.MAIL_CAPABILITY to "mail", Jmap.CONTACTS_CAPABILITY to "book"),
+        )
+
+        assertEquals("book", session.contactsAccountId())
+        assertEquals(listOf("mail"), session.mailAccountIds())
+    }
+
+    @Test fun contactsAccountId_fallsBackToAnAccountAdvertisingContacts() {
+        val session = JmapSession(
+            apiUrl = "https://mail.example.com/jmap/api/",
+            capabilities = contactsSession,
+            accounts = mapOf(
+                "mail" to account(Jmap.MAIL_CAPABILITY),
+                "book" to account(Jmap.CONTACTS_CAPABILITY),
+            ),
+            primaryAccounts = mapOf(Jmap.MAIL_CAPABILITY to "mail"),
+        )
+
+        assertEquals("book", session.contactsAccountId())
+    }
+
+    @Test fun contactsAccountId_neverFallsBackToTheMailAccount() {
+        val noAccountHasContacts = JmapSession(
+            apiUrl = "https://mail.example.com/jmap/api/",
+            capabilities = contactsSession,
+            accounts = mapOf("mail" to account(Jmap.MAIL_CAPABILITY)),
+            primaryAccounts = mapOf(Jmap.MAIL_CAPABILITY to "mail"),
+        )
+        val serverWithoutContacts = JmapSession(
+            apiUrl = "https://mail.example.com/jmap/api/",
+            capabilities = contactsSession - Jmap.CONTACTS_CAPABILITY,
+            accounts = mapOf("mail" to account(Jmap.MAIL_CAPABILITY, Jmap.CONTACTS_CAPABILITY)),
+            primaryAccounts = mapOf(Jmap.MAIL_CAPABILITY to "mail", Jmap.CONTACTS_CAPABILITY to "mail"),
+        )
+
+        assertEquals(null, noAccountHasContacts.contactsAccountId())
+        assertEquals(null, serverWithoutContacts.contactsAccountId())
+    }
 }

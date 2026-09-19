@@ -156,6 +156,7 @@ class BulkRemovalHoldsTheRowsItEvictedTest {
         outboxDao = unusableDao<OutboxDao>(),
         purgeSnapshotDao = unusableDao<PurgeSnapshotDao>(),
         localDraftDao = unusableDao<LocalDraftDao>(),
+        serverContactDao = unusableDao<app.sterna.core.data.db.ServerContactDao>(),
         mailboxUidValidityDao = unusableDao<MailboxUidValidityDao>(),
         outboxFilesDir = File("outbox-never-read"),
         localDraftFilesDir = File("drafts-never-read"),

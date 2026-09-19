@@ -16,6 +16,7 @@ class ContactSuggestionTest {
     fun `local-only rows have no photo`() {
         val merged = mergeSuggestions(
             local = listOf(row("ada@example.org", "Ada"), row("bob@example.org")),
+            server = emptyList(),
             device = emptyList(),
             limit = 6,
         )
@@ -27,6 +28,7 @@ class ContactSuggestionTest {
     fun `address-book rows keep their photo`() {
         val merged = mergeSuggestions(
             local = emptyList(),
+            server = emptyList(),
             device = listOf(ContactSuggestion("ada@example.org", "Ada", "content://photo/1")),
             limit = 6,
         )
@@ -37,6 +39,7 @@ class ContactSuggestionTest {
     fun `an address book contact without a picture falls back to the monogram`() {
         val merged = mergeSuggestions(
             local = emptyList(),
+            server = emptyList(),
             device = listOf(ContactSuggestion("bob@example.org", "Bob", null)),
             limit = 6,
         )
@@ -47,6 +50,7 @@ class ContactSuggestionTest {
     fun `a recent recipient also in the address book takes its photo and name`() {
         val merged = mergeSuggestions(
             local = listOf(row("Ada@Example.org")),
+            server = emptyList(),
             device = listOf(ContactSuggestion("ada@example.org", "Ada Lovelace", "content://photo/1")),
             limit = 6,
         )
@@ -61,6 +65,7 @@ class ContactSuggestionTest {
     fun `a local name wins over the address book name`() {
         val merged = mergeSuggestions(
             local = listOf(row("ada@example.org", "Ada (work)")),
+            server = emptyList(),
             device = listOf(ContactSuggestion("ada@example.org", "Ada Lovelace", "content://photo/1")),
             limit = 6,
         )
@@ -72,6 +77,7 @@ class ContactSuggestionTest {
     fun `local rows come first and the limit is honoured`() {
         val merged = mergeSuggestions(
             local = listOf(row("a@x.org"), row("b@x.org")),
+            server = emptyList(),
             device = listOf(
                 ContactSuggestion("c@x.org", "C", "content://photo/c"),
                 ContactSuggestion("d@x.org", "D", null),
@@ -85,6 +91,7 @@ class ContactSuggestionTest {
     fun `duplicate device rows keep the first photo seen`() {
         val merged = mergeSuggestions(
             local = listOf(row("ada@example.org")),
+            server = emptyList(),
             device = listOf(
                 ContactSuggestion("ADA@example.org", "Ada", "content://photo/1"),
                 ContactSuggestion("ada@example.org", "Ada bis", "content://photo/2"),
@@ -93,5 +100,71 @@ class ContactSuggestionTest {
         )
         assertEquals(1, merged.size)
         assertEquals("content://photo/1", merged.single().photoUri)
+    }
+
+    @Test
+    fun `seen addresses come first, then the server address book, then the device contacts`() {
+        val merged = mergeSuggestions(
+            local = listOf(row("seen@x.org")),
+            server = listOf(row("book@x.org", "Book")),
+            device = listOf(ContactSuggestion("phone@x.org", "Phone", null)),
+            limit = 6,
+        )
+        assertEquals(listOf("seen@x.org", "book@x.org", "phone@x.org"), merged.map { it.email })
+    }
+
+    @Test
+    fun `a server book address already seen or on the device is listed once, at its first place`() {
+        val merged = mergeSuggestions(
+            local = listOf(row("Ada@x.org")),
+            server = listOf(row("ada@x.org", "Ada"), row("BOB@x.org", "Bob")),
+            device = listOf(ContactSuggestion("bob@x.org", "Bob phone", "content://photo/b")),
+            limit = 6,
+        )
+        assertEquals(listOf("Ada@x.org", "BOB@x.org"), merged.map { it.email })
+    }
+
+    @Test
+    fun `the limit cuts across the three sources`() {
+        val merged = mergeSuggestions(
+            local = listOf(row("a@x.org"), row("b@x.org")),
+            server = listOf(row("c@x.org"), row("d@x.org"), row("e@x.org")),
+            device = listOf(ContactSuggestion("f@x.org", "F", null), ContactSuggestion("g@x.org", "G", null)),
+            limit = 6,
+        )
+        assertEquals(listOf("a@x.org", "b@x.org", "c@x.org", "d@x.org", "e@x.org", "f@x.org"), merged.map { it.email })
+    }
+
+    @Test
+    fun `a server card without a name shows no empty name`() {
+        val merged = mergeSuggestions(
+            local = emptyList(),
+            server = listOf(row("anon@x.org", "")),
+            device = emptyList(),
+            limit = 6,
+        )
+        assertNull(merged.single().name)
+    }
+
+    @Test
+    fun `a seen address with an empty name keeps it, as before the server book`() {
+        val merged = mergeSuggestions(
+            local = listOf(row("ada@x.org", "")),
+            server = emptyList(),
+            device = listOf(ContactSuggestion("ada@x.org", "Ada Lovelace", "content://photo/1")),
+            limit = 6,
+        )
+        assertEquals("", merged.single().name)
+    }
+
+    @Test
+    fun `a server card without a name takes the device contact's name`() {
+        val merged = mergeSuggestions(
+            local = emptyList(),
+            server = listOf(row("ada@x.org", "")),
+            device = listOf(ContactSuggestion("ada@x.org", "Ada Lovelace", "content://photo/1")),
+            limit = 6,
+        )
+        assertEquals("Ada Lovelace", merged.single().name)
     }
 }

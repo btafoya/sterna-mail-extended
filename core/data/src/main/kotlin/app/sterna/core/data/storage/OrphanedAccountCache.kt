@@ -13,4 +13,8 @@ object OrphanedAccountCache {
         val known = knownAccountIds.toSet()
         return cachedAccountIds.distinct().filterNot { it in known }
     }
+
+    fun sweptLine(accountIds: List<String>): String? =
+        if (accountIds.isEmpty()) null
+        else "Orphaned-cache sweep removed the cached data of account(s) ${accountIds.joinToString(", ")}"
 }

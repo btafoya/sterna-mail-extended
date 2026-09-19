@@ -8,6 +8,7 @@ object Jmap {
     const val VACATION_CAPABILITY = "urn:ietf:params:jmap:vacationresponse"
     const val QUOTA_CAPABILITY = "urn:ietf:params:jmap:quota"
     const val SIEVE_CAPABILITY = "urn:ietf:params:jmap:sieve"
+    const val CONTACTS_CAPABILITY = "urn:ietf:params:jmap:contacts"
 
     /** VAPID for JMAP WebPush (RFC 9749); advertises the server's application key. */
     const val WEBPUSH_VAPID_CAPABILITY = "urn:ietf:params:jmap:webpush-vapid"

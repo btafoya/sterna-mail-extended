@@ -389,6 +389,6 @@ class PendingExpungeMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("this branch takes the schema to v29 (`pending_expunge`)", 29, SCHEMA_VERSION)
+        assertEquals("this branch's step lands at v29 (`pending_expunge`), not the schema's last", 29, registeredStep(28).endVersion)
     }
 }

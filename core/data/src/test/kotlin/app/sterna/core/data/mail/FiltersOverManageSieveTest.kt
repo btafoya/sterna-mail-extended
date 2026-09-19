@@ -164,6 +164,7 @@ class FiltersOverManageSieveTest {
             emailBodyDao = untouched<EmailBodyDao>(),
             mailboxDao = untouched<MailboxDao>(),
             snoozedDao = untouched<SnoozedDao>(),
+            serverContactDao = untouched<app.sterna.core.data.db.ServerContactDao>(),
             accountStore = store,
             oauthClient = OAuthClient(),
             bgScope = CoroutineScope(Dispatchers.Unconfined),

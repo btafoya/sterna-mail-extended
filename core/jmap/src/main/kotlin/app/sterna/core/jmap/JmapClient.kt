@@ -1,5 +1,8 @@
 package app.sterna.core.jmap
 
+import app.sterna.core.jmap.model.ContactCardDto
+import app.sterna.core.jmap.model.ContactChanges
+import app.sterna.core.jmap.model.ContactsSnapshot
 import app.sterna.core.jmap.model.CrawlPage
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailAddress
@@ -16,6 +19,7 @@ import app.sterna.core.jmap.model.PushSubscription
 import app.sterna.core.jmap.model.StateChange
 import app.sterna.core.jmap.model.Quota
 import app.sterna.core.jmap.model.SearchPage
+import app.sterna.core.jmap.model.ServerContact
 import app.sterna.core.jmap.model.SearchQuery
 import app.sterna.core.jmap.model.SieveScript
 import app.sterna.core.jmap.model.SubmissionEnvelope
@@ -1354,6 +1358,115 @@ class JmapClient internal constructor(
             }
         }
 
+    suspend fun getAllContacts(session: JmapSession, auth: JmapAuth): ContactsSnapshot? {
+        val accountId = session.contactsAccountId() ?: return null
+        return readAllContacts(session, accountId, auth)
+    }
+
+    suspend fun contactChanges(session: JmapSession, sinceState: String, auth: JmapAuth): ContactChanges? {
+        val accountId = session.contactsAccountId() ?: return null
+        val changed = LinkedHashSet<String>()
+        val destroyed = LinkedHashSet<String>()
+        var since = sinceState
+        do {
+            val args = try {
+                methodResponseArgs(
+                    postJmap(session, auth, contactsRequest(ContactCardCall("ContactCard/changes", "c0") {
+                        put("accountId", accountId)
+                        put("sinceState", since)
+                    })),
+                    "ContactCard/changes",
+                )
+            } catch (e: JmapException) {
+                if (e.errorType != JMAP_ERROR_CANNOT_CALCULATE_CHANGES) throw e
+                val all = readAllContacts(session, accountId, auth)
+                return ContactChanges(changed = all.contacts, destroyed = emptyList(), newState = all.state, replacesAll = true)
+            }
+            fun ids(key: String) = args[key]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+            changed += ids("created") + ids("updated")
+            ids("destroyed").forEach { changed -= it; destroyed += it }
+            val newState = args["newState"]?.jsonPrimitive?.contentOrNull
+            val moreToCome = args["hasMoreChanges"]?.jsonPrimitive?.booleanOrNull ?: false
+            val advanced = newState != null && newState != since
+            if (newState != null) since = newState
+        } while (moreToCome && advanced)
+        val cards = getInBatches(session, changed.toList()) { batch ->
+            decodeList(
+                postJmap(session, auth, contactsRequest(ContactCardCall("ContactCard/get", "g0") {
+                    put("accountId", accountId)
+                    putJsonArray("ids") { batch.forEach { add(it) } }
+                    putJsonArray("properties") { CONTACT_CARD_PROPERTIES.forEach { add(it) } }
+                })),
+                "ContactCard/get",
+                ContactCardDto.serializer(),
+            )
+        }
+        val found = cards.mapTo(HashSet()) { it.id }
+        changed.filterNotTo(destroyed) { it in found }
+        return ContactChanges(
+            changed = cards.map { it.toServerContact() },
+            destroyed = destroyed.toList(),
+            newState = since,
+            replacesAll = false,
+        )
+    }
+
+    private suspend fun readAllContacts(session: JmapSession, accountId: String, auth: JmapAuth): ContactsSnapshot {
+        val pageSize = session.getBatchSize()
+        val contacts = mutableListOf<ServerContact>()
+        var state: String? = null
+        var position = 0
+        while (true) {
+            val body = postJmap(
+                session,
+                auth,
+                contactsRequest(
+                    ContactCardCall("ContactCard/query", "q0") {
+                        put("accountId", accountId)
+                        put("position", position)
+                        put("limit", pageSize)
+                        put("calculateTotal", true)
+                    },
+                    ContactCardCall("ContactCard/get", "g0") {
+                        put("accountId", accountId)
+                        putJsonObject("#ids") {
+                            put("resultOf", "q0")
+                            put("name", "ContactCard/query")
+                            put("path", "/ids")
+                        }
+                        putJsonArray("properties") { CONTACT_CARD_PROPERTIES.forEach { add(it) } }
+                    },
+                ),
+            )
+            val query = methodResponseArgs(body, "ContactCard/query")
+            if (state == null) state = methodResponseArgs(body, "ContactCard/get")["state"]?.jsonPrimitive?.contentOrNull
+            contacts += decodeList(body, "ContactCard/get", ContactCardDto.serializer()).map { it.toServerContact() }
+            val listed = (query["ids"] as? JsonArray)?.size ?: 0
+            position += listed
+            val total = query["total"]?.jsonPrimitive?.intOrNull
+            if (listed == 0 || (total != null && position >= total)) break
+        }
+        return ContactsSnapshot(contacts, state)
+    }
+
+    private class ContactCardCall(val method: String, val callId: String, val arguments: JsonObjectBuilder.() -> Unit)
+
+    private fun contactsRequest(vararg calls: ContactCardCall): JsonObject = buildJsonObject {
+        putJsonArray("using") {
+            add(Jmap.CORE_CAPABILITY)
+            add(Jmap.CONTACTS_CAPABILITY)
+        }
+        putJsonArray("methodCalls") {
+            calls.forEach { call ->
+                addJsonArray {
+                    add(call.method)
+                    addJsonObject(call.arguments)
+                    add(call.callId)
+                }
+            }
+        }
+    }
+
         /** Fetch the account's VacationResponse singleton (RFC 8621 §8), or null if the server does
          *  not advertise the vacationresponse capability. */
     suspend fun getVacationResponse(session: JmapSession, accountId: String, auth: JmapAuth): VacationResponse? =
@@ -2585,6 +2698,10 @@ class JmapClient internal constructor(
 
         /** RFC 8620 §3.6.1 request-level limit error (e.g. Stalwart's maxConcurrentRequests). */
         private const val JMAP_ERROR_LIMIT = "urn:ietf:params:jmap:error:limit"
+
+        private const val JMAP_ERROR_CANNOT_CALCULATE_CHANGES = "cannotCalculateChanges"
+
+        private val CONTACT_CARD_PROPERTIES = listOf("id", "name", "emails")
 
                 /**
                  * RFC 8620 §3.6.1's `error:limit` or a plain 429, the one failure

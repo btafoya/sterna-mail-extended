@@ -33,6 +33,7 @@ import app.sterna.core.data.db.SnoozedDao
 import app.sterna.core.data.db.SnoozedEntity
 import app.sterna.core.data.db.SnoozedListRow
 import app.sterna.core.data.db.RecentContactDao
+import app.sterna.core.data.db.ServerContactDao
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.MailboxIdRole
@@ -868,6 +869,7 @@ class MailRepository(
     /** The frozen destroy list of a confirmed Empty trash (#99). */
     private val purgeSnapshotDao: PurgeSnapshotDao,
     localDraftDao: LocalDraftDao,
+    serverContactDao: ServerContactDao,
     mailboxUidValidityDao: MailboxUidValidityDao,
     outboxFilesDir: java.io.File,
     localDraftFilesDir: java.io.File,
@@ -937,6 +939,7 @@ class MailRepository(
         emailBodyDao = emailBodyDao,
         mailboxDao = mailboxDao,
         snoozedDao = snoozedDao,
+        serverContactDao = serverContactDao,
         accountStore = accountStore,
         oauthClient = oauthClient,
         bgScope = bgScope,

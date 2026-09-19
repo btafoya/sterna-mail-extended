@@ -65,6 +65,7 @@ object DataFactory {
                 outboxDao = database.outboxDao(),
                 purgeSnapshotDao = database.purgeSnapshotDao(),
                 localDraftDao = database.localDraftDao(),
+                serverContactDao = database.serverContactDao(),
                 mailboxUidValidityDao = database.mailboxUidValidityDao(),
                 outboxFilesDir = java.io.File(appContext.filesDir, "outbox"),
                 // Its own tree: a draft's staged bytes outlive any send, and the outbox's purge
@@ -90,6 +91,7 @@ object DataFactory {
                 // user data, so it goes on that event and on no cache purge (#95, #121).
                 localDraftDao = database.localDraftDao(),
                 localDraftFilesDir = localDraftFiles,
+                serverContactDao = database.serverContactDao(),
             ),
         )
     }

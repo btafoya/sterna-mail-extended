@@ -223,6 +223,7 @@ class MailRepositoryLogsThroughASeamTest {
                 "emailBodyDao = emailBodyDao,",
                 "mailboxDao = mailboxDao,",
                 "snoozedDao = snoozedDao,",
+                "serverContactDao = serverContactDao,",
                 "accountStore = accountStore,",
                 "oauthClient = oauthClient,",
                 "bgScope = bgScope,",

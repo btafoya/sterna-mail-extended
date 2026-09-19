@@ -1,6 +1,6 @@
 # Privacy
 
-Last updated: 2026-09-16.
+Last updated: 2026-09-19.
 
 **Sterna collects nothing and has no server of its own.** It is free software (GPLv3): no account, no analytics, no ads, no trackers, no crash reporting, no Google services (no Firebase, no FCM, no Play Services), and only free/open-source libraries. Your mail never passes through anything run by the Sterna project.
 
@@ -11,10 +11,11 @@ Last updated: 2026-09-16.
 - **Attachments you open.** Old ones are pruned (past 30 days or 200 MB) when you open the next one. Settings → Storage → **Clear cache** empties it.
 - **Drafts and messages waiting to go out**, until your server has them.
 - **Settings**, the **addresses you have written to** (for autocomplete) and the **senders you allow to load images**.
+- **A copy of your JMAP server's address book**, names and addresses only, for autocomplete, when the server publishes one. A shared or delegated mailbox gets none.
 
 Everything is removed when you remove the account or uninstall the app, except:
 
-- Settings, the autocomplete list and the allowed senders are not tied to an account. Uninstalling clears them.
+- Settings, the addresses you have written to and the allowed senders are not tied to an account. Uninstalling clears them.
 - A message in the **Outbox** or **Scheduled** is not deleted with its account, because it may be the only copy. Delete it from those screens.
 - Files you save yourself (an attachment, a `.eml`, a PDF) belong to the folder you picked. Sterna never deletes them, even when uninstalled. Attachments and PDFs of encrypted messages are saved decrypted; a `.eml` is saved as it arrived.
 
@@ -22,7 +23,7 @@ Everything is removed when you remove the account or uninstall the app, except:
 
 Sterna connects only to:
 
-1. **Your mail server** (JMAP or IMAP/SMTP), to read, send, sync and wait for new mail. On IMAP it tells the server its name and version (the `ID` command) when the server supports it.
+1. **Your mail server** (JMAP or IMAP/SMTP), to read, send, sync and wait for new mail. On JMAP it also reads your address book, about every 30 minutes, and never changes it. On IMAP it tells the server its name and version (the `ID` command) when the server supports it.
 2. **Your address's domain, while you add an account**, to find your server for you:
    - *Without credentials:* the domain's autoconfig file (HTTPS, redirects only within the domain), TLS handshakes with `imap.`, `mail.` and `smtp.` names, and the OAuth discovery document on `mail.`, `jmap.` and `api.`.
    - *With your credentials,* once you type a password: JMAP autodiscovery sends your address and password over HTTPS to `/.well-known/jmap` on the domain and on its `mail.`, `jmap.` and `api.` subdomains, and to wherever they redirect, until one of them returns your account.

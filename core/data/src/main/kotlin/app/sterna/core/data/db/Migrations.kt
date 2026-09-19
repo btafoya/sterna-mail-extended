@@ -371,3 +371,24 @@ val MIGRATION_28_29 = object : Migration(28, 29) {
         db.execSQL(PENDING_EXPUNGE_CREATE_SQL)
     }
 }
+
+const val SERVER_CONTACTS_CREATE_SQL: String =
+    "CREATE TABLE IF NOT EXISTS `server_contacts` (" +
+        "`accountId` TEXT NOT NULL, " +
+        "`cardId` TEXT NOT NULL, " +
+        "`name` TEXT NOT NULL, " +
+        "`email` TEXT NOT NULL, " +
+        "PRIMARY KEY(`accountId`, `cardId`, `email`))"
+
+const val SERVER_CONTACTS_STATE_CREATE_SQL: String =
+    "CREATE TABLE IF NOT EXISTS `server_contacts_state` (" +
+        "`accountId` TEXT NOT NULL, " +
+        "`state` TEXT NOT NULL, " +
+        "PRIMARY KEY(`accountId`))"
+
+val MIGRATION_29_30 = object : Migration(29, 30) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(SERVER_CONTACTS_CREATE_SQL)
+        db.execSQL(SERVER_CONTACTS_STATE_CREATE_SQL)
+    }
+}

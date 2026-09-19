@@ -44,6 +44,12 @@ data class JmapSession(
         return (listOfNotNull(primary?.takeIf { it in ids }) + ids.filterNot { it == primary }).distinct()
     }
 
+    fun contactsAccountId(): String? {
+        if (!capabilities.containsKey(Jmap.CONTACTS_CAPABILITY)) return null
+        return primaryAccounts[Jmap.CONTACTS_CAPABILITY]
+            ?: accounts.entries.firstOrNull { it.value.accountCapabilities.containsKey(Jmap.CONTACTS_CAPABILITY) }?.key
+    }
+
         /** The server's VAPID application key (RFC 9749) when advertised, passed to the UnifiedPush
          *  registration; null for servers without VAPID (e.g. Stalwart today). */
     fun vapidPublicKey(): String? =

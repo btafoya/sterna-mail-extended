@@ -13,6 +13,7 @@ import app.sterna.core.data.mail.localDraftUploadJobs
 import app.sterna.core.data.mail.scheduledSendJobs
 import app.sterna.core.data.rethrowIfCancelled
 import app.sterna.core.data.settings.SettingsRepository
+import app.sterna.core.data.storage.OrphanedAccountCache
 import app.sterna.core.data.storage.StorageRepository
 import app.sterna.core.jmap.JmapClient
 import app.sterna.drafts.LocalDraftUploads
@@ -131,6 +132,7 @@ class AppContainer(context: Context) {
         // opening (#31) cannot be mistaken for an orphan; an empty list sweeps nothing.
         appScope.launch {
             runCatching { storageRepository.purgeOrphanedAccounts { accountStore.accounts().map { it.id } } }
+                .onSuccess { swept -> OrphanedAccountCache.sweptLine(swept)?.let { Log.i("Sterna", it) } }
                 .onFailure { android.util.Log.w("Sterna", "orphaned-cache sweep failed; retried next start", it) }
         }
         // One-shot on crossing a version threshold, never on every update: drop the cached bodies.

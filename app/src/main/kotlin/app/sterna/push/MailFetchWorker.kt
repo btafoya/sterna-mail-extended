@@ -10,9 +10,13 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import app.sterna.AppContainer
 import app.sterna.container
 import app.sterna.core.data.account.MailProtocol
+import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.account.keepsPushForLinkedAccount
+import app.sterna.core.data.mail.ServerContactsSync
+import app.sterna.core.jmap.Jmap
 import java.util.concurrent.TimeUnit
 
 /**
@@ -48,6 +52,7 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
                     accountsUnreadable = store.accountsUnreadable(),
                 ),
             )
+            syncServerContactsOfEveryAccount(container)
             return Result.success()
         }
         for (credentials in accounts) {
@@ -90,7 +95,19 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
                 FetchAndNotify.run(applicationContext, credentials, includeInbox = pollInbox)
             }.onFailure { Log.w(TAG, "Fallback fetch failed for account ${credentials.id}", it) }
         }
+        syncServerContactsOfEveryAccount(container)
         return Result.success()
+    }
+
+    private suspend fun syncServerContactsOfEveryAccount(container: AppContainer) {
+        val stored = container.accountStore.accounts()
+        val readable = stored.mapNotNull { container.accountStore.credentials(it.id) }
+        addressBookLeftOutLine(stored, readable.map { it.id })?.let { Log.w(TAG, it) }
+        for (credentials in readable) {
+            runCatching { container.mailRepository.accounts.syncServerContacts(credentials) }
+                .onFailure { Log.w(TAG, "Address book refresh failed for account ${credentials.id}", it) }
+                .onSuccess { outcome -> serverContactsLine(credentials.id, outcome)?.let { Log.i(TAG, it) } }
+        }
     }
 
     companion object {
@@ -118,3 +135,31 @@ internal fun shouldPollInbox(pushConnected: Boolean, linked: Boolean): Boolean =
  */
 internal fun hasExtrasToPoll(isImap: Boolean, watchedFolders: Set<String>): Boolean =
     isImap && watchedFolders.isNotEmpty()
+
+internal fun serverContactsLine(accountId: String, outcome: ServerContactsSync): String? = when (outcome) {
+    ServerContactsSync.Imap -> null
+    ServerContactsSync.Linked ->
+        "Address book not read for account $accountId: a linked sub-account is never given its login's book"
+    is ServerContactsSync.NoAddressBook ->
+        if (outcome.capabilityListed) {
+            "Address book not read for account $accountId: the session lists ${Jmap.CONTACTS_CAPABILITY} " +
+                "but names no account for it"
+        } else {
+            "Address book not read for account $accountId: the session does not list ${Jmap.CONTACTS_CAPABILITY}"
+        }
+    is ServerContactsSync.Refreshed -> {
+        val read = if (outcome.whole) {
+            "whole book read, ${outcome.cards} cards"
+        } else {
+            "${outcome.cards} cards changed, ${outcome.destroyed} removed"
+        }
+        val state = if (outcome.stateKept) "state kept" else "no state kept, the next pass rereads it"
+        "Address book of account $accountId: $read, ${outcome.addresses} addresses written, $state"
+    }
+}
+
+internal fun addressBookLeftOutLine(stored: List<StoredAccount>, readable: List<String>): String? {
+    val leftOut = stored.filter { it.protocol != MailProtocol.IMAP }.map { it.id }.filterNot { it in readable }
+    if (leftOut.isEmpty()) return null
+    return "Address book not read for account(s) ${leftOut.joinToString(", ")}: their credentials could not be read"
+}

@@ -11,10 +11,12 @@ import app.sterna.core.data.account.accountAddresses
 import app.sterna.core.data.account.accountKeyOf
 import app.sterna.core.data.account.resolveExistingLogin
 import app.sterna.core.data.account.resolveExistingLoginAmong
+import app.sterna.core.data.db.ContactRow
 import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
 import app.sterna.core.data.db.MailboxDao
+import app.sterna.core.data.db.ServerContactDao
 import app.sterna.core.data.db.SnoozedDao
 import app.sterna.core.data.filter.FilterRule
 import app.sterna.core.data.filter.FilterScriptStatus
@@ -80,6 +82,8 @@ class MailAccounts(
     private val emailBodyDao: EmailBodyDao,
     private val mailboxDao: MailboxDao,
     private val snoozedDao: SnoozedDao,
+    /** The copy of each JMAP account's server address book. */
+    private val serverContactDao: ServerContactDao,
     private val accountStore: AccountStorage,
     private val oauthClient: OAuthClient,
     /** The repository's own background scope: the purge of a pruned account outlives the call. */
@@ -423,9 +427,33 @@ class MailAccounts(
                 runCatching { mailboxDao.deleteForAccount(prunedId) }
                 runCatching { snoozedDao.deleteForAccount(prunedId) }
                 runCatching { imap.forgetPendingExpunges(prunedId) }
+                runCatching { serverContactDao.deleteForAccount(prunedId) }
             }
         }
     }
+
+    /**
+     * Brings [credentials]' copy of the server address book up to date; IMAP has none. A bare session,
+     * not `MailAccountHost.jmapSession`, which reconciles accounts, rereads folders and identities and
+     * replaces the cached session. Throws on a failed read or a removed account, writing nothing.
+     */
+    suspend fun syncServerContacts(credentials: AccountCredentials): ServerContactsSync {
+        if (credentials.protocol == MailProtocol.IMAP) return ServerContactsSync.Imap
+        // The session's book is the login's own: a shared or delegated sub-account must not be given it.
+        if (accountStore.account(credentials.id)?.isLinked == true) return ServerContactsSync.Linked
+        val auth = host.jmapAuth(credentials)
+        val session = client.fetchSession(Jmap.sessionUrlFor(credentials.server), auth)
+        val stillConfigured = { checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id }) }
+        return refreshServerContacts(
+            accountId = credentials.id,
+            dao = serverContactDao,
+            readAll = { client.getAllContacts(session, auth).also { stillConfigured() } },
+            readChanges = { since -> client.contactChanges(session, since, auth).also { stillConfigured() } },
+        ) ?: ServerContactsSync.NoAddressBook(capabilityListed = Jmap.CONTACTS_CAPABILITY in session.capabilities)
+    }
+
+    suspend fun serverContacts(accountId: String, query: String, limit: Int): List<ContactRow> =
+        serverContactDao.search(accountId, query, limit)
 
     /** #31: discover linked sub-accounts for the new login [id]; best-effort, except cancellation. */
     suspend fun reconcileLinkedAccountsAfterAdd(id: String) {

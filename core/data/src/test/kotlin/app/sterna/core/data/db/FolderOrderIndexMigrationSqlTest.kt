@@ -476,8 +476,8 @@ class FolderOrderIndexMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "the schema declares v29: the `pending_expunge` table",
-            29,
+            "the schema declares v30: `server_contacts`",
+            30,
             SCHEMA_VERSION,
         )
     }

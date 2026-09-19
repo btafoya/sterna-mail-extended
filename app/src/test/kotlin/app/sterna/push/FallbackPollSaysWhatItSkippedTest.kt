@@ -205,7 +205,7 @@ class FallbackPollSaysWhatItSkippedTest {
                 "whose distributor was uninstalled: renewing at the server a subscription no " +
                 "distributor can deliver to spends a request to keep a dead address alive. " +
                 "Read:\n" +
-                doWorkStatements().take(24).joinToString("\n"),
+                doWorkStatements().take(25).joinToString("\n"),
             listOf(
                 "val container = (applicationContext as Application).container",
                 "val store = container.accountStore",
@@ -228,11 +228,12 @@ class FallbackPollSaysWhatItSkippedTest {
                 "accountsUnreadable = store.accountsUnreadable(),",
                 "),",
                 ")",
+                "syncServerContactsOfEveryAccount(container)",
                 "return Result.success()",
                 "}",
                 "for (credentials in accounts) {",
             ),
-            doWorkStatements().take(24),
+            doWorkStatements().take(25),
         )
     }
 

@@ -9,6 +9,7 @@ import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.MailboxUidValidityDao
 import app.sterna.core.data.db.PendingExpungeDao
 import app.sterna.core.data.db.PurgeSnapshotDao
+import app.sterna.core.data.db.ServerContactDao
 import app.sterna.core.data.db.SnoozedDao
 import app.sterna.core.data.mail.localDraftDirName
 import app.sterna.core.data.mail.purgeLocalDraftsOfAccount
@@ -48,6 +49,7 @@ class StorageRepository(
     private val localDraftDao: LocalDraftDao,
     /** Where those drafts' attachment bytes are staged; the same tree `MailRepository` writes to. */
     private val localDraftFilesDir: File,
+    private val serverContactDao: ServerContactDao,
 ) {
     private val attachmentsDir: File get() = File(context.cacheDir, "attachments")
 
@@ -107,6 +109,7 @@ class StorageRepository(
         runCatching { purgeSnapshotDao.deleteForAccount(accountId) }
         runCatching { mailboxUidValidityDao.deleteForAccount(accountId) }
         runCatching { pendingExpungeDao.deleteForAccount(accountId) }
+        runCatching { serverContactDao.deleteForAccount(accountId) }
         // Every row of the account, editing and STAGING ones included, an upload queue read would
         // walk past exactly the draft whose composer was open when the user signed out.
         runCatching {
@@ -127,7 +130,8 @@ class StorageRepository(
             // The inventory first: everything written after this snapshot belongs to an account the
             // list read below is guaranteed to contain.
             val cached = emailDao.countsByAccount().map { it.accountId } +
-                mailboxDao.accountIds() + emailFtsDao.accountIds() + emailBodyDao.accountIds()
+                mailboxDao.accountIds() + emailFtsDao.accountIds() + emailBodyDao.accountIds() +
+                serverContactDao.accountIds()
             val known = knownAccountIds()
             val orphans = OrphanedAccountCache.orphans(known, cached)
             orphans.forEach { accountId ->
@@ -136,6 +140,8 @@ class StorageRepository(
                 runCatching { emailFtsDao.clearAccount(accountId) }
                 runCatching { emailBodyDao.deleteForAccount(accountId) }
                 runCatching { mailboxDao.deleteForAccount(accountId) }
+                runCatching { serverContactDao.deleteRowsOfAccount(accountId) }
+                runCatching { serverContactDao.deleteState(accountId) }
             }
             orphans
         }
