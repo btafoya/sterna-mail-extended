@@ -1,0 +1,5 @@
+Chaque compte a son canal de notification de nouveau courrier. Android ne reprend pas les réglages de l'ancien canal : vérifiez le son de chaque compte dans Infos sur l'appli > Notifications, tout en bas.
+
+Actions groupées immédiates. Titre de la liste pour changer de compte. Appui long sur l'icône : nouveau message. JMAP : carnet d'adresses, From avec +étiquette.
+
+Signatures tapées gardées. Correctifs IMAP : déplacements, suppressions, INBOX imbriqué.

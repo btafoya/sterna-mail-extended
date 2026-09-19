@@ -1,0 +1,5 @@
+Each account now has its own new-mail notification channel. Android can't carry over the old channel's settings: check each account's sound in App info > Notifications, near the bottom.
+
+Bulk actions take rows off the list at once. Tap the list's title to switch account. Long-press the icon for a new message. JMAP: address book suggestions, plus-tagged From.
+
+Typed signatures keep their lines. IMAP fixes for moves, deletes and nested INBOX folders.
