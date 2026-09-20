@@ -282,19 +282,21 @@ class UnifiedPushManager(
                         types = listOf("Email"),
                     ),
                 )
-                store.save(
-                    accountId,
-                    prev.copy(
-                        endpoint = endpoint.url,
-                        subscriptionId = created.id,
-                        status = UpStatus.VERIFYING,
-                        statusSinceMillis = System.currentTimeMillis(),
-                        createAttempts = RelayPush.createAttemptsFor(prev, endpoint.url),
-                        expiresAtMillis = parseUtc(created.expires)
-                            ?: (System.currentTimeMillis() + EXPIRES_MS),
-                    ),
-                )
-                Log.i(TAG, "PushSubscription created for $accountId, awaiting verification")
+                val createdUntil = parseUtc(created.expires) ?: (System.currentTimeMillis() + EXPIRES_MS)
+                val merged = synchronized(this@UnifiedPushManager) {
+                    val current = store.load(accountId)
+                    val decided = RelayPush.onSubscriptionCreated(
+                        current, prev, endpoint.url, created.id, createdUntil, System.currentTimeMillis(),
+                    )
+                    if (decided != null) store.save(accountId, decided)
+                    decided
+                }
+                if (merged == null) {
+                    Log.w(TAG, "PushSubscription created for a record $accountId no longer holds")
+                    created.id?.let { runCatching { repo.destroyPushSubscription(credentials, it) } }
+                } else {
+                    Log.i(TAG, "PushSubscription created for $accountId, awaiting verification")
+                }
             }.onFailure {
                 Log.w(TAG, "PushSubscription create failed for $accountId", it)
                 markFailed(accountId)
@@ -453,8 +455,11 @@ class UnifiedPushManager(
 
     /** Sign-out: unregister the instance and best-effort destroy the subscription. */
     fun teardown(credentials: AccountCredentials) {
-        val state = store.load(credentials.id)
-        store.clear(credentials.id)
+        val state = synchronized(this) {
+            val known = store.load(credentials.id)
+            store.clear(credentials.id)
+            known
+        }
         UnifiedPush.unregister(context, credentials.id)
         val subscriptionId = state?.subscriptionId ?: return
         scope.launch { runCatching { repo.destroyPushSubscription(credentials, subscriptionId) } }

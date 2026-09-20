@@ -175,10 +175,10 @@ class RelayWiringTest {
                 "no scope.launch may sit inside it. A write that FOLLOWS a server call is not " +
                 "excused by that rule: it must re-read the state inside the monitor and merge " +
                 "only the fields the call owns, which is what renewIfNeeded does and what the " +
-                "rule below pins. TWO writes after a server call are still outside this list — " +
-                "onNewEndpoint's Subscribe path and onMessage's Verification arm, which saves a " +
-                "getOrCreate().copy(status = ACTIVE) from inside a scope.launch — and neither is " +
-                "excused: neither has been converted yet, that is all. Nor is this list an " +
+                "rule below pins. ONE write after a server call is still outside this list — " +
+                "onMessage's Verification arm, which saves a getOrCreate().copy(status = ACTIVE) " +
+                "from inside a scope.launch — and it is not excused: it has not been converted " +
+                "yet, that is all. Nor is this list an " +
                 "inventory of the file's writes: it only ever looks for 'store.save(', so the " +
                 "store.clear of teardown and unregisterOrphan is invisible to it. Writes found " +
                 "outside the monitor:\n" + offenders.entries.joinToString("\n"),
@@ -540,28 +540,67 @@ class RelayWiringTest {
     }
 
     @Test fun `a created subscription counts itself against the endpoint it was created for`() {
-        val expected = listOf(
-            "store.save(",
-            "accountId,",
-            "prev.copy(",
-            "endpoint = endpoint.url,",
-            "subscriptionId = created.id,",
-            "status = UpStatus.VERIFYING,",
-            "statusSinceMillis = System.currentTimeMillis(),",
-            "createAttempts = RelayPush.createAttemptsFor(prev, endpoint.url),",
-            "expiresAtMillis = parseUtc(created.expires)",
-            "?: (System.currentTimeMillis() + EXPIRES_MS),",
-            "),",
-            ")",
+        val body = managerBlock(ON_NEW_ENDPOINT)
+        assertEquals(
+            "the merge must be handed exactly '$EXPECTED_CREATE_ARGS' — the whole line, in " +
+                "this order. The counter itself moved into RelayPush.onSubscriptionCreated, " +
+                "where [RelayPushTest] executes it; what no test can execute is which values " +
+                "this file hands it. 'endpoint.url' is the address the subscription was just " +
+                "created for, and the count is attributed to it so a rotated address starts its " +
+                "own — hand 'prev.endpoint' and a new distributor's address inherits a spent " +
+                "budget, so push never comes back at all. 'current, prev' in this order is the " +
+                "whole point of the merge: swap them and it is built on a snapshot older than " +
+                "two round-trips again, with every line of this file still reading right. Lines " +
+                "found:\n" + body.filter { it.startsWith("current, prev") }.joinToString("\n"),
+            listOf(EXPECTED_CREATE_ARGS),
+            body.filter { it.startsWith("current, prev") },
         )
         assertEquals(
-            "the write that follows a successful create is pinned whole. The counter is raised " +
-                "HERE, on the write that enters VERIFYING, and it is raised through " +
-                "createAttemptsFor(prev, endpoint.url) so a rotated address starts its own count " +
-                "— write 'prev.createAttempts + 1' instead and a new distributor's address " +
-                "inherits a spent budget, so push never comes back at all.",
-            expected,
-            slice(managerBlock(ON_NEW_ENDPOINT), expected),
+            "and the expiry handed over must be the date the SERVER granted, its fallback a " +
+                "fresh one: '$EXPECTED_CREATE_EXPIRY'. A record saved with an expiry already " +
+                "gone is renewed on every worker cycle, for that account, for ever.",
+            listOf(EXPECTED_CREATE_EXPIRY),
+            body.filter { it.startsWith("val createdUntil") },
+        )
+    }
+
+    @Test fun `a created subscription is re-read, decided and written under the registration lock`() {
+        val body = managerBlock(ON_NEW_ENDPOINT)
+        assertEquals(
+            "the write that follows a successful create must be these seven lines, CONSECUTIVE " +
+                "and in this order: re-read, decide, write, all inside one 'synchronized'. The " +
+                "re-read is store.load and not store.getOrCreate, which would recreate the " +
+                "record of an account disconnected during the flight — subscribed, reading " +
+                "VERIFYING, with the server pushing to it for seven days. Splitting these lines " +
+                "across two monitors leaves every per-line rule in this file green while the " +
+                "lock is released between deciding and writing, which is the race this block " +
+                "exists to close. Slice found:\n" +
+                slice(body, EXPECTED_CREATE_BLOCK).joinToString("\n"),
+            EXPECTED_CREATE_BLOCK,
+            slice(body, EXPECTED_CREATE_BLOCK),
+        )
+        assertEquals(
+            "onNewEndpoint may open exactly two monitors: the one that decides what an arriving " +
+                "endpoint means, and the one that merges the creation back. A third is that " +
+                "split, written another way.",
+            2,
+            body.count { "synchronized(this" in it },
+        )
+    }
+
+    @Test fun `a subscription the record refused is handed back to the server`() {
+        val body = managerBlock(ON_NEW_ENDPOINT)
+        assertEquals(
+            "when the merge refuses, the subscription just created belongs to nobody: these six " +
+                "lines are pinned whole and in order. Drop the destroy and the fix trades 'the " +
+                "app believes in a subscription that is gone' for 'the server pushes to nobody " +
+                "for seven days', the worse half of the same defect — while every other rule " +
+                "here stays green, the refusal to write being all they look at. It is best " +
+                "effort (runCatching) and it sits OUTSIDE the monitor, the lock covering state " +
+                "and never a call out. Slice found:\n" +
+                slice(body, EXPECTED_CREATE_REFUSED).joinToString("\n"),
+            EXPECTED_CREATE_REFUSED,
+            slice(body, EXPECTED_CREATE_REFUSED),
         )
     }
 
@@ -627,6 +666,29 @@ class RelayWiringTest {
                 "an androidTest source set here. Lines found:\n" + saved.joinToString("\n"),
             listOf(EXPECTED_CREATES_SAVE),
             saved,
+        )
+    }
+
+    @Test fun `the status stamp is saved and loaded under the same key`() {
+        val lines = storeLines().filter { "\$accountId.since" in it }
+        assertEquals(
+            "the two lines that carry statusSinceMillis are pinned whole: the read and the " +
+                "write, under one key, and nothing else in the store may name it. A one-letter " +
+                "difference between them is the quietest breakage in this file: the record still " +
+                "saves, load answers 0 for that field for ever, and everything that reads it " +
+                "reads a state permanently stamped at the epoch. RelayPush.shouldRegister then " +
+                "grants every FAILED account at once, its fifteen-minute cooldown deleted, and " +
+                "every REGISTERING or VERIFYING record is stale on sight, so a healthy bring-up " +
+                "is recreated under its own pending verification. Worse for this branch: " +
+                "RelayPush.onSubscriptionCreated refuses to write when the stamp moved during " +
+                "the call, which is how a fresher writer is recognised at all — two zeroes " +
+                "always compare equal, so that refusal is dead and the creation overwrites the " +
+                "writer it was meant to stand down for, which is the defect this whole branch " +
+                "closes. Nothing in this module can execute the round trip: the store needs a " +
+                "Context, and there is neither Robolectric nor an androidTest source set here. " +
+                "Lines found:\n" + lines.joinToString("\n"),
+            listOf(EXPECTED_SINCE_LOAD, EXPECTED_SINCE_SAVE),
+            lines,
         )
     }
 
@@ -927,10 +989,17 @@ class RelayWiringTest {
                 "shouldRegister answers false for ever, and switching sync back on brings " +
                 "nothing back while the status line still reads UnifiedPush over a dead " +
                 "subscription. The clear comes AFTER the load, or the subscriptionId destroyed " +
-                "on the server is read from an already emptied record.",
+                "on the server is read from an already emptied record. Read and clear sit under " +
+                "the monitor, as ONE block: this is the writer the create path re-reads against, " +
+                "and a clear slipped between that re-read and its save resurrects the record of " +
+                "an account already signed out, subscription and all. UnifiedPush.unregister and " +
+                "the scope.launch stay outside it — the lock covers state, never a call out.",
             listOf(
-                "val state = store.load(credentials.id)",
+                "val state = synchronized(this) {",
+                "val known = store.load(credentials.id)",
                 "store.clear(credentials.id)",
+                "known",
+                "}",
                 "UnifiedPush.unregister(context, credentials.id)",
                 "val subscriptionId = state?.subscriptionId ?: return",
                 "scope.launch { runCatching { repo.destroyPushSubscription(credentials, subscriptionId) } }",
@@ -1144,7 +1213,7 @@ class RelayWiringTest {
         const val TRANSPORT_FOR =
             "internal fun transportOf(account: AccountDelivery, globalDelivery: DeliveryMode): Transport {"
 
-        /** The six state writers that run on a thread of their own. */
+        /** The seven state writers that run on a thread of their own. */
         val MONITORED = listOf(
             "private fun recordDelivery(accountId: String) {",
             "private fun markFailed(accountId: String) {",
@@ -1152,6 +1221,7 @@ class RelayWiringTest {
             "fun reconcileDistributorPresence() {",
             "private fun rearmFailedAccounts() {",
             RENEW_IF_NEEDED,
+            ON_NEW_ENDPOINT,
         )
 
         const val SAVE_DISTRIBUTOR = "UnifiedPush.saveDistributor(context, packageName)"
@@ -1175,6 +1245,31 @@ class RelayWiringTest {
             "val current = store.load(credentials.id) ?: return@synchronized",
             "val merged = RelayPush.onRenewFailed(current, System.currentTimeMillis())",
             "if (merged != null) store.save(credentials.id, merged)",
+        )
+
+        const val EXPECTED_CREATE_ARGS =
+            "current, prev, endpoint.url, created.id, createdUntil, System.currentTimeMillis(),"
+
+        const val EXPECTED_CREATE_EXPIRY =
+            "val createdUntil = parseUtc(created.expires) ?: (System.currentTimeMillis() + EXPIRES_MS)"
+
+        val EXPECTED_CREATE_BLOCK = listOf(
+            "val merged = synchronized(this@UnifiedPushManager) {",
+            "val current = store.load(accountId)",
+            "val decided = RelayPush.onSubscriptionCreated(",
+            EXPECTED_CREATE_ARGS,
+            ")",
+            "if (decided != null) store.save(accountId, decided)",
+            "decided",
+        )
+
+        val EXPECTED_CREATE_REFUSED = listOf(
+            "if (merged == null) {",
+            "Log.w(TAG, \"PushSubscription created for a record \$accountId no longer holds\")",
+            "created.id?.let { runCatching { repo.destroyPushSubscription(credentials, it) } }",
+            "} else {",
+            "Log.i(TAG, \"PushSubscription created for \$accountId, awaiting verification\")",
+            "}",
         )
 
         val EXPECTED_RENEW_EXPIRY = listOf(
@@ -1234,6 +1329,9 @@ class RelayWiringTest {
             EXPECTED_SYNC_OFF_TEARDOWN,
             "accounts.forEach { up.ensureRegistered(it) }",
         )
+
+        const val EXPECTED_SINCE_LOAD = "statusSinceMillis = prefs.getLong(\"\$accountId.since\", 0),"
+        const val EXPECTED_SINCE_SAVE = ".putLong(\"\$accountId.since\", state.statusSinceMillis)"
 
         const val EXPECTED_CREATES_LOAD = "createAttempts = prefs.getInt(\"\$accountId.creates\", 0),"
         const val EXPECTED_CREATES_SAVE = ".putInt(\"\$accountId.creates\", state.createAttempts)"

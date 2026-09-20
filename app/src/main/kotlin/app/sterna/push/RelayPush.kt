@@ -164,6 +164,34 @@ object RelayPush {
     fun onRenewFailed(current: UpAccountState, now: Long): UpAccountState? =
         if (current.status != UpStatus.ACTIVE) null
         else current.copy(status = UpStatus.NONE, statusSinceMillis = now)
+
+    fun onSubscriptionCreated(
+        current: UpAccountState?,
+        snapshot: UpAccountState,
+        url: String,
+        subscriptionId: String?,
+        expiresAtMillis: Long,
+        now: Long,
+    ): UpAccountState? {
+        if (current == null || current.subscriptionId != snapshot.subscriptionId) return null
+        if (current.status == UpStatus.ACTIVE && snapshot.status != UpStatus.ACTIVE) {
+            return current.copy(
+                endpoint = url,
+                subscriptionId = subscriptionId,
+                expiresAtMillis = expiresAtMillis,
+            )
+        }
+        if (current.status != snapshot.status) return null
+        if (current.statusSinceMillis != snapshot.statusSinceMillis) return null
+        return current.copy(
+            endpoint = url,
+            subscriptionId = subscriptionId,
+            status = UpStatus.VERIFYING,
+            statusSinceMillis = now,
+            createAttempts = createAttemptsFor(current, url),
+            expiresAtMillis = expiresAtMillis,
+        )
+    }
 }
 
 /** What [RelayPush.onDelivery] tells the manager to write. [armed] is true on the one delivery that

@@ -14,6 +14,7 @@ class RelayPushTest {
     private val now = 1_700_000_000_000L
     private val minute = 60_000L
     private val hour = 60 * minute
+    private val week = 7 * 24 * hour
 
     private val measured = 5 * minute + 33_000L
     private val url = "https://up.example.org/UP?token=abc"
@@ -27,6 +28,7 @@ class RelayPushTest {
         relayRequested: Boolean = false,
         lastDelivery: Long = 0L,
         createAttempts: Int = 0,
+        expires: Long = 0L,
     ) = UpAccountState(
         deviceClientId = "dev-1",
         endpoint = endpoint,
@@ -36,6 +38,7 @@ class RelayPushTest {
         relayRequested = relayRequested,
         lastDeliveryMillis = lastDelivery,
         createAttempts = createAttempts,
+        expiresAtMillis = expires,
     )
 
     // ── shouldRegister: the relay gate ──────────────────────────────────────────────────
@@ -987,6 +990,187 @@ class RelayPushTest {
             RelayPush.onRenewFailed(stillActive, now),
         )
     }
+
+    @Test fun `a creation whose record went away during the flight writes nothing`() {
+        assertNull(
+            "no record means the account was disconnected, or its sync switched off, while the " +
+                "two round-trips were in flight. Writing here resurrects the prefs record of an " +
+                "account the app has already parted with, holding a live subscriptionId: the " +
+                "server keeps pushing to it until it lapses, seven days later, and no path in " +
+                "the app hands it back any more.",
+            RelayPush.onSubscriptionCreated(null, created(), url, "sub-9", now + week, now + minute),
+        )
+    }
+
+    @Test fun `a creation whose subscription was replaced during the flight writes nothing`() {
+        assertNull(
+            "the record holds a subscription this creation never saw, so a second creation got " +
+                "there first. Write anyway and the id it stored is overwritten: that " +
+                "subscription is never destroyed and never renewed, and the account holds two " +
+                "at the server where it may hold one.",
+            RelayPush.onSubscriptionCreated(
+                created(subscriptionId = "sub-2"), created(), url, "sub-9", now + week, now + minute,
+            ),
+        )
+    }
+
+    @Test fun `a creation writes nothing once a fresher writer moved the status`() {
+        (UpStatus.entries - setOf(UpStatus.REGISTERING, UpStatus.ACTIVE)).forEach { status ->
+            assertNull(
+                "the snapshot left in REGISTERING and the record reads $status: onUnregistered, " +
+                    "reconcileDistributorPresence, markFailed or requestRelayAddress has been " +
+                    "through. VERIFYING written over their answer is a verification waited for " +
+                    "on a distributor that is gone: the record rots for ten minutes, then the " +
+                    "app re-registers against it, and a FAILED loses the fifteen-minute cooldown " +
+                    "that stops exactly that loop. FAILED is the one this branch exists for and " +
+                    "it may never soften: ACTIVE is excluded here because it is the only status " +
+                    "a writer can reach WITH this creation's own subscription, which the rule " +
+                    "below adopts instead of refusing.",
+                RelayPush.onSubscriptionCreated(
+                    created(status = status), created(), url, "sub-9", now + week, now + minute,
+                ),
+            )
+        }
+    }
+
+    @Test fun `a verification that landed before the creation returned is adopted, not destroyed`() {
+        val leftWith = created(subscriptionId = null, endpoint = null)
+        val verified = leftWith.copy(
+            status = UpStatus.ACTIVE,
+            statusSinceMillis = now + minute,
+            createAttempts = 0,
+        )
+        assertEquals(
+            "the server verified this very subscription before its own creation call returned " +
+                "(measured at about a minute on this server, against ten for the window). The " +
+                "record carries the id the creation left behind — none, on a first subscription " +
+                "— so nobody else has been through, and ACTIVE here is this creation's own " +
+                "verification. Refuse it and the manager destroys the subscription the " +
+                "verification just accepted, leaving ACTIVE with no subscriptionId at all: " +
+                "shouldRegister never grants an ACTIVE account, renewIfNeeded leaves on a null " +
+                "subscriptionId, and no path in the app comes back — push is off for good while " +
+                "the screen reads UnifiedPush. So the id, the address and the expiry are " +
+                "adopted, and the status, its date and the budget the verification just handed " +
+                "back are the record's.",
+            verified.copy(endpoint = url, subscriptionId = "sub-9", expiresAtMillis = now + week),
+            RelayPush.onSubscriptionCreated(verified, leftWith, url, "sub-9", now + week, now + 2 * minute),
+        )
+    }
+
+    @Test fun `a rotation that was ACTIVE before the call is not read as an early verification`() {
+        val rotating = created(status = UpStatus.ACTIVE)
+        assertEquals(
+            "the account was already ACTIVE when the creation left, on another address: this is " +
+                "a rotation, not a verification that overtook the call. It enters VERIFYING like " +
+                "any other creation, or an unverified subscription would be shown as a live " +
+                "transport and the stale-pending watchdog would never look at it again.",
+            rotating.copy(
+                endpoint = url,
+                subscriptionId = "sub-9",
+                status = UpStatus.VERIFYING,
+                statusSinceMillis = now + minute,
+                createAttempts = 1,
+                expiresAtMillis = now + week,
+            ),
+            RelayPush.onSubscriptionCreated(
+                rotating, created(status = UpStatus.ACTIVE), url, "sub-9", now + week, now + minute,
+            ),
+        )
+    }
+
+    @Test fun `a creation writes nothing when the same status was stamped again meanwhile`() {
+        assertNull(
+            "same status, later date: a FAILED re-stamped over a FAILED, which is what " +
+                "onUnregistered writes when the distributor goes away twice. Compare the status " +
+                "alone and this writer is invisible, so the cooldown it just started is deleted.",
+            RelayPush.onSubscriptionCreated(
+                created(status = UpStatus.FAILED, since = now + minute),
+                created(status = UpStatus.FAILED),
+                url,
+                "sub-9",
+                now + week,
+                now + 2 * minute,
+            ),
+        )
+    }
+
+    @Test fun `a creation merges its six fields onto the record it reads back`() {
+        val readBack = created()
+        assertEquals(
+            "the creation owns six fields — the address, the id, VERIFYING, its date, the count " +
+                "and the expiry the server granted — and owns nothing else: deviceClientId, " +
+                "relayRequested and lastDeliveryMillis must come through from the record read " +
+                "back, which is why this fixture carries a non-default value in every field. " +
+                "Building the answer on the pre-call snapshot instead is the defect itself, and " +
+                "a fixture left on defaults would compare null to null and never see it.",
+            readBack.copy(
+                endpoint = url,
+                subscriptionId = "sub-9",
+                status = UpStatus.VERIFYING,
+                statusSinceMillis = now + minute,
+                createAttempts = 1,
+                expiresAtMillis = now + week,
+            ),
+            RelayPush.onSubscriptionCreated(readBack, created(), url, "sub-9", now + week, now + minute),
+        )
+    }
+
+    @Test fun `a creation takes every carried field from the record, never from its own snapshot`() {
+        val readBack = created()
+        val snapshot = created().copy(
+            deviceClientId = "dev-stale",
+            endpoint = url,
+            relayRequested = false,
+            lastDeliveryMillis = 0,
+            createAttempts = 9,
+        )
+        assertEquals(
+            "the snapshot and the record agree on the id, the status and its date — nobody " +
+                "fresher has been through — so the merge goes ahead, and every field it does " +
+                "not own must still be the record's. A snapshot-built answer here would hand " +
+                "back a stale deviceClientId (the id the server knows this device by), drop " +
+                "relayRequested (the address vanishes from the settings screen) and zero the " +
+                "last wake. The count is the record's too, attributed to the arriving address: " +
+                "this record was on another endpoint, so this creation is its first.",
+            readBack.copy(
+                endpoint = url,
+                subscriptionId = "sub-9",
+                status = UpStatus.VERIFYING,
+                statusSinceMillis = now + minute,
+                createAttempts = 1,
+                expiresAtMillis = now + week,
+            ),
+            RelayPush.onSubscriptionCreated(readBack, snapshot, url, "sub-9", now + week, now + minute),
+        )
+    }
+
+    @Test fun `a creation for the address already on the record counts itself onto it`() {
+        val readBack = created(endpoint = url)
+        assertEquals(
+            "same address, so this is the third creation for it and the next one is refused by " +
+                "createBudgetSpent. Start the count over here and the give-up never triggers: " +
+                "the register-and-create loop against the mail server has no cap left.",
+            3,
+            RelayPush.onSubscriptionCreated(readBack, created(endpoint = url), url, "sub-9", now + week, now + minute)
+                ?.createAttempts,
+        )
+    }
+
+    private fun created(
+        status: UpStatus = UpStatus.REGISTERING,
+        endpoint: String? = other,
+        subscriptionId: String? = "sub-1",
+        since: Long = now,
+    ) = state(
+        status,
+        endpoint = endpoint,
+        subscriptionId = subscriptionId,
+        since = since,
+        relayRequested = true,
+        lastDelivery = now - minute,
+        createAttempts = 2,
+        expires = now + hour,
+    )
 
     private fun renewable(
         status: UpStatus,
