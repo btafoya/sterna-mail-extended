@@ -312,7 +312,7 @@
     <string name="settings_backup_summary">Esegui il backup o ripristina le tue impostazioni</string>
     <string name="settings_backup_screen_title">Backup e ripristino</string>
     <string name="settings_backup_section">Backup delle impostazioni</string>
-    <string name="settings_backup_explainer">Salva le preferenze dell\'app (aspetto, lettura, notifiche, privacy, lingua) e la configurazione dei tuoi account in un file, oppure ripristinale da uno. Le password non sono mai incluse, quindi devi accedere di nuovo agli account importati.</string>
+    <string name="settings_backup_explainer">Salva le preferenze dell\'app (aspetto, lettura, notifiche, privacy, lingua) e la configurazione dei tuoi account in un file, oppure ripristinale da uno. Il file è in testo semplice e include i mittenti a cui consenti di caricare le immagini. Le password non sono mai incluse, quindi devi accedere di nuovo agli account importati.</string>
     <string name="settings_backup_export">Esporta impostazioni…</string>
     <string name="settings_backup_import">Importa impostazioni…</string>
     <string name="settings_backup_import_k9">Importa da K-9 o Thunderbird</string>

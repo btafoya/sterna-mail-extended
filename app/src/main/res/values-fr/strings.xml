@@ -312,7 +312,7 @@
     <string name="settings_backup_summary">Sauvegardez ou restaurez vos réglages</string>
     <string name="settings_backup_screen_title">Sauvegarde et restauration</string>
     <string name="settings_backup_section">Sauvegarde des paramètres</string>
-    <string name="settings_backup_explainer">Enregistrez vos préférences (apparence, lecture, notifications, confidentialité, langue) et la configuration de vos comptes dans un fichier, ou restaurez-les depuis celui-ci. Les mots de passe ne sont jamais inclus, donc les comptes importés doivent être reconnectés.</string>
+    <string name="settings_backup_explainer">Enregistrez vos préférences (apparence, lecture, notifications, confidentialité, langue) et la configuration de vos comptes dans un fichier, ou restaurez-les depuis celui-ci. Le fichier est en texte brut et contient les expéditeurs à qui vous autorisez le chargement des images. Les mots de passe ne sont jamais inclus, donc les comptes importés doivent être reconnectés.</string>
     <string name="settings_backup_export">Exporter les paramètres…</string>
     <string name="settings_backup_import">Importer les paramètres…</string>
     <string name="settings_backup_import_k9">Importer depuis K-9 ou Thunderbird</string>

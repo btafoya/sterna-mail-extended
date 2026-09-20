@@ -312,7 +312,7 @@
     <string name="settings_backup_summary">Einstellungen sichern oder wiederherstellen</string>
     <string name="settings_backup_screen_title">Sichern &amp; Wiederherstellen</string>
     <string name="settings_backup_section">Einstellungen-Backup</string>
-    <string name="settings_backup_explainer">Speichern Sie Ihre App-Einstellungen (Darstellung, Lesen, Benachrichtigungen, Datenschutz, Sprache) und Ihre Kontoeinrichtung in einer Datei oder stellen Sie sie daraus wieder her. Passwörter sind nie enthalten, daher müssen importierte Konten erneut angemeldet werden.</string>
+    <string name="settings_backup_explainer">Speichern Sie Ihre App-Einstellungen (Darstellung, Lesen, Benachrichtigungen, Datenschutz, Sprache) und Ihre Kontoeinrichtung in einer Datei oder stellen Sie sie daraus wieder her. Die Datei ist reiner Text und enthält die Absender, für die Sie das Laden von Bildern erlaubt haben. Passwörter sind nie enthalten, daher müssen importierte Konten erneut angemeldet werden.</string>
     <string name="settings_backup_export">Einstellungen exportieren…</string>
     <string name="settings_backup_import">Einstellungen importieren…</string>
     <string name="settings_backup_import_k9">Aus K-9 oder Thunderbird importieren</string>

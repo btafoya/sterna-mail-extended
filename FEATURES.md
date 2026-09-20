@@ -121,7 +121,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   shared mailbox becomes its own account in the switcher, on the one credential.
 - ✅ Per-account server settings with a Test connection button, an optional display
   name, and a colour that tints its avatar and its unified-inbox chip.
-- ✅ Settings export and import as a JSON file. Accounts and passwords stay out.
+- ✅ Settings export and import as a JSON file. Your account setup goes with
+  it, passwords stay out.
 
 ## Sync, push & notifications
 
