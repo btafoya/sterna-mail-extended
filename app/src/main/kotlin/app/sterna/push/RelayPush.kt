@@ -2,8 +2,7 @@ package app.sterna.push
 
 import app.sterna.core.data.account.MailProtocol
 
-/** The UnifiedPush decisions, as pure functions: the distributor gate, registering, an arriving
- *  endpoint, a delivery. [UnifiedPushManager] keeps every side effect, which makes them testable. */
+/** The UnifiedPush decisions, as pure functions; [UnifiedPushManager] keeps every side effect. */
 object RelayPush {
 
     /** In-flight window for REGISTERING: that wait is on the local distributor, and it is short. */
@@ -152,6 +151,19 @@ object RelayPush {
             else -> null
         }
     }
+
+    fun onRenewed(
+        current: UpAccountState,
+        renewedSubscriptionId: String,
+        expiresAtMillis: Long,
+    ): UpAccountState? =
+        if (current.subscriptionId != renewedSubscriptionId) null
+        else current.copy(expiresAtMillis = expiresAtMillis)
+
+    /** Null writes nothing, and that refusal is what leaves a FAILED landed meanwhile standing. */
+    fun onRenewFailed(current: UpAccountState, now: Long): UpAccountState? =
+        if (current.status != UpStatus.ACTIVE) null
+        else current.copy(status = UpStatus.NONE, statusSinceMillis = now)
 }
 
 /** What [RelayPush.onDelivery] tells the manager to write. [armed] is true on the one delivery that

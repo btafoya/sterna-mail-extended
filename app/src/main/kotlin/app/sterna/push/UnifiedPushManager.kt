@@ -421,7 +421,7 @@ class UnifiedPushManager(
         onTransportStateChanged?.invoke()
     }
 
-    /** Renew before expiry; a failed renewal falls back to a full re-registration. */
+    /** Renew before expiry; both arms re-read under the monitor, their snapshot predating a round-trip. */
     suspend fun renewIfNeeded(credentials: AccountCredentials) {
         val state = store.load(credentials.id) ?: return
         if (state.status != UpStatus.ACTIVE || state.subscriptionId == null) return
@@ -430,13 +430,23 @@ class UnifiedPushManager(
             val applied = repo.renewPushSubscription(
                 credentials, state.subscriptionId, utc(System.currentTimeMillis() + EXPIRES_MS),
             )
-            store.save(
-                credentials.id,
-                state.copy(expiresAtMillis = parseUtc(applied) ?: (System.currentTimeMillis() + EXPIRES_MS)),
-            )
+            val renewedUntil = parseUtc(applied) ?: (System.currentTimeMillis() + EXPIRES_MS)
+            val renewed = synchronized(this) {
+                val current = store.load(credentials.id) ?: return@synchronized null
+                val merged = RelayPush.onRenewed(current, state.subscriptionId, renewedUntil)
+                if (merged != null) store.save(credentials.id, merged)
+                merged
+            }
+            if (renewed == null) {
+                Log.i(TAG, "PushSubscription renewed for a subscription ${credentials.id} no longer holds")
+            }
         }.onFailure {
             Log.w(TAG, "PushSubscription renew failed for ${credentials.id} — re-registering", it)
-            store.save(credentials.id, state.copy(status = UpStatus.NONE))
+            synchronized(this) {
+                val current = store.load(credentials.id) ?: return@synchronized
+                val merged = RelayPush.onRenewFailed(current, System.currentTimeMillis())
+                if (merged != null) store.save(credentials.id, merged)
+            }
             ensureRegistered(credentials)
         }
     }

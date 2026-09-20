@@ -13,6 +13,7 @@ class RelayPushTest {
 
     private val now = 1_700_000_000_000L
     private val minute = 60_000L
+    private val hour = 60 * minute
 
     private val measured = 5 * minute + 33_000L
     private val url = "https://up.example.org/UP?token=abc"
@@ -924,4 +925,80 @@ class RelayPushTest {
         assertNull(RelayPush.publishedAddress(null))
         assertNull(RelayPush.publishedAddress(state(UpStatus.PUBLISHED, relayRequested = true)))
     }
+
+    @Test fun `a renewal moves the expiry and nothing else, so a FAILED landed meanwhile survives it`() {
+        val readBack = renewable(UpStatus.FAILED, since = now)
+        val merged = RelayPush.onRenewed(readBack, "sub-1", now + hour)
+        assertEquals(
+            "the renewal owns the expiry of the subscription it just prolonged, and owns nothing " +
+                "else: every other field of the state read back must come through untouched, " +
+                "which is why this fixture carries a non-default value in each of them. " +
+                "onUnregistered or reconcileDistributorPresence can stamp FAILED while the " +
+                "round-trip is in flight, and carrying any field of the pre-call snapshot over " +
+                "that stamp leaves the account reading ACTIVE on a dead transport. Dropping the " +
+                "endpoint instead costs something else entirely: endpointOutcome recognises a " +
+                "redelivered address by prev.endpoint == url, so without it the next " +
+                "redelivery answers Subscribe rather than Ignore, and a live subscription is " +
+                "destroyed and recreated on every re-registration.",
+            readBack.copy(expiresAtMillis = now + hour),
+            merged,
+        )
+        assertFalse(
+            "and the cooldown that FAILED carries must still hold after the merge: this is the " +
+                "fifteen minutes onUnregistered exists to buy.",
+            RelayPush.shouldRegister(MailProtocol.JMAP, true, merged!!.status, merged.statusSinceMillis, now),
+        )
+    }
+
+    @Test fun `a renewal whose subscription was rotated during the flight writes nothing`() {
+        val rotated = renewable(UpStatus.ACTIVE, since = now, subscriptionId = "sub-2")
+        assertNull(
+            "the answer dates sub-1, which onNewEndpoint replaced during the flight. Write it on " +
+                "sub-2 and the record claims an expiry the server never granted that subscription, " +
+                "so the renewal window opens on the wrong date.",
+            RelayPush.onRenewed(rotated, "sub-1", now + hour),
+        )
+    }
+
+    @Test fun `a failed renewal writes nothing once someone fresher has left ACTIVE`() {
+        (UpStatus.entries - UpStatus.ACTIVE).forEach { status ->
+            assertNull(
+                "a renewal failure may only take the ACTIVE it started from down to NONE; in " +
+                    "$status a fresher writer has already been through. NONE makes shouldRegister " +
+                    "true with no wait at all, so overwriting a FAILED deletes its fifteen-minute " +
+                    "cooldown and the app re-registers in a loop against a distributor that keeps " +
+                    "answering unregister.",
+                RelayPush.onRenewFailed(renewable(status, since = now), now),
+            )
+        }
+    }
+
+    @Test fun `a failed renewal on a state still ACTIVE stamps NONE as of now`() {
+        val stillActive = renewable(UpStatus.ACTIVE, since = now - 3 * hour)
+        assertEquals(
+            "the status moved, so its timestamp moves with it, and nothing else may move. This " +
+                "date is NOT what holds the fifteen-minute cooldown: shouldRegister grants NONE " +
+                "without ever reading statusSinceMillis, and what keeps a fresher FAILED " +
+                "standing is the refusal to write at all, which the rule above runs. What a " +
+                "carried-over timestamp costs is truth — a state written just now would claim " +
+                "to be three hours old, and isPending and every window in this file read that " +
+                "field.",
+            stillActive.copy(status = UpStatus.NONE, statusSinceMillis = now),
+            RelayPush.onRenewFailed(stillActive, now),
+        )
+    }
+
+    private fun renewable(
+        status: UpStatus,
+        since: Long,
+        subscriptionId: String = "sub-1",
+    ) = state(
+        status,
+        endpoint = url,
+        subscriptionId = subscriptionId,
+        since = since,
+        relayRequested = true,
+        lastDelivery = now - minute,
+        createAttempts = 2,
+    )
 }

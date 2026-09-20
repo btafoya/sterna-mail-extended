@@ -172,11 +172,78 @@ class RelayWiringTest {
                 "'prev' before it, ends as {OLD address, ACTIVE, woken just now} — IMAP IDLE " +
                 "dropped, a dead address on screen, and 'last wake: just now' under it. ⛔ The " +
                 "lock covers state ONLY: no network call, no UnifiedPush.register/unregister and " +
-                "no scope.launch may sit inside it, which is why onNewEndpoint's Subscribe path " +
-                "(a write AFTER a server call) is deliberately not in this list. Writes found " +
+                "no scope.launch may sit inside it. A write that FOLLOWS a server call is not " +
+                "excused by that rule: it must re-read the state inside the monitor and merge " +
+                "only the fields the call owns, which is what renewIfNeeded does and what the " +
+                "rule below pins. TWO writes after a server call are still outside this list — " +
+                "onNewEndpoint's Subscribe path and onMessage's Verification arm, which saves a " +
+                "getOrCreate().copy(status = ACTIVE) from inside a scope.launch — and neither is " +
+                "excused: neither has been converted yet, that is all. Nor is this list an " +
+                "inventory of the file's writes: it only ever looks for 'store.save(', so the " +
+                "store.clear of teardown and unregisterOrphan is invisible to it. Writes found " +
                 "outside the monitor:\n" + offenders.entries.joinToString("\n"),
             emptyMap<String, List<String>>(),
             offenders,
+        )
+    }
+
+    @Test fun `the renewal merges onto the state it reads back, never onto its own snapshot`() {
+        val body = managerBlock(RENEW_IF_NEEDED)
+        val loads = body.filter { "store.load(" in it }
+        assertEquals(
+            "renewIfNeeded must read the state three times, on exactly these lines and in this " +
+                "order: the snapshot that decides whether a renewal is due at all, then one " +
+                "re-read on each arm of the round-trip. Lines found:\n" + loads.joinToString("\n"),
+            EXPECTED_RENEW_LOADS,
+            loads,
+        )
+        assertEquals(
+            "the success arm must be these five lines, CONSECUTIVE and in this order: re-read, " +
+                "decide, write, all inside one 'synchronized(this)'. Two different breakages " +
+                "live here and nothing else in the repo sees either. Hand 'state' to the " +
+                "decision instead of 'current' and the merge is built on a value older than a " +
+                "round-trip to the mail server, so a FAILED stamped meanwhile by onUnregistered " +
+                "or reconcileDistributorPresence is served back as ACTIVE. This path runs for " +
+                "JMAP accounts only — it leaves at a null subscriptionId — so no relay address " +
+                "is involved and the damage is the transport: isActive answers true, transportOf " +
+                "picks UNIFIED_PUSH ahead of EVENT_SOURCE, the account never reopens its direct " +
+                "connection and loses real time, while the status line goes on naming a " +
+                "distributor that is gone. Mail itself still arrives, MailFetchWorker polling " +
+                "every isActive account for exactly this reason. The second breakage is to split " +
+                "these lines across two monitors, deciding in the first and writing in the " +
+                "second: every per-line rule in this file then stays green — the lines all " +
+                "exist, both saves sit under a monitor — while the lock is released between " +
+                "deciding and writing, which is the race this whole rule exists to close. " +
+                "Slice found:\n" + slice(body, EXPECTED_RENEW_SUCCESS_BLOCK).joinToString("\n"),
+            EXPECTED_RENEW_SUCCESS_BLOCK,
+            slice(body, EXPECTED_RENEW_SUCCESS_BLOCK),
+        )
+        assertEquals(
+            "and the failure arm, the same five-line shape minus the returned value: re-read, " +
+                "decide, write, consecutive, inside one monitor. Its decision refusing to write " +
+                "is what leaves a fresher FAILED standing, so a lock released before the save " +
+                "gives that FAILED away again. Slice found:\n" +
+                slice(body, EXPECTED_RENEW_FAILURE_BLOCK).joinToString("\n"),
+            EXPECTED_RENEW_FAILURE_BLOCK,
+            slice(body, EXPECTED_RENEW_FAILURE_BLOCK),
+        )
+        assertEquals(
+            "renewIfNeeded may open exactly two monitors, one per arm of the round-trip. A " +
+                "third one is the split described above, written another way.",
+            2,
+            body.count { "synchronized(this" in it },
+        )
+        val expiry = body.filter { "renewedUntil" in it }
+        assertEquals(
+            "the expiry written back must be the date the SERVER granted, and its fallback must " +
+                "be a fresh one — never the record's own. Fall back to 'state.expiresAtMillis' " +
+                "and the state is saved with an expiry already inside RENEW_MARGIN_MS, so the " +
+                "gate at the top of this function is due again on the very next worker cycle, " +
+                "for that account, for ever: one renewal request per cycle per account, " +
+                "indefinitely, with every other rule in this file green. Lines found:\n" +
+                expiry.joinToString("\n"),
+            EXPECTED_RENEW_EXPIRY,
+            expiry,
         )
     }
 
@@ -1070,22 +1137,50 @@ class RelayWiringTest {
         const val HIDE_CHOICE = "fun hideDistributorChoiceForNow() {"
         const val ALLOW_CHOICE = "fun allowDistributorChoice() {"
         const val RECONCILE = "fun reconcileDistributorPresence() {"
+        const val RENEW_IF_NEEDED = "suspend fun renewIfNeeded(credentials: AccountCredentials) {"
         const val IS_PENDING = "fun isPending(accountId: String): Boolean {"
         const val REARM = "private fun rearmFailedAccounts() {"
         const val MARK_FAILED = "private fun markFailed(accountId: String) {"
         const val TRANSPORT_FOR =
             "internal fun transportOf(account: AccountDelivery, globalDelivery: DeliveryMode): Transport {"
 
-        /** The five state writers that run on a thread of their own. */
+        /** The six state writers that run on a thread of their own. */
         val MONITORED = listOf(
             "private fun recordDelivery(accountId: String) {",
             "private fun markFailed(accountId: String) {",
             "fun onUnregistered(accountId: String) {",
             "fun reconcileDistributorPresence() {",
             "private fun rearmFailedAccounts() {",
+            RENEW_IF_NEEDED,
         )
 
         const val SAVE_DISTRIBUTOR = "UnifiedPush.saveDistributor(context, packageName)"
+
+        val EXPECTED_RENEW_LOADS = listOf(
+            "val state = store.load(credentials.id) ?: return",
+            "val current = store.load(credentials.id) ?: return@synchronized null",
+            "val current = store.load(credentials.id) ?: return@synchronized",
+        )
+
+        val EXPECTED_RENEW_SUCCESS_BLOCK = listOf(
+            "val renewed = synchronized(this) {",
+            "val current = store.load(credentials.id) ?: return@synchronized null",
+            "val merged = RelayPush.onRenewed(current, state.subscriptionId, renewedUntil)",
+            "if (merged != null) store.save(credentials.id, merged)",
+            "merged",
+        )
+
+        val EXPECTED_RENEW_FAILURE_BLOCK = listOf(
+            "synchronized(this) {",
+            "val current = store.load(credentials.id) ?: return@synchronized",
+            "val merged = RelayPush.onRenewFailed(current, System.currentTimeMillis())",
+            "if (merged != null) store.save(credentials.id, merged)",
+        )
+
+        val EXPECTED_RENEW_EXPIRY = listOf(
+            "val renewedUntil = parseUtc(applied) ?: (System.currentTimeMillis() + EXPIRES_MS)",
+            "val merged = RelayPush.onRenewed(current, state.subscriptionId, renewedUntil)",
+        )
 
         const val EXPECTED_UNIFIED_PUSH_ARM = "account.unifiedPushActive -> Transport.UNIFIED_PUSH"
 
