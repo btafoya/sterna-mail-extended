@@ -118,6 +118,14 @@ class ConversationScopeWiringTest {
             ASSIGNMENT.containsMatchIn(scopes) && SENT_RESOLUTION in scopes,
         )
         assertEquals(
+            "the whole line, both arguments: what is recorded must be the folders the key pages " +
+                "AND the Sent resolution the chip counts over. Dropping the second one compiles, " +
+                "records a scope, and leaves the chip counting three while the unfold and every " +
+                "gesture on the folded row fall back to two. Body was:\n$scopes",
+            listOf(".onEach { $RECORDED.value = ListScope(viewedMailboxIds(key), it) }"),
+            scopes.lines().map { it.trim() }.filter { ASSIGNMENT.containsMatchIn(it) },
+        )
+        assertEquals(
             "$SENT_RESOLUTION must be observed from exactly one place in the app module: one " +
                 "resolution, read once, handed to both sides.",
             1,
@@ -139,6 +147,49 @@ class ConversationScopeWiringTest {
             "viewedMailboxIds must read the key it is given: taking the live selection instead is " +
                 "the same second lookup, on the other argument. Body was:\n$viewed",
             "key.sel" in viewed && "selection.value" !in viewed,
+        )
+    }
+
+    @Test fun `a gesture on a folded row acts on the conversation that row is counting`() {
+        val body = body(INBOX_VIEW_MODEL, "threadMessages")
+        val read = "repo.cachedThreadEmails("
+        val fallback = ".ifEmpty { listOf(rep) }"
+        assertEquals(
+            "the whole line, both arguments: the five gestures a folded row offers (delete, " +
+                "read/unread, flag, archive, tick) take their members from here, and must take " +
+                "them from the RECORDED scope ($RECORDED), resolved for the REPRESENTATIVE's own " +
+                "account — that account is what pins the Sent folder to this conversation. Scoped " +
+                "to the viewed folder(s) instead, a swipe on a thread of three takes away the two " +
+                "received messages, leaves the reply the reader wrote sitting in Sent, and the " +
+                "banner still announces the whole conversation gone; and ticking the folded row " +
+                "selects fewer messages than ticking the children it unfolds into. What each " +
+                "gesture then does with those members is its own and pinned elsewhere, and none of " +
+                "this asks for the Trash: a conversation is meant to stay split by folder. " +
+                "Body was:\n$body",
+            listOf("return ${read}accountId, $RECORDED.value.folders(accountId), threadKeyOf(rep).threadId)"),
+            body.lines().map { it.trim() }.filter { read in it },
+        )
+        assertTrue(
+            "a gesture must not re-read the live selection: the chip the reader is acting on was " +
+                "counted over the scope the list was BUILT with, and the two differ for as long as " +
+                "a new pager is loading. Body was:\n$body",
+            RE_READ !in body,
+        )
+        assertTrue(
+            "`$fallback` must stay: $read) short-circuits on an empty folder list and answers an " +
+                "empty list, not everything. Without it a gesture on a row whose scope has not " +
+                "landed yet does nothing at all, in silence. Body was:\n$body",
+            fallback in body,
+        )
+        assertEquals(
+            "the call sites of threadMessages: the five gestures a folded row offers, with the " +
+                "delete and the shared swipe counted apart. The rule above pins what this function " +
+                "reads, and nothing pins that the gestures still come through it — swapping one " +
+                "call for `listOf(rep)` leaves that gesture acting on a single message under a row " +
+                "counting three. A gesture ADDED here is welcome, raise the count; one that " +
+                "disappeared is the defect. Found:\n" +
+                codeLines(INBOX_VIEW_MODEL).filter { "threadMessages(rep)" in it }.joinToString("\n"),
+            6, codeLines(INBOX_VIEW_MODEL).count { "threadMessages(rep)" in it },
         )
     }
 

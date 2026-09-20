@@ -1675,10 +1675,11 @@ class InboxViewModel(
 
     // ---- whole-thread swipe (collapsed conversation rows act on the whole conversation) ----
 
-    /** A thread's full membership from the cache (representative included), or [rep] alone. */
+    /** A thread's full membership from the cache (representative included), or [rep] alone, on the
+     *  scope the list recorded: the live selection is a folder ahead of the rows still drawn. */
     private suspend fun threadMessages(rep: Email): List<Email> {
         val accountId = rep.accountId ?: store.load()?.id ?: return listOf(rep)
-        return repo.cachedThreadEmails(accountId, currentMailboxIds(), threadKeyOf(rep).threadId)
+        return repo.cachedThreadEmails(accountId, listScope.value.folders(accountId), threadKeyOf(rep).threadId)
             .ifEmpty { listOf(rep) }
     }
 
