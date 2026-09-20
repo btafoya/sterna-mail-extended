@@ -64,17 +64,10 @@ data class SettingsBackup(
      */
     val accounts: List<StoredAccount>? = null,
 ) {
-    /**
-     * True when this decoded to something that looks like a Sterna backup, at least one known
-     */
-    fun isPlausible(): Boolean =
-        themeMode != null || dynamicColor != null || listDensity != null || previewLines != null ||
-            swipeRight != null || swipeLeft != null || sortOrder != null || contactSuggestions != null ||
-            stripTracking != null || confirmLinks != null || askReadReceipt != null ||
-            imageAllowlist != null ||
-            quietHoursEnabled != null || quietHoursStart != null || quietHoursEnd != null ||
-            pushAllAccounts != null || language != null || conversationView != null ||
-            messageTextSize != null || markReadOnDelete != null || accounts != null
+    /** True when the decoded file carries at least one setting, rather than being some other JSON. */
+    // Every field but `version` defaults to null, so any difference from a fresh record is a setting,
+    // one added later included; `version` is neutralised, a file stating only that restores nothing.
+    fun isPlausible(): Boolean = copy(version = SettingsBackup().version) != SettingsBackup()
 }
 
 /** JSON (de)serialization for [SettingsBackup] export/import files. */
