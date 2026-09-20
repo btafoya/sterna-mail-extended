@@ -16,6 +16,9 @@ interface MailFolderHost {
 
     /** The account's JMAP session, from the repository's cache when it is warm. */
     suspend fun jmapSession(credentials: AccountCredentials): MailRepository.JmapAccountSession
+
+    /** Drop the in-memory sync bookkeeping, the warm JMAP session included. */
+    fun resetSyncState()
 }
 
 /**
@@ -55,7 +58,7 @@ class MailFolders(
 
     /** Rename a folder, then refresh; returns its id. IMAP ids are paths, so the per-folder registries
      *  are re-keyed to follow: the watch flags (#16), the drawer's fold choices (#185), the hidden
-     *  folders (#207). */
+     *  folders (#207), the folder each special role is pinned to (#227). */
     suspend fun renameFolder(credentials: AccountCredentials, mailboxId: String, newName: String): String {
         if (credentials.protocol == MailProtocol.IMAP) {
             val delim = imap.listImapFolders(credentials).firstOrNull { it.path == mailboxId }?.delimiter
@@ -66,7 +69,15 @@ class MailFolders(
             accountStore.replaceWatchedFolder(credentials.id, mailboxId, newPath, delim)
             accountStore.replaceCollapsedFolder(credentials.id, mailboxId, newPath, delim)
             accountStore.replaceHiddenFolder(credentials.id, mailboxId, newPath, delim)
-            refreshMailboxes(credentials)
+            accountStore.replaceSpecialFolder(credentials.id, mailboxId, newPath, delim)
+            // The listing decides each cached role from the choices the account object carries,
+            // and the caller's were read before `replaceSpecialFolder` re-keyed them: they name
+            // the path the rename left behind, which the server no longer lists, so
+            // `honouredSpecialFolders` hands the role back to the automatically elected folder
+            // and the drawer paints it on a folder the mail no longer reaches. Falling back on
+            // the caller's object keeps the refresh owed when the record cannot be read, and
+            // repaints that same stale role: there is no fresher source of the choices then.
+            refreshMailboxes(accountStore.credentials(credentials.id) ?: credentials)
             return newPath
         }
         val ctx = host.jmapSession(credentials)
@@ -107,8 +118,70 @@ class MailFolders(
         // A hide key left on a destroyed path makes a folder later created at that path be born
         // hidden, which nothing on screen can explain.
         accountStore.forgetHiddenFolders(credentials.id, targets)
+        // And a role key left on one would make that folder be born the bin: deletes would land in
+        // it, it would drop out of every search, and emptying the trash would destroy the mail the
+        // user filed there. A folder merely missing from a listing keeps its role, it may be back;
+        // this one she destroyed here.
+        accountStore.forgetSpecialFolders(credentials.id, targets)
         refreshMailboxes(credentials)
         return targets
+    }
+
+    /**
+     * Pin [folderId] as the folder carrying [role] on [accountId], or hand the role back to the
+     * automatic rule with null, and make the folder cache say so at once ([specialFolderRoleDelta]):
+     * the drawer, the search and the delete read the cached role, so a choice left to the next
+     * network refresh is a setting the app visibly ignores.
+     *
+     * The record is read before the write: which folder a change of choice lets go is the one the
+     * record named, and whether its folder ids are paths is what tells the inbox apart there. It
+     * also names the roles this folder is taken away from, which `withSpecialFolder` drops from the
+     * record at the same time: a folder carries one pinned role, and the cache has to be made to
+     * agree here or the two would decide different things about the same folder. Then the whole
+     * in-memory sync bookkeeping goes, every folder of every account included, because the warm
+     * JMAP session inside it carries a role table built from the choice just replaced.
+     */
+    suspend fun setSpecialFolder(accountId: String, role: String, folderId: String?) {
+        val account = accountStore.accounts().firstOrNull { it.id == accountId }
+        val idsArePaths = account?.protocol == MailProtocol.IMAP
+        val released = if (folderId == null) {
+            emptyList()
+        } else {
+            account?.specialFolders.orEmpty().filterKeys { it != role }.filterValues { it == folderId }.keys.toList()
+        }
+        accountStore.setSpecialFolder(accountId, role, folderId)
+        // The release runs first and the pin below reads the rows again rather than sharing its
+        // reading: the two are equivalent as written, a pin being insensitive to the role the row
+        // it takes carried, and the fresh reading is what keeps them equivalent if the order is
+        // ever turned around.
+        released.forEach { lost ->
+            mailboxDao.applyRoles(
+                accountId,
+                specialFolderRoleDelta(
+                    rows = mailboxDao.rolesForAccount(accountId),
+                    role = lost,
+                    previousChoice = folderId,
+                    choice = null,
+                    idsArePaths = idsArePaths,
+                ),
+            )
+        }
+        val delta = specialFolderRoleDelta(
+            rows = mailboxDao.rolesForAccount(accountId),
+            role = role,
+            previousChoice = account?.specialFolders?.get(role),
+            choice = folderId,
+            idsArePaths = idsArePaths,
+        )
+        mailboxDao.applyRoles(accountId, delta)
+        host.resetSyncState()
+        // Then ask the server for the listing again, because the delta is all the cache can prove:
+        // only `trash` and `junk` leave a lost claim behind, so a `sent`, `drafts` or `archive`
+        // handed back to the automatic rule is left with no holder at all until a listing elects
+        // one, and the drawer loses the entry. Best effort, and the degradation is real: offline it
+        // fails here, the choice stands either way, and the role comes back at the next sync.
+        val credentials = accountStore.credentials(accountId) ?: return
+        runCatching { refreshMailboxes(credentials) }
     }
 
     /** Drop folders from the local cache only (a folder delete's undo window); a refresh restores them. */
@@ -134,6 +207,6 @@ class MailFolders(
             return
         }
         val ctx = host.jmapSession(credentials)
-        mailboxDao.replaceAll(credentials.id, client.getMailboxes(ctx.session, ctx.accountId, ctx.auth).map { it.toEntity(credentials.id) })
+        mailboxDao.replaceAll(credentials.id, client.getMailboxes(ctx.session, ctx.accountId, ctx.auth).toEntities(credentials))
     }
 }

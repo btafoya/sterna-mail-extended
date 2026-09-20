@@ -206,7 +206,7 @@ class SignedOutAccountWiringTest {
                 ")",
                 "}",
                 "$guard(credentials.id, accountStore.accounts().map { it.id })",
-                "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.map { it.toEntity(credentials.id) })",
+                "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.toEntities(credentials))",
                 "return refreshes",
             ),
             block("refreshAccountFolders", "previewSources = emptyMap(),", 6),
@@ -337,7 +337,7 @@ class SignedOutAccountWiringTest {
         val rethrow = indexOf("refresh", "if (syncError is AccountGoneException) throw syncError")
         val folders = indexOf(
             "refresh",
-            "mailboxDao.replaceAll(credentials.id, mailboxes.map { it.toEntity(credentials.id) })",
+            "mailboxDao.replaceAll(credentials.id, mailboxes.toEntities(credentials))",
         )
         assertTrue("the rethrow no longer follows the runCatching it exists to undo", swallow < rethrow)
         assertTrue(

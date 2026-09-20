@@ -59,7 +59,7 @@ class SubscribedFoldersWiringTest {
             listOf(
                 "withSession(credentials) { it.listFolders() }", // listImapFolders, a delimiter, no more
                 "withSession(credentials) { it.listFolders() }", // testConnection
-                "session.listFolders().mapIndexed { index, folder ->", // listMailboxes, rows discarded
+                "val folders = session.listFolders()", // listMailboxes, rows discarded
                 "val folders = session.listFolders(onlySubscribed)", // loadFolder, the cached rows
                 "val folders = session.listFolders()", // the push-wake refresh: no LSUB on every wake-up
             ),
@@ -131,13 +131,13 @@ class SubscribedFoldersWiringTest {
                 "to stop drawing. Lines found:",
             listOf(
                 "mailboxDao.replaceAll(credentials.id, load.mailboxes)",
-                "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.map { it.toEntity(credentials.id) })",
-                "mailboxDao.replaceAll(credentials.id, mailboxes.map { it.toEntity(credentials.id) })",
+                "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.toEntities(credentials))",
+                "mailboxDao.replaceAll(credentials.id, mailboxes.toEntities(credentials))",
                 "mailboxDao.replaceAll(credentials.id, load.mailboxes)",
-                "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.map { it.toEntity(credentials.id) })",
+                "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.toEntities(credentials))",
                 // `MailFolders`: the two the switch drives, one per protocol.
                 "mailboxDao.replaceAll(credentials.id, load.mailboxes)",
-                "mailboxDao.replaceAll(credentials.id, client.getMailboxes(ctx.session, ctx.accountId, ctx.auth).map { it.toEntity(credentials.id) })",
+                "mailboxDao.replaceAll(credentials.id, client.getMailboxes(ctx.session, ctx.accountId, ctx.auth).toEntities(credentials))",
             ),
             repositoryThenFolders().filter { it.contains("mailboxDao.replaceAll(") },
         )

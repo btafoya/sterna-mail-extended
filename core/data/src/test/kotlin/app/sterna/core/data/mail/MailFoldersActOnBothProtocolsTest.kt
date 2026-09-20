@@ -4,10 +4,14 @@ import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.AuthType
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.RecordingAccountStorage
+import app.sterna.core.data.account.StoredAccount
+import app.sterna.core.data.account.withRenamedSpecialFolder
+import app.sterna.core.data.account.withSpecialFolder
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.MailboxEntity
+import app.sterna.core.data.db.MailboxIdRole
 import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.ImapFolder
 import app.sterna.core.imap.ImapFolderWalk
@@ -74,19 +78,55 @@ class MailFoldersActOnBothProtocolsTest {
     private class StoreAnswering : RecordingAccountStorage() {
         var known: AccountCredentials? = null
 
+        /** The records a special-folder write reads its previous choice off. */
+        var records: List<StoredAccount> = emptyList()
+
+        /** The special-folder choices are read off the record, as `AccountStore` reads them, so
+         *  a reading taken after a write to the record carries that write. The rest is looser
+         *  than production, which also answers null on an id it does not hold and on a secret
+         *  that will not decrypt. */
         override fun credentials(id: String): AccountCredentials? {
             super.credentials(id)
+            val record = records.firstOrNull { it.id == id }
             return known?.takeIf { it.id == id }
+                ?.let { if (record == null) it else it.copy(specialFolders = record.specialFolders) }
+        }
+
+        override fun accounts(): List<StoredAccount> {
+            super.accounts()
+            return records
+        }
+
+        /** Really applied, so a write that reads the previous choice too late reads its own. */
+        override fun setSpecialFolder(id: String, role: String, folderId: String?) {
+            super.setSpecialFolder(id, role, folderId)
+            records = withSpecialFolder(records, id, role, folderId)
+        }
+
+        /** Really applied as well, so what a rename re-keys is there for whatever reads next. */
+        override fun replaceSpecialFolder(id: String, oldId: String, newId: String, delimiter: String) {
+            super.replaceSpecialFolder(id, oldId, newId, delimiter)
+            records = withRenamedSpecialFolder(records, id, oldId, newId, delimiter)
         }
     }
 
     private class RecordingImap(
         store: RecordingAccountStorage,
-        /** What `LIST` says the account holds: paths and the server's real delimiter. */
-        private val listing: List<ImapFolder> = emptyList(),
+        /** What `LIST` says the account holds at the start: paths and the server's real delimiter. */
+        listing: List<ImapFolder> = emptyList(),
         /** The rows a folder listing brings back, which the cache is then handed whole. */
         private val listed: List<MailboxEntity> = emptyList(),
+        /** The phone is offline: the listing throws where the socket would. */
+        private val listingFails: Boolean = false,
+        /** Decide each listed folder's role off the account object the listing was called with, as
+         *  `ImapMailService` does, instead of handing [listed] over: which choices that object
+         *  carries is then readable in what the cache is written. */
+        private val rolesFromChoices: Boolean = false,
     ) : ImapMailService(ImapClient(), SmtpClient(), OAuthTokenRefresher(OAuthClient(), store)) {
+        /** What the server holds now: a rename moves the folder and its subtree here, as a server
+         *  does, so no listing that follows one still carries the path left behind. */
+        private var onServer = listing
+
         val created = mutableListOf<String>()
         val renamed = mutableListOf<Pair<String, String>>()
         val deleted = mutableListOf<String>()
@@ -100,13 +140,21 @@ class MailFoldersActOnBothProtocolsTest {
 
         override suspend fun renameFolder(credentials: AccountCredentials, oldPath: String, newPath: String) {
             renamed += oldPath to newPath
+            onServer = onServer.map {
+                when {
+                    it.path == oldPath -> it.copy(path = newPath, name = newPath.substringAfterLast(it.delimiter))
+                    it.path.startsWith(oldPath + it.delimiter) ->
+                        it.copy(path = newPath + it.path.removePrefix(oldPath))
+                    else -> it
+                }
+            }
         }
 
         override suspend fun deleteFolder(credentials: AccountCredentials, path: String) {
             deleted += path
         }
 
-        override suspend fun listImapFolders(credentials: AccountCredentials): List<ImapFolder> = listing
+        override suspend fun listImapFolders(credentials: AccountCredentials): List<ImapFolder> = onServer
 
         override suspend fun loadFolder(
             credentials: AccountCredentials,
@@ -117,14 +165,27 @@ class MailFoldersActOnBothProtocolsTest {
             cachedPreviewsFor: (suspend (List<String>, Long?) -> Map<String, String>)?,
         ): ImapFolderLoad {
             subscriptionAsked += onlySubscribed
-            return ImapFolderLoad(listed, "INBOX", "Inbox", 0, "Alex", ImapFolderWalk(emptyList(), moved = false))
+            if (listingFails) throw java.io.IOException("offline")
+            val mailboxes = if (rolesFromChoices) {
+                val chosen = honouredSpecialFolders(credentials.specialFolders, onServer.map { it.roleCandidate() })
+                onServer.mapIndexed { index, folder -> imapMailboxEntity(credentials.id, folder, index, chosen) }
+            } else {
+                listed
+            }
+            return ImapFolderLoad(mailboxes, "INBOX", "Inbox", 0, "Alex", ImapFolderWalk(emptyList(), moved = false))
         }
     }
 
     /** The one edge `MailFolders` reaches the repository through. */
     private class RecordingHost(private val session: MailRepository.JmapAccountSession? = null) : MailFolderHost {
+        var syncStateResets = 0
+
         override suspend fun jmapSession(credentials: AccountCredentials): MailRepository.JmapAccountSession =
             session ?: error("the JMAP session seam was reached by a path that should not need one")
+
+        override fun resetSyncState() {
+            syncStateResets++
+        }
     }
 
     /** Folder-cache writes, recorded rather than executed. */
@@ -142,6 +203,41 @@ class MailFoldersActOnBothProtocolsTest {
                 "deleteByIds" -> {
                     @Suppress("UNCHECKED_CAST")
                     hidden += (args[0] as String) to (args[1] as List<String>)
+                    Unit
+                }
+                else -> error("MailboxDao.${method.name} was not expected here.")
+            }
+        } as MailboxDao
+
+    /** The folder table as a special-folder write sees it: [rows] going out, every role written
+     *  down in the order the write issued it. [state] is the table itself, carrying those writes,
+     *  so a reading that follows a write sees it, as the real one does. */
+    private fun mailboxDaoRoles(
+        rows: List<MailboxIdRole>,
+        written: MutableList<Pair<String, String?>>,
+        replaced: MutableList<Pair<String, List<MailboxEntity>>> = mutableListOf(),
+        state: MutableList<MailboxIdRole> = rows.toMutableList(),
+    ): MailboxDao =
+        Proxy.newProxyInstance(MailboxDao::class.java.classLoader, arrayOf(MailboxDao::class.java)) { _, method, args ->
+            fun write(id: String, role: String?) {
+                written += id to role
+                val at = state.indexOfFirst { it.id == id }
+                if (at >= 0) state[at] = MailboxIdRole(id, role)
+            }
+            when (method.name) {
+                "replaceAll" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    replaced += (args[0] as String) to (args[1] as List<MailboxEntity>)
+                    Unit
+                }
+                "rolesForAccount" -> state.toList()
+                "applyRoles" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    (args[1] as List<MailboxIdRole>).forEach { write(it.id, it.role) }
+                    Unit
+                }
+                "setRole" -> {
+                    write(args[1] as String, args[2] as String?)
                     Unit
                 }
                 else -> error("MailboxDao.${method.name} was not expected here.")
@@ -183,8 +279,19 @@ class MailFoldersActOnBothProtocolsTest {
         authType = AuthType.BASIC,
     )
 
-    private fun folder(path: String, delimiter: String) =
-        ImapFolder(name = path.substringAfterLast(delimiter), path = path, role = null, delimiter = delimiter)
+    private fun account(
+        specialFolders: Map<String, String> = emptyMap(),
+        protocol: MailProtocol = MailProtocol.JMAP,
+    ) = StoredAccount(
+        id = ACCOUNT,
+        server = "imap.example.test",
+        username = "alex@example.test",
+        protocol = protocol,
+        specialFolders = specialFolders,
+    )
+
+    private fun folder(path: String, delimiter: String, role: String? = null) =
+        ImapFolder(name = path.substringAfterLast(delimiter), path = path, role = role, delimiter = delimiter)
 
     private fun row(id: String, subscribed: Boolean) = MailboxEntity(
         accountId = ACCOUNT,
@@ -323,6 +430,382 @@ class MailFoldersActOnBothProtocolsTest {
         assertEquals(listOf(mapOf("id" to ACCOUNT)), storeCalls("showOnlySubscribedFolders"))
     }
 
+    /**
+     * A rename re-keys the special-folder choices with the other three registries (#227): on IMAP
+     * the id a role is pinned to IS the folder's path, so a rename left the role pointing at a
+     * path the server no longer carries, and the account fell back on the elected folder in
+     * silence: the user's Archive would go on being the server's.
+     */
+    @Test fun `an imap rename re-keys the special folder choices too`() {
+        val imap = RecordingImap(store, listing = listOf(folder("INBOX.Client/Acme", ".")))
+        val folders = folders(imap, mailboxDao = mailboxDaoRecording(mutableListOf(), mutableListOf()))
+
+        runBlocking { folders.renameFolder(credentials(MailProtocol.IMAP), "INBOX.Client/Acme", " Acme Corp ") }
+
+        assertEquals(
+            listOf(
+                mapOf(
+                    "id" to ACCOUNT,
+                    "oldId" to "INBOX.Client/Acme",
+                    "newId" to "INBOX.Acme Corp",
+                    "delimiter" to ".",
+                ),
+            ),
+            storeCalls("replaceSpecialFolder"),
+        )
+    }
+
+    /**
+     * And the refresh that follows that re-key asks the listing under the account as the re-key
+     * left it, not as the caller handed it over: the role a cache row carries is decided from the
+     * choices the account object carries, and one read before the re-key still names the path the
+     * rename left behind. The server no longer lists that path, the choice cannot be honoured, and
+     * the folder the listing elects on its own takes the role back in the cache, and the drawer then
+     * paints the role on a folder the mail no longer goes to, until some later sync.
+     *
+     * `ProjectA.Sub` is designated for the junk, `ProjectA` is what gets renamed, and `Junk Mail`
+     * is the folder the server's own listing elects to that role.
+     */
+    @Test fun `the refresh after an imap rename roles the designated folder under its new path`() {
+        val replaced = mutableListOf<Pair<String, List<MailboxEntity>>>()
+        val pinned = credentials(MailProtocol.IMAP).copy(specialFolders = mapOf("junk" to "ProjectA.Sub"))
+        store.known = pinned
+        store.records = listOf(account(mapOf("junk" to "ProjectA.Sub"), protocol = MailProtocol.IMAP))
+        val imap = RecordingImap(
+            store,
+            listing = listOf(
+                folder("INBOX", ".", role = "inbox"),
+                folder("Junk Mail", ".", role = "junk"),
+                folder("ProjectA", "."),
+                folder("ProjectA.Sub", "."),
+            ),
+            rolesFromChoices = true,
+        )
+        val folders = folders(imap, mailboxDao = mailboxDaoRecording(replaced, mutableListOf()))
+
+        runBlocking { folders.renameFolder(pinned, "ProjectA", " ProjectB ") }
+
+        assertEquals(
+            listOf("INBOX" to "inbox", "Junk Mail" to "~junk", "ProjectB" to null, "ProjectB.Sub" to "junk"),
+            replaced.single().second.map { it.id to it.role },
+        )
+    }
+
+    /**
+     * A rename refreshes whether the record can be read back or not: nothing about the listing is
+     * owed to an account having designated a folder, and a store answering nothing is a real state
+     * (an account deleted under the gesture, a keystore that will not open).
+     *
+     * A boundary, green whichever object the refresh is given: it holds the fallback alone.
+     */
+    @Test fun `an imap rename refreshes even when the store hands no account back`() {
+        val replaced = mutableListOf<Pair<String, List<MailboxEntity>>>()
+        val imap = RecordingImap(
+            store,
+            listing = listOf(folder("INBOX.Client/Acme", ".")),
+            listed = listOf(row("INBOX", subscribed = true)),
+        )
+        val folders = folders(imap, mailboxDao = mailboxDaoRecording(replaced, mutableListOf()))
+
+        runBlocking { folders.renameFolder(credentials(MailProtocol.IMAP), "INBOX.Client/Acme", " Acme Corp ") }
+
+        assertEquals(listOf(false), imap.subscriptionAsked)
+        assertEquals(listOf(ACCOUNT to listOf(row("INBOX", subscribed = true))), replaced)
+    }
+
+    /**
+     * And a delete forgets them, over the whole destroyed subtree. A role key left on a destroyed
+     * path makes a folder later created there be born the bin: deletes would land in it, it would
+     * drop out of every search, and emptying the trash would destroy what the user filed there.
+     */
+    @Test fun `an imap delete forgets the special folder choices of the whole subtree`() {
+        val imap = RecordingImap(
+            store,
+            listing = listOf(
+                folder("Archive", "."),
+                folder("Archive.2024", "."),
+                folder("Archive.2024b", "."),
+                folder("Archive.2024.Trips", "."),
+            ),
+        )
+        val folders = folders(
+            imap,
+            mailboxDao = mailboxDaoRecording(mutableListOf(), mutableListOf()),
+            emailDao = emailDaoRecording(mutableListOf()),
+        )
+
+        runBlocking { folders.deleteFolder(credentials(MailProtocol.IMAP), "Archive.2024") }
+
+        assertEquals(
+            listOf(mapOf("id" to ACCOUNT, "folderIds" to listOf("Archive.2024.Trips", "Archive.2024"))),
+            storeCalls("forgetSpecialFolders"),
+        )
+    }
+
+    // ---- the choice itself (#227)
+
+    /**
+     * Pinning writes the record AND the folder table, in that order, and drops the warm JMAP
+     * session: the drawer, the search and the delete all read the cached role, so a choice left to
+     * the next network refresh is a setting the app visibly ignores, and the warm session holds a
+     * role table built from the choice that was just replaced.
+     */
+    @Test fun `pinning a folder re-roles the cache at once and drops the warm session`() {
+        val written = mutableListOf<Pair<String, String?>>()
+        val host = RecordingHost()
+        val folders = folders(
+            RecordingImap(store),
+            mailboxDao = mailboxDaoRoles(
+                rows = listOf(
+                    MailboxIdRole("Corbeille", null),
+                    MailboxIdRole("INBOX", "inbox"),
+                    MailboxIdRole("Trash", "trash"),
+                ),
+                written = written,
+            ),
+            host = host,
+        )
+
+        runBlocking { folders.setSpecialFolder(ACCOUNT, "trash", "Corbeille") }
+
+        assertEquals(
+            listOf(mapOf("id" to ACCOUNT, "role" to "trash", "folderId" to "Corbeille")),
+            storeCalls("setSpecialFolder"),
+        )
+        assertEquals(listOf("Trash" to "~trash", "Corbeille" to "trash"), written)
+        assertEquals(1, host.syncStateResets)
+    }
+
+    /**
+     * Unpinning reads the choice being undone off the record before overwriting it: which folder
+     * the role leaves is the one the account NAMED, never whoever happens to answer the role now.
+     */
+    @Test fun `unpinning strips the folder the record named and hands the claim back`() {
+        val written = mutableListOf<Pair<String, String?>>()
+        store.records = listOf(account(mapOf("trash" to "Corbeille")))
+        val folders = folders(
+            RecordingImap(store),
+            mailboxDao = mailboxDaoRoles(
+                rows = listOf(
+                    MailboxIdRole("Corbeille", "trash"),
+                    MailboxIdRole("INBOX", "inbox"),
+                    MailboxIdRole("Trash", "~trash"),
+                ),
+                written = written,
+            ),
+            host = RecordingHost(),
+        )
+
+        runBlocking { folders.setSpecialFolder(ACCOUNT, "trash", null) }
+
+        assertEquals(listOf("Corbeille" to null, "Trash" to "trash"), written)
+    }
+
+    /**
+     * The second designation of one role, the gesture the screen makes whenever the user changes
+     * her mind: the folder she had designated goes back to carrying no role, never to the mark of
+     * a lost claim, which would take an ordinary mail folder out of every search result.
+     */
+    @Test fun `designating a second folder lets the first one go without marking it`() {
+        val written = mutableListOf<Pair<String, String?>>()
+        store.records = listOf(account(mapOf("trash" to "Projets")))
+        val folders = folders(
+            RecordingImap(store),
+            mailboxDao = mailboxDaoRoles(
+                rows = listOf(
+                    MailboxIdRole("Corbeille", null),
+                    MailboxIdRole("INBOX", "inbox"),
+                    MailboxIdRole("Projets", "trash"),
+                ),
+                written = written,
+            ),
+            host = RecordingHost(),
+        )
+
+        runBlocking { folders.setSpecialFolder(ACCOUNT, "trash", "Corbeille") }
+
+        assertEquals(listOf("Projets" to null, "Corbeille" to "trash"), written)
+    }
+
+    /**
+     * The folder already carrying a role, designated for a second one. A cache row carries one
+     * role, so a record letting the first role stand is the whole defect: `specialRole` settles
+     * that row on the first of `SPECIAL_FOLDER_ROLES` and marks the server's own bin with the lost
+     * claim the standing `trash` key takes from it, so no row answers `trash` at all. On IMAP
+     * `MailRepository.cachedTrashMailboxId` stops there, no name table is consulted, and the delete
+     * creates a bin server-side while the screen reads the designated folder back (#227).
+     */
+    @Test fun `designating a folder for a second role takes the first role off it`() {
+        val written = mutableListOf<Pair<String, String?>>()
+        val state = mutableListOf(
+            MailboxIdRole("Mein Archiv", "archive"),
+            MailboxIdRole("Deleted Items", "trash"),
+            MailboxIdRole("INBOX", "inbox"),
+        )
+        store.records = listOf(account(mapOf("archive" to "Mein Archiv"), protocol = MailProtocol.IMAP))
+        val folders = folders(
+            RecordingImap(store),
+            mailboxDao = mailboxDaoRoles(rows = state.toList(), written = written, state = state),
+            host = RecordingHost(),
+        )
+
+        runBlocking { folders.setSpecialFolder(ACCOUNT, "trash", "Mein Archiv") }
+
+        assertEquals(
+            listOf("Mein Archiv" to null, "Deleted Items" to "~trash", "Mein Archiv" to "trash"),
+            written,
+        )
+        assertEquals(
+            listOf(
+                MailboxIdRole("Mein Archiv", "trash"),
+                MailboxIdRole("Deleted Items", "~trash"),
+                MailboxIdRole("INBOX", "inbox"),
+            ),
+            state,
+        )
+        assertEquals(mapOf("trash" to "Mein Archiv"), store.records.first().specialFolders)
+    }
+
+    /**
+     * And the other way round, the release being symmetric where the role order is not: the same
+     * folder designated for the bin first, then for the archives. Releasing only the roles listed
+     * before the one taken leaves the `trash` key standing on a folder `specialRole` settles on
+     * `archive`, which is the defect above with its two roles swapped, and the server's own bin
+     * stays marked with a claim nobody takes back (#227).
+     */
+    @Test fun `designating a folder for an earlier role takes the later one off it too`() {
+        val written = mutableListOf<Pair<String, String?>>()
+        val state = mutableListOf(
+            MailboxIdRole("Mein Archiv", "trash"),
+            MailboxIdRole("Deleted Items", "~trash"),
+            MailboxIdRole("Archive", "archive"),
+            MailboxIdRole("INBOX", "inbox"),
+        )
+        store.records = listOf(account(mapOf("trash" to "Mein Archiv"), protocol = MailProtocol.IMAP))
+        val folders = folders(
+            RecordingImap(store),
+            mailboxDao = mailboxDaoRoles(rows = state.toList(), written = written, state = state),
+            host = RecordingHost(),
+        )
+
+        runBlocking { folders.setSpecialFolder(ACCOUNT, "archive", "Mein Archiv") }
+
+        assertEquals(
+            listOf(
+                "Mein Archiv" to null,
+                "Deleted Items" to "trash",
+                "Archive" to null,
+                "Mein Archiv" to "archive",
+            ),
+            written,
+        )
+        assertEquals(
+            listOf(
+                MailboxIdRole("Mein Archiv", "archive"),
+                MailboxIdRole("Deleted Items", "trash"),
+                MailboxIdRole("Archive", null),
+                MailboxIdRole("INBOX", "inbox"),
+            ),
+            state,
+        )
+        assertEquals(mapOf("archive" to "Mein Archiv"), store.records.first().specialFolders)
+    }
+
+    /** Designating the folder a role already names is not a way to strip it: the roles released are
+     *  the other ones, so the gesture writes no role at all. */
+    @Test fun `designating the folder a role already names writes no role`() {
+        val written = mutableListOf<Pair<String, String?>>()
+        store.records = listOf(account(mapOf("trash" to "Corbeille"), protocol = MailProtocol.IMAP))
+        val folders = folders(
+            RecordingImap(store),
+            mailboxDao = mailboxDaoRoles(
+                rows = listOf(MailboxIdRole("Corbeille", "trash"), MailboxIdRole("INBOX", "inbox")),
+                written = written,
+            ),
+            host = RecordingHost(),
+        )
+
+        runBlocking { folders.setSpecialFolder(ACCOUNT, "trash", "Corbeille") }
+
+        assertEquals(emptyList<Pair<String, String?>>(), written)
+    }
+
+    /**
+     * And the inbox is refused whatever its cached row says, on an account whose ids are paths: a
+     * server announcing `\Archive` on INBOX takes it out of the role election, and a guard that
+     * only read the cached role would hand the inbox `trash`: incoming mail out of every search
+     * and every delete aimed at it.
+     */
+    @Test fun `the inbox of an imap account is refused by its path`() {
+        val written = mutableListOf<Pair<String, String?>>()
+        store.records = listOf(account(protocol = MailProtocol.IMAP))
+        val folders = folders(
+            RecordingImap(store),
+            mailboxDao = mailboxDaoRoles(
+                rows = listOf(MailboxIdRole("INBOX", "archive"), MailboxIdRole("Trash", "trash")),
+                written = written,
+            ),
+            host = RecordingHost(),
+        )
+
+        runBlocking { folders.setSpecialFolder(ACCOUNT, "trash", "INBOX") }
+
+        assertEquals(emptyList<Pair<String, String?>>(), written)
+    }
+
+    /**
+     * Handing `sent` back to the automatic rule leaves the cache with NO holder for it: only
+     * `trash` and `junk` carry a lost claim, so the delta has nobody to give the role back to and
+     * the drawer would lose its Sent entry with nothing to bring it back. The listing goes back out
+     * for exactly that, and what it answers is written whole.
+     */
+    @Test fun `handing a role back to the automatic rule asks the server for the listing again`() {
+        val written = mutableListOf<Pair<String, String?>>()
+        val replaced = mutableListOf<Pair<String, List<MailboxEntity>>>()
+        store.known = credentials(MailProtocol.IMAP)
+        store.records = listOf(account(mapOf("sent" to "Envoyes"), protocol = MailProtocol.IMAP))
+        val imap = RecordingImap(store, listed = listOf(row("Sent", true)))
+        val folders = folders(
+            imap,
+            mailboxDao = mailboxDaoRoles(
+                rows = listOf(MailboxIdRole("Envoyes", "sent"), MailboxIdRole("INBOX", "inbox")),
+                written = written,
+                replaced = replaced,
+            ),
+            host = RecordingHost(),
+        )
+
+        runBlocking { folders.setSpecialFolder(ACCOUNT, "sent", null) }
+
+        assertEquals(listOf("Envoyes" to null), written)
+        assertEquals(listOf(false), imap.subscriptionAsked)
+        assertEquals(listOf(ACCOUNT to listOf(row("Sent", true))), replaced)
+    }
+
+    /** And a listing that never comes back takes nothing down with it: the choice is written, the
+     *  cache is re-roled, and the gesture returns rather than throwing at its caller. */
+    @Test fun `a listing that fails leaves the choice and the re-roled cache standing`() {
+        val written = mutableListOf<Pair<String, String?>>()
+        store.known = credentials(MailProtocol.IMAP)
+        store.records = listOf(account(protocol = MailProtocol.IMAP))
+        val folders = folders(
+            RecordingImap(store, listingFails = true),
+            mailboxDao = mailboxDaoRoles(
+                rows = listOf(MailboxIdRole("Corbeille", null), MailboxIdRole("INBOX", "inbox")),
+                written = written,
+            ),
+            host = RecordingHost(),
+        )
+
+        runBlocking { folders.setSpecialFolder(ACCOUNT, "trash", "Corbeille") }
+
+        assertEquals(
+            listOf(mapOf("id" to ACCOUNT, "role" to "trash", "folderId" to "Corbeille")),
+            storeCalls("setSpecialFolder"),
+        )
+        assertEquals(listOf("Corbeille" to "trash"), written)
+    }
+
     // ---- JMAP
 
     private fun serveJmap() {
@@ -419,6 +902,7 @@ class MailFoldersActOnBothProtocolsTest {
         assertEquals("2025", update["mb-2024"]!!.jsonObject["name"]!!.jsonPrimitive.content)
         assertEquals(emptyList<Map<String, Any?>>(), storeCalls("replaceWatchedFolder"))
         assertEquals(emptyList<Map<String, Any?>>(), storeCalls("replaceCollapsedFolder"))
+        assertEquals(emptyList<Map<String, Any?>>(), storeCalls("replaceSpecialFolder"))
     }
 
     /**

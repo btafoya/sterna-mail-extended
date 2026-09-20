@@ -522,10 +522,12 @@ class MailSender(
             )
         }
         // Mailbox ids are per-account: an on-behalf send files in the login's account, so its
-        // roles must come from there.
+        // roles must come from there. No pinned folders: they are stored on the account record the
+        // choice was made on, and these are the login's folders, another record entirely. The
+        // election still applies, or a server listing two Sent folders drops the copy in the one
+        // the drawer does not call Sent.
         val submissionRoles = if (onBehalf) {
-            client.getMailboxes(ctx.session, submissionAccountId, ctx.auth)
-                .mapNotNull { mb -> mb.role?.let { it to mb.id } }.toMap()
+            jmapRolesToMailboxId(client.getMailboxes(ctx.session, submissionAccountId, ctx.auth), emptyMap())
         } else {
             ctx.rolesToMailboxId
         }

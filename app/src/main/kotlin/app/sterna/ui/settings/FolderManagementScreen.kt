@@ -1,26 +1,46 @@
 package app.sterna.ui.settings
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.sterna.R
+import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.showOnlySubscribedFoldersOf
 import app.sterna.ui.inbox.mailboxDisplayName
 
 /**
- * The folders of one account, each with the two switches that govern it (#207, #16). The rows and
- * the state of every switch are [folderManagementRows]'s; this draws them.
+ * The folders of one account, each with the two switches that govern it (#207, #16), under the five
+ * roles the account may pin a folder to (#227). The rows, the state of every switch and what each
+ * picker offers are decided in [folderManagementRows] and [specialFolderRows]; this draws them.
  */
 @Composable
 internal fun FolderManagementScreen(
@@ -41,6 +61,7 @@ internal fun FolderManagementScreen(
     val folders by remember(accountId) { viewModel.folders(accountId) }
         .collectAsStateWithLifecycle(emptyList())
     val rows = folderManagementRows(folders, showOnlySubscribedFoldersOf(account), account.hiddenFolders, account.watchedFolders, account.inboxId)
+    val specialRows = specialFolderRows(folders, showOnlySubscribedFoldersOf(account), account.specialFolders, account.inboxId, account.protocol == MailProtocol.IMAP)
     DetailScaffold(title = stringResource(R.string.folders_manage_title), onBack = onBack) { padding ->
         Column(
             Modifier
@@ -48,6 +69,20 @@ internal fun FolderManagementScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState()),
         ) {
+            SettingsSection(stringResource(R.string.folders_special_title)) {
+                Text(
+                    stringResource(R.string.folders_special_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                specialRows.forEach { row ->
+                    SpecialFolderChoiceRow(
+                        row = row,
+                        onChoose = { viewModel.setSpecialFolder(accountId, row.role, it) },
+                    )
+                }
+            }
             rows.forEach { row ->
                 Column(Modifier.padding(start = (row.depth * 16).dp)) {
                     SettingsSection(mailboxDisplayName(row.mailbox.role, row.mailbox.name)) {
@@ -72,3 +107,99 @@ internal fun FolderManagementScreen(
         }
     }
 }
+
+/**
+ * One role and the folder carrying it, opening on the folders of this account plus "Automatic".
+ *
+ * The role's own translated name titles the line, the folder under it is named as the SERVER named
+ * it: an account with a `Junk` and a `Spam` reads "Spam" twice otherwise, on the line and in the
+ * picker both, and there is nothing left to choose between (#227). No trailing control, so the
+ * whole width is the label's: five role names, ten languages, 360 dp.
+ */
+@Composable
+private fun SpecialFolderChoiceRow(row: SpecialFolderRow, onChoose: (String?) -> Unit) {
+    // Saveable, not remembered: an open picker is the middle of a gesture, and a rotation recreates
+    // the activity. The role is the SAVE key, `key = `, not a positional input: the five lines are
+    // one call site, whose generated composition keys the restore would otherwise share out by
+    // order alone.
+    var picking by rememberSaveable(key = row.role) { mutableStateOf(false) }
+    val title = mailboxDisplayName(row.role, row.role)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { picking = true }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                when (val label = row.label) {
+                    SpecialFolderLabel.None -> stringResource(R.string.folders_special_automatic)
+                    is SpecialFolderLabel.Chosen -> label.name
+                    is SpecialFolderLabel.Detected ->
+                        stringResource(R.string.folders_special_automatic_named, label.name)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+    if (!picking) return
+    AlertDialog(
+        // The system back gesture arrives here, and closes the picker alone: the screen behind it
+        // is where the user still is.
+        onDismissRequest = { picking = false },
+        title = { Text(title) },
+        text = {
+            // The list must scroll: an account can hold hundreds of folders, and Material's `text`
+            // slot hands down a finite maxHeight a non-scrolling Column spends until the last rows
+            // measure ~0 and render as bare radio circles that take no taps.
+            Column(Modifier.selectableGroup().verticalScroll(rememberScrollState())) {
+                row.options.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = option.selected,
+                                role = Role.RadioButton,
+                                onClick = {
+                                    onChoose(option.folderId)
+                                    picking = false
+                                },
+                            )
+                            .padding(
+                                start = (minOf(option.depth, PICKER_INDENT_LEVELS) * 16).dp,
+                                top = 12.dp,
+                                bottom = 12.dp,
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Start,
+                    ) {
+                        RadioButton(selected = option.selected, onClick = null)
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            when {
+                                option.folderId == null -> stringResource(R.string.folders_special_automatic)
+                                option.heldRole != null -> stringResource(
+                                    R.string.folders_special_option_role,
+                                    option.name,
+                                    mailboxDisplayName(option.heldRole, option.heldRole),
+                                )
+                                else -> option.name
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { picking = false }) { Text(stringResource(R.string.settings_cancel)) }
+        },
+    )
+}
+
+/** How far a picker entry is indented, at most. Past this the text column of a 360 dp screen is
+ *  what pays, between the indent, the radio button and an annotation that wraps. */
+private const val PICKER_INDENT_LEVELS = 3

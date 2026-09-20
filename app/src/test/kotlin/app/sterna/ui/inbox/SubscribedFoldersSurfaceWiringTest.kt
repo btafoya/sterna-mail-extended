@@ -301,16 +301,18 @@ class SubscribedFoldersSurfaceWiringTest {
             codeLines(file).any { "visibleFolders(" in it }
         }.map { it.name }.sorted()
         assertEquals(
-            "the subscription filter moved. It belongs to the four files below and nowhere else — " +
+            "the subscription filter moved. It belongs to the five files below and nowhere else — " +
                 "in the repository or in the folder cache it would take with it every reader of the " +
                 "list: subfolderIdsOf (a delete that misses hidden children), the reader's parent " +
-                "paths, the rule editor, the watched folders. All four are screen rules; the fourth " +
-                "is the folder screen's own (#207), which must list what the drawer can show and " +
-                "nothing more, or a switch offers to unhide what the subscription setting hides.",
+                "paths, the rule editor, the watched folders. All five are screen rules; the last " +
+                "two are the folder screen's own, its switches (#207) and the folder each role is " +
+                "pinned to (#227), which must offer what the drawer can show and nothing more, or " +
+                "the screen proposes what the subscription setting hides.",
             listOf(
                 "FolderManagementRows.kt",
                 "FolderSelection.kt",
                 "InboxViewModel.kt",
+                "SpecialFolderRows.kt",
                 "SubscribedFolders.kt",
             ),
             callers,

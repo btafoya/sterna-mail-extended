@@ -1003,6 +1003,11 @@
     <string name="folders_manage_show_title">Deze map tonen</string>
     <string name="folders_manage_show_subtitle">Een verborgen map houdt zijn e-mail en blijft doorzoekbaar</string>
     <string name="folders_manage_watch_subtitle">Haalt deze map op de achtergrond op</string>
+    <string name="folders_special_title">Speciale mappen</string>
+    <string name="folders_special_subtitle">Welke map dit account waarvoor gebruikt</string>
+    <string name="folders_special_automatic">Automatisch</string>
+    <string name="folders_special_automatic_named">Automatisch (%1$s)</string>
+    <string name="folders_special_option_role">%1$s (nu %2$s)</string>
     <string name="shortcut_compose_short">Opstellen</string>
     <string name="shortcut_compose_long">Nieuw bericht</string>
 </resources>

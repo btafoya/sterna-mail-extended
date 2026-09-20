@@ -64,6 +64,7 @@ data class AccountCredentials(
     val oauth: OAuthCredentials? = null,
     /** For API_TOKEN accounts [password] holds the token, sent as a Bearer header. */
     val authType: AuthType = AuthType.BASIC,
+    val specialFolders: Map<String, String> = emptyMap(),
 ) {
     /**
      * Masked on purpose: [password] holds the account password (or an API token), which the
@@ -516,6 +517,11 @@ class AccountStore(context: Context) : AccountStorage {
         )
     }
 
+    @Synchronized
+    override fun setSpecialFolder(id: String, role: String, folderId: String?) {
+        saveAccounts(withSpecialFolder(accounts(), id, role, folderId))
+    }
+
     /**
      * The folders of this account's drawer tree the user explicitly folded or unfolded; a folder
      * absent from the map is one nobody decided anything about. Empty for an unknown id.
@@ -555,6 +561,16 @@ class AccountStore(context: Context) : AccountStorage {
     @Synchronized
     override fun forgetHiddenFolders(id: String, folderIds: Collection<String>) {
         saveAccounts(withoutHiddenFolder(accounts(), id, folderIds))
+    }
+
+    @Synchronized
+    override fun replaceSpecialFolder(id: String, oldId: String, newId: String, delimiter: String) {
+        saveAccounts(withRenamedSpecialFolder(accounts(), id, oldId, newId, delimiter))
+    }
+
+    @Synchronized
+    override fun forgetSpecialFolders(id: String, folderIds: Collection<String>) {
+        saveAccounts(withoutSpecialFolders(accounts(), id, folderIds))
     }
 
     /**
@@ -706,6 +722,7 @@ class AccountStore(context: Context) : AccountStorage {
             } else {
                 null
             },
+            specialFolders = account.specialFolders,
         )
     }
 

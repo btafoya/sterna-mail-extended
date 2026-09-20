@@ -116,6 +116,10 @@ internal open class RecordingAccountStorage : AccountStorage {
         record("setFolderWatched", "id" to id, "folderId" to folderId, "watched" to watched)
     }
 
+    override fun setSpecialFolder(id: String, role: String, folderId: String?) {
+        record("setSpecialFolder", "id" to id, "role" to role, "folderId" to folderId)
+    }
+
     override fun replaceCollapsedFolder(id: String, oldId: String, newId: String, delimiter: String) {
         record("replaceCollapsedFolder", "id" to id, "oldId" to oldId, "newId" to newId, "delimiter" to delimiter)
     }
@@ -130,6 +134,14 @@ internal open class RecordingAccountStorage : AccountStorage {
 
     override fun forgetHiddenFolders(id: String, folderIds: Collection<String>) {
         record("forgetHiddenFolders", "id" to id, "folderIds" to folderIds)
+    }
+
+    override fun replaceSpecialFolder(id: String, oldId: String, newId: String, delimiter: String) {
+        record("replaceSpecialFolder", "id" to id, "oldId" to oldId, "newId" to newId, "delimiter" to delimiter)
+    }
+
+    override fun forgetSpecialFolders(id: String, folderIds: Collection<String>) {
+        record("forgetSpecialFolders", "id" to id, "folderIds" to folderIds)
     }
 
     override fun credentials(id: String): AccountCredentials? {

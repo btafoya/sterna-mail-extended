@@ -86,9 +86,18 @@ class UnelectedTrashIsMarkedTest {
             1, Regex("""(?<![A-Za-z])MailboxEntity\(""").findAll(source).count(),
         )
         assertEquals(
-            "listMailboxes and loadFolder must both hand the account id, the listed folder and its " +
-                "position to imapMailboxEntity",
-            2, Regex("""imapMailboxEntity\(credentials\.id, folder, index\)""").findAll(source).count(),
+            "listMailboxes and loadFolder must both hand the account id, the listed folder, its " +
+                "position AND the account's honoured choice of special folders to " +
+                "imapMailboxEntity — the parameter defaults to no choice at all, so a site that " +
+                "omits it compiles, stays green, and leaves the setting inert on that listing",
+            2, Regex("""imapMailboxEntity\(credentials\.id, folder, index, chosen\)""").findAll(source).count(),
+        )
+        assertEquals(
+            "and both must honour the choice against THEIR OWN listing first: a choice naming a " +
+                "folder the listing does not carry falls back on the automatic role",
+            2,
+            Regex("""val chosen = honouredSpecialFolders\(credentials\.specialFolders, folders\.map \{ it\.roleCandidate\(\) \}\)""")
+                .findAll(source).count(),
         )
     }
 }

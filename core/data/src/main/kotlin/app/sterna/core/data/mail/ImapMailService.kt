@@ -425,8 +425,10 @@ open class ImapMailService(
      */
     suspend fun listMailboxes(credentials: AccountCredentials): List<MailboxEntity> =
         withSession(credentials) { session ->
-            session.listFolders().mapIndexed { index, folder ->
-                imapMailboxEntity(credentials.id, folder, index)
+            val folders = session.listFolders()
+            val chosen = honouredSpecialFolders(credentials.specialFolders, folders.map { it.roleCandidate() })
+            folders.mapIndexed { index, folder ->
+                imapMailboxEntity(credentials.id, folder, index, chosen)
             }
         }
 
@@ -443,8 +445,9 @@ open class ImapMailService(
     ): ImapFolderLoad {
         return withSession(credentials) { session ->
             val folders = session.listFolders(onlySubscribed)
+            val chosen = honouredSpecialFolders(credentials.specialFolders, folders.map { it.roleCandidate() })
             val mailboxes = folders.mapIndexed { index, folder ->
-                imapMailboxEntity(credentials.id, folder, index)
+                imapMailboxEntity(credentials.id, folder, index, chosen)
             }
             val target = folders.firstOrNull { it.path == requestedMailboxId }
                 ?: folders.firstOrNull { it.role == "inbox" }
@@ -869,11 +872,13 @@ open class ImapMailService(
 /**
  * The one place a listed IMAP folder becomes a cache row, role and subscription state included.
  */
-internal fun imapMailboxEntity(accountId: String, folder: ImapFolder, index: Int): MailboxEntity {
-    val role = folder.role
-        ?: folder.unelectedRole
-            ?.takeIf { it in NOT_SEARCHED_BASE_ROLES }
-            ?.let { UNELECTED_ROLE_MARK + it }
+internal fun imapMailboxEntity(
+    accountId: String,
+    folder: ImapFolder,
+    index: Int,
+    chosenFolders: Map<String, String> = emptyMap(),
+): MailboxEntity {
+    val role = specialRole(folder.roleCandidate(), chosenFolders)
     return MailboxEntity(
         accountId = accountId,
         id = folder.path,

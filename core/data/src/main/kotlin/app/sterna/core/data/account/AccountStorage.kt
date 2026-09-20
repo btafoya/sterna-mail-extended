@@ -70,6 +70,10 @@ interface AccountStorage {
     /** Add or remove a folder from the account's watched set. No-op if the id is unknown. */
     fun setFolderWatched(id: String, folderId: String, watched: Boolean)
 
+    /** Pin [folderId] as the folder carrying [role] for this account, or null to go back to the
+     *  automatic role. No-op if the id is unknown. */
+    fun setSpecialFolder(id: String, role: String, folderId: String?)
+
     /** Re-key a folded folder after an IMAP rename, carrying everything under it across. */
     fun replaceCollapsedFolder(id: String, oldId: String, newId: String, delimiter: String = "/")
 
@@ -81,6 +85,12 @@ interface AccountStorage {
 
     /** Drop the hide registry keys of folders a delete destroyed, descendants included. */
     fun forgetHiddenFolders(id: String, folderIds: Collection<String>)
+
+    /** Re-key the special-folder choices after an IMAP rename, carrying everything under it across. */
+    fun replaceSpecialFolder(id: String, oldId: String, newId: String, delimiter: String = "/")
+
+    /** Drop the special-folder choices naming folders a delete destroyed, descendants included. */
+    fun forgetSpecialFolders(id: String, folderIds: Collection<String>)
 
     /** Everything needed to open a connection for an account, secrets decrypted. */
     fun credentials(id: String): AccountCredentials?

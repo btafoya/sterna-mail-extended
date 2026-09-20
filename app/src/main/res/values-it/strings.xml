@@ -1006,6 +1006,11 @@
     <string name="folders_manage_show_title">Mostra questa cartella</string>
     <string name="folders_manage_show_subtitle">Una cartella nascosta conserva le sue email e resta ricercabile</string>
     <string name="folders_manage_watch_subtitle">Scarica questa cartella in secondo piano</string>
+    <string name="folders_special_title">Cartelle speciali</string>
+    <string name="folders_special_subtitle">Quale cartella usa questo account per ogni funzione</string>
+    <string name="folders_special_automatic">Automatico</string>
+    <string name="folders_special_automatic_named">Automatico (%1$s)</string>
+    <string name="folders_special_option_role">%1$s (attualmente %2$s)</string>
     <string name="shortcut_compose_short">Scrivi</string>
     <string name="shortcut_compose_long">Nuovo messaggio</string>
 </resources>

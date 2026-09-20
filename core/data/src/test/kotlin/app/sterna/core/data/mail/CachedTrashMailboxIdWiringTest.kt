@@ -24,15 +24,18 @@ class CachedTrashMailboxIdWiringTest {
         val body = bodyOf("cachedTrashMailboxId")
         assertEquals(
             "EVERY line, in order: the bin is resolved the way delete() finds it — the role " +
-                "first, then the name — but off the FOLDER TABLE, scoped to this account, and " +
-                "nothing else stands between. A line that widens the lookup past the role and " +
-                "the server names is a delete aimed at a folder the user reads. Body was:\n$body",
+                "first, then the name, minus the folders this account pinned to ANOTHER role " +
+                "(#227) — but off the FOLDER TABLE, scoped to this account, and nothing else " +
+                "stands between. A line that widens the lookup past the role and the server " +
+                "names is a delete aimed at a folder the user reads. Body was:\n$body",
             listOf(
                 "{",
                 """val cached = mailboxDao.idForRole(credentials.id, "trash")""",
                 "if (cached != null) return cached",
                 "if (credentials.protocol == MailProtocol.IMAP) return null",
-                "return mailboxDao.idForAnyName(credentials.id, TRASH_FOLDER_NAMES)",
+                """val pinnedElsewhere = pinnedToAnotherRole("trash", credentials.specialFolders)""",
+                "return mailboxDao.idsForAnyName(credentials.id, TRASH_FOLDER_NAMES)" +
+                    ".firstOrNull { it !in pinnedElsewhere }",
                 "}",
             ),
             codeLines(body),
@@ -54,9 +57,10 @@ class CachedTrashMailboxIdWiringTest {
                 "elected by the time the protocol is looked at",
             listOf(
                 "if (credentials.protocol == MailProtocol.IMAP) return null",
-                "return mailboxDao.idForAnyName(credentials.id, TRASH_FOLDER_NAMES)",
+                "return mailboxDao.idsForAnyName(credentials.id, TRASH_FOLDER_NAMES)" +
+                    ".firstOrNull { it !in pinnedElsewhere }",
             ),
-            codeLines(body).filter { "MailProtocol.IMAP" in it || "idForAnyName(" in it },
+            codeLines(body).filter { "MailProtocol.IMAP" in it || "idsForAnyName(" in it },
         )
     }
 

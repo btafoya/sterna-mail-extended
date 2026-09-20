@@ -1000,6 +1000,11 @@
     <string name="folders_manage_show_title">Diesen Ordner anzeigen</string>
     <string name="folders_manage_show_subtitle">Ein verborgener Ordner behält seine E-Mails und bleibt durchsuchbar</string>
     <string name="folders_manage_watch_subtitle">Ruft diesen Ordner im Hintergrund ab</string>
+    <string name="folders_special_title">Besondere Ordner</string>
+    <string name="folders_special_subtitle">Welchen Ordner dieses Konto wofür verwendet</string>
+    <string name="folders_special_automatic">Automatisch</string>
+    <string name="folders_special_automatic_named">Automatisch (%1$s)</string>
+    <string name="folders_special_option_role">%1$s (derzeit %2$s)</string>
     <string name="shortcut_compose_short">Verfassen</string>
     <string name="shortcut_compose_long">Neue Nachricht</string>
 </resources>

@@ -160,6 +160,83 @@ class FolderManagementWiringLintTest {
         )
     }
 
+    /**
+     * The special-folder lines (#227). What they offer is executed next door
+     * ([SpecialFolderRowsTest]); what only this can see is where the names they print come from and
+     * which door the tap goes through.
+     */
+    @Test fun `the five role lines are built from the account's own choices and folder list`() {
+        assertEquals(
+            "the special-folder lines no longer come from specialFolderRows with the account's own " +
+                "setting, choices, Inbox id and protocol. Recomputing any of them here would put " +
+                "the rule in a Composable no test can run, and a protocol read wrong offers the " +
+                "reserved INBOX path as a target for a role.",
+            listOf(
+                "val specialRows = specialFolderRows(folders, showOnlySubscribedFoldersOf(account), " +
+                    "account.specialFolders, account.inboxId, account.protocol == MailProtocol.IMAP)",
+            ),
+            block(SCREEN, "val specialRows =", 1),
+        )
+        assertEquals(
+            "a tap on a picker entry must write the role of the line it belongs to, on the account " +
+                "the screen manages, and the entry's own folder — null being the Automatic entry.",
+            listOf(
+                "SpecialFolderChoiceRow(",
+                "row = row,",
+                "onChoose = { viewModel.setSpecialFolder(accountId, row.role, it) },",
+                ")",
+            ),
+            block(SCREEN, "SpecialFolderChoiceRow(", 4),
+        )
+        assertEquals(
+            "the picker must print the name the SERVER gave a folder. Painted with the role name, " +
+                "the account that motivated the lot offers \"Spam\" twice and is designated at " +
+                "random — which is the whole reason this picker exists (#227). The role a folder " +
+                "already carries is named beside it, never instead of it.",
+            listOf(
+                "option.folderId == null -> stringResource(R.string.folders_special_automatic)",
+                "option.heldRole != null -> stringResource(",
+                "R.string.folders_special_option_role,",
+                "option.name,",
+                "mailboxDisplayName(option.heldRole, option.heldRole),",
+                ")",
+                "else -> option.name",
+            ),
+            block(SCREEN, "option.folderId == null ->", 7),
+        )
+        assertEquals(
+            "the line under the role's name must read the label the rule decided, branch for " +
+                "branch. Printed as a detected folder, a designated one tells the user her choice " +
+                "did nothing.",
+            listOf(
+                "when (val label = row.label) {",
+                "SpecialFolderLabel.None -> stringResource(R.string.folders_special_automatic)",
+                "is SpecialFolderLabel.Chosen -> label.name",
+                "is SpecialFolderLabel.Detected ->",
+                "stringResource(R.string.folders_special_automatic_named, label.name)",
+                "},",
+            ),
+            block(SCREEN, "when (val label = row.label) {", 6),
+        )
+    }
+
+    @Test fun `the folder choice goes through the door that also rewrites the cached role`() {
+        assertEquals(
+            "the choice must be written through MailFolders, the one door that applies it to the " +
+                "folder cache at once. Written into the account record alone (store.setSpecialFolder) " +
+                "the drawer, the search and the delete go on naming the old folder until the next " +
+                "sync, and on viewModelScope the back gesture that usually follows the tap cancels " +
+                "it (#174).",
+            listOf(
+                "fun setSpecialFolder(id: String, role: String, folderId: String?) {",
+                "val write = specialFolderWrite(role, folderId) ?: return",
+                "appScope.launch {",
+                "runCatching { mail.folders.setSpecialFolder(id, write.role, write.folderId) }",
+            ),
+            block(ACCOUNTS_VIEW_MODEL, "fun setSpecialFolder(", 4),
+        )
+    }
+
     @Test fun `the screen reads and writes the account it was opened for, never the current one`() {
         assertEquals(
             "the folder list handed to the screen must be the managed account's. Read from the " +

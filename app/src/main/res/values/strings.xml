@@ -1055,6 +1055,11 @@
     <string name="folders_manage_show_title">Show this folder</string>
     <string name="folders_manage_show_subtitle">A hidden folder keeps its mail, and search still finds it</string>
     <string name="folders_manage_watch_subtitle">Fetches this folder in the background</string>
+    <string name="folders_special_title">Special folders</string>
+    <string name="folders_special_subtitle">Which folder this account uses for each purpose</string>
+    <string name="folders_special_automatic">Automatic</string>
+    <string name="folders_special_automatic_named">Automatic (%1$s)</string>
+    <string name="folders_special_option_role">%1$s (currently %2$s)</string>
     <string name="shortcut_compose_short">Compose</string>
     <string name="shortcut_compose_long">New message</string>
 </resources>

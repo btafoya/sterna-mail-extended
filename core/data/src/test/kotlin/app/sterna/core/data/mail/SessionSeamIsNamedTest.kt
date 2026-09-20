@@ -54,7 +54,7 @@ class SessionSeamIsNamedTest {
             accounts.reconcileLinkedAccounts(credentials, session, auth)
             accounts.refreshServerIdentities(session, accountId, credentials.id, auth)
             val mailboxes = client.getMailboxes(session, accountId, auth)
-            val roles = mailboxes.mapNotNull { mb -> mb.role?.let { it to mb.id } }.toMap()
+            val roles = jmapRolesToMailboxId(mailboxes, credentials.specialFolders)
             return JmapAccountSession(credentials, session, accountId, auth, roles, mailboxes).also { cachedSession = it }
             }
             """,
@@ -169,7 +169,7 @@ class SessionSeamIsNamedTest {
                 "session = session,",
                 "accountId = accountId,",
                 "auth = auth,",
-                "rolesToMailboxId = mailboxes.mapNotNull { mb -> mb.role?.let { it to mb.id } }.toMap(),",
+                "rolesToMailboxId = jmapRolesToMailboxId(mailboxes, credentials.specialFolders),",
                 "mailboxes = mailboxes,",
                 ")",
             ),

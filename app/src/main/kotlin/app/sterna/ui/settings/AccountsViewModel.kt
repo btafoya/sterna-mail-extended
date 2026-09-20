@@ -171,6 +171,14 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         PushController.apply(getApplication(), userInitiated = true)
     }
 
+    fun setSpecialFolder(id: String, role: String, folderId: String?) {
+        val write = specialFolderWrite(role, folderId) ?: return
+        appScope.launch {
+            runCatching { mail.folders.setSpecialFolder(id, write.role, write.folderId) }
+                .onFailure { android.util.Log.w("SternaAccounts", "the folder choice did not reach the folder cache; the drawer and the delete still name the old one", it) }
+        }
+    }
+
     fun syncWindow(id: String): SyncWindow = store.syncWindow(id)
 
     /**

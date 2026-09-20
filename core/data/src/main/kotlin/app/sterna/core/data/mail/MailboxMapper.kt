@@ -1,13 +1,22 @@
 package app.sterna.core.data.mail
 
+import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.db.MailboxEntity
 import app.sterna.core.jmap.model.Mailbox
 
-internal fun Mailbox.toEntity(accountId: String): MailboxEntity = MailboxEntity(
+internal fun List<Mailbox>.toEntities(credentials: AccountCredentials): List<MailboxEntity> {
+    val candidates = jmapRoleCandidates(this)
+    val honoured = honouredSpecialFolders(credentials.specialFolders, candidates)
+    return mapIndexed { index, mailbox ->
+        mailbox.toEntity(credentials.id, specialRole(candidates[index], honoured))
+    }
+}
+
+internal fun Mailbox.toEntity(accountId: String, effectiveRole: String? = role): MailboxEntity = MailboxEntity(
     accountId = accountId,
     id = id,
     name = name,
-    role = role,
+    role = effectiveRole,
     parentId = parentId,
     sortOrder = sortOrder,
     totalEmails = totalEmails,

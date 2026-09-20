@@ -1728,7 +1728,7 @@ class MailRepository(
                     folderSyncSizing(limit, resolved.session.getBatchSize()), credentials.id,
                 )
                 // Folder counters after the row sync so badge and list move together.
-                mailboxDao.replaceAll(credentials.id, resolved.mailboxes.map { it.toEntity(credentials.id) })
+                mailboxDao.replaceAll(credentials.id, resolved.mailboxes.toEntities(credentials))
                 val name = resolved.session.accounts[resolved.accountId]?.name ?: credentials.username
                 results += AccountInboxMeta(credentials.id, name, inbox.id, inbox.name, inbox.unreadEmails)
                 bgScope.launch { runCatching { prefetchInboxBodies(credentials, inbox.id) } }
@@ -1800,7 +1800,7 @@ class MailRepository(
             session = session,
             accountId = accountId,
             auth = auth,
-            rolesToMailboxId = mailboxes.mapNotNull { mb -> mb.role?.let { it to mb.id } }.toMap(),
+            rolesToMailboxId = jmapRolesToMailboxId(mailboxes, credentials.specialFolders),
             mailboxes = mailboxes,
         )
 
@@ -1828,7 +1828,7 @@ class MailRepository(
             pruneRetention(credentials.id, target.id, pruneBeforeMillis, sync.getOrNull()?.fetchedIds?.toSet(), sizing.retentionFloor)
         }
         // Folder counters land after the email rows, so a concurrent optimistic nudge survives.
-        mailboxDao.replaceAll(credentials.id, mailboxes.map { it.toEntity(credentials.id) })
+        mailboxDao.replaceAll(credentials.id, mailboxes.toEntities(credentials))
         if (syncError != null) throw syncError
         // Warm the body cache for the top of the inbox. Fire-and-forget so it never delays the list.
         if (target.role == "inbox") {
@@ -2857,12 +2857,15 @@ class MailRepository(
         mailboxDao.idForRole(credentials.id, "inbox")
 
     /** The bin off the folder cache, so no finger waits on a socket. By name on JMAP alone: the IMAP
-     *  cache leaves that name on the loser of the role claim, a folder a delete moves out of. */
+     * cache leaves that name on the loser of the role claim, a folder a delete moves out of. Every
+     * folder the names recognise comes back, root first, and the first one the account has not
+     * designated for another role wins, or a delete would file into her Archive (#227). */
     suspend fun cachedTrashMailboxId(credentials: AccountCredentials): String? {
         val cached = mailboxDao.idForRole(credentials.id, "trash")
         if (cached != null) return cached
         if (credentials.protocol == MailProtocol.IMAP) return null
-        return mailboxDao.idForAnyName(credentials.id, TRASH_FOLDER_NAMES)
+        val pinnedElsewhere = pinnedToAnotherRole("trash", credentials.specialFolders)
+        return mailboxDao.idsForAnyName(credentials.id, TRASH_FOLDER_NAMES).firstOrNull { it !in pinnedElsewhere }
     }
 
     /** The IMAP numbering last observed for [mailboxId], to freeze at a user's confirmation and oppose
@@ -3416,7 +3419,7 @@ class MailRepository(
         ctx.rolesToMailboxId["archive"]?.let { return it }
         // THIS account's own folders by name, not the global mailbox cache, otherwise archiving a
         // non-current account's message would target the current account's Archive id, a silent no-op.
-        val byName = archiveFolderByName(ctx.mailboxes) ?: return null
+        val byName = archiveFolderByName(ctx.mailboxes.notPinnedToAnotherRole("archive", ctx.credentials.specialFolders)) ?: return null
         cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("archive" to byName), ctx.mailboxes)
         return byName
     }
@@ -3430,7 +3433,7 @@ class MailRepository(
         }.getOrElse { err ->
             val mbs = runCatching { client.getMailboxes(ctx.session, ctx.accountId, ctx.auth) }.getOrDefault(emptyList())
             mbs.firstOrNull { it.role == "archive" }?.id
-                ?: archiveFolderByName(mbs)
+                ?: archiveFolderByName(mbs.notPinnedToAnotherRole("archive", ctx.credentials.specialFolders))
                 ?: throw err
         }
         cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("archive" to id), ctx.mailboxes)
@@ -3442,7 +3445,7 @@ class MailRepository(
     private suspend fun trashMailboxId(ctx: JmapAccountSession): String? {
         ctx.rolesToMailboxId["trash"]?.let { return it }
         // THIS account's own folders, not the global mailbox cache, see [archiveMailboxId].
-        val byName = trashFolderByName(ctx.mailboxes) ?: return null
+        val byName = trashFolderByName(ctx.mailboxes.notPinnedToAnotherRole("trash", ctx.credentials.specialFolders)) ?: return null
         cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("trash" to byName), ctx.mailboxes)
         return byName
     }
@@ -3456,7 +3459,7 @@ class MailRepository(
         }.getOrElse { err ->
             val mbs = runCatching { client.getMailboxes(ctx.session, ctx.accountId, ctx.auth) }.getOrDefault(emptyList())
             mbs.firstOrNull { it.role == "trash" }?.id
-                ?: trashFolderByName(mbs)
+                ?: trashFolderByName(mbs.notPinnedToAnotherRole("trash", ctx.credentials.specialFolders))
                 ?: throw err
         }
         cachedSession = JmapAccountSession(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("trash" to id), ctx.mailboxes)
@@ -3925,7 +3928,7 @@ class MailRepository(
     }
 
     /** Drop in-memory sync bookkeeping; call after clearing the cache, or sync reads stale state. */
-    fun resetSyncState() {
+    override fun resetSyncState() {
         syncStates.clear()
         cachedSession = null
     }
@@ -4046,7 +4049,7 @@ class MailRepository(
         // The JMAP side of the question the IMAP branch asks twice (#121). Narrowed, not closed.
         checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
         // Persist the fetched folder counters, after the row syncs, or the drawer badge undercounts.
-        mailboxDao.replaceAll(credentials.id, resolved.mailboxes.map { it.toEntity(credentials.id) })
+        mailboxDao.replaceAll(credentials.id, resolved.mailboxes.toEntities(credentials))
         return refreshes
     }
 
@@ -4170,7 +4173,7 @@ class MailRepository(
         accounts.reconcileLinkedAccounts(credentials, session, auth)
         accounts.refreshServerIdentities(session, accountId, credentials.id, auth)
         val mailboxes = client.getMailboxes(session, accountId, auth)
-        val roles = mailboxes.mapNotNull { mb -> mb.role?.let { it to mb.id } }.toMap()
+        val roles = jmapRolesToMailboxId(mailboxes, credentials.specialFolders)
         return JmapAccountSession(credentials, session, accountId, auth, roles, mailboxes).also { cachedSession = it }
     }
 }

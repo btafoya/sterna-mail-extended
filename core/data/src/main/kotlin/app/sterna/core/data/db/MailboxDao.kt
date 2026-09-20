@@ -41,13 +41,24 @@ interface MailboxDao {
     @Query("SELECT accountId, id, role FROM mailboxes WHERE accountId IN (:accountIds) AND role IS NOT NULL")
     fun observeRoles(accountIds: List<String>): Flow<List<AccountMailboxRole>>
 
-    /** Id of the account's folder whose lowercased name is one of [names], finds an archive folder when the server set
-     *  no `archive` role. */
     @Query(
         "SELECT id FROM mailboxes WHERE accountId = :accountId AND LOWER(name) IN (:names) " +
-            "ORDER BY (parentId IS NULL) DESC LIMIT 1",
+            "ORDER BY (parentId IS NULL) DESC",
     )
-    suspend fun idForAnyName(accountId: String, names: List<String>): String?
+    suspend fun idsForAnyName(accountId: String, names: List<String>): List<String>
+
+    /** One account's folders and the role each carries, marks included, ordered so a rewrite is deterministic. */
+    @Query("SELECT id, role FROM mailboxes WHERE accountId = :accountId ORDER BY id")
+    suspend fun rolesForAccount(accountId: String): List<MailboxIdRole>
+
+    @Query("UPDATE mailboxes SET role = :role WHERE accountId = :accountId AND id = :id")
+    suspend fun setRole(accountId: String, id: String, role: String?)
+
+    /** [roles] written in the order given, all or none: a death between two leaves a role unheld. */
+    @Transaction
+    suspend fun applyRoles(accountId: String, roles: List<MailboxIdRole>) {
+        roles.forEach { setRole(accountId, it.id, it.role) }
+    }
 
     /** Every cached folder of one account, ordered inbox-first (Junk/Trash last) since IMAP can only search one
      *  SELECTed folder at a time. */

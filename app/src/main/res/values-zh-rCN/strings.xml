@@ -1042,6 +1042,11 @@
     <string name="folders_manage_show_title">显示此文件夹</string>
     <string name="folders_manage_show_subtitle">隐藏的文件夹仍会保留其中的邮件，搜索也仍能找到它</string>
     <string name="folders_manage_watch_subtitle">在后台获取此文件夹的邮件</string>
+    <string name="folders_special_title">特殊文件夹</string>
+    <string name="folders_special_subtitle">此账户各用途所使用的文件夹</string>
+    <string name="folders_special_automatic">自动</string>
+    <string name="folders_special_automatic_named">自动（%1$s）</string>
+    <string name="folders_special_option_role">%1$s（当前为 %2$s）</string>
     <string name="shortcut_compose_short">写邮件</string>
     <string name="shortcut_compose_long">新邮件</string>
 </resources>

@@ -62,8 +62,14 @@ class DeleteResolvesOrCreatesTrashWiringTest {
             "the fallback must run [trashFolderByName] over `ctx.mailboxes` — the folders of the " +
                 "account the message belongs to. The global folder cache holds the last-synced " +
                 "account only, so from the unified inbox a delete would aim at another account's " +
-                "folder id and the move would no-op in silence (#31). Whole line. Body was:\n$body",
-            listOf("val byName = trashFolderByName(ctx.mailboxes) ?: return null"),
+                "folder id and the move would no-op in silence (#31). And minus the folders this " +
+                "account pinned to another role: unfiltered, a bin the user made her Archive is " +
+                "recognised by its name and the delete files into the Archive (#227). Whole " +
+                "line. Body was:\n$body",
+            listOf(
+                "val byName = trashFolderByName(" +
+                    """ctx.mailboxes.notPinnedToAnotherRole("trash", ctx.credentials.specialFolders)) ?: return null""",
+            ),
             codeLinesNaming(body, "trashFolderByName("),
         )
     }
@@ -125,7 +131,7 @@ class DeleteResolvesOrCreatesTrashWiringTest {
             listOf(
                 "val mbs = runCatching { client.getMailboxes(ctx.session, ctx.accountId, ctx.auth) }.getOrDefault(emptyList())",
                 """mbs.firstOrNull { it.role == "trash" }?.id""",
-                "?: trashFolderByName(mbs)",
+                """?: trashFolderByName(mbs.notPinnedToAnotherRole("trash", ctx.credentials.specialFolders))""",
             ),
             codeLinesNaming(body, "mbs"),
         )

@@ -198,7 +198,9 @@ class MailboxEvictionsTest {
         override suspend fun idForRole(accountId: String, role: String): String? = error("unused")
         override fun observeSentMailboxes(accountIds: List<String>): Flow<List<AccountMailboxId>> = error("unused")
         override fun observeRoles(accountIds: List<String>): Flow<List<AccountMailboxRole>> = error("unused")
-        override suspend fun idForAnyName(accountId: String, names: List<String>): String? = error("unused")
+        override suspend fun idsForAnyName(accountId: String, names: List<String>): List<String> = error("unused")
+        override suspend fun rolesForAccount(accountId: String): List<MailboxIdRole> = error("unused")
+        override suspend fun setRole(accountId: String, id: String, role: String?): Unit = error("unused")
         override suspend fun searchOrder(accountId: String): List<MailboxIdRole> = error("unused")
         override suspend fun roleForId(accountId: String, id: String): String? = error("unused")
         override suspend fun adjustCounts(accountId: String, id: String, totalDelta: Int, unreadDelta: Int): Unit =
