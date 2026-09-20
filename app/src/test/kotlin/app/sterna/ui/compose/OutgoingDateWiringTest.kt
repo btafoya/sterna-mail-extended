@@ -84,18 +84,19 @@ class OutgoingDateWiringTest {
     }
 
     @Test fun `the setting is exported and restored like every other preference`() {
-        val repository = code(SETTINGS_REPOSITORY)
-        assertTrue(
+        val repository = lines(SETTINGS_REPOSITORY)
+        assertEquals(
             "SettingsRepository.snapshotBackup must carry 'quotedDatesUtc = " +
-                "quotedDatesUtc.first()': without it the switch is absent from every export.",
-            Regex("""quotedDatesUtc\s*=\s*quotedDatesUtc\.first\(\s*\)""").containsMatchIn(repository),
+                "quotedDatesUtc.first(),': without it the switch is absent from every export.",
+            listOf("quotedDatesUtc = quotedDatesUtc.first(),"),
+            repository.filter { "quotedDatesUtc = " in it },
         )
-        assertTrue(
+        assertEquals(
             "restoreBackup must apply it: 'backup.quotedDatesUtc?.let { setQuotedDatesUtc(it) }'. " +
                 "Exported and never read back is the same defect one step later: after a restore " +
                 "the box unticks itself in silence.",
-            Regex("""backup\.quotedDatesUtc\?\.let\s*\{\s*setQuotedDatesUtc\(\s*it\s*\)\s*}""")
-                .containsMatchIn(repository),
+            listOf("backup.quotedDatesUtc?.let { setQuotedDatesUtc(it) }"),
+            repository.filter { "backup.quotedDatesUtc" in it },
         )
     }
 

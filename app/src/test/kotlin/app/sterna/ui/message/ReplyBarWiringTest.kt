@@ -79,18 +79,19 @@ class ReplyBarWiringTest {
     }
 
     @Test fun `the setting is exported and restored like every other preference`() {
-        val repository = code(SETTINGS_REPOSITORY)
-        assertTrue(
-            "SettingsRepository.snapshot must carry 'replyBar = replyBar.first()': without it the " +
+        val repository = codeLines(SETTINGS_REPOSITORY)
+        assertEquals(
+            "SettingsRepository.snapshot must carry 'replyBar = replyBar.first(),': without it the " +
                 "switch is absent from every export, and a restore on a new device silently puts " +
                 "the bar back.",
-            Regex("""replyBar\s*=\s*replyBar\.first\(\s*\)""").containsMatchIn(repository),
+            listOf("replyBar = replyBar.first(),"),
+            repository.filter { "replyBar = " in it },
         )
-        assertTrue(
+        assertEquals(
             "restoreBackup must apply it: 'backup.replyBar?.let { setReplyBar(it) }'. Exported and " +
                 "never read back is the same defect one step later.",
-            Regex("""backup\.replyBar\?\.let\s*\{\s*setReplyBar\(\s*it\s*\)\s*}""")
-                .containsMatchIn(repository),
+            listOf("backup.replyBar?.let { setReplyBar(it) }"),
+            repository.filter { "backup.replyBar" in it },
         )
     }
 
