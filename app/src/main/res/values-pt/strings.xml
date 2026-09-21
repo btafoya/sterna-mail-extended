@@ -351,6 +351,10 @@
     <string name="settings_density_compact">Compacta</string>
     <string name="settings_density_normal">Normal</string>
     <string name="settings_density_spaced">Espaçada</string>
+    <string name="settings_reading_pane_title">Mensagem ao lado da lista</string>
+    <string name="settings_reading_pane_always">Sempre</string>
+    <string name="settings_reading_pane_landscape">Só na horizontal</string>
+    <string name="settings_reading_pane_never">Nunca</string>
     <string name="settings_preview_subject_only">Apenas o assunto</string>
     <string name="settings_preview_one_line">1 linha</string>
     <string name="settings_preview_three_lines">3 linhas</string>

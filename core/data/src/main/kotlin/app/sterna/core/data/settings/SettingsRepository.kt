@@ -23,6 +23,8 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 /** Vertical density of message-list rows. */
 enum class ListDensity { COMPACT, NORMAL, SPACED }
 
+enum class ReadingPaneMode { ALWAYS, LANDSCAPE, NEVER }
+
 /** How much of each message's body preview to show in the list. */
 enum class PreviewLines(val lines: Int) { NONE(0), ONE(1), THREE(3), FIVE(5) }
 
@@ -83,6 +85,12 @@ class SettingsRepository(context: Context) {
 
     suspend fun setListDensity(density: ListDensity) {
         dataStore.edit { it[KEY_LIST_DENSITY] = density.name }
+    }
+
+    val readingPaneMode: Flow<ReadingPaneMode> = dataStore.data.map(::readingPaneModeFrom)
+
+    suspend fun setReadingPaneMode(mode: ReadingPaneMode) {
+        dataStore.edit { it[KEY_READING_PANE_MODE] = mode.name }
     }
 
     val previewLines: Flow<PreviewLines> = dataStore.data.map { prefs ->
@@ -340,6 +348,7 @@ class SettingsRepository(context: Context) {
         themeMode = themeMode.first().name,
         dynamicColor = dynamicColor.first(),
         listDensity = listDensity.first().name,
+        readingPaneMode = readingPaneMode.first().name,
         previewLines = previewLines.first().name,
         swipeRight = swipeRightAction.first().name,
         swipeLeft = swipeLeftAction.first().name,
@@ -376,6 +385,7 @@ class SettingsRepository(context: Context) {
         backup.themeMode?.let { v -> runCatching { ThemeMode.valueOf(v) }.getOrNull()?.let { setThemeMode(it) } }
         backup.dynamicColor?.let { setDynamicColor(it) }
         backup.listDensity?.let { v -> runCatching { ListDensity.valueOf(v) }.getOrNull()?.let { setListDensity(it) } }
+        readingPaneModeOrNull(backup.readingPaneMode)?.let { setReadingPaneMode(it) }
         backup.previewLines?.let { v -> runCatching { PreviewLines.valueOf(v) }.getOrNull()?.let { setPreviewLines(it) } }
         backup.swipeRight?.let { v -> runCatching { SwipeAction.valueOf(v) }.getOrNull()?.let { setSwipeRightAction(it) } }
         backup.swipeLeft?.let { v -> runCatching { SwipeAction.valueOf(v) }.getOrNull()?.let { setSwipeLeftAction(it) } }
@@ -501,6 +511,16 @@ internal fun notificationContentOrNull(stored: String?): NotificationContent? =
 /** The position a new-mail notification is posted at, read from the stored preferences. */
 internal fun notificationContentFrom(prefs: Preferences): NotificationContent =
     notificationContentOrNull(prefs[KEY_NOTIFICATION_CONTENT]) ?: NOTIFICATION_CONTENT_DEFAULT
+
+internal val KEY_READING_PANE_MODE = stringPreferencesKey("reading_pane_mode")
+
+val READING_PANE_MODE_DEFAULT = ReadingPaneMode.ALWAYS
+
+internal fun readingPaneModeOrNull(stored: String?): ReadingPaneMode? =
+    stored?.let { runCatching { ReadingPaneMode.valueOf(it) }.getOrNull() }
+
+internal fun readingPaneModeFrom(prefs: Preferences): ReadingPaneMode =
+    readingPaneModeOrNull(prefs[KEY_READING_PANE_MODE]) ?: READING_PANE_MODE_DEFAULT
 
 /** The key the reader's Reply/Forward bar switch is stored under. */
 internal val KEY_REPLY_BAR = booleanPreferencesKey("reply_bar")

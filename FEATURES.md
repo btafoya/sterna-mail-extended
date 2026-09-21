@@ -169,8 +169,10 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Material 3 in Sterna's own palette, Arctic light and Pelagic dark. Material You
   wallpaper colour is an opt-in toggle.
 - ✅ List and reading pane side by side from 600 dp of window width; the folder
-  drawer stays open beside them from 1200 dp.
-- ✅ Theme toggle, list density, preview length and message text size.
+  drawer stays open beside them from 1200 dp. A setting keeps the message beside
+  the list always, only on a window wider than tall, or never.
+- ✅ Theme toggle, list density, message beside the list, preview length and
+  message text size.
 - ✅ Contact avatars and sender monograms.
 - ✅ Home-screen widgets for the unread count and for recent mail, both respecting
   the app lock.

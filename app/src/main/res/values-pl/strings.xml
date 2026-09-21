@@ -351,6 +351,10 @@
     <string name="settings_density_compact">Kompaktowa</string>
     <string name="settings_density_normal">Normalna</string>
     <string name="settings_density_spaced">Luźna</string>
+    <string name="settings_reading_pane_title">Wiadomość obok listy</string>
+    <string name="settings_reading_pane_always">Zawsze</string>
+    <string name="settings_reading_pane_landscape">Tylko w poziomie</string>
+    <string name="settings_reading_pane_never">Nigdy</string>
     <string name="settings_preview_subject_only">Tylko temat</string>
     <string name="settings_preview_one_line">1 wiersz</string>
     <string name="settings_preview_three_lines">3 wiersze</string>

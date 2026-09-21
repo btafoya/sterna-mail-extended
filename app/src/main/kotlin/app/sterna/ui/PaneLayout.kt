@@ -1,11 +1,13 @@
 package app.sterna.ui
 
+import app.sterna.core.data.settings.ReadingPaneMode
+
 /**
- * How many panes the inbox host shows, decided on the window width alone, never on the
- * orientation (#103). The two thresholds are Material 3's window size classes: 600 dp opens
- * "Medium" (a phone in landscape is 640–914 dp, a small tablet upright 600–800 dp), where a list
- * and a reader fit side by side; 1 200 dp opens "Large", where a permanent drawer fits too. A
- * window under 600 dp gets the one-pane layout it has always had, to the pixel.
+ * How many panes the inbox host shows. The window width decides the thresholds, never the
+ * orientation (#103); the setting of #228 can only refuse the reading pane, see [readingPaneShown].
+ * Material 3's window size classes: 600 dp opens "Medium" (a phone in landscape is 640–914 dp, a
+ * small tablet upright 600–800 dp), where a list and a reader fit side by side; 1 200 dp opens
+ * "Large", where a permanent drawer fits too. Under 600 dp: the one-pane layout, to the pixel.
  */
 enum class PaneLayout { Narrow, Wide, Desk }
 
@@ -47,3 +49,10 @@ fun paneSplit(widthDp: Int): PaneSplit? {
     val list = maxOf(LIST_PANE_MIN_WIDTH_DP, available * LIST_PANE_SHARE_PERCENT / 100)
     return PaneSplit(layout, list)
 }
+
+fun readingPaneShown(widthDp: Int, heightDp: Int, mode: ReadingPaneMode): Boolean =
+    paneSplit(widthDp) != null && when (mode) {
+        ReadingPaneMode.ALWAYS -> true
+        ReadingPaneMode.LANDSCAPE -> widthDp > heightDp
+        ReadingPaneMode.NEVER -> false
+    }

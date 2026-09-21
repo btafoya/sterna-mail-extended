@@ -40,7 +40,9 @@ class RootRefreshWiringTest {
             "the root `when` changed shape. If NeedAccount now shows the unreadable screen, a " +
                 "fresh install can never add its first account; if AccountsUnreadable shows the " +
                 "connect flow, the user is asked for credentials the store will refuse to save, " +
-                "and the one message she is owed — nothing was deleted — is not on screen.",
+                "and the one message she is owed — nothing was deleted — is not on screen. The " +
+                "mail host waits for the reading-pane setting (#228): composed on a guessed " +
+                "position, a restored reader is converted into the pane and back.",
             listOf(
                 "RootState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {",
                 "LoadingRing()",
@@ -51,9 +53,11 @@ class RootRefreshWiringTest {
                 "true -> ConnectScreen(onConnected = viewModel::refresh, firstRun = true)",
                 "}",
                 "RootState.AccountsUnreadable -> AccountsUnreadableScreen()",
-                "is RootState.Authenticated -> MainNavHost(",
+                "is RootState.Authenticated -> when (val mode = readingPaneMode) {",
+                "null -> Box(Modifier.fillMaxSize(), Alignment.Center) { LoadingRing() }",
+                "else -> MainNavHost(",
             ),
-            codeBlock(STERNA_APP, "RootState.Loading ->", 10),
+            codeBlock(STERNA_APP, "RootState.Loading ->", 12),
         )
     }
 

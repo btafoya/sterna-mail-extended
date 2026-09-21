@@ -351,6 +351,10 @@
     <string name="settings_density_compact">Компактная</string>
     <string name="settings_density_normal">Обычная</string>
     <string name="settings_density_spaced">Просторная</string>
+    <string name="settings_reading_pane_title">Письмо рядом со списком</string>
+    <string name="settings_reading_pane_always">Всегда</string>
+    <string name="settings_reading_pane_landscape">Только в альбомной ориентации</string>
+    <string name="settings_reading_pane_never">Никогда</string>
     <string name="settings_preview_subject_only">Только тема</string>
     <string name="settings_preview_one_line">1 строка</string>
     <string name="settings_preview_three_lines">3 строки</string>

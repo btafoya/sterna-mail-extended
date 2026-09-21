@@ -498,6 +498,10 @@
     <string name="settings_density_compact">紧凑</string>
     <string name="settings_density_normal">标准</string>
     <string name="settings_density_spaced">宽松</string>
+    <string name="settings_reading_pane_title">在列表旁显示邮件</string>
+    <string name="settings_reading_pane_always">始终</string>
+    <string name="settings_reading_pane_landscape">仅横屏时</string>
+    <string name="settings_reading_pane_never">从不</string>
     <string name="settings_preview_subject_only">仅主题</string>
     <string name="settings_preview_one_line">1 行</string>
     <string name="settings_preview_three_lines">3 行</string>

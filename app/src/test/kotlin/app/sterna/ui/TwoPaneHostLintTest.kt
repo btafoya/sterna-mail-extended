@@ -38,12 +38,12 @@ class TwoPaneHostLintTest {
 
     /**
      * The lines that make the "inbox" destination a two-pane host: the window width decides
-     * (never the orientation), `panes` carries the decision (null = one pane), and the ViewModel
-     * handed to the screen is the entry's own. The arguments are pinned, not only the calls:
-     * `panes = null,` or `detail = null,` at the call site keeps every declaration above intact
-     * and gives every window one pane. Since V2 the pane reads the ViewModel's anchor and a tap
-     * on a wide window writes it (`openInPane`) instead of navigating: `if (false)` there sends
-     * every tap to the full-screen route again, with the pane forever on its invitation line.
+     * (never the orientation), `panes` carries the split the permanent drawer reads, `readingPane`
+     * whether a reader sits beside the list, which the setting can refuse (#228), and the
+     * ViewModel handed over is the entry's own. The arguments are pinned: `panes = null,` or
+     * `detail = null,` at the call site gives every window one pane; `if (false)` before
+     * `openInPane` sends every tap to the full-screen route, the pane forever on its invitation
+     * line. `detail` follows `readingPane`: on `panes`, a refused pane would still be drawn, empty.
      */
     @Test fun `the inbox destination decides on the window width and hands over its own ViewModel`() {
         assertTrue(
@@ -52,14 +52,39 @@ class TwoPaneHostLintTest {
                 "host's level since V3, where the notification effect reads it too.",
             "val panes = paneSplit(LocalConfiguration.current.screenWidthDp)" in codeLines(STERNA_APP),
         )
+        assertTrue(
+            "SternaApp.kt must derive the reading pane from the executed rule, as the whole line " +
+                "`$READING_PANE_LINE`. A signal computed any other way (`panes != null`, a " +
+                "constant) either ignores the setting or ignores the window, and PaneLayoutTest, " +
+                "which runs readingPaneShown, would not see it.",
+            READING_PANE_LINE in codeLines(STERNA_APP),
+        )
+        for (line in listOf(
+            "settings.readingPaneMode.stateIn(viewModelScope, SharingStarted.Eagerly, null)",
+            "readingPaneMode = mode,",
+        )) {
+            assertTrue(
+                "SternaApp.kt must contain, as a whole line, `$line`: the position the host " +
+                    "decides on is the stored one. `readingPaneMode = ReadingPaneMode.ALWAYS,` " +
+                    "compiles, and the setting then changes nothing.",
+                line in codeLines(STERNA_APP),
+            )
+        }
+        assertEquals(
+            "SternaApp.kt must not ask `panes != null` anywhere: every question \"is a reader " +
+                "beside the list?\" goes through `readingPane`, and one left on `panes` puts a " +
+                "message in a pane the setting refused, where nothing draws it.",
+            emptyList<String>(),
+            codeLines(STERNA_APP).filter { "panes != null" in it || "panes == null" in it },
+        )
         val block = inboxBlock()
         for (line in listOf(
             "val inboxViewModel: InboxViewModel = viewModel(entry)",
             "viewModel = inboxViewModel,",
             "panes = panes,",
             "val pane by inboxViewModel.readingPane.collectAsStateWithLifecycle()",
-            "if (panes != null) inboxViewModel.openInPane(anchor)",
-            "detail = panes?.let {",
+            "if (readingPane) inboxViewModel.openInPane(anchor)",
+            "detail = panes?.takeIf { readingPane }?.let {",
             "state = pane,",
         )) {
             assertTrue(
@@ -83,7 +108,7 @@ class TwoPaneHostLintTest {
      * whole-line rule above still finds its line in the other.
      */
     @Test fun `both taps of the list open in the pane on a wide window`() {
-        val line = "if (panes != null) inboxViewModel.openInPane(anchor)"
+        val line = "if (readingPane) inboxViewModel.openInPane(anchor)"
         assertEquals(
             "the composable(\"inbox\") block of SternaApp.kt must contain `$line` EXACTLY twice: " +
                 "once in onOpenEmail, once in onOpenThreadMessage. Fewer, and one of the two taps " +
@@ -106,7 +131,7 @@ class TwoPaneHostLintTest {
     @Test fun `a tapped notification asks PaneOrders with the split and the stack, and holds a lone anchor for the list`() {
         val code = codeLines(STERNA_APP)
         for (line in listOf(
-            "when (PaneOrders.emailOpen(panes != null, nav.currentBackStack.value.map { it.destination.route })) {",
+            "when (PaneOrders.emailOpen(readingPane, nav.currentBackStack.value.map { it.destination.route })) {",
             "pendingPaneOpen = MessageAnchor(target.emailId, target.accountId, src = null, index = 0, thread = null)",
             "var pendingPaneOpen by remember { mutableStateOf<MessageAnchor?>(null) }",
             "LaunchedEffect(pendingPaneOpen, listViewModel) {",
@@ -153,14 +178,14 @@ class TwoPaneHostLintTest {
         for (line in listOf(
             // portrait -> wide: the restored full-screen reader moves into the pane.
             "val stack = remember(entry) { nav.currentBackStack.value.map { it.destination.route } }",
-            "if (PaneConversion.readerToPane(panes != null, stack)) {",
+            "if (PaneConversion.readerToPane(readingPane, stack)) {",
             "inboxViewModel.openInPane(MessageAnchor.fromRoute(emailId, accountId, index, src, threadArg))",
             "entry.navigateOnce { nav.popBackStack() }",
             "Box(Modifier.fillMaxSize())",
             "return@composable",
             // wide -> narrow: the anchor goes back to being a route.
             "val anchor = pane.anchor",
-            "if (PaneConversion.paneToReader(panes != null, anchor != null) && anchor != null) {",
+            "if (PaneConversion.paneToReader(readingPane, anchor != null) && anchor != null) {",
             "entry.navigateOnce { nav.navigate(anchor.toRoute(Uri::encode)) }",
             "inboxViewModel.closePane()",
             "inboxViewModel.onEmailOpened(anchor.emailId)",
@@ -222,10 +247,10 @@ class TwoPaneHostLintTest {
      */
     private fun conversionBlock(): List<String> {
         val code = codeLines(STERNA_APP)
-        val start = code.indexOf("if (PaneConversion.readerToPane(panes != null, stack)) {")
+        val start = code.indexOf("if (PaneConversion.readerToPane(readingPane, stack)) {")
         assertTrue(
             "SternaApp.kt no longer opens the conversion arm with " +
-                "`if (PaneConversion.readerToPane(panes != null, stack)) {`",
+                "`if (PaneConversion.readerToPane(readingPane, stack)) {`",
             start >= 0,
         )
         val end = (start + 1 until code.size).firstOrNull { code[it] == "return@composable" }
@@ -255,5 +280,7 @@ class TwoPaneHostLintTest {
     private companion object {
         const val STERNA_APP = "app/src/main/kotlin/app/sterna/ui/SternaApp.kt"
         const val INBOX_SCREEN = "app/src/main/kotlin/app/sterna/ui/inbox/InboxScreen.kt"
+        const val READING_PANE_LINE = "val readingPane = readingPaneShown(" +
+            "LocalConfiguration.current.screenWidthDp, LocalConfiguration.current.screenHeightDp, readingPaneMode)"
     }
 }

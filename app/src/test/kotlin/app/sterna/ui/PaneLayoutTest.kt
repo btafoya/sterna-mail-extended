@@ -1,13 +1,16 @@
 package app.sterna.ui
 
+import app.sterna.core.data.settings.ReadingPaneMode
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Executes [paneLayout] and [paneSplit], the two decisions the inbox host spends when it puts a
- * reading pane beside the list (#103). Every expected number below is a LITERAL worked out by
- * hand, never the formula replayed: a test that recomputes the rule agrees with any rule.
+ * Executes [paneLayout], [paneSplit] and [readingPaneShown], the host's pane decisions (#103, #228).
+ * Every expected number below is a LITERAL worked out by hand, never the formula replayed: a test
+ * that recomputes the rule agrees with any rule.
  */
 class PaneLayoutTest {
 
@@ -84,5 +87,48 @@ class PaneLayoutTest {
             "at 1280 dp the list must be 40 % of 980 dp = 392 dp",
             PaneSplit(PaneLayout.Desk, 392), paneSplit(1280),
         )
+    }
+
+    @Test fun `Always keeps the pane on every window wide enough, upright included`() {
+        assertTrue(
+            "720x1280 (a tablet upright) with Always must keep the pane: the default is the " +
+                "behaviour every user had before the setting existed",
+            readingPaneShown(720, 1280, ReadingPaneMode.ALWAYS),
+        )
+        assertTrue("1280x720 with Always must show the pane", readingPaneShown(1280, 720, ReadingPaneMode.ALWAYS))
+    }
+
+    @Test fun `no position puts a pane on a window under 600 dp`() {
+        for (mode in ReadingPaneMode.entries) {
+            assertFalse(
+                "500x300 is wider than tall but under 600 dp: with $mode a pane would halve a " +
+                    "phone held sideways",
+                readingPaneShown(500, 300, mode),
+            )
+        }
+    }
+
+    @Test fun `In landscape only admits the pane on a window wider than it is tall`() {
+        assertFalse(
+            "720x1280 is upright: In landscape only must leave the list alone",
+            readingPaneShown(720, 1280, ReadingPaneMode.LANDSCAPE),
+        )
+        assertTrue(
+            "1280x720 is landscape: In landscape only must show the pane",
+            readingPaneShown(1280, 720, ReadingPaneMode.LANDSCAPE),
+        )
+        assertTrue(
+            "601x600 is wider than tall by one dp, past the 600 dp threshold: the pane must show",
+            readingPaneShown(601, 600, ReadingPaneMode.LANDSCAPE),
+        )
+        assertFalse(
+            "800x800 is square, not landscape: In landscape only must refuse the pane",
+            readingPaneShown(800, 800, ReadingPaneMode.LANDSCAPE),
+        )
+    }
+
+    @Test fun `Never refuses the pane on every window, a desk included`() {
+        assertFalse("1280x720 with Never must not show the pane", readingPaneShown(1280, 720, ReadingPaneMode.NEVER))
+        assertFalse("720x1280 with Never must not show the pane", readingPaneShown(720, 1280, ReadingPaneMode.NEVER))
     }
 }

@@ -351,6 +351,10 @@
     <string name="settings_density_compact">Compacte</string>
     <string name="settings_density_normal">Normale</string>
     <string name="settings_density_spaced">Aérée</string>
+    <string name="settings_reading_pane_title">Message à côté de la liste</string>
+    <string name="settings_reading_pane_always">Toujours</string>
+    <string name="settings_reading_pane_landscape">En paysage seulement</string>
+    <string name="settings_reading_pane_never">Jamais</string>
     <string name="settings_preview_subject_only">Objet seul</string>
     <string name="settings_preview_one_line">1 ligne</string>
     <string name="settings_preview_three_lines">3 lignes</string>

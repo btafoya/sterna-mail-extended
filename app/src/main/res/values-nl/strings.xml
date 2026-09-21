@@ -351,6 +351,10 @@
     <string name="settings_density_compact">Compact</string>
     <string name="settings_density_normal">Normaal</string>
     <string name="settings_density_spaced">Ruim</string>
+    <string name="settings_reading_pane_title">Bericht naast de lijst</string>
+    <string name="settings_reading_pane_always">Altijd</string>
+    <string name="settings_reading_pane_landscape">Alleen liggend</string>
+    <string name="settings_reading_pane_never">Nooit</string>
     <string name="settings_preview_subject_only">Alleen onderwerp</string>
     <string name="settings_preview_one_line">1 regel</string>
     <string name="settings_preview_three_lines">3 regels</string>

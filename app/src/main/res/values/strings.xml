@@ -505,6 +505,10 @@
     <string name="settings_density_compact">Compact</string>
     <string name="settings_density_normal">Normal</string>
     <string name="settings_density_spaced">Spaced</string>
+    <string name="settings_reading_pane_title">Message beside the list</string>
+    <string name="settings_reading_pane_always">Always</string>
+    <string name="settings_reading_pane_landscape">In landscape only</string>
+    <string name="settings_reading_pane_never">Never</string>
     <string name="settings_preview_subject_only">Subject only</string>
     <string name="settings_preview_one_line">1 line</string>
     <string name="settings_preview_three_lines">3 lines</string>

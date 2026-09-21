@@ -134,6 +134,7 @@ import app.sterna.core.data.account.syncWindowChoices
 import app.sterna.core.data.filter.VacationFilterLine
 import app.sterna.core.data.filter.vacationFilterLine
 import app.sterna.core.data.settings.ListDensity
+import app.sterna.core.data.settings.ReadingPaneMode
 import app.sterna.core.data.settings.MessageTextSize
 import app.sterna.core.data.settings.PreviewLines
 import app.sterna.core.data.settings.SwipeAction
@@ -438,6 +439,7 @@ private fun AppearanceScreen(
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
     val density by viewModel.listDensity.collectAsStateWithLifecycle()
+    val readingPaneMode by viewModel.readingPaneMode.collectAsStateWithLifecycle()
     val previewLines by viewModel.previewLines.collectAsStateWithLifecycle()
     val unreadTint by viewModel.unreadTint.collectAsStateWithLifecycle()
     val pureBlack by viewModel.pureBlack.collectAsStateWithLifecycle()
@@ -509,6 +511,13 @@ private fun AppearanceScreen(
                     onSelect = viewModel::setListDensity,
                 )
                 SettingChoiceRow(
+                    title = stringResource(R.string.settings_reading_pane_title),
+                    options = listOf(ReadingPaneMode.ALWAYS, ReadingPaneMode.LANDSCAPE, ReadingPaneMode.NEVER),
+                    selected = readingPaneMode,
+                    optionLabel = { readingPaneLabel(context, it) },
+                    onSelect = viewModel::setReadingPaneMode,
+                )
+                SettingChoiceRow(
                     title = stringResource(R.string.settings_preview_title),
                     options = listOf(PreviewLines.NONE, PreviewLines.ONE, PreviewLines.THREE, PreviewLines.FIVE),
                     selected = previewLines,
@@ -562,6 +571,12 @@ private fun densityLabel(context: Context, density: ListDensity): String = when 
     ListDensity.COMPACT -> context.getString(R.string.settings_density_compact)
     ListDensity.NORMAL -> context.getString(R.string.settings_density_normal)
     ListDensity.SPACED -> context.getString(R.string.settings_density_spaced)
+}
+
+private fun readingPaneLabel(context: Context, mode: ReadingPaneMode): String = when (mode) {
+    ReadingPaneMode.ALWAYS -> context.getString(R.string.settings_reading_pane_always)
+    ReadingPaneMode.LANDSCAPE -> context.getString(R.string.settings_reading_pane_landscape)
+    ReadingPaneMode.NEVER -> context.getString(R.string.settings_reading_pane_never)
 }
 
 private fun previewLabel(context: Context, preview: PreviewLines): String = when (preview) {

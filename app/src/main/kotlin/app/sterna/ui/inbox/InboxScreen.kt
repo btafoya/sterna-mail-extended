@@ -244,7 +244,7 @@ fun InboxScreen(
     onOpenAccountSettings: (String) -> Unit,
     /** The inbox entry's own ViewModel, required, so the host names the owner (#103). */
     viewModel: InboxViewModel,
-    /** The split the host decided from the window width; null = one pane, as before (#103). */
+    /** The split the host decided from the window width (#103); one pane while [detail] is null. */
     panes: PaneSplit? = null,
     /** What the right pane shows when there is a split; null = no pane at all. */
     detail: (@Composable () -> Unit)? = null,
@@ -297,7 +297,7 @@ fun InboxScreen(
     val outboxHasFailures by viewModel.outboxHasFailures.collectAsStateWithLifecycle()
     val highlightId by viewModel.highlightId.collectAsStateWithLifecycle()
     // The message open in the reading pane beside the list, on a wide window: its row is painted
-    // "current" (#103). Empty under 600 dp, where nothing ever writes it.
+    // "current" (#103). Empty when the host draws no reading pane, nothing writes it then (#228).
     val pane by viewModel.readingPane.collectAsStateWithLifecycle()
     // Rows whose swipe was played to the edge over a write that then failed. They are still in the
     // table (network-first), only gone from the screen, see [InboxViewModel.swipeRewind].

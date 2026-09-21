@@ -318,6 +318,10 @@ class SettingsWriteWiringTest {
                 "dataStore.edit { it[KEY_LIST_DENSITY] = density.name }",
             ),
             Write(
+                "suspend fun setReadingPaneMode(mode: ReadingPaneMode) {",
+                "dataStore.edit { it[KEY_READING_PANE_MODE] = mode.name }",
+            ),
+            Write(
                 "suspend fun setPreviewLines(value: PreviewLines) {",
                 "dataStore.edit { it[KEY_PREVIEW_LINES] = value.name }",
             ),
@@ -369,6 +373,7 @@ class SettingsWriteWiringTest {
             "suspend fun setThemeMode(mode: ThemeMode) {" to "ENUMS",
             "suspend fun setDynamicColor(enabled: Boolean) {" to "PLAIN",
             "suspend fun setListDensity(density: ListDensity) {" to "ENUMS",
+            "suspend fun setReadingPaneMode(mode: ReadingPaneMode) {" to "ENUMS",
             "suspend fun setPreviewLines(value: PreviewLines) {" to "ENUMS",
             "suspend fun setUnreadTint(enabled: Boolean) {" to "PLAIN",
             "suspend fun setPureBlack(enabled: Boolean) {" to

@@ -46,6 +46,7 @@ import app.sterna.R
 import app.sterna.EmailOpenTarget
 import app.sterna.MailtoDraft
 import app.sterna.container
+import app.sterna.core.data.settings.ReadingPaneMode
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.push.PushController
 import app.sterna.security.LockScreen
@@ -108,6 +109,10 @@ class RootViewModel(application: Application) : AndroidViewModel(application) {
     val hasSeenWelcome: StateFlow<Boolean?> =
         settings.hasSeenWelcome.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    // null while loading: a guessed first position would let `PaneConversion` convert a reader and back.
+    val readingPaneMode: StateFlow<ReadingPaneMode?> =
+        settings.readingPaneMode.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     fun markWelcomeSeen() {
         viewModelScope.launch { settings.setHasSeenWelcome(true) }
     }
@@ -164,6 +169,7 @@ fun SternaApp(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val accounts by viewModel.accounts.collectAsStateWithLifecycle()
     val hasSeenWelcome by viewModel.hasSeenWelcome.collectAsStateWithLifecycle()
+    val readingPaneMode by viewModel.readingPaneMode.collectAsStateWithLifecycle()
     val appLock = (LocalContext.current.applicationContext as Application).container.appLock
     val locked by appLock.locked.collectAsStateWithLifecycle()
 
@@ -189,19 +195,23 @@ fun SternaApp(
             RootState.AccountsUnreadable -> AccountsUnreadableScreen()
             // No key(accountId): switching updates currentAccountId in place, so the drawer's
             // carousel stays open across it.
-            is RootState.Authenticated -> MainNavHost(
-                accounts = accounts,
-                currentAccountId = s.accountId,
-                onSwitchAccount = viewModel::switchAccount,
-                onAccountsChanged = viewModel::refresh,
-                restoredStandsInUnified = viewModel::restoredStandsInUnified,
-                pendingMailto = pendingMailto,
-                onMailtoConsumed = onMailtoConsumed,
-                pendingEmailOpen = pendingEmailOpen,
-                onEmailOpenConsumed = onEmailOpenConsumed,
-                pendingUnifiedOpen = pendingUnifiedOpen,
-                onUnifiedOpenConsumed = onUnifiedOpenConsumed,
-            )
+            is RootState.Authenticated -> when (val mode = readingPaneMode) {
+                null -> Box(Modifier.fillMaxSize(), Alignment.Center) { LoadingRing() }
+                else -> MainNavHost(
+                    accounts = accounts,
+                    currentAccountId = s.accountId,
+                    onSwitchAccount = viewModel::switchAccount,
+                    onAccountsChanged = viewModel::refresh,
+                    restoredStandsInUnified = viewModel::restoredStandsInUnified,
+                    readingPaneMode = mode,
+                    pendingMailto = pendingMailto,
+                    onMailtoConsumed = onMailtoConsumed,
+                    pendingEmailOpen = pendingEmailOpen,
+                    onEmailOpenConsumed = onEmailOpenConsumed,
+                    pendingUnifiedOpen = pendingUnifiedOpen,
+                    onUnifiedOpenConsumed = onUnifiedOpenConsumed,
+                )
+            }
         }
         if (locked) LockScreen(onUnlocked = appLock::unlock)
         DistributorPickerDialog()
@@ -227,6 +237,7 @@ private fun MainNavHost(
     onSwitchAccount: (String) -> Unit,
     onAccountsChanged: () -> Unit,
     restoredStandsInUnified: () -> Boolean,
+    readingPaneMode: ReadingPaneMode,
     pendingMailto: MailtoDraft? = null,
     onMailtoConsumed: () -> Unit = {},
     pendingEmailOpen: EmailOpenTarget? = null,
@@ -235,9 +246,10 @@ private fun MainNavHost(
     onUnifiedOpenConsumed: () -> Unit = {},
 ) {
     val nav = rememberNavController()
-    // The window width decides whether a reading pane sits beside the list (#103), never the
-    // orientation. null = one pane.
+    // The window width decides the split (#103), never the orientation; the permanent drawer reads
+    // `panes` alone, a reader beside the list is `readingPane`, which the setting can refuse (#228).
     val panes = paneSplit(LocalConfiguration.current.screenWidthDp)
+    val readingPane = readingPaneShown(LocalConfiguration.current.screenWidthDp, LocalConfiguration.current.screenHeightDp, readingPaneMode)
     val app = LocalContext.current.applicationContext as Application
     // A tapped mailto: opens the composer prefilled (#15), consumed at once so a recomposition
     // cannot re-navigate.
@@ -278,9 +290,9 @@ private fun MainNavHost(
         // Both ids or nothing: the folder is judged inside its own account, two accounts on one
         // server routinely sharing mailbox ids.
         pendingFolderOpen = target.takeIf { it.accountId != null && it.mailboxId != null }
-        // Wide window with the list on screen: the reading pane (#103); anywhere else the reader
+        // A reading pane shown with the list on screen: the pane (#103); anywhere else the reader
         // stacks. [PaneOrders] owns that verdict: do not inline it.
-        when (PaneOrders.emailOpen(panes != null, nav.currentBackStack.value.map { it.destination.route })) {
+        when (PaneOrders.emailOpen(readingPane, nav.currentBackStack.value.map { it.destination.route })) {
             // unguarded: a single consumption, and it can arrive mid-transition. Adding the guard
             // here could lose the opening of a notification the user just tapped.
             EmailOpenOrder.Navigate -> nav.navigate(
@@ -368,10 +380,10 @@ private fun MainNavHost(
             val inboxViewModel: InboxViewModel = viewModel(entry)
             // What the reading pane shows (null anchor = the invitation line).
             val pane by inboxViewModel.readingPane.collectAsStateWithLifecycle()
-            // Half of the width conversion (#103): the window narrowed under a message in the pane,
-            // so the anchor goes back to the `message/…` route. The only navigation this app plays
+            // Half of the width conversion (#103): the pane went away under a message, the window
+            // narrowed or the setting refused it (#228), so the anchor goes back to the `message/…` route.
             val anchor = pane.anchor
-            if (PaneConversion.paneToReader(panes != null, anchor != null) && anchor != null) {
+            if (PaneConversion.paneToReader(readingPane, anchor != null) && anchor != null) {
                 LaunchedEffect(anchor) {
                     entry.lifecycle.withResumed {
                         entry.navigateOnce { nav.navigate(anchor.toRoute(Uri::encode)) }
@@ -385,7 +397,7 @@ private fun MainNavHost(
                     // Carry the tapped position and its context so the reader pages over the same
                     // entries.
                     val anchor = MessageAnchor(id, accountId, if (fromSearch) "search" else "list", index, null)
-                    if (panes != null) inboxViewModel.openInPane(anchor)
+                    if (readingPane) inboxViewModel.openInPane(anchor)
                     else entry.navigateOnce { nav.navigate(anchor.toRoute(Uri::encode)) }
                 },
                 // A message tapped inside an expanded conversation reads in the context of that
@@ -394,7 +406,7 @@ private fun MainNavHost(
                 // account's homonymous conversation (#92).
                 onOpenThreadMessage = { id, accountId, threadKey, index ->
                     val anchor = MessageAnchor(id, accountId, "thread", index, threadKey.encode())
-                    if (panes != null) inboxViewModel.openInPane(anchor)
+                    if (readingPane) inboxViewModel.openInPane(anchor)
                     else entry.navigateOnce { nav.navigate(anchor.toRoute(Uri::encode)) }
                 },
                 onCompose = { entry.navigateOnce { nav.navigate("compose") } },
@@ -423,7 +435,7 @@ private fun MainNavHost(
                 onOpenAccountSettings = { id -> entry.navigateOnce { nav.navigate("settings?accountId=$id") } },
                 viewModel = inboxViewModel,
                 panes = panes,
-                detail = panes?.let {
+                detail = panes?.takeIf { readingPane }?.let {
                     {
                         ReadingPane(
                             state = pane,
@@ -472,12 +484,11 @@ private fun MainNavHost(
             val src = entry.arguments?.getString("src")
             // The conversation key exactly as the route carries it; [threadKey] below is decoded.
             val threadArg = entry.arguments?.getString("thread")?.let { Uri.decode(it) }?.ifBlank { null }
-            // The other half of the width conversion (#103): a rotation restores this reader full
-            // screen over a list that is now two panes wide. The reader is not composed on this
-            // pass: a second MessageViewModel would settle the message twice, a read receipt
-            // offered twice, a second decryption, a message marked read from a screen nobody saw.
+            // The other half (#103, #228): this reader is full screen over a list that now shows a pane.
+            // Not composed on this pass: a second MessageViewModel would settle the message twice, a read
+            // receipt offered twice, a second decryption, a message marked read from a screen nobody saw.
             val stack = remember(entry) { nav.currentBackStack.value.map { it.destination.route } }
-            if (PaneConversion.readerToPane(panes != null, stack)) {
+            if (PaneConversion.readerToPane(readingPane, stack)) {
                 val inboxEntry = remember(entry) { nav.getBackStackEntry("inbox") }
                 val inboxViewModel: InboxViewModel = viewModel(inboxEntry)
                 LaunchedEffect(entry) {

@@ -13,6 +13,7 @@ data class SettingsBackup(
     val themeMode: String? = null,
     val dynamicColor: Boolean? = null,
     val listDensity: String? = null,
+    val readingPaneMode: String? = null,
     val previewLines: String? = null,
     val swipeRight: String? = null,
     val swipeLeft: String? = null,

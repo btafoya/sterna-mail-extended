@@ -8,6 +8,8 @@ import app.sterna.container
 import app.sterna.core.data.account.K9SettingsImporter
 import app.sterna.core.data.settings.LIST_MONOGRAM_DEFAULT
 import app.sterna.core.data.settings.ListDensity
+import app.sterna.core.data.settings.READING_PANE_MODE_DEFAULT
+import app.sterna.core.data.settings.ReadingPaneMode
 import app.sterna.core.data.settings.MessageTextSize
 import app.sterna.core.data.settings.PLAIN_TEXT_DEFAULT
 import app.sterna.core.data.settings.QUOTED_DATES_UTC_DEFAULT
@@ -71,6 +73,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = ListDensity.NORMAL,
+    )
+
+    val readingPaneMode = settings.readingPaneMode.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = READING_PANE_MODE_DEFAULT,
     )
 
     val previewLines = settings.previewLines.stateIn(
@@ -375,6 +383,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setListDensity(density: ListDensity) {
         viewModelScope.launch { settings.setListDensity(density) }
+    }
+
+    fun setReadingPaneMode(mode: ReadingPaneMode) {
+        viewModelScope.launch { settings.setReadingPaneMode(mode) }
     }
 
     fun setPreviewLines(value: PreviewLines) {
