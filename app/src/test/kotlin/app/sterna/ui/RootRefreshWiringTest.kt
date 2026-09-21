@@ -19,16 +19,16 @@ class RootRefreshWiringTest {
                 "RestoredViewWiringLintTest, which says why it must stay there; it is in this " +
                 "block only because the block is contiguous.",
             listOf(
-                "fun refresh() {",
+                "fun refresh(coldStart: Boolean = false) {",
                 "val current = accountStore.currentId()?.takeIf { accountStore.credentials(it) != null }",
                 "?: accountStore.accounts().firstOrNull { accountStore.credentials(it.id) != null }?.id",
                 "if (current != null && accountStore.currentId() != current) accountStore.setCurrent(current)",
-                "PushController.unifiedInboxVisible = restoredUnifiedView()",
+                "if (coldStart) PushController.unifiedInboxVisible = restoredUnifiedView()",
                 "PushController.apply(getApplication(), userInitiated = true)",
                 "_state.value = RootRoute.resolve(current, accountStore.accountsUnreadable())",
                 "}",
             ),
-            codeBlock(STERNA_APP, "fun refresh() {", 8),
+            codeBlock(STERNA_APP, "fun refresh(", 8),
         )
     }
 

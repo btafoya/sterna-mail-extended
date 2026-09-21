@@ -985,6 +985,10 @@ class AccountStore(context: Context) : AccountStorage {
 
     fun setStoredView(value: String?) = prefs.edit().putString(KEY_VIEW, value).apply()
 
+    fun openOnView(): String? = prefs.getString(KEY_OPEN_ON, null)
+
+    fun setOpenOnView(value: String?) = prefs.edit().putString(KEY_OPEN_ON, value).apply()
+
     // ---- refresh freshness (#178) ----
 
     /**
@@ -1097,6 +1101,8 @@ class AccountStore(context: Context) : AccountStorage {
         // The drawer view the list was last showing, as an opaque string: `Sel` lives in the :app
         // module, which :core:data does not see. Written and parsed by SelectionMemory.
         const val KEY_VIEW = "current_view"
+
+        const val KEY_OPEN_ON = "open_on_view"
 
         // When each (account, folder) pair was last reconciled successfully, as an opaque string,
         // exactly like KEY_VIEW: written and parsed by RefreshFreshness in the :app module.

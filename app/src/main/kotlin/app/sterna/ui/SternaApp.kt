@@ -59,7 +59,9 @@ import app.sterna.ui.inbox.InboxViewModel
 import app.sterna.ui.inbox.MessageAnchor
 import app.sterna.ui.inbox.ReadingPane
 import app.sterna.ui.inbox.Sel
+import app.sterna.ui.inbox.openOnOverridesMemory
 import app.sterna.ui.inbox.restoredSelection
+import app.sterna.ui.inbox.unifiedViewByChoice
 import app.sterna.ui.inbox.ThreadKey
 import app.sterna.ui.message.LocalNavTransitionActive
 import app.sterna.ui.message.MessageScreen
@@ -111,37 +113,38 @@ class RootViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
-        refresh()
+        refresh(coldStart = true)
     }
 
     /** The accounts to list, live from the store rather than read once per composition: a shared
      *  mailbox appears as soon as discovery persists it, and a revoked one leaves (#31). */
     val accounts: StateFlow<List<StoredAccount>> = accountStore.accountsFlow
 
-    fun refresh() {
+    fun refresh(coldStart: Boolean = false) {
         // Only an account with a stored credential counts as authenticated.
         val current = accountStore.currentId()?.takeIf { accountStore.credentials(it) != null }
             ?: accountStore.accounts().firstOrNull { accountStore.credentials(it.id) != null }?.id
         if (current != null && accountStore.currentId() != current) accountStore.setCurrent(current)
-        // Seeded here, and before the arm: `unifiedInboxVisible` mirrors the list's selection and
-        // on a cold start there is no list yet, so left at false a launch reopening on "All inboxes"
-        // (#179) reseeds fewer accounts than it should. Before, not "inside this call": on the
-        // direct branch the flag is read later, on the service's own coroutine.
-        PushController.unifiedInboxVisible = restoredUnifiedView()
+        // Seeded before the arm, and on a cold start alone: `unifiedInboxVisible` mirrors a list
+        // nothing has composed yet, so left at false a launch reopening on "All inboxes" (#179)
+        // reseeds fewer accounts than it should. On any later call the seed would overrule the live
+        // list instead, and the baseline reset the arm then performs eats every account's backlog.
+        if (coldStart) PushController.unifiedInboxVisible = restoredUnifiedView()
         PushController.apply(getApplication(), userInitiated = true)
         // `accountsUnreadable()` re-reads storage on the spot, so the alert never outlives it.
         _state.value = RootRoute.resolve(current, accountStore.accountsUnreadable())
     }
 
-    /** Whether the view the app reopens on is the unified inbox, asked before the list is composed,
-     * by the push arm and by the account switch a notification asks for. It is the memory's
-     *  answer, not the screen's: a live list always overrules it. */
+    /** Whether the view the app reopens on is the unified inbox, asked by the push arm before the
+     *  list is composed, setting included. A notification asks [restoredStandsInUnified] instead. */
     fun restoredUnifiedView(): Boolean = restoredSelection(accountStore) is Sel.Unified
+
+    fun restoredStandsInUnified(): Boolean = unifiedViewByChoice(restoredSelection(accountStore), openOnOverridesMemory(accountStore.openOnView()))
 
     fun switchAccount(id: String) {
         accountStore.setCurrent(id)
-        // Redundant with the seed refresh() does on its way in, and kept on purpose: it states
-        // the switch's own reason at the switch. Removing it is a decision, not a tidy-up.
+        // The only writer of the flag on a switch: no list is composed here, and `selection` is
+        // a StateFlow that stays silent when the arriving inbox carries the id just left.
         PushController.unifiedInboxVisible = false
         refresh()
     }
@@ -191,7 +194,7 @@ fun SternaApp(
                 currentAccountId = s.accountId,
                 onSwitchAccount = viewModel::switchAccount,
                 onAccountsChanged = viewModel::refresh,
-                restoredUnifiedView = viewModel::restoredUnifiedView,
+                restoredStandsInUnified = viewModel::restoredStandsInUnified,
                 pendingMailto = pendingMailto,
                 onMailtoConsumed = onMailtoConsumed,
                 pendingEmailOpen = pendingEmailOpen,
@@ -223,7 +226,7 @@ private fun MainNavHost(
     currentAccountId: String,
     onSwitchAccount: (String) -> Unit,
     onAccountsChanged: () -> Unit,
-    restoredUnifiedView: () -> Boolean,
+    restoredStandsInUnified: () -> Boolean,
     pendingMailto: MailtoDraft? = null,
     onMailtoConsumed: () -> Unit = {},
     pendingEmailOpen: EmailOpenTarget? = null,
@@ -246,7 +249,7 @@ private fun MainNavHost(
         // user's action rather than de-duplicate it. See navigateOnce's KDoc.
         nav.navigate(composeLinkRoute(m, bodyToken) { Uri.encode(it) })
     }
-    // The inbox's own ViewModel, so the notification path can ask what the list behind shows.
+    // The inbox's own ViewModel, so the notification path can ask whose view the list behind holds.
     // Deliberately not remembered and not collected as state, so it neither subscribes this host to
     // every list update nor caches a stale answer. Null until the NavHost has composed its start
     // destination, not a moment where the answer is known to be "a plain folder" (#179).
@@ -267,10 +270,10 @@ private fun MainNavHost(
             notificationAccountId = target.accountId,
             currentAccountId = currentAccountId,
             knownAccountIds = accounts.map { it.id },
-            // `?:`, not `== true`. A composed list has the last word; the memory speaks only when
-            // there is nobody to answer, and `== true` would drop the reader into one account's
-            // folder over a restored "All inboxes".
-            unifiedView = listViewModel?.state?.value?.unified ?: restoredUnifiedView(),
+            // `?:`, not `== true`. A composed list has the last word; the stored view speaks only
+            // when there is nobody to answer, and `== true` would drop the reader into one account's
+            // folder over the "All inboxes" she left, which the setting's own "All inboxes" is not.
+            unifiedView = listViewModel?.standsInUnifiedView() ?: restoredStandsInUnified(),
         )?.let(onSwitchAccount)
         // Both ids or nothing: the folder is judged inside its own account, two accounts on one
         // server routinely sharing mailbox ids.

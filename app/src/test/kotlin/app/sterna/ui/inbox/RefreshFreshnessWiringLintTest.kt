@@ -48,7 +48,7 @@ class RefreshFreshnessWiringLintTest {
         assertEquals(
             "selectUnified() must reconcile through the guard: switching to the unified inbox and " +
                 "straight back is #178's own gesture. Compared whole. Body was:",
-            "fun selectUnified() { if (selection.value is Sel.Unified) return collapseThreads() " +
+            "fun selectUnified() { unifiedOpenedBySetting = false if (selection.value is Sel.Unified) return collapseThreads() " +
                 "paneOnViewChanged() selection.value = Sel.Unified unifiedInboxScopes.value = store.allInboxScopes() " +
                 "meta.value = Meta(UNIFIED_LABEL, UNIFIED_LABEL, store.totalUnreadCount()) " +
                 "refreshUnlessFresh() }",

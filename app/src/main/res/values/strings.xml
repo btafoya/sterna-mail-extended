@@ -492,6 +492,8 @@
     <string name="settings_pure_black_subtitle">Put the dark theme on a black background, for OLED screens. Raised surfaces stay a little lighter; the light theme is unchanged.</string>
     <string name="settings_message_list_section">Message list</string>
     <string name="settings_density_title">Density</string>
+    <string name="settings_open_on_title">Open on</string>
+    <string name="settings_open_on_last">The view you left</string>
     <string name="settings_preview_title">Preview</string>
     <string name="settings_unread_tint_title">Unread background</string>
     <string name="settings_unread_tint_subtitle">Give unread messages a background of their own, on top of the bold text.</string>

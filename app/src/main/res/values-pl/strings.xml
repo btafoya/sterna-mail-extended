@@ -338,6 +338,8 @@
     <string name="settings_theme_title">Motyw</string>
     <string name="settings_message_list_section">Lista wiadomości</string>
     <string name="settings_density_title">Gęstość</string>
+    <string name="settings_open_on_title">Otwieraj na</string>
+    <string name="settings_open_on_last">Ostatnio używany widok</string>
     <string name="settings_preview_title">Podgląd</string>
     <string name="settings_unread_tint_title">Tło nieprzeczytanych wiadomości</string>
     <string name="settings_unread_tint_subtitle">Nieprzeczytane wiadomości otrzymują własne tło, oprócz pogrubionego tekstu.</string>

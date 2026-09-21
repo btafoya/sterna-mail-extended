@@ -43,6 +43,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _pushAllAccounts = MutableStateFlow(store.pushAllAccounts())
     val pushAllAccounts = _pushAllAccounts.asStateFlow()
 
+    /** Read as the launch reads it, synchronously off the same preferences; mirrored through
+     *  `settingsRepository` it would be a second, later answer beside the one already used. */
+    private val _openOnView = MutableStateFlow(store.openOnView())
+    val openOnView = _openOnView.asStateFlow()
+
     private val _appLock = MutableStateFlow(store.appLockEnabled())
     val appLockEnabled = _appLock.asStateFlow()
 
@@ -236,6 +241,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 .forEach { NewMailNotifier.clear(getApplication(), it.id) }
         }
         PushController.apply(getApplication(), userInitiated = true)
+    }
+
+    fun setOpenOnView(value: String) {
+        store.setOpenOnView(value)
+        _openOnView.value = value
     }
 
     fun setQuietHoursEnabled(value: Boolean) {

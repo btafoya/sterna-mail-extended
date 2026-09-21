@@ -43,13 +43,42 @@ internal fun restoreSelection(
     }
 }
 
+internal const val OPEN_ON_LAST = "last"
+internal const val OPEN_ON_INBOX = "inbox"
+internal const val OPEN_ON_UNIFIED = "unified"
+
+internal fun openOnSelection(
+    openOnView: String?,
+    rememberedView: Sel?,
+    unifiedViewExists: Boolean,
+): Sel? = when (openOnView) {
+    OPEN_ON_INBOX -> null
+    OPEN_ON_UNIFIED -> if (unifiedViewExists) Sel.Unified else null
+    else -> rememberedView
+}
+
+/** The values the row may offer, and the one it shows as picked: what [openOnSelection] will do
+ *  with the stored value, never the stored value itself, so that a value stored before the second
+ *  account left is read back as the view that opens. This pair may not call that rule
+ *  (`OpenOnViewWiringLintTest` refuses a second call site); `OpenOnRowTest` holds them level. */
+internal fun openOnOptions(unifiedViewExists: Boolean): List<String> =
+    if (unifiedViewExists) listOf(OPEN_ON_LAST, OPEN_ON_INBOX, OPEN_ON_UNIFIED)
+    else listOf(OPEN_ON_LAST, OPEN_ON_INBOX)
+
+internal fun openOnShown(openOnView: String?, unifiedViewExists: Boolean): String = when {
+    openOnView == OPEN_ON_INBOX -> OPEN_ON_INBOX
+    openOnView != OPEN_ON_UNIFIED -> OPEN_ON_LAST
+    unifiedViewExists -> OPEN_ON_UNIFIED
+    else -> OPEN_ON_INBOX
+}
+
 /** [restoreSelection]'s three arguments, fetched from the store, the one place that fetches them,
  *  `InboxViewModel` and `RootViewModel` needing the same answer (`SelectionMemoryWiringLintTest`). */
 internal fun restoredSelection(store: AccountStore): Sel? = restoreSelection(
     store.storedView(),
     store.currentId(),
     AllInboxesView.existsFor(store.accounts()),
-)
+).let { openOnSelection(store.openOnView(), it, AllInboxesView.existsFor(store.accounts())) }
 
 /** What the top bar shows: account line, mailbox name, badge count. */
 internal data class Meta(val accountName: String, val mailboxName: String, val unread: Int)

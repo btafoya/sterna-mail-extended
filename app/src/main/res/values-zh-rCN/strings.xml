@@ -485,6 +485,8 @@
     <string name="settings_pure_black_subtitle">为 OLED 屏幕将深色主题置于黑色背景上。凸起的表面仍会稍亮一些；浅色主题保持不变。</string>
     <string name="settings_message_list_section">邮件列表</string>
     <string name="settings_density_title">密度</string>
+    <string name="settings_open_on_title">打开时显示</string>
+    <string name="settings_open_on_last">上次离开的视图</string>
     <string name="settings_preview_title">预览</string>
     <string name="settings_unread_tint_title">未读背景色</string>
     <string name="settings_unread_tint_subtitle">为未读邮件提供专属背景色，叠加在加粗文字之上。</string>

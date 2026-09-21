@@ -649,14 +649,14 @@ class InboxViewModel(
     }
 
     /**
-     * The view on screen. Seeded from what was stored last time ([restoredSelection]), falling back
-     * on the current account's Inbox whenever the memory is empty, another account's, or names a
-     * view this install does not offer. Through [restoredSelection], never a store read written
-     * out here: `RootViewModel` needs the same answer before this ViewModel exists at all.
+     * The view on screen, decided by [restoredSelection] alone (memory, then "open on" setting), else
+     * the current account's Inbox: `RootViewModel` needs the same answer before this ViewModel exists.
      */
     private val selection = MutableStateFlow<Sel>(
         restoredSelection(store) ?: Sel.Folder(store.inboxMailboxId()),
     )
+    // Whose "All inboxes" is on screen, the setting's until the reader picks it: see [unifiedViewByChoice].
+    private var unifiedOpenedBySetting = openOnOverridesMemory(store.openOnView())
     private val currentAccountId = MutableStateFlow(store.currentId())
     private val unifiedInboxScopes = MutableStateFlow(store.allInboxScopes())
 
@@ -1345,6 +1345,7 @@ class InboxViewModel(
 
     /** Switch to the cross-account unified inbox. */
     fun selectUnified() {
+        unifiedOpenedBySetting = false
         if (selection.value is Sel.Unified) return
         collapseThreads()
         paneOnViewChanged()
@@ -1398,6 +1399,8 @@ class InboxViewModel(
         if (currentAccountId.value == accountId) applyNotificationFolder(state.value.mailboxes)
     }
 
+    fun standsInUnifiedView(): Boolean = unifiedViewByChoice(selection.value, unifiedOpenedBySetting)
+
     /** Judge a parked [notificationFolder] against a freshly loaded [folders] list. */
     private fun applyNotificationFolder(folders: List<Mailbox>) {
         val (accountId, mailboxId, emailId) = notificationFolder ?: return
@@ -1409,7 +1412,7 @@ class InboxViewModel(
         val target = NotificationFolderSwitch.resolve(
             notificationMailboxId = mailboxId,
             selectedMailboxId = (selection.value as? Sel.Folder)?.id,
-            unifiedView = selection.value is Sel.Unified,
+            unifiedView = standsInUnifiedView(),
             knownMailboxIds = folders.map { it.id },
         )
         // [NotificationFolderSwitch.resolve] gets the whole list: a hidden folder is not an

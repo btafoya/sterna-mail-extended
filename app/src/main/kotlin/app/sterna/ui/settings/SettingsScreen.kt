@@ -21,6 +21,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.size
 import app.sterna.ui.components.AccountPalette
+import app.sterna.ui.inbox.OPEN_ON_INBOX
+import app.sterna.ui.inbox.OPEN_ON_UNIFIED
+import app.sterna.ui.inbox.openOnOptions
+import app.sterna.ui.inbox.openOnShown
+import app.sterna.widget.AllInboxesView
 import app.sterna.ui.components.accountColorOf
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -309,7 +314,12 @@ fun SettingsScreen(
             )
         }
         composable("appearance") { entry ->
-            AppearanceScreen(viewModel = viewModel, onBack = { entry.navigateOnce { nav.popBackStack() } })
+            val accounts by accountsViewModel.accounts.collectAsStateWithLifecycle()
+            AppearanceScreen(
+                viewModel = viewModel,
+                unifiedViewExists = AllInboxesView.existsFor(accounts),
+                onBack = { entry.navigateOnce { nav.popBackStack() } },
+            )
         }
         composable("reading") { entry ->
             ReadingScreen(viewModel = viewModel, onBack = { entry.navigateOnce { nav.popBackStack() } })
@@ -420,7 +430,11 @@ private fun openUrl(context: android.content.Context, url: String): Boolean =
     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.isSuccess
 
 @Composable
-private fun AppearanceScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
+private fun AppearanceScreen(
+    viewModel: SettingsViewModel,
+    unifiedViewExists: Boolean,
+    onBack: () -> Unit,
+) {
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
     val density by viewModel.listDensity.collectAsStateWithLifecycle()
@@ -428,6 +442,7 @@ private fun AppearanceScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val unreadTint by viewModel.unreadTint.collectAsStateWithLifecycle()
     val pureBlack by viewModel.pureBlack.collectAsStateWithLifecycle()
     val listMonogram by viewModel.listMonogram.collectAsStateWithLifecycle()
+    val openOnView by viewModel.openOnView.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var language by remember { mutableStateOf(currentAppLanguage()) }
     DetailScaffold(title = stringResource(R.string.settings_appearance_screen_title), onBack = onBack) { padding ->
@@ -480,6 +495,13 @@ private fun AppearanceScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
             }
             SettingsSection(stringResource(R.string.settings_message_list_section)) {
                 SettingChoiceRow(
+                    title = stringResource(R.string.settings_open_on_title),
+                    options = openOnOptions(unifiedViewExists),
+                    selected = openOnShown(openOnView, unifiedViewExists),
+                    optionLabel = { openOnLabel(context, it) },
+                    onSelect = viewModel::setOpenOnView,
+                )
+                SettingChoiceRow(
                     title = stringResource(R.string.settings_density_title),
                     options = listOf(ListDensity.COMPACT, ListDensity.NORMAL, ListDensity.SPACED),
                     selected = density,
@@ -528,6 +550,12 @@ private fun themeLabel(context: Context, mode: ThemeMode): String = when (mode) 
     ThemeMode.SYSTEM -> context.getString(R.string.settings_theme_auto)
     ThemeMode.LIGHT -> context.getString(R.string.settings_theme_light)
     ThemeMode.DARK -> context.getString(R.string.settings_theme_dark)
+}
+
+private fun openOnLabel(context: Context, value: String): String = when (value) {
+    OPEN_ON_INBOX -> context.getString(R.string.folder_inbox)
+    OPEN_ON_UNIFIED -> context.getString(R.string.inbox_all_inboxes)
+    else -> context.getString(R.string.settings_open_on_last)
 }
 
 private fun densityLabel(context: Context, density: ListDensity): String = when (density) {
