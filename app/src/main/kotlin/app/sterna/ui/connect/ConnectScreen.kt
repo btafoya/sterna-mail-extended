@@ -370,8 +370,8 @@ fun ConnectScreen(
         ) {
             // Must stay above the panels: each hands the column over with a `return@Column`, so a
             // handler below is not composed while one is up and Back pops the whole screen with a
-            // sign-in in flight. Whose hand-over it is is [backCancelsHandover]'s question.
-            BackHandler(enabled = backCancelsHandover(state, handedOver)) { viewModel.cancelOAuth() }
+            // sign-in in flight.
+            BackHandler(enabled = backCancelsHandover(state)) { viewModel.cancelOAuth() }
             val awaiting = state as? ConnectState.AwaitingApproval
             if (awaiting != null) {
                 DeviceApprovalPanel(awaiting, onCancel = viewModel::cancelOAuth)

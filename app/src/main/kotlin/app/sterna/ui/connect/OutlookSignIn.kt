@@ -6,6 +6,7 @@ import app.sterna.R
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.OAuthProvider
 import app.sterna.core.jmap.DeviceTokenResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -95,6 +96,8 @@ class OutlookSignIn(
                 }
                 _outcomes.emit(OutlookOutcome.Error(appContext.getString(R.string.connect_oauth_expired)))
                 _progress.value = OutlookProgress.Idle
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (t: Throwable) {
                 _outcomes.emit(OutlookOutcome.Error(t.message ?: t.javaClass.simpleName))
                 _progress.value = OutlookProgress.Idle

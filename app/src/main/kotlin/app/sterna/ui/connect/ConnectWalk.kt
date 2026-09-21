@@ -239,11 +239,11 @@ internal fun credentialsExit(pane: CredentialsPane, state: ConnectState): Connec
 internal fun showsHandoverPanel(state: ConnectState): Boolean =
     state is ConnectState.AwaitingApproval || state is ConnectState.AwaitingBrowser
 
-/** Whether the system Back must cancel the hand-over whose panel is on screen. The state says a
- *  panel is up, never whose: the manual form's Microsoft chip mirrors into the same
- *  [ConnectState.AwaitingApproval] but is app-scoped, and its poll must survive this screen. */
-internal fun backCancelsHandover(state: ConnectState, startedByWalk: Boolean): Boolean =
-    startedByWalk && showsHandoverPanel(state)
+/** Whether the system Back must cancel the hand-over whose panel is on screen, whoever started it:
+ *  the manual form's Outlook chip too, though it is app-scoped and records no hand-over for the
+ *  walk. Sparing it pops the screen with the poll alive, and "Add account" reopens the same code
+ *  with no way out until it expires (#229); a fresh code after an approved Back costs less. */
+internal fun backCancelsHandover(state: ConnectState): Boolean = showsHandoverPanel(state)
 
 /** The OAuth server already found for [email], reusable by the sign-in itself, or null to search.
  *  A [server] typed by hand under Advanced is the one host sign-in must ask. Reuse at all, because

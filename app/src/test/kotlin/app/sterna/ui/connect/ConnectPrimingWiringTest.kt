@@ -191,6 +191,21 @@ class ConnectPrimingWiringTest {
         )
     }
 
+    @Test fun `the Outlook sign-in lets cancellation through instead of showing it`() {
+        val body = functionBody("start", OUTLOOK_SIGN_IN.readText(), "OutlookSignIn")
+        val rethrow = RETHROWS_CANCELLATION.find(body)?.range?.first
+        val catchAll = body.indexOf("catch (t: Throwable)")
+        assertTrue(
+            "OutlookSignIn.start must rethrow CancellationException before its catch-all:\n" +
+                "    } catch (cancelled: CancellationException) {\n" +
+                "        throw cancelled\n" +
+                "    } catch (t: Throwable) {\n" +
+                "Without it, Cancel or Back on the code panel shows \"Could not connect: ... was " +
+                "cancelled\" over the form it just restored. Body was:\n$body",
+            rethrow != null && catchAll >= 0 && rethrow < catchAll,
+        )
+    }
+
     /**
      * The same rule, on the two paths that run autodiscovery before any account exists. They used
      */
@@ -503,11 +518,11 @@ class ConnectPrimingWiringTest {
     /**
      * The body of a function of [CONNECT_VIEW_MODEL], as text: from its declaration to the line
      */
-    private fun functionBody(name: String): String {
-        val lines = source().lines()
+    private fun functionBody(name: String, text: String = source(), file: String = "ConnectViewModel"): String {
+        val lines = text.lines()
         val start = lines.indexOfFirst { Regex("""\bfun $name\b""").containsMatchIn(it) }
         check(start >= 0) {
-            "$name() is gone from ConnectViewModel: this lint reads nothing, so rename it here too " +
+            "$name() is gone from $file: this lint reads nothing, so rename it here too " +
                 "rather than let the rules pass over an empty string."
         }
         val out = StringBuilder()
@@ -575,15 +590,18 @@ class ConnectPrimingWiringTest {
         const val PATH = "app/src/main/kotlin/app/sterna/ui/connect/ConnectViewModel.kt"
 
         /** Repo root, walked up from the module's working directory (as the other source lints do). */
-        val CONNECT_VIEW_MODEL: File by lazy {
+        val CONNECT_VIEW_MODEL: File by lazy { repoFile(PATH) }
+
+        val OUTLOOK_SIGN_IN: File by lazy { repoFile("app/src/main/kotlin/app/sterna/ui/connect/OutlookSignIn.kt") }
+
+        private fun repoFile(path: String): File =
             generateSequence(File("").absoluteFile) { it.parentFile }
-                .firstOrNull { File(it, PATH).isFile }
-                ?.let { File(it, PATH) }
+                .firstOrNull { File(it, path).isFile }
+                ?.let { File(it, path) }
                 ?: error(
                     "cannot locate the repo root from ${File("").absolutePath} — this test reads a " +
                         "source file as text and needs a working directory inside the checkout",
                 )
-        }
 
         val REFRESH = Regex("""mailRepository\.refresh\([^)]*\)""")
 

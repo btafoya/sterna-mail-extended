@@ -255,7 +255,7 @@ class CredentialsPaneTest {
         )
     }
 
-    // ---- backCancelsHandover: whose hand-over Back is allowed to cancel ----
+    // ---- backCancelsHandover: when Back cancels a hand-over ----
 
     private val devicePanel = ConnectState.AwaitingApproval("ABCD-EFGH", "https://example.org/device", null)
 
@@ -264,28 +264,27 @@ class CredentialsPaneTest {
             "⛔ DEFECT B, and it is what this handler exists for: the walk handed this address " +
                 "over itself, its panel owns the screen, and Back must do what that panel's " +
                 "Cancel does instead of popping the whole screen with a sign-in in flight.",
-            backCancelsHandover(devicePanel, startedByWalk = true),
+            backCancelsHandover(devicePanel),
         )
     }
 
     @Test fun `and on the browser panel of one this walk started, just the same`() {
         assertTrue(
             "the authorization-code grant shows a different panel and the same gesture applies.",
-            backCancelsHandover(ConnectState.AwaitingBrowser("https://example.org/authorize"), startedByWalk = true),
+            backCancelsHandover(ConnectState.AwaitingBrowser("https://example.org/authorize")),
         )
     }
 
-    @Test fun `a sign-in this walk did not start is not this walk's to cancel`() {
-        assertFalse(
-            "⛔ THE OVERREACH. The manual form's Microsoft/Outlook chip is mirrored into this very " +
-                "same AwaitingApproval, so a handler armed on the STATE intercepts it too — and " +
-                "that flow is built to survive the screen disappearing: connectOutlookOAuth hands " +
-                "the poll to the app-scoped OutlookSignIn so the token exchange outlives the round " +
-                "trip to the browser, this screen being popped included. Before the Back handler " +
-                "existed, Back there popped the screen and the account was added anyway when the " +
-                "browser came back; cancelling it kills that. Only the hand-over the walk started " +
-                "itself is answered here, and the walk is the only path that records one.",
-            backCancelsHandover(devicePanel, startedByWalk = false),
+    @Test fun `back cancels a sign-in this walk did not start, too`() {
+        assertTrue(
+            "⛔ #229. The manual form's Outlook chip hands over through the app-scoped " +
+                "OutlookSignIn and records no hand-over for the walk, yet its panel is the same " +
+                "AwaitingApproval. Left to the system, Back popped the screen while the poll ran " +
+                "on, and Add account reopened the same code with no way to abandon it: the screen " +
+                "stayed trapped until the code expired. Back must do what the panel's Cancel " +
+                "does whoever started the sign-in; what that costs — pressing Back after " +
+                "approving at Microsoft asks for a fresh code — is cheaper than the trap.",
+            backCancelsHandover(devicePanel),
         )
     }
 
@@ -294,14 +293,14 @@ class CredentialsPaneTest {
             "⛔ Back at step 2 with nothing up must return to the address step, not cancel a " +
                 "sign-in nobody is running — including right after Cancel, where the walk has " +
                 "started a hand-over for this address and it is over.",
-            backCancelsHandover(ConnectState.Idle, startedByWalk = true),
+            backCancelsHandover(ConnectState.Idle),
         )
     }
 
     @Test fun `a hand-over still looking for its server has no panel to cancel`() {
         assertFalse(
             "no panel owns the screen yet, so the walk's own Back is composed and answers.",
-            backCancelsHandover(ConnectState.Discovering, startedByWalk = true),
+            backCancelsHandover(ConnectState.Discovering),
         )
     }
 }
@@ -314,12 +313,12 @@ class HandoverBackWiringTest {
     private val lines: List<String> by lazy { source(SCREEN).lines().map { it.trim() } }
 
     @Test fun `back on a hand-over panel cancels the hand-over`() {
-        assertPinned("BackHandler(enabled = backCancelsHandover(state, handedOver)) { viewModel.cancelOAuth() }")
+        assertPinned("BackHandler(enabled = backCancelsHandover(state)) { viewModel.cancelOAuth() }")
         assertPinned("BackHandler(enabled = stepBackKeeping(walkStep, username) != null) {")
     }
 
     @Test fun `and it is composed while the panel it answers for is on screen`() {
-        val back = lines.indexOf("BackHandler(enabled = backCancelsHandover(state, handedOver)) { viewModel.cancelOAuth() }")
+        val back = lines.indexOf("BackHandler(enabled = backCancelsHandover(state)) { viewModel.cancelOAuth() }")
         val device = lines.indexOf("DeviceApprovalPanel(awaiting, onCancel = viewModel::cancelOAuth)")
         val browser = lines.indexOf("BrowserAuthorizationPanel(awaitingBrowser, onCancel = viewModel::cancelOAuth)")
         val firstReturn = lines.indexOf("return@Column")
@@ -340,7 +339,7 @@ class HandoverBackWiringTest {
     }
 
     @Test fun `the walk's own back stays below, where the panels have already returned`() {
-        val handover = lines.indexOf("BackHandler(enabled = backCancelsHandover(state, handedOver)) { viewModel.cancelOAuth() }")
+        val handover = lines.indexOf("BackHandler(enabled = backCancelsHandover(state)) { viewModel.cancelOAuth() }")
         val walk = lines.indexOf("BackHandler(enabled = stepBackKeeping(walkStep, username) != null) {")
         val lastReturn = lines.indexOfLast { it == "return@Column" }
         assertTrue(
