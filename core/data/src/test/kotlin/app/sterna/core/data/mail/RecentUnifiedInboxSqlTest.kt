@@ -123,7 +123,7 @@ class RecentUnifiedInboxSqlTest {
 
     /** The ids the app's own flat list draws, in its own order, bound the way `pagingQuery` binds. */
     private fun listed(scopes: List<Pair<String, String>>): List<String> =
-        db.prepareStatement(pagingSql(scopes.size, SortOrder.DATE_DESC, unreadOnly = false)).use { ps ->
+        db.prepareStatement(pagingSql(scopes.size, SortOrder.DATE_DESC, ListFilter.NONE)).use { ps ->
             scopes.flatMap { listOf(it.first, it.second) }
                 .forEachIndexed { i, a -> ps.setString(i + 1, a) }
             ps.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString("id")) } }

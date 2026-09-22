@@ -84,7 +84,7 @@ class LocalDraftListWiringLintTest {
                 "currentAccountId = currentAccountId,",
                 "selectedMailboxId = selection.map { (it as? Sel.Folder)?.id },",
                 "folderRoles = folderRoles,",
-                "unreadOnly = unreadOnly,",
+                "filter = filterToggles,",
                 "localDrafts = { accountId -> repo.drafts.observeLocalDrafts(accountId) },",
                 ").stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LocalDraftRows())",
             ),
@@ -257,10 +257,10 @@ class LocalDraftListWiringLintTest {
             listOf(
                 "_selectionActive.value = true",
                 "val search = searchState.value",
-                // The list's own unread filter, not the raw funnel: a scope that forces the filter
-                // on (Sel.Unread) and a selection that reads the toggle is #126 rebuilt. One
-                // source, executed in ListUnreadOnlyTest.
-                "val filtered = listUnreadOnly(selection.value, unreadOnly.value)",
+                // The list's own filter, not the raw toggles: a scope that forces a criterion on
+                // (Sel.Unread) and a selection that reads the toggles is #126 rebuilt. One source,
+                // executed in ListFilterDecisionTest.
+                "val filtered = listFilter(selection.value, filterToggles.value)",
                 "val hidden = localDraftRows.value.replacedServerIds",
                 "viewModelScope.launch {",
                 "_selectedKeys.value = selectAllKeys(",
@@ -269,7 +269,7 @@ class LocalDraftListWiringLintTest {
                 "results = search.results?.map { it.emailKey() },",
                 "loading = search.loading,",
                 "complete = search.complete,",
-                "folderKeys = selectableKeysMinusHidden(repo.selectableIds(currentScopes(), filtered), hidden),",
+                "folderKeys = selectableKeysMinusHidden(repo.selectableIds(currentScopes(), filtered, settings.conversationView.first()), hidden),",
                 ")",
                 "}",
             ),

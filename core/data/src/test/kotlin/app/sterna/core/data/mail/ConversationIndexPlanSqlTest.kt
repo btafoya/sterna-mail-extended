@@ -95,7 +95,7 @@ class ConversationIndexPlanSqlTest {
     }
 
     private val sql: String
-        get() = conversationSql(scopeCount = 1, sort = SortOrder.DATE_DESC, unreadOnly = false)
+        get() = conversationSql(scopeCount = 1, sort = SortOrder.DATE_DESC, filter = ListFilter.NONE)
 
     /**
      * The form the reported gesture really emits.
@@ -104,7 +104,7 @@ class ConversationIndexPlanSqlTest {
         get() = conversationSql(
             scopeCount = 1,
             sort = SortOrder.DATE_DESC,
-            unreadOnly = false,
+            filter = ListFilter.NONE,
             sentMailboxCount = 1,
         )
 

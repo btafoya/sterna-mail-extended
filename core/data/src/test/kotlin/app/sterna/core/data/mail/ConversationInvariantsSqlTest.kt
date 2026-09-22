@@ -79,7 +79,7 @@ class ConversationInvariantsSqlTest {
         unreadOnly: Boolean = false,
     ): List<Row> {
         val scopes = accounts.flatMap { acc -> mailboxes.map { acc to it } }
-        val sql = conversationSql(scopes.size, sort, unreadOnly, sent.size)
+        val sql = conversationSql(scopes.size, sort, ListFilter(unreadOnly = unreadOnly), sent.size)
         val pairs = scopes.flatMap { listOf(it.first, it.second) }
         val args = buildList<String> {
             addAll(pairs)
@@ -117,7 +117,7 @@ class ConversationInvariantsSqlTest {
         unreadOnly: Boolean = false,
     ): List<String> {
         val scopes = accounts.flatMap { acc -> mailboxes.map { acc to it } }
-        val sql = pagingSql(scopes.size, sort, unreadOnly)
+        val sql = pagingSql(scopes.size, sort, ListFilter(unreadOnly = unreadOnly))
         return db.prepareStatement(sql).use { ps ->
             scopes.flatMap { listOf(it.first, it.second) }
                 .forEachIndexed { i, a -> ps.setString(i + 1, a) }

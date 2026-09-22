@@ -137,6 +137,10 @@
     <string name="inbox_clear">Wissen</string>
     <string name="inbox_menu">Menu</string>
     <string name="inbox_unread_only">Alleen ongelezen</string>
+    <string name="inbox_unread_only_other_filters">Alleen ongelezen, andere filters actief</string>
+    <string name="inbox_filter_flagged">Alleen met ster</string>
+    <string name="inbox_filter_attachment">Met bijlage</string>
+    <string name="inbox_filter_active">Filter actief</string>
     <string name="inbox_sort">Sorteren</string>
     <string name="inbox_search">Zoeken</string>
     <string name="inbox_more">Meer</string>
@@ -969,6 +973,8 @@
     <string name="empty_unread_body">Je hebt hier alles gelezen. Schakel het filter voor ongelezen berichten uit om alle e-mail te zien.</string>
     <string name="empty_unread_view_body">Je hebt alles in je mappen gelezen.</string>
     <string name="empty_unread_action">Alles tonen</string>
+    <string name="empty_filtered_title">Geen berichten voldoen aan je filters</string>
+    <string name="empty_filtered_body">Je filters verbergen hier misschien berichten.</string>
     <string name="inbox_empty_trash">Prullenbak legen</string>
     <string name="status_trash_emptied">Prullenbak legen…</string>
 

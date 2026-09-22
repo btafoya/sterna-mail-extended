@@ -1,6 +1,7 @@
 package app.sterna.ui.inbox
 
 import app.sterna.R
+import app.sterna.core.data.mail.ListFilter
 import app.sterna.ui.components.EmptyArt
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -13,10 +14,18 @@ class EmptyListSceneTest {
     private fun scene(
         unreadView: Boolean = false,
         toggle: Boolean = false,
+        flagged: Boolean = false,
+        attachment: Boolean = false,
         unified: Boolean = false,
         selectedMailboxId: String? = "f1",
         role: String? = null,
-    ) = emptyListScene(unreadView, toggle, unified, selectedMailboxId, role)
+    ) = emptyListScene(
+        unreadView,
+        ListFilter(unreadOnly = toggle, flaggedOnly = flagged, withAttachment = attachment),
+        unified,
+        selectedMailboxId,
+        role,
+    )
 
     // -- the four combinations of (scope, funnel) -------------------------------------------------
 
@@ -55,6 +64,47 @@ class EmptyListSceneTest {
                 "untrue.",
             EmptyScene(EmptyArt.FOLDER, R.string.empty_unread_title, R.string.empty_unread_view_body, false),
             scene(unreadView = true, toggle = true, selectedMailboxId = null),
+        )
+    }
+
+    @Test
+    fun `starred alone - the general words, and a way out`() {
+        assertEquals(
+            "Starred alone emptied the list: the unread words would claim everything is read, and " +
+                "without the button the reader has no way back from the empty screen.",
+            EmptyScene(EmptyArt.INBOX_ZERO, R.string.empty_filtered_title, R.string.empty_filtered_body, true),
+            scene(flagged = true, selectedMailboxId = "in", role = "inbox"),
+        )
+    }
+
+    @Test
+    fun `attachment alone - the general words, and a way out`() {
+        assertEquals(
+            EmptyScene(EmptyArt.TRASH, R.string.empty_filtered_title, R.string.empty_filtered_body, true),
+            scene(attachment = true, selectedMailboxId = "t", role = "trash"),
+        )
+    }
+
+    @Test
+    fun `starred with the funnel - the general words win over the unread ones`() {
+        assertEquals(
+            EmptyScene(EmptyArt.FOLDER, R.string.empty_filtered_title, R.string.empty_filtered_body, true),
+            scene(toggle = true, flagged = true, attachment = true, selectedMailboxId = "p"),
+        )
+    }
+
+    @Test
+    fun `the unread view under a starred toggle - the general words, and the button returns`() {
+        assertEquals(
+            "In the unread view the button is offered only when a toggle it can lift is on. A " +
+                "starred toggle is one: without the button the view stays empty with no way out but " +
+                "the menu.",
+            EmptyScene(EmptyArt.FOLDER, R.string.empty_filtered_title, R.string.empty_filtered_body, true),
+            scene(unreadView = true, flagged = true, selectedMailboxId = null),
+        )
+        assertEquals(
+            EmptyScene(EmptyArt.FOLDER, R.string.empty_filtered_title, R.string.empty_filtered_body, true),
+            scene(unreadView = true, attachment = true, selectedMailboxId = null),
         )
     }
 
@@ -107,6 +157,7 @@ class EmptyListSceneTest {
             R.string.empty_trash_title, R.string.empty_trash_body,
             R.string.empty_unread_title, R.string.empty_unread_body,
             R.string.empty_unread_view_body,
+            R.string.empty_filtered_title, R.string.empty_filtered_body,
         )
         assertEquals(
             "Two of the empty-state resources resolve to the SAME id, so at least one assertion in " +

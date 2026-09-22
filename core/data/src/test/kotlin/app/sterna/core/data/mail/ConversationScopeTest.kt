@@ -57,7 +57,7 @@ class ConversationScopeTest {
         // Codeberg #121. A null [accountId] (unified) is the fixture's own accounts.
         val scopes = (accountId?.let { listOf(it) } ?: resolution.map { it.first }.distinct())
             .flatMap { acc -> viewed.map { acc to it } }
-        val sql = conversationSql(scopes.size, SortOrder.DATE_DESC, unreadOnly = false, sentMailboxCount = sent.size)
+        val sql = conversationSql(scopes.size, SortOrder.DATE_DESC, ListFilter.NONE, sentMailboxCount = sent.size)
         val pairs = scopes.flatMap { listOf(it.first, it.second) }
         val args = buildList<String> {
             addAll(pairs)

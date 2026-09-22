@@ -33,6 +33,7 @@ import app.sterna.core.data.mail.EmailKey
 import app.sterna.core.data.mail.FrozenNumbering
 import app.sterna.core.data.mail.ImapMailService
 import app.sterna.core.data.mail.InboxRow
+import app.sterna.core.data.mail.ListFilter
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.MailSearchResult
 import app.sterna.core.data.mail.UidValidity
@@ -123,8 +124,11 @@ data class MailUi(
     val searchQuery: String = "",
     val searchLoading: Boolean = false,
     val sortOrder: SortOrder = SortOrder.DATE_DESC,
-    val unreadOnly: Boolean = false,
-)
+    /** The filters as the user set them; the list shows [listFilter] of them. */
+    val filterToggles: ListFilter = ListFilter.NONE,
+) {
+    val unreadOnly: Boolean get() = filterToggles.unreadOnly
+}
 
 /** Intermediate holder so the search state can be folded into [MailUi] without a 6-arg combine. */
 private data class Base(
@@ -810,8 +814,8 @@ class InboxViewModel(
     /** Background crawl of the whole mailbox into the index; re-runs the query when it completes. */
     private var crawlJob: Job? = null
 
-    /** Transient view filter: show only unread on the current view. */
-    private val unreadOnly = MutableStateFlow(false)
+    /** Transient view filters as the user set them, memory only. */
+    private val filterToggles = MutableStateFlow(ListFilter.NONE)
 
     /** Multi-select mode: which messages are selected (empty + inactive = off). Account-qualified
      *  keys, not bare ids: the unified inbox can show two accounts' same-id rows, and a bare-id
@@ -920,7 +924,7 @@ class InboxViewModel(
             unifiedInboxScopes = unifiedInboxScopes,
             unreadViewScopes = unreadScopes,
             sortOrder = settings.sortOrder,
-            unreadOnly = unreadOnly,
+            filterToggles = filterToggles,
             conversationView = settings.conversationView,
             currentAccountId = currentAccountId,
         )
@@ -935,7 +939,7 @@ class InboxViewModel(
                         // Conversation chips also count the thread's Sent replies, resolved
                         // reactively from the folder cache as account-pinned pairs.
                         sentScopes(key, listOf(credentials.id)).flatMapLatest { sent ->
-                            repo.pagedFolder(credentials, id, key.sort, listUnreadOnly(key.sel, key.unreadOnly), key.conversationView, sent)
+                            repo.pagedFolder(credentials, id, key.sort, listFilter(key.sel, key.toggles), key.conversationView, sent)
                         }
                     }
                 }
@@ -943,15 +947,15 @@ class InboxViewModel(
                     // The accounts the key was built from, not a fresh read of the store: the
                     // pager's rows and its Sent scope must describe the same set of accounts.
                     sentScopes(key, key.unifiedScopes.map { it.first }.distinct()).flatMapLatest { sent ->
-                        repo.pagedMailbox(key.unifiedScopes, key.sort, listUnreadOnly(key.sel, key.unreadOnly), key.conversationView, sent)
+                        repo.pagedMailbox(key.unifiedScopes, key.sort, listFilter(key.sel, key.toggles), key.conversationView, sent)
                     }
                 }
                 Sel.Unread -> {
-                    // The unread filter is [listUnreadOnly]'s answer, not the key's raw toggle:
-                    // this scope forces it on (WYSIWYG). All three branches and [selectAll] ask the
+                    // The filter is [listFilter]'s answer, not the key's raw toggles: this scope
+                    // forces the unread criterion on (WYSIWYG). All three branches and [selectAll] ask the
                     // same function, a filter decided twice is the destructive half of #126.
                     sentScopes(key, listOfNotNull(key.accountId)).flatMapLatest { sent ->
-                        repo.pagedMailbox(key.unreadScopes, key.sort, listUnreadOnly(key.sel, key.unreadOnly), key.conversationView, sent)
+                        repo.pagedMailbox(key.unreadScopes, key.sort, listFilter(key.sel, key.toggles), key.conversationView, sent)
                     }
                 }
             }
@@ -971,7 +975,7 @@ class InboxViewModel(
             currentAccountId = currentAccountId,
             selectedMailboxId = selection.map { (it as? Sel.Folder)?.id },
             folderRoles = folderRoles,
-            unreadOnly = unreadOnly,
+            filter = filterToggles,
             localDrafts = { accountId -> repo.drafts.observeLocalDrafts(accountId) },
         ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LocalDraftRows())
 
@@ -1060,7 +1064,7 @@ class InboxViewModel(
         badged.copy(folderOrder = order.forList(folderSnapshot.value.first).ids)
     }
 
-    val state: StateFlow<MailUi> = combine(orderedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->
+    val state: StateFlow<MailUi> = combine(orderedState, searchState, settings.sortOrder, filterToggles, connectivity.online) { base, search, sortOrder, toggles, online ->
         MailUi(
             accountId = base.accountId,
             accountName = base.accountName,
@@ -1085,7 +1089,7 @@ class InboxViewModel(
             searchQuery = search.query,
             searchLoading = search.loading,
             sortOrder = sortOrder,
-            unreadOnly = unreadOnly,
+            filterToggles = toggles,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -2154,7 +2158,7 @@ class InboxViewModel(
         }
         Sel.Unified -> store.allInboxScopes()
         // The live value, which can differ from what the pager on screen was built with. Accepted
-        // only because [listUnreadOnly] forces the filter on for this scope, so the window can add
+        // only because [listFilter] forces the unread criterion on for this scope, so the window can add
         // only unread mail of a folder this view covers. [listScope] is not safer.
         Sel.Unread -> unreadScopes.value
     }
@@ -2166,7 +2170,19 @@ class InboxViewModel(
     }
 
     fun toggleUnreadOnly() {
-        unreadOnly.value = !unreadOnly.value
+        filterToggles.value = filterToggles.value.toggled(ListCriterion.UNREAD)
+    }
+
+    fun toggleFlaggedOnly() {
+        filterToggles.value = filterToggles.value.toggled(ListCriterion.FLAGGED)
+    }
+
+    fun toggleWithAttachment() {
+        filterToggles.value = filterToggles.value.toggled(ListCriterion.ATTACHMENT)
+    }
+
+    fun clearListFilters() {
+        filterToggles.value = filterToggles.value.afterShowAll()
     }
 
     /** Mark every message in the current view as read. */
@@ -2247,9 +2263,7 @@ class InboxViewModel(
     fun selectAll() {
         _selectionActive.value = true
         val search = searchState.value
-        // The same decision the pager was built with ([listUnreadOnly]), never the raw toggle:
-        // otherwise "Delete" reaches mail never on screen, the destructive half of #126.
-        val filtered = listUnreadOnly(selection.value, unreadOnly.value)
+        val filtered = listFilter(selection.value, filterToggles.value)
         val hidden = localDraftRows.value.replacedServerIds
         viewModelScope.launch {
             _selectedKeys.value = selectAllKeys(
@@ -2258,7 +2272,7 @@ class InboxViewModel(
                 results = search.results?.map { it.emailKey() },
                 loading = search.loading,
                 complete = search.complete,
-                folderKeys = selectableKeysMinusHidden(repo.selectableIds(currentScopes(), filtered), hidden),
+                folderKeys = selectableKeysMinusHidden(repo.selectableIds(currentScopes(), filtered, settings.conversationView.first()), hidden),
             )
         }
     }

@@ -137,6 +137,10 @@
     <string name="inbox_clear">Löschen</string>
     <string name="inbox_menu">Menü</string>
     <string name="inbox_unread_only">Nur ungelesene</string>
+    <string name="inbox_unread_only_other_filters">Nur ungelesene, weitere Filter aktiv</string>
+    <string name="inbox_filter_flagged">Nur markierte</string>
+    <string name="inbox_filter_attachment">Mit Anhang</string>
+    <string name="inbox_filter_active">Filter aktiv</string>
     <string name="inbox_sort">Sortieren</string>
     <string name="inbox_search">Suchen</string>
     <string name="inbox_more">Mehr</string>
@@ -966,6 +970,8 @@
     <string name="empty_unread_body">Hier ist alles gelesen. Schalte den Ungelesen-Filter aus, um alle E-Mails zu sehen.</string>
     <string name="empty_unread_view_body">In deinen Ordnern ist alles gelesen.</string>
     <string name="empty_unread_action">Alle anzeigen</string>
+    <string name="empty_filtered_title">Keine Nachrichten passen zu deinen Filtern</string>
+    <string name="empty_filtered_body">Deine Filter blenden hier vielleicht Nachrichten aus.</string>
     <string name="inbox_empty_trash">Papierkorb leeren</string>
     <string name="status_trash_emptied">Papierkorb wird geleert…</string>
 

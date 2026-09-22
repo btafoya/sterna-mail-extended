@@ -6,8 +6,10 @@ import androidx.paging.filter
 import androidx.paging.insertHeaderItem
 import app.sterna.core.data.db.LOCAL_DRAFT_ID_PREFIX
 import app.sterna.core.data.db.LocalDraftEntity
+import app.sterna.core.data.db.OutboxAttachments
 import app.sterna.core.data.mail.EmailKey
 import app.sterna.core.data.mail.InboxRow
+import app.sterna.core.data.mail.ListFilter
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailAddress
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -44,18 +46,23 @@ internal data class LocalDraftRows(
  *  this table, so a swipe announces "deleted" over a row that never moved. Only the tap acts (#95). */
 internal fun isLocalDraftRow(id: String?): Boolean = id != null && id.startsWith(LOCAL_DRAFT_ID_PREFIX)
 
-/** Whether the list on screen is the one place the phone's own drafts belong: this account's Drafts
- *  folder, funnel off. Answered from the folder-role map, never a [PageKey] member, each of which
- * rebuilds the pager. [unreadOnly] refuses: a local row is read by construction. */
+/** Whether the list is this account's Drafts folder, off the role map and never a [PageKey] member
+ *  (each rebuilds the pager). Unread and starred refuse: a local row is read and never starred. */
 internal fun showsLocalDrafts(
     accountId: String?,
     mailboxId: String?,
     roles: Map<Pair<String, String>, String>,
-    unreadOnly: Boolean,
+    filter: ListFilter,
 ): Boolean {
-    if (accountId == null || mailboxId == null || unreadOnly) return false
+    if (accountId == null || mailboxId == null || filter.unreadOnly || filter.flaggedOnly) return false
     return roles[accountId to mailboxId] == DRAFTS_ROLE
 }
+
+internal fun localDraftListed(draft: LocalDraftEntity, filter: ListFilter): Boolean =
+    !filter.withAttachment || localDraftHasAttachment(draft)
+
+internal fun localDraftHasAttachment(draft: LocalDraftEntity): Boolean =
+    OutboxAttachments.decode(draft.attachmentsJson).isNotEmpty()
 
 /** Whether the row drawn for [id] answers to a swipe at all. The guard sits on `gesturesEnabled`,
  *  before the gesture runs: the refusal inside `performSwipe` is a belt, `commitSwipe` playing the
@@ -81,25 +88,28 @@ internal fun localDraftRowsFlow(
     currentAccountId: Flow<String?>,
     selectedMailboxId: Flow<String?>,
     folderRoles: Flow<Map<Pair<String, String>, String>>,
-    unreadOnly: Flow<Boolean>,
+    filter: Flow<ListFilter>,
     localDrafts: (String) -> Flow<List<LocalDraftEntity>>,
 ): Flow<LocalDraftRows> =
-    combine(currentAccountId, selectedMailboxId, folderRoles, unreadOnly) { accountId, mailboxId, roles, unread ->
-        if (showsLocalDrafts(accountId, mailboxId, roles, unread)) accountId!! to mailboxId!! else null
+    combine(currentAccountId, selectedMailboxId, folderRoles, filter) { accountId, mailboxId, roles, current ->
+        if (showsLocalDrafts(accountId, mailboxId, roles, current)) LocalDraftScope(accountId!!, mailboxId!!, current) else null
     }
         .distinctUntilChanged()
         .flatMapLatest { scope ->
             if (scope == null) {
                 flowOf(LocalDraftRows())
             } else {
-                localDrafts(scope.first).map { drafts ->
+                localDrafts(scope.accountId).map { drafts ->
+                    // Every draft hides its server copy, listed or not: the stale text must not return (#95).
                     LocalDraftRows(
-                        rows = drafts.map { it.toInboxRow(scope.second) },
+                        rows = drafts.filter { localDraftListed(it, scope.filter) }.map { it.toInboxRow(scope.mailboxId) },
                         replacedServerIds = replacedServerIds(drafts),
                     )
                 }
             }
         }
+
+private data class LocalDraftScope(val accountId: String, val mailboxId: String, val filter: ListFilter)
 
 /** The server drafts the given local rows stand in for. A draft reopened and re-saved offline
  *  carries [LocalDraftEntity.replacesEmailId] and leaves the server copy where it is until the
@@ -142,6 +152,7 @@ internal fun LocalDraftEntity.toInboxRow(mailboxId: String): InboxRow = InboxRow
         cc = localDraftAddresses(cc),
         bcc = localDraftAddresses(bcc),
         keywords = mapOf("\$draft" to true, "\$seen" to true),
+        hasAttachment = localDraftHasAttachment(this),
     ),
     threadCount = 1,
     unread = false,

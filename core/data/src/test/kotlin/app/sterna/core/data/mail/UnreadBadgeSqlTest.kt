@@ -96,7 +96,7 @@ class UnreadBadgeSqlTest {
 
     /** The list's bold rows: conversationSql rows with threadUnread = 0 for one (account, folder). */
     private fun boldConversationRows(accountId: String, mailbox: String): Int {
-        val sql = conversationSql(scopeCount = 1, sort = SortOrder.DATE_DESC, unreadOnly = false)
+        val sql = conversationSql(scopeCount = 1, sort = SortOrder.DATE_DESC, filter = ListFilter.NONE)
         return db.prepareStatement(sql).use { ps ->
             // One (account, folder) scope, bound account first, three times over.
             ps.setString(1, accountId); ps.setString(2, mailbox)

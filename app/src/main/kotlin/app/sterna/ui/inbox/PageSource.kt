@@ -1,6 +1,7 @@
 package app.sterna.ui.inbox
 
 import app.sterna.R
+import app.sterna.core.data.mail.ListFilter
 import app.sterna.core.data.settings.SortOrder
 import app.sterna.core.jmap.model.Mailbox
 import app.sterna.ui.components.EmptyArt
@@ -27,7 +28,7 @@ internal data class PageKey(
     val unifiedScopes: List<Pair<String, String>>,
     val unreadScopes: List<Pair<String, String>>,
     val sort: SortOrder,
-    val unreadOnly: Boolean,
+    val toggles: ListFilter,
     val conversationView: Boolean,
     // The active account, so a switch re-subscribes the pager even when the new inbox shares the
     // old one's mailbox id (JMAP numbers mailboxes per account, so they often collide).
@@ -42,13 +43,13 @@ internal fun pageKeyFlow(
     unifiedInboxScopes: Flow<List<Pair<String, String>>>,
     unreadViewScopes: Flow<List<Pair<String, String>>>,
     sortOrder: Flow<SortOrder>,
-    unreadOnly: Flow<Boolean>,
+    filterToggles: Flow<ListFilter>,
     conversationView: Flow<Boolean>,
     currentAccountId: Flow<String?>,
 ): Flow<PageKey> =
-    combine(selection, unifiedInboxScopes, sortOrder, unreadOnly, conversationView) {
-            sel, scopes, sort, unread, conversation ->
-        PageKey(sel, scopes, emptyList(), sort, unread, conversation)
+    combine(selection, unifiedInboxScopes, sortOrder, filterToggles, conversationView) {
+            sel, scopes, sort, toggles, conversation ->
+        PageKey(sel, scopes, emptyList(), sort, toggles, conversation)
     }.combine(unreadViewScopes) { key, scopes -> key.copy(unreadScopes = scopes) }
         .combine(currentAccountId) { key, accountId -> key.copy(accountId = accountId) }
         .distinctUntilChanged()
@@ -86,14 +87,31 @@ internal fun refreshedInboxId(refreshedIds: List<String>, inboxId: String?): Str
 internal fun realignedInboxId(requested: String?, storedInboxId: String?, roleInboxId: String?): String? =
     roleInboxId.takeIf { requested != null && requested == storedInboxId && it != storedInboxId }
 
-/** Whether the list is filtered to unread, one answer, for the pager and for "Select all".
- * One function called from both: the pager forcing the filter while `selectAll` reads the raw
- *  toggle is the destructive half of #126, "Select all" then "Delete" trashes every read message. */
-internal fun listUnreadOnly(sel: Sel, toggle: Boolean): Boolean = listUnreadOnly(sel == Sel.Unread, toggle)
+/** How the list is filtered, one answer for the pager and for "Select all"; the unread view forces
+ *  the unread criterion on. The pager forcing a criterion while `selectAll` reads the raw toggles is
+ *  the destructive half of #126: "Select all" then "Delete" trashes what the list was hiding. */
+internal fun listFilter(sel: Sel, toggles: ListFilter): ListFilter = listFilter(sel == Sel.Unread, toggles)
 
 /** The same decision asked by the screen, which holds a flag and not a [Sel]. An overload that
- *  delegates, never a second spelling of `|| toggle`: the empty state and the pager must agree. */
-internal fun listUnreadOnly(unreadView: Boolean, toggle: Boolean): Boolean = unreadView || toggle
+ *  delegates, never a second spelling of the rule: the empty state and the pager must agree. */
+internal fun listFilter(unreadView: Boolean, toggles: ListFilter): ListFilter =
+    if (unreadView) toggles.copy(unreadOnly = true) else toggles
+
+internal enum class ListCriterion { UNREAD, FLAGGED, ATTACHMENT }
+
+internal fun ListFilter.toggled(criterion: ListCriterion): ListFilter = when (criterion) {
+    ListCriterion.UNREAD -> copy(unreadOnly = !unreadOnly)
+    ListCriterion.FLAGGED -> copy(flaggedOnly = !flaggedOnly)
+    ListCriterion.ATTACHMENT -> copy(withAttachment = !withAttachment)
+}
+
+internal fun ListFilter.anyActive(): Boolean = unreadOnly || flaggedOnly || withAttachment
+
+internal fun ListFilter.narrowsBeyondUnread(): Boolean = flaggedOnly || withAttachment
+
+internal fun ListFilter.dotOnOverflow(unreadView: Boolean): Boolean = unreadView && narrowsBeyondUnread()
+
+internal fun ListFilter.afterShowAll(): ListFilter = ListFilter.NONE
 
 /** The number the drawer's "unread" entry carries: [Mailbox.unreadForList] summed over the scope
  * that view pages. Never a second exclusion rule: no role is named here, the scope is the
@@ -117,12 +135,12 @@ internal data class EmptyScene(
     val clearsFilter: Boolean,
 )
 
-/** Which empty scene an empty list shows. The unread view selects no mailbox, so the
- *  `selectedMailboxId == null` branch would claim "your inbox is empty" over the whole account; it
- *  gets folder art and unread words, and no button, having no funnel to lift. */
+/** Which empty scene an empty list shows. The unread view selects no mailbox, so the null-mailbox
+ *  inbox scene would lie there; it gets folder art, and a button only while a starred or attachment
+ *  toggle is on, which the view does not force. Those two take the words: "read everything" lies. */
 internal fun emptyListScene(
     unreadView: Boolean,
-    unreadToggle: Boolean,
+    toggles: ListFilter,
     unified: Boolean,
     selectedMailboxId: String?,
     folderRole: String?,
@@ -133,16 +151,19 @@ internal fun emptyListScene(
         folderRole == "trash" -> EmptyArt.TRASH
         else -> EmptyArt.FOLDER
     }
-    val filtered = listUnreadOnly(unreadView, unreadToggle)
+    val filtered = listFilter(unreadView, toggles).unreadOnly
+    val narrowed = toggles.narrowsBeyondUnread()
     return EmptyScene(
         art = art,
         title = when {
+            narrowed -> R.string.empty_filtered_title
             filtered -> R.string.empty_unread_title
             art == EmptyArt.TRASH -> R.string.empty_trash_title
             art == EmptyArt.FOLDER -> R.string.empty_folder_title
             else -> R.string.empty_inbox_title
         },
         body = when {
+            narrowed -> R.string.empty_filtered_body
             // Before the funnel's arm: empty_unread_body ends on "turn off the unread filter",
             // which this view has no button for, and its own sentence says "your folders".
             unreadView -> R.string.empty_unread_view_body
@@ -151,7 +172,7 @@ internal fun emptyListScene(
             art == EmptyArt.FOLDER -> R.string.empty_folder_body
             else -> R.string.empty_inbox_body
         },
-        clearsFilter = unreadToggle && !unreadView,
+        clearsFilter = narrowed || (toggles.unreadOnly && !unreadView),
     )
 }
 

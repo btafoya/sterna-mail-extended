@@ -58,11 +58,11 @@ class SelectionIdsSqlTest {
 
     /** The ids the flat list draws, bound as `pagingQuery` binds it: (account, mailbox) pairs. */
     private fun listed(scopes: List<Pair<String, String>>, unreadOnly: Boolean): List<String> =
-        run(pagingSql(scopes.size, SortOrder.DATE_DESC, unreadOnly), scopes)
+        run(pagingSql(scopes.size, SortOrder.DATE_DESC, ListFilter(unreadOnly = unreadOnly)), scopes)
 
     /** The ids "Select all" takes, bound as `selectionIdsQuery` binds it: the same pairs. */
     private fun selected(scopes: List<Pair<String, String>>, unreadOnly: Boolean): List<String> =
-        run(selectionIdsSql(scopes.size, unreadOnly), scopes)
+        run(selectionIdsSql(scopes.size, ListFilter(unreadOnly = unreadOnly), conversationView = false), scopes)
 
     private fun run(sql: String, scopes: List<Pair<String, String>>): List<String> =
         db.prepareStatement(sql).use { ps ->

@@ -151,6 +151,10 @@
     <string name="inbox_clear">清除</string>
     <string name="inbox_menu">菜单</string>
     <string name="inbox_unread_only">仅未读</string>
+    <string name="inbox_unread_only_other_filters">仅未读，其他筛选已开启</string>
+    <string name="inbox_filter_flagged">仅星标</string>
+    <string name="inbox_filter_attachment">包含附件</string>
+    <string name="inbox_filter_active">筛选已开启</string>
     <string name="inbox_sort">排序</string>
     <string name="inbox_search">搜索</string>
     <string name="inbox_more">更多</string>
@@ -263,6 +267,8 @@
     <string name="empty_unread_body">您已读完了这里的全部内容。关闭未读筛选即可查看所有邮件。</string>
     <string name="empty_unread_view_body">您已读完了文件夹中的全部内容。</string>
     <string name="empty_unread_action">显示全部</string>
+    <string name="empty_filtered_title">没有符合筛选条件的邮件</string>
+    <string name="empty_filtered_body">筛选条件可能隐藏了这里的邮件。</string>
     <string name="inbox_sort_newest_first">新邮件在前</string>
     <string name="inbox_sort_oldest_first">旧邮件在前</string>
     <string name="inbox_sort_subject">主题</string>

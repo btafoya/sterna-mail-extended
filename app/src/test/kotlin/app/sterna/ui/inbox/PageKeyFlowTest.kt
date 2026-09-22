@@ -1,5 +1,6 @@
 package app.sterna.ui.inbox
 
+import app.sterna.core.data.mail.ListFilter
 import app.sterna.core.data.settings.SortOrder
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -40,7 +41,7 @@ class PageKeyFlowTest {
     private val scopes = Input(listOf("a" to "inbox-a", "b" to "inbox-b"))
     private val unreadScopes = Input(listOf("a" to "inbox-a", "a" to "archive-a"))
     private val sort = Input(SortOrder.DATE_DESC)
-    private val unread = Input(false)
+    private val unread = Input(ListFilter.NONE)
     private val conversation = Input(true)
     private val account = Input<String?>("a")
 
@@ -77,7 +78,7 @@ class PageKeyFlowTest {
                 unifiedScopes = listOf("a" to "inbox-a", "b" to "inbox-b"),
                 unreadScopes = listOf("a" to "inbox-a", "a" to "archive-a"),
                 sort = SortOrder.DATE_DESC,
-                unreadOnly = false,
+                toggles = ListFilter.NONE,
                 conversationView = true,
                 accountId = "a",
             ),
@@ -116,11 +117,11 @@ class PageKeyFlowTest {
         // "unread only" is not the pager for "everything", so coming back to a setting must build the
         // source again. Remembering every key ever seen would be a dedupe too wide.
         val seen = keys {
-            unread.value = true; runCurrent()
-            unread.value = false; runCurrent()
+            unread.value = ListFilter(unreadOnly = true); runCurrent()
+            unread.value = ListFilter.NONE; runCurrent()
         }
         assertEquals("A then B then A must emit three times, not two: $seen", 3, seen.size)
-        assertEquals(listOf(false, true, false), seen.map { it.unreadOnly })
+        assertEquals(listOf(false, true, false), seen.map { it.toggles.unreadOnly })
     }
 
     // -- the other direction: each of the seven members must still rebuild the pager -------------
@@ -239,9 +240,17 @@ class PageKeyFlowTest {
 
     @Test
     fun `turning the unread filter on rebuilds`() {
-        val seen = keys { unread.value = true }
+        val seen = keys { unread.value = ListFilter(unreadOnly = true) }
         assertEquals("the unread filter is part of the query: $seen", 2, seen.size)
-        assertEquals(listOf(false, true), seen.map { it.unreadOnly })
+        assertEquals(listOf(false, true), seen.map { it.toggles.unreadOnly })
+    }
+
+    @Test
+    fun `turning the starred or the attachment filter on rebuilds`() {
+        val starred = keys { unread.value = ListFilter(flaggedOnly = true) }
+        assertEquals("the starred filter is part of the query: $starred", 2, starred.size)
+        val clipped = keys { unread.value = ListFilter(withAttachment = true) }
+        assertEquals("the attachment filter is part of the query: $clipped", 2, clipped.size)
     }
 
     @Test

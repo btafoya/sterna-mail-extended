@@ -137,6 +137,10 @@
     <string name="inbox_clear">Wyczyść</string>
     <string name="inbox_menu">Menu</string>
     <string name="inbox_unread_only">Tylko nieprzeczytane</string>
+    <string name="inbox_unread_only_other_filters">Tylko nieprzeczytane, inne filtry włączone</string>
+    <string name="inbox_filter_flagged">Tylko oznaczone</string>
+    <string name="inbox_filter_attachment">Z załącznikiem</string>
+    <string name="inbox_filter_active">Filtr włączony</string>
     <string name="inbox_sort">Sortuj</string>
     <string name="inbox_search">Szukaj</string>
     <string name="inbox_more">Więcej</string>
@@ -986,6 +990,8 @@
     <string name="empty_unread_body">Wszystko tutaj przeczytane. Wyłącz filtr nieprzeczytanych, aby zobaczyć całą pocztę.</string>
     <string name="empty_unread_view_body">Wszystko w Twoich folderach przeczytane.</string>
     <string name="empty_unread_action">Pokaż wszystkie</string>
+    <string name="empty_filtered_title">Brak wiadomości pasujących do filtrów</string>
+    <string name="empty_filtered_body">Filtry mogą tu ukrywać wiadomości.</string>
     <string name="inbox_empty_trash">Opróżnij kosz</string>
     <string name="status_trash_emptied">Opróżnianie kosza…</string>
 

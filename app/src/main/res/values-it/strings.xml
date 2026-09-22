@@ -137,6 +137,10 @@
     <string name="inbox_clear">Cancella</string>
     <string name="inbox_menu">Menu</string>
     <string name="inbox_unread_only">Solo da leggere</string>
+    <string name="inbox_unread_only_other_filters">Solo da leggere, altri filtri attivi</string>
+    <string name="inbox_filter_flagged">Solo speciali</string>
+    <string name="inbox_filter_attachment">Con allegato</string>
+    <string name="inbox_filter_active">Filtro attivo</string>
     <string name="inbox_sort">Ordina</string>
     <string name="inbox_search">Cerca</string>
     <string name="inbox_more">Altro</string>
@@ -972,6 +976,8 @@
     <string name="empty_unread_body">Hai letto tutto qui. Disattiva il filtro non letti per vedere tutta la posta.</string>
     <string name="empty_unread_view_body">Hai letto tutto nelle tue cartelle.</string>
     <string name="empty_unread_action">Mostra tutti</string>
+    <string name="empty_filtered_title">Nessun messaggio corrisponde ai filtri</string>
+    <string name="empty_filtered_body">I filtri potrebbero nascondere dei messaggi qui.</string>
     <string name="inbox_empty_trash">Svuota cestino</string>
     <string name="status_trash_emptied">Svuotamento del cestino…</string>
 

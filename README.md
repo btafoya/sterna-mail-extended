@@ -115,8 +115,8 @@ Running your own server, with a free certificate or one you issued yourself? See
 - Nested folders shown as a collapsible tree; create / rename / delete, plus
   subfolders
 - Configurable swipe actions, star, archive & delete with undo, multi-select
-  bulk actions, snooze, report spam, empty trash (with undo), sort and unread-only
-  filter
+  bulk actions, snooze, report spam, empty trash (with undo), sort, and
+  unread-only, starred-only and has-attachment filters
 - Search-as-you-type (server-side + instant local results) with advanced filters
   (from, recipient, subject, has-attachment, date); Trash and Spam are left out
 - Calendar invites preview as an event card; one tap adds them to your calendar

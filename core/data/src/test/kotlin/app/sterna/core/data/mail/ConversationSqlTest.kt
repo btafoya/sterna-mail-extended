@@ -73,7 +73,7 @@ class ConversationSqlTest {
         unreadOnly: Boolean = false,
         scopes: List<Pair<String, String>> = listOf("acc" to "inbox"),
     ): List<Map<String, Any?>> {
-        val sql = conversationSql(scopeCount = scopes.size, sort = sort, unreadOnly = unreadOnly)
+        val sql = conversationSql(scopeCount = scopes.size, sort = sort, filter = ListFilter(unreadOnly = unreadOnly))
         return db.prepareStatement(sql).use { ps ->
             // in-view sub-query, in-view count sub-query, outer where, each binds every scope,
             // account id first.
@@ -173,7 +173,7 @@ class ConversationSqlTest {
      *  account-pinned ("acc", "sent") pair. */
     private fun runWithSent(): List<Map<String, Any?>> {
         val sql = conversationSql(
-            scopeCount = 1, sort = SortOrder.DATE_DESC, unreadOnly = false, sentMailboxCount = 1,
+            scopeCount = 1, sort = SortOrder.DATE_DESC, filter = ListFilter.NONE, sentMailboxCount = 1,
         )
         return db.prepareStatement(sql).use { ps ->
             ps.setString(1, "acc"); ps.setString(2, "inbox") // in-view sub-query g
@@ -314,7 +314,7 @@ class ConversationSqlTest {
         insert("bx", threadId = "T2", seen = 1, flagged = 0, sortKey = 250, mailbox = "X", accountId = "accB")
 
         val sql = conversationSql(
-            scopeCount = 2, sort = SortOrder.DATE_DESC, unreadOnly = false, sentMailboxCount = 1,
+            scopeCount = 2, sort = SortOrder.DATE_DESC, filter = ListFilter.NONE, sentMailboxCount = 1,
         )
         val rows = db.prepareStatement(sql).use { ps ->
             ps.setString(1, "accA"); ps.setString(2, "inbox"); ps.setString(3, "accB"); ps.setString(4, "inbox") // g
@@ -420,7 +420,7 @@ class ConversationSqlTest {
         sort: SortOrder = SortOrder.DATE_DESC,
         unreadOnly: Boolean = false,
     ): List<String> {
-        val sql = pagingSql(scopeCount = scopes.size, sort = sort, unreadOnly = unreadOnly)
+        val sql = pagingSql(scopeCount = scopes.size, sort = sort, filter = ListFilter(unreadOnly = unreadOnly))
         return db.prepareStatement(sql).use { ps ->
             scopes.flatMap { listOf(it.first, it.second) }
                 .forEachIndexed { i, a -> ps.setString(i + 1, a) }

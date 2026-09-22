@@ -81,7 +81,7 @@ class ConversationQueryTest {
         unreadOnly: Boolean = false,
     ): List<Row> {
         val scopes = accounts.flatMap { acc -> mailboxIds.map { acc to it } }
-        val query = conversationQuery(scopes, sort, unreadOnly, accountId, sent)
+        val query = conversationQuery(scopes, sort, ListFilter(unreadOnly = unreadOnly), accountId, sent)
         val recorded = RecordingStatement().also { query.bindTo(it) }
         assertEquals(
             "the query declares an argument count its own bindTo does not fill",

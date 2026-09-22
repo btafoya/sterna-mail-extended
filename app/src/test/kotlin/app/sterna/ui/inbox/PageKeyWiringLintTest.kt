@@ -66,8 +66,8 @@ class PageKeyWiringLintTest {
                 "null until something is selected and never moves on an account switch — two " +
                 "same-server accounts sharing a mailbox id would then build an EQUAL key, the dedupe " +
                 "would swallow it, and the list would keep showing the other account's mail (#121). " +
-                "The same comparison is what stops the two Flow<Boolean> being swapped, and the two " +
-                "Flow<List<Pair<String, String>>> with it — unifiedInboxScopes and unreadScopes are " +
+                "The same comparison is what stops the two " +
+                "Flow<List<Pair<String, String>>> being swapped — unifiedInboxScopes and unreadScopes are " +
                 "the same type and adjacent in the key, so the swap compiles and the unread view " +
                 "would page every account's Inbox. Call site was:" +
                 "\n${arguments.joinToString("\n")}",
@@ -82,19 +82,23 @@ class PageKeyWiringLintTest {
     @Test
     fun `the list's unread filter is decided once, and the selection asks the same question`() {
         val readers = codeText(INBOX_VIEW_MODEL).map { it.trim() }
-            .filter { "unreadOnly.value" in it || "listUnreadOnly(" in it }
+            .filter { "filterToggles.value" in it || "listFilter(" in it }
         assertEquals(
-            "Every place that describes WHAT THE LIST SHOWS must ask listUnreadOnly(...) — the three " +
-                "pager branches and selectAll's `filtered`. The only line allowed to touch " +
-                "unreadOnly.value on its own is the toolbar toggle, which describes the BUTTON. A " +
-                "raw read in selectAll is the destructive half of #126 rebuilt. Lines found were:" +
+            "Every place that describes WHAT THE LIST SHOWS must ask listFilter(...) — the three " +
+                "pager branches and selectAll's `filtered`, which hands the answer on whole. The only " +
+                "lines allowed to touch filterToggles.value on their own are the writes, which " +
+                "describe what the user set, not what the list shows. A raw read in selectAll, or one criterion picked out of " +
+                "the answer, is the destructive half of #126 rebuilt. Lines found were:" +
                 "\n${readers.joinToString("\n")}",
             listOf(
-                "repo.pagedFolder(credentials, id, key.sort, listUnreadOnly(key.sel, key.unreadOnly), key.conversationView, sent)",
-                "repo.pagedMailbox(key.unifiedScopes, key.sort, listUnreadOnly(key.sel, key.unreadOnly), key.conversationView, sent)",
-                "repo.pagedMailbox(key.unreadScopes, key.sort, listUnreadOnly(key.sel, key.unreadOnly), key.conversationView, sent)",
-                "unreadOnly.value = !unreadOnly.value",
-                "val filtered = listUnreadOnly(selection.value, unreadOnly.value)",
+                "filterToggles.value = filterToggles.value.afterShowAll()",
+                "filterToggles.value = filterToggles.value.toggled(ListCriterion.ATTACHMENT)",
+                "filterToggles.value = filterToggles.value.toggled(ListCriterion.FLAGGED)",
+                "filterToggles.value = filterToggles.value.toggled(ListCriterion.UNREAD)",
+                "repo.pagedFolder(credentials, id, key.sort, listFilter(key.sel, key.toggles), key.conversationView, sent)",
+                "repo.pagedMailbox(key.unifiedScopes, key.sort, listFilter(key.sel, key.toggles), key.conversationView, sent)",
+                "repo.pagedMailbox(key.unreadScopes, key.sort, listFilter(key.sel, key.toggles), key.conversationView, sent)",
+                "val filtered = listFilter(selection.value, filterToggles.value)",
             ),
             readers.sorted(),
         )
@@ -137,16 +141,16 @@ class PageKeyWiringLintTest {
             "InboxViewModel must build exactly two multi-folder pagers — the unified inbox and the " +
                 "unread scope — with these arguments. Compared as whole lists: 'key.unifiedScopes' in " +
                 "the unread branch pages every account's Inbox under a name that promises one " +
-                "account's unread mail, and 'key.unreadOnly' in place of listUnreadOnly(...) lists " +
+                "account's unread mail, and 'key.toggles' in place of listFilter(...) lists " +
                 "that account's READ mail too the moment the toolbar funnel is off. Calls found were:" +
                 "\n${pagedMailboxCalls().joinToString("\n")}",
             listOf(
                 listOf(
-                    "key.unifiedScopes", "key.sort", "listUnreadOnly(key.sel, key.unreadOnly)",
+                    "key.unifiedScopes", "key.sort", "listFilter(key.sel, key.toggles)",
                     "key.conversationView", "sent",
                 ),
                 listOf(
-                    "key.unreadScopes", "key.sort", "listUnreadOnly(key.sel, key.unreadOnly)",
+                    "key.unreadScopes", "key.sort", "listFilter(key.sel, key.toggles)",
                     "key.conversationView", "sent",
                 ),
             ),
@@ -317,7 +321,7 @@ class PageKeyWiringLintTest {
             "unifiedInboxScopes = unifiedInboxScopes",
             "unreadViewScopes = unreadScopes",
             "sortOrder = settings.sortOrder",
-            "unreadOnly = unreadOnly",
+            "filterToggles = filterToggles",
             "conversationView = settings.conversationView",
             "currentAccountId = currentAccountId",
         )

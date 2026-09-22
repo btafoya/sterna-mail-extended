@@ -137,6 +137,10 @@
     <string name="inbox_clear">Limpar</string>
     <string name="inbox_menu">Menu</string>
     <string name="inbox_unread_only">Apenas não lidas</string>
+    <string name="inbox_unread_only_other_filters">Apenas não lidas, outros filtros ativos</string>
+    <string name="inbox_filter_flagged">Apenas com estrela</string>
+    <string name="inbox_filter_attachment">Com anexo</string>
+    <string name="inbox_filter_active">Filtro ativo</string>
     <string name="inbox_sort">Ordenar</string>
     <string name="inbox_search">Buscar</string>
     <string name="inbox_more">Mais</string>
@@ -976,6 +980,8 @@
     <string name="empty_unread_body">Já leu tudo aqui. Desative o filtro de não lidas para ver todo o correio.</string>
     <string name="empty_unread_view_body">Já leu tudo nas suas pastas.</string>
     <string name="empty_unread_action">Mostrar tudo</string>
+    <string name="empty_filtered_title">Nenhuma mensagem corresponde aos filtros</string>
+    <string name="empty_filtered_body">Os seus filtros podem estar a ocultar mensagens aqui.</string>
     <string name="inbox_empty_trash">Esvaziar lixeira</string>
     <string name="status_trash_emptied">Esvaziando a lixeira…</string>
 

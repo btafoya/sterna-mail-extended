@@ -80,8 +80,8 @@ class UnreadViewWiringLintTest {
     fun `the unread funnel is not offered in a view that is already filtered`() {
         val actions = toolbarActions()
         assertEquals(
-            "The toolbar's unread funnel must be hidden in the unread view. [listUnreadOnly] forces " +
-                "the filter on there, so the button would be drawn in its OFF colour over a filtered " +
+            "The toolbar's unread funnel must be hidden in the unread view. [listFilter] forces " +
+                "the unread criterion on there, so the button would be drawn in its OFF colour over a filtered " +
                 "list (it reads ui.unreadOnly, which the scope does not touch) and tapping it would " +
                 "change nothing on screen. Compared as whole conditions: an empty answer means the " +
                 "guard was dropped, and a longer one means it grew a term. Conditions mentioning the " +
@@ -479,7 +479,7 @@ class UnreadViewWiringLintTest {
             "private val badgedState = combine(baseState, unreadScopes, currentHiding, showOnlySubscribed, indicatorShowing) { base, scopes, hiding, onlySubscribed, showing ->",
             "private val baseState = combine(mailboxes, selection, meta, status, unifiedUnread) { mailboxes, sel, meta, status, unifiedUnread ->",
             "private val orderedState = combine(badgedState, currentFolderOrder) { badged, order ->",
-            "val state: StateFlow<MailUi> = combine(orderedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->",
+            "val state: StateFlow<MailUi> = combine(orderedState, searchState, settings.sortOrder, filterToggles, connectivity.online) { base, search, sortOrder, toggles, online ->",
         )
 
         /** The badge, computed once, from the scope the pager uses. */

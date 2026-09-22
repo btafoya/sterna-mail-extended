@@ -525,9 +525,9 @@ private fun pagingQuery(
     // The folders this list covers, as (account id, mailbox id) pairs, see [folderScopeSql].
     scopes: List<Pair<String, String>>,
     sort: SortOrder,
-    unreadOnly: Boolean,
+    filter: ListFilter,
 ): SimpleSQLiteQuery = SimpleSQLiteQuery(
-    pagingSql(scopes.size, sort, unreadOnly),
+    pagingSql(scopes.size, sort, filter),
     scopes.flatMap { listOf(it.first, it.second) }.toTypedArray(),
 )
 
@@ -543,7 +543,7 @@ internal fun folderScopeSql(scopeCount: Int, table: String): String =
 internal fun pagingSql(
     scopeCount: Int,
     sort: SortOrder,
-    unreadOnly: Boolean,
+    filter: ListFilter,
 ): String {
     val orderBy = when (sort) {
         SortOrder.DATE_DESC -> "sortKey DESC"
@@ -553,16 +553,18 @@ internal fun pagingSql(
         SortOrder.UNREAD_FIRST -> "seen ASC, sortKey DESC"
         SortOrder.FLAGGED_FIRST -> "flagged DESC, sortKey DESC"
     }
-    return "SELECT * FROM emails WHERE ${listRowsWhereSql(scopeCount, unreadOnly)} ORDER BY $orderBy"
+    return "SELECT * FROM emails WHERE ${listRowsWhereSql(scopeCount, filter)} ORDER BY $orderBy"
 }
 
 /** Which rows the flat list holds, sort excluded. One clause, shared by the two readers that must
  *  not disagree, [pagingSql] and [selectionIdsSql], what "Select all" takes (#126). */
-internal fun listRowsWhereSql(scopeCount: Int, unreadOnly: Boolean): String {
+internal fun listRowsWhereSql(scopeCount: Int, filter: ListFilter): String {
     val scope = folderScopeSql(scopeCount, "emails")
-    val seenFilter = if (unreadOnly) " AND seen = 0" else ""
+    val seenFilter = if (filter.unreadOnly) " AND seen = 0" else ""
+    val flaggedFilter = if (filter.flaggedOnly) " AND flagged = 1" else ""
+    val attachmentFilter = if (filter.withAttachment) " AND hasAttachment = 1" else ""
     val notSnoozed = " AND ${notSnoozedSql("emails")}"
-    return "($scope)$seenFilter$notSnoozed"
+    return "($scope)$seenFilter$flaggedFilter$attachmentFilter$notSnoozed"
 }
 
 /** The rows of `MailboxDao.observeRoles` (#115), keyed by (account, folder), not by folder: servers
@@ -571,25 +573,57 @@ internal fun listRowsWhereSql(scopeCount: Int, unreadOnly: Boolean): String {
 internal fun folderRoleMap(rows: List<AccountMailboxRole>): Map<Pair<String, String>, String> =
     rows.mapNotNull { row -> unmarkedRole(row.role)?.let { (row.accountId to row.id) to it } }.toMap()
 
-/** The keys "Select all" may take: the same rows [pagingSql] draws, projected to (accountId, id).
- *  Bind order is [pagingQuery]'s. */
-internal fun selectionIdsSql(scopeCount: Int, unreadOnly: Boolean): String =
-    "SELECT accountId, id FROM emails WHERE ${listRowsWhereSql(scopeCount, unreadOnly)}"
+/** The keys "Select all" may take: the rows [pagingSql] draws, as (accountId, id). In conversation
+ *  view a thread is drawn only when its representative wears what [filter] asks for
+ *  ([representativeIndicatorsSql]): a starred member of a thread drawn unstarred stays out (#126).
+ *  Bind order: [scopeCount] pairs, once per [selectionScopeRepeats]. */
+internal fun selectionIdsSql(scopeCount: Int, filter: ListFilter, conversationView: Boolean): String {
+    val flat = "SELECT accountId, id FROM emails WHERE ${listRowsWhereSql(scopeCount, filter)}"
+    if (!threadGatedSelection(filter, conversationView)) return flat
+    val sameThread = { a: String, b: String ->
+        "$a.accountId = $b.accountId AND COALESCE($a.threadId, $a.id) = COALESCE($b.threadId, $b.id)"
+    }
+    return "$flat AND EXISTS (SELECT 1 FROM emails r WHERE ${sameThread("r", "emails")} " +
+        "AND (${folderScopeSql(scopeCount, "r")}) AND ${notSnoozedSql("r")}" +
+        representativeIndicatorsSql(filter, "r") +
+        " AND NOT EXISTS (SELECT 1 FROM emails s WHERE ${sameThread("s", "r")} " +
+        "AND (${folderScopeSql(scopeCount, "s")}) AND ${notSnoozedSql("s")} AND s.sortKey > r.sortKey))"
+}
+
+/** Whether "Select all" must also ask the thread's representative: only in conversation view, and
+ *  only for the criteria the row reads off it. The unread criterion needs no gate: a thread is drawn
+ *  when any member is unread, so every unread member belongs to a drawn row. */
+private fun threadGatedSelection(filter: ListFilter, conversationView: Boolean): Boolean =
+    conversationView && (filter.flaggedOnly || filter.withAttachment)
+
+/** How many times [selectionIdsSql] binds the scope pairs. */
+internal fun selectionScopeRepeats(filter: ListFilter, conversationView: Boolean): Int =
+    if (threadGatedSelection(filter, conversationView)) 3 else 1
 
 internal fun selectionIdsQuery(
     scopes: List<Pair<String, String>>,
-    unreadOnly: Boolean,
+    filter: ListFilter,
+    conversationView: Boolean,
 ): SimpleSQLiteQuery = SimpleSQLiteQuery(
-    selectionIdsSql(scopes.size, unreadOnly),
-    scopes.flatMap { listOf(it.first, it.second) }.toTypedArray(),
+    selectionIdsSql(scopes.size, filter, conversationView),
+    List(selectionScopeRepeats(filter, conversationView)) { scopes.flatMap { listOf(it.first, it.second) } }
+        .flatten().toTypedArray(),
 )
+
+/** The star and paperclip criteria of [filter], asked of the row [alias] a collapsed thread is drawn
+ *  from. The representative's own columns, never an aggregate over the thread: the row shows
+ *  `e.flagged` and `e.hasAttachment`, and a filter on "any member" would keep a row wearing neither
+ *  (the #111 reasoning, applied to the filter). */
+internal fun representativeIndicatorsSql(filter: ListFilter, alias: String): String =
+    (if (filter.flaggedOnly) " AND $alias.flagged = 1" else "") +
+        (if (filter.withAttachment) " AND $alias.hasAttachment = 1" else "")
 
 /** The home-screen widget's read of the unified inbox, as one bounded statement. Which rows is
  *  [listRowsWhereSql] with the unread funnel off, so the pair scope (#121) and the snooze filter
  *  come free. `, id DESC` is a tie-break: rows commonly share a sortKey. */
 internal fun recentUnifiedSql(scopeCount: Int): String =
     "SELECT $RECENT_EMAIL_ROW_COLUMNS FROM emails " +
-        "WHERE ${listRowsWhereSql(scopeCount, unreadOnly = false)} " +
+        "WHERE ${listRowsWhereSql(scopeCount, ListFilter.NONE)} " +
         "ORDER BY sortKey DESC, id DESC LIMIT ?"
 
 /** The most rows a widget read will ever ask SQLite for. A count derived from the cell's height
@@ -639,7 +673,7 @@ internal fun unreadByAccountFrom(
 internal fun conversationQuery(
     scopes: List<Pair<String, String>>,
     sort: SortOrder,
-    unreadOnly: Boolean,
+    filter: ListFilter,
     // The account a folder view is pinned to. It no longer filters the rows; it selects which Sent
     // folders count.
     accountId: String?,
@@ -654,7 +688,7 @@ internal fun conversationQuery(
     val chipClause = perClause + sent.flatMap { listOf(it.first, it.second) }
     val args = perClause + chipClause + perClause
     return SimpleSQLiteQuery(
-        conversationSql(scopes.size, sort, unreadOnly, sent.size),
+        conversationSql(scopes.size, sort, filter, sent.size),
         args.toTypedArray(),
     )
 }
@@ -663,13 +697,14 @@ internal fun conversationQuery(
  *  the key alone: a bare `group by tkey` collapses two accounts' conversations into one row. Bind
  *  order: `g` takes [scopeCount] pairs, account first; `c` the same pairs then one pair per
  *  [sentMailboxCount] Sent folder; the outer where binds like `g`; `t` takes none. */
-internal fun conversationSql(scopeCount: Int, sort: SortOrder, unreadOnly: Boolean, sentMailboxCount: Int = 0): String {
+internal fun conversationSql(scopeCount: Int, sort: SortOrder, filter: ListFilter, sentMailboxCount: Int = 0): String {
     val scope = folderScopeSql(scopeCount, "emails")
     val scopeOuter = folderScopeSql(scopeCount, "e")
     val sentAlternatives = " OR (accountId = ? AND mailboxId = ?)".repeat(sentMailboxCount)
     val notSnoozed = notSnoozedSql("emails")
     val notSnoozedOuter = notSnoozedSql("e")
-    val having = if (unreadOnly) " HAVING MIN(seen) = 0" else ""
+    val having = if (filter.unreadOnly) " HAVING MIN(seen) = 0" else ""
+    val indicators = representativeIndicatorsSql(filter, "e")
     val orderBy = when (sort) {
         SortOrder.DATE_DESC -> "e.sortKey DESC"
         SortOrder.DATE_ASC -> "e.sortKey ASC"
@@ -701,7 +736,7 @@ internal fun conversationSql(scopeCount: Int, sort: SortOrder, unreadOnly: Boole
             WHERE $notSnoozed
             GROUP BY tacc, tkey2
         ) t ON t.tkey2 = g.tkey AND t.tacc = g.gacc
-        WHERE ($scopeOuter) AND $notSnoozedOuter
+        WHERE ($scopeOuter) AND $notSnoozedOuter$indicators
         GROUP BY g.gacc, g.tkey
         ORDER BY $orderBy
     """.trimIndent()
@@ -1400,7 +1435,7 @@ class MailRepository(
     fun pagedMailbox(
         scopes: List<Pair<String, String>>,
         sort: SortOrder,
-        unreadOnly: Boolean,
+        filter: ListFilter,
         conversationView: Boolean,
         // Each account's Sent-role folder as an (accountId, mailboxId) pair, the conversation chip
         // counts the thread's Sent replies. NO default: an omission is a chip that counts too few.
@@ -1410,12 +1445,12 @@ class MailRepository(
         return if (conversationView) {
             Pager(
                 config = pagingConfig(),
-                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.conversationPagingSource(conversationQuery(scopes, sort, unreadOnly, accountId = null, sentMailboxes = sentMailboxes))) },
+                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.conversationPagingSource(conversationQuery(scopes, sort, filter, accountId = null, sentMailboxes = sentMailboxes))) },
             ).flow.map { data -> data.map { it.toInboxRow() } }
         } else {
             Pager(
                 config = pagingConfig(),
-                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.pagingSource(pagingQuery(scopes, sort, unreadOnly))) },
+                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.pagingSource(pagingQuery(scopes, sort, filter))) },
             ).flow.map { data -> data.map { InboxRow(it.toEmail(), threadCount = 1, unread = !it.seen) } }
         }
     }
@@ -1429,7 +1464,7 @@ class MailRepository(
         credentials: AccountCredentials,
         mailboxId: String,
         sort: SortOrder,
-        unreadOnly: Boolean,
+        filter: ListFilter,
         conversationView: Boolean,
         // The account's Sent-role folder as an (accountId, mailboxId) pair, see [pagedMailbox]. NO default.
         sentMailboxes: List<Pair<String, String>>,
@@ -1439,13 +1474,13 @@ class MailRepository(
             Pager(
                 config = pagingConfig(),
                 remoteMediator = folderMediator(credentials, mailboxId, conversationView = true),
-                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.conversationPagingSource(conversationQuery(scopes, sort, unreadOnly, credentials.id, sentMailboxes))) },
+                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.conversationPagingSource(conversationQuery(scopes, sort, filter, credentials.id, sentMailboxes))) },
             ).flow.map { data -> data.map { it.toInboxRow() } }
         } else {
             Pager(
                 config = pagingConfig(),
                 remoteMediator = folderMediator(credentials, mailboxId, conversationView = false),
-                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.pagingSource(pagingQuery(scopes, sort, unreadOnly))) },
+                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.pagingSource(pagingQuery(scopes, sort, filter))) },
             ).flow.map { data -> data.map { InboxRow(it.toEmail(), threadCount = 1, unread = !it.seen) } }
         }
     }
@@ -1555,8 +1590,12 @@ class MailRepository(
     /**
      * The keys "Select all" may take outside a search: the rows the flat list is paging, through
      */
-    suspend fun selectableIds(scopes: List<Pair<String, String>>, unreadOnly: Boolean): List<EmailKey> =
-        emailDao.keysForSelection(selectionIdsQuery(scopes, unreadOnly))
+    suspend fun selectableIds(
+        scopes: List<Pair<String, String>>,
+        filter: ListFilter,
+        conversationView: Boolean,
+    ): List<EmailKey> =
+        emailDao.keysForSelection(selectionIdsQuery(scopes, filter, conversationView))
             .map { EmailKey(it.accountId, it.id) }
 
     /**

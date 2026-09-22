@@ -5,6 +5,7 @@ import app.sterna.core.data.db.LocalDraftEntity
 import app.sterna.core.data.db.LocalDraftState
 import app.sterna.core.data.mail.EmailKey
 import app.sterna.core.data.mail.InboxRow
+import app.sterna.core.data.mail.ListFilter
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailAddress
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +31,7 @@ class LocalDraftRowsTest {
             currentAccountId = flowOf("acc-1"),
             selectedMailboxId = flowOf("mb-drafts"),
             folderRoles = flowOf(mapOf(("acc-1" to "mb-drafts") to "drafts")),
-            unreadOnly = flowOf(false),
+            filter = flowOf(ListFilter.NONE),
             localDrafts = { accountId -> asked += accountId; flowOf(listOf(row(id = LOCAL + "d1", subject = "Half a letter"))) },
         )
         val local = flow.first()
@@ -46,7 +47,7 @@ class LocalDraftRowsTest {
                 currentAccountId = flowOf("acc-1"),
                 selectedMailboxId = flowOf("mb-x"),
                 folderRoles = flowOf(mapOf(("acc-1" to "mb-x") to role)),
-                unreadOnly = flowOf(false),
+                filter = flowOf(ListFilter.NONE),
                 localDrafts = { flowOf(listOf(row())) },
             ).first()
             assertEquals("a folder with role $role must show no local draft", emptyList<InboxRow>(), local.rows)
@@ -60,7 +61,7 @@ class LocalDraftRowsTest {
             currentAccountId = flowOf("acc-1"),
             selectedMailboxId = flowOf("mb-custom"),
             folderRoles = flowOf(emptyMap()),
-            unreadOnly = flowOf(false),
+            filter = flowOf(ListFilter.NONE),
             localDrafts = { flowOf(listOf(row())) },
         ).first()
         assertEquals("a plain user folder has no role and must show nothing", emptyList<InboxRow>(), roleless.rows)
@@ -70,7 +71,7 @@ class LocalDraftRowsTest {
             currentAccountId = flowOf("acc-1"),
             selectedMailboxId = flowOf(null),
             folderRoles = flowOf(mapOf(("acc-1" to "mb-drafts") to "drafts")),
-            unreadOnly = flowOf(false),
+            filter = flowOf(ListFilter.NONE),
             localDrafts = { flowOf(listOf(row())) },
         ).first()
         assertEquals(emptyList<InboxRow>(), unified.rows)
@@ -84,7 +85,7 @@ class LocalDraftRowsTest {
             currentAccountId = flowOf("acc-1"),
             selectedMailboxId = flowOf("mb-drafts"),
             folderRoles = flowOf(mapOf(("acc-2" to "mb-drafts") to "drafts")),
-            unreadOnly = flowOf(false),
+            filter = flowOf(ListFilter.NONE),
             localDrafts = { flowOf(listOf(row())) },
         ).first()
         assertEquals(emptyList<InboxRow>(), local.rows)
@@ -97,7 +98,7 @@ class LocalDraftRowsTest {
             currentAccountId = flowOf("acc-1"),
             selectedMailboxId = selected,
             folderRoles = flowOf(mapOf(("acc-1" to "mb-drafts") to "drafts")),
-            unreadOnly = flowOf(false),
+            filter = flowOf(ListFilter.NONE),
             localDrafts = { flowOf(listOf(row(id = LOCAL + "d1"))) },
         )
         assertEquals(listOf(LOCAL + "d1"), flow.first().rows.map { it.email.id })
@@ -112,7 +113,7 @@ class LocalDraftRowsTest {
             currentAccountId = flowOf("acc-1"),
             selectedMailboxId = flowOf("mb-drafts"),
             folderRoles = flowOf(mapOf(("acc-1" to "mb-drafts") to "drafts")),
-            unreadOnly = flowOf(false),
+            filter = flowOf(ListFilter.NONE),
             localDrafts = {
                 flowOf(
                     listOf(
@@ -132,12 +133,12 @@ class LocalDraftRowsTest {
     @Test
     fun `showsLocalDrafts answers the folder role, and nothing else`() {
         val roles = mapOf(("acc-1" to "mb-drafts") to "drafts", ("acc-1" to "mb-inbox") to "inbox")
-        assertTrue(showsLocalDrafts("acc-1", "mb-drafts", roles, unreadOnly = false))
-        assertFalse(showsLocalDrafts("acc-1", "mb-inbox", roles, unreadOnly = false))
-        assertFalse(showsLocalDrafts("acc-1", "mb-unknown", roles, unreadOnly = false))
-        assertFalse(showsLocalDrafts("acc-2", "mb-drafts", roles, unreadOnly = false))
-        assertFalse(showsLocalDrafts(null, "mb-drafts", roles, unreadOnly = false))
-        assertFalse(showsLocalDrafts("acc-1", null, roles, unreadOnly = false))
+        assertTrue(showsLocalDrafts("acc-1", "mb-drafts", roles, ListFilter.NONE))
+        assertFalse(showsLocalDrafts("acc-1", "mb-inbox", roles, ListFilter.NONE))
+        assertFalse(showsLocalDrafts("acc-1", "mb-unknown", roles, ListFilter.NONE))
+        assertFalse(showsLocalDrafts("acc-2", "mb-drafts", roles, ListFilter.NONE))
+        assertFalse(showsLocalDrafts(null, "mb-drafts", roles, ListFilter.NONE))
+        assertFalse(showsLocalDrafts("acc-1", null, roles, ListFilter.NONE))
     }
 
     @Test
@@ -145,22 +146,22 @@ class LocalDraftRowsTest {
         // The row carries $seen and InboxRow.unread = false (see the projection test below), so
         // under a funnel that promises unread mail it is the one row on screen that lies.
         val roles = mapOf(("acc-1" to "mb-drafts") to "drafts")
-        assertFalse(showsLocalDrafts("acc-1", "mb-drafts", roles, unreadOnly = true))
-        assertTrue("and the funnel is the ONLY thing that changed", showsLocalDrafts("acc-1", "mb-drafts", roles, unreadOnly = false))
+        assertFalse(showsLocalDrafts("acc-1", "mb-drafts", roles, ListFilter(unreadOnly = true)))
+        assertTrue("and the funnel is the ONLY thing that changed", showsLocalDrafts("acc-1", "mb-drafts", roles, ListFilter.NONE))
     }
 
     @Test
     fun `turning the unread-only funnel on takes the local rows off the list`() = runTest {
-        val unread = MutableStateFlow(false)
+        val unread = MutableStateFlow(ListFilter.NONE)
         val flow = localDraftRowsFlow(
             currentAccountId = flowOf("acc-1"),
             selectedMailboxId = flowOf("mb-drafts"),
             folderRoles = flowOf(mapOf(("acc-1" to "mb-drafts") to "drafts")),
-            unreadOnly = unread,
+            filter = unread,
             localDrafts = { flowOf(listOf(row(id = LOCAL + "d1", replacesEmailId = "imap:mb-drafts:41"))) },
         )
         assertEquals(listOf(LOCAL + "d1"), flow.first().rows.map { it.email.id })
-        unread.value = true
+        unread.value = ListFilter(unreadOnly = true)
         val filtered = flow.first()
         assertEquals(emptyList<InboxRow>(), filtered.rows)
         assertEquals(
@@ -179,7 +180,7 @@ class LocalDraftRowsTest {
             currentAccountId = flowOf("acc-1"),
             selectedMailboxId = flowOf("mb-drafts"),
             folderRoles = flowOf(mapOf(("acc-1" to "mb-drafts") to "drafts")),
-            unreadOnly = flowOf(false),
+            filter = flowOf(ListFilter.NONE),
             localDrafts = {
                 flowOf(
                     listOf(
@@ -347,6 +348,74 @@ class LocalDraftRowsTest {
         assertEquals(emptyList<EmailAddress>(), email.bcc)
     }
 
+    @Test
+    fun `the starred filter is a refusal - a local row never wears a star`() {
+        val roles = mapOf(("acc-1" to "mb-drafts") to "drafts")
+        assertFalse(showsLocalDrafts("acc-1", "mb-drafts", roles, ListFilter(flaggedOnly = true)))
+        assertFalse(
+            "combined with the attachment filter it still refuses",
+            showsLocalDrafts("acc-1", "mb-drafts", roles, ListFilter(flaggedOnly = true, withAttachment = true)),
+        )
+        assertTrue(
+            "the attachment filter alone lets the folder show them",
+            showsLocalDrafts("acc-1", "mb-drafts", roles, ListFilter(withAttachment = true)),
+        )
+    }
+
+    @Test
+    fun `a local row wears the paperclip exactly when it carries a staged part`() {
+        assertTrue(row(attachmentsJson = ONE_FILE).toInboxRow("mb-drafts").email.hasAttachment)
+        assertFalse(row().toInboxRow("mb-drafts").email.hasAttachment)
+    }
+
+    @Test
+    fun `under the attachment filter only the drafts carrying one are listed`() = runTest {
+        val filter = MutableStateFlow(ListFilter.NONE)
+        val flow = localDraftRowsFlow(
+            currentAccountId = flowOf("acc-1"),
+            selectedMailboxId = flowOf("mb-drafts"),
+            folderRoles = flowOf(mapOf(("acc-1" to "mb-drafts") to "drafts")),
+            filter = filter,
+            localDrafts = {
+                flowOf(
+                    listOf(
+                        row(id = LOCAL + "clip", replacesEmailId = "imap:mb-drafts:1", attachmentsJson = ONE_FILE),
+                        row(id = LOCAL + "bare", replacesEmailId = "imap:mb-drafts:2"),
+                    ),
+                )
+            },
+        )
+        assertEquals(listOf(LOCAL + "clip", LOCAL + "bare"), flow.first().rows.map { it.email.id })
+        filter.value = ListFilter(withAttachment = true)
+        val filtered = flow.first()
+        assertEquals(listOf(LOCAL + "clip"), filtered.rows.map { it.email.id })
+        assertEquals(
+            "a draft filtered out still hides its server copy (#95): that copy is the stale text of " +
+                "the same draft, and dropping the local row must not bring it back in its place",
+            setOf("imap:mb-drafts:1", "imap:mb-drafts:2"),
+            filtered.replacedServerIds,
+        )
+        filter.value = ListFilter(flaggedOnly = true)
+        assertEquals(LocalDraftRows(), flow.first())
+    }
+
+    @Test
+    fun `a local draft the attachment filter drops keeps its stale server copy hidden`() = runTest {
+        val local = localDraftRowsFlow(
+            currentAccountId = flowOf("acc-1"),
+            selectedMailboxId = flowOf("mb-drafts"),
+            folderRoles = flowOf(mapOf(("acc-1" to "mb-drafts") to "drafts")),
+            filter = flowOf(ListFilter(withAttachment = true)),
+            localDrafts = { flowOf(listOf(row(id = LOCAL + "bare", replacesEmailId = "Mstale"))) },
+        ).first()
+        assertEquals("the local row has no paperclip, so it is off the list", emptyList<InboxRow>(), local.rows)
+        assertEquals(
+            "and the server copy it replaced stays hidden (#95), or the older text reappears",
+            setOf("Mstale"),
+            local.replacedServerIds,
+        )
+    }
+
     private companion object {
         const val LOCAL = LOCAL_DRAFT_ID_PREFIX
 
@@ -355,6 +424,7 @@ class LocalDraftRowsTest {
             subject: String = "Untitled",
             replacesEmailId: String? = null,
             state: LocalDraftState = LocalDraftState.PENDING,
+            attachmentsJson: String = "[]",
         ) = LocalDraftEntity(
             accountId = "acc-1",
             id = id,
@@ -367,7 +437,10 @@ class LocalDraftRowsTest {
             updatedAtMillis = 1_770_000_000_000L,
             notBeforeMillis = 0L,
             state = state,
+            attachmentsJson = attachmentsJson,
         )
+
+        const val ONE_FILE = "[{\"kind\":\"imapFile\",\"path\":\"/x/a.pdf\",\"name\":\"a.pdf\"}]"
 
         fun serverRow(id: String, threadCount: Int = 1) =
             InboxRow(Email(id = id), threadCount = threadCount, unread = false)

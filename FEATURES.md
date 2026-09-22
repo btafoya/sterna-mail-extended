@@ -22,7 +22,6 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ⏸️ Gmail / Google OAuth2. The XOAUTH2 plumbing is done, but Google requires a
   paid, yearly security audit before an app can use the Gmail scopes, which is
   out of reach for this project. Gmail works with an app-specific password.
-- 💡 Quick filters for starred-only and has-attachment.
 - 💡 IMAP CONDSTORE incremental sync.
 - 💡 Fuller TalkBack audit and touch-target review.
 - 💡 S/MIME.
@@ -51,7 +50,7 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Folder drawer, to open any mailbox of the account.
 - ✅ Optional "mark as read when deleting", so deleted mail does not sit unread in
   the Trash.
-- ✅ Quick filter for unread only.
+- ✅ Quick filters for unread-only, starred-only and has-attachment, which combine.
 - ✅ Snooze a message until later.
 - ✅ Report spam and not-spam.
 - ✅ Unarchive on reply (JMAP only).
