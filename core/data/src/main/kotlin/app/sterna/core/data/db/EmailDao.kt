@@ -147,6 +147,9 @@ interface EmailDao {
     @Query("SELECT seen FROM emails WHERE accountId = :accountId AND id = :id LIMIT 1")
     suspend fun seenOf(accountId: String, id: String): Boolean?
 
+    @Query("SELECT seen, flagged FROM emails WHERE accountId = :accountId AND id = :id LIMIT 1")
+    suspend fun readAndStarOf(accountId: String, id: String): ReadAndStar?
+
     @Upsert
     suspend fun upsertAll(emails: List<EmailEntity>)
 
@@ -428,6 +431,11 @@ data class RowNumbering(
 data class CachedPreview(
     val id: String,
     val preview: String,
+)
+
+data class ReadAndStar(
+    val seen: Boolean,
+    val flagged: Boolean,
 )
 
 /** Projection for [EmailDao.keysForSelection]: the account-qualified key of one selectable row. */

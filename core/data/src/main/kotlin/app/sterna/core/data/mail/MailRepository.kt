@@ -27,6 +27,7 @@ import app.sterna.core.data.db.OutboxEntity
 import app.sterna.core.data.db.OutboxLogic
 import app.sterna.core.data.db.PurgeSnapshotDao
 import app.sterna.core.data.db.RECENT_EMAIL_ROW_COLUMNS
+import app.sterna.core.data.db.ReadAndStar
 import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.db.ScheduledSendDao
 import app.sterna.core.data.db.SnoozedDao
@@ -147,17 +148,22 @@ internal fun decodeCachedEmail(bodyJson: String): Email =
 internal fun fitsBodyCache(bodyJson: String, inlineImagesJson: String): Boolean =
     bodyJson.length + inlineImagesJson.length <= MAX_CACHED_BODY_CHARS
 
-/** [cached]'s read state made honest again: `$seen` taken from the `emails` row ([rowSeen]). A
- *  cached body is a snapshot whose `$seen` is frozen at write time, so every later open would
- *  replay the unread → read transition (#148). [rowSeen] null means unknown. */
-internal fun reconcileCachedSeen(cached: MessageBody, rowSeen: Boolean?): MessageBody {
-    if (rowSeen == null || cached.email.isSeen == rowSeen) return cached
-    return cached.copy(email = cached.email.copy(keywords = cached.email.keywords + ("\$seen" to rowSeen)))
+/** [cached]'s `$seen` and `$flagged` taken from the `emails` [row]: a cached body's keywords are
+ *  frozen at write time (#148, #232). Null [row] means unknown. An unstarred row removes `$flagged`,
+ *  as `toggleFlag` does; `$answered` and `$forwarded` stay as cached. */
+internal fun reconcileCachedFlags(cached: MessageBody, row: ReadAndStar?): MessageBody {
+    if (row == null) return cached
+    val email = cached.email
+    if (email.isSeen == row.seen && email.isFlagged == row.flagged) return cached
+    val keywords = email.keywords + ("\$seen" to row.seen)
+    return cached.copy(
+        email = email.copy(keywords = if (row.flagged) keywords + ("\$flagged" to true) else keywords - "\$flagged"),
+    )
 }
 
-/** The read state [read] reports, or null when it cannot be read, the "unknown"
- *  [reconcileCachedSeen] answers by handing the body back. A locked database must not cost the open. */
-internal suspend fun seenOrUnknown(read: suspend () -> Boolean?): Boolean? = runCatching { read() }.getOrNull()
+/** The row [read] reports, or null when it cannot be read, the "unknown" [reconcileCachedFlags]
+ *  answers by handing the body back. A locked database must not cost the open. */
+internal suspend fun rowOrUnknown(read: suspend () -> ReadAndStar?): ReadAndStar? = runCatching { read() }.getOrNull()
 
 /** Folders an IMAP search walks, in [MailboxDao.searchOrder]'s order. Trash and Junk are left out.
  *  The role decides, never the name, so it holds in every language. */
@@ -2112,9 +2118,9 @@ class MailRepository(
         decryptedCache.get(cryptoKey(credentials.id, emailId))?.let { entry ->
             // Read the row before the marking below is launched: this open reports the read state as
             // it stood on opening. Guarded, since a database refusing to answer must not error out.
-            val body = reconcileCachedSeen(
+            val body = reconcileCachedFlags(
                 cached = entry.body,
-                rowSeen = seenOrUnknown { emailDao.seenOf(credentials.id, emailId) },
+                row = rowOrUnknown { emailDao.readAndStarOf(credentials.id, emailId) },
             )
             if (markRead) bgScope.launch { runCatching { setRead(credentials, emailId, true) } }
             return body
@@ -2359,9 +2365,9 @@ class MailRepository(
             },
             purge = { emailBodyDao.deleteById(accountId, emailId) },
         ) ?: return null
-        return reconcileCachedSeen(
+        return reconcileCachedFlags(
             cached = cached,
-            rowSeen = seenOrUnknown { emailDao.seenOf(accountId, emailId) },
+            row = rowOrUnknown { emailDao.readAndStarOf(accountId, emailId) },
         )
     }
 

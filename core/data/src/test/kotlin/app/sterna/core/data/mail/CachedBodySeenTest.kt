@@ -1,5 +1,6 @@
 package app.sterna.core.data.mail
 
+import app.sterna.core.data.db.ReadAndStar
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.core.jmap.model.EmailBodyValue
@@ -12,7 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The read state of a message body served from a cache (issue #148).
+ * The read state and the star of a message body served from a cache (issues #148, #232).
  */
 class CachedBodySeenTest {
 
@@ -29,10 +30,12 @@ class CachedBodySeenTest {
             inlineImages = mapOf("cid1" to "data:image/png;base64,AAAA"),
         )
 
+    private fun row(seen: Boolean, flagged: Boolean = false) = ReadAndStar(seen = seen, flagged = flagged)
+
     // --- 1. executed: the four states the reconciliation can be handed -------------------------
 
     @Test fun `a body cached while unread is read again when the row says read`() {
-        val reconciled = reconcileCachedSeen(cached = body(seen = false), rowSeen = true)
+        val reconciled = reconcileCachedFlags(cached = body(seen = false), row = row(seen = true))
 
         assertTrue(
             "the row is the truth about what has been read: a body cached on the first open says " +
@@ -42,7 +45,7 @@ class CachedBodySeenTest {
     }
 
     @Test fun `a body cached while unread stays unread when the row says unread`() {
-        val reconciled = reconcileCachedSeen(cached = body(seen = false), rowSeen = false)
+        val reconciled = reconcileCachedFlags(cached = body(seen = false), row = row(seen = false))
 
         assertFalse(
             "a message still unread must keep asking what it owes: reconciling must not mark " +
@@ -54,7 +57,7 @@ class CachedBodySeenTest {
     @Test fun `a body cached while unread stays unread when there is no row at all`() {
         val cached = body(seen = false)
 
-        val reconciled = reconcileCachedSeen(cached = cached, rowSeen = null)
+        val reconciled = reconcileCachedFlags(cached = cached, row = null)
 
         assertFalse(
             "no row means the read state is UNKNOWN, not read — inventing 'read' would silently " +
@@ -67,7 +70,7 @@ class CachedBodySeenTest {
     @Test fun `a body cached while read goes back to unread when the row says unread`() {
         // Marking a message unread again is a real gesture (a swipe, the list menu), and it writes
         // the `emails` row while the cached body keeps the `$seen` of the day it was fetched.
-        val reconciled = reconcileCachedSeen(cached = body(seen = true), rowSeen = false)
+        val reconciled = reconcileCachedFlags(cached = body(seen = true), row = row(seen = false))
 
         assertFalse(
             "the row decides in BOTH directions — a one-way 'promote to read' would leave a " +
@@ -79,17 +82,76 @@ class CachedBodySeenTest {
     @Test fun `a body already agreeing with the row is handed back as it is`() {
         val cached = body(seen = true)
 
-        assertSame(cached, reconcileCachedSeen(cached = cached, rowSeen = true))
+        assertSame(cached, reconcileCachedFlags(cached = cached, row = row(seen = true)))
     }
 
-    // --- executed: a read state that cannot be read is unknown, and the message still opens -----
+    // --- executed: the star, issue #232 ---------------------------------------------------------
 
-    @Test fun `a seen read that throws is an unknown state, not a failed open`() = runTest {
+    @Test fun `a body cached unstarred shows the star set from the list`() {
+        val reconciled = reconcileCachedFlags(
+            cached = body(seen = true),
+            row = row(seen = true, flagged = true),
+        )
+
+        assertTrue(
+            "a star set from the list writes the row, not the cached body: opening the message " +
+                "must show it, in the action bar and in the header alike",
+            reconciled.email.isFlagged,
+        )
+    }
+
+    @Test fun `a body cached starred loses its star once the row is unstarred, key removed`() {
+        val reconciled = reconcileCachedFlags(
+            cached = body(seen = true, keywords = mapOf("\$flagged" to true)),
+            row = row(seen = true, flagged = false),
+        )
+
+        assertEquals(
+            "unstarring removes the key, as `toggleFlag` does: a `\$flagged: false` left behind " +
+                "is a keyword map no other writer produces",
+            mapOf("\$seen" to true),
+            reconciled.email.keywords,
+        )
+    }
+
+    @Test fun `a starred body agreeing with a starred row is handed back as it is`() {
+        val cached = body(seen = false, keywords = mapOf("\$flagged" to true))
+
+        assertSame(cached, reconcileCachedFlags(cached = cached, row = row(seen = false, flagged = true)))
+    }
+
+    @Test fun `the read state and the star are reconciled together`() {
+        val reconciled = reconcileCachedFlags(
+            cached = body(seen = false),
+            row = row(seen = true, flagged = true),
+        )
+
+        assertEquals(
+            "a reconciliation that settles `\$seen` and hands the rest back leaves the star frozen " +
+                "whenever the read state has moved too",
+            mapOf("\$seen" to true, "\$flagged" to true),
+            reconciled.email.keywords,
+        )
+    }
+
+    @Test fun `no row leaves a starred body starred`() {
+        val cached = body(seen = true, keywords = mapOf("\$flagged" to true))
+
+        assertSame(
+            "an unknown row must not be read as 'unstarred'",
+            cached,
+            reconcileCachedFlags(cached = cached, row = null),
+        )
+    }
+
+    // --- executed: a row that cannot be read is unknown, and the message still opens ------------
+
+    @Test fun `a row read that throws is an unknown state, not a failed open`() = runTest {
         val cached = body(seen = false)
 
-        val reconciled = reconcileCachedSeen(
+        val reconciled = reconcileCachedFlags(
             cached = cached,
-            rowSeen = seenOrUnknown { throw IllegalStateException("database is locked") },
+            row = rowOrUnknown { throw IllegalStateException("database is locked") },
         )
 
         assertSame(
@@ -102,21 +164,24 @@ class CachedBodySeenTest {
     }
 
     @Test fun `the guard hands an answered read straight through`() = runTest {
-        // Read with the test above: a guard that swallowed everything would pass it and turn the
-        // reconciliation into a no-op everywhere.
-        assertEquals(true, seenOrUnknown { true })
-        assertEquals(false, seenOrUnknown { false })
-        assertNull(seenOrUnknown { null })
+        assertEquals(
+            "a guard that swallowed every answer would pass the test above and turn the " +
+                "reconciliation into a no-op everywhere",
+            row(seen = true, flagged = true),
+            rowOrUnknown { row(seen = true, flagged = true) },
+        )
+        assertEquals(row(seen = false), rowOrUnknown { row(seen = false) })
+        assertNull(rowOrUnknown { null })
     }
 
     // --- the witness: nothing else about the body moves -----------------------------------------
 
-    @Test fun `only the read state is reconciled, the rest of the body survives`() {
-        // Read together with the four above: they would all pass on a function that returned a
+    @Test fun `only the read state and the star are reconciled, the rest of the body survives`() {
+        // Read together with the tests above: they would all pass on a function that returned a
         // bare `Email(id, keywords)`, which is not a message anyone can read.
-        val cached = body(seen = false, keywords = mapOf("\$flagged" to true, "\$answered" to true))
+        val cached = body(seen = false, keywords = mapOf("\$answered" to true, "\$forwarded" to true))
 
-        val reconciled = reconcileCachedSeen(cached = cached, rowSeen = true)
+        val reconciled = reconcileCachedFlags(cached = cached, row = row(seen = true, flagged = true))
 
         assertEquals("m1", reconciled.email.id)
         assertEquals("accA", reconciled.email.accountId)
@@ -124,9 +189,9 @@ class CachedBodySeenTest {
         assertEquals("see you there", reconciled.email.textContent())
         assertEquals(mapOf("cid1" to "data:image/png;base64,AAAA"), reconciled.inlineImages)
         assertEquals(
-            "the other keywords of a cached body are stale in the very same way, and correcting " +
-                "them is separate work — this one must not touch them either way",
-            mapOf("\$flagged" to true, "\$answered" to true, "\$seen" to true),
+            "`\$answered` and `\$forwarded` are not in the row this reads: only `\$seen` and " +
+                "`\$flagged` may move",
+            mapOf("\$answered" to true, "\$forwarded" to true, "\$seen" to true, "\$flagged" to true),
             reconciled.email.keywords,
         )
     }
@@ -139,13 +204,13 @@ class CachedBodySeenTest {
                 "the `\$seen` frozen into the row's JSON on the first open. The arguments are " +
                 "pinned whole because passing the WRONG id (or another account's) reads a row " +
                 "that is not this message's and answers with someone else's read state",
-            listOf("cached = cached, rowSeen = seenOrUnknown { emailDao.seenOf(accountId, emailId) }"),
-            callsOf(bodyOf("cachedMessage"), "reconcileCachedSeen("),
+            listOf("cached = cached, row = rowOrUnknown { emailDao.readAndStarOf(accountId, emailId) }"),
+            callsOf(bodyOf("cachedMessage"), "reconcileCachedFlags("),
         )
     }
 
     @Test fun `what the Room cache path RETURNS is the reconciled body`() {
-        // The mutation the test above cannot see: `reconcileCachedSeen(…)` on its own line,
+        // The mutation the test above cannot see: `reconcileCachedFlags(…)` on its own line,
         // followed by `return cached`. The call is still there, with the very arguments pinned
         // above, and the bug is back whole, this is the most travelled of the two cache paths.
         // So the returned expression is pinned, whole, not merely the existence of a call.
@@ -154,8 +219,8 @@ class CachedBodySeenTest {
                 "whose result is dropped is issue #148 restored, with every call site untouched",
             listOf(
                 "null",
-                "reconcileCachedSeen(cached = cached, " +
-                    "rowSeen = seenOrUnknown { emailDao.seenOf(accountId, emailId) })",
+                "reconcileCachedFlags(cached = cached, " +
+                    "row = rowOrUnknown { emailDao.readAndStarOf(accountId, emailId) })",
             ),
             returnsOf(bodyOf("cachedMessage")),
         )
@@ -169,8 +234,8 @@ class CachedBodySeenTest {
         assertEquals(
             "the decrypted-body LRU is the OTHER cache openMessage returns from, and its bodies " +
                 "are just as frozen as Room's",
-            listOf("cached = entry.body, rowSeen = seenOrUnknown { emailDao.seenOf(credentials.id, emailId) }"),
-            callsOf(branch, "reconcileCachedSeen("),
+            listOf("cached = entry.body, row = rowOrUnknown { emailDao.readAndStarOf(credentials.id, emailId) }"),
+            callsOf(branch, "reconcileCachedFlags("),
         )
         assertEquals(
             "and it must hand back the reconciled body — `return entry.body` here is the same " +
@@ -181,7 +246,7 @@ class CachedBodySeenTest {
         assertTrue(
             "the row must be read BEFORE the marking is launched, or this open reports the state " +
                 "it is itself about to write",
-            branch.indexOf("seenOrUnknown") < branch.indexOf("bgScope.launch"),
+            branch.indexOf("rowOrUnknown") < branch.indexOf("bgScope.launch"),
         )
     }
 
@@ -194,7 +259,7 @@ class CachedBodySeenTest {
         assertTrue("openMessage must still fetch over the network when both caches miss", fetch > 0)
         assertTrue(
             "nothing after the network fetch may be reconciled against the local row",
-            "reconcileCachedSeen(" !in code.substring(fetch),
+            "reconcileCachedFlags(" !in code.substring(fetch),
         )
     }
 

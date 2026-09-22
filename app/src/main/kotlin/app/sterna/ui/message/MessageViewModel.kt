@@ -305,6 +305,9 @@ sealed interface AttachedMessageState {
     data class Error(val message: String) : AttachedMessageState
 }
 
+internal fun Email.withFlag(flagged: Boolean): Email =
+    copy(keywords = if (flagged) keywords + ("\$flagged" to true) else keywords - "\$flagged")
+
 /** A copy with the $seen keyword set, so a just-opened/expanded message renders as read. */
 private fun Email.markRead(): Email =
     if (isSeen) this else copy(keywords = keywords + ("\$seen" to true))
@@ -1513,14 +1516,9 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     fun toggleFlag() {
         val current = (_state.value as? MessageState.Loaded)?.email ?: return
         val flagged = !current.isFlagged
-        // Optimistic local update.
-        _state.value = MessageState.Loaded(
-            current.copy(
-                keywords = current.keywords.toMutableMap().apply {
-                    if (flagged) put("\$flagged", true) else remove("\$flagged")
-                },
-            ),
-        )
+        // Optimistic local update: the action bar reads `_state`, the header reads `_messages`.
+        _state.value = MessageState.Loaded(current.withFlag(flagged))
+        updateMessage(current.id) { it.copy(header = it.header.withFlag(flagged), body = it.body?.withFlag(flagged)) }
         viewModelScope.launch {
             val credentials = credentials() ?: return@launch
             runCatching { repo.setFlagged(credentials, current.id, flagged) }
