@@ -155,6 +155,33 @@ internal fun List<Mailbox>.notPinnedToAnotherRole(role: String, chosen: Map<Stri
     return if (pinned.isEmpty()) this else filterNot { it.id in pinned }
 }
 
+/**
+ * The literal IMAP [path] a gesture resolving [role] may create and move into once no folder
+ * carries the role, or null when [chosen] pins that folder to another role. The by-name fallbacks
+ * skip such a folder ([notPinnedToAnotherRole]), and a literal must not reach it the other way:
+ * with the server's `Archive` designated as the bin, an archive falling back on "Archive" files the
+ * message into the bin, where emptying it destroys the message. Null fails the gesture rather than
+ * picking some other folder nobody designated.
+ *
+ * Compared without case: RFC 3501 leaves every name but INBOX case-sensitive, yet on a server that
+ * folds case the CREATE answers "already exists", is swallowed, and the MOVE lands in the pinned
+ * folder. Refusing a gesture on a case-sensitive server is the cheaper of the two mistakes.
+ */
+internal fun lastResortImapFolder(role: String, path: String, chosen: Map<String, String>): String? =
+    path.takeUnless { literal -> pinnedToAnotherRole(role, chosen).any { it.equals(literal, ignoreCase = true) } }
+
+/**
+ * The id of the first of [mailboxes] the server itself states as [role], among those [chosen] does
+ * not pin to another role: the last resort of a JMAP creation the server refused. The server's own
+ * bin, pinned as the archive, is exactly the folder left without the `trash` role, so the raw
+ * server role would route a delete into the designated archive.
+ */
+internal fun serverRoleHolderNotPinnedElsewhere(
+    mailboxes: List<Mailbox>,
+    role: String,
+    chosen: Map<String, String>,
+): String? = mailboxes.notPinnedToAnotherRole(role, chosen).firstOrNull { it.role == role }?.id
+
 /** The inbox among cache rows, recognised as the two listings recognise it ([roleCandidate],
  *  [jmapRoleCandidates]): by the role its own listing settled, and where an id is a path
  *  ([idsArePaths], IMAP) by the one RFC 3501 §5.1 reserves. A row carries one role, so a server

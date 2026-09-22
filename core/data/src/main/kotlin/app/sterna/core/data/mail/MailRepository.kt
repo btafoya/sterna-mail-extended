@@ -2839,7 +2839,8 @@ class MailRepository(
         val row = moving.entity
         if (credentials.protocol == MailProtocol.IMAP) {
             val dest = imapRoleFolder(credentials, "archive", "all")
-                ?: run { imap.createFolder(credentials, "Archive"); "Archive" }
+                ?: lastResortImapFolder("archive", "Archive", credentials.specialFolders)?.also { imap.createFolder(credentials, it) }
+                ?: error("No archive folder, and the name Archive is designated for another role")
             var noop = false
             imapTarget(emailId)?.let { (mb, uid) ->
                 if (mb == dest) { noop = true; return@let } // already in the archive/all folder
@@ -3197,7 +3198,8 @@ class MailRepository(
         }
         if (credentials.protocol == MailProtocol.IMAP) {
             val dest = imapRoleFolder(credentials, "archive", "all")
-                ?: run { imap.createFolder(credentials, "Archive"); "Archive" }
+                ?: lastResortImapFolder("archive", "Archive", credentials.specialFolders)?.also { imap.createFolder(credentials, it) }
+                ?: error("No archive folder, and the name Archive is designated for another role")
             val succeeded = mutableSetOf<String>(); val failed = mutableSetOf<String>()
             emailIds.groupBy { ImapMailService.mailboxOf(it) }.forEach { (source, ids) ->
                 when {
@@ -3300,7 +3302,9 @@ class MailRepository(
         if (credentials.protocol == MailProtocol.IMAP) {
             val succeeded = mutableSetOf<String>(); val failed = mutableSetOf<String>()
             // Resolve or create, as [delete] does. Offline it throws and the batch goes down, creating nothing.
-            val trash = imapRoleFolder(credentials, "trash") ?: run { imap.createFolder(credentials, "Trash"); "Trash" }
+            val trash = imapRoleFolder(credentials, "trash")
+                ?: lastResortImapFolder("trash", "Trash", credentials.specialFolders)?.also { imap.createFolder(credentials, it) }
+                ?: error("No trash folder, and the name Trash is designated for another role")
             emailIds.groupBy { ImapMailService.mailboxOf(it) }.forEach { (source, ids) ->
                 when {
                     source == null -> failed += ids
@@ -3477,7 +3481,7 @@ class MailRepository(
             client.createMailbox(ctx.session, ctx.accountId, "Archive", null, ctx.auth)
         }.getOrElse { err ->
             val mbs = runCatching { client.getMailboxes(ctx.session, ctx.accountId, ctx.auth) }.getOrDefault(emptyList())
-            mbs.firstOrNull { it.role == "archive" }?.id
+            serverRoleHolderNotPinnedElsewhere(mbs, "archive", ctx.credentials.specialFolders)
                 ?: archiveFolderByName(mbs.notPinnedToAnotherRole("archive", ctx.credentials.specialFolders))
                 ?: throw err
         }
@@ -3503,7 +3507,7 @@ class MailRepository(
             client.createMailbox(ctx.session, ctx.accountId, "Trash", null, ctx.auth)
         }.getOrElse { err ->
             val mbs = runCatching { client.getMailboxes(ctx.session, ctx.accountId, ctx.auth) }.getOrDefault(emptyList())
-            mbs.firstOrNull { it.role == "trash" }?.id
+            serverRoleHolderNotPinnedElsewhere(mbs, "trash", ctx.credentials.specialFolders)
                 ?: trashFolderByName(mbs.notPinnedToAnotherRole("trash", ctx.credentials.specialFolders))
                 ?: throw err
         }
@@ -3608,7 +3612,9 @@ class MailRepository(
         val moving = movingRow(credentials.id, emailId)
         val row = moving.entity
         if (credentials.protocol == MailProtocol.IMAP) {
-            val trash = imapRoleFolder(credentials, "trash") ?: run { imap.createFolder(credentials, "Trash"); "Trash" }
+            val trash = imapRoleFolder(credentials, "trash")
+                ?: lastResortImapFolder("trash", "Trash", credentials.specialFolders)?.also { imap.createFolder(credentials, it) }
+                ?: error("No trash folder, and the name Trash is designated for another role")
             imapTarget(emailId)?.let { (mb, uid) ->
                 // Already in the Trash: nothing moves, but the cached row and its index row go ([deleteAll]).
                 if (mb == trash) return@let

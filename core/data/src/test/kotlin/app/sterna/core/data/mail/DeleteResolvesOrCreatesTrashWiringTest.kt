@@ -25,8 +25,14 @@ class DeleteResolvesOrCreatesTrashWiringTest {
                 "exactly what archive() does one call along. An `error(…)` here is the defect " +
                 "itself: on a server without SPECIAL-USE the user cannot delete at all. Whole " +
                 "line, arguments included. Body was:\n$body",
-            listOf("""val trash = imapRoleFolder(credentials, "trash") ?: run { imap.createFolder(credentials, "Trash"); "Trash" }"""),
+            listOf("""val trash = imapRoleFolder(credentials, "trash")"""),
             codeLinesNaming(body, "imapRoleFolder("),
+        )
+        assertEquals(
+            "…and the creation is the literal Trash, unless the account designated that folder for " +
+                "another role ([LastResortSkipsPinnedFoldersTest]). Whole line. Body was:\n$body",
+            listOf("""?: lastResortImapFolder("trash", "Trash", credentials.specialFolders)?.also { imap.createFolder(credentials, it) }"""),
+            codeLinesNaming(body, "imap.createFolder("),
         )
     }
 
@@ -130,7 +136,7 @@ class DeleteResolvesOrCreatesTrashWiringTest {
                 "the global cache. Whole lines. Body was:\n$body",
             listOf(
                 "val mbs = runCatching { client.getMailboxes(ctx.session, ctx.accountId, ctx.auth) }.getOrDefault(emptyList())",
-                """mbs.firstOrNull { it.role == "trash" }?.id""",
+                """serverRoleHolderNotPinnedElsewhere(mbs, "trash", ctx.credentials.specialFolders)""",
                 """?: trashFolderByName(mbs.notPinnedToAnotherRole("trash", ctx.credentials.specialFolders))""",
             ),
             codeLinesNaming(body, "mbs"),

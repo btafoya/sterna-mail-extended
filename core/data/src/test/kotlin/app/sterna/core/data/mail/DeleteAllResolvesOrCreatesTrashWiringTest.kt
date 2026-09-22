@@ -43,7 +43,8 @@ class DeleteAllResolvesOrCreatesTrashWiringTest {
         val body = bodyOf("deleteAll")
         assertEquals(
             "⛔ EVERY line of deleteAll, in order. The bin is resolved the way delete() finds it " +
-                "— role then creation on IMAP, role-then-by-name then creation on JMAP — the only " +
+                "— role then creation on IMAP, refused when another role holds the literal Trash, " +
+                "role-then-by-name then creation on JMAP — the only " +
                 "ids that fail are those whose SOURCE folder cannot be read, the already-in-Trash " +
                 "branch still drops the rows locally and gives a held row back the count the tap " +
                 "took, and imapMoveGroup still gets the frozen numbering of ITS folder (#99). " +
@@ -57,7 +58,9 @@ class DeleteAllResolvesOrCreatesTrashWiringTest {
                 "}",
                 "if (credentials.protocol == MailProtocol.IMAP) {",
                 "val succeeded = mutableSetOf<String>(); val failed = mutableSetOf<String>()",
-                """val trash = imapRoleFolder(credentials, "trash") ?: run { imap.createFolder(credentials, "Trash"); "Trash" }""",
+                """val trash = imapRoleFolder(credentials, "trash")""",
+                """?: lastResortImapFolder("trash", "Trash", credentials.specialFolders)?.also { imap.createFolder(credentials, it) }""",
+                """?: error("No trash folder, and the name Trash is designated for another role")""",
                 "emailIds.groupBy { ImapMailService.mailboxOf(it) }.forEach { (source, ids) ->",
                 "when {",
                 "source == null -> failed += ids",
