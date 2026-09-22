@@ -25,7 +25,7 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - 💡 In search results, show the passage of the message that contains the search
   term instead of its first lines (JMAP `SearchSnippet`).
 - 💡 Quick filters for starred-only and has-attachment.
-- 💡 Folder subscribe, and drag to reorder.
+- 💡 Choose the order of your own folders.
 - 💡 IMAP CONDSTORE incremental sync.
 - 💡 Fuller TalkBack audit and touch-target review.
 - 💡 S/MIME.
