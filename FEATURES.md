@@ -27,7 +27,6 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - 💡 Quick filters for starred-only and has-attachment.
 - 💡 Folder subscribe, and drag to reorder.
 - 💡 IMAP CONDSTORE incremental sync.
-- 💡 DNS SRV autodiscovery (`_jmap._tcp`).
 - 💡 Fuller TalkBack audit and touch-target review.
 - 💡 S/MIME.
 - 💡 Calendar conflict detection (needs calendar read access).
