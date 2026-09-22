@@ -1231,7 +1231,9 @@ private fun ImportSignInPanel(target: ConnectViewModel.SignInTarget, viewModel: 
             IconButton(onClick = { passwordVisible = !passwordVisible }) {
                 Icon(
                     if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                    contentDescription = null,
+                    contentDescription = stringResource(
+                        if (passwordVisible) R.string.connect_password_hide else R.string.connect_password_show,
+                    ),
                 )
             }
         },
