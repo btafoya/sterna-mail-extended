@@ -6,7 +6,7 @@ works is in [ARCHITECTURE.md](ARCHITECTURE.md).
 **Status key**
 
 - ✅ **Done**, shipped.
-- 🔜 **Planned**, next up.
+- ⏸️ **Blocked**, waiting on a third party, not on code.
 - 💡 **Proposed**, not scheduled.
 - ⭐ **JMAP-native**, RFC 8620/8621 gives it almost for free.
 
@@ -19,9 +19,9 @@ be ahead of the version you have installed.
 
 Tiers 1 to 4 of the original roadmap are shipped. What is left:
 
-- 🔜 Gmail / Google OAuth2. The XOAUTH2 plumbing is done; the blocker is Google's
-  verification for restricted Gmail scopes. Until then, Gmail works with an
-  app-specific password.
+- ⏸️ Gmail / Google OAuth2. The XOAUTH2 plumbing is done, but Google requires a
+  paid, yearly security audit before an app can use the Gmail scopes, which is
+  out of reach for this project. Gmail works with an app-specific password.
 - 💡 Search-result highlights (JMAP `SearchSnippet`).
 - 💡 Quick filters for starred-only and has-attachment.
 - 💡 Folder subscribe, and drag to reorder.
