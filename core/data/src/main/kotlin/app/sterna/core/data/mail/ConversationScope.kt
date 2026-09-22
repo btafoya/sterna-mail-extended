@@ -21,4 +21,15 @@ object ConversationScope {
         accountId: String?,
     ): Set<String> =
         (viewedMailboxIds + sentFolders(sentMailboxes, accountId).map { it.second }).toSet()
+
+    fun movesWithConversation(
+        viewedMailboxIds: List<String>,
+        sentMailboxes: List<Pair<String, String>>,
+        accountId: String?,
+        mailboxId: String?,
+    ): Boolean {
+        if (accountId == null || mailboxId == null) return true
+        if (mailboxId in viewedMailboxIds) return true
+        return sentFolders(sentMailboxes, accountId).none { it.second == mailboxId }
+    }
 }

@@ -42,6 +42,9 @@ internal data class ListScope(
      * [accountId] is the representative's, never the current account's (#92). */
     fun folders(accountId: String?): List<String> =
         ConversationScope.folders(viewedMailboxIds, sentMailboxes, accountId).toList()
+
+    fun movesWithConversation(email: Email): Boolean =
+        ConversationScope.movesWithConversation(viewedMailboxIds, sentMailboxes, email.accountId, email.mailboxId)
 }
 
 /** The messages beneath the unfolded rows, as a live reading of the cache. Chip and unfold must

@@ -572,4 +572,15 @@ class ThreadMemberStreamTest {
         val cache = Cache().apply { anAnsweredThread() }
         assertEquals(listOf("in2", "in1"), cache.read("accA", ListScope(listOf("inbox")).folders("accA"), "T1").first().map { it.id })
     }
+
+    @Test fun `a filing gesture on the recorded scope leaves the account's own Sent reply behind`() {
+        val scope = ListScope(listOf("inbox"), listOf("accA" to "sentbox", "accB" to "inbox"))
+        val t = "2026-07-01T10:00:00Z"
+        assertTrue(scope.movesWithConversation(mail("in1", "inbox", t)))
+        assertFalse(scope.movesWithConversation(mail("se1", "sentbox", t)))
+        assertTrue(scope.movesWithConversation(mail("in2", "inbox", t)))
+        assertTrue(scope.movesWithConversation(mail("b1", "sentbox", t, account = "accB")))
+        assertTrue(ListScope(listOf("sentbox"), listOf("accA" to "sentbox")).movesWithConversation(mail("se1", "sentbox", t)))
+        assertTrue(ListScope(listOf("inbox")).movesWithConversation(mail("se1", "sentbox", t)))
+    }
 }

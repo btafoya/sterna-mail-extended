@@ -162,9 +162,9 @@ class ConversationScopeWiringTest {
                 "to the viewed folder(s) instead, a swipe on a thread of three takes away the two " +
                 "received messages, leaves the reply the reader wrote sitting in Sent, and the " +
                 "banner still announces the whole conversation gone; and ticking the folded row " +
-                "selects fewer messages than ticking the children it unfolds into. What each " +
-                "gesture then does with those members is its own and pinned elsewhere, and none of " +
-                "this asks for the Trash: a conversation is meant to stay split by folder. " +
+                "selects fewer messages than ticking the children it unfolds into. Archive, " +
+                "unarchive and move then leave the reply in Sent (see the rule below); delete, " +
+                "read/unread, flag and tick keep the whole conversation. " +
                 "Body was:\n$body",
             listOf("return ${read}accountId, $RECORDED.value.folders(accountId), threadKeyOf(rep).threadId)"),
             body.lines().map { it.trim() }.filter { read in it },
@@ -190,6 +190,69 @@ class ConversationScopeWiringTest {
                 "disappeared is the defect. Found:\n" +
                 codeLines(INBOX_VIEW_MODEL).filter { "threadMessages(rep)" in it }.joinToString("\n"),
             6, codeLines(INBOX_VIEW_MODEL).count { "threadMessages(rep)" in it },
+        )
+    }
+
+    @Test fun `filing a folded row leaves the reply in Sent, deleting it does not`() {
+        listOf("archiveThread", "unarchiveThread").forEach { gesture ->
+            val call = callArguments(body(INBOX_VIEW_MODEL, gesture), "threadSwipeRemove")
+            assertEquals(
+                "$gesture must ask threadSwipeRemove to spare what the recorded scope leaves in " +
+                    "Sent (`$FILING`): the reply filed in the account's Sent belongs to the conversation " +
+                    "the chip counts, not to the folder, and moving it empties Sent in silence. " +
+                    "Call was:\n$call",
+                listOf(true), call.map { FILING in it },
+            )
+        }
+        val delete = callArguments(body(INBOX_VIEW_MODEL, "deleteThread"), "threadSwipeRemove")
+        assertTrue(
+            "deleteThread must keep the whole conversation: a reply left in Sent by a delete is a " +
+                "conversation half gone. Call was:\n$delete",
+            delete.isNotEmpty() && delete.none { "filing" in it },
+        )
+        val swipe = body(INBOX_VIEW_MODEL, "threadSwipeRemove")
+        assertTrue(
+            "threadSwipeRemove must file only what $RECORDED's rule lets go, and only when asked: " +
+                "the scope the list was BUILT with, never the live selection. Body was:\n$swipe",
+            THREAD_FILING.containsMatchIn(swipe) && RE_READ !in swipe,
+        )
+        val rule = body(CONVERSATION_EXPANSION, "movesWithConversation")
+        assertTrue(
+            "ListScope.movesWithConversation must hand its OWN recorded fields and the message's " +
+                "account and folder to $SHARED_FILING. Body was:\n$rule",
+            SHARED_FILING in rule && "viewedMailboxIds" in rule && "sentMailboxes" in rule &&
+                "email.accountId" in rule && "email.mailboxId" in rule,
+        )
+    }
+
+    @Test fun `filing a selection leaves the reply in Sent, deleting it does not`() {
+        listOf("archiveSelected", "moveSelectedTo").forEach { gesture ->
+            val body = body(INBOX_VIEW_MODEL, gesture)
+            val calls = callArguments(body, "bulkBatched")
+            assertTrue(
+                "$gesture must capture the rule at the tap (`val filing = selectionFilingRule()`) " +
+                    "and hand it to bulkBatched (`moves = filing`). Body was:\n$body",
+                "val filing = selectionFilingRule()" in body &&
+                    calls.isNotEmpty() && calls.all { "moves = filing" in it },
+            )
+        }
+        assertTrue(
+            "deleteSelected must not spare anything: a delete takes the conversation whole.",
+            "selectionFilingRule" !in body(INBOX_VIEW_MODEL, "deleteSelected"),
+        )
+        val rule = body(INBOX_VIEW_MODEL, "selectionFilingRule")
+        assertTrue(
+            "selectionFilingRule must read $RECORDED, the scope the list was built with, through " +
+                "ListScope::movesWithConversation. Its one exception is a search on screen: results " +
+                "come from any folder, the recorded scope does not describe them, and a Sent message " +
+                "found and ticked is meant to move. Body was:\n$rule",
+            "$RECORDED.value" in rule && "::movesWithConversation" in rule && RE_READ !in rule,
+        )
+        val batched = body(INBOX_VIEW_MODEL, "bulkBatched")
+        assertTrue(
+            "bulkBatched must set aside, AFTER resolution, the rows the rule keeps: the resolved row " +
+                "is the only one that knows its folder. Body was:\n$batched",
+            Regex("""resolved\.targets\.partition\s*\{\s*moves\?\.invoke\(\s*it\.email\s*\)\s*\?:\s*true\s*}""").containsMatchIn(batched),
         )
     }
 
@@ -503,6 +566,13 @@ class ConversationScopeWiringTest {
 
         private const val SHARED_DECISION = "ConversationScope.folders("
         private const val SHARED_SENT = "ConversationScope.sentFolders("
+        private const val SHARED_FILING = "ConversationScope.movesWithConversation("
+
+        private const val FILING = "filing = true"
+
+        private val THREAD_FILING = Regex(
+            """val acting = if \(filing\) all\.filter \{ $RECORDED\.value\.movesWithConversation\(it\) } else all""",
+        )
 
         /** The row's own representative, subtracted from the members at the place both are drawn.
          *  Whitespace-tolerant throughout (`\s` spans newlines): the call is one indent away from
@@ -543,9 +613,9 @@ class ConversationScopeWiringTest {
             // The one message the swipe flew away, and every member of a conversation swiped whole.
             "swipeRemove" to Regex("""^setOf\(\s*email\.emailKey\(\)\s*,?\s*\)$"""),
             "threadSwipeRemove" to Regex("""^acting\.mapTo\(\s*mutableSetOf\(\)\s*\)\s*\{\s*it\.emailKey\(\)\s*\}$"""),
-            // The whole selection the batch is about to act on.
+            // The whole selection the batch is about to act on; the batched one minus what a filing rule spares.
             "bulk" to Regex("""^keys$"""),
-            "bulkBatched" to Regex("""^targetKeys$"""),
+            "bulkBatched" to Regex("""^leaving$"""),
             // The one message leaving for another account (#189), and each of a selection in turn.
             "moveToAccount" to Regex("""^setOf\(\s*key\s*,?\s*\)$"""),
             "moveSelectedToAccount" to Regex("""^setOf\(\s*key\s*,?\s*\)$"""),

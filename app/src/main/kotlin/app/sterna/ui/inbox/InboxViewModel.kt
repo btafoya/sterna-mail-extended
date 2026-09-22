@@ -1777,9 +1777,9 @@ class InboxViewModel(
             }
         }
     }
-    fun archiveThread(rep: Email) = threadSwipeRemove(rep, R.string.status_conversation_archived) { c, id -> repo.archive(c, id) }
+    fun archiveThread(rep: Email) = threadSwipeRemove(rep, R.string.status_conversation_archived, filing = true) { c, id -> repo.archive(c, id) }
     fun unarchiveThread(rep: Email, inboxId: String) =
-        threadSwipeRemove(rep, R.string.status_conversation_unarchived) { c, id -> repo.moveToMailbox(c, id, inboxId) }
+        threadSwipeRemove(rep, R.string.status_conversation_unarchived, filing = true) { c, id -> repo.moveToMailbox(c, id, inboxId) }
 
     /** Drop a thread's inline-expansion state, its conversation is leaving the list. */
     private fun dropThreadExpansion(key: ThreadKey) {
@@ -1821,18 +1821,20 @@ class InboxViewModel(
     private fun threadUndoEntries(members: List<Email>, landedIn: Map<EmailKey, String?>): List<UndoEntry> =
         members.mapNotNull { m -> m.mailboxId?.let { UndoEntry(m.id, m.accountId, it, landedIn[m.emailKey()]) } }
 
-    /** Remove a thread's messages ([members], or its full cached membership) behind one Undo: they leave the list at the finger, and only what the server refused comes back. */
+    /** Remove a thread's messages ([members], or its full cached membership, less what [filing] leaves in Sent) behind one Undo: they leave the list at the finger, and only what the server refused comes back. */
     private fun threadSwipeRemove(
         rep: Email,
         labelRes: Int,
         members: List<Email>? = null,
         offerUndo: Boolean = true,
+        filing: Boolean = false,
         op: suspend (AccountCredentials, String) -> String?,
     ) {
         val conversation = threadKeyOf(rep)
         poseConversation(rep)
         viewModelScope.launch {
-            val acting = members ?: threadMessages(rep)
+            val all = members ?: threadMessages(rep)
+            val acting = if (filing) all.filter { listScope.value.movesWithConversation(it) } else all
             dropThreadExpansion(conversation)
             val byKey = acting.associateBy { it.emailKey() }
             var refused = false
@@ -2394,7 +2396,7 @@ class InboxViewModel(
      * Batched bulk action: group the selection by account, then hand each account's ids to a single
      * repo call that itself batches per source folder, one `UID MOVE <set>` or one `Email/set`
      * instead of one command per message (#29). The batches receive the whole selection
-     * ([resolveSelectionTargets]), search-drawn rows included. [attemptedBefore] and [failedBefore]
+     * ([resolveSelectionTargets]), search-drawn rows included, less what [moves] leaves. [attemptedBefore] and [failedBefore]
      * are what a caller handled or lost, counted separately: 100 attempts with 1 failure is not a
      * total failure.
      */
@@ -2404,6 +2406,7 @@ class InboxViewModel(
         keys: Set<EmailKey>? = null,
         attemptedBefore: Int = 0,
         failedBefore: Int = 0,
+        moves: ((Email) -> Boolean)? = null,
         batchOp: suspend (AccountCredentials, List<String>) -> MailRepository.BulkResult,
     ) {
         val targetKeys = keys ?: _selectedKeys.value
@@ -2414,7 +2417,8 @@ class InboxViewModel(
                 cached = repo.cachedEmailsByIds(targetKeys),
                 displayed = searchState.value.results,
             )
-            val targets = resolved.targets
+            val (targets, spared) = resolved.targets.partition { moves?.invoke(it.email) ?: true }
+            val leaving = targetKeys - spared.mapTo(mutableSetOf()) { it.email.emailKey() }
             dropSearchResults(targets.mapTo(mutableSetOf()) { it.email.emailKey() })
             val failedKeys = mutableSetOf<EmailKey>()
             val byKey = targets.associateBy { it.email.emailKey() }
@@ -2438,7 +2442,7 @@ class InboxViewModel(
             // The first throwable a batch lets escape, for the message sixty lines down. A refusal,
             // and an id not dared under an unconfirmed numbering (#99), are `BulkResult.failed`.
             var batchFailure: Throwable? = null
-            val flown = hidingThreadMembers(targetKeys) {
+            val flown = hidingThreadMembers(leaving) {
                 flyBulkGroups(
                     groups = groups,
                     pose = { posed -> swipeMask.update { it.posed(posed) } },
@@ -2478,7 +2482,7 @@ class InboxViewModel(
             // connectivity. Only here, partial cannot be an outage, and a count says nothing.
             val app = getApplication<Application>()
             val failure = batchFailure
-            when (bulkOutcome(attempted = targetKeys.size + attemptedBefore, failed = failed)) {
+            when (bulkOutcome(attempted = leaving.size + attemptedBefore, failed = failed)) {
                 BulkOutcome.NONE -> Unit
                 BulkOutcome.TOTAL -> _message.value = app.getString(if (failure == null) R.string.status_action_failed else actionFailureMessage(failure, online = hasUsableNetwork(app)))
                 BulkOutcome.PARTIAL -> _message.value = getApplication<Application>().getString(R.string.status_action_partly_failed)
@@ -2591,17 +2595,24 @@ class InboxViewModel(
             }
         }
     }
+    private fun selectionFilingRule(): (Email) -> Boolean {
+        if (searchState.value.results != null) return { true }
+        return listScope.value::movesWithConversation
+    }
+
     /** Archive the selection. A block, not an expression body: freezing the numbering is a
      * suspending read that has to happen here, at the tap (#99). The selection is cleared
      *  SYNCHRONOUSLY first, else a second tap fires the whole batch again. */
     fun archiveSelected() {
         val keys = _selectedKeys.value
+        val filing = selectionFilingRule()
         clearSelection()
         viewModelScope.launch {
             val numbering = selectionNumbering(keys)
             bulkBatched(
                 undoLabelRes = R.plurals.status_selection_archived,
                 keys = keys,
+                moves = filing,
             ) { c, ids -> repo.archiveAll(c, ids, numbering[c.id].orEmpty()) }
         }
     }
@@ -2612,6 +2623,7 @@ class InboxViewModel(
      */
     fun moveSelectedTo(targetMailboxId: String, targetAccountId: String? = null) {
         val keys = _selectedKeys.value
+        val filing = selectionFilingRule()
         viewModelScope.launch {
             // Awaited, not sampled, and first inside the launch, [deleteSelected]'s rule (#99,
             // #189). [moveSelectedToAccount] calls clearSelection() at its head, which empties the
@@ -2639,6 +2651,7 @@ class InboxViewModel(
                     keys = movable.toMutableSet(),
                     attemptedBefore = skipped.size,
                     failedBefore = skipped.size,
+                    moves = filing,
                 ) { c, batch -> repo.moveAllToMailbox(c, batch, targetMailboxId, numbering[c.id].orEmpty()) }
             } else if (skipped.isNotEmpty()) {
                 // Nothing movable: an empty batch would drop the sync cursors and re-query the whole

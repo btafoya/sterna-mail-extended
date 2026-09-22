@@ -33,14 +33,14 @@ class BulkOutcomeWiringTest {
             "bulkBatched must ask bulkOutcome() rather than re-deciding from failedKeys itself",
             "bulkOutcome(" in body,
         )
-        // The counts it feeds it: the whole selection handed in (plus whatever a delegating caller
+        // The counts it feeds it: the selection handed in, minus what a filing gesture spares (plus whatever a delegating caller
         // already lost), and everything that did not go through, the batch's rejects, the keys
         assertEquals(
             "bulkOutcome must be fed the whole selection (plus the caller's losses) and every " +
                 "failure, unresolved keys included",
             listOf(
                 "val failed = failedKeys.size + resolved.unresolved.size + failedBefore",
-                "when (bulkOutcome(attempted = targetKeys.size + attemptedBefore, failed = failed)) {",
+                "when (bulkOutcome(attempted = leaving.size + attemptedBefore, failed = failed)) {",
             ),
             body.lines().map { it.replace(Regex("""\s+"""), " ").trim() }
                 .filter { it.startsWith("val failed =") || it.startsWith("when (bulkOutcome(") },

@@ -117,9 +117,12 @@ per-account sources.
   is the exception: its members are written the same way, but that row keeps
   being drawn until the list reloads.
 - **A collapsed conversation leaves at the finger, written message by message:**
-  swiping a whole thread takes its row off the list and holds every member of
-  the conversation the same way, but the movers it uses take one id each, so its
-  writes go out in turn rather than as one batch. In both cases the repository
+  swiping a whole thread takes its row off the list and holds the members it
+  moves the same way, but the movers it uses take one id each, so its writes go
+  out in turn rather than as one batch. Delete always takes the whole
+  conversation. Archive, unarchive and move, by swipe or from the selection,
+  leave the reply the account filed in its Sent folder where it is, unless Sent
+  is the folder the list shows. In both cases the repository
   holds the rows while the writes are out and puts back only the ones the server
   refused, reading nothing from the network. Undo is offered with the rows and
   narrowed at the verdict to what really left, so a partly refused gesture

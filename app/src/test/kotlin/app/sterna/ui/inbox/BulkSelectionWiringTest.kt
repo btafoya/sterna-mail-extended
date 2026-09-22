@@ -519,12 +519,14 @@ class BulkSelectionWiringTest {
             listOf(
                 "fun archiveSelected() {",
                 "val keys = _selectedKeys.value",
+                "val filing = selectionFilingRule()",
                 "clearSelection()",
                 "viewModelScope.launch {",
                 "val numbering = selectionNumbering(keys)",
                 "bulkBatched(",
                 "undoLabelRes = R.plurals.status_selection_archived,",
                 "keys = keys,",
+                "moves = filing,",
                 ") { c, ids -> repo.archiveAll(c, ids, numbering[c.id].orEmpty()) }",
                 "}",
                 "}",
@@ -565,10 +567,11 @@ class BulkSelectionWiringTest {
             codeLinesNaming(body, "val failed ="),
         )
         assertEquals(
-            "and 'attempted' is the whole selection handed in, plus what the caller already " +
-                "handled — never the rows the cache happened to return, and never the losses " +
-                "again (they are already inside 'attemptedBefore'). Body was:\n$body",
-            listOf("when (bulkOutcome(attempted = targetKeys.size + attemptedBefore, failed = failed)) {"),
+            "and 'attempted' is the whole selection handed in, minus the rows a filing gesture " +
+                "leaves in place, plus what the caller already handled — never the rows the cache " +
+                "happened to return, and never the losses again (they are already inside " +
+                "'attemptedBefore'). Body was:\n$body",
+            listOf("when (bulkOutcome(attempted = leaving.size + attemptedBefore, failed = failed)) {"),
             codeLinesNaming(body, "bulkOutcome("),
         )
         assertEquals(
@@ -662,6 +665,7 @@ class BulkSelectionWiringTest {
                 "keys = movable.toMutableSet()",
                 "attemptedBefore = skipped.size",
                 "failedBefore = skipped.size",
+                "moves = filing",
             ),
             arguments(call),
         )

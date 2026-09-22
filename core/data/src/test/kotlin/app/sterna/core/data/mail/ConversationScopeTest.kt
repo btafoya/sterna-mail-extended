@@ -231,4 +231,43 @@ class ConversationScopeTest {
         assertTrue("accB's message must not be listed under accA", "other" !in listed)
         assertEquals(listed.size, chip(listOf("inbox"), resolution, accountId = "accA").second)
     }
+
+    private fun moves(viewed: List<String>, resolution: List<Pair<String, String>>, accountId: String?, mailboxId: String?) =
+        ConversationScope.movesWithConversation(viewed, resolution, accountId, mailboxId)
+
+    @Test fun `archiving an answered thread from the Inbox leaves the reply in Sent`() {
+        anAnsweredThread()
+        val resolution = listOf("accA" to "sentbox")
+        val members = unfold(listOf("inbox"), resolution, accountId = "accA")
+        val folderOf = mapOf("in1" to "inbox", "in2" to "inbox", "se1" to "sentbox")
+
+        val filed = members.filter { moves(listOf("inbox"), resolution, "accA", folderOf.getValue(it)) }
+
+        assertEquals(setOf("in1", "in2", "se1"), members.toSet())
+        assertEquals(setOf("in1", "in2"), filed.toSet())
+    }
+
+    @Test fun `a Sent folder the list shows moves with the conversation`() {
+        val resolution = listOf("accA" to "sentbox")
+        assertEquals(false, moves(listOf("inbox"), resolution, "accA", "sentbox"))
+        assertEquals(true, moves(listOf("sentbox"), resolution, "accA", "sentbox"))
+        assertEquals(true, moves(listOf("inbox", "sentbox"), resolution, "accA", "sentbox"))
+    }
+
+    @Test fun `only the message's own account's Sent folder is spared, never a sibling's homonym`() {
+        val resolution = listOf("accB" to "sentbox")
+        assertEquals(true, moves(listOf("inbox"), resolution, "accA", "sentbox"))
+        assertEquals(false, moves(listOf("inbox"), resolution, "accB", "sentbox"))
+    }
+
+    @Test fun `the flat view, which records no Sent resolution, spares nothing`() {
+        assertEquals(true, moves(listOf("inbox"), emptyList(), "accA", "sentbox"))
+    }
+
+    @Test fun `a message the rule cannot pin to an account or a folder moves`() {
+        val resolution = listOf("accA" to "sentbox")
+        assertEquals(true, moves(listOf("inbox"), resolution, null, "sentbox"))
+        assertEquals(true, moves(listOf("inbox"), resolution, "accA", null))
+        assertEquals(true, moves(listOf("inbox"), resolution, "accA", "inbox"))
+    }
 }
