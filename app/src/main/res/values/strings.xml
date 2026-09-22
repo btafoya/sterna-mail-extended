@@ -470,7 +470,7 @@
     <string name="settings_backup_summary">Back up or restore your settings</string>
     <string name="settings_backup_screen_title">Backup &amp; restore</string>
     <string name="settings_backup_section">Settings backup</string>
-    <string name="settings_backup_explainer">Save your app preferences (appearance, reading, notifications, privacy, language) and your account setup to a file, or restore them from one. The file is plain text and includes the senders you allow to load images. Passwords are never included, so imported accounts need to be signed in again.</string>
+    <string name="settings_backup_explainer">Save your app preferences (appearance, reading, notifications, privacy, language) and the setup of the accounts that sign in with a password to a file, or restore them from one. Accounts that sign in with Microsoft or with an API token, and shared accounts, are not in it. The file is plain text and includes the senders you allow to load images. Passwords are never included, so imported accounts need to be signed in again.</string>
     <string name="settings_backup_export">Export settings…</string>
     <string name="settings_backup_import">Import settings…</string>
     <string name="settings_backup_import_k9">Import from K-9 or Thunderbird</string>

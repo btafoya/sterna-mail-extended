@@ -316,7 +316,7 @@
     <string name="settings_backup_summary">Maak een back-up van je instellingen of herstel ze</string>
     <string name="settings_backup_screen_title">Back-up en herstel</string>
     <string name="settings_backup_section">Back-up van instellingen</string>
-    <string name="settings_backup_explainer">Sla je app-voorkeuren (weergave, lezen, meldingen, privacy, taal) en je accountconfiguratie op in een bestand of herstel ze ervan. Het bestand is platte tekst en bevat de afzenders van wie je afbeeldingen laat laden. Wachtwoorden worden nooit meegenomen, dus bij geïmporteerde accounts moet je opnieuw inloggen.</string>
+    <string name="settings_backup_explainer">Sla je app-voorkeuren (weergave, lezen, meldingen, privacy, taal) en de configuratie van de accounts die met een wachtwoord inloggen op in een bestand of herstel ze ervan. Accounts die zich aanmelden met Microsoft of met een API-token en gedeelde accounts zitten er niet in. Het bestand is platte tekst en bevat de afzenders van wie je afbeeldingen laat laden. Wachtwoorden worden nooit meegenomen, dus bij geïmporteerde accounts moet je opnieuw inloggen.</string>
     <string name="settings_backup_export">Instellingen exporteren…</string>
     <string name="settings_backup_import">Instellingen importeren…</string>
     <string name="settings_backup_import_k9">Importeren uit K-9 of Thunderbird</string>
