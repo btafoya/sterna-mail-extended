@@ -22,8 +22,6 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ⏸️ Gmail / Google OAuth2. The XOAUTH2 plumbing is done, but Google requires a
   paid, yearly security audit before an app can use the Gmail scopes, which is
   out of reach for this project. Gmail works with an app-specific password.
-- 💡 In search results, show the passage of the message that contains the search
-  term instead of its first lines (JMAP `SearchSnippet`).
 - 💡 Quick filters for starred-only and has-attachment.
 - 💡 Choose the order of your own folders.
 - 💡 IMAP CONDSTORE incremental sync.
@@ -69,6 +67,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 
 - ✅ Server-side search as you type, with instant results from the local cache.
 - ✅ In the unified inbox, search covers every account and merges the results.
+- ✅ On JMAP accounts, each server search result shows the passage of the message
+  that contains the search term instead of its first lines.
 - ✅ Advanced filters: from, subject, has attachment, date, starred only.
 - ✅ Unified inbox across accounts, date-sorted, each row naming its account.
 - ✅ Mail by sender: gather one address's mail, see how much there is, delete it in

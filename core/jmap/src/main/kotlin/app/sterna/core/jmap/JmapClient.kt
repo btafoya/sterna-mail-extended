@@ -657,6 +657,7 @@ class JmapClient internal constructor(
                     }
                     add("g0")
                 }
+                if (asksForSnippets(query)) addSearchSnippetCall(accountId, filter)
             }
         }
         val request = Request.Builder()
@@ -678,6 +679,7 @@ class JmapClient internal constructor(
                 // What the query matched, kept apart from what the get returned, same reason the
                 // crawl keeps both (see [SearchPage]). Absent `ids` stays null rather than 0.
                 matchedIds = methodResponseArgs(body, "Email/query")["ids"]?.jsonArray?.size,
+                snippetPreviews = snippetPreviews(methodResponseArgsOrNull(body, "SearchSnippet/get")),
             )
         }
     }

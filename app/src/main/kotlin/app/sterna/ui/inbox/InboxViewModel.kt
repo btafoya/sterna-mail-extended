@@ -47,6 +47,8 @@ import app.sterna.core.jmap.model.SearchQuery
 import app.sterna.send.SendOutbox
 import app.sterna.ui.NotificationFolderSwitch
 import app.sterna.ui.search.SearchDisplay
+import app.sterna.ui.search.excerptsByResultKey
+import app.sterna.ui.search.forQuery
 import app.sterna.ui.search.searchComplete
 import app.sterna.ui.search.searchDisplay
 import kotlinx.coroutines.CancellationException
@@ -98,6 +100,7 @@ data class MailUi(
     /** False when the search stopped short (server cap, or an account that failed and was
      *  dropped): the count above the results then says "at least N". */
     val searchComplete: Boolean = true,
+    val searchExcerpts: Map<String, String> = emptyMap(),
     val mailboxes: List<Mailbox>,
     /** The same list minus what the subscription setting (#174) and the hide registry (#207) leave
      * out, what the drawer draws, and nothing else. A second field, never a
@@ -144,7 +147,7 @@ private data class Base(
     val showRefreshIndicator: Boolean = false,
 )
 
-private data class SearchUi(
+internal data class SearchUi(
     val active: Boolean = false,
     val query: String = "",
     val results: List<Email>? = null,
@@ -152,6 +155,7 @@ private data class SearchUi(
     /** False when the server leg stopped short, its cap, or an account that failed and was
      *  dropped. The count then says "at least N" (see [app.sterna.core.data.mail.MailSearchResult]). */
     val complete: Boolean = true,
+    val excerpts: Map<String, String> = emptyMap(),
 )
 
 /** Typing pause before the (unioned-in) server full-text search fires; local FTS has no debounce. */
@@ -1052,6 +1056,7 @@ class InboxViewModel(
             atInbox = base.atInbox,
             searchResults = search.results.orEmpty(),
             searchComplete = search.complete,
+            searchExcerpts = search.excerpts,
             mailboxes = base.mailboxes,
             visibleMailboxes = base.visibleMailboxes,
             refreshing = base.refreshing,
@@ -3016,10 +3021,10 @@ class InboxViewModel(
     fun setSearchQuery(query: String) {
         searchJob?.cancel()
         if (query.isBlank()) {
-            searchState.value = searchState.value.copy(query = query, results = null, loading = false)
+            searchState.value = searchState.value.forQuery(query).copy(results = null, loading = false)
             return
         }
-        searchState.value = searchState.value.copy(query = query, loading = true, complete = true)
+        searchState.value = searchState.value.forQuery(query).copy(loading = true, complete = true)
         searchJob = viewModelScope.launch {
             // 1) Local FTS first: instant on every keystroke, offline, accent-folded, prefix-matched
             //    ("eco*" finds écologie/écologique/…), over the header index of the whole mailbox.
@@ -3058,6 +3063,7 @@ class InboxViewModel(
                     // Both legs must have run to the end for this to be a total; a good server
                     // answer doesn't undo a local index that fell over.
                     complete = searchComplete(local = localComplete, server = server.complete),
+                    excerpts = excerptsByResultKey(server),
                 )
             }
         }

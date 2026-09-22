@@ -45,6 +45,7 @@ data class CrawlPage(
 data class SearchPage(
     val emails: List<Email>,
     val matchedIds: Int?,
+    val snippetPreviews: Map<String, String> = emptyMap(),
 )
 
     /** Result of Email/queryChanges. [calculated] is false when the server returned

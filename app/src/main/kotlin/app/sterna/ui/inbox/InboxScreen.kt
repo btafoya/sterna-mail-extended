@@ -207,6 +207,7 @@ import app.sterna.ui.search.SearchCount
 import app.sterna.ui.search.SearchDisplay
 import app.sterna.ui.search.searchCount
 import app.sterna.ui.search.searchDisplay
+import app.sterna.ui.search.searchResultKey
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import kotlin.math.abs
@@ -1267,6 +1268,7 @@ fun InboxScreen(
                     // search branch keeps the keyword alone, `false` there would remove a chip. The
                     // second chip says the draft has not reached the server yet (#95).
                     showNotUploadedBadge = isLocalDraftRow(email.id),
+                    excerpt = if (fromSearch) ui.searchExcerpts[searchResultKey(email)] else null,
                     showDraftBadge = if (fromSearch) email.isDraft else showsDraftBadge(
                         isDraft = email.isDraft,
                         accountId = email.accountId,
@@ -2144,6 +2146,7 @@ private fun SwipeableEmailRow(
     /** Whether the row is a draft this phone holds and the server has not got (#95). Defaults to
      *  false, like [EmailListItem]'s own parameter: no other list has such rows in it. */
     showNotUploadedBadge: Boolean = false,
+    excerpt: String? = null,
     onSwipe: (SwipeAction) -> Unit,
     onClick: () -> Unit,
     // Nullable so inline conversation children can omit long-press selection and the star.
@@ -2474,6 +2477,7 @@ private fun SwipeableEmailRow(
                 showRecipients = showRecipients,
                 showDraftBadge = showDraftBadge,
                 showNotUploadedBadge = showNotUploadedBadge,
+                excerpt = excerpt,
             )
         }
     }

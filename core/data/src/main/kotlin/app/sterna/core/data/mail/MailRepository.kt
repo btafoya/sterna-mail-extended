@@ -3806,6 +3806,7 @@ class MailRepository(
         return MailSearchResult(
             resolved,
             complete = jmapSearchComplete(cachedFolders, hits.matchedIds, resolved.size, limit),
+            excerpts = excerptsOf(resolved, hits.snippetPreviews),
         )
     }
 
@@ -3815,15 +3816,13 @@ class MailRepository(
         if (query.isEmpty() || accounts.isEmpty()) return MailSearchResult(emptyList())
         if (accounts.size == 1) {
             val only = accounts.first()
-            val one = search(only, query, limit)
-            return one.copy(emails = one.emails.map { it.copy(accountId = only.id) })
+            return search(only, query, limit).ownedBy(only.id)
         }
         val perAccount = coroutineScope {
             accounts.map { credentials ->
                 async {
                     runCatching {
-                        val hits = search(credentials, query, limit)
-                        hits.copy(emails = hits.emails.map { it.copy(accountId = credentials.id) })
+                        search(credentials, query, limit).ownedBy(credentials.id)
                     }.onFailure { error ->
                         // Cancellation is not a failure and must keep propagating, runCatching catches it too.
                         if (error is CancellationException) throw error

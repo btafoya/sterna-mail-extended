@@ -7,6 +7,7 @@ import app.sterna.core.jmap.model.Email
 data class MailSearchResult(
     val emails: List<Email>,
     val complete: Boolean = true,
+    val excerpts: Map<Pair<String?, String>, String> = emptyMap(),
 )
 
 /** Merge the per-account answers of a unified search into one capped list: fair by account, then
@@ -33,5 +34,8 @@ internal fun mergeAccountSearches(perAccount: List<MailSearchResult>, limit: Int
     return MailSearchResult(
         emails = picked.values.sortedByDescending { it.receivedAt ?: "" },
         complete = perAccount.all { it.complete } && picked.size == available,
+        excerpts = perAccount.flatMap { it.excerpts.entries }
+            .filter { it.key in picked }
+            .associate { it.key to it.value },
     )
 }

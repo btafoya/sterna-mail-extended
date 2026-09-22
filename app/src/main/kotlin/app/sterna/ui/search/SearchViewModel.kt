@@ -27,6 +27,7 @@ sealed interface SearchState {
         val query: SearchQuery,
         val emails: List<Email>,
         val complete: Boolean = true,
+        val excerpts: Map<String, String> = emptyMap(),
     ) : SearchState
     data class Error(val message: String) : SearchState
 }
@@ -36,7 +37,9 @@ sealed interface SearchState {
  * and deduplicates by (accountId, id) on purpose, so the same JMAP id legitimately appears twice
  * and a duplicate key in a lazy list throws (#92). Same form as the inbox lists.
  */
-internal fun searchResultKey(email: Email): String = "${email.accountId}|${email.id}"
+internal fun searchResultKey(email: Email): String = searchResultKey(email.accountId, email.id)
+
+internal fun searchResultKey(accountId: String?, id: String): String = "$accountId|$id"
 
 /**
  * The same ceiling as the inbox's own search bar: the "advanced" screen returning fewer messages
@@ -145,7 +148,7 @@ class SearchViewModel(
                     error(getApplication<Application>().getString(R.string.status_no_saved_account))
                 }
                 val result = repo.search(credentials, query, SEARCH_LIMIT)
-                _state.value = SearchState.Results(query, result.emails, result.complete)
+                _state.value = SearchState.Results(query, result.emails, result.complete, excerptsByResultKey(result))
             } catch (t: Throwable) {
                 _state.value = SearchState.Error(t.message ?: t.javaClass.simpleName)
             }

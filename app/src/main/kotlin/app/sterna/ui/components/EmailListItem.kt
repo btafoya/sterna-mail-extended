@@ -119,6 +119,9 @@ internal fun chipFill(
     unreadTint: Boolean,
 ): Color = if (unread && unreadTint && !selected) scheme.surfaceContainerLowest else scheme.surfaceVariant
 
+internal fun rowPreviewText(preview: String?, excerpt: String?): String? =
+    excerpt?.takeIf { it.isNotBlank() } ?: preview?.takeIf { it.isNotBlank() }
+
 /**
  * One row in a message list: monogram, sender, subject, preview, time + state.
  *
@@ -162,6 +165,7 @@ fun EmailListItem(
     showDraftBadge: Boolean = email.isDraft,
     // Whether to mark the row as a draft this phone is still holding for the server (#95).
     showNotUploadedBadge: Boolean = false,
+    excerpt: String? = null,
 ) {
     val senderName = email.from.firstOrNull()?.display() ?: stringResource(R.string.message_unknown_sender)
     val recipient = if (showRecipients) email.to.firstOrNull() else null
@@ -303,7 +307,7 @@ fun EmailListItem(
                 }
             }
             if (previewLines > 0) {
-                email.preview?.takeIf { it.isNotBlank() }?.let { preview ->
+                rowPreviewText(email.preview, excerpt)?.let { preview ->
                     Text(
                         text = preview,
                         style = MaterialTheme.typography.bodySmall,

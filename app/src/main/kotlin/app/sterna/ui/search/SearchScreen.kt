@@ -357,6 +357,7 @@ fun SearchScreen(
                                             },
                                             originLabel = owner?.label(),
                                             originColor = accountColorOf(owner?.color),
+                                            excerpt = s.excerpts[searchResultKey(email)],
                                         )
                                         HorizontalDivider()
                                     }
