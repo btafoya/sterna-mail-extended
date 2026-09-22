@@ -22,7 +22,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ⏸️ Gmail / Google OAuth2. The XOAUTH2 plumbing is done, but Google requires a
   paid, yearly security audit before an app can use the Gmail scopes, which is
   out of reach for this project. Gmail works with an app-specific password.
-- 💡 Search-result highlights (JMAP `SearchSnippet`).
+- 💡 In search results, show the passage of the message that contains the search
+  term instead of its first lines (JMAP `SearchSnippet`).
 - 💡 Quick filters for starred-only and has-attachment.
 - 💡 Folder subscribe, and drag to reorder.
 - 💡 IMAP CONDSTORE incremental sync.
