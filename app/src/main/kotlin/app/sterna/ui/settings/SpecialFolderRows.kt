@@ -74,9 +74,10 @@ internal fun specialFolderRows(
     chosen: Map<String, String>,
     inboxId: String?,
     idsArePaths: Boolean,
+    order: List<String> = emptyList(),
 ): List<SpecialFolderRow> {
     val listed = visibleFolders(mailboxes, showOnlySubscribed)
-    val targets = mailboxTree(listed, collapsed = emptySet())
+    val targets = mailboxTree(listed, collapsed = emptySet(), order = order)
         .filterNot { isInboxTarget(it.mailbox, inboxId, idsArePaths) }
     val targetIds = targets.mapTo(mutableSetOf()) { it.mailbox.id }
     return SPECIAL_FOLDER_ROLES.map { role ->

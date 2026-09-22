@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -2867,6 +2868,7 @@ private fun formatVacationDate(millis: Long): String =
 internal fun DetailScaffold(
     title: String,
     onBack: () -> Unit,
+    actions: (@Composable RowScope.() -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -2888,6 +2890,7 @@ internal fun DetailScaffold(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.settings_back))
                     }
                 },
+                actions = { actions?.invoke(this) },
                 scrollBehavior = scrollBehavior,
             )
         },

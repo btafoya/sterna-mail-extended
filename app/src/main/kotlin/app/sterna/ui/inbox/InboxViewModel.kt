@@ -107,6 +107,7 @@ data class MailUi(
      *  replacement for [mailboxes], which is read for subfolder deletes ([InboxViewModel.subfolderIdsOf]),
      *  to tell a deleted folder from a hidden one (#89), and to name a row's folder and role. */
     val visibleMailboxes: List<Mailbox> = emptyList(),
+    val folderOrder: List<String> = emptyList(),
     val refreshing: Boolean,
     val error: String?,
     /** Whether the refresh indicator is drawn, never a synonym of [refreshing], which is the truth
@@ -132,6 +133,7 @@ private data class Base(
     val mailboxes: List<Mailbox>,
     /** Folded in after the five-flow combine below, from the setting's own flow. */
     val visibleMailboxes: List<Mailbox> = emptyList(),
+    val folderOrder: List<String> = emptyList(),
     val selectedMailboxId: String?,
     val unified: Boolean,
     val unreadView: Boolean,
@@ -675,6 +677,10 @@ class InboxViewModel(
         combine(currentAccountId, store.accountsFlow) { id, accounts -> folderHidingOf(id, accounts) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, FolderHiding(null, emptySet(), null))
 
+    private val currentFolderOrder: StateFlow<FolderOrdering> =
+        combine(currentAccountId, store.accountsFlow) { id, accounts -> folderOrderingOf(id, accounts) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, FolderOrdering(null, emptyList()))
+
     /**
      * The last folder list [mailboxes] delivered, with the account it belonged to, raw, unfiltered.
      * [mailboxes] carries side effects (#91, #89) and must be collected once, so the setting
@@ -876,10 +882,17 @@ class InboxViewModel(
 
     /** Folders the move-to-folder picker offers: one account's, [movePickerAccountId]'s, never a
      *  mix, because mailbox ids collide between accounts of the same server (#92). */
-    val selectionMailboxes: StateFlow<List<Mailbox>> =
+    private val selectionListing: StateFlow<Pair<String?, List<Mailbox>>> =
         movePickerAccountId.flatMapLatest { accountId ->
-            if (accountId == null) flowOf(emptyList()) else repo.observeMailboxes(accountId)
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            if (accountId == null) flowOf(Pair<String?, List<Mailbox>>(null, emptyList())) else repo.observeMailboxes(accountId).map { Pair<String?, List<Mailbox>>(accountId, it) }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, Pair<String?, List<Mailbox>>(null, emptyList()))
+    val selectionMailboxes: StateFlow<List<Mailbox>> =
+        selectionListing.map { (_, folders) -> folders }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Read off the account the list was observed on: [movePickerAccountId] moves before its list. */
+    val selectionFolderOrder: StateFlow<List<String>> =
+        combine(selectionListing, store.accountsFlow) { (accountId, _), accounts -> folderOrderingOf(accountId, accounts).ids }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /**
      * Whether the picker above must hide unsubscribed folders, the setting of the same account
@@ -1043,7 +1056,11 @@ class InboxViewModel(
         base.copy(accountId = hiding.accountId, unreadViewCount = unreadViewCount(hiding.accountId, scopes, base.mailboxes), visibleMailboxes = shownFolders(visibleFolders(base.mailboxes, onlySubscribed), listed.ids, listed.inboxId), showRefreshIndicator = showing)
     }
 
-    val state: StateFlow<MailUi> = combine(badgedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->
+    private val orderedState = combine(badgedState, currentFolderOrder) { badged, order ->
+        badged.copy(folderOrder = order.forList(folderSnapshot.value.first).ids)
+    }
+
+    val state: StateFlow<MailUi> = combine(orderedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->
         MailUi(
             accountId = base.accountId,
             accountName = base.accountName,
@@ -1059,6 +1076,7 @@ class InboxViewModel(
             searchExcerpts = search.excerpts,
             mailboxes = base.mailboxes,
             visibleMailboxes = base.visibleMailboxes,
+            folderOrder = base.folderOrder,
             refreshing = base.refreshing,
             error = base.error,
             showRefreshIndicator = base.showRefreshIndicator,

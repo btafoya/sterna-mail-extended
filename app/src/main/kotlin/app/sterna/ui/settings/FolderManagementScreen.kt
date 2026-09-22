@@ -1,5 +1,6 @@
 package app.sterna.ui.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,13 +9,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -27,6 +35,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -60,51 +69,107 @@ internal fun FolderManagementScreen(
     }
     val folders by remember(accountId) { viewModel.folders(accountId) }
         .collectAsStateWithLifecycle(emptyList())
-    val rows = folderManagementRows(folders, showOnlySubscribedFoldersOf(account), account.hiddenFolders, account.watchedFolders, account.inboxId)
-    val specialRows = specialFolderRows(folders, showOnlySubscribedFoldersOf(account), account.specialFolders, account.inboxId, account.protocol == MailProtocol.IMAP)
-    DetailScaffold(title = stringResource(R.string.folders_manage_title), onBack = onBack) { padding ->
+    val specialRows = specialFolderRows(folders, showOnlySubscribedFoldersOf(account), account.specialFolders, account.inboxId, account.protocol == MailProtocol.IMAP, account.folderOrder)
+    // Saveable: a rotation recreates the activity, and the user is in the middle of a task.
+    var reordering by rememberSaveable(accountId) { mutableStateOf(false) }
+    val rows = folderManagementRows(folders, showOnlySubscribedFoldersOf(account), account.hiddenFolders, account.watchedFolders, account.inboxId, account.folderOrder, reordering)
+    BackHandler(enabled = reordering) { reordering = false }
+    DetailScaffold(
+        title = stringResource(R.string.folders_manage_title),
+        onBack = onBack,
+        actions = {
+            TextButton(onClick = { reordering = !reordering }) {
+                Text(stringResource(if (reordering) R.string.folders_reorder_done else R.string.folders_reorder_start))
+            }
+        },
+    ) { padding ->
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState()),
         ) {
-            SettingsSection(stringResource(R.string.folders_special_title)) {
+            if (reordering) {
                 Text(
-                    stringResource(R.string.folders_special_subtitle),
+                    stringResource(R.string.folders_reorder_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
-                specialRows.forEach { row ->
-                    SpecialFolderChoiceRow(
-                        row = row,
-                        onChoose = { viewModel.setSpecialFolder(accountId, row.role, it) },
-                    )
+                rows.forEach { row ->
+                    FolderReorderRow(row) { moves, up -> viewModel.moveFolder(accountId, moves.siblings, row.mailbox.id, up) }
                 }
-            }
-            rows.forEach { row ->
-                Column(Modifier.padding(start = (row.depth * 16).dp)) {
-                    SettingsSection(mailboxDisplayName(row.mailbox.role, row.mailbox.name)) {
-                        SettingSwitch(
-                            title = stringResource(R.string.folders_manage_show_title),
-                            subtitle = stringResource(R.string.folders_manage_show_subtitle),
-                            checked = row.shown,
-                            onCheckedChange = { viewModel.setFolderHidden(accountId, row.mailbox.id, !it) },
-                            enabled = row.showToggleEnabled,
+            } else {
+                SettingsSection(stringResource(R.string.folders_special_title)) {
+                    Text(
+                        stringResource(R.string.folders_special_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    specialRows.forEach { row ->
+                        SpecialFolderChoiceRow(
+                            row = row,
+                            onChoose = { viewModel.setSpecialFolder(accountId, row.role, it) },
                         )
-                        if (row.mayWatch) {
+                    }
+                }
+                rows.forEach { row ->
+                    Column(Modifier.padding(start = (row.depth * 16).dp)) {
+                        SettingsSection(mailboxDisplayName(row.mailbox.role, row.mailbox.name)) {
                             SettingSwitch(
-                                title = stringResource(R.string.inbox_folder_watch),
-                                subtitle = stringResource(R.string.folders_manage_watch_subtitle),
-                                checked = row.watched,
-                                onCheckedChange = { viewModel.setFolderWatched(accountId, row.mailbox.id, it) },
+                                title = stringResource(R.string.folders_manage_show_title),
+                                subtitle = stringResource(R.string.folders_manage_show_subtitle),
+                                checked = row.shown,
+                                onCheckedChange = { viewModel.setFolderHidden(accountId, row.mailbox.id, !it) },
+                                enabled = row.showToggleEnabled,
                             )
+                            if (row.mayWatch) {
+                                SettingSwitch(
+                                    title = stringResource(R.string.inbox_folder_watch),
+                                    subtitle = stringResource(R.string.folders_manage_watch_subtitle),
+                                    checked = row.watched,
+                                    onCheckedChange = { viewModel.setFolderWatched(accountId, row.mailbox.id, it) },
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/** One folder in the reorder mode: its name at its depth, and the Up and Down its row may take. */
+@Composable
+private fun FolderReorderRow(row: FolderManagementRow, onMove: (FolderMoves, Boolean) -> Unit) {
+    val name = mailboxDisplayName(row.mailbox.role, row.mailbox.name)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .padding(start = (16 + row.depth * 16).dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        val moves = row.moves
+        if (moves != null) {
+            MoveSlot(moves.mayMoveUp, Icons.Filled.KeyboardArrowUp, stringResource(R.string.folders_reorder_up, name)) { onMove(moves, true) }
+            MoveSlot(moves.mayMoveDown, Icons.Filled.KeyboardArrowDown, stringResource(R.string.folders_reorder_down, name)) { onMove(moves, false) }
+        }
+    }
+}
+
+/** A 48 dp move button, or an empty slot of the same size when the row may not move that way: the
+ *  arrows of every row then stay in one column. */
+@Composable
+private fun MoveSlot(shown: Boolean, icon: ImageVector, description: String, onClick: () -> Unit) {
+    if (!shown) {
+        Spacer(Modifier.size(48.dp))
+        return
+    }
+    IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+        Icon(icon, contentDescription = description)
     }
 }
 

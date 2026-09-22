@@ -86,6 +86,12 @@ interface AccountStorage {
     /** Drop the hide registry keys of folders a delete destroyed, descendants included. */
     fun forgetHiddenFolders(id: String, folderIds: Collection<String>)
 
+    /** Re-key a folder's place in the chosen order after an IMAP rename, carrying everything under it across. */
+    fun replaceFolderOrder(id: String, oldId: String, newId: String, delimiter: String = "/")
+
+    /** Drop from the chosen order the folders a delete destroyed, descendants included. */
+    fun forgetFolderOrder(id: String, folderIds: Collection<String>)
+
     /** Re-key the special-folder choices after an IMAP rename, carrying everything under it across. */
     fun replaceSpecialFolder(id: String, oldId: String, newId: String, delimiter: String = "/")
 

@@ -563,6 +563,23 @@ class AccountStore(context: Context) : AccountStorage {
         saveAccounts(withoutHiddenFolder(accounts(), id, folderIds))
     }
 
+    fun folderOrder(id: String): List<String> = account(id)?.folderOrder ?: emptyList()
+
+    @Synchronized
+    fun moveFolder(id: String, siblings: List<String>, folderId: String, up: Boolean) {
+        saveAccounts(withFolderMoved(accounts(), id, siblings, folderId, up))
+    }
+
+    @Synchronized
+    override fun replaceFolderOrder(id: String, oldId: String, newId: String, delimiter: String) {
+        saveAccounts(withRenamedFolderOrder(accounts(), id, oldId, newId, delimiter))
+    }
+
+    @Synchronized
+    override fun forgetFolderOrder(id: String, folderIds: Collection<String>) {
+        saveAccounts(withoutFolderOrder(accounts(), id, folderIds))
+    }
+
     @Synchronized
     override fun replaceSpecialFolder(id: String, oldId: String, newId: String, delimiter: String) {
         saveAccounts(withRenamedSpecialFolder(accounts(), id, oldId, newId, delimiter))
@@ -788,17 +805,7 @@ class AccountStore(context: Context) : AccountStorage {
     /**
      * Accounts as a secret-free snapshot for a settings backup: the encrypted secret slot is never
      */
-    fun accountsForBackup(): List<StoredAccount> = accounts()
-        .filter { it.authType == AuthType.BASIC && !it.isLinked }
-        .map {
-            it.copy(
-                oauthAccessToken = "",
-                oauthAccessExpiresAt = 0,
-                inboxId = null,
-                inboxName = "Inbox",
-                unread = 0,
-            )
-        }
+    fun accountsForBackup(): List<StoredAccount> = backupSnapshotOf(accounts())
 
     /**
      * Merge backed-up account configuration in. An incoming account is added only if no existing
@@ -814,15 +821,7 @@ class AccountStore(context: Context) : AccountStorage {
             val k = accountKeyOf(a) ?: continue
             if (k in seen) continue
             seen += k
-            added += a.copy(
-                id = UUID.randomUUID().toString(),
-                oauthAccessToken = "",
-                oauthAccessExpiresAt = 0,
-                inboxId = null,
-                inboxName = "Inbox",
-                unread = 0,
-                importPending = true,
-            )
+            added += importedCopy(a, UUID.randomUUID().toString())
         }
         if (added.isEmpty()) return 0
         saveAccounts(existing + added)

@@ -1058,6 +1058,11 @@
     <string name="widget_latest_empty">No messages</string>
     <string name="widget_latest_hidden">Message hidden</string>
     <string name="folders_manage_title">Manage folders</string>
+    <string name="folders_reorder_start">Reorder</string>
+    <string name="folders_reorder_done">Done</string>
+    <string name="folders_reorder_hint">Standard folders stay at the top. A folder moves among the folders of its own parent.</string>
+    <string name="folders_reorder_up">Move %1$s up</string>
+    <string name="folders_reorder_down">Move %1$s down</string>
     <string name="folders_manage_show_title">Show this folder</string>
     <string name="folders_manage_show_subtitle">A hidden folder keeps its mail, and search still finds it</string>
     <string name="folders_manage_watch_subtitle">Fetches this folder in the background</string>

@@ -58,7 +58,7 @@ class MailFolders(
 
     /** Rename a folder, then refresh; returns its id. IMAP ids are paths, so the per-folder registries
      *  are re-keyed to follow: the watch flags (#16), the drawer's fold choices (#185), the hidden
-     *  folders (#207), the folder each special role is pinned to (#227). */
+     *  folders (#207), the folder each special role is pinned to (#227), the chosen folder order. */
     suspend fun renameFolder(credentials: AccountCredentials, mailboxId: String, newName: String): String {
         if (credentials.protocol == MailProtocol.IMAP) {
             val delim = imap.listImapFolders(credentials).firstOrNull { it.path == mailboxId }?.delimiter
@@ -69,6 +69,7 @@ class MailFolders(
             accountStore.replaceWatchedFolder(credentials.id, mailboxId, newPath, delim)
             accountStore.replaceCollapsedFolder(credentials.id, mailboxId, newPath, delim)
             accountStore.replaceHiddenFolder(credentials.id, mailboxId, newPath, delim)
+            accountStore.replaceFolderOrder(credentials.id, mailboxId, newPath, delim)
             accountStore.replaceSpecialFolder(credentials.id, mailboxId, newPath, delim)
             // The listing decides each cached role from the choices the account object carries,
             // and the caller's were read before `replaceSpecialFolder` re-keyed them: they name
@@ -123,6 +124,7 @@ class MailFolders(
         // user filed there. A folder merely missing from a listing keeps its role, it may be back;
         // this one she destroyed here.
         accountStore.forgetSpecialFolders(credentials.id, targets)
+        accountStore.forgetFolderOrder(credentials.id, targets)
         refreshMailboxes(credentials)
         return targets
     }

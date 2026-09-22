@@ -1015,6 +1015,11 @@
     <string name="widget_latest_empty">Aucun message</string>
     <string name="widget_latest_hidden">Message masqué</string>
     <string name="folders_manage_title">Gérer les dossiers</string>
+    <string name="folders_reorder_start">Réorganiser</string>
+    <string name="folders_reorder_done">Terminé</string>
+    <string name="folders_reorder_hint">Les dossiers standard restent en tête. Un dossier se déplace parmi ceux de son dossier parent.</string>
+    <string name="folders_reorder_up">Monter %1$s</string>
+    <string name="folders_reorder_down">Descendre %1$s</string>
     <string name="folders_manage_show_title">Afficher ce dossier</string>
     <string name="folders_manage_show_subtitle">Un dossier masqué garde son courrier, et la recherche le trouve</string>
     <string name="folders_manage_watch_subtitle">Récupère ce dossier en arrière-plan</string>

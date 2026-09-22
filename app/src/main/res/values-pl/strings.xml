@@ -1023,6 +1023,11 @@
     <string name="widget_latest_empty">Brak wiadomości</string>
     <string name="widget_latest_hidden">Wiadomość ukryta</string>
     <string name="folders_manage_title">Zarządzaj folderami</string>
+    <string name="folders_reorder_start">Zmień kolejność</string>
+    <string name="folders_reorder_done">Gotowe</string>
+    <string name="folders_reorder_hint">Foldery standardowe zostają na górze. Folder przesuwa się tylko w obrębie swojego folderu nadrzędnego.</string>
+    <string name="folders_reorder_up">Przenieś %1$s w górę</string>
+    <string name="folders_reorder_down">Przenieś %1$s w dół</string>
     <string name="folders_manage_show_title">Pokaż ten folder</string>
     <string name="folders_manage_show_subtitle">Ukryty folder zachowuje pocztę i nadal można ją wyszukać</string>
     <string name="folders_manage_watch_subtitle">Pobiera ten folder w tle</string>

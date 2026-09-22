@@ -542,6 +542,43 @@ class MailFoldersActOnBothProtocolsTest {
         )
     }
 
+    /**
+     * The chosen folder order follows a rename like the other registries: IMAP ids are paths, so a
+     * rename left un-keyed drops the folder back to the listing's place.
+     */
+    @Test fun `an imap rename re-keys the folder order`() {
+        val imap = RecordingImap(store, listing = listOf(folder("Archive", "."), folder("Archive.2024", ".")))
+        val folders = folders(imap, mailboxDao = mailboxDaoRecording(mutableListOf(), mutableListOf()))
+
+        runBlocking { folders.renameFolder(credentials(MailProtocol.IMAP), "Archive.2024", " 2025 ") }
+
+        assertEquals(
+            listOf(mapOf("id" to ACCOUNT, "oldId" to "Archive.2024", "newId" to "Archive.2025", "delimiter" to ".")),
+            storeCalls("replaceFolderOrder"),
+        )
+    }
+
+    /** And a delete forgets the whole destroyed subtree: a path left behind hands its place to the
+     *  next folder created there. */
+    @Test fun `an imap delete forgets the folder order of the whole subtree`() {
+        val imap = RecordingImap(
+            store,
+            listing = listOf(folder("Archive", "."), folder("Archive.2024", "."), folder("Archive.2024.Trips", ".")),
+        )
+        val folders = folders(
+            imap,
+            mailboxDao = mailboxDaoRecording(mutableListOf(), mutableListOf()),
+            emailDao = emailDaoRecording(mutableListOf()),
+        )
+
+        runBlocking { folders.deleteFolder(credentials(MailProtocol.IMAP), "Archive.2024") }
+
+        assertEquals(
+            listOf(mapOf("id" to ACCOUNT, "folderIds" to listOf("Archive.2024.Trips", "Archive.2024"))),
+            storeCalls("forgetFolderOrder"),
+        )
+    }
+
     // ---- the choice itself (#227)
 
     /**
@@ -903,6 +940,7 @@ class MailFoldersActOnBothProtocolsTest {
         assertEquals(emptyList<Map<String, Any?>>(), storeCalls("replaceWatchedFolder"))
         assertEquals(emptyList<Map<String, Any?>>(), storeCalls("replaceCollapsedFolder"))
         assertEquals(emptyList<Map<String, Any?>>(), storeCalls("replaceSpecialFolder"))
+        assertEquals(emptyList<Map<String, Any?>>(), storeCalls("replaceFolderOrder"))
     }
 
     /**
@@ -931,6 +969,7 @@ class MailFoldersActOnBothProtocolsTest {
         assertEquals(subtree, destroys())
         assertEquals(subtree, destroyed)
         assertEquals(subtree.map { ACCOUNT to it }, emptied)
+        assertEquals(listOf(mapOf("id" to ACCOUNT, "folderIds" to subtree)), storeCalls("forgetFolderOrder"))
     }
 
     private companion object {

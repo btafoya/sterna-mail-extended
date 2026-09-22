@@ -23,7 +23,6 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   paid, yearly security audit before an app can use the Gmail scopes, which is
   out of reach for this project. Gmail works with an app-specific password.
 - 💡 Quick filters for starred-only and has-attachment.
-- 💡 Choose the order of your own folders.
 - 💡 IMAP CONDSTORE incremental sync.
 - 💡 Fuller TalkBack audit and touch-target review.
 - 💡 S/MIME.
@@ -78,6 +77,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Folder management: create, rename, delete, nested folders as a tree.
 - ✅ Per-folder settings on their own screen, including hiding a folder from this
   device while its mail stays searchable.
+- ✅ Put your own folders in the order you choose, on this device. Standard folders
+  stay at the top.
 - ✅ An Archive folder is created on first archive when the account has none.
 
 ## Composing & sending

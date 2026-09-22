@@ -123,9 +123,9 @@ class UnreadViewWiringLintTest {
     @Test
     fun `the badge is folded in from the unread scope, and the state reads the folded flow`() {
         val lines = codeLines(INBOX_VIEW_MODEL).map { it.trim() }
-            .filter { Regex("""\b(baseState|badgedState)\b""").containsMatchIn(it) }
+            .filter { Regex("""\b(baseState|badgedState|orderedState)\b""").containsMatchIn(it) }
         assertEquals(
-            "The three declarations that carry the drawer badge must stay exactly as they are. " +
+            "The declarations that carry the drawer badge must stay exactly as they are. " +
                 "The scope handed to the fold is the one the PAGER is built from (unreadScopes, " +
                 "account-pinned pairs — #121); the flow the UI state is built from is the folded " +
                 "one. Whole lines, arguments and lambda headers included. Lines found were:" +
@@ -471,14 +471,15 @@ class UnreadViewWiringLintTest {
             "val unreadViewCount: Int = 0,",
         )
 
-        /** The three declarations the badge travels through, whole. */
+        /** The declarations the badge travels through, whole, the folder order folded in last. */
         private val EXPECTED_STATE_LINES = listOf(
             // The fold gained a fifth flow, the refresh indicator's visibility (#178): the
             // display of the tern is derived, and the truth `refreshing`, carried by baseState
             // above, untouched, is what still empties the centre of the screen (#63).
             "private val badgedState = combine(baseState, unreadScopes, currentHiding, showOnlySubscribed, indicatorShowing) { base, scopes, hiding, onlySubscribed, showing ->",
             "private val baseState = combine(mailboxes, selection, meta, status, unifiedUnread) { mailboxes, sel, meta, status, unifiedUnread ->",
-            "val state: StateFlow<MailUi> = combine(badgedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->",
+            "private val orderedState = combine(badgedState, currentFolderOrder) { badged, order ->",
+            "val state: StateFlow<MailUi> = combine(orderedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->",
         )
 
         /** The badge, computed once, from the scope the pager uses. */

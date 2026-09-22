@@ -17,7 +17,7 @@ class SubscribedFoldersSurfaceWiringTest {
                 "from the fold registry and the default (collapsedIds); what that may fold " +
                 "is CollapsedFoldersSurfaceWiringTest's business, the first argument is this " +
                 "test's and it must stay ui.visibleMailboxes.",
-            listOf("mailboxTree(ui.visibleMailboxes, collapsedIds).forEach { node ->"),
+            listOf("mailboxTree(ui.visibleMailboxes, collapsedIds, ui.folderOrder).forEach { node ->"),
             block(INBOX_SCREEN, "mailboxTree(", 1),
         )
         assertEquals(
@@ -53,8 +53,8 @@ class SubscribedFoldersSurfaceWiringTest {
                 "field (#182) does not re-sort the whole account on every keystroke, and a key " +
                 "dropped from that list freezes the picker on a stale folder list.",
             listOf(
-                "val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding) {",
-                "moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId)",
+                "val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding, moveTargetsOrder) {",
+                "moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId, moveTargetsOrder)",
                 "}",
             ),
             block(INBOX_SCREEN, "val targets = remember(", 3),
@@ -88,14 +88,16 @@ class SubscribedFoldersSurfaceWiringTest {
             listOf(
                 "val moveTargets: StateFlow<List<Mailbox>> = combine(",
                 "movePickerAccountId.flatMapLatest { id ->",
-                "if (id == null) flowOf(emptyList()) else repo.observeMailboxes(id)",
+                "if (id == null) flowOf(Pair<String?, List<Mailbox>>(null, emptyList())) else repo.observeMailboxes(id).map { Pair<String?, List<Mailbox>>(id, it) }",
                 "},",
                 "combine(_moveAccountId, _ownerAccountId, _mailboxId) { chosen, owner, current -> pickerExcludedMailbox(chosen, owner, current) },",
                 "combine(store.accountsFlow, movePickerAccountId) { accounts, id -> showOnlySubscribedFor(id, accounts) },",
                 "combine(store.accountsFlow, movePickerAccountId) { accounts, id -> folderHidingOf(id, accounts) },",
-                ") { folders, current, onlySubscribed, hiding -> moveTargets(folders, current, onlySubscribed, hiding.ids, hiding.inboxId) }",
+                "combine(store.accountsFlow, movePickerAccountId) { accounts, id -> folderOrderingOf(id, accounts) },",
+                ") { (listed, folders), current, onlySubscribed, hiding, ordering ->",
+                "moveTargets(folders, current, onlySubscribed, hiding.ids, hiding.inboxId, ordering.forList(listed).ids)",
             ),
-            block(MESSAGE_VIEW_MODEL, "val moveTargets: StateFlow<List<Mailbox>> = combine(", 8),
+            block(MESSAGE_VIEW_MODEL, "val moveTargets: StateFlow<List<Mailbox>> = combine(", 10),
         )
     }
 
@@ -324,13 +326,14 @@ class SubscribedFoldersSurfaceWiringTest {
             codeLines(file).any { "shownFolders(" in it }
         }.map { it.name }.sorted()
         assertEquals(
-            "the hide registry's filter (#207) moved. It belongs to the three files below and " +
-                "nowhere else — the declaration and the two screens that apply it. In the " +
+            "the hide registry's filter (#207) moved. It belongs to the four files below and " +
+                "nowhere else — the declaration, the two screens that apply it, and the folder " +
+                "screen's reorder mode, which must draw exactly what the drawer draws. In the " +
                 "repository or in the folder cache it would take with it every reader of the list, " +
                 "exactly as the guard above forbids for the subscription filter: subfolderIdsOf (a " +
                 "delete that misses hidden children), the reader's parent paths, the rule editor, " +
                 "the watched folders.",
-            listOf("FolderSelection.kt", "HiddenFolders.kt", "InboxViewModel.kt"),
+            listOf("FolderManagementRows.kt", "FolderSelection.kt", "HiddenFolders.kt", "InboxViewModel.kt"),
             callers,
         )
     }

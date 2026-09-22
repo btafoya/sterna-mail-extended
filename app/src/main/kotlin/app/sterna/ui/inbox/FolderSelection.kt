@@ -57,23 +57,28 @@ private fun roleRank(role: String?): Int = when (role) {
 
 /** The folders a move-to-folder picker offers: [mailboxes] minus the current folder and what
  * [showOnlySubscribed] (#174) and [hidden] (#207) leave out, standard first then the user's own by
- *  path. Only the targets may be filtered, or a child whose parent is hidden loses a segment (#109). */
+ *  path in [order]. Only the targets may be filtered, or a child whose parent is hidden loses a segment (#109). */
 internal fun moveTargets(
     mailboxes: List<Mailbox>,
     currentMailboxId: String?,
     showOnlySubscribed: Boolean = false,
     hidden: Set<String> = emptySet(),
     inboxId: String? = null,
+    order: List<String> = emptyList(),
     collator: Collator = Collator.getInstance(),
     ancestorsOf: (Mailbox, List<Mailbox>) -> List<String> = ::mailboxAncestors,
-): List<Mailbox> =
-    shownFolders(visibleFolders(mailboxes, showOnlySubscribed), hidden, inboxId).filter { it.id != currentMailboxId }
+): List<Mailbox> {
+    val sorted = shownFolders(visibleFolders(mailboxes, showOnlySubscribed), hidden, inboxId).filter { it.id != currentMailboxId }
         .map { it to (ancestorsOf(it, mailboxes) + it.name) }
         .sortedWith(
             compareBy<Pair<Mailbox, List<String>>> { roleRank(it.first.role) }
                 .thenComparator { a, b -> comparePath(a.second, b.second, collator) },
         )
-        .map { it.first }
+    if (order.isEmpty()) return sorted.map { it.first }
+    val (standard, own) = sorted.partition { roleRank(it.first.role) < roleRank(null) }
+    val idOfPath = mailboxes.associate { (ancestorsOf(it, mailboxes) + it.name) to it.id }
+    return standard.map { it.first } + pickerFoldersInOrder(own, idOfPath, order)
+}
 
 /** Two folder paths compared segment by segment: joined, they would sort on the separator and
  * "Work_Notes" would land between "Work" and "Work/2026". [collator], not [String.compareTo]. */

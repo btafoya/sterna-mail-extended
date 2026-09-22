@@ -263,6 +263,7 @@ fun InboxScreen(
     // folded into it: moveTargets needs the whole list for the parent paths it shows (#109).
     val moveTargetsOnlySubscribed by viewModel.selectionOnlySubscribed.collectAsStateWithLifecycle()
     val moveTargetsHiding by viewModel.selectionHiding.collectAsStateWithLifecycle()
+    val moveTargetsOrder by viewModel.selectionFolderOrder.collectAsStateWithLifecycle()
     // The picker's account row (#189): the account the selection belongs to, and the one chosen
     // on the row, if any, both live in the ViewModel so the choice survives a rotation.
     val moveOwnerAccountId by viewModel.moveOwnerAccountId.collectAsStateWithLifecycle()
@@ -370,8 +371,8 @@ fun InboxScreen(
         // The folder on screen is left out of the list only while the list is the selection's own
         // account's: listing another account's, its id names nothing there, or a homonym (#92).
         val moveExcludedMailbox = pickerExcludedMailbox(moveAccountId, moveOwnerAccountId, ui.selectedMailboxId)
-        val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding) {
-            moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId)
+        val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding, moveTargetsOrder) {
+            moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId, moveTargetsOrder)
         }
         // Nested folders sharing a leaf are one and the same row without their parent path (#109).
         // Resolved against the whole folder list, not the offered subset. Memoized like [targets]:
@@ -1950,7 +1951,7 @@ private fun DrawerContent(
                 // The one place the registry and the default become "what is folded"; see
                 // [collapsedFolderIds]. The list it resolves against is the one drawn just below.
                 val collapsedIds = collapsedFolderIds(ui.visibleMailboxes, collapsedFolders, folderRowsBadgeUnread)
-                mailboxTree(ui.visibleMailboxes, collapsedIds).forEach { node ->
+                mailboxTree(ui.visibleMailboxes, collapsedIds, ui.folderOrder).forEach { node ->
                     val mailbox = node.mailbox
                     val displayName = mailboxDisplayName(mailbox.role, mailbox.name)
                     // A folded row badges the unread it hides, its own plus its descendants', or
@@ -2810,13 +2811,11 @@ internal data class MailboxNode(val mailbox: Mailbox, val depth: Int, val hasChi
 /**
  * Flatten mailboxes into a depth-first tree.
  */
-internal fun mailboxTree(mailboxes: List<Mailbox>, collapsed: Set<String>): List<MailboxNode> {
+internal fun mailboxTree(mailboxes: List<Mailbox>, collapsed: Set<String>, order: List<String> = emptyList()): List<MailboxNode> {
     val byId = mailboxes.associateBy { it.id }
     fun parentOf(m: Mailbox): String? = folderParentId(m, byId)
-    // Order each level by role so the standard folders come first (Inbox, Drafts, Sent, Trash,
-    // Spam, Archive), then custom folders keep their server order (sortedBy is stable).
     val childrenOf = mailboxes.groupBy { parentOf(it) }
-        .mapValues { (_, kids) -> kids.sortedBy { folderRank(it.role) } }
+        .mapValues { (_, kids) -> siblingsInDrawerOrder(kids, order) }
     val result = mutableListOf<MailboxNode>()
     val visited = mutableSetOf<String>()
     fun visit(parent: String?, depth: Int) {

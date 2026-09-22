@@ -165,6 +165,10 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         store.setFolderHidden(id, folderId, hidden)
     }
 
+    fun moveFolder(id: String, siblings: List<String>, folderId: String, up: Boolean) {
+        store.moveFolder(id, siblings, folderId, up)
+    }
+
     fun setFolderWatched(id: String, folderId: String, watched: Boolean) {
         store.setFolderWatched(id, folderId, watched)
         if (!watched) NewMailNotifier.clear(getApplication(), id, folderId)

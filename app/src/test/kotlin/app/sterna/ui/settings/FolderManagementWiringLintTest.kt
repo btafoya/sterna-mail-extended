@@ -127,11 +127,12 @@ class FolderManagementWiringLintTest {
     @Test fun `the screen draws the rows the rule answers, and writes both switches per account`() {
         assertEquals(
             "the screen no longer builds its rows from folderManagementRows with the account's own " +
-                "setting, registry, watch set and Inbox id. Recomputing any of them here would put " +
-                "the rule in a Composable no test can run.",
+                "setting, registry, watch set, Inbox id, order and the reorder mode it is in. " +
+                "Recomputing any of them here would put the rule in a Composable no test can run; " +
+                "dropping the mode lists hidden folders among the ones Up and Down trade places with.",
             listOf(
                 "val rows = folderManagementRows(folders, showOnlySubscribedFoldersOf(account), " +
-                    "account.hiddenFolders, account.watchedFolders, account.inboxId)",
+                    "account.hiddenFolders, account.watchedFolders, account.inboxId, account.folderOrder, reordering)",
             ),
             block(SCREEN, "val rows =", 1),
         )
@@ -173,7 +174,7 @@ class FolderManagementWiringLintTest {
                 "reserved INBOX path as a target for a role.",
             listOf(
                 "val specialRows = specialFolderRows(folders, showOnlySubscribedFoldersOf(account), " +
-                    "account.specialFolders, account.inboxId, account.protocol == MailProtocol.IMAP)",
+                    "account.specialFolders, account.inboxId, account.protocol == MailProtocol.IMAP, account.folderOrder)",
             ),
             block(SCREEN, "val specialRows =", 1),
         )
@@ -270,6 +271,39 @@ class FolderManagementWiringLintTest {
                 "PushController.apply(getApplication(), userInitiated = true)",
             ),
             block(ACCOUNTS_VIEW_MODEL, "fun setFolderWatched(", 4),
+        )
+    }
+
+    /**
+     * The reorder mode. Which buttons a row carries and the fratrie it reorders are executed in
+     * [FolderReorderRowsTest]; what only this can see is that the tap hands the store that same
+     * fratrie, for the account the screen manages, and that each button is drawn on its own flag.
+     */
+    @Test fun `a move tap hands the store the row's own fratrie, on the account the screen manages`() {
+        assertEquals(
+            "the move tap no longer hands the fratrie the rule computed for THIS row. Any other list " +
+                "(the top level, a list rebuilt here) moves a subfolder among folders it is not " +
+                "drawn with.",
+            listOf("FolderReorderRow(row) { moves, up -> viewModel.moveFolder(accountId, moves.siblings, row.mailbox.id, up) }"),
+            block(SCREEN, "FolderReorderRow(row) {", 1),
+        )
+        assertEquals(
+            "the Up and Down buttons are no longer drawn on their own flag, or no longer say which " +
+                "way they move and which folder, to a screen reader.",
+            listOf(
+                "MoveSlot(moves.mayMoveUp, Icons.Filled.KeyboardArrowUp, stringResource(R.string.folders_reorder_up, name)) { onMove(moves, true) }",
+                "MoveSlot(moves.mayMoveDown, Icons.Filled.KeyboardArrowDown, stringResource(R.string.folders_reorder_down, name)) { onMove(moves, false) }",
+            ),
+            block(SCREEN, "MoveSlot(moves.mayMoveUp,", 2),
+        )
+        assertEquals(
+            "the move no longer goes to AccountStore.moveFolder, the one write that reads the order " +
+                "under the store's lock: two quick taps would lose one.",
+            listOf(
+                "fun moveFolder(id: String, siblings: List<String>, folderId: String, up: Boolean) {",
+                "store.moveFolder(id, siblings, folderId, up)",
+            ),
+            block(ACCOUNTS_VIEW_MODEL, "fun moveFolder(", 2),
         )
     }
 

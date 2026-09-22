@@ -136,6 +136,14 @@ internal open class RecordingAccountStorage : AccountStorage {
         record("forgetHiddenFolders", "id" to id, "folderIds" to folderIds)
     }
 
+    override fun replaceFolderOrder(id: String, oldId: String, newId: String, delimiter: String) {
+        record("replaceFolderOrder", "id" to id, "oldId" to oldId, "newId" to newId, "delimiter" to delimiter)
+    }
+
+    override fun forgetFolderOrder(id: String, folderIds: Collection<String>) {
+        record("forgetFolderOrder", "id" to id, "folderIds" to folderIds)
+    }
+
     override fun replaceSpecialFolder(id: String, oldId: String, newId: String, delimiter: String) {
         record("replaceSpecialFolder", "id" to id, "oldId" to oldId, "newId" to newId, "delimiter" to delimiter)
     }

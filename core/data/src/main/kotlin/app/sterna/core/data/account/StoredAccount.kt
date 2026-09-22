@@ -33,6 +33,7 @@ data class StoredAccount(
     val collapsedFolders: Map<String, Boolean> = emptyMap(),
     val hiddenFolders: Set<String> = emptySet(),
     val specialFolders: Map<String, String> = emptyMap(),
+    val folderOrder: List<String> = emptyList(),
     /** User-chosen accent colour (ARGB); null = auto (derived from the address). */
     val color: Int? = null,
     /** Legacy account-level signature; seeds the default identity when none are set. */

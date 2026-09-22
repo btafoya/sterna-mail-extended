@@ -317,13 +317,17 @@ class CrossAccountMoveWiringLintTest {
             block(INBOX_VIEW_MODEL, "private val movePickerAccountId", 2),
         )
         assertEquals(
-            "the list's folder list must be observed on THAT account and no other.",
+            "the list's folder list must be observed on THAT account and no other, and the folders " +
+                "offered must be that observation's.",
             listOf(
-                "val selectionMailboxes: StateFlow<List<Mailbox>> =",
+                "private val selectionListing: StateFlow<Pair<String?, List<Mailbox>>> =",
                 "movePickerAccountId.flatMapLatest { accountId ->",
-                "if (accountId == null) flowOf(emptyList()) else repo.observeMailboxes(accountId)",
+                "if (accountId == null) flowOf(Pair<String?, List<Mailbox>>(null, emptyList())) else repo.observeMailboxes(accountId).map { Pair<String?, List<Mailbox>>(accountId, it) }",
+                "}.stateIn(viewModelScope, SharingStarted.Eagerly, Pair<String?, List<Mailbox>>(null, emptyList()))",
+                "val selectionMailboxes: StateFlow<List<Mailbox>> =",
+                "selectionListing.map { (_, folders) -> folders }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())",
             ),
-            block(INBOX_VIEW_MODEL, "val selectionMailboxes:", 3),
+            block(INBOX_VIEW_MODEL, "private val selectionListing:", 6),
         )
         assertEquals(
             "and its 'only subscribed' flag must be read off THAT account (#174, #92).",
@@ -350,8 +354,8 @@ class CrossAccountMoveWiringLintTest {
             "the list's excluded folder must be pickerExcludedMailbox's.",
             listOf(
                 "val moveExcludedMailbox = pickerExcludedMailbox(moveAccountId, moveOwnerAccountId, ui.selectedMailboxId)",
-                "val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding) {",
-                "moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId)",
+                "val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding, moveTargetsOrder) {",
+                "moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId, moveTargetsOrder)",
             ),
             block(INBOX_SCREEN, "val moveExcludedMailbox =", 3),
         )

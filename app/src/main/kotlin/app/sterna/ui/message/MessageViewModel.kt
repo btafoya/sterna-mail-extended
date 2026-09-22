@@ -54,6 +54,7 @@ import app.sterna.core.jmap.model.EmailHeader
 import app.sterna.core.jmap.model.Mailbox
 import app.sterna.net.hasUsableNetwork
 import app.sterna.ui.readerActionFailureText
+import app.sterna.ui.inbox.folderOrderingOf
 import app.sterna.ui.inbox.isSelfAuthored
 import app.sterna.ui.inbox.moveTargets
 import app.sterna.ui.inbox.pickerAccount
@@ -491,12 +492,15 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
      */
     val moveTargets: StateFlow<List<Mailbox>> = combine(
         movePickerAccountId.flatMapLatest { id ->
-            if (id == null) flowOf(emptyList()) else repo.observeMailboxes(id)
+            if (id == null) flowOf(Pair<String?, List<Mailbox>>(null, emptyList())) else repo.observeMailboxes(id).map { Pair<String?, List<Mailbox>>(id, it) }
         },
         combine(_moveAccountId, _ownerAccountId, _mailboxId) { chosen, owner, current -> pickerExcludedMailbox(chosen, owner, current) },
         combine(store.accountsFlow, movePickerAccountId) { accounts, id -> showOnlySubscribedFor(id, accounts) },
         combine(store.accountsFlow, movePickerAccountId) { accounts, id -> folderHidingOf(id, accounts) },
-    ) { folders, current, onlySubscribed, hiding -> moveTargets(folders, current, onlySubscribed, hiding.ids, hiding.inboxId) }
+        combine(store.accountsFlow, movePickerAccountId) { accounts, id -> folderOrderingOf(id, accounts) },
+    ) { (listed, folders), current, onlySubscribed, hiding, ordering ->
+        moveTargets(folders, current, onlySubscribed, hiding.ids, hiding.inboxId, ordering.forList(listed).ids)
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**

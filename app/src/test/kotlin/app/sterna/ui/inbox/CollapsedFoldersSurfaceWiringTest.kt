@@ -55,7 +55,7 @@ class CollapsedFoldersSurfaceWiringTest {
                 "screen can say what a folded row hides.",
             listOf(
                 "val collapsedIds = collapsedFolderIds(ui.visibleMailboxes, collapsedFolders, folderRowsBadgeUnread)",
-                "mailboxTree(ui.visibleMailboxes, collapsedIds).forEach { node ->",
+                "mailboxTree(ui.visibleMailboxes, collapsedIds, ui.folderOrder).forEach { node ->",
             ),
             block(INBOX_SCREEN, "val collapsedIds =", 2),
         )

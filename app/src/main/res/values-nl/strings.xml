@@ -1006,6 +1006,11 @@
     <string name="widget_latest_empty">Geen berichten</string>
     <string name="widget_latest_hidden">Bericht verborgen</string>
     <string name="folders_manage_title">Mappen beheren</string>
+    <string name="folders_reorder_start">Herschikken</string>
+    <string name="folders_reorder_done">Klaar</string>
+    <string name="folders_reorder_hint">Standaardmappen blijven bovenaan. Een map verschuift alleen binnen haar bovenliggende map.</string>
+    <string name="folders_reorder_up">%1$s omhoog</string>
+    <string name="folders_reorder_down">%1$s omlaag</string>
     <string name="folders_manage_show_title">Deze map tonen</string>
     <string name="folders_manage_show_subtitle">Een verborgen map houdt zijn e-mail en blijft doorzoekbaar</string>
     <string name="folders_manage_watch_subtitle">Haalt deze map op de achtergrond op</string>

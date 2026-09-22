@@ -1009,6 +1009,11 @@
     <string name="widget_latest_empty">Sin mensajes</string>
     <string name="widget_latest_hidden">Mensaje oculto</string>
     <string name="folders_manage_title">Gestionar carpetas</string>
+    <string name="folders_reorder_start">Reordenar</string>
+    <string name="folders_reorder_done">Hecho</string>
+    <string name="folders_reorder_hint">Las carpetas estándar quedan arriba. Una carpeta se mueve entre las de su carpeta superior.</string>
+    <string name="folders_reorder_up">Subir %1$s</string>
+    <string name="folders_reorder_down">Bajar %1$s</string>
     <string name="folders_manage_show_title">Mostrar esta carpeta</string>
     <string name="folders_manage_show_subtitle">Una carpeta oculta conserva su correo y la búsqueda lo encuentra</string>
     <string name="folders_manage_watch_subtitle">Descarga esta carpeta en segundo plano</string>

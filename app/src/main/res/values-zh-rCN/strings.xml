@@ -1045,6 +1045,11 @@
     <string name="widget_latest_empty">没有邮件</string>
     <string name="widget_latest_hidden">邮件已隐藏</string>
     <string name="folders_manage_title">管理文件夹</string>
+    <string name="folders_reorder_start">排序</string>
+    <string name="folders_reorder_done">完成</string>
+    <string name="folders_reorder_hint">标准文件夹始终在最前。文件夹只能在其上级文件夹内移动。</string>
+    <string name="folders_reorder_up">上移 %1$s</string>
+    <string name="folders_reorder_down">下移 %1$s</string>
     <string name="folders_manage_show_title">显示此文件夹</string>
     <string name="folders_manage_show_subtitle">隐藏的文件夹仍会保留其中的邮件，搜索也仍能找到它</string>
     <string name="folders_manage_watch_subtitle">在后台获取此文件夹的邮件</string>
