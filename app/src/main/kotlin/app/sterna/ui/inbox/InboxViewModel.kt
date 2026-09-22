@@ -74,6 +74,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.UUID
 
 data class MailUi(
     /** The current account, whatever view is on screen; the unified inbox spans every account and
@@ -339,6 +340,9 @@ class InboxViewModel(
      */
     private val _readingPane = MutableStateFlow(ReadingPaneState(anchor = readSavedAnchor(), session = 0))
     val readingPane: StateFlow<ReadingPaneState> = _readingPane.asStateFlow()
+
+    /** New at each construction, never saved: a rotation keeps it, a process death does not. */
+    val listIdentity: String = UUID.randomUUID().toString()
 
     /**
      * A tap on a row, on a wide window: the message opens in the pane instead of on a route. The

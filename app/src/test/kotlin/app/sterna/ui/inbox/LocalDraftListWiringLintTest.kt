@@ -102,7 +102,7 @@ class LocalDraftListWiringLintTest {
         assertEquals(
             "⛔ SternaApp must keep handing MessageScreen the BARE pagedEmails. Routing the reader " +
                 "through pagedListRows is the mutation this whole file exists for:",
-            listOf("val listSource = if (src == \"list\") inboxViewModel.pagedEmails else null"),
+            listOf("val listSource = if (arrived.src == \"list\") inboxViewModel.pagedEmails else null"),
             codeLines(STERNA_APP).map { it.trim() }.filter { "inboxViewModel.paged" in it },
         )
     }

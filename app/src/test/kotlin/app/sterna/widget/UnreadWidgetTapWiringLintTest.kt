@@ -214,7 +214,7 @@ class UnreadWidgetTapWiringLintTest {
         assertEquals(
             "SternaApp's reader route was renamed. WidgetTapNavigation matches on the route name " +
                 "'message', so a rename silently disables the unwind and no behaviour test sees it.",
-            listOf("route = \"message/{emailId}?accountId={accountId}&index={index}&src={src}&thread={thread}\","),
+            listOf("route = \"message/{emailId}?accountId={accountId}&index={index}&src={src}&thread={thread}&list={list}\","),
             codeLines(STERNA_APP).filter { it.startsWith("route = \"message") },
         )
         assertEquals(

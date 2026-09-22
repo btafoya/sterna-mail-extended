@@ -59,6 +59,7 @@ import app.sterna.ui.inbox.InboxScreen
 import app.sterna.ui.inbox.InboxViewModel
 import app.sterna.ui.inbox.MessageAnchor
 import app.sterna.ui.inbox.ReadingPane
+import app.sterna.ui.inbox.ReadingPaneRule
 import app.sterna.ui.inbox.Sel
 import app.sterna.ui.inbox.openOnOverridesMemory
 import app.sterna.ui.inbox.restoredSelection
@@ -396,7 +397,7 @@ private fun MainNavHost(
                 onOpenEmail = { id, accountId, index, fromSearch ->
                     // Carry the tapped position and its context so the reader pages over the same
                     // entries.
-                    val anchor = MessageAnchor(id, accountId, if (fromSearch) "search" else "list", index, null)
+                    val anchor = MessageAnchor(id, accountId, if (fromSearch) "search" else "list", index, null, inboxViewModel.listIdentity)
                     if (readingPane) inboxViewModel.openInPane(anchor)
                     else entry.navigateOnce { nav.navigate(anchor.toRoute(Uri::encode)) }
                 },
@@ -457,7 +458,7 @@ private fun MainNavHost(
             )
         }
         composable(
-            route = "message/{emailId}?accountId={accountId}&index={index}&src={src}&thread={thread}",
+            route = "message/{emailId}?accountId={accountId}&index={index}&src={src}&thread={thread}&list={list}",
             arguments = listOf(
                 navArgument("emailId") { type = NavType.StringType },
                 navArgument("accountId") { type = NavType.StringType; nullable = true; defaultValue = null },
@@ -467,6 +468,7 @@ private fun MainNavHost(
                 navArgument("src") { type = NavType.StringType; nullable = true; defaultValue = null },
                 // Which conversation, when src=thread.
                 navArgument("thread") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("list") { type = NavType.StringType; nullable = true; defaultValue = null },
             ),
             // A short soft cross-fade on open and close, unless [NavFadeGuard] has latched after a
             // fade-window crash (#10) or reduced motion is on, symmetrically, so there is no
@@ -484,6 +486,9 @@ private fun MainNavHost(
             val src = entry.arguments?.getString("src")
             // The conversation key exactly as the route carries it; [threadKey] below is decoded.
             val threadArg = entry.arguments?.getString("thread")?.let { Uri.decode(it) }?.ifBlank { null }
+            val listArg = entry.arguments?.getString("list")?.let { Uri.decode(it) }?.ifBlank { null }
+            // Both arms judge it by `ReadingPaneRule.forList`: after a process death, the list behind is another.
+            val routeAnchor = MessageAnchor.fromRoute(emailId, accountId, index, src, threadArg, listArg)
             // The other half (#103, #228): this reader is full screen over a list that now shows a pane.
             // Not composed on this pass: a second MessageViewModel would settle the message twice, a read
             // receipt offered twice, a second decryption, a message marked read from a screen nobody saw.
@@ -493,7 +498,7 @@ private fun MainNavHost(
                 val inboxViewModel: InboxViewModel = viewModel(inboxEntry)
                 LaunchedEffect(entry) {
                     entry.lifecycle.withResumed {
-                        inboxViewModel.openInPane(MessageAnchor.fromRoute(emailId, accountId, index, src, threadArg))
+                        inboxViewModel.openInPane(ReadingPaneRule.forList(routeAnchor, inboxViewModel.listIdentity))
                         entry.navigateOnce { nav.popBackStack() }
                     }
                 }
@@ -505,8 +510,9 @@ private fun MainNavHost(
             // looking at rather than a copy.
             val inboxEntry = remember(entry) { nav.getBackStackEntry("inbox") }
             val inboxViewModel: InboxViewModel = viewModel(inboxEntry)
-            val listSource = if (src == "list") inboxViewModel.pagedEmails else null
-            val searchResults = if (src == "search") {
+            val arrived = ReadingPaneRule.forList(routeAnchor, inboxViewModel.listIdentity)
+            val listSource = if (arrived.src == "list") inboxViewModel.pagedEmails else null
+            val searchResults = if (arrived.src == "search") {
                 remember(inboxViewModel) { inboxViewModel.state.value.searchResults }
             } else {
                 null
@@ -514,7 +520,7 @@ private fun MainNavHost(
             // Opened from an unfolded conversation: page over the expansion the list already holds,
             // snapshotted once so a background completion cannot shift the pages.
             val threadKey = threadArg?.let { ThreadKey.decode(it) }
-            val threadEntries = if (src == "thread" && threadKey != null) {
+            val threadEntries = if (arrived.src == "thread" && threadKey != null) {
                 remember(inboxViewModel, threadKey) { inboxViewModel.threadEntries(threadKey) }
             } else {
                 null
@@ -527,7 +533,7 @@ private fun MainNavHost(
                 MessageScreen(
                     anchorEmailId = emailId,
                     anchorAccountId = accountId,
-                    initialIndex = index,
+                    initialIndex = arrived.index,
                     listSource = listSource,
                     searchResults = searchResults,
                     threadEntries = threadEntries,

@@ -179,7 +179,7 @@ class TwoPaneHostLintTest {
             // portrait -> wide: the restored full-screen reader moves into the pane.
             "val stack = remember(entry) { nav.currentBackStack.value.map { it.destination.route } }",
             "if (PaneConversion.readerToPane(readingPane, stack)) {",
-            "inboxViewModel.openInPane(MessageAnchor.fromRoute(emailId, accountId, index, src, threadArg))",
+            "inboxViewModel.openInPane(ReadingPaneRule.forList(routeAnchor, inboxViewModel.listIdentity))",
             "entry.navigateOnce { nav.popBackStack() }",
             "Box(Modifier.fillMaxSize())",
             "return@composable",

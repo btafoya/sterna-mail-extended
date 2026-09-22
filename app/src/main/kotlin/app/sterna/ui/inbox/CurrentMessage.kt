@@ -1,19 +1,19 @@
 package app.sterna.ui.inbox
 
-/** The message the reading pane shows, as the same quintuplet the `message/…` route carries (#103):
- *  under 600 dp the inbox turns it into that route ([toRoute]), from 600 dp into the pane. */
+/** The reading pane's message, as the `message/…` route carries it (#103): [toRoute] under 600 dp. */
 data class MessageAnchor(
     val emailId: String,
     val accountId: String?,
     val src: String?,
     val index: Int,
     val thread: String?,
+    val listIdentity: String? = null,
 ) {
     /** [encode] is `Uri::encode` on Android and the identity in a JVM test, which pins the text. */
     fun toRoute(encode: (String) -> String): String {
         val base = "message/${encode(emailId)}?accountId=${encode(accountId.orEmpty())}"
         return when (src) {
-            "list", "search" -> "$base&index=$index&src=$src"
+            "list", "search" -> "$base&index=$index&src=$src" + listIdentity?.let { "&list=${encode(it)}" }.orEmpty()
             "thread" -> "$base&index=$index&src=thread&thread=${encode(thread.orEmpty())}"
             else -> base
         }
@@ -26,8 +26,15 @@ data class MessageAnchor(
 
     companion object {
         /** From the route's arguments, where a blank `accountId` / `thread` stands for none. */
-        fun fromRoute(emailId: String, accountId: String?, index: Int, src: String?, thread: String?): MessageAnchor =
-            MessageAnchor(emailId, accountId?.ifBlank { null }, src, index, thread?.ifBlank { null })
+        fun fromRoute(
+            emailId: String,
+            accountId: String?,
+            index: Int,
+            src: String?,
+            thread: String?,
+            listIdentity: String? = null,
+        ): MessageAnchor =
+            MessageAnchor(emailId, accountId?.ifBlank { null }, src, index, thread?.ifBlank { null }, listIdentity?.ifBlank { null })
     }
 }
 
@@ -72,7 +79,14 @@ object ReadingPaneRule {
     fun replayOnAccountChange(parked: MessageAnchor?, arrivingAccountId: String?): MessageAnchor? =
         if (parked?.accountId == arrivingAccountId) parked else null
 
-    /** The anchor read back after process death loses its paging context: the list restarts on its
-     *  first page, so a kept index would open another message and mark it read (`SECURITY.md`). */
-    fun restored(anchor: MessageAnchor): MessageAnchor = anchor.copy(src = null, index = 0, thread = null)
+    /** An index read back after process death points into a list that restarted: kept, it opens another
+     *  message and marks it read (`SECURITY.md`). [forList] applies it unless the anchor was tapped in
+     *  this very `InboxViewModel`; no identity counts as another one, the doubt costing only paging. */
+    fun restored(anchor: MessageAnchor): MessageAnchor =
+        anchor.copy(src = null, index = 0, thread = null, listIdentity = null)
+
+    fun forList(anchor: MessageAnchor, listIdentity: String): MessageAnchor = when (anchor.src) {
+        "list", "search" -> if (anchor.listIdentity == listIdentity) anchor else restored(anchor)
+        else -> anchor
+    }
 }
