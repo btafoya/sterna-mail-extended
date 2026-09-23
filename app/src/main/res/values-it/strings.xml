@@ -6,6 +6,9 @@
     <string name="compose_title_reply">Rispondi</string>
     <string name="compose_discard">Elimina</string>
     <string name="compose_attach">Allega file</string>
+    <string name="compose_attach_choose_file">Scegli un file</string>
+    <string name="compose_attach_take_photo">Scatta una foto</string>
+    <string name="status_no_camera_app">Nessuna app fotocamera su questo dispositivo</string>
     <string name="compose_save_draft">Salva bozza</string>
     <string name="compose_schedule_send">Programma invio</string>
     <string name="compose_delete_draft">Elimina bozza</string>

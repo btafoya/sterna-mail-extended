@@ -2,6 +2,7 @@ package app.sterna.ui.compose
 
 import android.app.Application
 import android.app.PendingIntent
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -13,7 +14,6 @@ import app.sterna.R
 import app.sterna.contacts.AndroidContacts
 import app.sterna.contacts.ContactSuggestion
 import app.sterna.core.data.account.AccountCredentials
-import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.data.account.pgpPublicKeyBackfill
@@ -446,7 +446,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      *  mode back); drops the mode if PGP is gone, and says so when that costs the user a lock they
      *  were shown (#35). The verdict itself is [pgpRefresh]. */
     private fun refreshPgp() {
-        viewModelScope.launch {
+        composerBinding.track(viewModelScope.launch {
             val account = pgpAccount()
             val available = account != null && pgp.isAvailable()
             _pgpAvailable.value = available
@@ -473,7 +473,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // Last, and never in front of the mode: this writes nothing on screen and must not delay
             // what does.
             if (available) cachePgpPublicKey(account)
-        }
+        })
     }
 
     /** Accounts whose public key this composer has already tried to read; see
@@ -594,6 +594,8 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private var prepared = false
+
+    private val composerBinding = ComposerBinding()
 
     private val linkBodyClaim = LinkBodyClaim(application.container.linkBodies)
 
@@ -726,8 +728,8 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** Upload a picked document and add it to the outgoing attachments. */
-    fun attach(uri: Uri) {
+    /** Upload a picked document and add it to the outgoing attachments; [afterRead] runs however it ends. */
+    fun attach(uri: Uri, afterRead: () -> Unit = {}, stageLocally: Boolean = false) {
         val app = getApplication<Application>()
         viewModelScope.launch {
             _attachmentStatus.value = getApplication<Application>().getString(R.string.status_attaching)
@@ -740,7 +742,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 val bytes = withContext(Dispatchers.IO) {
                     resolver.openInputStream(uri)?.use { it.readBytes() }
                 } ?: error(getApplication<Application>().getString(R.string.status_read_file_failed))
-                val part = stageOutgoing(credentials, bytes, type, name, disposition = "attachment", cid = null)
+                val part = stageOutgoing(credentials, bytes, type, name, disposition = "attachment", cid = null, forceLocal = stageLocally)
                 _attachments.value = _attachments.value + part
                 _attachmentsTouched.value = true
                 _attachmentStatus.value = null
@@ -756,7 +758,44 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 } else {
                     app.getString(R.string.status_attach_failed, t.message ?: "error")
                 }
+            } finally {
+                afterRead()
             }
+        }
+    }
+
+    /** Whether the camera may open for a photo to attach; if not, the attachment status line says why. */
+    fun captureMayLaunch(): Boolean {
+        val app = getApplication<Application>()
+        val protocol = credentials()?.protocol ?: return true
+        if (captureRefusedOffline(protocol, _pgpMode.value, online = hasUsableNetwork(app))) {
+            _attachmentStatus.value = app.getString(R.string.status_attach_offline)
+            return false
+        }
+        return true
+    }
+
+    /** [attach], once [ComposerBinding] is settled; still unsettled at the deadline, staged on the phone. */
+    fun attachCapture(uri: Uri, afterRead: () -> Unit) {
+        viewModelScope.launch {
+            var handedOver = false
+            try {
+                val settled = composerBinding.awaitSettled(CAPTURE_BINDING_WAIT_MS)
+                handedOver = true
+                attach(uri, afterRead, stageLocally = !settled)
+            } finally {
+                if (!handedOver) afterRead()
+            }
+        }
+    }
+
+    fun reportCaptureLaunchFailed(t: Throwable) {
+        val app = getApplication<Application>()
+        Log.w(TAG, "Camera launch failed", t)
+        _attachmentStatus.value = if (t is ActivityNotFoundException) {
+            app.getString(R.string.status_no_camera_app)
+        } else {
+            app.getString(R.string.status_attach_failed, t.message ?: "error")
         }
     }
 
@@ -864,6 +903,8 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     ) {
         if (prepared) return
         prepared = true
+        composerBinding.track(viewModelScope.launch(Dispatchers.Main) { })
+        composerBinding.open()
         // Settle, for every way of opening the composer, whether a queued row is really parked behind
         // it (#96). The navigation argument survives the app being killed; the handed-over draft does
         // not, so `restore=true` with nothing in hand is an empty composer and must be described as
@@ -914,7 +955,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // After the consume, on purpose (OnlyCopyWiringTest pins the lambda against it), and on
             // viewModelScope: a composer popped before the sweep is over must not take a row that
             // nobody will release.
-            outboxRowToResume(handed, outboxId)?.let { id -> viewModelScope.launch { resumeOutboxEdit(id) } }
+            outboxRowToResume(handed, outboxId)?.let { id -> composerBinding.track(viewModelScope.launch { resumeOutboxEdit(id) }) }
             return
         }
 
@@ -928,9 +969,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // The `finally` is at THIS level, not inside prepareLocalDraft: that function leaves
                 // by three bare `return`s as well as by any throw from Room, and a flag only one path
                 // lowers is a spinner for good.
-                viewModelScope.launch {
+                composerBinding.track(viewModelScope.launch {
                     try { prepareLocalDraft(draftId!!) } finally { _draftLoading.value = false }
-                }
+                })
                 return
             }
             DraftOpenRoute.SERVER -> {
@@ -2012,11 +2053,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         name: String?,
         disposition: String,
         cid: String?,
+        forceLocal: Boolean = false,
     ): EmailBodyPart {
         val app = getApplication<Application>()
-        // IMAP has no blob store; and with PGP on, JMAP also stages locally, the attachment travels
-        // inside the signed/encrypted entity, so uploading a plaintext blob would leak it for nothing.
-        return if (credentials.protocol == MailProtocol.IMAP || _pgpMode.value != PgpMode.OFF) {
+        return if (forceLocal || stagesAttachmentLocally(credentials.protocol, _pgpMode.value)) {
             val safe = (name ?: "attachment").replace(Regex("[^A-Za-z0-9._-]"), "_")
             val file = withContext(Dispatchers.IO) {
                 File(app.cacheDir, "outgoing").apply { mkdirs() }

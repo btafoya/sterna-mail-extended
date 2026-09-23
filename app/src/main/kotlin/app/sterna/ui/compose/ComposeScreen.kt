@@ -264,8 +264,9 @@ fun ComposeScreen(
     val draftLoadFailed by viewModel.draftLoadFailed.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let(viewModel::attach)
+        uri?.let { viewModel.attach(it) }
     }
+    val takePhoto = rememberTakePhoto(viewModel)
     // OpenKeychain's dialog round-trip: consume the pause, then launch, nothing between (`composeStateAfterPgpLaunch`).
     val pgpLauncher = rememberPgpInteractionLauncher { data -> viewModel.retryPgpSend(data) }
     LaunchedEffect(state) {
@@ -1131,8 +1132,25 @@ fun ComposeScreen(
                         }
                     }
                     // Attachments are allowed in every mode (they ride inside the encrypted entity).
-                    IconButton(onClick = { picker.launch("*/*") }, enabled = !sending) {
-                        Icon(Icons.Filled.AttachFile, contentDescription = stringResource(R.string.compose_attach))
+                    Box {
+                        var attachMenu by remember { mutableStateOf(false) }
+                        IconButton(onClick = { attachMenu = true }, enabled = !sending) {
+                            Icon(Icons.Filled.AttachFile, contentDescription = stringResource(R.string.compose_attach))
+                        }
+                        DropdownMenu(
+                            expanded = attachMenu,
+                            onDismissRequest = { attachMenu = false },
+                            shape = MaterialTheme.shapes.medium,
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.compose_attach_choose_file)) },
+                                onClick = { attachMenu = false; picker.launch("*/*") },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.compose_attach_take_photo)) },
+                                onClick = { attachMenu = false; takePhoto() },
+                            )
+                        }
                     }
                     IconButton(
                         onClick = attemptSend,

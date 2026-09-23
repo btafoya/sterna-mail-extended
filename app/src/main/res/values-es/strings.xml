@@ -6,6 +6,9 @@
     <string name="compose_title_reply">Responder</string>
     <string name="compose_discard">Descartar</string>
     <string name="compose_attach">Adjuntar archivo</string>
+    <string name="compose_attach_choose_file">Elegir un archivo</string>
+    <string name="compose_attach_take_photo">Hacer una foto</string>
+    <string name="status_no_camera_app">No hay ninguna aplicación de cámara en este dispositivo</string>
     <string name="compose_save_draft">Guardar borrador</string>
     <string name="compose_schedule_send">Programar envío</string>
     <string name="compose_delete_draft">Eliminar borrador</string>

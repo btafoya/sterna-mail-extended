@@ -6,6 +6,9 @@
     <string name="compose_title_reply">Répondre</string>
     <string name="compose_discard">Abandonner</string>
     <string name="compose_attach">Joindre un fichier</string>
+    <string name="compose_attach_choose_file">Choisir un fichier</string>
+    <string name="compose_attach_take_photo">Prendre une photo</string>
+    <string name="status_no_camera_app">Aucune application d\'appareil photo sur cet appareil</string>
     <string name="compose_save_draft">Enregistrer le brouillon</string>
     <string name="compose_schedule_send">Programmer l\'envoi</string>
     <string name="compose_delete_draft">Supprimer le brouillon</string>

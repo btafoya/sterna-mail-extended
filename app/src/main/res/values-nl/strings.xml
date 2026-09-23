@@ -6,6 +6,9 @@
     <string name="compose_title_reply">Beantwoorden</string>
     <string name="compose_discard">Verwijderen</string>
     <string name="compose_attach">Bestand bijvoegen</string>
+    <string name="compose_attach_choose_file">Bestand kiezen</string>
+    <string name="compose_attach_take_photo">Foto maken</string>
+    <string name="status_no_camera_app">Geen camera-app op dit apparaat</string>
     <string name="compose_save_draft">Concept opslaan</string>
     <string name="compose_schedule_send">Verzending plannen</string>
     <string name="compose_delete_draft">Concept verwijderen</string>

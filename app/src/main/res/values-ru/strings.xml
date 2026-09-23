@@ -6,6 +6,9 @@
     <string name="compose_title_reply">Ответить</string>
     <string name="compose_discard">Отменить</string>
     <string name="compose_attach">Прикрепить файл</string>
+    <string name="compose_attach_choose_file">Выбрать файл</string>
+    <string name="compose_attach_take_photo">Сделать фото</string>
+    <string name="status_no_camera_app">На этом устройстве нет приложения камеры</string>
     <string name="compose_save_draft">Сохранить черновик</string>
     <string name="compose_schedule_send">Отложенная отправка</string>
     <string name="compose_delete_draft">Удалить черновик</string>

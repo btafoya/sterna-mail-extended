@@ -81,7 +81,7 @@ class OutboxResumeWiringTest {
                 "must not take a row nobody will release",
             listOf(
                 "outbox.consumeRestored()",
-                "outboxRowToResume(handed, outboxId)?.let { id -> viewModelScope.launch { resumeOutboxEdit(id) } }",
+                "outboxRowToResume(handed, outboxId)?.let { id -> composerBinding.track(viewModelScope.launch { resumeOutboxEdit(id) }) }",
                 "return",
             ),
             codeOf(after).take(3),

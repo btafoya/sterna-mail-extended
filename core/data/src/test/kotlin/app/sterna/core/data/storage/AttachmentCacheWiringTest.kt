@@ -68,12 +68,12 @@ class AttachmentCacheWiringTest {
         // The arguments, not the name of the call. Two ways to break this that both compile:
         //  - `outgoingDir` dropped: staged copies of already-queued sends (#70) survive every
         assertEquals(
-            "⛔ StorageRepository.clearAttachments must hand clearAttachmentTrees the two CACHE " +
+            "⛔ StorageRepository.clearAttachments must hand clearAttachmentTrees the three CACHE " +
                 "directories — never localDraftFilesDir, whose bytes belong to drafts the server " +
                 "has not got:",
             listOf(
                 "{",
-                "clearAttachmentTrees(attachmentsDir, outgoingDir)",
+                "clearAttachmentTrees(attachmentsDir, outgoingDir, captureDir)",
                 "}",
             ),
             codeOf(storageBody("clearAttachments")),
@@ -91,6 +91,7 @@ class AttachmentCacheWiringTest {
             listOf(
                 "private val attachmentsDir: File get() = File(context.cacheDir, \"attachments\")",
                 "private val outgoingDir: File get() = File(context.cacheDir, \"outgoing\")",
+                "private val captureDir: File get() = File(context.cacheDir, \"capture\")",
             ),
             codeLinesNaming(STORAGE.readText(), "File(context.cacheDir"),
         )
@@ -108,6 +109,7 @@ class AttachmentCacheWiringTest {
                 "{",
                 "attachmentsDir.listFiles()?.forEach { it.delete() }",
                 "outgoingDir.listFiles()?.forEach { it.delete() }",
+                "captureDir.listFiles()?.forEach { it.delete() }",
                 "}",
             ),
             codeOf(storageBody("clearAttachmentTrees")),

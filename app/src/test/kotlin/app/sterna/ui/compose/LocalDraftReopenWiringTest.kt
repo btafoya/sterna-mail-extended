@@ -46,9 +46,9 @@ class LocalDraftReopenWiringTest {
             listOf(
                 "DraftOpenRoute.LOCAL -> {",
                 "_draftLoading.value = true",
-                "viewModelScope.launch {",
+                "composerBinding.track(viewModelScope.launch {",
                 "try { prepareLocalDraft(draftId!!) } finally { _draftLoading.value = false }",
-                "}",
+                "})",
                 "return",
             ),
             prepare.subList(at, at + 6),

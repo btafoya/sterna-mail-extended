@@ -6,6 +6,9 @@
     <string name="compose_title_reply">Odpowiedz</string>
     <string name="compose_discard">Odrzuć</string>
     <string name="compose_attach">Załącz plik</string>
+    <string name="compose_attach_choose_file">Wybierz plik</string>
+    <string name="compose_attach_take_photo">Zrób zdjęcie</string>
+    <string name="status_no_camera_app">Brak aplikacji aparatu na tym urządzeniu</string>
     <string name="compose_save_draft">Zapisz wersję roboczą</string>
     <string name="compose_schedule_send">Zaplanuj wysyłkę</string>
     <string name="compose_delete_draft">Usuń wersję roboczą</string>

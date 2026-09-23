@@ -32,7 +32,7 @@ class ClearAttachmentTreesTest {
         assertTrue("fixture not written", decrypted.exists() && downloaded.exists() && staged.exists())
         assertTrue("the decrypted fixture must be big enough to survive a size filter", decrypted.length() > 1_000_000)
 
-        clearAttachmentTrees(attachments, outgoing)
+        clearAttachmentTrees(attachments, outgoing, temp.newFolder("capture"))
 
         assertFalse(
             "⛔ the decrypted attachment is still on the phone — this is the bug: a cache purge " +
@@ -67,7 +67,7 @@ class ClearAttachmentTreesTest {
         assertFalse(absentAttachments.exists())
         assertFalse(absentOutgoing.exists())
 
-        clearAttachmentTrees(absentAttachments, absentOutgoing)
+        clearAttachmentTrees(absentAttachments, absentOutgoing, File(temp.root, "capture"))
 
         // And it must not CREATE them either: a purge is not a writer.
         assertFalse(absentAttachments.exists())
@@ -78,7 +78,7 @@ class ClearAttachmentTreesTest {
         val outgoing = temp.newFolder("outgoing")
         val staged = fileWith(outgoing, "staged-part.bin", "picked file")
 
-        clearAttachmentTrees(File(temp.root, "attachments"), outgoing)
+        clearAttachmentTrees(File(temp.root, "attachments"), outgoing, File(temp.root, "capture"))
 
         assertFalse("a null listFiles() on the first tree stopped the sweep of the second", staged.exists())
     }
@@ -87,8 +87,18 @@ class ClearAttachmentTreesTest {
         val attachments = temp.newFolder("attachments")
         val outgoing = temp.newFolder("outgoing")
 
-        clearAttachmentTrees(attachments, outgoing)
+        clearAttachmentTrees(attachments, outgoing, temp.newFolder("capture"))
 
         assertTrue(attachments.isDirectory && outgoing.isDirectory)
+    }
+
+    @Test fun `a photo left by a camera that outlived the app is swept too`() {
+        val capture = temp.newFolder("capture")
+        val photo = fileWith(capture, "photo-1.jpg", "jpeg")
+
+        clearAttachmentTrees(temp.newFolder("attachments"), temp.newFolder("outgoing"), capture)
+
+        assertFalse("a photo taken from the composer survived the attachment sweep (#233)", photo.exists())
+        assertTrue("the capture tree itself must stay: the camera writes into it again", capture.isDirectory)
     }
 }

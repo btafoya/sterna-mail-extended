@@ -57,6 +57,7 @@ class StorageRepository(
      * Where compose stages outgoing-attachment bytes (#70).
      */
     private val outgoingDir: File get() = File(context.cacheDir, "outgoing")
+    private val captureDir: File get() = File(context.cacheDir, "capture")
 
     suspend fun usage(): StorageUsage = withContext(Dispatchers.IO) {
         val dbBytes = DB_FILES.sumOf { context.getDatabasePath(it).safeLength() }
@@ -177,7 +178,7 @@ class StorageRepository(
     }
 
     private fun clearAttachments() {
-        clearAttachmentTrees(attachmentsDir, outgoingDir)
+        clearAttachmentTrees(attachmentsDir, outgoingDir, captureDir)
     }
 
     private fun File.safeLength(): Long = if (exists()) length() else 0L
@@ -190,11 +191,12 @@ class StorageRepository(
 }
 
 /**
- * Empty the two attachment cache trees, the downloaded attachments and compose's outgoing staging
+ * Empty the three attachment cache trees, the downloaded attachments, compose's outgoing staging and its camera captures
  */
-internal fun clearAttachmentTrees(attachmentsDir: File, outgoingDir: File) {
+internal fun clearAttachmentTrees(attachmentsDir: File, outgoingDir: File, captureDir: File) {
     attachmentsDir.listFiles()?.forEach { it.delete() }
     outgoingDir.listFiles()?.forEach { it.delete() }
+    captureDir.listFiles()?.forEach { it.delete() }
 }
 
 internal const val CACHED_ATTACHMENT_NAME_ATTEMPTS = 1000

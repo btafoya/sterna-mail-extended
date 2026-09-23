@@ -6,6 +6,9 @@
     <string name="compose_title_reply">Reply</string>
     <string name="compose_discard">Discard</string>
     <string name="compose_attach">Attach file</string>
+    <string name="compose_attach_choose_file">Choose a file</string>
+    <string name="compose_attach_take_photo">Take a photo</string>
+    <string name="status_no_camera_app">No camera app on this device</string>
     <string name="compose_save_draft">Save draft</string>
     <string name="compose_schedule_send">Schedule send</string>
     <string name="compose_delete_draft">Delete draft</string>
