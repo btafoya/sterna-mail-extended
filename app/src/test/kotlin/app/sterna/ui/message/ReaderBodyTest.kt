@@ -435,10 +435,9 @@ class ReaderBodyTest {
         assertTrue("object-src 'none'" in doc)
     }
 
-    // buildHtmlDocument defangs the message's own `prefers-color-scheme: dark` and inlines its cid:
-    // images. Both undo markup, and HTML-escaping touches neither ':' nor '-', so applied to a body
+    // buildHtmlDocument defangs the message's own `prefers-color-scheme: dark` in its markup only:
+    // HTML-escaping touches neither ':' nor '-', so applied to a body of text it would rewrite the text.
     private val light = EmailTheme(background = "#ffffff", text = "#111111", link = "#0b5fff", dark = false)
-    private val images = mapOf("logo" to "data:image/png;base64,AAAA")
 
     @Test
     fun `a dark-mode media query in the message TEXT reaches the reader untouched`() {
@@ -465,17 +464,18 @@ class ReaderBodyTest {
     fun `a cid reference in the message TEXT stays text and is not turned into an image`() {
         val asText = buildHtmlDocument(
             email(text = part("t", "text/plain") to "the logo lives at cid:logo, ask me"),
-            inlineImages = images, theme = light, plainText = true, derivedNotice = notice, noContent = noContent,
+            theme = light, plainText = true, derivedNotice = notice, noContent = noContent,
         )
         assertTrue("the reader's own text was rewritten: $asText", "at cid:logo, ask" in asText)
-        assertFalse("data:image/png" in asText)
+        assertFalse("<img" in asText)
 
-        // In the message's own HTML the reference is markup, and is still inlined.
+        // In the message's own HTML the reference is markup, kept as written for the client.
         val asHtml = buildHtmlDocument(
             email(html = part("h", "text/html") to "<img src=\"cid:logo\">"),
-            inlineImages = images, theme = light, noContent = noContent,
+            theme = light, noContent = noContent,
         )
-        assertTrue("<img src=\"data:image/png;base64,AAAA\">" in asHtml)
+        assertTrue("<img src=\"cid:logo\">" in asHtml)
+        assertFalse("data:image" in asHtml)
     }
 
     /**
@@ -526,9 +526,10 @@ class ReaderBodyTest {
             lines(source, """readingModesDiffer\(loaded\.email, derivedNotice, noContent\)"""),
         )
         assertEquals(
-            "the entry AND the divider above it hang on that verdict",
+            "the entry AND the divider above it hang on that verdict, and stand down on a message " +
+                "the page gave up rendering as HTML",
             1,
-            lines(source, """if \(readingModeUseful\) \{"""),
+            lines(source, """if \(readingModeUseful && !tooManyResources\) \{"""),
         )
     }
 
@@ -568,9 +569,10 @@ class ReaderBodyTest {
 
         assertEquals(
             "the image entries must be guarded on imageMode, the variable showRemote is decided " +
-                "on: they ask showRemote's question, so they must get showRemote's answer",
+                "on: they ask showRemote's question, so they must get showRemote's answer. And " +
+                "they stand down on a message fallen back to text, where 'Show images' shows none",
             1,
-            lines(source, """if \(!imageMode\) \{"""),
+            lines(source, """if \(!imageMode && !tooManyResources\) \{"""),
         )
         assertFalse(
             "a guard in the menu still reads the RENDERED mode where the image mode is meant — " +

@@ -177,6 +177,7 @@
     <string name="message_show_plain_text">Показать обычный текст</string>
     <string name="message_show_html">Показать HTML</string>
     <string name="message_plain_text_derived">Текст получен из HTML-версии.</string>
+    <string name="message_too_many_resources">Это письмо запрашивает слишком много изображений для показа; оно показано как текст.</string>
     <string name="message_show_images">Показать изображения</string>
     <string name="message_images_shown">Изображения показаны</string>
     <string name="message_images_always_sender">Всегда показывать изображения от этого отправителя</string>

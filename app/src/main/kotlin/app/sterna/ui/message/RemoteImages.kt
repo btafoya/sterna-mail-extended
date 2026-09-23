@@ -35,8 +35,12 @@ private val SCHEME = Regex("""^([a-zA-Z][a-zA-Z0-9+.\-]*):""")
 /**
  * Whether the header carries an images strip at all for this page.
  */
-internal fun imagesStripPresent(plainText: Boolean, senderAllowed: Boolean, html: String?): Boolean =
-    !plainText && !senderAllowed && hasRemoteRefs(html)
+internal fun imagesStripPresent(
+    plainText: Boolean,
+    tooManyResources: Boolean,
+    senderAllowed: Boolean,
+    html: String?,
+): Boolean = !plainText && !tooManyResources && !senderAllowed && hasRemoteRefs(html)
 
 /**
  * What the images strip says, and whether it can still be pressed.

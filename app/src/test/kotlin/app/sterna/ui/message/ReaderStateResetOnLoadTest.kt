@@ -30,6 +30,33 @@ class ReaderStateResetOnLoadTest {
         )
     }
 
+    @Test
+    fun `the too-many-resources verdict is cleared only for another message`() {
+        val prologue = loadPrologue(viewModelSource()).lines()
+        assertTrue(
+            "load()'s prologue clears `_tooManyResources` unconditionally, at the prologue's own " +
+                "indentation: the fallback of a warmed page reverts to HTML when the page settles",
+            prologue.none { it == "        _tooManyResources.value = false" },
+        )
+        val guard = prologue.indexOfFirst {
+            it == "        if (!keepsResourceVerdict(tooManyResourcesFor, emailId, accountId)) {"
+        }
+        assertTrue(
+            "the reset must hang on keepsResourceVerdict(tooManyResourcesFor, emailId, accountId), " +
+                "the entry being loaded against the one the verdict was given for",
+            guard >= 0,
+        )
+        assertEquals(
+            "the guarded block must clear both the key and the flow, and nothing else",
+            listOf(
+                "            tooManyResourcesFor = null",
+                "            _tooManyResources.value = false",
+                "        }",
+            ),
+            prologue.subList(guard + 1, minOf(guard + 4, prologue.size)),
+        )
+    }
+
     /**
      * The unsubscribe state, again, in the branch that runs when the message does not open.
      */

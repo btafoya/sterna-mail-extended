@@ -25,6 +25,8 @@ import android.opengl.GLES20
 import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.print.PageRange
 import android.print.PrintAttributes
@@ -755,6 +757,7 @@ private fun MessageActions(
     val readingModeUseful = remember(loaded.email, derivedNotice, noContent) {
         readingModesDiffer(loaded.email, derivedNotice, noContent)
     }
+    val tooManyResources by viewModel.tooManyResources.collectAsStateWithLifecycle()
     // Follow (flag) toggle, promoted from the overflow menu to the bar now that
     // the subject no longer takes the title space (Codeberg #44).
     val flagged = loaded.email.isFlagged
@@ -886,7 +889,7 @@ private fun MessageActions(
             //
             // Offered only when switching would actually change the screen: an entry that promises a
             // rendering and hands back the identical document is a dead action.
-            if (readingModeUseful) {
+            if (readingModeUseful && !tooManyResources) {
                 HorizontalDivider()
                 DropdownMenuItem(
                     text = {
@@ -911,7 +914,7 @@ private fun MessageActions(
             // silently change the next message. Guarded on `imageMode`, not on `plainText`, the same
             // variable `showRemote` is decided on: the two differ only while DataStore has not
             // answered, and there a `plainText` guard makes the menu contradict itself.
-            if (!imageMode) {
+            if (!imageMode && !tooManyResources) {
                 if (!showRemote || senderEmail != null) HorizontalDivider()
                 if (!showRemote) {
                     DropdownMenuItem(
@@ -1463,6 +1466,7 @@ private fun MessageContent(
     // On this `val`, never on the `showRemoteImages(...)` call: ReaderBodyTest counts that line.
     val manualShowRaw by viewModel.manualShowImages.collectAsStateWithLifecycle()
     val manualShow = everActive && manualShowRaw
+    val tooManyResources by viewModel.tooManyResources.collectAsStateWithLifecycle()
     // Reading mode (#149), resolved exactly as the menu above resolves it: the stored setting, this
     // message's deviation from it, and the two answers.
     val plainTextOverride by viewModel.plainText.collectAsStateWithLifecycle()
@@ -1530,6 +1534,7 @@ private fun MessageContent(
     )
     val printNoSubject = stringResource(R.string.message_no_subject)
     val printDerivedNotice = stringResource(R.string.message_plain_text_derived)
+    val printTooManyNotice = stringResource(R.string.message_too_many_resources)
     val printNoContent = stringResource(R.string.message_no_content)
     val appName = stringResource(R.string.app_name)
     LaunchedEffect(printRequested) {
@@ -1550,9 +1555,12 @@ private fun MessageContent(
             cc = printAddresses(full.cc),
             date = formatFull(receivedAt),
         )
-        val body = readerBody(full, plainText, printDerivedNotice, printNoContent)
-        val doc = buildPrintDocument(header, printLabels, body, msg.inlineImages)
-        printDocument(activity, doc, printJobName(header.subject, appName), blockRemote = !showRemote)
+        val body = readerBody(
+            full, plainText, printDerivedNotice, printNoContent,
+            tooManyNotice = if (tooManyResources) printTooManyNotice else null,
+        )
+        val doc = buildPrintDocument(header, printLabels, body)
+        printDocument(activity, doc, printJobName(header.subject, appName), msg.inlineImages, blockRemote = !showRemote)
     }
     val senderRule = SenderRuleOffer(
         entryFor = { isSender, address ->
@@ -1605,6 +1613,8 @@ private fun MessageContent(
                 onRespondToInvite = viewModel::respondToInvite,
                 textZoom = messageTextSize.zoom,
                 plainText = plainText,
+                tooManyResources = tooManyResources,
+                onTooManyResources = { viewModel.gaveUpOnResources(emailId, accountId) },
                 replyBarEnabled = replyBarEnabled,
                 onBarVisibleChanged = viewModel::setReplyBarVisible,
                 onComposeTo = onComposeTo,
@@ -1666,6 +1676,8 @@ private fun ConversationBody(
      *  machinery is keyed on the message id, so a toggle rebuilds the document without putting the
      *  spinner back over a body already on screen. */
     plainText: Boolean,
+    tooManyResources: Boolean,
+    onTooManyResources: () -> Unit,
     /** Whether the bottom Reply/Forward bar is wanted at all (#63). It gates the bar's visibility and
      *  the blank the document reserves for it, and nothing else. */
     replyBarEnabled: Boolean,
@@ -1694,12 +1706,15 @@ private fun ConversationBody(
     // The answer may not change on its own: the header's measured height keys the remember() that
     // builds the body's HTML document, so a strip appearing mid-read cancels the load in flight:
     // before the first reveal that costs the reveal, after it the reader's scroll position.
-    // The key is `(full, plainText)`, so only the reading-mode toggle can flip it. That costs two
-    // document loads, since the strip's presence feeds the key through the header height a pass later
-    // accepted only there, because that gesture already replaces the document. `plainText` and not
-    // `imageMode`, which flips on its own when DataStore answers; the price is at `imagesStripPresent`.
+    // The key is `(full, plainText, tooManyResources)`, so only the reading-mode toggle and the text
+    // fallback can flip it. That costs two document loads, since the strip's presence feeds the key
+    // through the header height a pass later, accepted only there, because both already replace the
+    // document. `plainText` and not `imageMode`, which flips on its own when DataStore answers; the
+    // price is at `imagesStripPresent`.
     // `blockRemote` is deliberately not read here: it chooses which same-height shape is drawn.
-    val imagesStrip = remember(full, plainText) { imagesStripPresent(plainText, senderAllowed, full?.htmlContent()) }
+    val imagesStrip = remember(full, plainText, tooManyResources) {
+        imagesStripPresent(plainText, tooManyResources, senderAllowed, full?.htmlContent())
+    }
     val density = LocalDensity.current
     // The body WebView owns all vertical scroll. It fills the viewport (so Blink culls offscreen
     // tiles, #5) and there is no outer Compose vertical scroll: a sideways drag reaches the pager
@@ -1717,10 +1732,10 @@ private fun ConversationBody(
     // A reading-mode switch (#149) puts a different body under the same message id, so the geometry
     // folded in so far is about a document that is gone: the newsletter's 8000 px range would outlive
     // its 900 px flattening, and the bar would never come back in either mode.
-    // Keyed on `plainText` and on nothing else: the document is also rebuilt by an inline-image
+    // Keyed on the reading mode and on nothing else: the document is also rebuilt by an inline-image
     // insert, a theme change or a header resize, and forgetting the range on those paths would take
-    // the bar away mid-read, which is exactly #63.
-    LaunchedEffect(plainText) { barReveal.documentReplaced() }
+    // the bar away mid-read, which is exactly #63. Falling back to text is a reading-mode change.
+    LaunchedEffect(plainText, tooManyResources) { barReveal.documentReplaced() }
     // The visible Reply/Forward bar is fixed chrome at the pager level (#62): this page only reports
     // whether its state wants the bar. The invisible measuring copy below stays in-page, it only
     // reserves the bar's height in the document.
@@ -1810,6 +1825,8 @@ private fun ConversationBody(
                 // The quote-fold button's label, resolved here for the same reason as the two
                 // above. A locale change recreates the activity, so it is safe in the key below.
                 val quoteLabel = stringResource(R.string.message_quoted_text)
+                val tooManyNotice = stringResource(R.string.message_too_many_resources)
+                    .takeIf { tooManyResources }
                 // plainText is part of the key, or the toggle would change the mode and re-render the
                 // same document.
                 // The two spacers enter the key as the lengths themselves, which depend on two
@@ -1817,21 +1834,25 @@ private fun ConversationBody(
                 // must stay out of this key: it would rebuild the document under the reader's finger,
                 // flash white, send her back to the top and reset the zoom, in a loop.
                 val html = remember(
-                    full, msg.inlineImages, emailTheme, topSpacerCss, bottomSpacerCss,
+                    full, emailTheme, topSpacerCss, bottomSpacerCss,
                     plainText, derivedNotice, noContent, quoteLabel,
+                    tooManyNotice,
                 ) {
                     buildHtmlDocument(
-                        full, msg.inlineImages, emailTheme, topSpacerCss, bottomSpacerCss,
+                        full, emailTheme, topSpacerCss, bottomSpacerCss,
                         plainText, derivedNotice, noContent, quoteLabel,
+                        tooManyNotice,
                     )
                 }
                 EmailWebView(
                     html = html,
+                    inlineImages = msg.inlineImages,
                     blockRemote = blockRemote,
                     stripTracking = stripTracking,
                     confirmLinks = confirmLinks,
                     backgroundColor = scheme.surface.toArgb(),
                     textZoom = textZoom,
+                    onTooManyResources = onTooManyResources,
                     // One reveal, not two (#63). [resting] is the geometry measured by the height poll
                     // itself, non-null only from two agreeing readings, so the bar's resting state is
                     // decided in the same recomposition that reveals the body. Null means nothing was
@@ -3743,11 +3764,13 @@ private const val RESIZE_PROBE_MS = 50L
 @Composable
 private fun EmailWebView(
     html: String,
+    inlineImages: Map<String, String>,
     blockRemote: Boolean,
     stripTracking: Boolean,
     confirmLinks: Boolean,
     backgroundColor: Int,
     textZoom: Int,
+    onTooManyResources: () -> Unit,
     onReady: (resting: BodyMetrics?) -> Unit,
     onScroll: (metrics: BodyMetrics, lastWord: Boolean) -> Unit,
     onResized: (metrics: BodyMetrics) -> Unit,
@@ -3771,8 +3794,13 @@ private fun EmailWebView(
     val useSoftwareLayer = remember(context) { WebViewLayerGuard.useSoftwareLayer(context) }
     val navTransitionActive = LocalNavTransitionActive.current
     val client = remember { BlockingWebViewClient() }
+    // Set in the composition, before `update` reloads the page for them; decoded once per map, and
+    // compared by identity in the load key rather than as megabytes of base64.
+    val images = remember(inlineImages) { InlineImages(inlineImages) }
+    client.inlineImages = images
     client.blockRemote = blockRemote
     client.stripTracking = stripTracking
+    client.onTooManyResources = onTooManyResources
     client.onOpenUrl = { uri ->
         if (confirmLinks) pendingLink = uri else leaveOnce { openExternally(context, uri) }
     }
@@ -3921,8 +3949,9 @@ private fun EmailWebView(
             }
             // update() runs on every recomposition; only (re)load when the document actually changed.
             // blockRemote is part of the key so toggling "show images" reloads the page, otherwise the
-            // already-intercepted image requests are never re-issued and stay broken.
-            val loadKey = Pair(blockRemote, html)
+            // already-intercepted image requests are never re-issued and stay broken. So are the inline
+            // images: the text is the same without them, and a refused `cid:` is never asked again.
+            val loadKey = Triple(blockRemote, html, images)
             if (webView.tag != loadKey) {
                 webView.tag = loadKey
                 // Arm the crash sentinel right before a hardware-accelerated draw on a device that has
@@ -3930,6 +3959,7 @@ private fun EmailWebView(
                 // next launch. No-op once proven.
                 if (!useSoftwareLayer) WebViewLayerGuard.armIfUnproven(context)
                 webView.reportingEnabled = false
+                client.documentLoading()
                 webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
                 // Keep the bar hidden until the body has settled, then evaluate the resting reveal once
                 // with the final scroll range. A fixed 250 ms timer expired while a heavy body was
@@ -4086,9 +4116,10 @@ private fun restingMetrics(wv: WebView, step: HeightPoll.Report, maxSeen: Int): 
     )
 }
 
-/** Blocks remote (http/https) resource loads while [blockRemote]; opens links externally. */
+/** Serves `cid:` images, blocks remote resource loads while [blockRemote]; opens links externally. */
 private class BlockingWebViewClient : WebViewClient() {
     var blockRemote: Boolean = true
+    @Volatile var inlineImages: InlineImages = InlineImages.EMPTY
     var stripTracking: Boolean = true
 
     /** Reports the final (possibly cleaned) URL to open; the composable decides how. */
@@ -4104,6 +4135,13 @@ private class BlockingWebViewClient : WebViewClient() {
      *  print path hangs its "hand the page to the print service" on it; the reader leaves it empty.
      *  Not named after the callback it rides on, so a call reads as what it is. */
     var onPageLoaded: (WebView) -> Unit = {}
+
+    /** On the main thread, once per load past [RequestBudget]'s limit; the print path leaves it empty. */
+    var onTooManyResources: () -> Unit = {}
+
+    private val budget = RequestBudget()
+
+    fun documentLoading() = budget.reset()
 
     override fun onPageFinished(view: WebView?, url: String?) {
         val wv = view ?: return
@@ -4138,15 +4176,15 @@ private class BlockingWebViewClient : WebViewClient() {
     }
 
     override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
-        if (!blockRemote) return null
-        // Default-deny: only inert, local sources are allowed through. Anything else, http(s),
-        // protocol-relative URLs (which arrive with a null/empty scheme), ws, ftp, prefetch, is
-        // blocked. Keying on "http"/"https" alone let "//evil.com/x.gif" slip past.
-        val scheme = request?.url?.scheme?.lowercase()
-        return if (scheme == "data" || scheme == "cid" || scheme == "about") {
-            null
-        } else {
-            WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+        val url = request?.url
+        val admitted = budget.admit(url?.scheme, url?.toString(), blockRemote, inlineImages)
+        if (admitted.crossed) {
+            MAIN.post { onTooManyResources() }
+        }
+        return when (val d = admitted.decision) {
+            ResourceDecision.PassThrough -> null
+            ResourceDecision.Block -> WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+            is ResourceDecision.Serve -> WebResourceResponse(d.mime, null, ByteArrayInputStream(d.bytes))
         }
     }
 
@@ -4167,6 +4205,7 @@ private class BlockingWebViewClient : WebViewClient() {
 
     private companion object {
         val SAFE_OPEN_SCHEMES = setOf("http", "https", "mailto", "tel", "sms", "geo")
+        val MAIN = Handler(Looper.getMainLooper())
     }
 }
 
@@ -4175,9 +4214,15 @@ private class BlockingWebViewClient : WebViewClient() {
  * WebView of its own, never attached to any view hierarchy. Not the reader's: that one sits inside
  * the guards that keep the fade from crashing (#10) and its page carries the screen's spacer bands.
  * [HoldingAdapter] holds this one until the service is done, so a rotation costs nothing.
- * [blockRemote] is the same decision the screen took, enforced by the same client.
+ * [blockRemote] and [inlineImages] are the screen's own, answered by the same client.
  */
-private fun printDocument(activity: Activity, html: String, jobName: String, blockRemote: Boolean) {
+private fun printDocument(
+    activity: Activity,
+    html: String,
+    jobName: String,
+    inlineImages: Map<String, String>,
+    blockRemote: Boolean,
+) {
     val webView = WebView(activity)
     webView.settings.javaScriptEnabled = false
     // Held here from creation, not only from the moment the print service gets its adapter: between
@@ -4188,6 +4233,7 @@ private fun printDocument(activity: Activity, html: String, jobName: String, blo
     var handed = false
     webView.webViewClient = BlockingWebViewClient().apply {
         this.blockRemote = blockRemote
+        this.inlineImages = InlineImages(inlineImages)
         onPageLoaded = { wv ->
             if (!handed) {
                 handed = true
@@ -4273,7 +4319,6 @@ internal const val CSP_META =
 // was the half nothing could see.
 internal fun buildHtmlDocument(
     email: Email,
-    inlineImages: Map<String, String> = emptyMap(),
     theme: EmailTheme = EmailTheme("#ffffff", "#111111", "#0b5fff", false),
     // CSS lengths, unit included, not pixel counts. Built by [bodySpacerCss], which explains why
     // the unit is `vh`; "0" is a valid CSS length and means "nothing measured yet".
@@ -4288,10 +4333,11 @@ internal fun buildHtmlDocument(
     // THIS one HAS a default, for the opposite reason: a caller who forgets it gets a document with
     // no quote fold, which is the page as it has always been, never an empty one.
     quoteLabel: String = "",
+    tooManyNotice: String? = null,
 ): String {
     // Which part of the message the document carries, and what that implies for the page, is
     // decided in one place a test can run, see [readerBody].
-    val body = readerBody(email, plainText, derivedNotice, noContent)
+    val body = readerBody(email, plainText, derivedNotice, noContent, tooManyNotice)
     var inner = body.fragment
     // The two rewrites below undo markup the message wrote, so they apply only while the document
     // actually carries that markup, [ReaderBody.richHtml], not "the message has HTML" (#149). A body
@@ -4299,16 +4345,13 @@ internal fun buildHtmlDocument(
     // whose text reads literally `prefers-color-scheme: dark` would otherwise come out mutilated, in
     // the mode whose whole promise is to show the text as it is.
     if (body.richHtml) {
-        // Embed inline images: replace cid: references with their data URIs. Shared with the
-        // print document ([buildPrintDocument]), which must embed them the same way.
-        inner = embedInlineImages(inner, inlineImages)
         // Neutralise the email's own dark-mode styles. On a dark-mode device the WebView matches
         // `prefers-color-scheme: dark`, so a marketing email renders its dark variant, which our
         // invert then turns light (the "white band in dark theme" bug). A declared color-scheme is
         // ignored by Android WebView, so the media queries are defanged directly.
         inner = neutraliseDarkModeStyles(inner)
         // Fold the trailing quoted block behind a native <details> (no script, so the CSP is
-        // untouched). Inside the richHtml guard, after the two rewrites: it wraps the message's own
+        // untouched). Inside the richHtml guard, after the dark-mode rewrite: it wraps the message's own
         // blockquotes. Not shared with [buildPrintDocument], paper does not unfold.
         inner = foldTopLevelQuotes(inner, quoteLabel)
     }

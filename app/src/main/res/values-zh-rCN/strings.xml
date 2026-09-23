@@ -308,6 +308,7 @@
     <string name="message_show_plain_text">显示纯文本</string>
     <string name="message_show_html">显示 HTML</string>
     <string name="message_plain_text_derived">由 HTML 版本生成的文本。</string>
+    <string name="message_too_many_resources">此邮件请求的图片过多，无法显示；已以文本形式显示。</string>
     <string name="message_show_images">显示图片</string>
     <string name="message_images_shown">已显示图片</string>
     <string name="message_images_always_sender">始终显示此发件人的图片</string>

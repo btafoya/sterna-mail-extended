@@ -619,6 +619,31 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         _manualShowImages.value = true
     }
 
+    private val _tooManyResources = MutableStateFlow(false)
+    val tooManyResources = _tooManyResources.asStateFlow()
+
+    private var tooManyResourcesFor: String? = null
+
+    fun gaveUpOnResources(emailId: String, accountId: String?) {
+        tooManyResourcesFor = MessagePaging.entryKey(emailId, accountId)
+        _tooManyResources.value = true
+    }
+
+    private suspend fun publishBody(
+        emailId: String,
+        accountId: String?,
+        message: ThreadMessage,
+        stillWanted: () -> Boolean = { true },
+    ): Boolean {
+        val tooMany = withContext(Dispatchers.Default) {
+            givesResourceVerdict(keepsResourceVerdict(tooManyResourcesFor, emailId, accountId), message.body?.htmlContent())
+        }
+        if (!stillWanted()) return false
+        if (tooMany) gaveUpOnResources(emailId, accountId)
+        _messages.value = listOf(message)
+        return true
+    }
+
     /** One-shot "print this message" signal, same shape as the image override and for the same
      *  reason: the overflow menu is fixed chrome at the pager level, the page that builds the
      *  document is one level down. Reset on load so a request never crosses to the next message. */
@@ -1013,18 +1038,16 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                     cached.email.from.firstOrNull()?.email?.lowercase()?.let { it in settings.imageAllowlist.first() } == true,
             )
             if (!warmable) return@launch
+            val message = ThreadMessage(
+                id = cached.email.id,
+                header = cached.email,
+                body = cached.email,
+                inlineImages = cached.inlineImages,
+            )
             // The settle may have overtaken the cache read: `load` owns the page from that moment
             // on, and a warm body painted over a fetch in flight would be a second render.
-            if (loadedId != null) return@launch
+            if (!publishBody(emailId, accountId, message) { loadedId == null }) return@launch
             _state.value = MessageState.Loaded(cached.email)
-            _messages.value = listOf(
-                ThreadMessage(
-                    id = cached.email.id,
-                    header = cached.email,
-                    body = cached.email,
-                    inlineImages = cached.inlineImages,
-                ),
-            )
             warmedId = emailId
             warmedAccountId = accountId
         }
@@ -1078,6 +1101,10 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         autoDecryptTried = false
         _replyBarVisible.value = false
         _manualShowImages.value = false
+        if (!keepsResourceVerdict(tooManyResourcesFor, emailId, accountId)) {
+            tooManyResourcesFor = null
+            _tooManyResources.value = false
+        }
         _printRequested.value = false
         _plainText.value = null
         _headers.value = null
@@ -1136,14 +1163,13 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 // Show the opened message immediately. The thread fetch below is a separate network
                 // round-trip and must not gate the body the user came to read.
                 val anchorBody = anchorDisplay(anchor)
-                _messages.value = listOf(
-                    ThreadMessage(
-                        id = anchor.id,
-                        header = anchorBody,
-                        body = anchorBody,
-                        inlineImages = opened.inlineImages,
-                    ),
+                val message = ThreadMessage(
+                    id = anchor.id,
+                    header = anchorBody,
+                    body = anchorBody,
+                    inlineImages = opened.inlineImages,
                 )
+                publishBody(emailId, accountId, message)
                 val anchorRole = repo.mailboxRole(anchor.accountId, anchor.mailboxId ?: listEmail?.mailboxId)
                 _mailboxRole.value = anchorRole
                 _ownMessage.value = isOwnMessage(anchor, anchorRole)
@@ -1275,14 +1301,13 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 is PgpResult.Success -> {
                     val opened = result.value
                     val display = anchorDisplay(opened.email)
-                    _messages.value = listOf(
-                        ThreadMessage(
-                            id = opened.email.id,
-                            header = display,
-                            body = display,
-                            inlineImages = opened.inlineImages,
-                        ),
+                    val message = ThreadMessage(
+                        id = opened.email.id,
+                        header = display,
+                        body = display,
+                        inlineImages = opened.inlineImages,
                     )
+                    publishBody(emailId, accountId, message)
                     _state.value = MessageState.Loaded(display)
                     _crypto.value = when (val c = opened.crypto) {
                         is MessageCrypto.Decrypted -> CryptoUiState.Decrypted(c)

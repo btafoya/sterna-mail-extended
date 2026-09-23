@@ -25,13 +25,12 @@ internal fun buildPrintDocument(
     header: PrintHeader,
     labels: PrintLabels,
     body: ReaderBody,
-    inlineImages: Map<String, String> = emptyMap(),
 ): String {
-    // The same two rewrites the reader's document makes on a rich body, and only on one: the
-    // message's own dark-mode styles are defanged here too, paper is white, and a marketing email
-    // must not print its dark variant because the device happens to be in dark theme.
+    // The dark-mode rewrite the reader's document makes on a rich body, and only on one: paper is
+    // white, and a marketing email must not print its dark variant because the device happens to be
+    // in dark theme. The `cid:` references stay as written, the print client serves them.
     val inner = if (body.richHtml) {
-        neutraliseDarkModeStyles(embedInlineImages(body.fragment, inlineImages))
+        neutraliseDarkModeStyles(body.fragment)
     } else {
         body.fragment
     }
@@ -69,19 +68,6 @@ internal fun buildPrintDocument(
         $inner
         </body></html>
     """.trimIndent()
-}
-
-/**
- * Replace every `cid:` reference in [html] by its data URI, the message's own inline images,
- * which no WebView could fetch by itself. Shared by the reader's document and the print one so the
- * two cannot drift: both spellings, `cid:x` then `cid:<x>`, in that order.
- */
-internal fun embedInlineImages(html: String, inlineImages: Map<String, String>): String {
-    var out = html
-    inlineImages.forEach { (cid, dataUri) ->
-        out = out.replace("cid:$cid", dataUri).replace("cid:<$cid>", dataUri)
-    }
-    return out
 }
 
 /**

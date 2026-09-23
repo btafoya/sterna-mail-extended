@@ -20,15 +20,16 @@ internal data class ReaderBody(
 )
 
 /**
- * The body fragment for [email], in HTML mode ([plainText] false) or plain-text mode.
+ * The body fragment for [email] in HTML mode ([plainText] false) or text, forced by [tooManyNotice].
  */
 internal fun readerBody(
     email: Email,
     plainText: Boolean,
     derivedNotice: String,
     noContent: String,
+    tooManyNotice: String? = null,
 ): ReaderBody {
-    if (!plainText) {
+    if (!plainText && tooManyNotice == null) {
         email.htmlContent()?.takeIf { it.isNotBlank() }
             ?.let { return ReaderBody(it, richHtml = true, derived = false) }
         email.textContent()?.takeIf { it.isNotBlank() }
@@ -39,7 +40,7 @@ internal fun readerBody(
     val (raw, isHtml) = bodySource(email)
     val text = (if (isHtml) htmlToText(raw) else raw).ifBlank { noContent }
     return ReaderBody(
-        fragment = plainFragment(text, if (isHtml) derivedNotice else null),
+        fragment = plainFragment(text, tooManyNotice ?: if (isHtml) derivedNotice else null),
         richHtml = false,
         derived = isHtml,
     )

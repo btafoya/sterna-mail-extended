@@ -144,6 +144,7 @@ class RemoteImagesTest {
                 "again and again, for good — the reported defect",
             imagesStripPresent(
                 plainText = true,
+                tooManyResources = false,
                 senderAllowed = false,
                 html = """<img src="https://t.example.com/px.gif">""",
             ),
@@ -155,6 +156,7 @@ class RemoteImagesTest {
             "nothing is held back and nothing is rendered: two reasons for no strip",
             imagesStripPresent(
                 plainText = true,
+                tooManyResources = false,
                 senderAllowed = true,
                 html = """<img src="https://t.example.com/px.gif">""",
             ),
@@ -163,12 +165,12 @@ class RemoteImagesTest {
 
     @Test fun `in text mode a body with nothing remote gets no strip`() {
         assertFalse(
-            imagesStripPresent(plainText = true, senderAllowed = false, html = "<p>hello</p>"),
+            imagesStripPresent(plainText = true, tooManyResources = false, senderAllowed = false, html = "<p>hello</p>"),
         )
     }
 
     @Test fun `in text mode a body that is not there gets no strip`() {
-        assertFalse(imagesStripPresent(plainText = true, senderAllowed = false, html = null))
+        assertFalse(imagesStripPresent(plainText = true, tooManyResources = false, senderAllowed = false, html = null))
     }
 
     @Test fun `in HTML mode a blocked newsletter gets its strip`() {
@@ -178,6 +180,7 @@ class RemoteImagesTest {
                 "newsletter and is told nothing about it",
             imagesStripPresent(
                 plainText = false,
+                tooManyResources = false,
                 senderAllowed = false,
                 html = """<img src="https://t.example.com/px.gif">""",
             ),
@@ -190,6 +193,7 @@ class RemoteImagesTest {
                 "unblock something that was never blocked",
             imagesStripPresent(
                 plainText = false,
+                tooManyResources = false,
                 senderAllowed = true,
                 html = """<img src="https://t.example.com/px.gif">""",
             ),
@@ -200,12 +204,37 @@ class RemoteImagesTest {
         assertFalse(
             "nothing in this message is refused at load time, so the strip would be a row of " +
                 "header about nothing — and the header's height keys the body's HTML document",
-            imagesStripPresent(plainText = false, senderAllowed = false, html = "<p>hello</p>"),
+            imagesStripPresent(plainText = false, tooManyResources = false, senderAllowed = false, html = "<p>hello</p>"),
         )
     }
 
     @Test fun `in HTML mode a body that is not there gets no strip`() {
-        assertFalse(imagesStripPresent(plainText = false, senderAllowed = false, html = null))
+        assertFalse(imagesStripPresent(plainText = false, tooManyResources = false, senderAllowed = false, html = null))
+    }
+
+    @Test fun `a newsletter fallen back to text gets no strip`() {
+        assertFalse(
+            "the reader gave up on this document and paints its text: nothing is held back any " +
+                "more, and a strip here offers \"Show images\" over a body with none, then says " +
+                "\"Images shown\" when none are",
+            imagesStripPresent(
+                plainText = false,
+                tooManyResources = true,
+                senderAllowed = false,
+                html = """<img src="https://t.example.com/px.gif">""",
+            ),
+        )
+    }
+
+    @Test fun `a newsletter fallen back to text in text mode gets no strip either`() {
+        assertFalse(
+            imagesStripPresent(
+                plainText = true,
+                tooManyResources = true,
+                senderAllowed = false,
+                html = """<img src="https://t.example.com/px.gif">""",
+            ),
+        )
     }
 
     /**
@@ -459,16 +488,17 @@ class RemoteImagesTest {
      */
     @Test fun `the strip's presence is frozen for the life of the page`() {
         assertTrue(
-            "ConversationBody must decide the strip on `(full, plainText)` and on nothing else. " +
+            "ConversationBody must decide the strip on `(full, plainText, tooManyResources)` and on " +
+                "nothing else, and hand the last two to imagesStripPresent. " +
                 "Every other key costs body reloads for no gesture: this strip's own height is an " +
                 "input to the document's key (header height -> topSpacerCssPx), so anything that " +
                 "flips the presence reloads the body a SECOND time, after the mode's own reload. " +
-                "That is paid only for the reading-mode toggle, which replaces the document and " +
-                "re-tops the message anyway. NOT `imageMode`, which flips with no gesture when " +
-                "DataStore answers; NOT `senderAllowed`, which promises to move nothing. " +
-                "Expected this line, verbatim:\n  $PRESENCE_LINE\nMessageScreen.kt has no line " +
-                "equal to it.",
-            hasLine(screenLines(), PRESENCE_LINE),
+                "That is paid only for the reading-mode toggle and the text fallback, which " +
+                "replace the document and re-top the message anyway. NOT `imageMode`, which flips " +
+                "with no gesture when DataStore answers; NOT `senderAllowed`, which promises to " +
+                "move nothing. Expected these lines, verbatim and in order:\n  " +
+                PRESENCE_LINES.joinToString("\n  ") + "\nMessageScreen.kt has no such pair.",
+            screenLines().windowed(PRESENCE_LINES.size).any { it == PRESENCE_LINES },
         )
     }
 
@@ -603,12 +633,13 @@ class RemoteImagesTest {
          * about remote pictures has to be honoured, after the strip and the rendered page.
          */
         const val PRINT_CALL_LINE =
-            "printDocument(activity, doc, printJobName(header.subject, appName), " +
+            "printDocument(activity, doc, printJobName(header.subject, appName), msg.inlineImages, " +
                 "blockRemote = !showRemote)"
 
-        const val PRESENCE_LINE =
-            "val imagesStrip = remember(full, plainText) { " +
-                "imagesStripPresent(plainText, senderAllowed, full?.htmlContent()) }"
+        val PRESENCE_LINES = listOf(
+            "val imagesStrip = remember(full, plainText, tooManyResources) {",
+            "imagesStripPresent(plainText, tooManyResources, senderAllowed, full?.htmlContent())",
+        )
 
         val STRIP_CALL = Regex("""\b[A-Z]\w*Strip\([^)\n]*\)""")
 

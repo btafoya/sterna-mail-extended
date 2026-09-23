@@ -177,6 +177,7 @@
     <string name="message_show_plain_text">Mostra testo semplice</string>
     <string name="message_show_html">Mostra HTML</string>
     <string name="message_plain_text_derived">Testo derivato dalla versione HTML.</string>
+    <string name="message_too_many_resources">Questo messaggio richiede troppe immagini per essere visualizzato; viene mostrato come testo.</string>
     <string name="message_show_images">Mostra immagini</string>
     <string name="message_images_shown">Immagini mostrate</string>
     <string name="message_images_always_sender">Mostra sempre le immagini di questo mittente</string>

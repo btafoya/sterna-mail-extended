@@ -664,20 +664,18 @@ class LoadOnSettleCallSiteTest {
         const val WARM_BINDING = "val warm = warmedId == emailId && warmedAccountId == accountId"
 
         /**
-         * The tail of `warmFromCache`: the re-check, the state, the thread row with its body and
-         * its inline images, and the two fields that say "there is a body on this page already".
+         * The tail of `warmFromCache`: the thread row with its body and inline images, published under
+         * the re-check, the state, and the two fields that say "there is a body on this page already".
          */
         val WARM_PAINT = listOf(
-            "if (loadedId != null) return@launch",
-            "_state.value = MessageState.Loaded(cached.email)",
-            "_messages.value = listOf(",
-            "ThreadMessage(",
+            "val message = ThreadMessage(",
             "id = cached.email.id,",
             "header = cached.email,",
             "body = cached.email,",
             "inlineImages = cached.inlineImages,",
-            "),",
             ")",
+            "if (!publishBody(emailId, accountId, message) { loadedId == null }) return@launch",
+            "_state.value = MessageState.Loaded(cached.email)",
             "warmedId = emailId",
             "warmedAccountId = accountId",
         )

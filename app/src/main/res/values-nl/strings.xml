@@ -177,6 +177,7 @@
     <string name="message_show_plain_text">Platte tekst tonen</string>
     <string name="message_show_html">HTML tonen</string>
     <string name="message_plain_text_derived">Tekst afgeleid van de HTML-versie.</string>
+    <string name="message_too_many_resources">Dit bericht vraagt te veel afbeeldingen op om weer te geven; het wordt als tekst getoond.</string>
     <string name="message_show_images">Afbeeldingen tonen</string>
     <string name="message_images_shown">Afbeeldingen weergegeven</string>
     <string name="message_images_always_sender">Afbeeldingen van deze afzender altijd tonen</string>

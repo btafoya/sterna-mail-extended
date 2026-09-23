@@ -130,16 +130,17 @@ class PrintDocumentTest {
         )
     }
 
-    @Test fun `a rich body gets its inline images embedded`() {
-        val body = ReaderBody("<p><img src=\"cid:logo\"></p>", richHtml = true, derived = false)
-        val doc = buildPrintDocument(header(), labels, body, inlineImages = mapOf("logo" to "data:image/png;base64,AAA"))
+    @Test fun `a rich body keeps its cid references for the print client to serve`() {
+        val body = ReaderBody("<p><img src=\"cid:logo\"><img src=\"cid:<logo>\"></p>", richHtml = true, derived = false)
+        val doc = buildPrintDocument(header(), labels, body)
 
         assertTrue(
-            "the cid: reference must be replaced by its data URI — the printer's WebView has no " +
-                "client that could resolve it.\nDocument was:\n$doc",
-            "src=\"data:image/png;base64,AAA\"" in doc,
+            "both spellings of the cid: reference must reach the document as written: the print " +
+                "client answers them from one decoded copy of the image, and a data URI written " +
+                "out per reference grows the document with every reference.\nDocument was:\n$doc",
+            "<p><img src=\"cid:logo\"><img src=\"cid:<logo>\"></p>" in doc,
         )
-        assertFalse("no cid:logo may remain.\nDocument was:\n$doc", "cid:logo" in doc)
+        assertFalse("no data URI may be written into the document.\nDocument was:\n$doc", "data:image" in doc)
     }
 
     @Test fun `the Cc line is printed only when there is someone in Cc`() {
@@ -215,19 +216,6 @@ class PrintDocumentTest {
             "several participants are joined with a comma, like the header on screen.",
             "Ada <ada@example.test>, bob@example.test",
             printAddresses(listOf(EmailAddress("Ada", "ada@example.test"), EmailAddress(null, "bob@example.test"))),
-        )
-    }
-
-    @Test fun `embedInlineImages replaces both spellings of a cid reference`() {
-        val out = embedInlineImages(
-            "<img src=\"cid:logo\"><img src=\"cid:<logo>\">",
-            mapOf("logo" to "data:image/png;base64,AAA"),
-        )
-
-        assertTrue(
-            "both `cid:logo` and `cid:<logo>` must be replaced by the data URI — the reader's " +
-                "document does both, in that order.\nOutput was:\n$out",
-            out == "<img src=\"data:image/png;base64,AAA\"><img src=\"data:image/png;base64,AAA\">",
         )
     }
 }

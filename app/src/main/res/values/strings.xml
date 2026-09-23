@@ -315,6 +315,7 @@
     <string name="message_show_plain_text">Show plain text</string>
     <string name="message_show_html">Show HTML</string>
     <string name="message_plain_text_derived">Text derived from the HTML version.</string>
+    <string name="message_too_many_resources">This message asks for too many images to display; shown as text.</string>
     <string name="message_show_images">Show images</string>
     <string name="message_images_shown">Images shown</string>
     <string name="message_images_always_sender">Always show images from this sender</string>

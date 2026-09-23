@@ -76,7 +76,7 @@ class BodySpacerWiringTest {
         assertEquals(
             "the two lengths must appear TWICE, verbatim and in this order — once in the " +
                 "remember() key, once in the buildHtmlDocument(...) call:\n" +
-                "  full, msg.inlineImages, emailTheme, topSpacerCss, bottomSpacerCss,\n" +
+                "  full, emailTheme, topSpacerCss, bottomSpacerCss,\n" +
                 "This line is pinned WHOLE on purpose. Anything added to it that a pinch can " +
                 "change (a page scale, a zoom level) re-keys the document under the reader's " +
                 "finger: the body reloads mid-gesture, flashes white, jumps back to the top and " +
@@ -84,7 +84,7 @@ class BodySpacerWiringTest {
                 "leaves the reader on a document built for a viewport that is gone.",
             2,
             codeLines().count {
-                it == "full, msg.inlineImages, emailTheme, topSpacerCss, bottomSpacerCss,"
+                it == "full, emailTheme, topSpacerCss, bottomSpacerCss,"
             },
         )
     }
