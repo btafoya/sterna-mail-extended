@@ -67,7 +67,7 @@ class SentCopyCallSiteTest {
             listOf(
                 "if (sentMailbox != null) {",
                 "runCatching { withSession(credentials) { it.append(sentMailbox, " +
-                    "OutgoingMime.build(message), \"\\\\Seen\") } }",
+                    "OutgoingMime.build(message, zone = zone), \"\\\\Seen\") } }",
                 "}",
             ),
             send.drop(at).take(3),

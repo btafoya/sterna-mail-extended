@@ -187,6 +187,7 @@ class SmtpTimeoutLintTest {
                 "message: OutgoingMessage,",
                 "connectTimeoutMs: Int = SMTP_CONNECT_TIMEOUT_MS,",
                 "commandTimeoutMs: Int = SMTP_COMMAND_TIMEOUT_MS,",
+                "zone: ZoneId = ZoneId.systemDefault(),",
                 ")",
             ),
             ImapSource.functionSignature("SmtpClient", "send"),

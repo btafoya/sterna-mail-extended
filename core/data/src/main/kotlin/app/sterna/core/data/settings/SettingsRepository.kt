@@ -242,9 +242,9 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_PLAIN_TEXT] = enabled }
     }
 
-    /** Whether the dates the composer writes into an outgoing message, a reply's quote attribution
-     *  line and a forward's Date header, are rendered in UTC rather than in the device's time zone
-     *  (#120). Off by default. Global: the question is about the device, not about a mailbox. */
+    /** Whether every date an outgoing message carries is written in UTC rather than in the device's
+     *  time zone (#120), see [outgoingDateZone]. Off by default. Global: the question is about the
+     *  device, not about a mailbox. */
     val quotedDatesUtc: Flow<Boolean> = dataStore.data.map(::quotedDatesUtcFrom)
 
     suspend fun setQuotedDatesUtc(enabled: Boolean) {
@@ -602,11 +602,11 @@ internal fun plainTextFrom(prefs: Preferences): Boolean = prefs[KEY_PLAIN_TEXT] 
 internal val KEY_QUOTED_DATES_UTC = booleanPreferencesKey("quoted_dates_utc")
 
 /**
- * What the composer writes when nobody has touched the switch: the device's local time (#120). Off
+ * What an outgoing date says when nobody has touched the switch: the device's local time (#120). Off
  * deliberately, a default of `true` would change the dates every user's correspondents read.
  */
 const val QUOTED_DATES_UTC_DEFAULT = false
 
-/** Whether outgoing quoted/forwarded dates are written in UTC, read from the stored preferences. */
+/** Whether outgoing dates are written in UTC, read from the stored preferences. */
 internal fun quotedDatesUtcFrom(prefs: Preferences): Boolean =
     prefs[KEY_QUOTED_DATES_UTC] ?: QUOTED_DATES_UTC_DEFAULT

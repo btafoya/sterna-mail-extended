@@ -29,9 +29,10 @@ class SmtpSubmissionCallSiteTest {
                 "MailServerConfig(smtp.host, smtp.port, smtp.security.toMailSecurity(), " +
                     "credentials.username, credentials.password, token),",
                 "message,",
+                "zone = zone,",
                 ")",
             ),
-            body.drop(at).take(4),
+            body.drop(at).take(5),
         )
     }
 }

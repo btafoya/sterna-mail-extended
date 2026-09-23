@@ -20,6 +20,7 @@ import app.sterna.core.data.db.RecentContactEntity
 import app.sterna.core.data.db.ScheduledSendDao
 import app.sterna.core.data.db.ScheduledSendEntity
 import app.sterna.core.data.pgp.PgpMode
+import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.unsubscribe.UnsubscribeClient
 import app.sterna.core.data.unsubscribe.UnsubscribeResult
 import app.sterna.core.imap.OutgoingAttachment
@@ -31,6 +32,7 @@ import app.sterna.core.jmap.model.EmailAddress
 import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.core.jmap.model.JmapSession
 import app.sterna.core.jmap.model.SubmissionEnvelope
+import java.time.OffsetDateTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -93,6 +95,7 @@ class MailSender(
     private val recentContactDao: RecentContactDao,
     private val outboxFilesDir: java.io.File,
     private val host: MailSendHost,
+    private val outgoingDates: OutgoingDateZones,
     private val logWarn: (String, String, Throwable?) -> Unit = { _, _, _ -> },
 ) {
     /**
@@ -536,6 +539,7 @@ class MailSender(
             ?: error("This account has no Drafts or Sent folder.")
         val sentId = submissionRoles["sent"] ?: draftsId
 
+        val dateZone = outgoingDates.atSend()
         val sentEmailId = if (prebuiltEntity != null) {
             // A pre-built entity must reach the wire byte-exact, the bytes the signature covers
             // do not survive re-encoding from Email/set fields.
@@ -548,6 +552,7 @@ class MailSender(
                     prebuiltEntity = prebuiltEntity,
                     autocryptHeader = autocryptHeaderValue(sendingAccount, from.email),
                 ),
+                zone = dateZone,
             )
             client.importAndSendEmail(
                 session = ctx.session,
@@ -580,6 +585,7 @@ class MailSender(
                 requestReceipt = item.requestReceipt,
                 autocryptHeader = autocryptHeaderValue(sendingAccount, from.email),
                 envelope = envelope,
+                sentAt = OffsetDateTime.now(dateZone),
             )
         }
 

@@ -652,7 +652,7 @@
     <string name="settings_read_receipt_subtitle">一些发件人希望在邮件被显示时收到通知。关闭时，该请求会被忽略。开启时，您打开的邮件会询问是否回应，只有您明确同意后才会发送。</string>
     <string name="settings_quoted_dates_utc_section">引用日期</string>
     <string name="settings_quoted_dates_utc_title">以 UTC 写入引用日期</string>
-    <string name="settings_quoted_dates_utc_subtitle">回复的引用行和转发邮件头部中的日期以 UTC 写入，而不是此设备的本地时间。</string>
+    <string name="settings_quoted_dates_utc_subtitle">回复的引用行、转发邮件头部以及你发送的每封邮件中的日期以 UTC 写入，而不是此设备的本地时间。</string>
     <string name="settings_recipient_suggestions_section">收件人建议</string>
     <string name="settings_suggest_contacts_title">从联系人中建议</string>
     <string name="settings_suggest_contacts_subtitle">当您输入时，从此设备的联系人中自动补全收件人。Sterna Mail 仅在设备本地读取，绝不上传。关闭后，仍会建议您近期联系过的人。</string>

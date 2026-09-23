@@ -31,6 +31,7 @@ import app.sterna.core.imap.SmtpClient
 import app.sterna.core.imap.buildImapSearch
 import app.sterna.core.imap.searchFolders
 import app.sterna.core.data.settings.NotificationContent
+import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.settings.PreviewLines
 import app.sterna.core.jmap.model.EmailAddress
 import app.sterna.core.jmap.model.SearchQuery
@@ -207,6 +208,7 @@ open class ImapMailService(
     /** Where each folder's UIDVALIDITY is remembered; [UidValidityStore.None] verifies nothing. */
     private val uidValidity: UidValidityStore = UidValidityStore.None,
     private val pendingExpunges: PendingExpungeStore = PendingExpungeStore.None,
+    private val outgoingDates: OutgoingDateZones = OutgoingDateZones.DEVICE,
 ) {
     private class Pooled {
         val mutex = Mutex()
@@ -358,12 +360,14 @@ open class ImapMailService(
     open suspend fun send(credentials: AccountCredentials, message: OutgoingMessage, sentMailbox: String?) {
         val smtp = credentials.smtp ?: error("Account has no SMTP server configured.")
         val token = tokenRefresher.freshAccessToken(credentials)
+        val zone = outgoingDates.atSend()
         smtpClient.send(
             MailServerConfig(smtp.host, smtp.port, smtp.security.toMailSecurity(), credentials.username, credentials.password, token),
             message,
+            zone = zone,
         )
         if (sentMailbox != null) {
-            runCatching { withSession(credentials) { it.append(sentMailbox, OutgoingMime.build(message), "\\Seen") } }
+            runCatching { withSession(credentials) { it.append(sentMailbox, OutgoingMime.build(message, zone = zone), "\\Seen") } }
         }
     }
 
@@ -371,10 +375,12 @@ open class ImapMailService(
      * APPEND a draft (\Draft flag) into Drafts. `retryOnFailure = false` is the point: a replay
      * appends a second copy before the deferred loop, which alone de-duplicates by id, can see it.
      */
-    open suspend fun appendDraft(credentials: AccountCredentials, draftsMailbox: String, message: OutgoingMessage) =
+    open suspend fun appendDraft(credentials: AccountCredentials, draftsMailbox: String, message: OutgoingMessage) {
+        val zone = outgoingDates.atSend()
         withSession(credentials, retryOnFailure = false) {
-            it.append(draftsMailbox, OutgoingMime.build(message, BlindCopies.WRITTEN), "\\Draft")
+            it.append(draftsMailbox, OutgoingMime.build(message, BlindCopies.WRITTEN, zone), "\\Draft")
         }
+    }
 
     /**
      * APPEND octets read from another account into [mailbox] (#189); null uid without UIDPLUS.

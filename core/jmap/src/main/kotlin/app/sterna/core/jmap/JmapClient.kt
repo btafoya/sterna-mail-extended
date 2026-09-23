@@ -31,6 +31,9 @@ import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 import java.io.Closeable
 import java.io.IOException
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
@@ -1666,10 +1669,8 @@ class JmapClient internal constructor(
         }
     }
 
-        /**
-         * Send a plain-text email: create a draft (Email/set) and submit it (EmailSubmission/set) in
-         * (EmailSubmission/set) in one request, moving it to Sent on success.
-         */
+        /** Send a plain-text email: create a draft (Email/set) and submit it (EmailSubmission/set)
+         *  in one request, moving it to Sent on success. */
     suspend fun sendEmail(
         session: JmapSession,
         accountId: String,
@@ -1699,7 +1700,9 @@ class JmapClient internal constructor(
                  *  folding here would put literal CRLFs inside a JSON string. Whether an account may
                  *  announce its key at all is decided in core/data, never here. */
         autocryptHeader: String? = null,
+        sentAt: OffsetDateTime = OffsetDateTime.now(),
     ): String? = withContext(Dispatchers.IO) {
+        val sentAtValue = sentAt.truncatedTo(ChronoUnit.SECONDS).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
         withAutocryptHeaderFallback(session, autocryptHeader != null) { withAutocryptHeader, point ->
             val payload = buildJsonObject {
                 putJsonArray("using") {
@@ -1723,6 +1726,8 @@ class JmapClient internal constructor(
                                         putJsonArray("bcc") { bcc.forEach { addJsonObject { addAddress(it) } } }
                                     }
                                     put("subject", subject)
+                                        // Without `sentAt` the server writes `Date:` in its own account zone.
+                                    put("sentAt", sentAtValue)
                                     if (inReplyTo.isNotEmpty()) {
                                         putJsonArray("inReplyTo") { inReplyTo.forEach { add(it) } }
                                     }

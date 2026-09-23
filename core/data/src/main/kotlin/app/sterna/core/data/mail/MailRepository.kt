@@ -42,6 +42,7 @@ import app.sterna.core.data.db.MailboxUnread
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.pgp.PgpEngine
 import app.sterna.core.data.rethrowIfCancelled
+import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.data.settings.SortOrder
 import app.sterna.core.jmap.BasicAuth
@@ -927,6 +928,7 @@ class MailRepository(
     flightMarkerStore: FlightMarkerStore? = null,
     private val logInfo: (String, String, Throwable?) -> Unit = { _, _, _ -> },
     private val logWarn: (String, String, Throwable?) -> Unit = { _, _, _ -> },
+    outgoingDates: OutgoingDateZones = OutgoingDateZones.DEVICE,
 ) : MailSendHost, MailDraftHost, MailFolderHost, MailAccountHost {
     /** Background scope for fire-and-forget work (body prefetch) that must outlive a sync call. */
     private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -943,6 +945,7 @@ class MailRepository(
         recentContactDao = recentContactDao,
         outboxFilesDir = outboxFilesDir,
         host = this,
+        outgoingDates = outgoingDates,
         logWarn = logWarn,
     )
 

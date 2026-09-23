@@ -488,7 +488,7 @@
     <string name="settings_read_receipt_subtitle">Alcuni mittenti chiedono di essere avvisati quando il loro messaggio viene visualizzato. Disattivato, la richiesta viene ignorata. Attivato, il messaggio aperto propone di rispondere e non viene inviato nulla senza il tuo consenso.</string>
     <string name="settings_quoted_dates_utc_section">Date citate</string>
     <string name="settings_quoted_dates_utc_title">Scrivere le date citate in UTC</string>
-    <string name="settings_quoted_dates_utc_subtitle">La data nella riga di citazione di una risposta e nell\'intestazione di un messaggio inoltrato viene scritta in UTC invece che nell\'ora locale del dispositivo.</string>
+    <string name="settings_quoted_dates_utc_subtitle">La data nella riga di citazione di una risposta, nell\'intestazione di un messaggio inoltrato e in ogni messaggio inviato viene scritta in UTC invece che nell\'ora locale del dispositivo.</string>
     <string name="settings_recipient_suggestions_section">Suggerimenti destinatari</string>
     <string name="settings_suggest_contacts_title">Suggerisci dai contatti</string>
     <string name="settings_suggest_contacts_subtitle">Completa automaticamente i destinatari dai contatti di questo dispositivo mentre digiti. Sterna Mail li legge solo sul dispositivo e non li carica mai. Se disattivato, suggerisce comunque le persone a cui hai scritto di recente.</string>

@@ -12,12 +12,14 @@ import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.OAuthTokenRefresher
 import app.sterna.core.data.mail.SyncStateStore
 import app.sterna.core.data.pgp.PgpEngine
+import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.data.storage.StorageRepository
 import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.SmtpClient
 import app.sterna.core.jmap.JmapClient
 import app.sterna.core.jmap.OAuthClient
+import kotlinx.coroutines.flow.flowOf
 
 /** Builds data-layer components, keeping Room (the database) internal to this module. */
 object DataFactory {
@@ -51,10 +53,12 @@ object DataFactory {
         // the sign-out that has to clear them (#95). Two literals would be one rename away from a
         // purge that sweeps an empty directory and reports success.
         val localDraftFiles = java.io.File(appContext.filesDir, LOCAL_DRAFT_FILES_DIR)
+        val outgoingDates = OutgoingDateZones(settings?.quotedDatesUtc ?: flowOf(false))
         val imapService = ImapMailService(
             ImapClient(clientVersion), SmtpClient(), OAuthTokenRefresher(OAuthClient(), accountStore),
             uidValidity,
             pendingExpunges,
+            outgoingDates = outgoingDates,
         )
         return DataLayer(
             mailRepository = MailRepository(
@@ -81,6 +85,7 @@ object DataFactory {
                 logWarn = { tag, message, error ->
                     if (error == null) android.util.Log.w(tag, message) else android.util.Log.w(tag, message, error)
                 },
+                outgoingDates = outgoingDates,
             ),
             storageRepository = StorageRepository(
                 appContext, database.emailDao(), database.emailFtsDao(), database.emailBodyDao(),

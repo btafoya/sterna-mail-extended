@@ -29,8 +29,8 @@ class DraftAppendCarriesBccWiringTest {
                 "Found:",
             listOf(
                 "runCatching { withSession(credentials) { it.append(sentMailbox, " +
-                    "OutgoingMime.build(message), \"\\\\Seen\") } }",
-                "it.append(draftsMailbox, OutgoingMime.build(message, BlindCopies.WRITTEN), \"\\\\Draft\")",
+                    "OutgoingMime.build(message, zone = zone), \"\\\\Seen\") } }",
+                "it.append(draftsMailbox, OutgoingMime.build(message, BlindCopies.WRITTEN, zone), \"\\\\Draft\")",
             ),
             codeLinesNaming(DaoQuerySource.mailSource("ImapMailService"), "OutgoingMime.build("),
         )

@@ -7,6 +7,7 @@ import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Base64
@@ -130,6 +131,7 @@ class SmtpClient {
         message: OutgoingMessage,
         connectTimeoutMs: Int = SMTP_CONNECT_TIMEOUT_MS,
         commandTimeoutMs: Int = SMTP_COMMAND_TIMEOUT_MS,
+        zone: ZoneId = ZoneId.systemDefault(),
     ) = withContext(Dispatchers.IO) {
         val connectTimeout = connectTimeoutMs.coerceAtLeast(0)
         val commandTimeout = commandTimeoutMs.coerceAtLeast(0)
@@ -265,7 +267,7 @@ class SmtpClient {
 
             write("DATA")
             expect("354", "DATA")
-            val mime = buildMime(message)
+            val mime = buildMime(message, zone)
                 // Invariant: `mime` is CRLF-only, so splitting on "\r\n" yields the actual lines.
                 // `build`'s seam for `prebuiltEntity` (octets from elsewhere) has to keep it true: an
                 // armor with bare LF endings collapses into one oversized line (RFC 5321 §4.5.3.1
@@ -294,7 +296,7 @@ class SmtpClient {
         }
     }
 
-    private fun buildMime(m: OutgoingMessage): String = OutgoingMime.build(m)
+    private fun buildMime(m: OutgoingMessage, zone: ZoneId): String = OutgoingMime.build(m, zone = zone)
 
     private fun localHost(): String = "[127.0.0.1]"
 
@@ -310,11 +312,13 @@ object OutgoingMime {
             /**
              * [blindCopies] says whether the blind-copy recipients are written as a `Bcc:` header.
              */
-    fun build(m: OutgoingMessage, blindCopies: BlindCopies = BlindCopies.OMITTED): String {
-        val date = ZonedDateTime.ofInstant(
-            java.time.Instant.ofEpochMilli(m.dateMillis),
-            java.time.ZoneOffset.UTC,
-        ).format(DateTimeFormatter.RFC_1123_DATE_TIME)
+    fun build(
+        m: OutgoingMessage,
+        blindCopies: BlindCopies = BlindCopies.OMITTED,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String {
+        val date = ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(m.dateMillis), zone)
+            .format(DateTimeFormatter.RFC_1123_DATE_TIME)
         return buildString {
             append("From: ${headerSafe(m.from)}\r\n")
             // A draft may have no recipient yet (#69); an empty "To:" header is malformed, so omit

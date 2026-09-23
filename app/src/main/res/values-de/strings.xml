@@ -488,7 +488,7 @@
     <string name="settings_read_receipt_subtitle">Manche Absender möchten erfahren, wann ihre Nachricht angezeigt wird. Aus: Die Anfrage wird ignoriert. An: Die geöffnete Nachricht bietet an, sie zu beantworten, und ohne deine Zustimmung wird nichts gesendet.</string>
     <string name="settings_quoted_dates_utc_section">Zitierte Daten</string>
     <string name="settings_quoted_dates_utc_title">Zitierte Daten in UTC schreiben</string>
-    <string name="settings_quoted_dates_utc_subtitle">Das Datum in der Zitatzeile einer Antwort und im Kopf einer weitergeleiteten Nachricht wird in UTC statt in der lokalen Zeit dieses Geräts geschrieben.</string>
+    <string name="settings_quoted_dates_utc_subtitle">Das Datum in der Zitatzeile einer Antwort, im Kopf einer weitergeleiteten Nachricht und in jeder gesendeten Nachricht wird in UTC statt in der lokalen Zeit dieses Geräts geschrieben.</string>
     <string name="settings_recipient_suggestions_section">Empfängervorschläge</string>
     <string name="settings_suggest_contacts_title">Aus Kontakten vorschlagen</string>
     <string name="settings_suggest_contacts_subtitle">Empfänger während der Eingabe aus den Kontakten dieses Geräts vervollständigen. Sterna Mail liest sie nur auf dem Gerät und lädt sie nie hoch. Wenn deaktiviert, werden trotzdem Personen vorgeschlagen, denen du kürzlich geschrieben hast.</string>

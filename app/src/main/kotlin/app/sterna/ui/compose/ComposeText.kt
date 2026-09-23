@@ -27,8 +27,6 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 
 /** Heuristic "forgot the attachment?" check on subject + body: lower-cased, matched loosely (stems
  *  cover inflections), conservative. Simplified Chinese takes whole words: a bare 附 matches 附近. */
@@ -1129,22 +1127,6 @@ internal fun draftReopenView(
  *  never clobbers text already typed. */
 internal fun canApplyReplyQuote(applied: Boolean, bodyText: String, initialBody: String): Boolean =
     applied && bodyText == initialBody
-
-/** The time zone the composer renders an outgoing date in, a reply's attribution line and a forward's
- *  Date header (#120). Nothing else changes zone through here: the reader and the list rows keep the
- *  device's clock, and the SMTP `Date:` header was already UTC. */
-internal fun outgoingDateZone(
-    quotedDatesUtc: Boolean,
-    deviceZone: ZoneId = ZoneId.systemDefault(),
-): ZoneId = if (quotedDatesUtc) ZoneOffset.UTC else deviceZone
-
-/** [outgoingDateZone], resolved by SUSPENDING on the stored setting: the first emission is awaited,
- *  never substituted with a default. DataStore answers a beat late on a cold start, and "not answered
- *  yet" is not "off", a reply prefilled in that beat would write the local time with the switch on. */
-internal suspend fun resolveOutgoingDateZone(
-    quotedDatesUtc: Flow<Boolean>,
-    deviceZone: ZoneId = ZoneId.systemDefault(),
-): ZoneId = outgoingDateZone(quotedDatesUtc.first(), deviceZone)
 
 /** What a sweep of the composer's attachment list found: [kept] stays on screen, [gone] leaves it. */
 internal data class StagedAttachmentSweep(

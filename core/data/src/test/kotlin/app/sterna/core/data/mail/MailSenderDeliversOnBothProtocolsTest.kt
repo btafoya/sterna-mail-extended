@@ -10,6 +10,7 @@ import app.sterna.core.data.db.OutboxDao
 import app.sterna.core.data.db.OutboxEntity
 import app.sterna.core.data.db.RecentContactDao
 import app.sterna.core.data.db.ScheduledSendDao
+import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.OutgoingMessage
 import app.sterna.core.imap.SmtpClient
@@ -21,6 +22,7 @@ import app.sterna.core.jmap.OAuthClient
 import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.core.jmap.model.JmapAccount
 import app.sterna.core.jmap.model.JmapSession
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -42,6 +44,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.lang.reflect.Proxy
+import java.time.ZoneId
 
 /**
  * `MailSender.performSend` RUN, on both protocols, against a recorded SMTP seam and a JMAP server
@@ -61,6 +64,8 @@ import java.lang.reflect.Proxy
  * - The on-behalf sub-account fork is taken once, for its envelope; the re-filing of the Sent copy
  *   into the sub-account (`Email/copy`) is answered with an error the send swallows, and nothing
  *   here checks it.
+ * - The date of an IMAP send: [RecordingImap] stands in for the service that builds the bytes, so
+ *   the switch there is read by [ImapSentDateFollowsTheSwitchTest].
  */
 class MailSenderDeliversOnBothProtocolsTest {
 
@@ -161,6 +166,7 @@ class MailSenderDeliversOnBothProtocolsTest {
         imap: ImapMailService = RecordingImap(store),
         mailboxDao: MailboxDao = unusableDao<MailboxDao>(),
         host: MailSendHost = RecordingHost(),
+        outgoingDates: OutgoingDateZones = OutgoingDateZones(switch, deviceZone = { kolkata }),
     ) = MailSender(
         client = JmapClient(),
         imap = imap,
@@ -172,7 +178,14 @@ class MailSenderDeliversOnBothProtocolsTest {
         recentContactDao = unusableDao<RecentContactDao>(),
         outboxFilesDir = File("outbox-never-read"),
         host = host,
+        outgoingDates = outgoingDates,
     )
+
+    /** The quoted-dates-in-UTC switch (#120), off unless a test turns it on. */
+    private val switch = MutableStateFlow(false)
+
+    /** A device at +05:30, never the machine's zone: the build container runs in UTC. */
+    private val kolkata = ZoneId.of("Asia/Kolkata")
 
     private fun item(
         fromEmail: String? = "alex@example.test",
@@ -534,6 +547,71 @@ class MailSenderDeliversOnBothProtocolsTest {
         val submission = argsOf("EmailSubmission/set")["create"]!!.jsonObject
         assertEquals("identity-7", submissionIdentity(submission))
         assertNull(sub(submission)["envelope"])
+    }
+
+    // ---- the date of a JMAP send, under the quoted-dates-in-UTC switch (#120)
+
+    /** The `sentAt` of the last message created, the one field the server writes `Date:` from. */
+    private fun lastSentAt(): String =
+        received.last { it.first == "Email/set" }.second["create"]!!.jsonObject["draft"]!!
+            .jsonObject["sentAt"]!!.jsonPrimitive.content
+
+    /** The `Date:` line of the last message imported whole, the pre-built path's only date. */
+    private fun lastImportedDateLine(): String = uploaded.last().lines().single { it.startsWith("Date:") }
+
+    @Test fun `switch on, a jmap message is sent at a UTC instant`() {
+        serveJmap("""{"id":"identity-7","name":"Alex","email":"alex@example.test"}""")
+        switch.value = true
+        runBlocking { sender(host = RecordingHost(jmapSession())).performSend(credentials(MailProtocol.JMAP), item()) }
+        assertTrue("sentAt: ${lastSentAt()}", lastSentAt().endsWith("Z"))
+    }
+
+    @Test fun `switch off, a jmap message is sent at the device's offset`() {
+        serveJmap("""{"id":"identity-7","name":"Alex","email":"alex@example.test"}""")
+        switch.value = false
+        runBlocking { sender(host = RecordingHost(jmapSession())).performSend(credentials(MailProtocol.JMAP), item()) }
+        assertTrue("sentAt: ${lastSentAt()}", lastSentAt().endsWith("+05:30"))
+    }
+
+    @Test fun `switch on, a pre-built jmap message is dated in UTC`() {
+        serveJmap("""{"id":"identity-7","name":"Alex","email":"alex@example.test"}""")
+        switch.value = true
+        runBlocking {
+            sender(host = RecordingHost(jmapSession()))
+                .performSend(credentials(MailProtocol.JMAP), item(pgpEntityPath = prebuiltEntityFile()))
+        }
+        assertTrue(lastImportedDateLine(), lastImportedDateLine().endsWith(" GMT"))
+    }
+
+    @Test fun `switch off, a pre-built jmap message is dated at the device's offset`() {
+        serveJmap("""{"id":"identity-7","name":"Alex","email":"alex@example.test"}""")
+        switch.value = false
+        runBlocking {
+            sender(host = RecordingHost(jmapSession()))
+                .performSend(credentials(MailProtocol.JMAP), item(pgpEntityPath = prebuiltEntityFile()))
+        }
+        assertTrue(lastImportedDateLine(), lastImportedDateLine().endsWith(" +0530"))
+    }
+
+    /**
+     * One sender, made with the switch on and turned off before its first send, then flipped
+     * between sends: a zone taken when the sender was built, or kept from an earlier send, dates
+     * the message with the answer of another moment.
+     */
+    @Test fun `the switch is read when a jmap message goes out, not before`() {
+        serveJmap("""{"id":"identity-7","name":"Alex","email":"alex@example.test"}""")
+        switch.value = true
+        val sender = sender(host = RecordingHost(jmapSession()))
+        val prebuilt = prebuiltEntityFile()
+        switch.value = false
+        runBlocking { sender.performSend(credentials(MailProtocol.JMAP), item()) }
+        assertTrue("sentAt: ${lastSentAt()}", lastSentAt().endsWith("+05:30"))
+        switch.value = true
+        runBlocking { sender.performSend(credentials(MailProtocol.JMAP), item()) }
+        assertTrue("sentAt: ${lastSentAt()}", lastSentAt().endsWith("Z"))
+        switch.value = false
+        runBlocking { sender.performSend(credentials(MailProtocol.JMAP), item(pgpEntityPath = prebuilt)) }
+        assertTrue(lastImportedDateLine(), lastImportedDateLine().endsWith(" +0530"))
     }
 
     /** One address field of the created message, empty when the create does not name that field. */

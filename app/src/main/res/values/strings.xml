@@ -662,7 +662,7 @@
     <string name="settings_read_receipt_subtitle">Some senders ask to be told when their message is displayed. Off, the request is ignored. On, the message you open offers to answer it, and nothing leaves unless you say so.</string>
     <string name="settings_quoted_dates_utc_section">Quoted dates</string>
     <string name="settings_quoted_dates_utc_title">Write quoted dates in UTC</string>
-    <string name="settings_quoted_dates_utc_subtitle">The date in a reply\'s quote line and in a forwarded message\'s header is written in UTC instead of this device\'s local time.</string>
+    <string name="settings_quoted_dates_utc_subtitle">The date in a reply\'s quote line, in a forwarded message\'s header and on every message you send is written in UTC instead of this device\'s local time.</string>
     <string name="settings_recipient_suggestions_section">Recipient suggestions</string>
     <string name="settings_suggest_contacts_title">Suggest from contacts</string>
     <string name="settings_suggest_contacts_subtitle">Autocomplete recipients from this device\'s contacts while you type. Sterna Mail reads them on-device only, never uploads them. When off, it still suggests people you\'ve recently emailed.</string>
