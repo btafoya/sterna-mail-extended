@@ -63,7 +63,6 @@ import app.sterna.core.imap.inlineArmorKind
 import app.sterna.core.imap.inlineDisplayText
 import app.sterna.core.imap.inlineVerifyBytes
 import app.sterna.core.imap.decodeMailboxPath
-import app.sterna.core.imap.MimeBody
 import app.sterna.core.imap.MimeParser
 import app.sterna.core.imap.OutgoingMime
 import app.sterna.core.data.pgp.PgpDecrypted
@@ -2114,38 +2113,6 @@ class MailRepository(
         return bracketed.ifEmpty { value.trim().split(Regex("\\s+")).map { "<$it>" } }
     }
 
-    private fun Email.withBody(body: MimeBody): Email {
-        val attachments = body.attachments.map {
-            val isInlineImage = !it.cid.isNullOrBlank() && it.type.startsWith("image/")
-            EmailBodyPart(
-                partId = it.section,
-                name = it.name,
-                type = it.type,
-                size = it.size.toLong(),
-                cid = it.cid,
-                disposition = if (isInlineImage) "inline" else "attachment",
-                encoding = it.encoding,
-            )
-        }
-        val html = body.html
-        val text = body.text
-        return when {
-            // The type must be set: htmlContent() only returns a part typed text/html
-            // (issue #4 hardening), so a type-less part renders as an empty body.
-            !html.isNullOrBlank() -> copy(
-                htmlBody = listOf(EmailBodyPart(partId = "html", type = "text/html")),
-                bodyValues = mapOf("html" to EmailBodyValue(value = html)),
-                attachments = attachments,
-            )
-            !text.isNullOrBlank() -> copy(
-                textBody = listOf(EmailBodyPart(partId = "text", type = "text/plain")),
-                bodyValues = mapOf("text" to EmailBodyValue(value = text)),
-                attachments = attachments,
-            )
-            else -> copy(attachments = attachments)
-        }
-    }
-
     // ---- Body cache + prefetch -------------------------------------------------------------
 
     /**
@@ -2340,31 +2307,17 @@ class MailRepository(
         )
         return when (envelope.kind) {
             CryptoKind.PGP_ENCRYPTED -> {
-                // Parts are marked "pgp:" so attachment downloads slice the decrypted entity in memory.
                 // ISO-8859-1: UTF-8 would lose the octets of any attachment inside.
                 val entity = decrypted.plaintext.toString(Charsets.ISO_8859_1)
-                val body = MimeParser.parseBody(entity)
-                val display = email.withBody(body).run {
+                val shown = displayOfEntity(email, entity)
+                val display = shown.email.run {
                     copy(
                         // RFC 9788 protected headers (#128): this copy stays in memory, never the Room row,
                         // the index, a notification or the widget, and nothing outgoing reads its subject.
                         subject = decryptedSubject(subject, entity),
-                        attachments = attachments.map { part ->
-                            part.copy(partId = part.partId?.let { "pgp:$it" })
-                        },
-                        hasAttachment = body.attachments.any { it.cid == null },
                     )
                 }
-                val inline = display.inlineImageParts().mapNotNull { part ->
-                    val section = part.partId?.removePrefix("pgp:") ?: return@mapNotNull null
-                    val cid = part.cid?.trim()?.trim('<', '>')?.takeIf { it.isNotEmpty() }
-                        ?: return@mapNotNull null
-                    val (cte, encoded) = MimeParser.partAt(entity, section) ?: return@mapNotNull null
-                    val bytes = MimeParser.decodeBytes(encoded, cte)
-                    val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                    cid to "data:${part.type ?: "image/jpeg"};base64,$base64"
-                }.toMap()
-                DecryptedEntry(MessageBody(display, inline, crypto), entity)
+                DecryptedEntry(MessageBody(display, shown.inlineImages, crypto), entity)
             }
             CryptoKind.PGP_INLINE -> {
                 val text = inlineDisplayText(envelope, decrypted.plaintext)
@@ -2376,7 +2329,9 @@ class MailRepository(
                 DecryptedEntry(MessageBody(display, emptyMap(), crypto), null)
             }
             CryptoKind.PGP_SIGNED -> {
-                DecryptedEntry(MessageBody(email, emptyMap(), crypto), null)
+                val entity = envelope.signedEntityRaw!!
+                val shown = displayOfEntity(email, entity)
+                DecryptedEntry(MessageBody(shown.email, shown.inlineImages, crypto), entity)
             }
         }
     }
