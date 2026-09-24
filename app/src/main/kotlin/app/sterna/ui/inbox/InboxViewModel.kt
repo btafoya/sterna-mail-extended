@@ -52,6 +52,7 @@ import app.sterna.ui.search.excerptsByResultKey
 import app.sterna.ui.search.forQuery
 import app.sterna.ui.search.searchComplete
 import app.sterna.ui.search.searchDisplay
+import app.sterna.widget.AllInboxesView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -87,12 +88,14 @@ data class MailUi(
     val selectedMailboxId: String?,
     /** True when showing the cross-account unified inbox (no single folder selected). */
     val unified: Boolean,
-    /** True when showing THIS account's unread mail across its folders ([Sel.Unread]), no single
-     *  folder selected either, so nothing else on screen can tell that view from the unified one. */
+    /** True when showing unread mail across folders ([Sel.Unread]), no single folder selected
+     *  either, so nothing else on screen can tell that view from the unified one. */
     val unreadView: Boolean = false,
     /** For the drawer entry that leads to the view above: the same aggregate the folder rows are
-     *  badged with, summed over the folders that view pages. Zero means no number at all. */
+     *  badged with, summed over the folders that view pages ([unreadEntryCount]). Zero: no number. */
     val unreadViewCount: Int = 0,
+    /** [unreadView] of every account: its rows name their account, its header "All inboxes". */
+    val unreadAllAccounts: Boolean = false,
     /** True when the current view is the inbox home (unified, or the account's Inbox folder).
      *  Drives Back: from any other folder, Back returns here instead of leaving the app. */
     val atInbox: Boolean = true,
@@ -142,6 +145,7 @@ private data class Base(
     val selectedMailboxId: String?,
     val unified: Boolean,
     val unreadView: Boolean,
+    val unreadAllAccounts: Boolean = false,
     /** Folded in after the five-flow combine below, so it is seeded here and copied there. */
     val unreadViewCount: Int = 0,
     val atInbox: Boolean,
@@ -698,16 +702,33 @@ class InboxViewModel(
     private val folderSnapshot = MutableStateFlow<Pair<String?, List<Mailbox>>>(null to emptyList())
 
     /**
-     * The folders the "unread" view ([Sel.Unread]) pages, the current account's visible ones,
-     * minus Trash, Junk/Spam, Sent and Drafts ([visibleFolders], [unreadViewScopes]). Starts empty:
-     * the store knows the account, not its folder list, and an empty scope list is what
+     * The folders the current account's "unread" view pages, its visible ones, minus Trash,
+     * Junk/Spam, Sent and Drafts ([visibleFolders], [unreadViewScopes]). Starts empty: the store
+     * knows the account, not its folder list, and an empty scope list is what
      * [MailRepository.pagedMailbox] answers `PagingData.empty()` to.
      */
-    private val unreadScopes: StateFlow<List<Pair<String, String>>> =
+    private val accountUnreadScopes: StateFlow<List<Pair<String, String>>> =
         combine(folderSnapshot, showOnlySubscribed, store.accountsFlow) { (accountId, folders), onlySubscribed, accounts ->
             val hiding = folderHidingOf(accountId, accounts)
             unreadViewScopes(accountId, shownFolders(visibleFolders(folders, onlySubscribed), hiding.ids, hiding.inboxId))
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    // A second observer of each list, never [mailboxes], whose side effects belong to the current account.
+    private val everyAccountFolders: StateFlow<Map<String, List<Mailbox>>> =
+        everyAccountFoldersFlow(store.accountsFlow, selection.map { showsEveryAccount(it) }) { accountId -> repo.observeMailboxes(accountId) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    private val everyAccountUnreadScopes: StateFlow<List<Pair<String, String>>> =
+        combine(everyAccountFolders, store.accountsFlow) { folders, accounts -> everyAccountUnreadScopes(folders, accounts) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val everyAccountUnreadTotal: StateFlow<Int> =
+        combine(everyAccountUnreadScopes, everyAccountFolders) { scopes, folders -> everyAccountUnreadCount(scopes, folders) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    private val unreadScopes: StateFlow<List<Pair<String, String>>> =
+        combine(selection, accountUnreadScopes, everyAccountUnreadScopes) { sel, account, every -> unreadScopesFor(sel, account, every) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /**
      * Back to the Inbox when the folder on screen stops being reachable, DELETED (#89), or hidden
@@ -793,7 +814,7 @@ class InboxViewModel(
         // The restored view's missing folder name, from this cached list. After the line above:
         // a tapped notification already wrote the header, and [restoredFolderMeta] lets it win.
         applyRestoredMeta(folders)
-        // Recorded for what derives from it: [unreadScopes] and [inboxFallback].
+        // Recorded for what derives from it: [accountUnreadScopes] and [inboxFallback].
         folderSnapshot.value = currentAccountId.value to folders
     }
 
@@ -955,11 +976,11 @@ class InboxViewModel(
                         repo.pagedMailbox(key.unifiedScopes, key.sort, listFilter(key.sel, key.toggles), key.conversationView, sent)
                     }
                 }
-                Sel.Unread -> {
+                is Sel.Unread -> {
                     // The filter is [listFilter]'s answer, not the key's raw toggles: this scope
                     // forces the unread criterion on (WYSIWYG). All three branches and [selectAll] ask the
                     // same function, a filter decided twice is the destructive half of #126.
-                    sentScopes(key, listOfNotNull(key.accountId)).flatMapLatest { sent ->
+                    sentScopes(key, unreadViewAccounts(sel, key.unreadScopes, key.accountId)).flatMapLatest { sent ->
                         repo.pagedMailbox(key.unreadScopes, key.sort, listFilter(key.sel, key.toggles), key.conversationView, sent)
                     }
                 }
@@ -1012,7 +1033,7 @@ class InboxViewModel(
     private fun viewedMailboxIds(key: PageKey): List<String> = when (val sel = key.sel) {
         is Sel.Folder -> listOfNotNull(sel.id)
         Sel.Unified -> key.unifiedScopes.map { it.second }.distinct()
-        Sel.Unread -> key.unreadScopes.map { it.second }.distinct()
+        is Sel.Unread -> key.unreadScopes.map { it.second }.distinct()
     }
 
     /**
@@ -1039,6 +1060,7 @@ class InboxViewModel(
             selectedMailboxId = (sel as? Sel.Folder)?.id,
             unified = sel is Sel.Unified,
             unreadView = sel is Sel.Unread,
+            unreadAllAccounts = unreadOfEveryAccount(sel),
             // The rule lives in [isAtInbox] and is not restated here: atInbox true means the
             // system Back gesture leaves the app.
             atInbox = isAtInbox(sel) { store.inboxMailboxId() },
@@ -1069,7 +1091,11 @@ class InboxViewModel(
         badged.copy(folderOrder = order.forList(folderSnapshot.value.first).ids)
     }
 
-    val state: StateFlow<MailUi> = combine(orderedState, searchState, settings.sortOrder, filterToggles, connectivity.online) { base, search, sortOrder, toggles, online ->
+    private val countedState = combine(orderedState, selection, everyAccountUnreadTotal) { ordered, sel, everyTotal ->
+        ordered.copy(unreadViewCount = unreadEntryCount(sel, ordered.unreadViewCount, everyTotal))
+    }
+
+    val state: StateFlow<MailUi> = combine(countedState, searchState, settings.sortOrder, filterToggles, connectivity.online) { base, search, sortOrder, toggles, online ->
         MailUi(
             accountId = base.accountId,
             accountName = base.accountName,
@@ -1079,6 +1105,7 @@ class InboxViewModel(
             unified = base.unified,
             unreadView = base.unreadView,
             unreadViewCount = base.unreadViewCount,
+            unreadAllAccounts = base.unreadAllAccounts,
             atInbox = base.atInbox,
             searchResults = search.results.orEmpty(),
             searchComplete = search.complete,
@@ -1108,6 +1135,7 @@ class InboxViewModel(
             // Not the field's default: this placeholder is a second site of every rule the combine
             // above states. Left out, a restored unread view starts on `unreadView = false`.
             unreadView = selection.value is Sel.Unread,
+            unreadAllAccounts = unreadOfEveryAccount(selection.value),
             atInbox = isAtInbox(selection.value) { store.inboxMailboxId() },
             mailboxes = emptyList(),
             refreshing = true,
@@ -1135,7 +1163,7 @@ class InboxViewModel(
         // Tell the push side which inbox is on screen (see shouldResetBaseline). The only place the
         // answer exists: nothing persists the selection.
         viewModelScope.launch {
-            selection.collect { PushController.unifiedInboxVisible = it is Sel.Unified }
+            selection.collect { PushController.unifiedInboxVisible = showsEveryAccount(it) }
         }
         // Remember the view so a cold start reopens on it. The account is read here, at the write:
         // switchAccount() calls setCurrent(id) before onAccountChanged(). That leaves a window
@@ -1274,7 +1302,7 @@ class InboxViewModel(
                 val outcome = refreshWithin {
                     when (val sel = selection.value) {
                         Sel.Unified -> refreshUnified()
-                        Sel.Unread -> refreshUnreadScope()
+                        is Sel.Unread -> if (sel.allAccounts) refreshEveryUnreadScope() else refreshUnreadScope()
                         is Sel.Folder -> refreshFolder(sel.id)
                     }
                 }
@@ -1357,6 +1385,25 @@ class InboxViewModel(
         }
     }
 
+    /** [refreshUnreadScope]'s pass and #50 hook, one account at a time, so the memory ceiling holds. */
+    private suspend fun refreshEveryUnreadScope() {
+        val scopes = everyAccountUnreadScopes.value
+        val pass = refreshEachAccount(store.allCredentials()) { credentials ->
+            val inboxId = store.account(credentials.id)?.inboxId
+            val refreshes = repo.refreshAccountFolders(
+                credentials,
+                extraFolderIds = unreadRefreshTargets(credentials.id, scopes, inboxId),
+                includeInbox = true,
+                limit = UNREAD_SCOPE_FOLDER_LIMIT,
+            )
+            val refreshedInbox = refreshedInboxId(refreshes.map { it.mailboxId }, inboxId)
+            if (refreshedInbox != null) {
+                runCatching { FetchAndNotify.onInboxRefreshed(getApplication(), credentials, refreshedInbox) }
+            }
+        }
+        everyAccountRefreshFailure(pass)?.let { throw it }
+    }
+
     private suspend fun refreshUnified() {
         val credentials = store.allCredentials()
         val result = repo.refreshAllInboxes(credentials)
@@ -1387,18 +1434,16 @@ class InboxViewModel(
         refreshUnlessFresh()
     }
 
-    /**
-     * Switch to this account's unread mail across its folders ([Sel.Unread]). [meta] is rewritten
-     * for the account label: `meta.accountName` still holds the literal `UNIFIED_LABEL` when the
-     * unified inbox was last shown, so the subtitle would read "All inboxes", in English. The
-     * scope is not recomputed here, it is written in one place, the [mailboxes] `onEach` (#121).
-     */
+    /** Switch to the unread view [unreadSelectionReplacing] picks. [meta] is always rewritten: after
+     *  the unified inbox it holds the literal `UNIFIED_LABEL`, one account's subtitle there. The
+     *  scope is not recomputed here, it is derived from the folder lists (#121). */
     fun selectUnread() {
-        if (selection.value is Sel.Unread) return
+        val next = unreadSelectionReplacing(selection.value, AllInboxesView.existsFor(store.accounts()))
+        if (selection.value == next) return
         collapseThreads()
         paneOnViewChanged()
-        selection.value = Sel.Unread
-        meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount())
+        selection.value = next
+        meta.value = unreadViewMeta(next, store.accountLabel(), store.inboxMailboxName(), store.unreadCount(), store.totalUnreadCount())
         refreshUnlessFresh()
     }
 
@@ -1469,8 +1514,9 @@ class InboxViewModel(
         step.meta?.let { meta.value = it }
     }
 
-    /** Return to the account's Inbox, Back from any other folder lands here. */
+    /** Return to the account's Inbox, Back from any other folder lands here ([backLandsOnUnified]). */
     fun showInbox() {
+        if (backLandsOnUnified(selection.value)) return selectUnified()
         val inboxId = store.inboxMailboxId()
         if (selection.value == Sel.Folder(inboxId)) return
         collapseThreads()
@@ -2152,7 +2198,7 @@ class InboxViewModel(
     private fun currentMailboxIds(): List<String> = when (val sel = selection.value) {
         is Sel.Folder -> listOfNotNull(sel.id)
         Sel.Unified -> unifiedInboxScopes.value.map { it.second }.distinct()
-        Sel.Unread -> unreadScopes.value.map { it.second }.distinct()
+        is Sel.Unread -> currentScopes().map { it.second }.distinct()
     }
 
     /** (account id, mailbox id) scopes backing the current view. Bulk cache reads must carry both
@@ -2166,8 +2212,9 @@ class InboxViewModel(
         Sel.Unified -> store.allInboxScopes()
         // The live value, which can differ from what the pager on screen was built with. Accepted
         // only because [listFilter] forces the unread criterion on for this scope, so the window can add
-        // only unread mail of a folder this view covers. [listScope] is not safer.
-        Sel.Unread -> unreadScopes.value
+        // only unread mail of a folder this view covers. [listScope] is not safer. Not [unreadScopes]:
+        // it can trail a switch by a collection, and the freshness door would judge the view just left.
+        is Sel.Unread -> unreadScopesFor(sel, accountUnreadScopes.value, everyAccountUnreadScopes.value)
     }
 
     // ---- sort / filter / bulk ----
@@ -3139,13 +3186,9 @@ class InboxViewModel(
         }
     }
 
-    /** The accounts the current view searches over: all of them in the unified inbox, the current one in a single folder. */
-    private fun searchAccounts(): List<AccountCredentials> = when (selection.value) {
-        Sel.Unified -> store.allCredentials()
-        // One account's folders, so one account's search, same answer as a single folder.
-        Sel.Unread -> listOfNotNull(store.load())
-        is Sel.Folder -> listOfNotNull(store.load())
-    }
+    /** The accounts the current view searches over: all of them in a view of every account. */
+    private fun searchAccounts(): List<AccountCredentials> =
+        if (showsEveryAccount(selection.value)) store.allCredentials() else listOfNotNull(store.load())
 
     /** Union of two hit lists (by account+id), newest first. Rows the user just removed stay out:
      *  the FTS index and the server both still know an evicted message (see [searchRemoved]). */

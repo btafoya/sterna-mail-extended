@@ -227,7 +227,7 @@ class AccountSwitchTitleWiringLintTest {
     companion object {
         private const val EXPECTED_PREAMBLE =
             "var accountMenuOpenIn by remember { mutableStateOf<Int?>(null) } " +
-                "val titleSwitchTargets = if (!ui.unified) accounts.filter { it.id != currentAccountId } else emptyList() " +
+                "val titleSwitchTargets = if (!ui.unified && !ui.unreadAllAccounts) accounts.filter { it.id != currentAccountId } else emptyList() " +
                 "MediumTopAppBar("
 
         private const val EXPECTED_CALL =

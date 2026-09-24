@@ -26,6 +26,26 @@ class UnreadRowFolderWiringLintTest {
     }
 
     @Test
+    fun `the account chip is decided once, for the list row and for the children`() {
+        val lines = codeLines(INBOX_SCREEN).map { it.trim() }
+            .filter { Regex("""\b(ownerAccount|namesAccount)\s*=""").containsMatchIn(it) }
+        assertEquals(
+            "(#235; the rule is rowsNameTheirAccount, run by EveryAccountUnreadTest. Hole 4: " +
+                "nothing here holds what the composable collects.) " +
+                "In the unread view of every account the rows must name their account like the " +
+                "unified inbox's: 'if (ui.unified)' at either site leaves them unmarked, and a row " +
+                "of B then reads as the current account's. Whole lines, sorted. Lines found were:" +
+                "\n${lines.joinToString("\n")}",
+            listOf(
+                "namesAccount = rowsNameTheirAccount(ui),",
+                "val ownerAccount = if (namesAccount) accounts.firstOrNull { it.id == child.accountId } else null",
+                "val ownerAccount = if (rowsNameTheirAccount(ui)) accounts.firstOrNull { it.id == email.accountId } else null",
+            ),
+            lines.sorted(),
+        )
+    }
+
+    @Test
     fun `the folder is resolved for the list row and for the children, each with its own trust`() {
         val lines = codeLines(INBOX_SCREEN).map { it.trim() }
             .filter { Regex("""\bunreadRowFolder\s*\(""").containsMatchIn(it) }

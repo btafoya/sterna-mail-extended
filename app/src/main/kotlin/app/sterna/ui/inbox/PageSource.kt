@@ -9,15 +9,15 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 
-/** What the list is showing: a single folder, the unified inbox, or one account's unread mail. */
+/** What the list is showing: a single folder, the unified inbox, or the unread mail of one account or all. */
 internal sealed interface Sel {
     data class Folder(val id: String?) : Sel
     data object Unified : Sel
 
-    /** Every folder of the current account except Trash, Junk/Spam, Sent and Drafts, filtered to
-     * unread. Its folders live in [PageKey.unreadScopes] and are not re-read when used, so the
-     *  rows on screen and the rows a bulk action reaches are one set. */
-    data object Unread : Sel
+    /** Every folder of the current account, or of every account when [allAccounts], except Trash,
+     * Junk/Spam, Sent and Drafts, filtered to unread. Its folders live in [PageKey.unreadScopes] and
+     *  are not re-read when used, so the rows on screen and the rows a bulk action reaches are one set. */
+    data class Unread(val allAccounts: Boolean) : Sel
 }
 
 /** Inputs that, together, determine the current paged source. */
@@ -90,7 +90,7 @@ internal fun realignedInboxId(requested: String?, storedInboxId: String?, roleIn
 /** How the list is filtered, one answer for the pager and for "Select all"; the unread view forces
  *  the unread criterion on. The pager forcing a criterion while `selectAll` reads the raw toggles is
  *  the destructive half of #126: "Select all" then "Delete" trashes what the list was hiding. */
-internal fun listFilter(sel: Sel, toggles: ListFilter): ListFilter = listFilter(sel == Sel.Unread, toggles)
+internal fun listFilter(sel: Sel, toggles: ListFilter): ListFilter = listFilter(sel is Sel.Unread, toggles)
 
 /** The same decision asked by the screen, which holds a flag and not a [Sel]. An overload that
  *  delegates, never a second spelling of the rule: the empty state and the pager must agree. */

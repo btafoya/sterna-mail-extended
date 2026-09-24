@@ -55,10 +55,13 @@ class RefreshFreshnessWiringLintTest {
             declarationBody("fun selectUnified()"),
         )
         assertEquals(
-            "selectUnread() must reconcile through the guard. Compared whole. Body was:",
-            "fun selectUnread() { if (selection.value is Sel.Unread) return collapseThreads() " +
-                "paneOnViewChanged() selection.value = Sel.Unread " +
-                "meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount()) " +
+            "selectUnread() must reconcile through the guard, on the view unreadSelectionReplacing " +
+                "picks from the one it replaces (#235), and return only when that view is already on " +
+                "screen. Compared whole. Body was:",
+            "fun selectUnread() { val next = unreadSelectionReplacing(selection.value, AllInboxesView.existsFor(store.accounts())) " +
+                "if (selection.value == next) return collapseThreads() " +
+                "paneOnViewChanged() selection.value = next " +
+                "meta.value = unreadViewMeta(next, store.accountLabel(), store.inboxMailboxName(), store.unreadCount(), store.totalUnreadCount()) " +
                 "refreshUnlessFresh() }",
             declarationBody("fun selectUnread()"),
         )
@@ -82,8 +85,10 @@ class RefreshFreshnessWiringLintTest {
         )
         assertEquals(
             "showInbox() must reconcile through the guard: Back out of a folder lands here, and it " +
-                "is the second half of every folder tap. Compared whole. Body was:",
-            "fun showInbox() { val inboxId = store.inboxMailboxId() " +
+                "is the second half of every folder tap. Out of every account's unread view it hands " +
+                "over to selectUnified(), itself guarded (#235). Compared whole. Body was:",
+            "fun showInbox() { if (backLandsOnUnified(selection.value)) return selectUnified() " +
+                "val inboxId = store.inboxMailboxId() " +
                 "if (selection.value == Sel.Folder(inboxId)) return collapseThreads() " +
                 "paneOnViewChanged() selection.value = Sel.Folder(inboxId) " +
                 "meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount()) " +

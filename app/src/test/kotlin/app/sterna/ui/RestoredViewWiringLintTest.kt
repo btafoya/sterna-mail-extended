@@ -119,10 +119,12 @@ class RestoredViewWiringLintTest {
     @Test fun `the restored view is read through the shared adapter only`() {
         assertEquals(
             "RootViewModel must expose the restored view as the unified question, answered by " +
-                "restoredSelection(accountStore) — the same adapter InboxViewModel seeds its " +
+                "showsEveryAccount — 'All inboxes' or the unread view of every account (#235), the " +
+                "rule the list's own push collector asks — on " +
+                "restoredSelection(accountStore), the same adapter InboxViewModel seeds its " +
                 "selection from. A second hand-rolled read here is how the push arm and the list " +
                 "come to disagree about the view the app just reopened on.",
-            listOf("fun restoredUnifiedView(): Boolean = restoredSelection(accountStore) is Sel.Unified"),
+            listOf("fun restoredUnifiedView(): Boolean = showsEveryAccount(restoredSelection(accountStore))"),
             codeLines(STERNA_APP).filter { it.startsWith("fun restoredUnifiedView(") },
         )
         assertEquals(

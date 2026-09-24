@@ -23,7 +23,7 @@ class RestoredMetaTest {
     fun `a restored unread view is left exactly as selectUnread writes it`() {
         assertEquals(
             Meta("alex@example.test", "Inbox", 4),
-            restoredMeta(Sel.Unread, "inbox", "alex@example.test", "Inbox", 4, 9),
+            restoredMeta(Sel.Unread(allAccounts = false), "inbox", "alex@example.test", "Inbox", 4, 9),
         )
     }
 

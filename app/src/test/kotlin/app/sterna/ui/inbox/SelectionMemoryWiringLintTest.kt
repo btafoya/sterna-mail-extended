@@ -284,7 +284,7 @@ class SelectionMemoryWiringLintTest {
 
         /** The two collectors of the selection, whole, in source order. */
         private val EXPECTED_SELECTION_COLLECTORS = listOf(
-            "selection.collect { PushController.unifiedInboxVisible = it is Sel.Unified }",
+            "selection.collect { PushController.unifiedInboxVisible = showsEveryAccount(it) }",
             "selection.collect { store.setStoredView(encodeSelection(store.currentId(), it)) }",
         )
 

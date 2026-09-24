@@ -69,6 +69,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   that contains the search term instead of its first lines.
 - ✅ Advanced filters: from, subject, has attachment, date, starred only.
 - ✅ Unified inbox across accounts, date-sorted, each row naming its account.
+- ✅ An Unread entry in the folder drawer: the account's unread mail from every folder
+  it shows, except Trash, Junk, Sent and Drafts. Opened from All inboxes, it covers
+  every account, each row naming its account.
 - ✅ Mail by sender: gather one address's mail, see how much there is, delete it in
   one go, and optionally add a server-side rule for the future.
 - ✅ Move a message to another account's folder. This is a copy confirmed on the

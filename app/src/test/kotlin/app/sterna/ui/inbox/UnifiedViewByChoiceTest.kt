@@ -27,7 +27,7 @@ class UnifiedViewByChoiceTest {
     @Test
     fun `under the setting's All inboxes, the notification moves both the account and the list`() {
         assertEquals(ACCOUNT_B to ARCHIVE, launch(OPEN_ON_UNIFIED, Sel.Folder(INBOX)))
-        assertEquals(ACCOUNT_B to ARCHIVE, launch(OPEN_ON_UNIFIED, Sel.Unread))
+        assertEquals(ACCOUNT_B to ARCHIVE, launch(OPEN_ON_UNIFIED, Sel.Unread(allAccounts = false)))
         assertEquals(ACCOUNT_B to ARCHIVE, launch(OPEN_ON_UNIFIED, null))
     }
 
@@ -44,6 +44,13 @@ class UnifiedViewByChoiceTest {
         assertEquals(null to null, launch(null, Sel.Unified))
     }
 
+    /** #235: the unread view of every account is reached from "All inboxes" and stands for it. */
+    @Test
+    fun `a remembered unread view of every account stays put like All inboxes`() {
+        assertEquals(null to null, launch(OPEN_ON_LAST, Sel.Unread(allAccounts = true)))
+        assertEquals(null to null, route(Sel.Unread(allAccounts = true), openedBySetting = false))
+    }
+
     @Test
     fun `an All inboxes the reader went back to herself is not moved`() {
         assertEquals(null to null, route(Sel.Unified, openedBySetting = false))
@@ -54,7 +61,7 @@ class UnifiedViewByChoiceTest {
     fun `a folder or the unread view is never a unified view, whoever opened it`() {
         for (openedBySetting in listOf(true, false)) {
             assertFalse(unifiedViewByChoice(Sel.Folder(INBOX), openedBySetting))
-            assertFalse(unifiedViewByChoice(Sel.Unread, openedBySetting))
+            assertFalse(unifiedViewByChoice(Sel.Unread(allAccounts = false), openedBySetting))
             assertFalse(unifiedViewByChoice(null, openedBySetting))
         }
     }
@@ -94,7 +101,7 @@ class UnifiedViewByChoiceTest {
         const val ACCOUNT_B = "acc-b"
         const val INBOX = "inbox"
         const val ARCHIVE = "archive"
-        val REMEMBERED = listOf(Sel.Folder(INBOX), Sel.Unified, Sel.Unread, null)
+        val REMEMBERED = listOf(Sel.Folder(INBOX), Sel.Unified, Sel.Unread(allAccounts = false), Sel.Unread(allAccounts = true), null)
         val STORED_VALUES = listOf(OPEN_ON_LAST, OPEN_ON_INBOX, OPEN_ON_UNIFIED, null, "", "first-unread")
     }
 }

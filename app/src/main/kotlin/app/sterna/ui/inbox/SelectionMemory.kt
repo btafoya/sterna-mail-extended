@@ -16,7 +16,7 @@ internal fun encodeSelection(accountId: String?, sel: Sel): String? {
     return when (sel) {
         is Sel.Folder -> sel.id?.let { "$accountId\nf\n$it" }
         Sel.Unified -> "$accountId\nu\n"
-        Sel.Unread -> "$accountId\nn\n"
+        is Sel.Unread -> if (sel.allAccounts) "$accountId\na\n" else "$accountId\nn\n"
     }
 }
 
@@ -38,7 +38,8 @@ internal fun restoreSelection(
     return when (parts[1]) {
         "f" -> if (payload.isEmpty()) null else Sel.Folder(payload)
         "u" -> if (unifiedViewExists) Sel.Unified else null
-        "n" -> Sel.Unread
+        "n" -> Sel.Unread(allAccounts = false)
+        "a" -> Sel.Unread(allAccounts = unifiedViewExists)
         else -> null
     }
 }
@@ -100,7 +101,7 @@ internal fun restoredMeta(
     totalUnread: Int,
 ): Meta = when (sel) {
     Sel.Unified -> Meta(UNIFIED_LABEL, UNIFIED_LABEL, totalUnread)
-    Sel.Unread -> Meta(accountLabel, inboxName, inboxUnread)
+    is Sel.Unread -> unreadViewMeta(sel, accountLabel, inboxName, inboxUnread, totalUnread)
     is Sel.Folder ->
         if (sel.id == inboxMailboxId) Meta(accountLabel, inboxName, inboxUnread)
         else Meta(accountLabel, "", 0)

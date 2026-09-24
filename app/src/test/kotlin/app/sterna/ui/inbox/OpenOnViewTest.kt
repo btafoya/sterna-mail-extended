@@ -29,7 +29,7 @@ class OpenOnViewTest {
     fun `no value stored opens on the view that was left`() {
         assertEquals(Sel.Folder("5"), openOnSelection(null, Sel.Folder("5"), true))
         assertEquals(Sel.Unified, openOnSelection(null, Sel.Unified, true))
-        assertEquals(Sel.Unread, openOnSelection(null, Sel.Unread, false))
+        assertEquals(Sel.Unread(allAccounts = false), openOnSelection(null, Sel.Unread(allAccounts = false), false))
         assertNull(openOnSelection(null, null, true))
     }
 
@@ -57,7 +57,7 @@ class OpenOnViewTest {
     fun `the inbox value ignores a memory naming another view`() {
         assertNull(openOnSelection(OPEN_ON_INBOX, Sel.Folder("5"), true))
         assertNull(openOnSelection(OPEN_ON_INBOX, Sel.Unified, true))
-        assertNull(openOnSelection(OPEN_ON_INBOX, Sel.Unread, true))
+        assertNull(openOnSelection(OPEN_ON_INBOX, Sel.Unread(allAccounts = false), true))
     }
 
     /**
@@ -68,7 +68,7 @@ class OpenOnViewTest {
     @Test
     fun `the inbox value ignores the memory where the app has no unified view`() {
         assertNull(openOnSelection(OPEN_ON_INBOX, Sel.Folder("5"), false))
-        assertNull(openOnSelection(OPEN_ON_INBOX, Sel.Unread, false))
+        assertNull(openOnSelection(OPEN_ON_INBOX, Sel.Unread(allAccounts = false), false))
         assertNull(openOnSelection(OPEN_ON_INBOX, null, false))
     }
 

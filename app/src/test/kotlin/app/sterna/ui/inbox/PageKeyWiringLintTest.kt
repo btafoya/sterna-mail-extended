@@ -160,6 +160,26 @@ class PageKeyWiringLintTest {
         )
     }
 
+    @Test
+    fun `each pager's Sent scope names the accounts of the rows it pages`() {
+        val lines = codeText(INBOX_VIEW_MODEL).map { it.trim() }.filter { it.startsWith("sentScopes(key,") }
+        assertEquals(
+            "(#115, #235; the rule is unreadViewAccounts, run by EveryAccountUnreadTest. Hole 3: " +
+                "nothing here says which branch of the `when` each line sits in.) " +
+                "The three pagers must hand sentScopes the accounts of their own rows: the folder's " +
+                "account, the accounts of the unified scope, and unreadViewAccounts(...) for the " +
+                "unread view. 'listOfNotNull(key.accountId)' there counts one account's replies " +
+                "under rows of every account. Whole lines, sorted. Lines found were:" +
+                "\n${lines.joinToString("\n")}",
+            listOf(
+                "sentScopes(key, key.unifiedScopes.map { it.first }.distinct()).flatMapLatest { sent ->",
+                "sentScopes(key, listOf(credentials.id)).flatMapLatest { sent ->",
+                "sentScopes(key, unreadViewAccounts(sel, key.unreadScopes, key.accountId)).flatMapLatest { sent ->",
+            ),
+            lines.sorted(),
+        )
+    }
+
     // -- reading the sources --------------------------------------------------------------------
 
     /**

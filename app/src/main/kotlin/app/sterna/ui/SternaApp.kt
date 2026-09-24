@@ -60,9 +60,9 @@ import app.sterna.ui.inbox.InboxViewModel
 import app.sterna.ui.inbox.MessageAnchor
 import app.sterna.ui.inbox.ReadingPane
 import app.sterna.ui.inbox.ReadingPaneRule
-import app.sterna.ui.inbox.Sel
 import app.sterna.ui.inbox.openOnOverridesMemory
 import app.sterna.ui.inbox.restoredSelection
+import app.sterna.ui.inbox.showsEveryAccount
 import app.sterna.ui.inbox.unifiedViewByChoice
 import app.sterna.ui.inbox.ThreadKey
 import app.sterna.ui.message.LocalNavTransitionActive
@@ -141,9 +141,9 @@ class RootViewModel(application: Application) : AndroidViewModel(application) {
         _state.value = RootRoute.resolve(current, accountStore.accountsUnreadable())
     }
 
-    /** Whether the view the app reopens on is the unified inbox, asked by the push arm before the
+    /** Whether the view the app reopens on shows every account, asked by the push arm before the
      *  list is composed, setting included. A notification asks [restoredStandsInUnified] instead. */
-    fun restoredUnifiedView(): Boolean = restoredSelection(accountStore) is Sel.Unified
+    fun restoredUnifiedView(): Boolean = showsEveryAccount(restoredSelection(accountStore))
 
     fun restoredStandsInUnified(): Boolean = unifiedViewByChoice(restoredSelection(accountStore), openOnOverridesMemory(accountStore.openOnView()))
 

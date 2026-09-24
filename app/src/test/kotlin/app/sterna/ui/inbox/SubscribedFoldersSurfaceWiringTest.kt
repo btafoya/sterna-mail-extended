@@ -108,13 +108,41 @@ class SubscribedFoldersSurfaceWiringTest {
                 "folders it hides; recomputed from a second collector of [mailboxes], #89 and #91 " +
                 "are replayed on a setting change.",
             listOf(
-                "private val unreadScopes: StateFlow<List<Pair<String, String>>> =",
+                "private val accountUnreadScopes: StateFlow<List<Pair<String, String>>> =",
                 "combine(folderSnapshot, showOnlySubscribed, store.accountsFlow) { (accountId, folders), onlySubscribed, accounts ->",
                 "val hiding = folderHidingOf(accountId, accounts)",
                 "unreadViewScopes(accountId, shownFolders(visibleFolders(folders, onlySubscribed), hiding.ids, hiding.inboxId))",
                 "}.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())",
             ),
-            block(INBOX_VIEW_MODEL, "private val unreadScopes:", 5),
+            block(INBOX_VIEW_MODEL, "private val accountUnreadScopes:", 5),
+        )
+    }
+
+    @Test fun `every account's unread scope is recomputed on the lists AND on each account's settings`() {
+        assertEquals(
+            "(#235; the rule itself is everyAccountUnreadScopes, run by EveryAccountUnreadTest. " +
+                "This pins what each flow is built from, not what the pager does with it.) " +
+                "The scope of every account's unread view no longer follows both the folder lists and " +
+                "the account records: without accountsFlow, ticking 'show only subscribed' or " +
+                "hiding a folder on one account leaves this view paging what it hides. And the " +
+                "pager's scope must be chosen by unreadScopesFor on the selection, never one of " +
+                "the two lists hard-wired.",
+            listOf(
+                "private val everyAccountUnreadScopes: StateFlow<List<Pair<String, String>>> =",
+                "combine(everyAccountFolders, store.accountsFlow) { folders, accounts -> everyAccountUnreadScopes(folders, accounts) }",
+                ".stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())",
+            ),
+            block(INBOX_VIEW_MODEL, "private val everyAccountUnreadScopes:", 3),
+        )
+        assertEquals(
+            "the pager's unread scope must be unreadScopesFor(...) of the selection and the two " +
+                "scopes, in that order.",
+            listOf(
+                "private val unreadScopes: StateFlow<List<Pair<String, String>>> =",
+                "combine(selection, accountUnreadScopes, everyAccountUnreadScopes) { sel, account, every -> unreadScopesFor(sel, account, every) }",
+                ".stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())",
+            ),
+            block(INBOX_VIEW_MODEL, "private val unreadScopes:", 3),
         )
     }
 
@@ -303,14 +331,16 @@ class SubscribedFoldersSurfaceWiringTest {
             codeLines(file).any { "visibleFolders(" in it }
         }.map { it.name }.sorted()
         assertEquals(
-            "the subscription filter moved. It belongs to the five files below and nowhere else — " +
+            "the subscription filter moved. It belongs to the six files below and nowhere else — " +
                 "in the repository or in the folder cache it would take with it every reader of the " +
                 "list: subfolderIdsOf (a delete that misses hidden children), the reader's parent " +
-                "paths, the rule editor, the watched folders. All five are screen rules; the last " +
-                "two are the folder screen's own, its switches (#207) and the folder each role is " +
+                "paths, the rule editor, the watched folders. All six are screen rules; " +
+                "EveryAccountUnread.kt is the unread view of every account, each account filtered " +
+                "by its own setting (#235); the last two are the folder screen's own, its switches (#207) and the folder each role is " +
                 "pinned to (#227), which must offer what the drawer can show and nothing more, or " +
                 "the screen proposes what the subscription setting hides.",
             listOf(
+                "EveryAccountUnread.kt",
                 "FolderManagementRows.kt",
                 "FolderSelection.kt",
                 "InboxViewModel.kt",
@@ -326,14 +356,15 @@ class SubscribedFoldersSurfaceWiringTest {
             codeLines(file).any { "shownFolders(" in it }
         }.map { it.name }.sorted()
         assertEquals(
-            "the hide registry's filter (#207) moved. It belongs to the four files below and " +
-                "nowhere else — the declaration, the two screens that apply it, and the folder " +
-                "screen's reorder mode, which must draw exactly what the drawer draws. In the " +
+            "the hide registry's filter (#207) moved. It belongs to the five files below and " +
+                "nowhere else — the declaration, the two screens that apply it, the folder " +
+                "screen's reorder mode, which must draw exactly what the drawer draws, and the " +
+                "unread view of every account, each account by its own registry (#235). In the " +
                 "repository or in the folder cache it would take with it every reader of the list, " +
                 "exactly as the guard above forbids for the subscription filter: subfolderIdsOf (a " +
                 "delete that misses hidden children), the reader's parent paths, the rule editor, " +
                 "the watched folders.",
-            listOf("FolderManagementRows.kt", "FolderSelection.kt", "HiddenFolders.kt", "InboxViewModel.kt"),
+            listOf("EveryAccountUnread.kt", "FolderManagementRows.kt", "FolderSelection.kt", "HiddenFolders.kt", "InboxViewModel.kt"),
             callers,
         )
     }

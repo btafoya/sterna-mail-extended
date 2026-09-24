@@ -16,9 +16,9 @@ class ListFilterDecisionTest {
         assertTrue(
             "a view called \"Unread\" showing read mail is a lie on the screen (WYSIWYG), and — worse " +
                 "— a \"Select all\" that reaches it",
-            listFilter(Sel.Unread, ListFilter.NONE).unreadOnly,
+            listFilter(Sel.Unread(allAccounts = false), ListFilter.NONE).unreadOnly,
         )
-        assertTrue(listFilter(Sel.Unread, ListFilter(unreadOnly = true)).unreadOnly)
+        assertTrue(listFilter(Sel.Unread(allAccounts = false), ListFilter(unreadOnly = true)).unreadOnly)
     }
 
     @Test
@@ -47,12 +47,12 @@ class ListFilterDecisionTest {
     @Test
     fun `the starred and attachment toggles pass through in every scope, the unread view included`() {
         val both = ListFilter(flaggedOnly = true, withAttachment = true)
-        listOf(Sel.Folder("i"), Sel.Unified, Sel.Unread).forEach { sel ->
+        listOf(Sel.Folder("i"), Sel.Unified, Sel.Unread(allAccounts = false)).forEach { sel ->
             val answer = listFilter(sel, both)
             assertTrue("starred dropped in $sel: a hidden message would be selectable", answer.flaggedOnly)
             assertTrue("attachment dropped in $sel", answer.withAttachment)
         }
-        listOf(Sel.Folder("i"), Sel.Unified, Sel.Unread).forEach { sel ->
+        listOf(Sel.Folder("i"), Sel.Unified, Sel.Unread(allAccounts = false)).forEach { sel ->
             val answer = listFilter(sel, ListFilter.NONE)
             assertFalse("starred forced on in $sel", answer.flaggedOnly)
             assertFalse("attachment forced on in $sel", answer.withAttachment)
@@ -78,9 +78,9 @@ class ListFilterDecisionTest {
                 listFilter(Sel.Folder("i"), ListFilter(unreadOnly = true)),
                 listFilter(Sel.Folder("i"), starred),
                 listFilter(Sel.Unified, clip),
-                listFilter(Sel.Unread, ListFilter.NONE),
-                listFilter(Sel.Unread, starred),
-                listFilter(Sel.Unread, clip),
+                listFilter(Sel.Unread(allAccounts = false), ListFilter.NONE),
+                listFilter(Sel.Unread(allAccounts = false), starred),
+                listFilter(Sel.Unread(allAccounts = false), clip),
             ),
         )
     }
@@ -88,7 +88,7 @@ class ListFilterDecisionTest {
     @Test
     fun `the screen's overload answers what the pager's does`() {
         val toggles = ListFilter(flaggedOnly = true, withAttachment = true)
-        assertEquals(listFilter(Sel.Unread, toggles), listFilter(unreadView = true, toggles))
+        assertEquals(listFilter(Sel.Unread(allAccounts = false), toggles), listFilter(unreadView = true, toggles))
         assertEquals(listFilter(Sel.Unified, toggles), listFilter(unreadView = false, toggles))
     }
 

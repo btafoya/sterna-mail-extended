@@ -16,7 +16,7 @@ class SelectionMemoryTest {
     fun `each of the three views encodes to its own string, account id first`() {
         assertEquals("acc-1\nf\nINBOX", encodeSelection("acc-1", Sel.Folder("INBOX")))
         assertEquals("acc-1\nu\n", encodeSelection("acc-1", Sel.Unified))
-        assertEquals("acc-1\nn\n", encodeSelection("acc-1", Sel.Unread))
+        assertEquals("acc-1\nn\n", encodeSelection("acc-1", Sel.Unread(allAccounts = false)))
     }
 
     /**
@@ -32,7 +32,7 @@ class SelectionMemoryTest {
     fun `there is nothing to remember without an account`() {
         assertNull(encodeSelection(null, Sel.Folder("INBOX")))
         assertNull(encodeSelection(null, Sel.Unified))
-        assertNull(encodeSelection(null, Sel.Unread))
+        assertNull(encodeSelection(null, Sel.Unread(allAccounts = false)))
     }
 
     /**
@@ -49,7 +49,7 @@ class SelectionMemoryTest {
     fun `the three views survive the round trip`() {
         assertEquals(Sel.Folder("INBOX"), restoreSelection(encodeSelection("acc-1", Sel.Folder("INBOX")), "acc-1", false))
         assertEquals(Sel.Unified, restoreSelection(encodeSelection("acc-1", Sel.Unified), "acc-1", true))
-        assertEquals(Sel.Unread, restoreSelection(encodeSelection("acc-1", Sel.Unread), "acc-1", false))
+        assertEquals(Sel.Unread(allAccounts = false), restoreSelection(encodeSelection("acc-1", Sel.Unread(allAccounts = false)), "acc-1", false))
     }
 
     /**
@@ -114,8 +114,8 @@ class SelectionMemoryTest {
     /** The per-account unread view means something on an install that has one account. */
     @Test
     fun `the unread view is restored whether or not a second account exists`() {
-        assertEquals(Sel.Unread, restoreSelection("acc-1\nn\n", "acc-1", false))
-        assertEquals(Sel.Unread, restoreSelection("acc-1\nn\n", "acc-1", true))
+        assertEquals(Sel.Unread(allAccounts = false), restoreSelection("acc-1\nn\n", "acc-1", false))
+        assertEquals(Sel.Unread(allAccounts = false), restoreSelection("acc-1\nn\n", "acc-1", true))
     }
 
     @Test

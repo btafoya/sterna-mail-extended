@@ -123,12 +123,14 @@ class UnreadViewWiringLintTest {
     @Test
     fun `the badge is folded in from the unread scope, and the state reads the folded flow`() {
         val lines = codeLines(INBOX_VIEW_MODEL).map { it.trim() }
-            .filter { Regex("""\b(baseState|badgedState|orderedState)\b""").containsMatchIn(it) }
+            .filter { Regex("""\b(baseState|badgedState|orderedState|countedState)\b""").containsMatchIn(it) }
         assertEquals(
             "The declarations that carry the drawer badge must stay exactly as they are. " +
                 "The scope handed to the fold is the one the PAGER is built from (unreadScopes, " +
-                "account-pinned pairs — #121); the flow the UI state is built from is the folded " +
-                "one. Whole lines, arguments and lambda headers included. Lines found were:" +
+                "account-pinned pairs — #121); the number is then picked by unreadEntryCount on " +
+                "the selection, the current account's or every account's (#235), and the flow " +
+                "the UI state is built from is that last fold. Whole lines, arguments and lambda " +
+                "headers included. Lines found were:" +
                 "\n${lines.joinToString("\n")}",
             EXPECTED_STATE_LINES,
             lines.sorted(),
@@ -457,6 +459,7 @@ class UnreadViewWiringLintTest {
         /** Every line of the ViewModel that names the flag, or the number, the screen reads. */
         private val EXPECTED_VIEW_FLAG_LINES = listOf(
             "base.copy(accountId = hiding.accountId, unreadViewCount = unreadViewCount(hiding.accountId, scopes, base.mailboxes), visibleMailboxes = shownFolders(visibleFolders(base.mailboxes, onlySubscribed), listed.ids, listed.inboxId), showRefreshIndicator = showing)",
+            "ordered.copy(unreadViewCount = unreadEntryCount(sel, ordered.unreadViewCount, everyTotal))",
             "unreadView = base.unreadView,",
             "unreadView = sel is Sel.Unread,",
             // The placeholder `state` starts on, below `}.stateIn(`, a second site of the line
@@ -478,8 +481,9 @@ class UnreadViewWiringLintTest {
             // above, untouched, is what still empties the centre of the screen (#63).
             "private val badgedState = combine(baseState, unreadScopes, currentHiding, showOnlySubscribed, indicatorShowing) { base, scopes, hiding, onlySubscribed, showing ->",
             "private val baseState = combine(mailboxes, selection, meta, status, unifiedUnread) { mailboxes, sel, meta, status, unifiedUnread ->",
+            "private val countedState = combine(orderedState, selection, everyAccountUnreadTotal) { ordered, sel, everyTotal ->",
             "private val orderedState = combine(badgedState, currentFolderOrder) { badged, order ->",
-            "val state: StateFlow<MailUi> = combine(orderedState, searchState, settings.sortOrder, filterToggles, connectivity.online) { base, search, sortOrder, toggles, online ->",
+            "val state: StateFlow<MailUi> = combine(countedState, searchState, settings.sortOrder, filterToggles, connectivity.online) { base, search, sortOrder, toggles, online ->",
         )
 
         /** The badge, computed once, from the scope the pager uses. */

@@ -101,17 +101,76 @@ class UnreadRefreshWiringLintTest {
         )
     }
 
+    @Test
+    fun `every account's unread refresh runs the same pass per account, with that account's own ids`() {
+        val body = bodyOf(EVERY_ACCOUNT_HEADER)
+        assertEquals(
+            "(#235; the failure rule is everyAccountRefreshFailure, run by EveryAccountUnreadTest. " +
+                "The loop and its catch arms are refreshEachAccount, run there too. Hole 3: " +
+                "nothing here proves the call sits inside the lambda handed to it.) " +
+                "refreshEveryUnreadScope() must call refreshAccountFolders exactly once, per account, " +
+                "with the account's own credentials, the targets of ITS pairs " +
+                "(unreadRefreshTargets on credentials.id, the scope of every account and that " +
+                "account's inbox id — another account's inbox id syncs the wrong folder twice), " +
+                "includeInbox = true and the bounded UNREAD_SCOPE_FOLDER_LIMIT: an account's window " +
+                "times a dozen folders is the heap, and one pass is held in memory at a time. " +
+                "Calls found were:\n${callsTo("repo.refreshAccountFolders", body).joinToString("\n")}",
+            listOf(
+                listOf(
+                    "credentials",
+                    "extraFolderIds = unreadRefreshTargets(credentials.id, scopes, inboxId)",
+                    "includeInbox = true",
+                    "limit = UNREAD_SCOPE_FOLDER_LIMIT",
+                ),
+            ),
+            callsTo("repo.refreshAccountFolders", body),
+        )
+        assertEquals(
+            "The scope handed to the targets is every account's, and the inbox id the account's " +
+                "own record's, never store.inboxMailboxId(), which is the CURRENT account's. Body " +
+                "was:\n$body",
+            listOf(true, true, true),
+            listOf(
+                "val scopes = everyAccountUnreadScopes.value " in body,
+                "val pass = refreshEachAccount(store.allCredentials()) { credentials -> " in body,
+                "val inboxId = store.account(credentials.id)?.inboxId " in body,
+            ),
+        )
+        assertEquals(
+            "The #50 hook must fire per account, for the inbox chosen out of what came back. Calls " +
+                "found were:\n${callsTo("FetchAndNotify.onInboxRefreshed", body).joinToString("\n")}",
+            listOf(listOf(listOf("refreshes.map { it.mailboxId }", "inboxId")), listOf(listOf("getApplication()", "credentials", "refreshedInbox"))),
+            listOf(callsTo("refreshedInboxId", body), callsTo("FetchAndNotify.onInboxRefreshed", body)),
+        )
+        assertEquals(
+            "The pass may throw only on everyAccountRefreshFailure's answer, handed the pass " +
+                "refreshEachAccount returned: one account down must not raise the offline banner " +
+                "over the others' fresh mail.",
+            listOf(listOf("pass")),
+            callsTo("everyAccountRefreshFailure", body),
+        )
+        val mentions = Regex("""\b(selection|meta|showInbox)\b""").findAll(body).map { it.value }.toList()
+        assertEquals(
+            "refreshEveryUnreadScope() must not mention selection or meta, for the reason " +
+                "refreshUnreadScope() must not. Mentions found were:\n${mentions.joinToString("\n")}",
+            emptyList<String>(),
+            mentions,
+        )
+    }
+
     // -- reading the source ----------------------------------------------------------------------
 
     /**
      * The body of `refreshUnreadScope`, comments removed and whitespace collapsed: from the header
      */
-    private fun refreshUnreadScopeBody(): String {
+    private fun refreshUnreadScopeBody(): String = bodyOf(HEADER)
+
+    private fun bodyOf(header: String): String {
         val text = codeText(INBOX_VIEW_MODEL)
-        val start = text.indexOf(HEADER)
-        check(start >= 0) { "InboxViewModel.kt declares no '$HEADER' — did it get renamed?" }
+        val start = text.indexOf(header)
+        check(start >= 0) { "InboxViewModel.kt declares no '$header' — did it get renamed?" }
         val open = text.indexOf('{', start)
-        check(open >= 0) { "no block opens after '$HEADER'" }
+        check(open >= 0) { "no block opens after '$header'" }
         var depth = 0
         var i = open
         while (i < text.length) {
@@ -208,6 +267,7 @@ class UnreadRefreshWiringLintTest {
 
     companion object {
         private const val HEADER = "private suspend fun refreshUnreadScope()"
+        private const val EVERY_ACCOUNT_HEADER = "private suspend fun refreshEveryUnreadScope()"
 
         private const val INBOX_VIEW_MODEL_PATH =
             "app/src/main/kotlin/app/sterna/ui/inbox/InboxViewModel.kt"

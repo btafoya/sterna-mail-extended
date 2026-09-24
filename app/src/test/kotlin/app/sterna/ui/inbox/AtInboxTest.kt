@@ -12,11 +12,11 @@ class AtInboxTest {
     @Test fun `the unread view is not the inbox on an account whose inbox was never synced`() {
         // The defect: selection restored to the unread view on a cold start, no cached inbox id,
         // and the reader's first Back closes the app instead of showing her the Inbox.
-        assertEquals(false, isAtInbox(Sel.Unread) { null })
+        assertEquals(false, isAtInbox(Sel.Unread(allAccounts = false)) { null })
     }
 
     @Test fun `the unread view is not the inbox once the inbox id is known either`() {
-        assertEquals(false, isAtInbox(Sel.Unread) { "inbox" })
+        assertEquals(false, isAtInbox(Sel.Unread(allAccounts = false)) { "inbox" })
     }
 
     @Test fun `the unified inbox is the inbox with no cached id`() {
@@ -62,7 +62,7 @@ class AtInboxTest {
         isAtInbox(Sel.Unified, id)
         assertEquals("the unified inbox is the inbox whatever the store knows", 0, asked)
 
-        isAtInbox(Sel.Unread, id)
+        isAtInbox(Sel.Unread(allAccounts = false), id)
         assertEquals("the unread view has no folder, so there is nothing to compare", 0, asked)
 
         isAtInbox(Sel.Folder("trash"), id)

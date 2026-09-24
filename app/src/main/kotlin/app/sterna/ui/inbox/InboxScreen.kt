@@ -1005,7 +1005,7 @@ fun InboxScreen(
                     )
                 } else {
                     var accountMenuOpenIn by remember { mutableStateOf<Int?>(null) }
-                    val titleSwitchTargets = if (!ui.unified) accounts.filter { it.id != currentAccountId } else emptyList()
+                    val titleSwitchTargets = if (!ui.unified && !ui.unreadAllAccounts) accounts.filter { it.id != currentAccountId } else emptyList()
                     MediumTopAppBar(
                         title = {
                             AccountSwitchTitle(
@@ -1039,7 +1039,7 @@ fun InboxScreen(
                                     if (!ui.unified && ui.accountName.isNotBlank()) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
-                                                ui.accountName,
+                                                if (ui.unreadAllAccounts) stringResource(R.string.inbox_all_inboxes) else ui.accountName,
                                                 style = MaterialTheme.typography.labelMedium,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 maxLines = 1,
@@ -1269,7 +1269,7 @@ fun InboxScreen(
             // modifier so the caller can pass `animateItem()` from its own LazyItemScope.
             val emailRow: @Composable (InboxRow, Modifier, Boolean, Int, Boolean) -> Unit = { row, rowModifier, animateEntry, entryIndex, fromSearch ->
                 val email = row.email
-                val ownerAccount = if (ui.unified) accounts.firstOrNull { it.id == email.accountId } else null
+                val ownerAccount = if (rowsNameTheirAccount(ui)) accounts.firstOrNull { it.id == email.accountId } else null
                 // A conversation in the browse list can unfold inline; search results stay flat.
                 val expandable = !fromSearch && row.threadExpandable
                 // Account-qualified: two accounts of one server share thread ids, and a bare id
@@ -1384,7 +1384,7 @@ fun InboxScreen(
                     ThreadChildren(
                         visible = isExpanded,
                         members = members,
-                        unified = ui.unified,
+                        namesAccount = rowsNameTheirAccount(ui),
                         accounts = accounts,
                         rightAction = swipe.right,
                         leftAction = swipe.left,
@@ -2742,7 +2742,7 @@ private fun performThreadSwipe(action: SwipeAction, rep: Email, viewModel: Inbox
 private fun ThreadChildren(
     visible: Boolean,
     members: List<Email>,
-    unified: Boolean,
+    namesAccount: Boolean,
     accounts: List<app.sterna.core.data.account.StoredAccount>,
     rightAction: SwipeAction,
     leftAction: SwipeAction,
@@ -2789,7 +2789,7 @@ private fun ThreadChildren(
         Column(Modifier.background(MaterialTheme.colorScheme.surface)) {
             members.forEach { child ->
                 key(child.accountId, child.id) {
-                    val ownerAccount = if (unified) accounts.firstOrNull { it.id == child.accountId } else null
+                    val ownerAccount = if (namesAccount) accounts.firstOrNull { it.id == child.accountId } else null
                     // Indented so the children read as belonging to the conversation above.
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Spacer(Modifier.width(16.dp))

@@ -122,7 +122,9 @@ class RestoredHeaderWiringLintTest {
                 "defect put back in the cold-start window, and a missing 'unreadView' line falls " +
                 "back on the field's default false, which sends InboxScreen down the folder arm " +
                 "and titles a restored unread view with the Inbox's RAW, untranslated name over a " +
-                "list that spans the account (same for the search hint). Whole lines, in source " +
+                "list that spans the account (same for the search hint). A missing 'unreadAllAccounts' " +
+                "line opens a restored unread view of every account on the untranslated internal " +
+                "label as its account line (#235). Whole lines, in source " +
                 "order. Lines found were:\n" + lines.joinToString("\n"),
             EXPECTED_PLACEHOLDER_HEADER,
             lines,
@@ -330,7 +332,7 @@ class RestoredHeaderWiringLintTest {
         )
 
         /**
-         * The five fields of the placeholder header this rule owns: the three the header is drawn
+         * The six fields of the placeholder header this rule owns: the three the header is drawn
          */
         private val EXPECTED_PLACEHOLDER_HEADER = listOf(
             "accountName = meta.value.accountName,",
@@ -338,11 +340,12 @@ class RestoredHeaderWiringLintTest {
             "unreadCount = meta.value.unread,",
             "unified = selection.value is Sel.Unified,",
             "unreadView = selection.value is Sel.Unread,",
+            "unreadAllAccounts = unreadOfEveryAccount(selection.value),",
         )
 
         /** The field names [EXPECTED_PLACEHOLDER_HEADER] is about, anchored at the line's start. */
         private val HEADER_FIELD =
-            Regex("""^(accountName|mailboxName|unreadCount|unified|unreadView)\s*=""")
+            Regex("""^(accountName|mailboxName|unreadCount|unified|unreadView|unreadAllAccounts)\s*=""")
 
         /** How the one shot is armed, whole. */
         private const val EXPECTED_RESTORED_FOLDER_DECLARATION =

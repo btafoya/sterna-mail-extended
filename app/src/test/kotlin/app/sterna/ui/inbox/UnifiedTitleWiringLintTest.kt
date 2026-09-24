@@ -57,6 +57,21 @@ class UnifiedTitleWiringLintTest {
     }
 
     @Test
+    fun `the account line of every account's unread view reads the translated string`() {
+        val block = titleBlock()
+        val texts = Regex("""\bText\s*\(""").findAll(block).toList()
+        assertEquals(
+            "The account line must name 'All inboxes' through the translated resource in the " +
+                "unread view of every account (#235): its meta carries the internal UNIFIED_LABEL " +
+                "as the account name, English in ten locales, and one account's name there would " +
+                "claim a list that spans them all. Every other view keeps its account's name. " +
+                "Compared as the whole argument. Title block was:\n$block",
+            EXPECTED_ACCOUNT_LINE_ARGUMENT,
+            firstArgumentAt(block, texts.last().range.first),
+        )
+    }
+
+    @Test
     fun `every other folder is still named by its role`() {
         val block = titleBlock()
         val calls = Regex("""\bmailboxDisplayName\s*\(""").findAll(block).toList()
@@ -204,6 +219,9 @@ class UnifiedTitleWiringLintTest {
             "if (ui.unreadView) { stringResource(R.string.inbox_unread_view) } " +
                 "else if (ui.unified) { stringResource(R.string.inbox_all_inboxes) } " +
                 "else { mailboxDisplayName(selectedRole, ui.mailboxName) }"
+
+        private const val EXPECTED_ACCOUNT_LINE_ARGUMENT =
+            "if (ui.unreadAllAccounts) stringResource(R.string.inbox_all_inboxes) else ui.accountName"
 
         /** The guard that keeps the account line off the unified view. */
         private const val EXPECTED_SUBTITLE_CONDITION =

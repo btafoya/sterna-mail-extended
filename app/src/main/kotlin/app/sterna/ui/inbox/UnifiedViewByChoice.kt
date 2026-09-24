@@ -10,6 +10,8 @@ internal fun openOnOverridesMemory(openOnView: String?): Boolean =
  * notification asks before moving the list, its account half and its folder half alike. One the
  * "open on" setting opened on is not: the notification's folder wins over the setting (#185).
  * The push arm asks the other question, what is on screen, and keeps `restoredUnifiedView`.
+ * The unread view of every account counts as "All inboxes": the setting never opens on it, it is
+ * only ever reached from "All inboxes" by the reader's own tap.
  */
 internal fun unifiedViewByChoice(sel: Sel?, openedBySetting: Boolean): Boolean =
-    sel is Sel.Unified && !openedBySetting
+    (sel is Sel.Unified && !openedBySetting) || unreadOfEveryAccount(sel)

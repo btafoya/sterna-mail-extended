@@ -162,9 +162,9 @@ class PageKeyFlowTest {
     fun `switching to the unread scope rebuilds`() {
         // The third variant is a data object like Sel.Unified, so it compares by value, and it
         // pages a different query from either of the other two.
-        val seen = keys { selection.value = Sel.Unread }
+        val seen = keys { selection.value = Sel.Unread(allAccounts = false) }
         assertEquals("Folder to Unread must be paged afresh: $seen", 2, seen.size)
-        assertEquals(listOf<Sel>(Sel.Folder("inbox-a"), Sel.Unread), seen.map { it.sel })
+        assertEquals(listOf<Sel>(Sel.Folder("inbox-a"), Sel.Unread(allAccounts = false)), seen.map { it.sel })
     }
 
     @Test
