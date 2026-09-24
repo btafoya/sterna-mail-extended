@@ -1,20 +1,30 @@
 package app.sterna.ui.scheduled
 
+import app.sterna.core.data.db.OutboxAttachment
+import app.sterna.core.data.db.OutboxAttachments
 import app.sterna.core.data.db.ScheduledSendEntity
 import app.sterna.core.data.mail.DraftSaveOutcome
+import app.sterna.core.jmap.model.EmailBodyPart
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 
 /**
  * Cancelling a scheduled send must not destroy the message (#170).
  */
 class ScheduledSendCancelTest {
+
+    @get:Rule val tmp = TemporaryFolder()
 
     private fun row(
         id: Long = 7L,
@@ -29,6 +39,7 @@ class ScheduledSendCancelTest {
         requestReceipt: Boolean = false,
         htmlBody: String? = null,
         textBody: String = "see you there",
+        attachmentsJson: String = "[]",
     ) = ScheduledSendEntity(
         id = id,
         accountId = accountId,
@@ -46,6 +57,7 @@ class ScheduledSendCancelTest {
         draftEmailId = "d1",
         draftUidValidity = 42L,
         requestReceipt = requestReceipt,
+        attachmentsJson = attachmentsJson,
     )
 
     /** One cancellation, with every seam journalled. */
@@ -68,7 +80,8 @@ class ScheduledSendCancelTest {
         row = { entity },
         credentials = { accountId -> run.askedFor = accountId; credentials },
         accountIsGone = { accountId -> run.askedGoneFor = accountId; accountIsGone },
-        saveDraft = { _, draft ->
+        attachmentParts = { _, stored -> imapParts(stored) },
+        saveDraft = { _, draft, _ ->
             run.log += "save"
             run.saved = draft
             throwOnSave?.let { throw it }
@@ -336,7 +349,8 @@ class ScheduledSendCancelTest {
                 row = { row() },
                 credentials = { "creds" },
                 accountIsGone = { false },
-                saveDraft = { _, _ ->
+                attachmentParts = { _, stored -> imapParts(stored) },
+                saveDraft = { _, _, _ ->
                     r.log += "save"
                     depositing.complete(Unit)
                     yield()
@@ -366,7 +380,8 @@ class ScheduledSendCancelTest {
                 row = { yield(); row() },
                 credentials = { "creds" },
                 accountIsGone = { false },
-                saveDraft = { _, _ -> r.log += "save"; DraftSaveOutcome.SAVED },
+                attachmentParts = { _, stored -> imapParts(stored) },
+                saveDraft = { _, _, _ -> r.log += "save"; DraftSaveOutcome.SAVED },
                 dropWorker = { r.log += "dropWorker" },
                 deleteRow = { r.log += "delete" },
             )
@@ -419,8 +434,235 @@ class ScheduledSendCancelTest {
                 fromName = "Alex",
                 fromEmail = "alex@masto.top",
                 requestReceipt = true,
+                attachments = emptyList(),
             ),
             r.saved,
         )
     }
+
+    private fun scheduledDirWith(name: String, type: String, bytes: ByteArray): Pair<File, OutboxAttachment> {
+        val (dir, stored) = scheduledDirWithAll(Triple(name, type, bytes))
+        return dir to stored.single()
+    }
+
+    private fun scheduledDirWithAll(vararg files: Triple<String, String, ByteArray>): Pair<File, List<OutboxAttachment>> {
+        val dir = File(tmp.newFolder(), "scheduled/row-uuid").apply { mkdirs() }
+        return dir to files.mapIndexed { i, (name, type, bytes) ->
+            val file = File(dir, "$i-$name").apply { writeBytes(bytes) }
+            OutboxAttachment(
+                kind = OutboxAttachments.KIND_IMAP_FILE,
+                path = file.absolutePath, type = type, name = name, size = bytes.size.toLong(),
+                disposition = "attachment",
+            )
+        }
+    }
+
+    private data class Deposited(val name: String?, val type: String?, val bytes: ByteArray?)
+
+    private suspend fun cancelWithFiles(
+        entity: ScheduledSendEntity,
+        dir: File,
+        parts: (List<OutboxAttachment>) -> List<EmailBodyPart> = ::imapParts,
+        throwOnParts: Throwable? = null,
+        outcome: DraftSaveOutcome = DraftSaveOutcome.SAVED,
+        throwOnSave: Throwable? = null,
+        deposited: MutableList<Deposited>,
+        log: MutableList<String>,
+    ): ScheduledCancelReport? = cancelScheduledSend(
+        id = 7L,
+        row = { entity },
+        credentials = { "creds" },
+        accountIsGone = { false },
+        attachmentParts = { _, stored ->
+            throwOnParts?.let { throw it }
+            parts(stored)
+        },
+        saveDraft = { _, _, handed ->
+            log += "save"
+            handed.forEach { p ->
+                deposited += Deposited(p.name, p.type, p.partId?.let { path -> File(path).takeIf { it.isFile }?.readBytes() })
+            }
+            throwOnSave?.let { throw it }
+            outcome
+        },
+        dropWorker = { log += "dropWorker" },
+        deleteRow = { log += "delete"; dir.deleteRecursively() },
+    )
+
+    @Test fun `a cancelled message is filed in Drafts with its attachment`() = runTest {
+        val bytes = byteArrayOf(0x25, 0x50, 0x44, 0x46, 0x00, 0x7f)
+        val (dir, stored) = scheduledDirWith("plan.pdf", "application/pdf", bytes)
+        val deposited = mutableListOf<Deposited>()
+        val log = mutableListOf<String>()
+
+        val report = cancelWithFiles(
+            row(attachmentsJson = OutboxAttachments.encode(listOf(stored))), dir,
+            deposited = deposited, log = log,
+        )
+
+        assertEquals(ScheduledCancelReport.RETURNED_TO_DRAFTS, report)
+        assertEquals(
+            "the deposit must carry the row's attachment: its files are deleted right after, so a " +
+                "draft filed without it is the attachment lost for good",
+            listOf("plan.pdf" to "application/pdf"),
+            deposited.map { it.name to it.type },
+        )
+        assertArrayEquals(
+            "the attachment's bytes must still be readable when the deposit is made",
+            bytes,
+            deposited.single().bytes,
+        )
+        assertEquals(listOf("save", "delete", "dropWorker"), log)
+        assertFalse("a successful cancel removes the row's files, after the deposit", dir.exists())
+    }
+
+    @Test fun `a row's attachments all reach the draft, in their order and with their fields`() {
+        val a = OutboxAttachment(
+            kind = OutboxAttachments.KIND_IMAP_FILE, path = "/s/u/1-a.png", type = "image/png",
+            name = "a.png", size = 3, cid = "c1", disposition = "inline",
+        )
+        val b = a.copy(path = "/s/u/2-b.txt", type = "text/plain", name = "b.txt", cid = null, disposition = "attachment")
+
+        assertEquals(
+            listOf(a, b),
+            draftFromScheduledSend(row(attachmentsJson = OutboxAttachments.encode(listOf(a, b)))).attachments,
+        )
+    }
+
+    @Test fun `a failed deposit leaves the row and the attachment files where they were`() = runTest {
+        val bytes = byteArrayOf(1, 2, 3)
+        val (dir, stored) = scheduledDirWith("plan.pdf", "application/pdf", bytes)
+        val log = mutableListOf<String>()
+
+        val report = cancelWithFiles(
+            row(attachmentsJson = OutboxAttachments.encode(listOf(stored))), dir,
+            throwOnSave = IllegalStateException("Couldn't read the attachment plan.pdf to send it."),
+            deposited = mutableListOf(), log = log,
+        )
+
+        assertEquals(ScheduledCancelReport.NOT_CANCELLED, report)
+        assertEquals(listOf("save"), log)
+        assertArrayEquals(
+            "the files are the only copy left once a deposit has failed",
+            bytes,
+            File(stored.path!!).readBytes(),
+        )
+    }
+
+    @Test fun `an attachment that cannot be read or uploaded cancels nothing and deposits nothing`() = runTest {
+        val bytes = byteArrayOf(4, 5, 6)
+        val (dir, stored) = scheduledDirWith("plan.pdf", "application/pdf", bytes)
+        val log = mutableListOf<String>()
+
+        val report = cancelWithFiles(
+            row(attachmentsJson = OutboxAttachments.encode(listOf(stored))), dir,
+            throwOnParts = IllegalStateException("upload refused: 503"),
+            deposited = mutableListOf(), log = log,
+        )
+
+        assertEquals(ScheduledCancelReport.NOT_CANCELLED, report)
+        assertEquals("no draft short of its attachment may be filed", emptyList<String>(), log)
+        assertArrayEquals(bytes, File(stored.path!!).readBytes())
+    }
+
+    @Test fun `a JMAP deposit kept on the phone as blob ids alone leaves the row and its files`() = runTest {
+        val bytes = byteArrayOf(7, 8, 9)
+        val (dir, stored) = scheduledDirWith("plan.pdf", "application/pdf", bytes)
+        val log = mutableListOf<String>()
+
+        val report = cancelWithFiles(
+            row(attachmentsJson = OutboxAttachments.encode(listOf(stored))), dir,
+            parts = ::jmapParts,
+            outcome = DraftSaveOutcome.KEPT_ON_DEVICE,
+            deposited = mutableListOf(), log = log,
+        )
+
+        assertEquals(
+            "a draft the server has not confirmed, whose local copy names blob ids and holds no " +
+                "byte, is not a copy of the attachments: the server may drop an unreferenced blob " +
+                "within the hour, long before the deferred upload is retried",
+            ScheduledCancelReport.NOT_CANCELLED,
+            report,
+        )
+        assertEquals("neither the row nor its job may go — the log was $log", listOf("save"), log)
+        assertArrayEquals(
+            "the scheduled files are the only durable copy of the attachment",
+            bytes,
+            File(stored.path!!).readBytes(),
+        )
+    }
+
+    @Test fun `an IMAP deposit kept on the phone holds the bytes, so the cancel goes through`() = runTest {
+        val (dir, stored) = scheduledDirWith("plan.pdf", "application/pdf", byteArrayOf(1))
+        val log = mutableListOf<String>()
+
+        val report = cancelWithFiles(
+            row(attachmentsJson = OutboxAttachments.encode(listOf(stored))), dir,
+            parts = ::imapParts,
+            outcome = DraftSaveOutcome.KEPT_ON_DEVICE,
+            deposited = mutableListOf(), log = log,
+        )
+
+        assertEquals(
+            "file parts are copied into the local draft before the upload is tried: offline, " +
+                "that copy is enough, and refusing would make an offline cancel impossible",
+            ScheduledCancelReport.RETURNED_TO_DRAFTS,
+            report,
+        )
+        assertEquals(listOf("save", "delete", "dropWorker"), log)
+    }
+
+    @Test fun `a JMAP deposit the server confirmed goes through with blob ids`() = runTest {
+        for (outcome in listOf(DraftSaveOutcome.SAVED, DraftSaveOutcome.ORIGINAL_KEPT)) {
+            val (dir, stored) = scheduledDirWith("plan.pdf", "application/pdf", byteArrayOf(1))
+            val log = mutableListOf<String>()
+
+            val report = cancelWithFiles(
+                row(attachmentsJson = OutboxAttachments.encode(listOf(stored))), dir,
+                parts = ::jmapParts,
+                outcome = outcome,
+                deposited = mutableListOf(), log = log,
+            )
+
+            assertEquals("$outcome", ScheduledCancelReport.RETURNED_TO_DRAFTS, report)
+            assertEquals("$outcome", listOf("save", "delete", "dropWorker"), log)
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test fun `two attachments of the same name and an empty one all reach the deposit`() = runTest {
+        val first = byteArrayOf(1, 1)
+        val second = byteArrayOf(2, 2, 2)
+        val (dir, stored) = scheduledDirWithAll(
+            Triple("IMG.jpg", "image/jpeg", first),
+            Triple("IMG.jpg", "image/jpeg", second),
+            Triple("empty.txt", "text/plain", ByteArray(0)),
+        )
+        val deposited = mutableListOf<Deposited>()
+        val log = mutableListOf<String>()
+
+        val report = cancelWithFiles(
+            row(attachmentsJson = OutboxAttachments.encode(stored)), dir,
+            deposited = deposited, log = log,
+        )
+
+        assertEquals(ScheduledCancelReport.RETURNED_TO_DRAFTS, report)
+        assertEquals(
+            "two photos are both named IMG.jpg by most cameras, and an empty file is still an " +
+                "attachment: neither a name nor a size identifies one",
+            listOf("IMG.jpg" to "image/jpeg", "IMG.jpg" to "image/jpeg", "empty.txt" to "text/plain"),
+            deposited.map { it.name to it.type },
+        )
+        assertArrayEquals(first, deposited[0].bytes)
+        assertArrayEquals(second, deposited[1].bytes)
+        assertArrayEquals(ByteArray(0), deposited[2].bytes)
+    }
+}
+
+private fun imapParts(stored: List<OutboxAttachment>): List<EmailBodyPart> = stored.map {
+    EmailBodyPart(partId = it.path, type = it.type, size = it.size, name = it.name, disposition = it.disposition, cid = it.cid)
+}
+
+private fun jmapParts(stored: List<OutboxAttachment>): List<EmailBodyPart> = stored.mapIndexed { i, it ->
+    EmailBodyPart(blobId = "blob-new-${i + 1}", type = it.type, size = it.size, name = it.name, disposition = it.disposition, cid = it.cid)
 }

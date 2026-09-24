@@ -57,7 +57,8 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                             accountStillListed = app.container.accountStore.accounts().any { a -> a.id == it },
                         )
                     },
-                    saveDraft = { creds, d ->
+                    attachmentParts = { c, stored -> repo.sending.scheduledPartsFor(c, stored) },
+                    saveDraft = { creds, d, parts ->
                         repo.drafts.saveDraft(
                             credentials = creds,
                             to = d.to,
@@ -89,6 +90,7 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                             fromName = d.fromName,
                             fromEmail = d.fromEmail,
                             requestReceipt = d.requestReceipt,
+                            attachments = parts,
                         )
                     },
                     dropWorker = { ScheduledSends.cancel(app, it) },

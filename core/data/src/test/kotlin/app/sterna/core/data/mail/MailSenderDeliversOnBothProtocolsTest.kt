@@ -177,6 +177,7 @@ class MailSenderDeliversOnBothProtocolsTest {
         scheduledSendDao = unusableDao<ScheduledSendDao>(),
         recentContactDao = unusableDao<RecentContactDao>(),
         outboxFilesDir = File("outbox-never-read"),
+        scheduledFilesDir = File("scheduled-never-read"),
         host = host,
         outgoingDates = outgoingDates,
     )

@@ -97,6 +97,8 @@ class MailSender(
     private val host: MailSendHost,
     private val outgoingDates: OutgoingDateZones,
     private val logWarn: (String, String, Throwable?) -> Unit = { _, _, _ -> },
+    /** Where a scheduled send keeps its attachments until its hour, one directory per row. */
+    private val scheduledFilesDir: java.io.File,
 ) {
     /**
      * Schedules the WorkManager job that delivers an outbox item. Set by the app layer at startup: the data
@@ -721,11 +723,37 @@ class MailSender(
 
     // ---- scheduled send ----
 
-    suspend fun insertScheduledSend(entity: ScheduledSendEntity): Long = scheduledSendDao.insert(entity)
+    /** Writes the row with its own copy of [attachments]; [fetchBlob] brings a JMAP blob back. */
+    suspend fun insertScheduledSend(
+        entity: ScheduledSendEntity,
+        attachments: List<EmailBodyPart>,
+        fetchBlob: suspend (EmailBodyPart) -> ByteArray,
+    ): Long = insertScheduledWithAttachments(scheduledFilesDir, attachments, fetchBlob) { json ->
+        scheduledSendDao.insert(entity.copy(attachmentsJson = json))
+    }
+
+    /** The parts [row] hands to [enqueueSend] at its hour; throws rather than drop one. */
+    suspend fun scheduledSendAttachments(credentials: AccountCredentials, row: ScheduledSendEntity): List<EmailBodyPart> =
+        scheduledPartsFor(credentials, OutboxAttachments.decode(row.attachmentsJson))
+
+    /**
+     * [stored] as parts a send or a draft save takes, uploaded again on JMAP; throws rather than drop
+     * one. A cancelled schedule goes through here and not through `saveDraft`'s own upload, which
+     * skips a part it fails to upload: the scheduled files are deleted right after that deposit.
+     */
+    suspend fun scheduledPartsFor(credentials: AccountCredentials, stored: List<OutboxAttachment>): List<EmailBodyPart> =
+        scheduledPartsToSend(stored, credentials.protocol) { bytes, a ->
+            host.uploadAttachment(credentials, bytes, a.type, a.name, a.disposition ?: "attachment", a.cid)
+        }
 
     suspend fun scheduledSend(id: Long): ScheduledSendEntity? = scheduledSendDao.byId(id)
 
-    suspend fun deleteScheduledSend(id: Long) = scheduledSendDao.delete(id)
+    /** The row first, its files after: a death in between leaks files, never a row without them. */
+    suspend fun deleteScheduledSend(id: Long) {
+        val row = scheduledSendDao.byId(id)
+        scheduledSendDao.delete(id)
+        row?.let { deleteScheduledAttachments(it.attachmentsJson, scheduledFilesDir) }
+    }
 
     suspend fun setScheduledSendFailedAttempts(id: Long, failedAttempts: Int) =
         scheduledSendDao.setFailedAttempts(id, failedAttempts)

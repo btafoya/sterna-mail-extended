@@ -620,6 +620,7 @@
     <string name="compose_pgp_subject_note">O assunto não é criptografado.</string>
     <string name="compose_pgp_not_encrypted_no_key">Esta mensagem não será cifrada: sem chave pública para %1$s.</string>
     <string name="compose_pgp_no_draft">Mensagens criptografadas não podem ser salvas como rascunho nem agendadas.</string>
+    <string name="compose_schedule_attachment_unavailable">não foi possível obter do servidor o anexo %1$s, nada foi agendado.</string>
     <string name="compose_pgp_not_configured">O OpenPGP não está configurado para esta conta.</string>
     <string name="compose_pgp_missing_keys">Nenhuma chave pública para um ou mais destinatários.</string>
     <string name="compose_pgp_too_large">Os anexos são grandes demais para criptografar (máx. 25 MB).</string>

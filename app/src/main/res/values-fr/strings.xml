@@ -620,6 +620,7 @@
     <string name="compose_pgp_subject_note">L\'objet n\'est pas chiffré.</string>
     <string name="compose_pgp_not_encrypted_no_key">Ce message ne sera pas chiffré : pas de clé publique pour %1$s.</string>
     <string name="compose_pgp_no_draft">Les messages chiffrés ne peuvent pas être enregistrés en brouillon ni programmés.</string>
+    <string name="compose_schedule_attachment_unavailable">la pièce jointe %1$s n\'a pas pu être récupérée sur le serveur, rien n\'a été programmé.</string>
     <string name="compose_pgp_not_configured">OpenPGP n\'est pas configuré pour ce compte.</string>
     <string name="compose_pgp_missing_keys">Aucune clé publique pour un ou plusieurs destinataires.</string>
     <string name="compose_pgp_too_large">Pièces jointes trop volumineuses pour le chiffrement (25 Mo max).</string>

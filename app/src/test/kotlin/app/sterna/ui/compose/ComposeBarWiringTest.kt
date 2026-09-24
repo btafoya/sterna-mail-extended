@@ -90,9 +90,8 @@ class ComposeBarWiringTest {
         assertEquals(
             "the three entries that came down from the bar must keep their `enabled` rules, " +
                 "whole and in order. Dropping the schedule's `scheduleSendAllowed(...)` offers a " +
-                "send later on a signed/encrypted message or one with attachments — the headless " +
-                "worker cannot sign and its table carries no attachments, so the message would go " +
-                "out unsigned or amputated. Dropping `!sending` acts on a message already in " +
+                "send later on a signed/encrypted message — the headless worker cannot sign, so " +
+                "the message would go out unsigned. Dropping `!sending` acts on a message already in " +
                 "flight (INV-6).",
             ENABLED,
             overflowMenu().filter { it.startsWith("enabled = ") },
@@ -309,7 +308,7 @@ class ComposeBarWiringTest {
 
         private val ENABLED = listOf(
             "enabled = !sending && canSaveDraft,",
-            "enabled = !sending && canSend && scheduleSendAllowed(pgpMode, attachments.isNotEmpty()),",
+            "enabled = !sending && canSend && scheduleSendAllowed(pgpMode),",
             "enabled = !sending,",
         )
 

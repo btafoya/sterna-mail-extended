@@ -1186,14 +1186,13 @@ fun ComposeScreen(
                                     onClick = { moreMenu = false; viewModel.saveDraft(to, cc, bcc, subject.text, rich, requestReceipt) },
                                     enabled = !sending && canSaveDraft,
                                 )
-                                // A scheduled send is fired by a headless worker that can't sign, and
-                                // its table carries no attachments: disabled for a sign/encrypt message
-                                // or one with attachments (A2/A3). The tap closes this menu and opens
-                                // the presets beside it, no submenu nested inside an overflow.
+                                // A scheduled send is fired by a headless worker that can't sign:
+                                // disabled for a sign/encrypt message (A3). The tap closes this menu
+                                // and opens the presets beside it, no submenu nested inside an overflow.
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.compose_schedule_send)) },
                                     onClick = { moreMenu = false; menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true },
-                                    enabled = !sending && canSend && scheduleSendAllowed(pgpMode, attachments.isNotEmpty()),
+                                    enabled = !sending && canSend && scheduleSendAllowed(pgpMode),
                                 )
                             }
                             // Deleting the draft (#127). Outside the draftSaveAllowed block: a delete

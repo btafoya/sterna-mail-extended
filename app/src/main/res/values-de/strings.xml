@@ -620,6 +620,7 @@
     <string name="compose_pgp_subject_note">Der Betreff wird nicht verschlüsselt.</string>
     <string name="compose_pgp_not_encrypted_no_key">Diese Nachricht wird nicht verschlüsselt: kein öffentlicher Schlüssel für %1$s.</string>
     <string name="compose_pgp_no_draft">Verschlüsselte Nachrichten können nicht als Entwurf gespeichert oder geplant werden.</string>
+    <string name="compose_schedule_attachment_unavailable">Der Anhang %1$s konnte nicht vom Server abgerufen werden, es wurde nichts geplant.</string>
     <string name="compose_pgp_not_configured">OpenPGP ist für dieses Konto nicht eingerichtet.</string>
     <string name="compose_pgp_missing_keys">Kein öffentlicher Schlüssel für einen oder mehrere Empfänger.</string>
     <string name="compose_pgp_too_large">Anhänge sind zu groß zum Verschlüsseln (max. 25 MB).</string>

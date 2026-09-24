@@ -374,8 +374,8 @@ class SubscribedFolderMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "the schema declares v30: `server_contacts`",
-            30,
+            "the schema declares v31: `scheduled_sends.attachmentsJson`",
+            31,
             SCHEMA_VERSION,
         )
     }

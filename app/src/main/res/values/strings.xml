@@ -797,6 +797,7 @@
     <string name="compose_pgp_subject_note">The subject is not encrypted.</string>
     <string name="compose_pgp_not_encrypted_no_key">This message won\'t be encrypted: no public key for %1$s.</string>
     <string name="compose_pgp_no_draft">Encrypted messages can\'t be saved as drafts or scheduled.</string>
+    <string name="compose_schedule_attachment_unavailable">the attachment %1$s could not be fetched back from the server, so nothing was scheduled.</string>
     <string name="compose_pgp_not_configured">OpenPGP is not set up for this account.</string>
     <string name="compose_pgp_missing_keys">No public key for one or more recipients.</string>
     <string name="compose_pgp_too_large">Attachments are too large to encrypt (25 MB max).</string>

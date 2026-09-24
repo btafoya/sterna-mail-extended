@@ -39,7 +39,7 @@ Two choices deserve to be stated plainly:
 ### Data on the device
 
 - **Passwords and OAuth refresh tokens** are encrypted with an AES-256-GCM key held in the Android KeyStore, bound to their account. The short-lived OAuth access token is not: it sits in the app's private storage, readable with root or ADB access to that storage, until it expires.
-- **Cloud backup is disabled.** Device-to-device transfer (Android 12 and later) leaves out credentials, the message cache and settings, but other app files can travel to the new phone: local drafts, messages waiting in the outbox with their attachments, and the relay push address.
+- **Cloud backup is disabled.** Device-to-device transfer (Android 12 and later) leaves out credentials, the message cache and settings, but other app files can travel to the new phone: local drafts, messages waiting in the outbox with their attachments, the attachments of scheduled messages, and the relay push address.
 - **The app lock is a screen, not encryption.** It keeps someone holding your unlocked phone from reading your mail: content stays out of recents and screenshots, and the home-screen widget shows no sender or subject. The message cache (headers, bodies, search index) is **not encrypted**, so root, ADB access to the app's storage or a filesystem image reads it without meeting the lock. Only credentials stay behind the KeyStore.
 
 ### OpenPGP

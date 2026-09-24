@@ -35,7 +35,8 @@ class ScheduledCancelScopeWiringTest {
 
         assertEquals(
             setOf(
-                "id", "row", "credentials", "accountIsGone", "saveDraft", "dropWorker", "deleteRow",
+                "id", "row", "credentials", "accountIsGone", "attachmentParts", "saveDraft",
+                "dropWorker", "deleteRow",
             ),
             call.keys,
         )
@@ -44,6 +45,10 @@ class ScheduledCancelScopeWiringTest {
             "the account of the ROW: this screen is not filtered by account and shows none",
             "{ app.container.accountStore.credentials(it) }",
             call["credentials"],
+        )
+        assertEquals(
+            "{ c, stored -> repo.sending.scheduledPartsFor(c, stored) }",
+            call["attachmentParts"],
         )
         assertEquals("{ ScheduledSends.cancel(app, it) }", call["dropWorker"])
         assertEquals("{ repo.sending.deleteScheduledSend(it) }", call["deleteRow"])
@@ -87,6 +92,7 @@ class ScheduledCancelScopeWiringTest {
                 // text being deposited: there is no composer in this story to ask (#131).
                 "typedBodyIsBlank" to "d.body.isBlank()",
                 "requestReceipt" to "d.requestReceipt",
+                "attachments" to "parts",
             ),
             save,
         )

@@ -39,11 +39,13 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
             return Result.retry()
         }
         return try {
+            val attachments = repo.sending.scheduledSendAttachments(credentials, row)
             repo.sending.enqueueSend(
                 credentials = credentials,
                 to = row.recipients.split(",").map { it.trim() }.filter { it.isNotEmpty() },
                 subject = row.subject,
                 body = row.textBody,
+                attachments = attachments,
                 inReplyTo = row.inReplyTo?.split(" ")?.filter { it.isNotBlank() } ?: emptyList(),
                 references = row.references?.split(" ")?.filter { it.isNotBlank() } ?: emptyList(),
                 htmlBody = row.htmlBody,

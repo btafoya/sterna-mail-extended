@@ -230,6 +230,8 @@ internal fun localDraftDirName(id: String): String = id.replace(Regex("[^A-Za-z0
  */
 const val LOCAL_DRAFT_FILES_DIR: String = "local-drafts"
 
+fun localDraftKeepsTheBytesOf(part: EmailBodyPart): Boolean = part.blobId == null && part.partId != null
+
 /**
  * Refuses rather than shortens (#70): a part whose bytes cannot be read throws, where staging fewer
  */
@@ -243,7 +245,7 @@ internal fun stageLocalDraftAttachments(dir: File, attachments: List<EmailBodyPa
                 blobId = part.blobId, type = part.type, name = part.name, size = part.size,
                 cid = part.cid, disposition = part.disposition,
             )
-            part.partId != null -> {
+            localDraftKeepsTheBytesOf(part) -> {
                 val source = part.partId!!
                 val bytes = runCatching { File(source).readBytes() }.getOrNull()
                     ?: error("Couldn't read the attachment ${part.name ?: source} to keep it with the draft.")

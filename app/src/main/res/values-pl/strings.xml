@@ -620,6 +620,7 @@
     <string name="compose_pgp_subject_note">Temat nie jest szyfrowany.</string>
     <string name="compose_pgp_not_encrypted_no_key">Ta wiadomość nie zostanie zaszyfrowana: brak klucza publicznego dla %1$s.</string>
     <string name="compose_pgp_no_draft">Zaszyfrowanych wiadomości nie można zapisać jako wersji roboczej ani zaplanować.</string>
+    <string name="compose_schedule_attachment_unavailable">nie udało się pobrać z serwera załącznika %1$s, niczego nie zaplanowano.</string>
     <string name="compose_pgp_not_configured">OpenPGP nie jest skonfigurowany dla tego konta.</string>
     <string name="compose_pgp_missing_keys">Brak klucza publicznego dla co najmniej jednego odbiorcy.</string>
     <string name="compose_pgp_too_large">Załączniki są za duże do zaszyfrowania (maks. 25 MB).</string>

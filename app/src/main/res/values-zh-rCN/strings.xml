@@ -787,6 +787,7 @@
     <string name="compose_pgp_subject_note">主题不会被加密。</string>
     <string name="compose_pgp_not_encrypted_no_key">此邮件不会加密：没有 %1$s 的公钥。</string>
     <string name="compose_pgp_no_draft">加密邮件无法保存为草稿或定时发送。</string>
+    <string name="compose_schedule_attachment_unavailable">无法从服务器取回附件 %1$s，未安排任何定时发送。</string>
     <string name="compose_pgp_not_configured">此账户尚未配置 OpenPGP。</string>
     <string name="compose_pgp_missing_keys">一个或多个收件人没有公钥。</string>
     <string name="compose_pgp_too_large">附件过大，无法加密 (上限 25 MB)。</string>

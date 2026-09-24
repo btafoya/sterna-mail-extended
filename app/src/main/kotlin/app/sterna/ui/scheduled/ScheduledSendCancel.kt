@@ -1,11 +1,15 @@
 package app.sterna.ui.scheduled
 
+import app.sterna.core.data.db.OutboxAttachment
+import app.sterna.core.data.db.OutboxAttachments
 import app.sterna.core.data.db.ScheduledSendEntity
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.mail.DraftSaveOutcome
+import app.sterna.core.data.mail.localDraftKeepsTheBytesOf
 import app.sterna.core.data.text.draftHtmlToSave
 import app.sterna.core.data.text.richBodyFrom
 import app.sterna.core.data.text.toPlainText
+import app.sterna.core.jmap.model.EmailBodyPart
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
@@ -40,6 +44,7 @@ data class ScheduledSendDraft(
     val fromName: String?,
     val fromEmail: String?,
     val requestReceipt: Boolean,
+    val attachments: List<OutboxAttachment>,
 )
 
 /**
@@ -63,17 +68,23 @@ fun draftFromScheduledSend(row: ScheduledSendEntity): ScheduledSendDraft {
         fromName = row.fromName,
         fromEmail = row.fromEmail,
         requestReceipt = row.requestReceipt,
+        attachments = OutboxAttachments.decode(row.attachmentsJson),
     )
 }
 
-/**
- * What to say for a save's [outcome], `null` meaning the account was gone before a save was tried.
- */
-fun scheduledCancelReport(outcome: DraftSaveOutcome?): ScheduledCancelReport = when (outcome) {
+/** What to say for a save's [outcome]: `null` means the account was gone before a save was tried;
+ *  `KEPT_ON_DEVICE` without the blobs' own bytes fails, since an unreferenced blob can vanish
+ *  within the hour, rather than delete the only copy. */
+fun scheduledCancelReport(
+    outcome: DraftSaveOutcome?,
+    parts: List<EmailBodyPart>,
+): ScheduledCancelReport = when (outcome) {
     null -> ScheduledCancelReport.ACCOUNT_GONE
     DraftSaveOutcome.SAVED -> ScheduledCancelReport.RETURNED_TO_DRAFTS
     DraftSaveOutcome.ORIGINAL_KEPT -> ScheduledCancelReport.RETURNED_TO_DRAFTS
-    DraftSaveOutcome.KEPT_ON_DEVICE -> ScheduledCancelReport.RETURNED_TO_DRAFTS
+    DraftSaveOutcome.KEPT_ON_DEVICE ->
+        if (parts.all(::localDraftKeepsTheBytesOf)) ScheduledCancelReport.RETURNED_TO_DRAFTS
+        else ScheduledCancelReport.NOT_CANCELLED
 }
 
 /**
@@ -91,7 +102,8 @@ suspend fun <C> cancelScheduledSend(
     row: suspend (Long) -> ScheduledSendEntity?,
     credentials: suspend (String) -> C?,
     accountIsGone: suspend (String) -> Boolean,
-    saveDraft: suspend (C, ScheduledSendDraft) -> DraftSaveOutcome,
+    attachmentParts: suspend (C, List<OutboxAttachment>) -> List<EmailBodyPart>,
+    saveDraft: suspend (C, ScheduledSendDraft, List<EmailBodyPart>) -> DraftSaveOutcome,
     dropWorker: (Long) -> Unit,
     deleteRow: suspend (Long) -> Unit,
 ): ScheduledCancelReport? {
@@ -100,18 +112,22 @@ suspend fun <C> cancelScheduledSend(
     coroutineContext.ensureActive()
     return withContext(NonCancellable) {
         val c = credentials(r.accountId)
+        var parts = emptyList<EmailBodyPart>()
         val outcome = when {
             // A deposit that throws destroys nothing: the row stays, and it is still the copy.
             // Not `runCatching { }.getOrNull()`, which reads a cancellation as a failed save.
-            c != null -> runCatching { saveDraft(c, draftFromScheduledSend(r)) }
-                .getOrElseUnlessCancelled { return@withContext ScheduledCancelReport.NOT_CANCELLED }
+            c != null -> runCatching {
+                val draft = draftFromScheduledSend(r)
+                parts = attachmentParts(c, draft.attachments)
+                saveDraft(c, draft, parts)
+            }.getOrElseUnlessCancelled { return@withContext ScheduledCancelReport.NOT_CANCELLED }
             // No credentials and the account really is gone: nowhere to file it, and nothing left
             // that could send it.
             accountIsGone(r.accountId) -> null
             // No credentials but the account is still there: we have proved nothing, destroy nothing.
             else -> return@withContext ScheduledCancelReport.NOT_CANCELLED
         }
-        val report = scheduledCancelReport(outcome)
+        val report = scheduledCancelReport(outcome, parts)
         if (scheduledCancelDropsTheRow(report)) {
             deleteRow(id)
             dropWorker(id)

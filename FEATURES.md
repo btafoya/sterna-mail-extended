@@ -91,7 +91,7 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Rich text: bold, italic, underline, strikethrough, lists, links.
 - ✅ Undo send, then an Outbox that survives app death and retries when the network
   comes back, with its own screen for waiting, sending and failed mail.
-- ✅ Schedule send, with a screen to cancel a pending one. No attachments yet.
+- ✅ Schedule send, with a screen to cancel a pending one.
 - ✅ "Forgot attachment?" reminder, in every UI language.
 - ✅ Recipient autocomplete from cached addresses, the sending account's server
   address book (read-only, on JMAP servers that publish one) and opt-in device

@@ -24,6 +24,7 @@ import app.sterna.core.data.mail.DraftOpenRoute
 import app.sterna.core.data.mail.DraftSaveOutcome
 import app.sterna.core.data.mail.DraftToOpen
 import app.sterna.core.data.mail.LocalDraftEdit
+import app.sterna.core.data.mail.ScheduledAttachmentFetchFailed
 import app.sterna.core.data.mail.SendDraftTarget
 import app.sterna.core.data.mail.abandonPlan
 import app.sterna.core.data.mail.carriedDraftAccountId
@@ -1654,12 +1655,11 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         sendAtMillis: Long,
         requestReceipt: Boolean,
     ): Boolean {
-        // A scheduled send is handed to a headless worker that can neither sign nor encrypt (so any
-        // PgpMode but off would go out unsigned, #35) and its table carries no attachments yet (so it
-        // would send amputated, A2/A3). The toolbar disables the button for both; this is the choke
-        // point. Only the pgp case has user-facing wording, attachments cannot reach here.
-        if (!scheduleSendAllowed(_pgpMode.value, _attachments.value.isNotEmpty())) {
-            if (_pgpMode.value != PgpMode.OFF) _notices.tryEmit(R.string.compose_pgp_no_draft)
+        // A scheduled send is handed to a headless worker that can neither sign nor encrypt, so any
+        // PgpMode but off would go out unsigned (#35). The toolbar disables the button; this is the
+        // choke point.
+        if (!scheduleSendAllowed(_pgpMode.value)) {
+            _notices.tryEmit(R.string.compose_pgp_no_draft)
             return false
         }
         // …and the same refusal as the immediate send, for the same reason: a scheduled send commits
@@ -1688,6 +1688,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 require(recipients.isNotEmpty()) { getApplication<Application>().getString(R.string.status_add_recipient) }
                 val identity = selectedIdentity()
                 val (textBody, htmlBody) = bodiesForSend(body, identity)
+                val attachments = _attachments.value
                 // The same one answer as the send above: id and numbering together, the server draft
                 // named off the row when this composer was reopened from one (#95), then withheld
                 // whole when the composer cannot show the message reproduces the draft (#63). The
@@ -1733,6 +1734,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                                 // hand-over to the outbox drops it.
                                 requestReceipt = requestReceipt,
                             ),
+                            // Copied before the row exists: a throw here, a blob the server no
+                            // longer gives back included, schedules nothing and consumes no draft.
+                            attachments = attachments,
+                            fetchBlob = { part -> repo.downloadAttachment(credentials, part, emailId = "") },
                         )
                         ScheduledSends.enqueue(getApplication(), id, scheduledSendDelayMillis(sendAtMillis, System.currentTimeMillis()))
                     },
@@ -1742,6 +1747,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // consumed rather than given back, or it would send twice (#70).
                 consumeEditingOutbox()
                 _state.value = ComposeState.Done
+            } catch (e: ScheduledAttachmentFetchFailed) {
+                _state.value = ComposeState.Error(
+                    getApplication<Application>().getString(R.string.compose_schedule_attachment_unavailable, e.name ?: "?"),
+                )
             } catch (t: Throwable) {
                 _state.value = ComposeState.Error(t.message ?: t.javaClass.simpleName)
             }

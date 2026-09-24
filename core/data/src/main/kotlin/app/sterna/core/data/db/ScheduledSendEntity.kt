@@ -29,4 +29,5 @@ data class ScheduledSendEntity(
      *  [draftUidValidity], missing here at hand-over, the message goes out without asking. */
     val requestReceipt: Boolean = false,
     val failedAttempts: Int = 0,
+    val attachmentsJson: String = "[]",
 )

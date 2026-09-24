@@ -557,13 +557,11 @@ internal fun draftHasContent(
 internal fun draftSaveAllowed(pgpMode: PgpMode): Boolean = !pgpMode.encrypts
 
 /**
- * The single rule for "may this message be scheduled?", stricter than [draftSaveAllowed] on two
- * counts, each of which would send silently short of what the composer showed (A2/A3): a headless
- * worker can neither sign nor encrypt, so any [PgpMode] but off is refused, and the scheduled table
- * carries no attachments, so a staged one refuses scheduling rather than firing the message stripped.
+ * The single rule for "may this message be scheduled?", stricter than [draftSaveAllowed]: a
+ * headless worker can neither sign nor encrypt, so any [PgpMode] but off is refused rather than
+ * sent in the clear (A3). Attachments do not enter it: the scheduled row keeps its own copy.
  */
-internal fun scheduleSendAllowed(pgpMode: PgpMode, hasAttachment: Boolean): Boolean =
-    pgpMode == PgpMode.OFF && !hasAttachment
+internal fun scheduleSendAllowed(pgpMode: PgpMode): Boolean = pgpMode == PgpMode.OFF
 
 /** The quick "send later" choices, in the order the composer's menu draws them. */
 internal enum class SchedulePreset { IN_1_HOUR, THIS_EVENING, TOMORROW_MORNING, TOMORROW_EVENING }

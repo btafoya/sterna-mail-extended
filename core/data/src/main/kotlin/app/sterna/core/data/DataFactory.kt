@@ -75,6 +75,7 @@ object DataFactory {
                 // Its own tree: a draft's staged bytes outlive any send, and the outbox's purge
                 // has nothing to say about them (#95).
                 localDraftFilesDir = localDraftFiles,
+                scheduledFilesDir = java.io.File(appContext.filesDir, "scheduled"),
                 pgpEngine = pgpEngine,
                 settings = settings,
                 syncStateStore = SyncStateStore(appContext),

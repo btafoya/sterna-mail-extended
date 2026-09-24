@@ -914,6 +914,8 @@ class MailRepository(
     mailboxUidValidityDao: MailboxUidValidityDao,
     outboxFilesDir: java.io.File,
     localDraftFilesDir: java.io.File,
+    /** Defaulted beside [localDraftFilesDir] for the JVM tests that build a repository. */
+    scheduledFilesDir: java.io.File = java.io.File(localDraftFilesDir.absoluteFile.parentFile, "scheduled"),
     private val oauthClient: OAuthClient = OAuthClient(),
     /** Autodiscovery's client, apart from [client] because it alone bounds how long one candidate
      *  host may take to connect; the shared bound outlives the whole discovery budget (#221). */
@@ -944,6 +946,7 @@ class MailRepository(
         scheduledSendDao = scheduledSendDao,
         recentContactDao = recentContactDao,
         outboxFilesDir = outboxFilesDir,
+        scheduledFilesDir = scheduledFilesDir,
         host = this,
         outgoingDates = outgoingDates,
         logWarn = logWarn,

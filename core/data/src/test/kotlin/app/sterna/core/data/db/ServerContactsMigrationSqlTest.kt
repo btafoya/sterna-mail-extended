@@ -402,7 +402,7 @@ class ServerContactsMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("this branch takes the schema to v30 (`server_contacts`)", 30, SCHEMA_VERSION)
+        assertEquals("this branch's step lands at v30 (`server_contacts`), not the schema's last", 30, registeredStep(29).endVersion)
     }
 
     // --- (e) the entities name the columns the step creates ------------------------------------------

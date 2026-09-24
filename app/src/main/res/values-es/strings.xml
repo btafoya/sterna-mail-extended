@@ -620,6 +620,7 @@
     <string name="compose_pgp_subject_note">El asunto no se cifra.</string>
     <string name="compose_pgp_not_encrypted_no_key">Este mensaje no se cifrará: no hay clave pública para %1$s.</string>
     <string name="compose_pgp_no_draft">Los mensajes cifrados no se pueden guardar como borrador ni programar.</string>
+    <string name="compose_schedule_attachment_unavailable">no se pudo recuperar del servidor el archivo adjunto %1$s, no se ha programado nada.</string>
     <string name="compose_pgp_not_configured">OpenPGP no está configurado para esta cuenta.</string>
     <string name="compose_pgp_missing_keys">No hay clave pública para uno o más destinatarios.</string>
     <string name="compose_pgp_too_large">Los adjuntos son demasiado grandes para cifrar (máx. 25 MB).</string>

@@ -620,6 +620,7 @@
     <string name="compose_pgp_subject_note">Het onderwerp wordt niet versleuteld.</string>
     <string name="compose_pgp_not_encrypted_no_key">Dit bericht wordt niet versleuteld: geen publieke sleutel voor %1$s.</string>
     <string name="compose_pgp_no_draft">Versleutelde berichten kunnen niet als concept worden opgeslagen of ingepland.</string>
+    <string name="compose_schedule_attachment_unavailable">de bijlage %1$s kon niet van de server worden opgehaald, er is niets ingepland.</string>
     <string name="compose_pgp_not_configured">OpenPGP is niet ingesteld voor dit account.</string>
     <string name="compose_pgp_missing_keys">Geen openbare sleutel voor een of meer ontvangers.</string>
     <string name="compose_pgp_too_large">Bijlagen zijn te groot om te versleutelen (max. 25 MB).</string>

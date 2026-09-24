@@ -393,8 +393,8 @@ class ScheduledSendFailuresMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "the schema is at v30 (`server_contacts`), past this branch's v28",
-            30,
+            "the schema is at v31 (`scheduled_sends.attachmentsJson`), past this branch's v28",
+            31,
             SCHEMA_VERSION,
         )
     }
