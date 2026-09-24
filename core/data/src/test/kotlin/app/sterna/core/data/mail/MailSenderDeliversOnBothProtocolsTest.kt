@@ -6,6 +6,8 @@ import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.RecordingAccountStorage
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.MailboxDao
+import app.sterna.core.data.db.OutboxAttachment
+import app.sterna.core.data.db.OutboxAttachments
 import app.sterna.core.data.db.OutboxDao
 import app.sterna.core.data.db.OutboxEntity
 import app.sterna.core.data.db.RecentContactDao
@@ -57,7 +59,9 @@ import java.time.ZoneId
  * them.
  *
  * What this does NOT cover:
- * - Attachments, on either branch: every item here carries none.
+ * - Attachments: only a stored part whose shape does not match the sending protocol is sent here
+ *   (a file on JMAP, a blob on IMAP). A part that already matches its path, an inline `cid` part,
+ *   and the queueing side's refusal in `persistAttachments` are not run.
  * - The pre-built entity fork on IMAP: no IMAP item here carries one. On JMAP it is taken, but only
  *   the submission's identity and envelope and the absence of a `Bcc:` in the imported bytes are
  *   read; the entity's own bytes stay held by [PrebuiltEntityTest].
@@ -115,7 +119,11 @@ class MailSenderDeliversOnBothProtocolsTest {
     }
 
     /** The five edges `MailSender` reaches the repository through, none of them taken by accident. */
-    private class RecordingHost(private val session: MailRepository.JmapAccountSession? = null) : MailSendHost {
+    private class RecordingHost(
+        private val session: MailRepository.JmapAccountSession? = null,
+        /** Uploads through the real client to the test server; false for a host no upload may reach. */
+        private val uploadsToServer: Boolean = false,
+    ) : MailSendHost {
         val syncedMailboxes = mutableListOf<String>()
         val destroyed = mutableListOf<Triple<String, String, Long?>>()
 
@@ -141,7 +149,15 @@ class MailSenderDeliversOnBothProtocolsTest {
             name: String?,
             disposition: String,
             cid: String?,
-        ): EmailBodyPart = error("no item here carries an attachment to upload")
+        ): EmailBodyPart {
+            check(uploadsToServer) { "no item here carries an attachment to upload" }
+            val ctx = session ?: error("an upload needs the JMAP session")
+            val blob = JmapClient().uploadBlob(ctx.session, ctx.accountId, bytes, type, ctx.auth)
+            return EmailBodyPart(
+                blobId = blob.blobId, type = blob.type, size = blob.size,
+                name = name, disposition = disposition, cid = cid,
+            )
+        }
 
         override suspend fun destroyDraft(credentials: AccountCredentials, emailId: String, frozenUidValidity: Long?) {
             destroyed += Triple(credentials.id, emailId, frozenUidValidity)
@@ -195,6 +211,7 @@ class MailSenderDeliversOnBothProtocolsTest {
         draftEmailId: String? = null,
         draftUidValidity: Long? = null,
         pgpEntityPath: String? = null,
+        attachmentsJson: String = "[]",
     ) = OutboxEntity(
         id = 7,
         accountId = "account-1",
@@ -210,6 +227,7 @@ class MailSenderDeliversOnBothProtocolsTest {
         draftEmailId = draftEmailId,
         draftUidValidity = draftUidValidity,
         pgpEntityPath = pgpEntityPath,
+        attachmentsJson = attachmentsJson,
     )
 
     private fun credentials(protocol: MailProtocol) = AccountCredentials(
@@ -326,17 +344,96 @@ class MailSenderDeliversOnBothProtocolsTest {
         assertEquals(emptyList<Triple<String, String, Long?>>(), host.destroyed)
     }
 
+    /**
+     * A part stored as a server blob (attached while the sender was a JMAP account) reaching an
+     * IMAP send: there are no bytes to put in the message. The send refuses; delivered, it would go
+     * out without the attachment and the draft would be destroyed behind it.
+     */
+    @Test fun `an imap send refuses a part stored as a jmap blob`() {
+        val imap = RecordingImap(store)
+        val host = RecordingHost()
+        val sender = sender(imap = imap, mailboxDao = mailboxDaoAnswering("sent", "Sent Items", mutableListOf()), host = host)
+        val blobPart = OutboxAttachments.encode(
+            listOf(OutboxAttachment(kind = OutboxAttachments.KIND_JMAP_BLOB, blobId = "blob-9", type = "image/jpeg", name = "photo.jpg", size = 5)),
+        )
+
+        val thrown = runCatching {
+            runBlocking {
+                sender.performSend(
+                    credentials(MailProtocol.IMAP),
+                    item(draftEmailId = "draft-9", draftUidValidity = 41L, attachmentsJson = blobPart),
+                )
+            }
+        }.exceptionOrNull()
+
+        assertTrue("the send must refuse, got $thrown", thrown != null)
+        assertEquals(emptyList<Append>(), imap.sends)
+        assertEquals(emptyList<Triple<String, String, Long?>>(), host.destroyed)
+    }
+
     // ---- JMAP
+
+    /** A queued part stored as a local file (attached while the sender was an IMAP account). */
+    private fun filePart(): String {
+        val file = tmp.newFile("photo.jpg").apply { writeText("JPEG-BYTES") }
+        return OutboxAttachments.encode(
+            listOf(
+                OutboxAttachment(
+                    kind = OutboxAttachments.KIND_IMAP_FILE, path = file.absolutePath,
+                    type = "image/jpeg", name = "photo.jpg", size = 10,
+                ),
+            ),
+        )
+    }
+
+    /**
+     * The same mismatch the other way: a file reaching a JMAP send is uploaded at delivery, and the
+     * message created references the blob the upload returned.
+     */
+    @Test fun `a jmap send uploads a part stored as a file and attaches the blob`() {
+        serveJmap("""{"id":"identity-7","name":"Alex","email":"alex@example.test"}""")
+        val sender = sender(host = RecordingHost(jmapSession(), uploadsToServer = true))
+
+        runBlocking { sender.performSend(credentials(MailProtocol.JMAP), item(attachmentsJson = filePart())) }
+
+        assertEquals(listOf("JPEG-BYTES"), uploaded)
+        val attachments = argsOf("Email/set")["create"]!!.jsonObject["draft"]!!.jsonObject["attachments"]
+        assertTrue("the created message carries no attachments", attachments != null)
+        val part = attachments!!.jsonArray.single().jsonObject
+        assertEquals("blob-1", part["blobId"]!!.jsonPrimitive.content)
+        assertEquals("photo.jpg", part["name"]!!.jsonPrimitive.content)
+    }
+
+    /** The upload of that file fails: the send throws, and no message is created without it. */
+    @Test fun `a jmap send whose upload fails creates no message and destroys no draft`() {
+        serveJmap("""{"id":"identity-7","name":"Alex","email":"alex@example.test"}""", uploadStatus = 500)
+        val host = RecordingHost(jmapSession(), uploadsToServer = true)
+        val sender = sender(host = host)
+
+        val thrown = runCatching {
+            runBlocking {
+                sender.performSend(
+                    credentials(MailProtocol.JMAP),
+                    item(draftEmailId = "draft-9", attachmentsJson = filePart()),
+                )
+            }
+        }.exceptionOrNull()
+
+        assertTrue("the send must refuse, got $thrown", thrown != null)
+        assertEquals(emptyList<String>(), received.filter { it.first == "Email/set" }.map { it.first })
+        assertEquals(emptyList<Triple<String, String, Long?>>(), host.destroyed)
+    }
 
     /** The bytes of every blob uploaded, in order: on the pre-built path, the message as submitted. */
     private val uploaded = mutableListOf<String>()
 
-    private fun serveJmap(identities: String) {
+    private fun serveJmap(identities: String, uploadStatus: Int = 200) {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val body = request.body.readUtf8()
                 if (request.path.orEmpty().startsWith("/jmap/upload/")) {
                     uploaded += body
+                    if (uploadStatus != 200) return MockResponse().setResponseCode(uploadStatus)
                     return json("""{"blobId":"blob-1","type":"message/rfc822","size":${body.length}}""")
                 }
                 val calls = Json.parseToJsonElement(body).jsonObject["methodCalls"]!!.jsonArray

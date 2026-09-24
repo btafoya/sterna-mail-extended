@@ -268,7 +268,7 @@ class MailSender(
                 val entityFile = java.io.File(dir, PREBUILT_ENTITY_FILE).apply { writeText(payload.entityFile) }
                 outboxDao.byId(id)?.let { outboxDao.update(it.copy(pgpEntityPath = entityFile.absolutePath)) }
             } else {
-                val durable = persistAttachments(id, attachments)
+                val durable = persistAttachments(id, attachments, credentials.protocol)
                 outboxDao.byId(id)?.let { outboxDao.update(it.copy(attachmentsJson = OutboxAttachments.encode(durable))) }
             }
         }
@@ -282,11 +282,19 @@ class MailSender(
         }
     }
 
-    private fun persistAttachments(id: Long, attachments: List<EmailBodyPart>): List<OutboxAttachment> {
+    private fun persistAttachments(
+        id: Long,
+        attachments: List<EmailBodyPart>,
+        protocol: MailProtocol,
+    ): List<OutboxAttachment> {
         if (attachments.isEmpty()) return emptyList()
         val dir = java.io.File(outboxFilesDir, id.toString()).apply { mkdirs() }
         return attachments.mapNotNull { part ->
+            // Refuse rather than drop an attachment the send cannot carry, unreadable or a server
+            // blob an IMAP send has no bytes for: it would send amputated.
             when {
+                part.blobId != null && protocol == MailProtocol.IMAP ->
+                    error("The attachment ${part.name ?: "attachment"} was prepared for another account; attach it again.")
                 part.blobId != null -> OutboxAttachment(
                     kind = OutboxAttachments.KIND_JMAP_BLOB,
                     blobId = part.blobId, type = part.type, name = part.name, size = part.size,
@@ -294,7 +302,6 @@ class MailSender(
                 )
                 part.partId != null -> {
                     val sourcePath = part.partId!!
-                    // Refuse rather than drop an unreadable attachment: it would send amputated.
                     val bytes = runCatching { java.io.File(sourcePath).readBytes() }.getOrNull()
                         ?: error("Couldn't read the attachment ${part.name ?: sourcePath} to queue it.")
                     val safe = (part.name ?: "attachment").replace(Regex("[^A-Za-z0-9._-]"), "_")
@@ -451,8 +458,9 @@ class MailSender(
         if (credentials.protocol == MailProtocol.IMAP) {
             val recipients = to
             require(recipients.isNotEmpty()) { "Add at least one recipient." }
-            val outAttachments = stored.mapNotNull { a ->
-                val path = a.path ?: return@mapNotNull null
+            val outAttachments = stored.map { a ->
+                val path = a.path
+                    ?: error("The attachment ${a.name ?: "attachment"} was prepared for another account; attach it again.")
                 // Refuse rather than deliver amputated: the item stays in the outbox with its error.
                 val bytes = runCatching { java.io.File(path).readBytes() }.getOrNull()
                     ?: error("Couldn't read the attachment ${a.name ?: path} to send it.")
@@ -486,11 +494,27 @@ class MailSender(
             )
             return
         }
-        val attachments = stored.map { a ->
-            EmailBodyPart(
-                blobId = a.blobId, type = a.type, size = a.size, name = a.name,
-                disposition = a.disposition ?: "attachment", cid = a.cid,
-            )
+        // A part's shape (local file or server blob) was fixed for the sender's protocol at attach
+        // time, and the sender may have changed since. A part that no longer matches this path is
+        // prepared again when the worker can do it alone, refused when it cannot, never dropped:
+        // dropped, the delivery succeeds and `performSend` destroys the draft that still held it.
+        // A pre-built entity carries its own parts, and `enqueueSend` stored none beside it.
+        val attachments = if (prebuiltEntity != null) emptyList() else stored.map { a ->
+            when {
+                a.blobId != null -> EmailBodyPart(
+                    blobId = a.blobId, type = a.type, size = a.size, name = a.name,
+                    disposition = a.disposition ?: "attachment", cid = a.cid,
+                )
+                a.path != null -> {
+                    val bytes = runCatching { java.io.File(a.path).readBytes() }.getOrNull()
+                        ?: error("Couldn't read the attachment ${a.name ?: a.path} to send it.")
+                    host.uploadAttachment(
+                        credentials, bytes, a.type, a.name,
+                        disposition = a.disposition ?: "attachment", cid = a.cid,
+                    )
+                }
+                else -> error("The attachment ${a.name ?: "attachment"} has no file to send; attach it again.")
+            }
         }
         val ctx = host.jmapSession(credentials)
         val recipients = to.map { EmailAddress(email = it) }
