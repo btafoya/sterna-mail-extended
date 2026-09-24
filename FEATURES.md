@@ -114,7 +114,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   Mail.ru, QQ Mail, 163 Mail, 126 Mail, Yeah Mail and Sina Mail, with the
   app-password reminder most of them need.
 - ✅ OAuth2, device flow (RFC 8628) where the server offers one, authorization code
-  with PKCE otherwise. Tokens are encrypted and refreshed, no password is handled.
+  with PKCE otherwise. The refresh token is encrypted and renewed (the short-lived
+  access token is not), and no password is handled.
 - ✅ Outlook and Microsoft, over OAuth2 with XOAUTH2 on IMAP and SMTP. Personal
   accounts work; work and school accounts need their administrator's consent.
 - ✅ ⭐ Several JMAP accounts under one login (RFC 8620 §1.6.2). A delegated or
@@ -122,7 +123,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Per-account server settings with a Test connection button, an optional display
   name, and a colour that tints its avatar and its unified-inbox chip.
 - ✅ Settings export and import as a JSON file, with the setup of password accounts;
-  Microsoft, API token and shared accounts are not in it, and passwords stay out.
+  accounts that sign in with Microsoft, with OAuth or with an API token, and shared
+  accounts, are not in it, and passwords stay out.
 
 ## Sync, push & notifications
 

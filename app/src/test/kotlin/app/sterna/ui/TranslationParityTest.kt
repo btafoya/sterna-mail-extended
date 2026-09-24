@@ -619,8 +619,8 @@ class TranslationParityTest {
         val text = actual[BACKUP_EXPLAINER_KEY].orEmpty().lowercase().replace("\\", "")
         assertEquals(
             "the exported file lists the senders allowed to load remote images, and holds only the " +
-                "accounts that sign in with a password, none signing in with Microsoft or with an " +
-                "API token and no shared one; the sentence over the Backup & restore buttons has " +
+                "accounts that sign in with a password, none signing in with Microsoft, with OAuth " +
+                "or with an API token and no shared one; the sentence over the Backup & restore buttons has " +
                 "to say both, before the reader chooses where to write the file. Missing from the " +
                 "English text:",
             emptyList<String>(),
@@ -639,8 +639,8 @@ class TranslationParityTest {
                 "translation, not this text, to nine readers out of ten: rewrite values-de, " +
                 "values-es, values-fr, values-it, values-nl, values-pl, values-pt, values-ru and " +
                 "values-zh-rCN to say the same thing, then move this pin. The sentence owes four " +
-                "statements: what is saved, the accounts signing in with Microsoft or with an API " +
-                "token and the shared ones not being in it, that the file is plain text and " +
+                "statements: what is saved, the accounts signing in with Microsoft, with OAuth or " +
+                "with an API token and the shared ones not being in it, that the file is plain text and " +
                 "carries the senders allowed to load images, and that passwords are not in it so " +
                 "imported accounts sign in again.",
             BACKUP_EXPLAINER_ENGLISH,
@@ -1003,17 +1003,18 @@ class TranslationParityTest {
             BACKUP_EXPLAINER_KEY to "Save your app preferences (appearance, reading, " +
                 "notifications, privacy, language) and the setup of the accounts that sign in " +
                 "with a password to a file, or restore them from one. Accounts that sign in with " +
-                "Microsoft or with an API token, and shared accounts, are not in it. The file is " +
+                "Microsoft, with OAuth or with an API token, and shared accounts, are not in it. " +
+                "The file is " +
                 "plain text and includes the senders you allow to load images. Passwords are never " +
                 "included, so imported accounts need to be signed in again.",
         )
 
         /**
          * What the English sentence owes, in lower case: "senders" and "images", the people named in
-         * the file; then the accounts `backupSnapshotOf` keeps and the three kinds it leaves out,
-         * executed in `AccountBackupTest`. Words and not a phrase, so a reword may place them.
+         * the file; then the accounts `backupSnapshotOf` keeps and the kinds it leaves out, every OAuth
+         * sign-in and not Microsoft's alone. Words and not a phrase, so a reword may place them.
          */
-        val REQUIRED_OF_A_BACKUP_EXPLAINER = listOf("senders", "images", "password", "microsoft", "token", "shared")
+        val REQUIRED_OF_A_BACKUP_EXPLAINER = listOf("senders", "images", "password", "microsoft", "oauth", "token", "shared")
 
         /**
          * What it may never say, in lower case. Alarm the facts do not carry: the file is written

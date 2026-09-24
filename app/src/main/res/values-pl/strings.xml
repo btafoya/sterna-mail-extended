@@ -320,7 +320,7 @@
     <string name="settings_backup_summary">Utwórz kopię zapasową lub przywróć ustawienia</string>
     <string name="settings_backup_screen_title">Kopia zapasowa i przywracanie</string>
     <string name="settings_backup_section">Kopia zapasowa ustawień</string>
-    <string name="settings_backup_explainer">Zapisz preferencje aplikacji (wygląd, czytanie, powiadomienia, prywatność, język) i konfigurację kont logujących się hasłem do pliku lub przywróć je z pliku. Nie ma w nim kont logujących się przez Microsoft lub tokenem API ani kont udostępnionych. Plik jest zwykłym tekstem i zawiera nadawców, którym zezwalasz na wczytywanie obrazów. Hasła nigdy nie są uwzględniane, więc do zaimportowanych kont trzeba zalogować się ponownie.</string>
+    <string name="settings_backup_explainer">Zapisz preferencje aplikacji (wygląd, czytanie, powiadomienia, prywatność, język) i konfigurację kont logujących się hasłem do pliku lub przywróć je z pliku. Nie ma w nim kont logujących się przez Microsoft, przez OAuth lub tokenem API ani kont udostępnionych. Plik jest zwykłym tekstem i zawiera nadawców, którym zezwalasz na wczytywanie obrazów. Hasła nigdy nie są uwzględniane, więc do zaimportowanych kont trzeba zalogować się ponownie.</string>
     <string name="settings_backup_export">Eksportuj ustawienia…</string>
     <string name="settings_backup_import">Importuj ustawienia…</string>
     <string name="settings_backup_import_k9">Importuj z K-9 lub Thunderbird</string>

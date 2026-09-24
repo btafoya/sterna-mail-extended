@@ -226,14 +226,23 @@ class ConversationScopeWiringTest {
     }
 
     @Test fun `filing a selection leaves the reply in Sent, deleting it does not`() {
-        listOf("archiveSelected", "moveSelectedTo").forEach { gesture ->
+        listOf("archiveSelected", "moveSelectedTo", "reportSpamSelected", "notSpamSelected").forEach { gesture ->
             val body = body(INBOX_VIEW_MODEL, gesture)
             val calls = callArguments(body, "bulkBatched")
             assertTrue(
                 "$gesture must capture the rule at the tap (`val filing = selectionFilingRule()`) " +
-                    "and hand it to bulkBatched (`moves = filing`). Body was:\n$body",
+                    "and hand it to bulkBatched (`moves = filing`). Without it, the reply a folded " +
+                    "row carries leaves Sent for the folder the gesture names. Body was:\n$body",
                 "val filing = selectionFilingRule()" in body &&
                     calls.isNotEmpty() && calls.all { "moves = filing" in it },
+            )
+            val frozen = body.indexOf("val filing = selectionFilingRule()")
+            assertTrue(
+                "$gesture must read the rule BEFORE the launch, and before clearSelection() where it " +
+                    "clears: read later, it answers for whatever the list shows by then, not for the " +
+                    "rows that were ticked. Body was:\n$body",
+                frozen < body.indexOf("viewModelScope.launch") &&
+                    ("clearSelection()" !in body || frozen < body.indexOf("clearSelection()")),
             )
         }
         assertTrue(
@@ -249,10 +258,206 @@ class ConversationScopeWiringTest {
             "$RECORDED.value" in rule && "::movesWithConversation" in rule && RE_READ !in rule,
         )
         val batched = body(INBOX_VIEW_MODEL, "bulkBatched")
+        assertEquals(
+            "bulkBatched must set aside, AFTER resolution, the rows the rule keeps, through the " +
+                "executed decision fileSelection: the resolved row is the only one that knows its " +
+                "folder. Body was:\n$batched",
+            listOf("val (targets, spared) = fileSelection(resolved.targets, moves, carried) { it.email }"),
+            codeLinesNaming(batched, "fileSelection("),
+        )
+        assertEquals(
+            "and must not split the rows a second way beside it. Body was:\n$batched",
+            emptyList<String>(),
+            codeLinesNaming(batched, ".partition"),
+        )
+    }
+
+    @Test fun `a selection moved to another account leaves the reply in Sent`() {
+        val move = body(INBOX_VIEW_MODEL, "moveSelectedTo")
+        assertEquals(
+            "moveSelectedTo must hand the rule it froze at the tap to the cross-account path: a " +
+                "move between accounts copies then destroys, with no Undo. Body was:\n$move",
+            listOf("moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId, ticked, filing, carried)"),
+            codeLinesNaming(move, "moveSelectedToAccount("),
+        )
+        val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
+        assertEquals(
+            "moveSelectedToAccount must take the rule as a parameter and apply it once, through " +
+                "fileSelection, to the rows it resolved. Body was:\n$many",
+            listOf(
+                "moves: ((Email) -> Boolean)?,",
+                "val spared = fileSelection(emails.values.toList(), moves, carried) { it }.spared.mapTo(mutableSetOf()) { it.emailKey() }",
+            ),
+            codeLinesNaming(many, "moves"),
+        )
+        assertEquals(
+            "and never re-read the rule or the scope itself: a suspension after the tap, it would " +
+                "answer for another list. Body was:\n$many",
+            emptyList<String>(),
+            codeLinesNaming(many, "selectionFilingRule") + codeLinesNaming(many, RECORDED),
+        )
+        assertEquals(
+            "the loop must run over what leaves, never over the whole movable half: a spared key " +
+                "that enters it is copied to the other account and destroyed here. Body was:\n$many",
+            listOf("val leaving = movable - spared", "for (key in leaving) {"),
+            codeLinesNaming(many, Regex("""\bleaving\b""")).filterNot { "LinkedHashMap" in it },
+        )
+        val lines = many.lines().map { it.trim() }
+        val quiet = lines.indexOf("if (results.isEmpty() && skipped.isEmpty()) return")
         assertTrue(
-            "bulkBatched must set aside, AFTER resolution, the rows the rule keeps: the resolved row " +
-                "is the only one that knows its folder. Body was:\n$batched",
-            Regex("""resolved\.targets\.partition\s*\{\s*moves\?\.invoke\(\s*it\.email\s*\)\s*\?:\s*true\s*}""").containsMatchIn(batched),
+            "a batch the rule spared entirely must post no banner: crossAccountBanner answers " +
+                "ALL_MOVED for no verdict at all, and the screen would announce zero messages moved. " +
+                "Body was:\n$many",
+            quiet >= 0 && quiet < lines.indexOf("val outcome = crossAccountBanner(results, skipped.size)"),
+        )
+    }
+
+    @Test fun `the selection keeps which keys a folded row carried, and writes both halves at once`() {
+        assertEquals(
+            "writeTicks must write the carried half from the ticks it is handed, then the keys: " +
+                "carried = the keys makes the reply ticked alone stay in Sent in silence, carried = " +
+                "nothing makes a folded row's archive empty Sent. Body was:\n${body(INBOX_VIEW_MODEL, "writeTicks")}",
+            listOf(
+                "private fun writeTicks(next: SelectionTicks) {",
+                "carriedKeys = next.carried",
+                "_selectedKeys.value = next.keys",
+            ),
+            body(INBOX_VIEW_MODEL, "writeTicks").lines().map { it.trim() },
+        )
+    }
+
+    @Test fun `writeTicks is the one writer of either half, whatever the operator`() {
+        assertEquals(
+            "writeTicks must be the only writer of either half: a key written beside it, by `=`, " +
+                "`+=` or an `update { }`, has no origin.",
+            listOf("carriedKeys = next.carried", "_selectedKeys.value = next.keys"),
+            codeLinesNaming(code(INBOX_VIEW_MODEL), SELECTION_WRITE),
+        )
+    }
+
+    @Test fun `every writeTicks is handed the pure decision itself, in file order`() {
+        assertEquals(
+            "each way into the selection must hand writeTicks the executed decision directly, in " +
+                "file order: a row by hand, a tap by hand, a folded row's representative then its " +
+                "members carried, a folded row toggled whole, select all by hand, the clear, and " +
+                "the two give-backs with the origin captured at their tap. A `writeTicks(next…)` " +
+                "or a `.copy(carried = …)` rewrites the origin behind the decision: emptied, a " +
+                "folded row's archive empties Sent; set to the keys, the reply ticked alone stays.",
+            listOf(
+                "writeTicks(SelectionTicks(setOf(email.emailKey())))",
+                "writeTicks(currentTicks().toggledByHand(email.emailKey()))",
+                "writeTicks(SelectionTicks(setOf(rep.emailKey()), carried = setOf(rep.emailKey())))",
+                "writeTicks(currentTicks().carrying(members))",
+                "writeTicks(currentTicks().toggledConversation(rep.emailKey(), members))",
+                "writeTicks(SelectionTicks(all))",
+                "writeTicks(SelectionTicks(emptySet()))",
+                "private fun currentTicks(): SelectionTicks = SelectionTicks(_selectedKeys.value, carriedKeys)",
+                "private fun writeTicks(next: SelectionTicks) {",
+                "writeTicks(handedBack(split.drifted.mapTo(mutableSetOf()) { it.emailKey() }, carried))",
+                "writeTicks(handedBack(givenBack, carried))",
+            ),
+            codeLinesNaming(code(INBOX_VIEW_MODEL), Regex("""\bwriteTicks\(|\bcurrentTicks\(""")),
+        )
+        mapOf(
+            "toggleSelect" to listOf(
+                "fun toggleSelect(email: Email) {",
+                "if (isLocalDraftRow(email.id)) return",
+                "writeTicks(currentTicks().toggledByHand(email.emailKey()))",
+                "if (_selectedKeys.value.isEmpty()) _selectionActive.value = false",
+            ),
+            "enterSelectionThread" to listOf(
+                "fun enterSelectionThread(rep: Email) {",
+                "_selectionActive.value = true",
+                "writeTicks(SelectionTicks(setOf(rep.emailKey()), carried = setOf(rep.emailKey())))",
+                "viewModelScope.launch {",
+                "val members = threadMessages(rep).mapTo(mutableSetOf()) { it.emailKey() }",
+                "writeTicks(currentTicks().carrying(members))",
+                "}",
+            ),
+            "toggleSelectThread" to listOf(
+                "fun toggleSelectThread(rep: Email) {",
+                "viewModelScope.launch {",
+                "val members = threadMessages(rep).mapTo(mutableSetOf()) { it.emailKey() }",
+                "writeTicks(currentTicks().toggledConversation(rep.emailKey(), members))",
+                "if (_selectedKeys.value.isEmpty()) _selectionActive.value = false",
+                "}",
+            ),
+        ).forEach { (gesture, expected) ->
+            val body = body(INBOX_VIEW_MODEL, gesture)
+            assertEquals(
+                "$gesture must write the decision's own ticks, nothing computed beside it. Body was:\n$body",
+                expected,
+                body.lines().map { it.trim() },
+            )
+        }
+    }
+
+    @Test fun `no bulkBatched call files without the origin captured at its tap`() {
+        val source = code(INBOX_VIEW_MODEL)
+        assertEquals(
+            "bulkBatched must take moves and carried with no default: an absent origin reads as " +
+                "all ticked by hand, and a folded row's reply leaves Sent.",
+            listOf("moves: ((Email) -> Boolean)?,", "carried: Set<EmailKey>,"),
+            codeLinesNaming(body(INBOX_VIEW_MODEL, "bulkBatched").lines().takeWhile { ") {" != it.trim() }.joinToString("\n"), Regex("""^(moves|carried):""")),
+        )
+        val calls = callArguments(source, "bulkBatched").filterNot { it.startsWith("clearAfter: Boolean") }
+        assertTrue("the five gestures that batch must still be found. Calls were:\n$calls", calls.size >= 5)
+        calls.forEach { call ->
+            val moves = Regex("""\bmoves = ([^,\n]+)""").find(call)?.groupValues?.get(1)
+            val carried = Regex("""\bcarried = ([^,\n]+)""").find(call)?.groupValues?.get(1)
+            assertTrue(
+                "every bulkBatched call must name both `moves =` and `carried =`, and one that files " +
+                    "by a rule must hand it the origin its gesture captured (`carried = carried`); " +
+                    "only `moves = null`, which files nothing, may pass `carried = emptySet()`. " +
+                    "Call was:\n$call",
+                moves != null && carried != null &&
+                    (if (moves.trim() == "null") carried.trim() == "emptySet()" else carried.trim() == "carried"),
+            )
+        }
+    }
+
+    @Test fun `the gestures capture the origin at their tap and hand it on`() {
+        listOf("archiveSelected", "moveSelectedTo", "reportSpamSelected", "notSpamSelected", "deleteSelected").forEach { gesture ->
+            val body = body(INBOX_VIEW_MODEL, gesture)
+            val lines = body.lines().map { it.trim() }
+            val frozen = lines.indexOf("val carried = carriedKeys")
+            assertTrue(
+                "$gesture must capture the origin once, beside the keys and before the launch and " +
+                    "the clear: read later it answers for another selection. Body was:\n$body",
+                lines.count { it == "val carried = carriedKeys" } == 1 &&
+                    frozen == lines.indexOf("val keys = _selectedKeys.value") + 1 &&
+                    frozen < lines.indexOf("viewModelScope.launch {") &&
+                    ("clearSelection()" !in lines || frozen < lines.indexOf("clearSelection()")),
+            )
+        }
+        listOf("archiveSelected", "moveSelectedTo", "reportSpamSelected", "notSpamSelected").forEach { gesture ->
+            val calls = callArguments(body(INBOX_VIEW_MODEL, gesture), "bulkBatched")
+            assertTrue(
+                "$gesture must hand bulkBatched the origin it captured (`carried = carried`): without " +
+                    "it every key counts as ticked by hand and a folded row's archive empties Sent. " +
+                    "Calls were:\n$calls",
+                calls.isNotEmpty() && calls.all { "carried = carried" in it },
+            )
+        }
+        val delete = body(INBOX_VIEW_MODEL, "deleteSelected")
+        assertEquals(
+            "deleteSelected reads the origin only to hand it back with what it refused; its batch " +
+                "files nothing. Body was:\n$delete",
+            listOf(
+                "val carried = carriedKeys",
+                "carried = emptySet(),",
+                "writeTicks(handedBack(split.drifted.mapTo(mutableSetOf()) { it.emailKey() }, carried))",
+            ),
+            codeLinesNaming(delete, Regex("""\bcarried\b""")),
+        )
+        assertEquals(
+            "moveSelectedToAccount must take the origin as a parameter, file with it and give back with it.",
+            listOf(
+                "carried: Set<EmailKey>,",
+                "val spared = fileSelection(emails.values.toList(), moves, carried) { it }.spared.mapTo(mutableSetOf()) { it.emailKey() }",
+                "writeTicks(handedBack(givenBack, carried))",
+            ),
+            codeLinesNaming(body(INBOX_VIEW_MODEL, "moveSelectedToAccount"), Regex("""\bcarried\b""")),
         )
     }
 
@@ -551,9 +756,19 @@ class ConversationScopeWiringTest {
 
     private fun String.indentWidth() = length - trimStart().length
 
+    private fun codeLinesNaming(body: String, needle: String): List<String> =
+        body.lines().map { it.trim() }.filter { needle in it }
+
+    private fun codeLinesNaming(body: String, needle: Regex): List<String> =
+        body.lines().map { it.trim() }.filter { needle.containsMatchIn(it) }
+
     companion object {
         /** The scope the list on screen was built with, and the only one the unfold may use. */
         private const val RECORDED = "listScope"
+
+        private val SELECTION_WRITE = Regex(
+            """\bcarriedKeys\s*[-+*/%]?=(?!=)|\b_selectedKeys\s*\.\s*(value\s*[-+*/%]?=(?!=)|(update|getAndUpdate|updateAndGet|compareAndSet|emit|tryEmit)\b)""",
+        )
 
         /** Its single writer, matched as an assignment rather than a mention. */
         private val ASSIGNMENT = Regex("""\b$RECORDED\.value\s*=[^=]""")

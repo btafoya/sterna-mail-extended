@@ -121,8 +121,11 @@ per-account sources.
   moves the same way, but the movers it uses take one id each, so its writes go
   out in turn rather than as one batch. Delete always takes the whole
   conversation. Archive, unarchive and move, by swipe or from the selection,
-  leave the reply the account filed in its Sent folder where it is, unless Sent
-  is the folder the list shows. In both cases the repository
+  report as spam and not spam from the selection, and a move to another
+  account's folder leave the reply the account filed in its Sent folder where
+  it is, unless Sent is the folder the list shows; the rule holds for what a
+  folded row carried, so a reply ticked alone in an unfolded conversation
+  leaves with the gesture. In both cases the repository
   holds the rows while the writes are out and puts back only the ones the server
   refused, reading nothing from the network. Undo is offered with the rows and
   narrowed at the verdict to what really left, so a partly refused gesture

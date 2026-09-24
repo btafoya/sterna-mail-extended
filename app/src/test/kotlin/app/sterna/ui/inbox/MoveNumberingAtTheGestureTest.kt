@@ -80,8 +80,8 @@ class MoveNumberingAtTheGestureTest {
      */
     @Test fun `the spam gestures freeze the numbering before they delegate`() {
         mapOf(
-            "reportSpamSelected" to "bulkBatched(keys = keys) { c, ids -> repo.reportSpamAll(c, ids, numbering[c.id].orEmpty()) }",
-            "notSpamSelected" to "bulkBatched(keys = keys) { c, ids -> repo.notSpamAll(c, ids, numbering[c.id].orEmpty()) }",
+            "reportSpamSelected" to "bulkBatched(keys = keys, moves = filing, carried = carried) { c, ids -> repo.reportSpamAll(c, ids, numbering[c.id].orEmpty()) }",
+            "notSpamSelected" to "bulkBatched(keys = keys, moves = filing, carried = carried) { c, ids -> repo.notSpamAll(c, ids, numbering[c.id].orEmpty()) }",
         ).forEach { (name, delegation) ->
             val body = body(INBOX_VIEW_MODEL, name)
             assertEquals(
@@ -90,7 +90,9 @@ class MoveNumberingAtTheGestureTest {
                 codeLinesNaming(body, "selectionNumbering("),
             )
             assertEquals(
-                "and hand the account's own share of it to the batch. Body was:\n$body",
+                "and hand the account's own share of it to the batch, with the filing rule frozen " +
+                    "at the tap: without `moves = filing` a spam gesture on a folded row takes the " +
+                    "reply out of Sent. Body was:\n$body",
                 listOf(delegation),
                 codeLinesNaming(body, "bulkBatched("),
             )
@@ -239,8 +241,8 @@ class MoveNumberingAtTheGestureTest {
                 ") { c, batch -> repo.deleteAll(c, batch, numbering[c.id].orEmpty()) }",
                 ") { c, batch -> repo.moveAllToMailbox(c, batch, targetMailboxId, numbering[c.id].orEmpty()) }",
                 ") { c, ids -> repo.archiveAll(c, ids, numbering[c.id].orEmpty()) }",
-                "bulkBatched(keys = keys) { c, ids -> repo.notSpamAll(c, ids, numbering[c.id].orEmpty()) }",
-                "bulkBatched(keys = keys) { c, ids -> repo.reportSpamAll(c, ids, numbering[c.id].orEmpty()) }",
+                "bulkBatched(keys = keys, moves = filing, carried = carried) { c, ids -> repo.notSpamAll(c, ids, numbering[c.id].orEmpty()) }",
+                "bulkBatched(keys = keys, moves = filing, carried = carried) { c, ids -> repo.reportSpamAll(c, ids, numbering[c.id].orEmpty()) }",
                 "val result = runCatching { repo.deleteAll(credentials, ids, pending.numbering) }",
             ),
             calls,

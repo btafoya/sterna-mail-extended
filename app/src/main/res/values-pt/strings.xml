@@ -320,7 +320,7 @@
     <string name="settings_backup_summary">Faça backup ou restaure as suas configurações</string>
     <string name="settings_backup_screen_title">Backup e restauro</string>
     <string name="settings_backup_section">Backup de configurações</string>
-    <string name="settings_backup_explainer">Salve as preferências do aplicativo (aparência, leitura, notificações, privacidade, idioma) e a configuração das contas que iniciam sessão com senha em um arquivo, ou restaure-as a partir de um. As contas que iniciam sessão com a Microsoft ou com um token de API e as contas partilhadas não estão incluídas. O arquivo é texto simples e inclui os remetentes que você autoriza a carregar imagens. As senhas nunca são incluídas, portanto as contas importadas precisam entrar novamente.</string>
+    <string name="settings_backup_explainer">Salve as preferências do aplicativo (aparência, leitura, notificações, privacidade, idioma) e a configuração das contas que iniciam sessão com senha em um arquivo, ou restaure-as a partir de um. As contas que iniciam sessão com a Microsoft, com OAuth ou com um token de API e as contas partilhadas não estão incluídas. O arquivo é texto simples e inclui os remetentes que você autoriza a carregar imagens. As senhas nunca são incluídas, portanto as contas importadas precisam entrar novamente.</string>
     <string name="settings_backup_export">Exportar configurações…</string>
     <string name="settings_backup_import">Importar configurações…</string>
     <string name="settings_backup_import_k9">Importar do K-9 ou Thunderbird</string>

@@ -320,7 +320,7 @@
     <string name="settings_backup_summary">Einstellungen sichern oder wiederherstellen</string>
     <string name="settings_backup_screen_title">Sichern &amp; Wiederherstellen</string>
     <string name="settings_backup_section">Einstellungen-Backup</string>
-    <string name="settings_backup_explainer">Speichern Sie Ihre App-Einstellungen (Darstellung, Lesen, Benachrichtigungen, Datenschutz, Sprache) und die Einrichtung der Konten, die sich mit einem Passwort anmelden, in einer Datei oder stellen Sie sie daraus wieder her. Konten, die sich mit Microsoft oder mit einem API-Token anmelden, und geteilte Konten sind nicht darin enthalten. Die Datei ist reiner Text und enthält die Absender, für die Sie das Laden von Bildern erlaubt haben. Passwörter sind nie enthalten, daher müssen importierte Konten erneut angemeldet werden.</string>
+    <string name="settings_backup_explainer">Speichern Sie Ihre App-Einstellungen (Darstellung, Lesen, Benachrichtigungen, Datenschutz, Sprache) und die Einrichtung der Konten, die sich mit einem Passwort anmelden, in einer Datei oder stellen Sie sie daraus wieder her. Konten, die sich mit Microsoft, mit OAuth oder mit einem API-Token anmelden, und geteilte Konten sind nicht darin enthalten. Die Datei ist reiner Text und enthält die Absender, für die Sie das Laden von Bildern erlaubt haben. Passwörter sind nie enthalten, daher müssen importierte Konten erneut angemeldet werden.</string>
     <string name="settings_backup_export">Einstellungen exportieren…</string>
     <string name="settings_backup_import">Einstellungen importieren…</string>
     <string name="settings_backup_import_k9">Aus K-9 oder Thunderbird importieren</string>

@@ -464,7 +464,7 @@
     <string name="settings_backup_summary">备份或恢复您的设置</string>
     <string name="settings_backup_screen_title">备份与恢复</string>
     <string name="settings_backup_section">设置备份</string>
-    <string name="settings_backup_explainer">将您的应用偏好 (外观、阅读、通知、隐私、语言) 和使用密码登录的账户的设置保存到文件，或从文件中恢复。使用 Microsoft 或 API 令牌登录的账户和共享账户不在其中。文件为纯文本，其中包含您允许加载图片的发件人。密码永远不会包含在内，因此导入的账户需要重新登录。</string>
+    <string name="settings_backup_explainer">将您的应用偏好 (外观、阅读、通知、隐私、语言) 和使用密码登录的账户的设置保存到文件，或从文件中恢复。使用 Microsoft、OAuth 或 API 令牌登录的账户和共享账户不在其中。文件为纯文本，其中包含您允许加载图片的发件人。密码永远不会包含在内，因此导入的账户需要重新登录。</string>
     <string name="settings_backup_export">导出设置…</string>
     <string name="settings_backup_import">导入设置…</string>
     <string name="settings_backup_import_k9">从 K-9 或 Thunderbird 导入</string>

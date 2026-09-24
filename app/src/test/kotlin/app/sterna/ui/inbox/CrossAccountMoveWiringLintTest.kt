@@ -107,7 +107,7 @@ class CrossAccountMoveWiringLintTest {
         assertEquals(
             "moveSelectedTo() must hand the STAMPS IT JUST CAPTURED down to the cross-account " +
                 "move — the local `ticked`, not an empty map and not a re-read. Body was:\n$one",
-            listOf("moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId, ticked)"),
+            listOf("moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId, ticked, filing, carried)"),
             codeLinesNaming(one, "moveSelectedToAccount("),
         )
 
@@ -194,7 +194,7 @@ class CrossAccountMoveWiringLintTest {
                 "banner's list derived from that map: a bare list cannot say WHICH line did not " +
                 "move, and the give-back below would be back to guessing by position. Body was:\n$many",
             listOf(
-                "val outcomes = LinkedHashMap<EmailKey, CrossAccountMove>(movable.size)",
+                "val outcomes = LinkedHashMap<EmailKey, CrossAccountMove>(leaving.size)",
                 "outcomes[key] = CrossAccountMove.Failed(\"no cached row for \${key.emailId}\")",
                 "outcomes[key] = CrossAccountMove.Failed(\"renumbered since it was ticked: \${key.emailId}\")",
                 "outcomes[key] = result",
@@ -221,7 +221,7 @@ class CrossAccountMoveWiringLintTest {
                 "val givenBack = crossAccountGiveBack(outcomes, emails.keys)",
                 "if (givenBack.isNotEmpty()) {",
                 "tickedUnder = givenBack.associateWith { ticked[it] }",
-                "_selectedKeys.value = givenBack.toMutableSet()",
+                "writeTicks(handedBack(givenBack, carried))",
             ),
             codeLinesNaming(many, "givenBack"),
         )
@@ -232,7 +232,7 @@ class CrossAccountMoveWiringLintTest {
                 "the only reason the collector cannot slip in and re-read them. Body was:\n$many",
             manyLines,
             "tickedUnder = givenBack.associateWith { ticked[it] }",
-            "_selectedKeys.value = givenBack.toMutableSet()",
+            "writeTicks(handedBack(givenBack, carried))",
         )
         // What is lost without it: the keys are back but the selection bar is not, so there is
         // nothing on screen to act on them with.
@@ -269,12 +269,14 @@ class CrossAccountMoveWiringLintTest {
     }
 
     /**
-     * The loop runs over `movable` entire, the partition on the selection's account is the only
+     * The loop runs over `movable` less what the filing rule spares, its only two filters.
      */
-    @Test fun `the cross-account move loops over the whole movable half`() {
+    @Test fun `the cross-account move loops over the movable half less what the rule spares`() {
         val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
         assertEquals(
-            "the loop must iterate `movable` whole: `for (key in movable) {`. Filtered at the " +
+            "the loop must iterate `movable` less the spared rows: `for (key in leaving) {`. " +
+                "Over `movable` whole, the reply a folded row carried is copied to the other " +
+                "account and destroyed in Sent. Filtered any other way at the " +
                 "head, the rows it skips get NO verdict — absent from `outcomes`, absent from " +
                 "`results`, absent from the give-back — so the banner counts a success it did " +
                 "not have and the lines that stayed on A come back unticked, unnamed, with no " +
@@ -282,10 +284,14 @@ class CrossAccountMoveWiringLintTest {
             listOf(
                 "val (movable, skipped) = keys.partition { it.accountId == ownerAccountId }",
                 "val emails = repo.cachedEmailsByIds(movable).associateBy { it.emailKey() }",
-                "val outcomes = LinkedHashMap<EmailKey, CrossAccountMove>(movable.size)",
-                "for (key in movable) {",
+                "val leaving = movable - spared",
             ),
             codeLinesNaming(many, "movable"),
+        )
+        assertEquals(
+            "one loop, over `leaving`. Body was:\n$many",
+            listOf("for (key in leaving) {"),
+            codeLinesNaming(many, "for ("),
         )
     }
 

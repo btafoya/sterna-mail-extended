@@ -519,6 +519,7 @@ class BulkSelectionWiringTest {
             listOf(
                 "fun archiveSelected() {",
                 "val keys = _selectedKeys.value",
+                "val carried = carriedKeys",
                 "val filing = selectionFilingRule()",
                 "clearSelection()",
                 "viewModelScope.launch {",
@@ -527,6 +528,7 @@ class BulkSelectionWiringTest {
                 "undoLabelRes = R.plurals.status_selection_archived,",
                 "keys = keys,",
                 "moves = filing,",
+                "carried = carried,",
                 ") { c, ids -> repo.archiveAll(c, ids, numbering[c.id].orEmpty()) }",
                 "}",
                 "}",
@@ -666,6 +668,7 @@ class BulkSelectionWiringTest {
                 "attemptedBefore = skipped.size",
                 "failedBefore = skipped.size",
                 "moves = filing",
+                "carried = carried",
             ),
             arguments(call),
         )

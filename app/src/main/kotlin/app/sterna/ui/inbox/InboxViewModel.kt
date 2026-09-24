@@ -826,6 +826,7 @@ class InboxViewModel(
      *  selection would silently cover, and act on, both (issue #31). */
     private val _selectedKeys = MutableStateFlow<Set<EmailKey>>(emptySet())
     val selectedKeys: StateFlow<Set<EmailKey>> = _selectedKeys.asStateFlow()
+    private var carriedKeys: Set<EmailKey> = emptySet()
     private val _selectionActive = MutableStateFlow(false)
     val selectionActive: StateFlow<Boolean> = _selectionActive.asStateFlow()
 
@@ -2222,40 +2223,33 @@ class InboxViewModel(
         // no-op or an error over an id no server knows. See [isLocalDraftRow].
         if (isLocalDraftRow(email.id)) return
         _selectionActive.value = true
-        _selectedKeys.value = setOf(email.emailKey())
+        writeTicks(SelectionTicks(setOf(email.emailKey())))
     }
 
     fun toggleSelect(email: Email) {
         // Same refusal as [enterSelection]: a tap in selection mode must not put one in either.
         if (isLocalDraftRow(email.id)) return
-        val key = email.emailKey()
-        val next = _selectedKeys.value.toMutableSet().apply {
-            if (!add(key)) remove(key)
-        }
-        _selectedKeys.value = next
+        writeTicks(currentTicks().toggledByHand(email.emailKey()))
         // Deselecting the last message leaves selection mode (else swipes hit the drawer).
-        if (next.isEmpty()) _selectionActive.value = false
+        if (_selectedKeys.value.isEmpty()) _selectionActive.value = false
     }
 
-    /** Enter selection mode from a collapsed conversation row: the selection covers every cached
-     *  member of the thread, not just the representative, so the later bulk action treats the row
-     *  the way it reads (one conversation). */
+    /** From a collapsed conversation row: every cached member of the thread, carried with it. */
     fun enterSelectionThread(rep: Email) {
         _selectionActive.value = true
-        _selectedKeys.value = setOf(rep.emailKey())
+        writeTicks(SelectionTicks(setOf(rep.emailKey()), carried = setOf(rep.emailKey())))
         viewModelScope.launch {
-            _selectedKeys.value = _selectedKeys.value + threadMessages(rep).map { it.emailKey() }
+            val members = threadMessages(rep).mapTo(mutableSetOf()) { it.emailKey() }
+            writeTicks(currentTicks().carrying(members))
         }
     }
 
     /** Toggle a collapsed conversation row in/out of the selection, all members at once. */
     fun toggleSelectThread(rep: Email) {
         viewModelScope.launch {
-            val keys = threadMessages(rep).mapTo(mutableSetOf()) { it.emailKey() } + rep.emailKey()
-            val current = _selectedKeys.value
-            val next = if (rep.emailKey() in current) current - keys else current + keys
-            _selectedKeys.value = next
-            if (next.isEmpty()) _selectionActive.value = false
+            val members = threadMessages(rep).mapTo(mutableSetOf()) { it.emailKey() }
+            writeTicks(currentTicks().toggledConversation(rep.emailKey(), members))
+            if (_selectedKeys.value.isEmpty()) _selectionActive.value = false
         }
     }
 
@@ -2272,7 +2266,7 @@ class InboxViewModel(
         val filtered = listFilter(selection.value, filterToggles.value)
         val hidden = localDraftRows.value.replacedServerIds
         viewModelScope.launch {
-            _selectedKeys.value = selectAllKeys(
+            val all = selectAllKeys(
                 searching = search.active,
                 query = search.query,
                 results = search.results?.map { it.emailKey() },
@@ -2280,12 +2274,22 @@ class InboxViewModel(
                 complete = search.complete,
                 folderKeys = selectableKeysMinusHidden(repo.selectableIds(currentScopes(), filtered, settings.conversationView.first()), hidden),
             )
+            // All by hand: a folder read holds only the viewed folders, which no rule spares, nor a search.
+            writeTicks(SelectionTicks(all))
         }
     }
 
     fun clearSelection() {
         _selectionActive.value = false
-        _selectedKeys.value = emptySet()
+        writeTicks(SelectionTicks(emptySet()))
+    }
+
+    private fun currentTicks(): SelectionTicks = SelectionTicks(_selectedKeys.value, carriedKeys)
+
+    /** The one writer of both halves; the origin first, so no collector of the keys reads a stale one. */
+    private fun writeTicks(next: SelectionTicks) {
+        carriedKeys = next.carried
+        _selectedKeys.value = next.keys
     }
 
     /**
@@ -2393,12 +2397,12 @@ class InboxViewModel(
     }
 
     /**
-     * Batched bulk action: group the selection by account, then hand each account's ids to a single
-     * repo call that itself batches per source folder, one `UID MOVE <set>` or one `Email/set`
-     * instead of one command per message (#29). The batches receive the whole selection
-     * ([resolveSelectionTargets]), search-drawn rows included, less what [moves] leaves. [attemptedBefore] and [failedBefore]
-     * are what a caller handled or lost, counted separately: 100 attempts with 1 failure is not a
-     * total failure.
+     * Batched bulk action: group the selection by account, then hand each account's ids to a single repo
+     * call that itself batches per source folder, one `UID MOVE <set>` or one `Email/set` instead of one
+     * command per message (#29). The batches receive the whole selection ([resolveSelectionTargets]),
+     * search-drawn rows included, less what [moves] leaves. [attemptedBefore] and [failedBefore] are what a
+     * caller handled or lost, counted separately: 100 attempts with 1 failure is not a total failure.
+     * No default for [moves] nor [carried]: absent, every key reads as ticked by hand and a carried reply leaves Sent.
      */
     private fun bulkBatched(
         clearAfter: Boolean = true,
@@ -2406,7 +2410,8 @@ class InboxViewModel(
         keys: Set<EmailKey>? = null,
         attemptedBefore: Int = 0,
         failedBefore: Int = 0,
-        moves: ((Email) -> Boolean)? = null,
+        moves: ((Email) -> Boolean)?,
+        carried: Set<EmailKey>,
         batchOp: suspend (AccountCredentials, List<String>) -> MailRepository.BulkResult,
     ) {
         val targetKeys = keys ?: _selectedKeys.value
@@ -2417,7 +2422,7 @@ class InboxViewModel(
                 cached = repo.cachedEmailsByIds(targetKeys),
                 displayed = searchState.value.results,
             )
-            val (targets, spared) = resolved.targets.partition { moves?.invoke(it.email) ?: true }
+            val (targets, spared) = fileSelection(resolved.targets, moves, carried) { it.email }
             val leaving = targetKeys - spared.mapTo(mutableSetOf()) { it.email.emailKey() }
             dropSearchResults(targets.mapTo(mutableSetOf()) { it.email.emailKey() })
             val failedKeys = mutableSetOf<EmailKey>()
@@ -2516,6 +2521,7 @@ class InboxViewModel(
      */
     fun deleteSelected() {
         val keys = _selectedKeys.value
+        val carried = carriedKeys
         // At the tap, ahead of the plan: it asks each server which folder is its Trash, a round trip.
         swipeMask.update { it.posed(keys) }
         viewModelScope.launch {
@@ -2570,6 +2576,8 @@ class InboxViewModel(
                         keys = moving,
                         attemptedBefore = plan.destroy.size + lostBefore,
                         failedBefore = lost,
+                        moves = null,
+                        carried = emptySet(),
                     ) { c, batch -> repo.deleteAll(c, batch, numbering[c.id].orEmpty()) }
                 } else {
                     // Nothing to move: delegating an empty batch just to speak would drop the sync
@@ -2588,7 +2596,7 @@ class InboxViewModel(
                     // now and the second tap destroys what this refusal saved. Nothing suspends here.
                     tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }
                     _selectionActive.value = true
-                    _selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }
+                    writeTicks(handedBack(split.drifted.mapTo(mutableSetOf()) { it.emailKey() }, carried))
                 }
             } finally {
                 swipeMask.update { it.lifted(stillPosed) }
@@ -2605,6 +2613,7 @@ class InboxViewModel(
      *  SYNCHRONOUSLY first, else a second tap fires the whole batch again. */
     fun archiveSelected() {
         val keys = _selectedKeys.value
+        val carried = carriedKeys
         val filing = selectionFilingRule()
         clearSelection()
         viewModelScope.launch {
@@ -2613,6 +2622,7 @@ class InboxViewModel(
                 undoLabelRes = R.plurals.status_selection_archived,
                 keys = keys,
                 moves = filing,
+                carried = carried,
             ) { c, ids -> repo.archiveAll(c, ids, numbering[c.id].orEmpty()) }
         }
     }
@@ -2623,6 +2633,7 @@ class InboxViewModel(
      */
     fun moveSelectedTo(targetMailboxId: String, targetAccountId: String? = null) {
         val keys = _selectedKeys.value
+        val carried = carriedKeys
         val filing = selectionFilingRule()
         viewModelScope.launch {
             // Awaited, not sampled, and first inside the launch, [deleteSelected]'s rule (#99,
@@ -2635,7 +2646,7 @@ class InboxViewModel(
             val moveAccountId = selectionAccount(keys) ?: store.currentId()
             // Into another account's folder (#189): its own path, one message after the other.
             if (isCrossAccountMove(targetAccountId, moveAccountId)) {
-                moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId, ticked)
+                moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId, ticked, filing, carried)
                 return@launch
             }
             val (movable, skipped) = keys.partition { it.accountId == moveAccountId }
@@ -2652,6 +2663,7 @@ class InboxViewModel(
                     attemptedBefore = skipped.size,
                     failedBefore = skipped.size,
                     moves = filing,
+                    carried = carried,
                 ) { c, batch -> repo.moveAllToMailbox(c, batch, targetMailboxId, numbering[c.id].orEmpty()) }
             } else if (skipped.isNotEmpty()) {
                 // Nothing movable: an empty batch would drop the sync cursors and re-query the whole
@@ -2663,8 +2675,8 @@ class InboxViewModel(
 
     /**
      * The selection into a folder of another account (#189), one message after the other through
-     * [MailRepository.moveToAccount]. The partition is [moveSelectedTo]'s. No Undo (see
-     * [moveToAccount]). One banner at the end, chosen by [crossAccountBanner].
+     * [MailRepository.moveToAccount]; the partition and [moves] are [moveSelectedTo]'s. No Undo (see
+     * [moveToAccount]). One banner, by [crossAccountBanner], and none for a batch [moves] spared whole.
      *
      * Whatever wrote nothing on account B comes back ticked, stamps first ([crossAccountGiveBack])
      * that is, every outcome that is neither `Moved` nor `CopiedNotRemoved`, because there is no Undo here.
@@ -2677,6 +2689,8 @@ class InboxViewModel(
         targetAccountId: String,
         targetMailboxId: String,
         ticked: Map<EmailKey, Long?>,
+        moves: ((Email) -> Boolean)?,
+        carried: Set<EmailKey>,
     ) {
         val (movable, skipped) = keys.partition { it.accountId == ownerAccountId }
         // The target is read, and refused, before the selection is touched. Account B can be
@@ -2691,6 +2705,8 @@ class InboxViewModel(
         }
         clearSelection()
         val emails = repo.cachedEmailsByIds(movable).associateBy { it.emailKey() }
+        val spared = fileSelection(emails.values.toList(), moves, carried) { it }.spared.mapTo(mutableSetOf()) { it.emailKey() }
+        val leaving = movable - spared
         // The half that can see a row swapped under a tick (#99). `recordedNumbering` answers what
         // each row about to leave carries now; opposed to the stamp of the tick, a disagreement means
         // the line was replaced since the user pointed at it, and this move would copy it to B with
@@ -2707,8 +2723,8 @@ class InboxViewModel(
         // string and nothing else, so a bare list of verdicts answers how many did not move and
         // never which. The give-back needs the which, and `results[i]` matching `movable[i]` is a
         // positional invariant nobody wrote down.
-        val outcomes = LinkedHashMap<EmailKey, CrossAccountMove>(movable.size)
-        for (key in movable) {
+        val outcomes = LinkedHashMap<EmailKey, CrossAccountMove>(leaving.size)
+        for (key in leaving) {
             val source = credentialsFor(key)
             val email = emails[key]
             if (source == null || email == null) {
@@ -2740,6 +2756,7 @@ class InboxViewModel(
             outcomes[key] = result
         }
         val results = outcomes.values.toList()
+        if (results.isEmpty() && skipped.isEmpty()) return
         // Which line goes with which outcome is crossAccountSelectionPlural's and
         // crossAccountSelectionFailedRes's; only the counts and the labels are built here.
         val outcome = crossAccountBanner(results, skipped.size)
@@ -2773,7 +2790,7 @@ class InboxViewModel(
             // key that stops the collector re-reading, not its value.
             tickedUnder = givenBack.associateWith { ticked[it] }
             _selectionActive.value = true
-            _selectedKeys.value = givenBack.toMutableSet()
+            writeTicks(handedBack(givenBack, carried))
         }
     }
 
@@ -2786,19 +2803,23 @@ class InboxViewModel(
      */
     fun reportSpamSelected() {
         val keys = _selectedKeys.value
+        val carried = carriedKeys
+        val filing = selectionFilingRule()
         clearSelection()
         viewModelScope.launch {
             val numbering = selectionNumbering(keys)
-            bulkBatched(keys = keys) { c, ids -> repo.reportSpamAll(c, ids, numbering[c.id].orEmpty()) }
+            bulkBatched(keys = keys, moves = filing, carried = carried) { c, ids -> repo.reportSpamAll(c, ids, numbering[c.id].orEmpty()) }
         }
     }
 
     fun notSpamSelected() {
         val keys = _selectedKeys.value
+        val carried = carriedKeys
+        val filing = selectionFilingRule()
         clearSelection()
         viewModelScope.launch {
             val numbering = selectionNumbering(keys)
-            bulkBatched(keys = keys) { c, ids -> repo.notSpamAll(c, ids, numbering[c.id].orEmpty()) }
+            bulkBatched(keys = keys, moves = filing, carried = carried) { c, ids -> repo.notSpamAll(c, ids, numbering[c.id].orEmpty()) }
         }
     }
 

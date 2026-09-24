@@ -408,7 +408,7 @@ class HeldBackDestroyCarriesItsFolderTest {
                 "val lost = lostBefore + split.drifted.size",
                 "if (split.drifted.isNotEmpty()) {",
                 "tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }",
-                "_selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }",
+                "writeTicks(handedBack(split.drifted.mapTo(mutableSetOf()) { it.emailKey() }, carried))",
             ),
             codeLinesNaming(body, "split.drifted"),
         )
@@ -417,7 +417,7 @@ class HeldBackDestroyCarriesItsFolderTest {
                 "the only reason the collector cannot slip in and re-read them. Body was:\n$body",
             codeLinesOf(body),
             "tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }",
-            "_selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }",
+            "writeTicks(handedBack(split.drifted.mapTo(mutableSetOf()) { it.emailKey() }, carried))",
         )
         assertEquals(
             "with the selection bar back up — the keys alone leave the screen in a state nothing " +

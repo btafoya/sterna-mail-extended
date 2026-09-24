@@ -1,6 +1,6 @@
 # Privacy
 
-Last updated: 2026-09-23.
+Last updated: 2026-09-24.
 
 **Sterna collects nothing and has no server of its own.** It is free software (GPLv3): no account, no analytics, no ads, no trackers, no crash reporting, no Google services (no Firebase, no FCM, no Play Services), and only free/open-source libraries. Your mail never passes through anything run by the Sterna project.
 
@@ -20,7 +20,7 @@ Everything is removed when you remove the account or uninstall the app, except:
 - A message in the **Outbox** or **Scheduled** is not deleted with its account, because it may be the only copy. Delete it from those screens.
 - Files you save yourself (an attachment, a `.eml`, a PDF) belong to the folder you picked. Sterna never deletes them, even when uninstalled. Attachments and PDFs of encrypted messages are saved decrypted; a `.eml` is saved as it arrived.
 
-Settings → **Backup & restore** writes a file wherever you choose, and reads one back. It is plain JSON, not encrypted, and it holds your preferences, your account setup (server, identities, signatures, folder choices and the like) and the senders you allow to load images. Accounts that sign in with Microsoft or with an API token, and shared accounts, are not part of it. Passwords are not in it, so imported accounts have to be signed in again.
+Settings → **Backup & restore** writes a file wherever you choose, and reads one back. It is plain JSON, not encrypted, and it holds your preferences, your account setup (server, identities, signatures, folder choices and the like) and the senders you allow to load images. Accounts that sign in with Microsoft, with OAuth or with an API token, and shared accounts, are not part of it. Passwords are not in it, so imported accounts have to be signed in again.
 
 ## Network connections
 
