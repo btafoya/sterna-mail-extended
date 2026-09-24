@@ -1,0 +1,5 @@
+Pick which folder is your Archive, Sent, Drafts, Trash and Spam, and set the order of your own folders. New list filters: starred, with attachments. New settings: what the app opens on, and when a message sits beside the list.
+
+Take a photo from the attach menu. Scheduled sends can carry attachments. JMAP search shows the matching passage.
+
+Archiving, moving or reporting spam on a collapsed conversation no longer takes your replies out of Sent.

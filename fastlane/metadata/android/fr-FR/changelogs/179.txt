@@ -1,0 +1,5 @@
+Choisissez le dossier qui sert d'Archives, d'Envoyés, de Brouillons, de Corbeille et d'Indésirables, et l'ordre de vos propres dossiers. Nouveaux filtres de liste : suivis, avec pièces jointes. Nouveaux réglages : l'écran d'ouverture, et quand le message s'affiche à côté de la liste.
+
+Photo depuis le menu de pièce jointe. Envois programmés avec pièces jointes. Recherche JMAP : le passage trouvé.
+
+Archiver, déplacer ou signaler une conversation repliée ne retire plus vos réponses des Envoyés.
