@@ -47,6 +47,7 @@ import app.sterna.core.jmap.model.Mailbox
 import app.sterna.core.jmap.model.SearchQuery
 import app.sterna.send.SendOutbox
 import app.sterna.ui.NotificationFolderSwitch
+import app.sterna.ui.search.CriteriaResults
 import app.sterna.ui.search.SearchDisplay
 import app.sterna.ui.search.excerptsByResultKey
 import app.sterna.ui.search.forQuery
@@ -614,42 +615,17 @@ class InboxViewModel(
     }
 
     // ---- search-results snapshot patching ----
-    // The results are a static snapshot: every removal must be written back into it or the swiped
-    // row stays frozen on screen until search is left.
+    // Static snapshots, the bar's and the advanced search's: every removal goes through [SelectionSources].
+    private val searchRemoved = RemovedRows()
 
-    /** Results removed by an action, with their position, so an Undo can put them back. Doubles as
-     *  a tombstone set: the FTS index outlives evicted/deleted cache rows, so later crawl/server
-     *  merges must not resurrect a row the user just removed. Account-qualified [EmailKey] (#31). */
-    private val searchRemoved = mutableMapOf<EmailKey, IndexedValue<Email>>()
-
-    /** Remove [keys] from the search-results snapshot, stashing them for a possible Undo. */
-    private fun dropSearchResults(keys: Set<EmailKey>) {
-        val results = searchState.value.results ?: return
-        val remaining = ArrayList<Email>(results.size)
-        results.forEachIndexed { index, email ->
-            if (email.emailKey() in keys) searchRemoved[email.emailKey()] = IndexedValue(index, email)
-            else remaining += email
-        }
-        if (remaining.size != results.size) searchState.value = searchState.value.copy(results = remaining)
-    }
+    /** Remove [keys] from the search-results snapshots, stashing them for a possible Undo. */
+    private fun dropSearchResults(keys: Set<EmailKey>) = sources.drop(keys)
 
     /** Undo: put the stashed entries among [keys] back at (best-effort) their original position. */
-    private fun restoreSearchResults(keys: Collection<EmailKey>) {
-        val entries = keys.mapNotNull { searchRemoved.remove(it) }.sortedBy { it.index }
-        if (entries.isEmpty()) return
-        val restored = searchState.value.results?.toMutableList() ?: return
-        entries.forEach { (index, email) -> restored.add(index.coerceAtMost(restored.size), email) }
-        searchState.value = searchState.value.copy(results = restored)
-    }
+    private fun restoreSearchResults(keys: Collection<EmailKey>) = sources.restore(keys)
 
     /** Optimistically rewrite any search-result rows among [keys] (read state, star). */
-    private fun patchSearchResults(keys: Set<EmailKey>, transform: (Email) -> Email) {
-        val results = searchState.value.results ?: return
-        if (results.none { it.emailKey() in keys }) return
-        searchState.value = searchState.value.copy(
-            results = results.map { if (it.emailKey() in keys) transform(it) else it },
-        )
-    }
+    private fun patchSearchResults(keys: Set<EmailKey>, transform: (Email) -> Email) = sources.patch(keys, transform)
 
     /** Re-sync the expanded conversations' members with the cache. The live reading keeps the copy
      *  already drawn, so a change made outside this ViewModel, chiefly the reader marking a child
@@ -831,6 +807,22 @@ class InboxViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private val searchState = MutableStateFlow(SearchUi())
+
+    private val barResults = object : ShownResults {
+        override val rows: List<Email>? get() = searchState.value.results
+        override fun drop(keys: Set<EmailKey>) {
+            searchRemoved.drop(rows, keys)?.let { searchState.value = searchState.value.copy(results = it) }
+        }
+        override fun restore(keys: Collection<EmailKey>) {
+            searchRemoved.restore(rows, keys)?.let { searchState.value = searchState.value.copy(results = it) }
+        }
+        override fun patch(keys: Set<EmailKey>, transform: (Email) -> Email) {
+            patchedRows(rows, keys, transform)?.let { searchState.value = searchState.value.copy(results = it) }
+        }
+    }
+
+    /** Above [selectionActive], whose initializer reads it. */
+    private val sources = SelectionSources(barResults)
     private var searchJob: Job? = null
 
     /** Seeds the local full-text index from cache when a search opens; the first query joins it. */
@@ -849,7 +841,14 @@ class InboxViewModel(
     val selectedKeys: StateFlow<Set<EmailKey>> = _selectedKeys.asStateFlow()
     private var carriedKeys: Set<EmailKey> = emptySet()
     private val _selectionActive = MutableStateFlow(false)
-    val selectionActive: StateFlow<Boolean> = _selectionActive.asStateFlow()
+
+    val selectionActive: StateFlow<Boolean> =
+        combine(_selectionActive, sources.origin) { active, origin -> selectionShownOn(active, origin, SelectionOrigin.LIST) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val shownSelectionActive: StateFlow<Boolean> =
+        combine(_selectionActive, sources.origin) { active, origin -> selectionShownOn(active, origin, SelectionOrigin.CRITERIA) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /**
      * The IMAP numbering the row of each selected key carried at the moment of the tick (#99): an
@@ -2326,6 +2325,28 @@ class InboxViewModel(
         }
     }
 
+    /** Idempotent: a rotation re-attaches the same instance. */
+    fun attachShownResults(results: CriteriaResults) {
+        sources.attach(results)
+        results.whenGone {
+            if (sources.detach(results)) clearSelection()
+        }
+    }
+
+    /** A long press on an advanced search result. The origin first: the keys' collectors read it. */
+    fun enterShownSelection(email: Email) {
+        if (isLocalDraftRow(email.id)) return
+        sources.startOn(SelectionOrigin.CRITERIA)
+        enterSelection(email)
+    }
+
+    fun selectAllShown() {
+        sources.startOn(SelectionOrigin.CRITERIA)
+        _selectionActive.value = true
+        val all = sources.shownKeys()
+        writeTicks(SelectionTicks(all))
+    }
+
     fun clearSelection() {
         _selectionActive.value = false
         writeTicks(SelectionTicks(emptySet()))
@@ -2386,7 +2407,7 @@ class InboxViewModel(
             val resolved = resolveSelectionTargets(
                 keys = keys,
                 cached = repo.cachedEmailsByIds(keys),
-                displayed = searchState.value.results,
+                displayed = sources.displayed(),
             )
             // A message with no local row cannot be snoozed: SnoozeWorker looks it up in that table
             // at the due date. Refused rather than half-written, see [planSelectionSnooze].
@@ -2400,16 +2421,19 @@ class InboxViewModel(
             // The mask lasts the batch and no longer: the op here is a snooze, which removes nothing
             // but a date, so a mask left standing keeps the message off screen past the due date.
             hidingThreadMembers(keys) {
-                plan.snooze.forEach { target ->
-                    val email = target.email
-                    val credentials = credentialsFor(email)
-                    if (credentials == null) { failed++; return@forEach }
-                    runCatching { op(credentials, email.id) }
-                        .onSuccess { undoCandidates += UndoCandidate(target, null) }
-                        .onFailure {
-                            failed++
-                            android.util.Log.w("SternaBulk", "bulk op failed for ${email.id}", it)
-                        }
+                sources.writingOut(plan.snooze.mapTo(mutableSetOf()) { it.email.emailKey() }) {
+                    plan.snooze.forEach { target ->
+                        val email = target.email
+                        val credentials = credentialsFor(email)
+                        if (credentials == null) { failed++; return@forEach }
+                        runCatching { op(credentials, email.id) }
+                            .onSuccess { undoCandidates += UndoCandidate(target, null) }
+                            .onFailure {
+                                failed++
+                                android.util.Log.w("SternaBulk", "bulk op failed for ${email.id}", it)
+                            }
+                    }
+                    undoCandidates.map { it.target.email.emailKey() }
                 }
             }
             // A large selection can empty the whole loaded window, and an incremental refresh
@@ -2467,7 +2491,7 @@ class InboxViewModel(
             val resolved = resolveSelectionTargets(
                 keys = targetKeys,
                 cached = repo.cachedEmailsByIds(targetKeys),
-                displayed = searchState.value.results,
+                displayed = sources.displayed(),
             )
             val (targets, spared) = fileSelection(resolved.targets, moves, carried) { it.email }
             val leaving = targetKeys - spared.mapTo(mutableSetOf()) { it.email.emailKey() }
@@ -2569,6 +2593,7 @@ class InboxViewModel(
     fun deleteSelected() {
         val keys = _selectedKeys.value
         val carried = carriedKeys
+        val seat = sources.seat()
         // At the tap, ahead of the plan: it asks each server which folder is its Trash, a round trip.
         swipeMask.update { it.posed(keys) }
         viewModelScope.launch {
@@ -2585,7 +2610,7 @@ class InboxViewModel(
                 val resolved = resolveSelectionTargets(
                     keys = keys,
                     cached = repo.cachedEmailsByIds(keys),
-                    displayed = searchState.value.results,
+                    displayed = sources.displayed(),
                 )
                 val plan = planSelectionDelete(
                     targets = resolved.targets,
@@ -2637,7 +2662,7 @@ class InboxViewModel(
                 }
                 // Last, after the branch above: `bulkBatched` calls clearSelection() synchronously, so
                 // a re-selection written earlier would be wiped. What was refused goes back, still ticked.
-                if (split.drifted.isNotEmpty()) {
+                if (split.drifted.isNotEmpty() && sources.stillOn(seat)) {
                     // The stamps go back first, and they are the stamps of the tick. The collector
                     // only reads keys it does not know, so keys handed back bare are read as they are
                     // now and the second tap destroys what this refusal saved. Nothing suspends here.
@@ -2651,7 +2676,7 @@ class InboxViewModel(
         }
     }
     private fun selectionFilingRule(): (Email) -> Boolean {
-        if (searchState.value.results != null) return { true }
+        if (sources.displayed() != null) return { true }
         return listScope.value::movesWithConversation
     }
 
@@ -2681,6 +2706,7 @@ class InboxViewModel(
     fun moveSelectedTo(targetMailboxId: String, targetAccountId: String? = null) {
         val keys = _selectedKeys.value
         val carried = carriedKeys
+        val seat = sources.seat()
         val filing = selectionFilingRule()
         viewModelScope.launch {
             // Awaited, not sampled, and first inside the launch, [deleteSelected]'s rule (#99,
@@ -2693,7 +2719,7 @@ class InboxViewModel(
             val moveAccountId = selectionAccount(keys) ?: store.currentId()
             // Into another account's folder (#189): its own path, one message after the other.
             if (isCrossAccountMove(targetAccountId, moveAccountId)) {
-                moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId, ticked, filing, carried)
+                moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId, ticked, filing, carried, seat)
                 return@launch
             }
             val (movable, skipped) = keys.partition { it.accountId == moveAccountId }
@@ -2738,6 +2764,7 @@ class InboxViewModel(
         ticked: Map<EmailKey, Long?>,
         moves: ((Email) -> Boolean)?,
         carried: Set<EmailKey>,
+        seat: SelectionSeat,
     ) {
         val (movable, skipped) = keys.partition { it.accountId == ownerAccountId }
         // The target is read, and refused, before the selection is touched. Account B can be
@@ -2829,7 +2856,7 @@ class InboxViewModel(
         // And it is indexed on the outcome, not on a class of refusal ([crossAccountGiveBack]):
         // keyed on `split.drifted` it was empty by construction for the refusal raised at the read.
         val givenBack = crossAccountGiveBack(outcomes, emails.keys)
-        if (givenBack.isNotEmpty()) {
+        if (givenBack.isNotEmpty() && sources.stillOn(seat)) {
             // The stamps go back first, and they are the stamps of the tick. The collector on
             // _selectedKeys only reads keys it does not already know, so keys handed back without
             // their stamps get read as they are now and the second tap sends what this refusal just
@@ -3061,7 +3088,7 @@ class InboxViewModel(
             val resolved = resolveSelectionTargets(
                 keys = keys,
                 cached = repo.cachedEmailsByIds(keys),
-                displayed = searchState.value.results,
+                displayed = sources.displayed(),
             )
             val emails = resolved.targets.map { it.email }
             val targetSeen = !emails.all { it.isSeen }
@@ -3097,7 +3124,7 @@ class InboxViewModel(
         val targets = resolveSelectionTargets(
             keys = keys,
             cached = repo.cachedEmailsByIds(keys),
-            displayed = searchState.value.results,
+            displayed = sources.displayed(),
         ).targets
         _selectionAllRead.value = targets.isNotEmpty() && targets.all { it.email.isSeen }
     }

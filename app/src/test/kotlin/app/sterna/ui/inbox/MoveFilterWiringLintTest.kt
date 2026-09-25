@@ -15,18 +15,18 @@ class MoveFilterWiringLintTest {
             "the list picker no longer filters what it draws — the field would type and the list " +
                 "would not move, which is #182 handed straight back.",
             listOf("val shownMoveRows = filterFolderRows(moveRows, moveQuery)"),
-            block(INBOX_SCREEN, "val shownMoveRows =", 1),
+            block(MOVE_DIALOG, "val shownMoveRows =", 1),
         )
         assertEquals(
             "the list picker must iterate the FILTERED rows.",
             listOf("shownMoveRows.forEach { row ->"),
-            block(INBOX_SCREEN, "shownMoveRows.forEach", 1),
+            block(MOVE_DIALOG, "shownMoveRows.forEach", 1),
         )
         assertEquals(
             "the tapped row must move the selection into ITS OWN folder. Anything indexed — a " +
                 "rank in either list — files mail into a folder nobody pointed at.",
             listOf("viewModel.moveSelectedTo(row.folder.id, moveAccountId)"),
-            block(INBOX_SCREEN, "viewModel.moveSelectedTo(row.folder.id", 1),
+            block(MOVE_DIALOG, "viewModel.moveSelectedTo(row.folder.id", 1),
         )
     }
 
@@ -63,15 +63,30 @@ class MoveFilterWiringLintTest {
             "the list picker's query must be remembered inside `if (showMoveSheet)`. Hoisted to " +
                 "the screen it outlives the dialog, which reopens already filtered.",
             listOf("var moveQuery by remember { mutableStateOf(\"\") }"),
-            block(INBOX_SCREEN, "var moveQuery by", 1),
+            block(MOVE_DIALOG, "var moveQuery by", 1),
         )
         assertEquals(
             "the reader's query must be remembered inside `if (movePicker)`.",
             listOf("var folderQuery by remember { mutableStateOf(\"\") }"),
             block(MESSAGE_SCREEN, "var folderQuery by", 1),
         )
-        // Held inside the `if` means: declared after the line that opens it, and before the dialog.
-        assertEquals("the list picker's query is declared outside `if (showMoveSheet)`", 1, opensBefore(INBOX_SCREEN, "if (showMoveSheet) {", "var moveQuery by"))
+        // One picker for two screens: the query lives in it, and each screen opens it under its own `if`.
+        for ((screen, call) in listOf(
+            INBOX_SCREEN to "SelectionMoveDialog(viewModel, accounts, selectedKeys, currentMailboxId = ui.selectedMailboxId, onDismiss = { showMoveSheet = false })",
+            SEARCH_SCREEN to "SelectionMoveDialog(inbox, accounts, selectedKeys, currentMailboxId = null, onDismiss = { showMoveSheet = false })",
+        )) {
+            assertEquals(
+                "${screen.name} must compose the list picker only while its sheet is open, and hold no query of its own.",
+                listOf("if (showMoveSheet) {", call),
+                block(screen, "if (showMoveSheet) {", 2),
+            )
+            assertEquals("${screen.name} holds a picker query of its own", 0, codeLines(screen).count { it.startsWith("var moveQuery") })
+        }
+        assertEquals(
+            "the list picker's query must be the first thing its composable holds",
+            1,
+            opensBefore(MOVE_DIALOG, "internal fun SelectionMoveDialog(", "var moveQuery by"),
+        )
         assertEquals("the reader's query is declared outside `if (movePicker)`", 1, opensBefore(MESSAGE_SCREEN, "if (movePicker) {", "var folderQuery by"))
     }
 
@@ -81,7 +96,7 @@ class MoveFilterWiringLintTest {
                 "query alone it never shows; on the rows alone it claims a failed search in a " +
                 "picker that simply has nothing to offer.",
             listOf("if (shownMoveRows.isEmpty() && moveQuery.isNotEmpty()) {"),
-            block(INBOX_SCREEN, "if (shownMoveRows.isEmpty()", 1),
+            block(MOVE_DIALOG, "if (shownMoveRows.isEmpty()", 1),
         )
         assertEquals(
             "the reader's empty line must need both halves too.",
@@ -96,7 +111,7 @@ class MoveFilterWiringLintTest {
                 "filtered list makes the number of composable calls in the loop depend on what " +
                 "has been typed, and the paths are memoized per target, by position.",
             listOf("for ((folder, path) in targets.zip(movePaths)) {"),
-            block(INBOX_SCREEN, "for ((folder, path) in", 1),
+            block(MOVE_DIALOG, "for ((folder, path) in", 1),
         )
         assertEquals(
             "the reader's picker must paint every offered row and filter afterwards.",
@@ -158,6 +173,8 @@ class MoveFilterWiringLintTest {
         }
 
         val INBOX_SCREEN: File by lazy { File(root, INBOX_SCREEN_PATH) }
+        val MOVE_DIALOG: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/inbox/SelectionMoveDialog.kt") }
+        val SEARCH_SCREEN: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/search/SearchScreen.kt") }
         val MESSAGE_SCREEN: File by lazy {
             File(root, "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt")
         }

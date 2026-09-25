@@ -263,18 +263,6 @@ fun InboxScreen(
     val selectionActive by viewModel.selectionActive.collectAsStateWithLifecycle()
     val selectedKeys by viewModel.selectedKeys.collectAsStateWithLifecycle()
     val selectionAllRead by viewModel.selectionAllRead.collectAsStateWithLifecycle()
-    // Folders the move-to-folder picker offers: the selected message's account's, not the active
-    // account's (#73). Empty until something is selected.
-    val moveTargetMailboxes by viewModel.selectionMailboxes.collectAsStateWithLifecycle()
-    // …and whether that account hides its unsubscribed folders (#174). Read next to the list, not
-    // folded into it: moveTargets needs the whole list for the parent paths it shows (#109).
-    val moveTargetsOnlySubscribed by viewModel.selectionOnlySubscribed.collectAsStateWithLifecycle()
-    val moveTargetsHiding by viewModel.selectionHiding.collectAsStateWithLifecycle()
-    val moveTargetsOrder by viewModel.selectionFolderOrder.collectAsStateWithLifecycle()
-    // The picker's account row (#189): the account the selection belongs to, and the one chosen
-    // on the row, if any, both live in the ViewModel so the choice survives a rotation.
-    val moveOwnerAccountId by viewModel.moveOwnerAccountId.collectAsStateWithLifecycle()
-    val moveAccountId by viewModel.moveAccountId.collectAsStateWithLifecycle()
     // Inline conversation expansion: which threads are unfolded, and their lazily-loaded members.
     val expandedThreads by viewModel.expandedThreads.collectAsStateWithLifecycle()
     val threadMembers by viewModel.threadMembers.collectAsStateWithLifecycle()
@@ -372,130 +360,7 @@ fun InboxScreen(
     // Move-to-folder picker for the current selection. The offered folders (and their order)
     // come from [moveTargets], shared with the reader's own picker (#73).
     if (showMoveSheet) {
-        // The filter field's text (#182). Held inside the `if`, so leaving the dialog drops the
-        // composition group and the field comes back empty next time.
-        var moveQuery by remember { mutableStateOf("") }
-        // The folder on screen is left out of the list only while the list is the selection's own
-        // account's: listing another account's, its id names nothing there, or a homonym (#92).
-        val moveExcludedMailbox = pickerExcludedMailbox(moveAccountId, moveOwnerAccountId, ui.selectedMailboxId)
-        val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding, moveTargetsOrder) {
-            moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId, moveTargetsOrder)
-        }
-        // Nested folders sharing a leaf are one and the same row without their parent path (#109).
-        // Resolved against the whole folder list, not the offered subset. Memoized like [targets]:
-        // the filter field re-runs this block on every keystroke (#182).
-        val movePaths = remember(targets, moveTargetMailboxes) {
-            targets.map { folder -> mailboxPathLabel(folder, moveTargetMailboxes) }
-        }
-        // Painted over the whole offered list and never over the filtered one: what the filter
-        // compares is what the row shows, and the rows painted must not depend on what was typed.
-        val moveRows = ArrayList<FolderPickerRow>(targets.size)
-        for ((folder, path) in targets.zip(movePaths)) {
-            moveRows += FolderPickerRow(folder, mailboxDisplayName(folder.role, folder.name), path)
-        }
-        val shownMoveRows = filterFolderRows(moveRows, moveQuery)
-        AlertDialog(
-            onDismissRequest = { showMoveSheet = false; viewModel.chooseMoveAccount(null) },
-            title = { Text(stringResource(R.string.inbox_move_to_folder)) },
-            text = {
-                Column {
-                    // The account whose folders are listed, and the way to list another's (#189).
-                    // Not drawn at all when the selection spans accounts, where the move only takes
-                    // the owner's messages (selectionPickerAccounts).
-                    MoveAccountRow(selectionPickerAccounts(accounts, selectedKeys), moveOwnerAccountId, moveAccountId, viewModel::chooseMoveAccount)
-                    // The filter field (#182), outside the scroller so it stays put while the list
-                    // moves under it. Deliberately without a FocusRequester and without an IME
-                    // "search" action: it filters what is on screen, it asks the server nothing.
-                    Box(Modifier.fillMaxWidth()) {
-                        if (moveQuery.isEmpty()) {
-                            Text(
-                                stringResource(R.string.inbox_filter_folders),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                // Bounded, like the search bar this shape is copied from: a Box is
-                                // as tall as its tallest child, so an unbounded hint at a large font
-                                // scale would steal that height from the list underneath.
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .align(Alignment.CenterStart)
-                                    .padding(horizontal = 16.dp),
-                            )
-                        }
-                        TextField(
-                            value = moveQuery,
-                            onValueChange = { moveQuery = it },
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                            ),
-                            trailingIcon = {
-                                if (moveQuery.isNotEmpty()) {
-                                    IconButton(onClick = { moveQuery = "" }) {
-                                        Icon(
-                                            Icons.Filled.Close,
-                                            contentDescription = stringResource(R.string.inbox_clear),
-                                        )
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    // `weight(1f, fill = false)` on the scroller and nothing on the field: in a
-                    // Column the unweighted child is measured first, so the field keeps its height
-                    // and it is the list that gives way.
-                    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
-                        if (shownMoveRows.isEmpty() && moveQuery.isNotEmpty()) {
-                            Text(
-                                text = stringResource(R.string.inbox_no_folder_matches),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 12.dp),
-                            )
-                        }
-                        shownMoveRows.forEach { row ->
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        // The row's own folder, never a rank in the filtered list.
-                                        viewModel.moveSelectedTo(row.folder.id, moveAccountId)
-                                        showMoveSheet = false
-                                        viewModel.chooseMoveAccount(null)
-                                    }
-                                    .semantics(mergeDescendants = true) { role = Role.Button }
-                                    .padding(vertical = 12.dp),
-                            ) {
-                                Text(
-                                    text = row.name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                )
-                                if (row.path != null) {
-                                    Text(
-                                        text = row.path,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        // Two lines, not one: a single line elides at the end, in
-                                        // dp, after the path was already trimmed by character count,
-                                        // eating the nearest parent at a large font size.
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showMoveSheet = false; viewModel.chooseMoveAccount(null) }) { Text(stringResource(R.string.inbox_cancel)) }
-            },
-        )
+        SelectionMoveDialog(viewModel, accounts, selectedKeys, currentMailboxId = ui.selectedMailboxId, onDismiss = { showMoveSheet = false })
     }
 
     // Create folder.
@@ -820,121 +685,18 @@ fun InboxScreen(
             snackbarHost = { SnackbarHost(snackbarHostState, Modifier.imePadding()) },
             topBar = {
                 if (selectionActive) {
-                    TopAppBar(
-                        navigationIcon = {
-                            IconButton(onClick = { viewModel.clearSelection() }) {
-                                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.inbox_cancel_selection))
-                            }
-                        },
-                        title = {
-                            // A check + the count: compact and language-proof. The full localized
-                            // label is kept for screen readers.
-                            val countLabel = stringResource(R.string.inbox_selected_count, selectedKeys.size)
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clearAndSetSemantics { contentDescription = countLabel },
-                            ) {
-                                Icon(
-                                    Icons.Filled.CheckCircle,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(22.dp),
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(selectedKeys.size.toString(), maxLines = 1)
-                            }
-                        },
-                        actions = {
-                            // Toggle read/unread, keeping the selection (only the state changes).
-                            IconButton(onClick = { viewModel.toggleSelectedRead() }) {
-                                Icon(
-                                    if (selectionAllRead) Icons.Filled.MarkEmailUnread else Icons.Filled.DoneAll,
-                                    contentDescription = stringResource(if (selectionAllRead) R.string.inbox_mark_unread else R.string.inbox_mark_read),
-                                )
-                            }
-                            val currentRole = ui.mailboxes.firstOrNull { it.id == ui.selectedMailboxId }?.role
-                            if (currentRole == "archive" || currentRole == "all") {
-                                val inboxId = ui.mailboxes.firstOrNull { it.role == "inbox" }?.id
-                                IconButton(
-                                    onClick = { inboxId?.let { viewModel.moveSelectedTo(it) } },
-                                    enabled = inboxId != null,
-                                ) {
-                                    Icon(Icons.Filled.Unarchive, contentDescription = stringResource(R.string.inbox_unarchive))
-                                }
-                            } else {
-                                IconButton(onClick = { viewModel.archiveSelected() }) {
-                                    Icon(Icons.Filled.Archive, contentDescription = stringResource(R.string.inbox_archive))
-                                }
-                            }
-                            IconButton(onClick = { showMoveSheet = true }) {
-                                Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = stringResource(R.string.inbox_move_to_folder))
-                            }
-                            IconButton(onClick = { viewModel.deleteSelected() }) {
-                                // In Trash the button destroys, not moves-to-Trash, so a Trash-can
-                                // icon is misleading (#23). The selection bar acts on many rows and
-                                // has no single row to be judged by, so it keeps the view's role.
-                                val trash = isTrashContext(visibleFolderRole(ui))
-                                Icon(
-                                    if (trash) Icons.Filled.DeleteForever else Icons.Filled.Delete,
-                                    contentDescription = stringResource(if (trash) R.string.inbox_delete_forever else R.string.inbox_delete),
-                                )
-                            }
-                            // Overflow: snooze + report/not-spam for the whole selection.
-                            var selMenu by remember { mutableStateOf(false) }
-                            var selSnooze by remember { mutableStateOf(false) }
-                            val selContext = LocalContext.current
-                            // Boxed with its button for the anchoring reason spelled out on the
-                            // browse-bar overflow menu (#74). This one swaps its whole content for
-                            // the snooze presets, so unboxed it could jump sideways while open.
-                            Box {
-                                IconButton(onClick = { selMenu = true }) {
-                                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))
-                                }
-                                DropdownMenu(
-                                    expanded = selMenu,
-                                    onDismissRequest = { selMenu = false; selSnooze = false },
-                                    shape = MaterialTheme.shapes.medium,
-                                ) {
-                                    if (selSnooze) {
-                                        snoozePresets(selContext).forEach { (label, until) ->
-                                            DropdownMenuItem(
-                                                text = { Text(label) },
-                                                onClick = { selMenu = false; selSnooze = false; viewModel.snoozeSelected(until) },
-                                            )
-                                        }
-                                    } else {
-                                        val inJunk = currentRole == "junk"
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.inbox_select_all)) },
-                                            leadingIcon = { Icon(Icons.Filled.Checklist, contentDescription = null) },
-                                            onClick = { selMenu = false; viewModel.selectAll() },
-                                        )
-                                        // Spam-reporting acts on incoming mail; in Drafts and Sent
-                                        // the selection is the user's own, so it is not offered (#82).
-                                        if (!isOutgoingFolder(currentRole)) {
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(stringResource(if (inJunk) R.string.message_not_spam else R.string.message_report_spam))
-                                                },
-                                                leadingIcon = { Icon(Icons.Filled.Report, contentDescription = null) },
-                                                onClick = {
-                                                    selMenu = false
-                                                    if (inJunk) viewModel.notSpamSelected() else viewModel.reportSpamSelected()
-                                                },
-                                            )
-                                        }
-                                        // Snoozing is a promise to come back to a message, so it is
-                                        // also gone in Spam and in the Trash (#82).
-                                        if (canSnoozeIn(currentRole)) {
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.message_snooze)) },
-                                                leadingIcon = { Icon(Icons.Filled.Schedule, contentDescription = null) },
-                                                onClick = { selSnooze = true },
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        },
+                    // The bar acts on many rows and has no single row to be judged by, so it
+                    // keeps the view's role.
+                    val trash = isTrashContext(visibleFolderRole(ui))
+                    SelectionTopBar(
+                        viewModel = viewModel,
+                        count = selectedKeys.size,
+                        selectionAllRead = selectionAllRead,
+                        currentRole = ui.mailboxes.firstOrNull { it.id == ui.selectedMailboxId }?.role,
+                        inboxId = ui.mailboxes.firstOrNull { it.role == "inbox" }?.id,
+                        trash = trash,
+                        onMove = { showMoveSheet = true },
+                        onSelectAll = { viewModel.selectAll() },
                     )
                 } else if (ui.searching) {
                     val focusRequester = remember { FocusRequester() }

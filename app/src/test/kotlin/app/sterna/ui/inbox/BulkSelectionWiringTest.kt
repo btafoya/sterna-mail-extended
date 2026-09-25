@@ -20,7 +20,7 @@ class BulkSelectionWiringTest {
     private fun expectedArguments(keys: String) = listOf(
         "keys = $keys",
         "cached = repo.cachedEmailsByIds($keys)",
-        "displayed = searchState.value.results",
+        "displayed = sources.displayed()",
     )
 
     @Test fun `the snooze path resolves every selected key`() {
@@ -117,6 +117,7 @@ class BulkSelectionWiringTest {
             listOf(
                 "val plan = planSelectionSnooze(resolved.targets)",
                 "var failed = resolved.unresolved.size + plan.refused.size",
+                "sources.writingOut(plan.snooze.mapTo(mutableSetOf()) { it.email.emailKey() }) {",
                 "plan.snooze.forEach { target ->",
             ),
             codeLinesNaming(body, "plan"),

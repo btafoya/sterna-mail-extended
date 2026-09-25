@@ -403,10 +403,12 @@ class HeldBackDestroyCarriesItsFolderTest {
                 "TICKED UNDER — and the stamps first. Given back without them, the collector sees " +
                 "keys it has never met, reads their numbering as it is NOW, and the second tap on " +
                 "Delete destroys exactly what the first one refused: the fix would buy one tap. " +
+                "And only on the screen the gesture was tapped on, still attached (stillOn): " +
+                "handed back anywhere else, it is a selection nobody sees ticked. " +
                 "Body was:\n$body",
             listOf(
                 "val lost = lostBefore + split.drifted.size",
-                "if (split.drifted.isNotEmpty()) {",
+                "if (split.drifted.isNotEmpty() && sources.stillOn(seat)) {",
                 "tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }",
                 "writeTicks(handedBack(split.drifted.mapTo(mutableSetOf()) { it.emailKey() }, carried))",
             ),
@@ -429,7 +431,7 @@ class HeldBackDestroyCarriesItsFolderTest {
             "⛔ and AFTER the delegation, never before: bulkBatched calls clearSelection() " +
                 "synchronously at the call, so a re-selection written earlier is wiped by the very " +
                 "line that follows it. Body was:\n$body",
-            codeLinesOf(body), "bulkBatched(", "if (split.drifted.isNotEmpty()) {",
+            codeLinesOf(body), "bulkBatched(", "if (split.drifted.isNotEmpty() && sources.stillOn(seat)) {",
         )
     }
 

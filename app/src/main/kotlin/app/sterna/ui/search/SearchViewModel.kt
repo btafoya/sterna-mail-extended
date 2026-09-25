@@ -89,6 +89,8 @@ class SearchViewModel(
     private val _state = MutableStateFlow<SearchState>(SearchState.Idle)
     val state = _state.asStateFlow()
 
+    val shown = CriteriaResults(_state, this)
+
     /** Accounts, for the result rows' account pill (shown only when there is more than one). */
     val accounts: StateFlow<List<StoredAccount>> = store.accountsFlow
 

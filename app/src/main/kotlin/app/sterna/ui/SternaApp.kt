@@ -646,6 +646,8 @@ private fun MainNavHost(
                 navArgument("from") { type = NavType.StringType; nullable = true; defaultValue = null },
             ),
         ) { entry ->
+            val inboxEntry = remember(entry) { nav.getBackStackEntry("inbox") }
+            val inboxViewModel: InboxViewModel = viewModel(inboxEntry)
             SearchScreen(
                 onBack = { entry.navigateOnce { nav.popBackStack() } },
                 onOpenEmail = { id, accountId ->
@@ -658,6 +660,7 @@ private fun MainNavHost(
                         nav.navigate("compose?draftId=${Uri.encode(id)}&accountId=${Uri.encode(accountId.orEmpty())}")
                     }
                 },
+                inbox = inboxViewModel,
             )
         }
         composable(

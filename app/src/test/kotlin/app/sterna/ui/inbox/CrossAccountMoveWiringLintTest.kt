@@ -107,7 +107,7 @@ class CrossAccountMoveWiringLintTest {
         assertEquals(
             "moveSelectedTo() must hand the STAMPS IT JUST CAPTURED down to the cross-account " +
                 "move — the local `ticked`, not an empty map and not a re-read. Body was:\n$one",
-            listOf("moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId, ticked, filing, carried)"),
+            listOf("moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId, ticked, filing, carried, seat)"),
             codeLinesNaming(one, "moveSelectedToAccount("),
         )
 
@@ -216,10 +216,11 @@ class CrossAccountMoveWiringLintTest {
         // entry per key whatever `ticked[it]` holds. Filtered on a non-null stamp instead, a row
         assertEquals(
             "what did not move must go back into the selection, still ticked, WITH THE STAMPS IT " +
-                "WAS TICKED UNDER — one entry per key, a null stamp included. Body was:\n$many",
+                "WAS TICKED UNDER — one entry per key, a null stamp included. And only on the screen the gesture was tapped on, " +
+                "still attached (stillOn). Body was:\n$many",
             listOf(
                 "val givenBack = crossAccountGiveBack(outcomes, emails.keys)",
-                "if (givenBack.isNotEmpty()) {",
+                "if (givenBack.isNotEmpty() && sources.stillOn(seat)) {",
                 "tickedUnder = givenBack.associateWith { ticked[it] }",
                 "writeTicks(handedBack(givenBack, carried))",
             ),
@@ -359,19 +360,19 @@ class CrossAccountMoveWiringLintTest {
         assertEquals(
             "the list's excluded folder must be pickerExcludedMailbox's.",
             listOf(
-                "val moveExcludedMailbox = pickerExcludedMailbox(moveAccountId, moveOwnerAccountId, ui.selectedMailboxId)",
+                "val moveExcludedMailbox = pickerExcludedMailbox(moveAccountId, moveOwnerAccountId, currentMailboxId)",
                 "val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding, moveTargetsOrder) {",
                 "moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId, moveTargetsOrder)",
             ),
-            block(INBOX_SCREEN, "val moveExcludedMailbox =", 3),
+            block(MOVE_DIALOG, "val moveExcludedMailbox =", 3),
         )
     }
 
     @Test fun `each picker puts its account choice back when it closes`() {
         assertEquals(
             "the list's picker must reset the account choice on dismiss.",
-            listOf("onDismissRequest = { showMoveSheet = false; viewModel.chooseMoveAccount(null) },"),
-            block(INBOX_SCREEN, "onDismissRequest = { showMoveSheet", 1),
+            listOf("onDismissRequest = { onDismiss(); viewModel.chooseMoveAccount(null) },"),
+            block(MOVE_DIALOG, "onDismissRequest = { onDismiss()", 1),
         )
         assertEquals(
             "the reader's picker must reset the account choice on dismiss.",
@@ -382,10 +383,10 @@ class CrossAccountMoveWiringLintTest {
             "the list's tap must hand the chosen account to the move, then close, then reset.",
             listOf(
                 "viewModel.moveSelectedTo(row.folder.id, moveAccountId)",
-                "showMoveSheet = false",
+                "onDismiss()",
                 "viewModel.chooseMoveAccount(null)",
             ),
-            block(INBOX_SCREEN, "viewModel.moveSelectedTo(row.folder.id", 3),
+            block(MOVE_DIALOG, "viewModel.moveSelectedTo(row.folder.id", 3),
         )
         assertEquals(
             "the reader's move must reach the inbox ViewModel with the chosen account.",
@@ -437,7 +438,7 @@ class CrossAccountMoveWiringLintTest {
                 "never the raw account list: on a selection spanning accounts the row would offer " +
                 "'B › Archive' while the move skips everything that is not the owner's (spec.md § 1).",
             listOf("MoveAccountRow(selectionPickerAccounts(accounts, selectedKeys), moveOwnerAccountId, moveAccountId, viewModel::chooseMoveAccount)"),
-            block(INBOX_SCREEN, "MoveAccountRow(", 1),
+            block(MOVE_DIALOG, "MoveAccountRow(", 1),
         )
         assertEquals(
             "the reader's picker must keep the plain account list: it opens on ONE message, its " +
@@ -693,6 +694,7 @@ class CrossAccountMoveWiringLintTest {
         val INBOX_VIEW_MODEL: File by lazy { File(root, INBOX_VIEW_MODEL_PATH) }
         val MESSAGE_VIEW_MODEL: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/message/MessageViewModel.kt") }
         val INBOX_SCREEN: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/inbox/InboxScreen.kt") }
+        val MOVE_DIALOG: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/inbox/SelectionMoveDialog.kt") }
         val MOVE_ACCOUNT_ROW: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/inbox/MoveAccountRow.kt") }
         val MESSAGE_SCREEN: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/message/MessageScreen.kt") }
         val STERNA_APP: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/SternaApp.kt") }

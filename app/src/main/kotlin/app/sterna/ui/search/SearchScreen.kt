@@ -1,6 +1,7 @@
 package app.sterna.ui.search
 
 import androidx.annotation.StringRes
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -38,6 +39,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -85,8 +90,12 @@ import app.sterna.ui.components.EmptyArt
 import app.sterna.ui.components.EmptyState
 import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.accountColorOf
+import app.sterna.core.data.mail.emailKey
+import app.sterna.ui.inbox.InboxViewModel
 import app.sterna.ui.inbox.RowTap
-import app.sterna.ui.inbox.searchHitTapAction
+import app.sterna.ui.inbox.SelectionMoveDialog
+import app.sterna.ui.inbox.SelectionTopBar
+import app.sterna.ui.inbox.isLocalDraftRow
 import app.sterna.ui.messageFolderRole
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -98,9 +107,20 @@ fun SearchScreen(
     onBack: () -> Unit,
     onOpenEmail: (id: String, accountId: String?) -> Unit,
     onEditDraft: (id: String, accountId: String?) -> Unit,
+    inbox: InboxViewModel,
     viewModel: SearchViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(viewModel, inbox) { inbox.attachShownResults(viewModel.shown) }
+    val selecting by inbox.shownSelectionActive.collectAsStateWithLifecycle()
+    val selectedKeys by inbox.selectedKeys.collectAsStateWithLifecycle()
+    val selectionAllRead by inbox.selectionAllRead.collectAsStateWithLifecycle()
+    val undo by inbox.undo.collectAsStateWithLifecycle()
+    val message by inbox.message.collectAsStateWithLifecycle()
+    val pendingDelete by inbox.pendingDelete.collectAsStateWithLifecycle()
+    var showMoveSheet by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val undoLabel = stringResource(R.string.inbox_undo)
     val form by viewModel.form.collectAsStateWithLifecycle()
     val accounts by viewModel.accounts.collectAsStateWithLifecycle()
     val folderRoles by viewModel.folderRoles.collectAsStateWithLifecycle()
@@ -112,7 +132,39 @@ fun SearchScreen(
         // Fold the keyboard away with the panel, or it stays up over the results.
         focusManager.clearFocus()
         keyboard?.hide()
+        if (selecting) inbox.clearSelection()
         viewModel.search()
+    }
+
+    BackHandler(enabled = selecting) { inbox.clearSelection() }
+
+    if (showMoveSheet) {
+        SelectionMoveDialog(inbox, accounts, selectedKeys, currentMailboxId = null, onDismiss = { showMoveSheet = false })
+    }
+
+    LaunchedEffect(message) {
+        val m = message ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(m)
+        inbox.clearMessage()
+    }
+    LaunchedEffect(undo) {
+        val action = undo ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = action.label,
+            actionLabel = undoLabel,
+            withDismissAction = true,
+            duration = SnackbarDuration.Indefinite,
+        )
+        if (result == SnackbarResult.ActionPerformed) inbox.undo() else inbox.clearUndo()
+    }
+    LaunchedEffect(pendingDelete) {
+        val label = pendingDelete ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = label,
+            actionLabel = undoLabel,
+            duration = SnackbarDuration.Indefinite,
+        )
+        if (result == SnackbarResult.ActionPerformed) inbox.undoDelete()
     }
 
     // The advanced filters slide over the results like the main navigation drawer: a slim handle
@@ -229,8 +281,20 @@ fun SearchScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState, Modifier.imePadding()) },
         topBar = {
-            TopAppBar(
+            if (selecting) {
+                SelectionTopBar(
+                    viewModel = inbox,
+                    count = selectedKeys.size,
+                    selectionAllRead = selectionAllRead,
+                    currentRole = null,
+                    inboxId = null,
+                    trash = false,
+                    onMove = { showMoveSheet = true },
+                    onSelectAll = inbox::selectAllShown,
+                )
+            } else TopAppBar(
                 // Dragging down from the title bar opens the panel: an 18 dp handle was not a
                 // usable target. The icon buttons keep their taps, a tap being decided before the
                 // drag slop is crossed.
@@ -350,11 +414,14 @@ fun SearchScreen(
                                         EmailListItem(
                                             email = email,
                                             onClick = {
-                                                when (searchHitTapAction(messageFolderRole(email.accountId, email.mailboxId, folderRoles))) {
+                                                when (criteriaHitTap(isLocalDraftRow(email.id), selecting, messageFolderRole(email.accountId, email.mailboxId, folderRoles))) {
+                                                    RowTap.SELECT_ROW, RowTap.SELECT_THREAD -> inbox.toggleSelect(email)
                                                     RowTap.EDIT_DRAFT -> onEditDraft(email.id, email.accountId)
-                                                    else -> onOpenEmail(email.id, email.accountId)
+                                                    RowTap.OPEN -> onOpenEmail(email.id, email.accountId)
                                                 }
                                             },
+                                            onLongClick = { inbox.enterShownSelection(email) },
+                                            selected = selecting && email.emailKey() in selectedKeys,
                                             originLabel = owner?.label(),
                                             originColor = accountColorOf(owner?.color),
                                             excerpt = s.excerpts[searchResultKey(email)],

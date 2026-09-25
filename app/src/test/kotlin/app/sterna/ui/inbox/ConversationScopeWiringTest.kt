@@ -277,7 +277,7 @@ class ConversationScopeWiringTest {
         assertEquals(
             "moveSelectedTo must hand the rule it froze at the tap to the cross-account path: a " +
                 "move between accounts copies then destroys, with no Undo. Body was:\n$move",
-            listOf("moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId, ticked, filing, carried)"),
+            listOf("moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId, ticked, filing, carried, seat)"),
             codeLinesNaming(move, "moveSelectedToAccount("),
         )
         val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
@@ -349,6 +349,7 @@ class ConversationScopeWiringTest {
                 "writeTicks(SelectionTicks(setOf(rep.emailKey()), carried = setOf(rep.emailKey())))",
                 "writeTicks(currentTicks().carrying(members))",
                 "writeTicks(currentTicks().toggledConversation(rep.emailKey(), members))",
+                "writeTicks(SelectionTicks(all))",
                 "writeTicks(SelectionTicks(all))",
                 "writeTicks(SelectionTicks(emptySet()))",
                 "private fun currentTicks(): SelectionTicks = SelectionTicks(_selectedKeys.value, carriedKeys)",

@@ -57,7 +57,7 @@ class SubscribedFoldersSurfaceWiringTest {
                 "moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId, moveTargetsOrder)",
                 "}",
             ),
-            block(INBOX_SCREEN, "val targets = remember(", 3),
+            block(MOVE_DIALOG, "val targets = remember(", 3),
         )
         assertEquals(
             "the picker's second line under a folder name must be resolved against the WHOLE list. " +
@@ -70,14 +70,14 @@ class SubscribedFoldersSurfaceWiringTest {
                 "targets.map { folder -> mailboxPathLabel(folder, moveTargetMailboxes) }",
                 "}",
             ),
-            block(INBOX_SCREEN, "val movePaths = remember(", 3),
+            block(MOVE_DIALOG, "val movePaths = remember(", 3),
         )
         assertEquals(
             "the flag the picker uses must come from the SELECTION's account, not from a screen-" +
                 "local guess: in the unified inbox the selected message can belong to a sibling " +
                 "account with a different answer (#92).",
             listOf("val moveTargetsOnlySubscribed by viewModel.selectionOnlySubscribed.collectAsStateWithLifecycle()"),
-            block(INBOX_SCREEN, "val moveTargetsOnlySubscribed by", 1),
+            block(MOVE_DIALOG, "val moveTargetsOnlySubscribed by", 1),
         )
     }
 
@@ -411,6 +411,7 @@ class SubscribedFoldersSurfaceWiringTest {
         }
 
         val INBOX_SCREEN: File by lazy { File(root, INBOX_SCREEN_PATH) }
+        val MOVE_DIALOG: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/inbox/SelectionMoveDialog.kt") }
         val INBOX_VIEW_MODEL: File by lazy {
             File(root, "app/src/main/kotlin/app/sterna/ui/inbox/InboxViewModel.kt")
         }

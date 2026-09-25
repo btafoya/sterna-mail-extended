@@ -20,7 +20,7 @@ class SelectionTargetsWiringTest {
     private val expectedArguments = listOf(
         "keys = keys",
         "cached = repo.cachedEmailsByIds(keys)",
-        "displayed = searchState.value.results",
+        "displayed = sources.displayed()",
     )
 
     @Test fun `toggling the selection's read state resolves every selected key`() {
