@@ -11,6 +11,9 @@ internal sealed interface HeightPoll {
 
     /** Nothing conclusive yet, poll again. */
     data object Retry : HeightPoll
+
+    /** The document this poll was measuring has been replaced: stop, and report nothing. */
+    data object Superseded : HeightPoll
 }
 
 /**
@@ -179,10 +182,7 @@ internal class BarReveal {
         shown = false
     }
 
-    /**
-     * The body resized under the reader's gesture and the resize probe caught the new geometry. The
-     * the quoted history, and the resize probe caught the new geometry. Returns [shown].
-     */
+    /** The resize probe caught the body's new geometry after the reader's gesture. Returns [shown]. */
     fun resized(m: BodyMetrics, thresholdPx: Int): Boolean {
         if (!m.measured) return shown
         state = BodyReveal.barAfterResize(state, m.scrollY, m.maxScrollPx, thresholdPx)

@@ -18,6 +18,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.opengl.EGL14
 import android.opengl.EGLConfig
@@ -121,6 +122,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -1736,19 +1739,15 @@ private fun ConversationBody(
     // insert, a theme change or a header resize, and forgetting the range on those paths would take
     // the bar away mid-read, which is exactly #63. Falling back to text is a reading-mode change.
     LaunchedEffect(plainText, tooManyResources) { barReveal.documentReplaced() }
-    // The visible Reply/Forward bar is fixed chrome at the pager level (#62): this page only reports
-    // whether its state wants the bar. The invisible measuring copy below stays in-page, it only
-    // reserves the bar's height in the document.
-    val barVisible = replyBarVisible(replyBarEnabled, bodyReady, showBar)
-    LaunchedEffect(barVisible) { onBarVisibleChanged(barVisible) }
-    // Measured header height (device px) and the live body scroll offset. scrollY is read only in the
-    // layout phase, so updating it every scroll frame re-lays-out the header without a recomposition.
+    // Measured header height (device px), live scroll offset and page scale. The last two change every
+    // frame: read only in layout or through a boolean derivedStateOf, they never recompose this page.
     var headerHeightPx by remember(msg.id) { mutableIntStateOf(0) }
     // The body's own viewport height (device px), measured in the same layout pass as the header. It
     // is the denominator of both document spacers: they are reserved in `vh`, one hundredth of this,
     // which is the only unit the page's own scale does not change. See [bodySpacerCss].
     var bodyViewportPx by remember(msg.id) { mutableIntStateOf(0) }
     val scrollY = remember(msg.id) { mutableIntStateOf(0) }
+    val pageScale = remember(msg.id) { mutableStateOf(PageScale()) }
     var spinnerDue by remember(msg.id) { mutableStateOf(false) }
     LaunchedEffect(msg.id) { delay(500); spinnerDue = true }
     // Failsafe reveal. [bodyReady] is driven by one height poll started by onPageFinished; a load
@@ -1770,6 +1769,14 @@ private fun ConversationBody(
     // clearance live inside bodyBottomInsetPx, where a test can exercise them: as two `val`s here they
     // could be swapped, putting ~72 dp of white at the end of every message with nothing to see.
     val bottomInsetPx = bodyBottomInsetPx(replyBarEnabled, barHeightPx, density.density)
+    val zoomHidesBar by remember(msg.id, bottomInsetPx) {
+        derivedStateOf { barHiddenByZoom(bottomInsetPx, pageScale.value.scale, pageScale.value.layoutScale) }
+    }
+    // The visible Reply/Forward bar is fixed chrome at the pager level (#62): this page only reports
+    // whether its state wants the bar. The invisible measuring copy below stays in-page, it only
+    // reserves the bar's height in the document.
+    val barVisible = replyBarVisible(replyBarEnabled, bodyReady, showBar) && !zoomHidesBar
+    LaunchedEffect(barVisible) { onBarVisibleChanged(barVisible) }
 
     Box(
         Modifier
@@ -1853,6 +1860,7 @@ private fun ConversationBody(
                     backgroundColor = scheme.surface.toArgb(),
                     textZoom = textZoom,
                     onTooManyResources = onTooManyResources,
+                    pageScale = pageScale,
                     // One reveal, not two (#63). [resting] is the geometry measured by the height poll
                     // itself, non-null only from two agreeing readings, so the bar's resting state is
                     // decided in the same recomposition that reveals the body. Null means nothing was
@@ -1878,13 +1886,13 @@ private fun ConversationBody(
                 )
             }
         }
-        // The collapsing header: translated up by how far the body has scrolled (clamped to its own
-        // height). It is opaque and drawn on top of the body, covering the document's top spacer.
+        // The collapsing header: translated up by how far the body has scrolled, plus what a pinch out
+        // took off the top spacer, clamped to its own height. It is opaque and drawn on top of the body.
         Box(
             Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .offset { IntOffset(0, -minOf(scrollY.intValue, headerHeightPx)) }
+                .offset { IntOffset(0, -headerCollapsePx(scrollY.intValue, headerHeightPx, pageScale.value.scale, pageScale.value.layoutScale)) }
                 .onSizeChanged { headerHeightPx = it.height }
                 .background(MaterialTheme.colorScheme.surface),
         ) {
@@ -3771,6 +3779,7 @@ private fun EmailWebView(
     backgroundColor: Int,
     textZoom: Int,
     onTooManyResources: () -> Unit,
+    pageScale: MutableState<PageScale>,
     onReady: (resting: BodyMetrics?) -> Unit,
     onScroll: (metrics: BodyMetrics, lastWord: Boolean) -> Unit,
     onResized: (metrics: BodyMetrics) -> Unit,
@@ -3808,11 +3817,18 @@ private fun EmailWebView(
     // rather than fell back. It is what lets the host decide the Reply/Forward bar in the same frame
     // as the body's reveal (#63); null keeps the old, bias-to-hidden path.
     var restingMetrics by remember { mutableStateOf<BodyMetrics?>(null) }
-    client.onContentHeight = { px, resting -> heightPx = px; restingMetrics = resting }
+    client.onContentHeight = { px, resting ->
+        heightPx = px
+        restingMetrics = resting
+        pageScale.value = pageScale.value.bodyRevealed()
+    }
+    client.onPageScale = { oldScale, newScale -> pageScale.value = pageScale.value.scaled(oldScale, newScale) }
     val ready = heightPx > 0
     // Keyed on the metrics too: a height that arrived from a fallback can still be followed by a real
     // measurement, and that measurement should still get to settle the bar.
-    LaunchedEffect(ready, restingMetrics) { if (ready) onReady(restingMetrics) }
+    LaunchedEffect(ready, restingMetrics) {
+        if (ready) onReady(restingMetrics)
+    }
     // Report the body's scroll position so the host can collapse the header and reveal the bar at the
     // end. Reporting is gated until layout settles, so the load-time scroll-reset never reports a
     // transient tiny range (which read as "fits" and flashed the bar). The raw geometry is reported:
@@ -3960,6 +3976,7 @@ private fun EmailWebView(
                 if (!useSoftwareLayer) WebViewLayerGuard.armIfUnproven(context)
                 webView.reportingEnabled = false
                 client.documentLoading()
+                pageScale.value = PageScale()
                 webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
                 // Keep the bar hidden until the body has settled, then evaluate the resting reveal once
                 // with the final scroll range. A fixed 250 ms timer expired while a heavy body was
@@ -4139,15 +4156,36 @@ private class BlockingWebViewClient : WebViewClient() {
     /** On the main thread, once per load past [RequestBudget]'s limit; the print path leaves it empty. */
     var onTooManyResources: () -> Unit = {}
 
-    private val budget = RequestBudget()
+    var onPageScale: (oldScale: Float, newScale: Float) -> Unit = { _, _ -> }
 
-    fun documentLoading() = budget.reset()
+    private val budget = RequestBudget()
+    private val documents = HeightPollDocuments()
+
+    fun documentLoading() {
+        budget.reset()
+        documents.documentLoading()
+    }
+
+    override fun onScaleChanged(view: WebView?, oldScale: Float, newScale: Float) {
+        super.onScaleChanged(view, oldScale, newScale)
+        onPageScale(oldScale, newScale)
+    }
+
+    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+        super.onPageStarted(view, url, favicon)
+        documents.pageStarted()
+    }
 
     override fun onPageFinished(view: WebView?, url: String?) {
         val wv = view ?: return
         // No JS to measure with, so poll the native content height until it stabilises (two consecutive
         // equal readings), then report the final height once. This absorbs the brief reflow as text
         // lays out and inline images decode, so the body is revealed a single time. Caps at ~1 s.
+        val document = documents.pageFinished()
+        if (document == null) {
+            onPageLoaded(wv)
+            return
+        }
         var last = -1
         var maxSeen = 0
         fun poll(triesLeft: Int) {
@@ -4163,12 +4201,13 @@ private class BlockingWebViewClient : WebViewClient() {
             // tail; the cap reports the tallest seen. A little trailing slack is harmless; lost content
             // is not. And the cap ALWAYS reports, even when every reading was zero: this poll is the
             // only thing that reveals the body.
-            when (val step = BodyReveal.step(px, last, maxSeen, triesLeft, wv.height)) {
+            when (val step = documents.step(document, px, last, maxSeen, triesLeft, wv.height)) {
                 is HeightPoll.Report -> onContentHeight(step.px, restingMetrics(wv, step, maxSeen))
                 HeightPoll.Retry -> {
                     last = px
                     wv.postDelayed({ poll(triesLeft - 1) }, 32)
                 }
+                HeightPoll.Superseded -> return
             }
         }
         wv.post { last = -1; maxSeen = 0; poll(30) }

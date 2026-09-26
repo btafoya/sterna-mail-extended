@@ -89,6 +89,40 @@ class BodySpacerWiringTest {
         )
     }
 
+    @Test fun `the header follows a pinch through the tested decision, and the document does not`() {
+        val lines = codeLines()
+        val offset = ".offset { IntOffset(0, -headerCollapsePx(scrollY.intValue, headerHeightPx, " +
+            "pageScale.value.scale, pageScale.value.layoutScale)) }"
+        assertEquals(
+            "the collapsing header's offset must go through headerCollapsePx, the decision " +
+                "PinchedSpacerTest runs, with the live scale and the layout scale, read inside the " +
+                "offset lambda so a pinch re-lays-out the header without recomposing the page. " +
+                "Back on minOf(scrollY, headerHeightPx), a pinch out leaves the header over the top " +
+                "of the text. Expected this line, verbatim:\n  $offset\nOffset lines found: " +
+                lines.filter { it.startsWith(".offset {") },
+            1, lines.count { it == offset },
+        )
+
+        val keyAt = lines.indexOf("val html = remember(")
+        assertTrue("the remember() that builds the document is gone — move this rule with it", keyAt >= 0)
+        val end = lines.indexOfFirst(keyAt) { it == ")" }
+        val documentLines = lines.subList(keyAt, end + 1) +
+            lines.filter { "bodySpacerCss(" in it }
+        val scaled = documentLines.filter { "scale" in it.lowercase() }
+        assertTrue(
+            "the page scale must stay out of the document: out of the remember() key, out of " +
+                "buildHtmlDocument(...), out of both spacer lengths. A pinch changes it every frame; " +
+                "in any of these the document is rebuilt under the reader's finger, in a loop. " +
+                "Offending lines: $scaled",
+            scaled.isEmpty(),
+        )
+    }
+
+    private fun List<String>.indexOfFirst(from: Int, predicate: (String) -> Boolean): Int {
+        for (i in from until size) if (predicate(this[i])) return i
+        error("no closing line after line $from of MessageScreen's code")
+    }
+
     // -- reading the source ------------------------------------------------------------------
 
     /** `MessageScreen.kt`'s code as trimmed lines, comments cut: the comments beside these call
