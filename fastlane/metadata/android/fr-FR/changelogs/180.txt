@@ -1,0 +1,9 @@
+Avec plusieurs comptes, « Non lus » ouvert depuis « Toutes les boîtes de réception » montre les non-lus de chaque compte, chaque ligne nommant son compte.
+
+Appui long sur un résultat de la recherche avancée pour sélectionner et marquer lu, archiver, déplacer ou supprimer.
+
+Un appui sur une pièce jointe du composeur l'ouvre avant l'envoi.
+
+Un message dézoomé ne passe plus sous son en-tête ni sous la barre de réponse.
+
+Une étoile posée dans le lecteur tient même si vous revenez aussitôt.

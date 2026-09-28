@@ -1,0 +1,9 @@
+With several accounts, "Unread" opened from "All inboxes" now shows the unread mail of every account, each row naming its account.
+
+Long-press a result on the advanced search screen to select results and mark them read, archive, move or delete them.
+
+Tap an attachment in the composer to open it before sending.
+
+A zoomed-out message no longer slides under its header and the reply bar.
+
+A star set in the reader is kept when you go back right away.
