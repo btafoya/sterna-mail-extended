@@ -4,8 +4,13 @@ import app.sterna.core.jmap.model.Email
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import org.junit.Test
 import java.io.File
+import kotlin.coroutines.CoroutineContext
 
 /**
  * The star the reader toggles (#232). The header reads `_messages`, the action bar reads `_state`:
@@ -53,6 +58,105 @@ class ToggleFlagTest {
         )
     }
 
+    @Test
+    fun `toggleFlag writes the star on the app scope, which Back does not cancel`() {
+        val body = toggleFlagBody()
+
+        assertFalse(
+            "toggleFlag launches on viewModelScope: Back cancels the write before the server and the cache",
+            "viewModelScope" in body,
+        )
+        val submit = Regex("""(?<![\w.])ReaderStarWrites\.submit\(appScope,\s*credentials\.id to current\.id,\s*flagged\)""").find(body)
+        assertTrue(
+            "toggleFlag does not hand its write to ReaderStarWrites.submit(appScope, credentials.id to current.id, flagged)",
+            submit != null,
+        )
+        assertFalse(
+            "MessageViewModel declares its own `ReaderStarWrites`: a new view model would bring a new lock",
+            Regex("""(val|var)\s+ReaderStarWrites\b""").containsMatchIn(source.readText()),
+        )
+        assertTrue(
+            "ReaderStarWrites is no longer an object: each holder would bring its own lock",
+            Regex("""\bobject ReaderStarWrites\s*:\s*LatestWriteWins<""").containsMatchIn(gateSource.readText()),
+        )
+        assertTrue(
+            "toggleFlag does not read `credentials()` at the tap, before ReaderStarWrites.submit",
+            Regex("""val credentials = credentials\(\) \?: return\n""").containsMatchIn(body.substring(0, submit!!.range.first)),
+        )
+        assertFalse(
+            "toggleFlag reads `credentials()` inside the write: a queued write takes the account of the page swiped to",
+            "credentials()" in body.substring(submit.range.last),
+        )
+        assertTrue(
+            "toggleFlag's write no longer sends the value handed out by the gate to repo.setFlagged",
+            Regex("""repo\.setFlagged\(credentials,\s*current\.id,\s*wanted\)""").containsMatchIn(body),
+        )
+    }
+
+    @Test
+    fun `two taps whose writes are dispatched out of order end on the last tap`() {
+        val dispatcher = ManualDispatcher()
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val gate = LatestWriteWins<String, Boolean>()
+        val written = mutableListOf<Boolean>()
+
+        gate.submit(scope, "m1", true) { written += it }
+        gate.submit(scope, "m1", false) { written += it }
+        dispatcher.runLastThenRest()
+
+        assertEquals("the server and the cache must end on the second tap", false, written.last())
+    }
+
+    @Test
+    fun `a tap during a slow write is written after it, never before`() {
+        val dispatcher = ManualDispatcher()
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val gate = LatestWriteWins<String, Boolean>()
+        val network = CompletableDeferred<Unit>()
+        val written = mutableListOf<Boolean>()
+
+        gate.submit(scope, "m1", true) { network.await(); written += it }
+        dispatcher.drain()
+        gate.submit(scope, "m1", false) { written += it }
+        dispatcher.drain()
+        network.complete(Unit)
+        dispatcher.drain()
+
+        assertEquals("the server and the cache must end on the second tap", listOf(true, false), written)
+    }
+
+    @Test
+    fun `a write for one message never takes the value wanted for another`() {
+        val dispatcher = ManualDispatcher()
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val gate = LatestWriteWins<String, Boolean>()
+        val written = mutableListOf<Pair<String, Boolean>>()
+
+        gate.submit(scope, "x", true) { written += "x" to it }
+        gate.submit(scope, "y", false) { written += "y" to it }
+        dispatcher.runLastThenRest()
+
+        assertEquals(setOf("y" to false, "x" to true), written.toSet())
+    }
+
+    /** Runs dispatched blocks only when told to, so a test can choose their order. */
+    private class ManualDispatcher : CoroutineDispatcher() {
+        private val queue = ArrayDeque<Runnable>()
+
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            queue.addLast(block)
+        }
+
+        fun drain() {
+            while (queue.isNotEmpty()) queue.removeFirst().run()
+        }
+
+        fun runLastThenRest() {
+            queue.removeLast().run()
+            drain()
+        }
+    }
+
     /** The text of `fun toggleFlag()`, up to the next member at class level. */
     private fun toggleFlagBody(): String {
         val source = source.readText()
@@ -65,10 +169,13 @@ class ToggleFlagTest {
     private companion object {
         val NEXT_MEMBER = Regex("""\n {4}(private )?(suspend )?fun \w""")
 
-        val source: File =
+        val source: File = locate("MessageViewModel.kt")
+        val gateSource: File = locate("LatestWriteWins.kt")
+
+        fun locate(name: String): File =
             generateSequence(File("").absoluteFile) { it.parentFile }
-                .map { File(it, "app/src/main/kotlin/app/sterna/ui/message/MessageViewModel.kt") }
+                .map { File(it, "app/src/main/kotlin/app/sterna/ui/message/$name") }
                 .firstOrNull { it.isFile }
-                ?: error("cannot locate MessageViewModel.kt from ${File("").absolutePath}")
+                ?: error("cannot locate $name from ${File("").absolutePath}")
     }
 }

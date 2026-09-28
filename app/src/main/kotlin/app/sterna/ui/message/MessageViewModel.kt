@@ -1537,9 +1537,9 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         // Optimistic local update: the action bar reads `_state`, the header reads `_messages`.
         _state.value = MessageState.Loaded(current.withFlag(flagged))
         updateMessage(current.id) { it.copy(header = it.header.withFlag(flagged), body = it.body?.withFlag(flagged)) }
-        viewModelScope.launch {
-            val credentials = credentials() ?: return@launch
-            runCatching { repo.setFlagged(credentials, current.id, flagged) }
+        val credentials = credentials() ?: return
+        ReaderStarWrites.submit(appScope, credentials.id to current.id, flagged) { wanted ->
+            runCatching { repo.setFlagged(credentials, current.id, wanted) }
         }
     }
 
