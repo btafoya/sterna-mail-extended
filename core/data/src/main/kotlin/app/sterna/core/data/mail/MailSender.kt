@@ -294,7 +294,7 @@ class MailSender(
             // blob an IMAP send has no bytes for: it would send amputated.
             when {
                 part.blobId != null && protocol == MailProtocol.IMAP ->
-                    error("The attachment ${part.name ?: "attachment"} was prepared for another account; attach it again.")
+                    error(attachmentPreparedForAnotherAccount(part.name))
                 part.blobId != null -> OutboxAttachment(
                     kind = OutboxAttachments.KIND_JMAP_BLOB,
                     blobId = part.blobId, type = part.type, name = part.name, size = part.size,
@@ -460,7 +460,7 @@ class MailSender(
             require(recipients.isNotEmpty()) { "Add at least one recipient." }
             val outAttachments = stored.map { a ->
                 val path = a.path
-                    ?: error("The attachment ${a.name ?: "attachment"} was prepared for another account; attach it again.")
+                    ?: error(attachmentPreparedForAnotherAccount(a.name))
                 // Refuse rather than deliver amputated: the item stays in the outbox with its error.
                 val bytes = runCatching { java.io.File(path).readBytes() }.getOrNull()
                     ?: error("Couldn't read the attachment ${a.name ?: path} to send it.")
@@ -800,3 +800,10 @@ internal suspend fun requeueForRetry(
     // worker's own flip is unconditional, so a flip landing after this write is not.
     if (requeue(id, now) > 0) scheduler?.schedule(id, 0)
 }
+
+/**
+ * A server blob with no bytes this account can reach. The send refuses with it, and the composer
+ * says the same when asked to open such an attachment.
+ */
+fun attachmentPreparedForAnotherAccount(name: String?): String =
+    "The attachment ${name ?: "attachment"} was prepared for another account; attach it again."

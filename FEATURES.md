@@ -89,7 +89,7 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Reply, reply-all and forward, quoted and threaded.
 - ✅ Forward as attachment (`message/rfc822`).
 - ✅ Drafts saved to the server; closing with unsaved edits asks first.
-- ✅ Attachments: pick, take a photo, send, download and open. Inline `cid:` images render.
+- ✅ Attachments: pick, take a photo, send, download and open, also from the composer before sending. Inline `cid:` images render.
 - ✅ An attached message opens in a sheet, with nothing written to disk.
 - ✅ Rich text: bold, italic, underline, strikethrough, lists, links.
 - ✅ Undo send, then an Outbox that survives app death and retries when the network

@@ -6,8 +6,6 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
-import android.webkit.MimeTypeMap
-import androidx.core.content.FileProvider
 import app.sterna.core.data.mail.MessageCrypto
 import app.sterna.core.data.mail.MessageUnavailableException
 import app.sterna.core.data.mail.requireAttachmentBytes
@@ -43,7 +41,6 @@ import app.sterna.core.data.mail.unsubscribePreview
 import app.sterna.core.data.settings.REPLY_BAR_DEFAULT
 import app.sterna.core.data.settings.MessageTextSize
 import app.sterna.core.data.settings.NotificationContent
-import app.sterna.core.data.text.attachmentMimeType
 import app.sterna.core.data.unsubscribe.UnsubscribeFailure
 import app.sterna.core.data.unsubscribe.UnsubscribeResult
 import app.sterna.core.jmap.ContentTooLargeException
@@ -53,6 +50,7 @@ import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.core.jmap.model.EmailHeader
 import app.sterna.core.jmap.model.Mailbox
 import app.sterna.net.hasUsableNetwork
+import app.sterna.ui.handAttachmentToViewer
 import app.sterna.ui.readerActionFailureText
 import app.sterna.ui.inbox.folderOrderingOf
 import app.sterna.ui.inbox.isSelfAuthored
@@ -1409,16 +1407,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             try {
                 val credentials = credentials() ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
                 val bytes = repo.downloadAttachment(credentials, part, emailId)
-                val file = storage.cacheAttachment(part.name, bytes)
-                val uri = FileProvider.getUriForFile(app, "${app.packageName}.fileprovider", file)
-                val view = Intent(Intent.ACTION_VIEW)
-                    .setDataAndType(uri, attachmentMimeType(part.type, part.name, MimeTypeMap.getSingleton()::getMimeTypeFromExtension))
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                // unguarded: not a tap. The tap was handled above, where [openingAttachment] holds
-                // the second one back; there is no composition here to hang the leave guard on.
-                app.startActivity(
-                    Intent.createChooser(view, app.getString(R.string.status_open_attachment)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
+                handAttachmentToViewer(app, storage, part.name, part.type, bytes)
                 _attachmentStatus.value = null
             } catch (t: ContentTooLargeException) {
                 // Our own refusal, not a failure: say it plainly instead of showing byte counts.

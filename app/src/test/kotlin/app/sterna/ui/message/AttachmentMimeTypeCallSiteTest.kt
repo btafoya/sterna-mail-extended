@@ -6,9 +6,9 @@ import java.io.File
 
 /**
  * A rule on the shipped source, not a behaviour test. `AttachmentMimeTypeTest` executes the
- * decision; nothing but this pins that the reader's open path still asks it. `MessageViewModel`
- * needs an Application and a repository, so no JVM test here can call `openAttachment` and read
- * the Intent back.
+ * decision; nothing but this pins that the open path the reader and the composer share still asks
+ * it. `handAttachmentToViewer` needs an Application and starts an Activity, so no JVM test here can
+ * call it and read the Intent back.
  */
 class AttachmentMimeTypeCallSiteTest {
 
@@ -18,10 +18,10 @@ class AttachmentMimeTypeCallSiteTest {
      */
     @Test fun `the open Intent is typed by the decision, not by what the sender declared`() {
         assertEquals(
-            "openAttachment must type the ACTION_VIEW Intent through attachmentMimeType, once and " +
-                "whole. Lines found:",
+            "handAttachmentToViewer must type the ACTION_VIEW Intent through attachmentMimeType, once " +
+                "and whole. Lines found:",
             listOf(TYPED),
-            codeLines(viewModel().readText()).filter { "setDataAndType(" in it },
+            codeLines(viewer().readText()).filter { "setDataAndType(" in it },
         )
     }
 
@@ -31,10 +31,10 @@ class AttachmentMimeTypeCallSiteTest {
      */
     @Test fun `the declared type is no longer handed to the Intent raw`() {
         assertEquals(
-            "part.type must not be passed to setDataAndType. Lines found:",
+            "the declared type must not be passed to setDataAndType. Lines found:",
             emptyList<String>(),
-            codeLines(viewModel().readText()).filter {
-                "setDataAndType(" in it && ("uri, part.type" in it || "uri, part.type ?:" in it)
+            codeLines(viewer().readText()).filter {
+                "setDataAndType(" in it && ("uri, type" in it || "uri, part.type" in it)
             },
         )
     }
@@ -48,29 +48,35 @@ class AttachmentMimeTypeCallSiteTest {
             "the lookup handed to attachmentMimeType must be MimeTypeMap's own, referenced from " +
                 "the singleton. Lines found:",
             listOf(TYPED),
-            codeLines(viewModel().readText()).filter { "MimeTypeMap" in it && !it.startsWith("import ") },
+            codeLines(viewer().readText()).filter { "MimeTypeMap" in it && !it.startsWith("import ") },
         )
         assertEquals(
-            "MessageViewModel must import MimeTypeMap. Lines found:",
+            "AttachmentViewer.kt must import MimeTypeMap. Lines found:",
             listOf("import android.webkit.MimeTypeMap"),
-            codeLines(viewModel().readText()).filter { it.startsWith("import ") && "MimeTypeMap" in it },
+            codeLines(viewer().readText()).filter { it.startsWith("import ") && "MimeTypeMap" in it },
         )
     }
 
     /**
-     * Exactly one call, so the save path and the attached-message path cannot grow a second,
-     * differently argued copy of the same decision without this turning red.
+     * Exactly one call, so the save path, the attached-message path and the composer cannot grow a
+     * second, differently argued copy of the same decision without this turning red.
      */
-    @Test fun `the decision is asked once in the whole view model`() {
+    @Test fun `the decision is asked once, in the shared open path`() {
         assertEquals(
-            "attachmentMimeType must be called exactly once in MessageViewModel. Lines found:",
+            "attachmentMimeType must be called exactly once in AttachmentViewer.kt. Lines found:",
             listOf(TYPED),
-            codeLines(viewModel().readText()).filter { "attachmentMimeType(" in it },
+            codeLines(viewer().readText()).filter { "attachmentMimeType(" in it },
         )
         assertEquals(
             "…and imported from core:data rather than redeclared here. Lines found:",
             listOf("import app.sterna.core.data.text.attachmentMimeType"),
-            codeLines(viewModel().readText()).filter { it.startsWith("import ") && "attachmentMimeType" in it },
+            codeLines(viewer().readText()).filter { it.startsWith("import ") && "attachmentMimeType" in it },
+        )
+        assertEquals(
+            "MessageViewModel must open through handAttachmentToViewer, not type an Intent of its own. " +
+                "Lines found:",
+            emptyList<String>(),
+            codeLines(viewModel().readText()).filter { "attachmentMimeType" in it || "setDataAndType(" in it },
         )
     }
 
@@ -81,6 +87,9 @@ class AttachmentMimeTypeCallSiteTest {
 
     private fun viewModel(): File =
         locate("app/src/main/kotlin/app/sterna/ui/message/MessageViewModel.kt")
+
+    private fun viewer(): File =
+        locate("app/src/main/kotlin/app/sterna/ui/AttachmentViewer.kt")
 
     /** [relative] resolved from the test's working directory, walking up. */
     private fun locate(relative: String): File {
@@ -95,7 +104,7 @@ class AttachmentMimeTypeCallSiteTest {
     }
 
     private companion object {
-        const val TYPED = ".setDataAndType(uri, attachmentMimeType(part.type, part.name, " +
+        const val TYPED = ".setDataAndType(uri, attachmentMimeType(type, name, " +
             "MimeTypeMap.getSingleton()::getMimeTypeFromExtension))"
     }
 }

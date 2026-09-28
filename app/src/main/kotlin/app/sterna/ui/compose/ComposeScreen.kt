@@ -1473,7 +1473,13 @@ fun ComposeScreen(
                 ) {
                     attachments.forEach { att ->
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    onClickLabel = stringResource(R.string.status_open_attachment),
+                                    role = Role.Button,
+                                ) { viewModel.openAttachment(att) }
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(Icons.Filled.AttachFile, contentDescription = null, modifier = Modifier.padding(end = 8.dp))

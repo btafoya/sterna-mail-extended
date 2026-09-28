@@ -83,17 +83,19 @@ class SaveAttachmentCallSiteTest {
      */
     @Test fun `saving never writes a copy into the app's cache`() {
         assertEquals(
-            "MessageViewModel must cache an attachment in exactly ONE place, the open path. A " +
-                "second line here means the save path writes a copy into the app's cache too. " +
-                "Lines found:",
-            listOf("val file = storage.cacheAttachment(part.name, bytes)"),
-            codeLines(viewModel().readText()).filter { "cacheAttachment(" in it },
+            "MessageViewModel must reach the cache in exactly ONE place, the open path, through " +
+                "handAttachmentToViewer. A second line here means the save path writes a copy into " +
+                "the app's cache too. Lines found:",
+            listOf("handAttachmentToViewer(app, storage, part.name, part.type, bytes)"),
+            codeLines(viewModel().readText()).filter { "cacheAttachment(" in it || "handAttachmentToViewer(" in it },
         )
         assertEquals(
-            "…and saveAttachment itself must name neither the cache nor a FileProvider URI. " +
-                "Lines found:",
+            "…and saveAttachment itself must name neither the cache, the open path nor a " +
+                "FileProvider URI. Lines found:",
             emptyList<String>(),
-            saveAttachmentBody().filter { "cacheAttachment" in it || "FileProvider" in it },
+            saveAttachmentBody().filter {
+                "cacheAttachment" in it || "FileProvider" in it || "handAttachmentToViewer" in it
+            },
         )
     }
 

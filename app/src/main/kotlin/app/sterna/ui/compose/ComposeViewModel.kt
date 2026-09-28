@@ -21,12 +21,14 @@ import app.sterna.core.data.account.pgpPublicKeyCacheValue
 import app.sterna.core.data.db.OutboxState
 import app.sterna.core.data.db.ScheduledSendEntity
 import app.sterna.core.data.mail.DraftOpenRoute
+import app.sterna.core.data.mail.LOCAL_DRAFT_FILES_DIR
 import app.sterna.core.data.mail.DraftSaveOutcome
 import app.sterna.core.data.mail.DraftToOpen
 import app.sterna.core.data.mail.LocalDraftEdit
 import app.sterna.core.data.mail.ScheduledAttachmentFetchFailed
 import app.sterna.core.data.mail.SendDraftTarget
 import app.sterna.core.data.mail.abandonPlan
+import app.sterna.core.data.mail.attachmentPreparedForAnotherAccount
 import app.sterna.core.data.mail.carriedDraftAccountId
 import app.sterna.core.data.mail.commitThenConsumeLocalDraft
 import app.sterna.core.data.mail.draftOpenRoute
@@ -70,7 +72,9 @@ import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.net.hasUsableNetwork
 import app.sterna.net.isOfflineFailure
+import app.sterna.ui.handAttachmentToViewer
 import app.sterna.util.MailDates
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import java.io.File
 import java.time.ZoneId
@@ -158,6 +162,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private val outbox = application.container.sendOutbox
     private val pgp = application.container.pgpEngine
     private val settings = application.container.settingsRepository
+    private val storage = application.container.storageRepository
 
     /** Outlives this screen: putting a queued message back happens as the composer is popped (#70). */
     private val appScope = application.container.appScope
@@ -202,6 +207,8 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     private val _attachmentStatus = MutableStateFlow<String?>(null)
     val attachmentStatus: StateFlow<String?> = _attachmentStatus.asStateFlow()
+
+    private var openingAttachment = false
 
     /**
      * One-shot string resources to surface after an action that closes the screen, where an inline
@@ -749,12 +756,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 _attachmentsTouched.value = true
                 _attachmentStatus.value = null
             } catch (t: Throwable) {
-                // The exception text is a resolver/HTTP string; keep it in logcat, where diagnosis
-                // needs it.
+                // The exception text is a resolver/HTTP string; logcat keeps it for diagnosis.
                 Log.w(TAG, "Attachment failed", t)
-                // Offline, the upload cannot go anywhere and the raw "Unable to resolve host …" told
-                // the reader nothing they could act on. Say what happened in a sentence, but only
-                // when connectivity confirms it; every other failure keeps its technical message.
+                // Offline confirmed: "Unable to resolve host…" told the reader nothing actionable.
+                // Every other failure keeps its raw technical message.
                 _attachmentStatus.value = if (isOfflineFailure(t, online = hasUsableNetwork(app))) {
                     app.getString(R.string.status_attach_offline)
                 } else {
@@ -798,6 +803,48 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             app.getString(R.string.status_no_camera_app)
         } else {
             app.getString(R.string.status_attach_failed, t.message ?: "error")
+        }
+    }
+
+    /** Hands an attachment to a viewer app via a cache copy; never touches [attachmentsTouched]. */
+    fun openAttachment(part: EmailBodyPart) {
+        if (openingAttachment) return
+        val app = getApplication<Application>()
+        val credentials = credentials() ?: run {
+            _attachmentStatus.value = app.getString(R.string.status_no_saved_account)
+            return
+        }
+        openingAttachment = true
+        viewModelScope.launch {
+            try {
+                val roots = listOf(File(app.cacheDir, "outgoing"), File(app.filesDir, LOCAL_DRAFT_FILES_DIR))
+                val source = withContext(Dispatchers.IO) {
+                    composedAttachmentSource(part, credentials.protocol, roots)
+                }
+                val bytes = when (source) {
+                    is ComposedAttachmentSource.Staged -> withContext(Dispatchers.IO) { source.file.readBytes() }
+                    ComposedAttachmentSource.ServerBlob -> repo.downloadAttachment(credentials, part, emailId = "")
+                    ComposedAttachmentSource.OtherAccount -> {
+                        _attachmentStatus.value = attachmentPreparedForAnotherAccount(part.name)
+                        return@launch
+                    }
+                    ComposedAttachmentSource.Unreadable -> {
+                        _attachmentStatus.value = app.getString(R.string.status_read_file_failed)
+                        return@launch
+                    }
+                }
+                handAttachmentToViewer(app, storage, part.name, part.type, bytes)
+                _attachmentStatus.value = null
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (t: Throwable) {
+                Log.w(TAG, "Opening an attachment failed", t)
+                _attachmentStatus.value =
+                    app.getString(composedAttachmentOpenFailure(t, online = hasUsableNetwork(app)), t.message ?: "error")
+            } finally {
+                // Released as soon as the chooser is up, not when the user comes back.
+                openingAttachment = false
+            }
         }
     }
 
