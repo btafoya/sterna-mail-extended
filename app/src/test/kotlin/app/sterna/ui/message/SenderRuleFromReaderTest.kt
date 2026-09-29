@@ -376,7 +376,7 @@ class SenderRuleFromReaderTest {
     }
 
     @Test fun `the reader's write path is addBlockRule, with a read taken at the moment of writing`() {
-        // Same rule as the per-sender screen's, for the same reason: saveFilterRules rewrites the
+        // Same rule as the per-sender screen's, for the same reason: saveFilterScript writes the
         // whole script, so a save built on anything but a fresh successful read deletes the
         // account's filters instead of adding one. And the foreign-script refusal lives inside
         // addBlockRule, where no caller can pass an argument that switches it off.
@@ -390,12 +390,11 @@ class SenderRuleFromReaderTest {
                 "credentials) }' — never a snapshot taken when the message opened",
             "load = { repo.accounts.loadFilterRules(credentials) }," in vm,
         )
-        val saves = vm.lines().filter { "saveFilterRules(" in it && !it.trimStart().startsWith("*") }
         assertEquals(
-            "every saveFilterRules call in this ViewModel must be addBlockRule's 'save =' " +
-                "callback. Found:\n" + saves.joinToString("\n"),
-            saves.size,
-            saves.count { "save = " in it },
+            "the only saveFilterScript call in this ViewModel is addBlockRule's 'save =', handing on the " +
+                "write blockWrite built over the opened script, never a name of its own",
+            listOf("save = { write -> repo.accounts.saveFilterScript(credentials, write) },"),
+            vm.lines().map { it.trim() }.filter { "saveFilterScript(" in it && !it.startsWith("*") },
         )
         assertTrue(
             "the Trash must be named from the account's own cached folders",

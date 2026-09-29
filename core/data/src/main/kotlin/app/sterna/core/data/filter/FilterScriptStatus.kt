@@ -9,7 +9,7 @@ const val VACATION_SCRIPT_NAME = "vacation"
  * What the account's Sieve scripts say about the user's filter rules. The default is the "we know
  */
 data class FilterScriptStatus(
-    /** A script named `sterna` exists on the server. */
+    /** The filters opened a script, see [openedScriptName]. */
     val scriptExists: Boolean = false,
     /** That script is the active one. A server keeps a single active script per account. */
     val scriptActive: Boolean = false,
@@ -22,10 +22,21 @@ data class FilterScriptStatus(
      *  this one is about the present: "saving will stop your auto-reply" is false on an account
      *  whose active script is a third one. */
     val vacationScriptActive: Boolean = false,
-    /** Some script other than `sterna` is the active one, so a save, which activates Sterna's
-     *  script, switches that one off. */
+    /** A script other than the one opened is active: only the server's `vacation` responder can be, on JMAP. */
     val foreignActive: Boolean = false,
 )
+
+fun filterScriptStatus(scripts: List<ListedScript>, opened: String?, text: String?): FilterScriptStatus {
+    val active = scripts.firstOrNull { it.isActive }
+    return FilterScriptStatus(
+        scriptExists = opened != null,
+        scriptActive = opened != null && active?.name == opened,
+        enabledRuleCount = text?.let { enabledRuleCount(it) } ?: 0,
+        vacationScriptExists = scripts.any { it.name == VACATION_SCRIPT_NAME },
+        vacationScriptActive = active?.name == VACATION_SCRIPT_NAME,
+        foreignActive = active != null && active.name != opened,
+    )
+}
 
 /** What a screen must tell the user about the state of their filter rules, or null for nothing. */
 enum class FilterScriptWarning {
@@ -145,3 +156,14 @@ fun rulesAreNotRunning(warning: FilterScriptWarning?): Boolean = warning == Filt
  * as the one [SieveCodec.generate] emits Sieve for.
  */
 fun enabledRuleCount(rules: List<FilterRule>): Int = rules.count { it.enabled && it.value.isNotBlank() }
+
+/** [enabledRuleCount] of the script [text], each block the form cannot show counted; a Bulwark entry without one is not. */
+fun enabledRuleCount(text: String): Int {
+    val script = (SieveScript.parse(text) as? SieveParse.Readable)?.script ?: return 0
+    return script.rules.count {
+        when (it) {
+            is ScriptRule.Form -> it.rule.enabled && it.rule.value.isNotBlank()
+            is ScriptRule.Text -> it.text.isNotBlank()
+        }
+    }
+}

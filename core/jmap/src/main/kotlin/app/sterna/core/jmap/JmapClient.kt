@@ -1615,15 +1615,16 @@ class JmapClient internal constructor(
             }
         }
 
-        /** Create or update the named Sieve script from an already-uploaded blob and make it the
-         *  active script. Pass [existingId] to update in place, or null to create. Throws
-         *  [JmapException] if the server rejects the write. */
+        /** Create or update the named Sieve script from an already-uploaded blob, and make it the
+         *  active script when [activate]. Pass [existingId] to update in place, or null to create.
+         *  Throws [JmapException] if the server rejects the write. */
     suspend fun saveSieveScript(
         session: JmapSession,
         accountId: String,
         name: String,
         blobId: String,
         existingId: String?,
+        activate: Boolean,
         auth: JmapAuth,
     ) = withContext(Dispatchers.IO) {
         val payload = buildJsonObject {
@@ -1640,7 +1641,7 @@ class JmapClient internal constructor(
                             putJsonObject("update") {
                                 putJsonObject(existingId) { put("blobId", blobId) }
                             }
-                            put("onSuccessActivateScript", existingId)
+                            if (activate) put("onSuccessActivateScript", existingId)
                         } else {
                             putJsonObject("create") {
                                 putJsonObject("new") {
@@ -1648,7 +1649,7 @@ class JmapClient internal constructor(
                                     put("blobId", blobId)
                                 }
                             }
-                            put("onSuccessActivateScript", "#new")
+                            if (activate) put("onSuccessActivateScript", "#new")
                         }
                     }
                     add("s0")

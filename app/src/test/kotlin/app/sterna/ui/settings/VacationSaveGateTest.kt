@@ -110,7 +110,7 @@ class VacationSaveGateTest {
             listOf(
                 "val mailboxes = runCatching { repo.observeMailboxes(credentials.id).first() }",
                 ".getOrElseUnlessCancelled { emptyList() }",
-                "repo.accounts.saveVacation(credentials, vacation, trashFolder = trashFilePath(mailboxes))",
+                "readScript = repo.accounts.saveVacation(credentials, vacation, readScript, trashFolder = trashFilePath(mailboxes)).script",
             ),
             save.filter { "mailboxes" in it || "saveVacation(" in it || "getOrElseUnlessCancelled" in it || "trashFilePath" in it },
         )

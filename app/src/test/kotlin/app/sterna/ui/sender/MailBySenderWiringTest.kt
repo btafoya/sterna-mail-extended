@@ -209,14 +209,12 @@ class MailBySenderWiringTest {
                 "rules, then write them back with one more' is written down and executed by a test.",
             lines.any { "addBlockRule(" in it },
         )
-        val saves = lines.filter { "saveFilterRules(" in it }
         assertEquals(
-            "every saveFilterRules call in this ViewModel must be addBlockRule's 'save =' " +
-                "callback. A direct call is how an account's whole Sieve script gets replaced by " +
-                "one rule — saveFilterRules rewrites everything it is handed. Found:\n" +
-                saves.joinToString("\n"),
-            saves.size,
-            saves.count { "save = " in it },
+            "the only saveFilterScript call in this ViewModel is addBlockRule's 'save =', handing on the " +
+                "write blockWrite built, name and snapshot of the opened script included. A direct call is " +
+                "how an account's whole Sieve script gets replaced by one rule",
+            listOf(SAVE_CALLBACK),
+            lines.map { it.trim() }.filter { "saveFilterScript(" in it },
         )
     }
 
@@ -227,7 +225,7 @@ class MailBySenderWiringTest {
         assertTrue(
             "addBlockRule's 'load =' must be exactly '$LOAD_CALLBACK' — a lambda that goes to " +
                 "the server AT THE MOMENT OF WRITING. Anything captured earlier is a stale list, " +
-                "and saveFilterRules writes whatever list it is given over the whole script.",
+                "and saveFilterScript writes whatever script it is given.",
             LOAD_CALLBACK in body,
         )
     }
@@ -796,6 +794,7 @@ class MailBySenderWiringTest {
 
         /** The write path's read, in full: it must go to the server where it is written. */
         private const val LOAD_CALLBACK = "load = { repo.accounts.loadFilterRules(credentials) }"
+        private const val SAVE_CALLBACK = "save = { write -> repo.accounts.saveFilterScript(credentials, write) },"
 
         private const val APP_SOURCES = "app/src/main/kotlin"
         private const val INBOX_SCREEN_PATH = "$APP_SOURCES/app/sterna/ui/inbox/InboxScreen.kt"

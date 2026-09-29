@@ -76,6 +76,16 @@ class FeatureUnavailableTest {
         assertEquals(R.string.settings_vacation_save_error, filtersErrorText(FiltersError.SAVE, null))
     }
 
+    @Test fun `a text left open has its own sentence, whatever ManageSieve kind an earlier failure left`() {
+        (ManageSieveException.Kind.values().toList() + null).forEach { sieveKind ->
+            assertEquals(
+                "TEXT_UNCUT / $sieveKind",
+                R.string.settings_filters_text_uncut,
+                filtersErrorText(FiltersError.TEXT_UNCUT, sieveKind),
+            )
+        }
+    }
+
     @Test fun `a failed filters gesture carries the kind of its ManageSieve failure and the server's words`() {
         val refused = ManageSieveException(
             "PUTSCRIPT: NO line 3: unknown extension",
@@ -216,9 +226,19 @@ class FeatureUnavailableTest {
                 "settings_vacation_imap_account missing".takeIf { "settings_vacation_imap_account" !in keys },
                 "settings_filters_sieve_unreachable missing".takeIf { "settings_filters_sieve_unreachable" !in keys },
                 "settings_filters_sieve_insecure missing".takeIf { "settings_filters_sieve_insecure" !in keys },
+                "settings_filters_text_uncut missing".takeIf { "settings_filters_text_uncut" !in keys },
             ).map { "${file.parentFile.name}: $it" }
         }
         assertEquals(emptyList<String>(), wrong)
+        val withDetail = files.filter { file ->
+            Regex("<string\\s+name=\"settings_filters_text_uncut\">(.*?)</string>")
+                .find(file.readText())?.groupValues?.get(1).orEmpty().contains('%')
+        }
+        assertEquals(
+            "settings_filters_text_uncut is drawn without a detail: a placeholder would show as is",
+            emptyList<String>(),
+            withDetail.map { it.parentFile.name },
+        )
     }
 
     @Test fun `the unreachable sentence claims nothing about what the server supports`() {
@@ -258,18 +278,30 @@ class FeatureUnavailableTest {
     }
 
     @Test fun `the filters ViewModel words each failure in its own function, through the pure decision`() {
-        listOf(
-            Triple("fun load()", "loading = false", "FiltersError.LOAD"),
-            Triple("fun save()", "saving = false", "FiltersError.SAVE"),
-        ).forEach { (signature, flag, kind) ->
-            val failures = DeclarationSource.functionBody(FILTERS_VM, signature).filter { "filtersFailedState(" in it }
-            assertEquals(
-                "the body of '$signature' must record its failure as exactly this one line, the kind " +
-                    "of that gesture and no other",
-                listOf("_state.update { filtersFailedState(it.copy($flag), $kind, t) }"),
-                failures,
-            )
-        }
+        assertEquals(
+            "the body of 'fun load()' must record its failure as exactly this one line, the kind " +
+                "of that gesture and no other",
+            listOf("_state.update { filtersFailedState(it.copy(loading = false), FiltersError.LOAD, t) }"),
+            DeclarationSource.functionBody(FILTERS_VM, "fun load()").filter { "filtersFailedState(" in it },
+        )
+        // The save's failure goes through filtersSaveFailed, executed in FiltersTextRulesTest, which
+        // keeps the edits on screen: pinned here is that it is the save's only fold, and what it folds.
+        assertEquals(
+            "the body of 'fun save()' must record its failures through filtersSaveFailed only, in " +
+                "the catch that also takes a text that cannot be cut",
+            listOf("_state.update { filtersSaveFailed(it, t) }"),
+            DeclarationSource.functionBody(FILTERS_VM, "fun save()").filter { "filtersSaveFailed(" in it || "filtersFailedState(" in it },
+        )
+        assertEquals(
+            "in 'fun save()', a text filtersWrite cannot cut must throw SieveTextUncut: it is the only " +
+                "failure filtersSaveFailed words as TEXT_UNCUT",
+            listOf("val write = filtersWrite(base, edited) ?: throw SieveTextUncut()"),
+            DeclarationSource.functionBody(FILTERS_VM, "fun save()").filter { "filtersWrite(" in it },
+        )
+        assertTrue(
+            "filtersSaveFailed must clear nothing but the spinner; the kind it picks is executed in FiltersTextRulesTest",
+            "filtersFailedState(state.copy(saving = false), kind, failure)" in text(FILTERS_VM),
+        )
         assertFalse("no error detail may be built outside filtersFailedState", "errorDetail =" in text(FILTERS_VM))
     }
 
@@ -343,9 +375,15 @@ class FeatureUnavailableTest {
             ).containsMatchIn(filters),
         )
         assertTrue(
-            "FiltersScreen's save error must be " +
-                "stringResource(filtersErrorText(FiltersError.SAVE, state.errorSieveKind), state.errorDetail)",
-            "stringResource(filtersErrorText(FiltersError.SAVE, state.errorSieveKind), state.errorDetail)," in filters,
+            "FiltersScreen's line above Save must draw the SAVE kind with its detail, the TEXT_UNCUT kind " +
+                "without one, and nothing for LOAD or no error, as one when over state.errorKind",
+            Regex(
+                "when\\s*\\(state\\.errorKind\\)\\s*\\{\\s*" +
+                    "FiltersError\\.SAVE\\s*->\\s*stringResource\\(filtersErrorText\\(FiltersError\\.SAVE, state\\.errorSieveKind\\), state\\.errorDetail\\)\\s*" +
+                    "FiltersError\\.TEXT_UNCUT\\s*->\\s*stringResource\\(filtersErrorText\\(FiltersError\\.TEXT_UNCUT, state\\.errorSieveKind\\)\\)\\s*" +
+                    "FiltersError\\.LOAD,\\s*null\\s*->\\s*null\\s*" +
+                    "\\}\\?\\.let\\s*\\{\\s*message\\s*->\\s*Text\\(\\s*message,",
+            ).containsMatchIn(filters),
         )
         assertFalse(
             "no generic error sentence may be named in FiltersScreen outside filtersErrorText",

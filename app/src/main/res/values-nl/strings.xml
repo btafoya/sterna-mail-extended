@@ -446,10 +446,16 @@
     <string name="settings_filters_add">Regel toevoegen</string>
     <string name="settings_filters_saved">Filters opgeslagen</string>
     <string name="settings_filters_untitled">Naamloze regel</string>
-    <string name="settings_filters_foreign_warning">Er is al een ander filterscript actief op de server; door op te slaan wordt dat van Sterna Mail het actieve script.</string>
     <string name="settings_filters_not_running">Je filterregels worden op dit moment niet toegepast.</string>
     <string name="settings_filters_stops_auto_reply">Je automatische antwoord loopt op de server. Als je deze filters opslaat, stopt het.</string>
     <string name="settings_filters_unreadable">Sterna Mail kan het filterscript van dit account niet lezen; door op te slaan wordt het vervangen.</string>
+    <string name="settings_filters_script">Script: %1$s</string>
+    <string name="settings_filters_text_rule">Sieve-tekst</string>
+    <string name="settings_filters_bulwark_rule">Regel beheerd door Bulwark</string>
+    <string name="settings_filters_edit_text">Als tekst bewerken</string>
+    <string name="settings_filters_text_edit_title">Regel bewerken als Sieve</string>
+    <string name="settings_filters_text_help">Sieve-code, gecontroleerd door de server bij het opslaan.</string>
+    <string name="settings_filters_text_uncut">De Sieve-tekst van een regel laat een haakje, een aanhalingsteken of een opmerking open. Sluit die voordat je opslaat.</string>
     <string name="settings_filters_overwrite_title">Filterscript vervangen?</string>
     <string name="settings_filters_overwrite_body">Sterna Mail kon het filterscript van dit account niet lezen. Bij het opslaan wordt het hele script vervangen door de regels op dit scherm; alles wat erin staat en hier niet te zien is, gaat verloren. Dit kan niet ongedaan worden gemaakt.</string>
     <string name="settings_filters_overwrite_confirm">Vervangen</string>

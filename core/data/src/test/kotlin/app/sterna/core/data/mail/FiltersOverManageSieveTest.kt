@@ -13,15 +13,27 @@ import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.SnoozedDao
+import app.sterna.core.data.filter.BlockOutcome
+import app.sterna.core.data.filter.BulwarkMetadata
 import app.sterna.core.data.filter.FilterRule
+import app.sterna.core.data.filter.FilterScriptChangedException
+import app.sterna.core.data.filter.FilterScriptWrite
 import app.sterna.core.data.filter.FilterScriptStatus
 import app.sterna.core.data.filter.FilterScriptWarning
 import app.sterna.core.data.filter.RuleField
+import app.sterna.core.data.filter.RuleMatch
+import app.sterna.core.data.filter.ScriptRule
+import app.sterna.core.data.filter.ScriptSnapshot
 import app.sterna.core.data.filter.SieveCodec
+import app.sterna.core.data.filter.SieveScriptReadTest.Companion.fixture
+import app.sterna.core.data.filter.SieveScriptReadTest.Companion.readable
 import app.sterna.core.data.filter.SieveVacation
 import app.sterna.core.data.filter.VacationMarker
+import app.sterna.core.data.filter.addBlockRule
 import app.sterna.core.data.filter.blockRule
+import app.sterna.core.data.filter.loadedFilterRules
 import app.sterna.core.data.filter.refreshedFilterWarning
+import app.sterna.core.data.filter.formRulesWrite
 import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.ImapFolder
 import app.sterna.core.imap.ManageSieveException
@@ -225,45 +237,103 @@ class FiltersOverManageSieveTest {
         assertNull("no IMAP endpoint", manageSieveHost(imapAccount.copy(imap = null)))
     }
 
+    /** The script as the filters screen reads it when it opens. */
+    private fun MailAccounts.opening(account: AccountCredentials = imapAccount) =
+        runBlocking { loadFilterRules(account) } as FilterRulesState.Loaded
+
+    /** What the filters screen's Save writes over [opened], its read at opening: [rules] paired with the form rules by position. */
+    private fun MailAccounts.saveRules(opened: FilterRulesState.Loaded, rules: List<FilterRule>) = runBlocking {
+        val forms = opened.scriptRules.filterIsInstance<ScriptRule.Form>()
+        saveFilterScript(imapAccount, formRulesWrite(opened, rules.indices.map { forms.getOrNull(it)?.id }, rules))
+    }
+
+    /** The script the responder screen read when it opened. */
+    private fun MailAccounts.openingVacation() = (runBlocking { loadVacation(imapAccount) } as VacationState.Loaded).script
+
+    private val nothingRead = ScriptSnapshot(null, null)
+
+    /** A responder read with the script it came from set aside, where only the responder is asserted. */
+    private fun VacationState.withoutScript() = (this as? VacationState.Loaded)?.copy(script = null) ?: this
+
+    /** The form rules of the script [name] as the fake server now holds it. */
+    private fun FakeSieve.rulesOf(name: String) = loadedFilterRules(name, scripts.getValue(name)).rules
+
+    private val handWritten = "require [\"fileinto\"];\n\n# rule:[x]\nif header :contains \"subject\" \"x\" {\n    fileinto \"X\";\n}\n"
+
+    private val handRule = FilterRule(name = "x", field = RuleField.SUBJECT, value = "x", moveTo = "X")
+
     // ---- read ----------------------------------------------------------------------------------
 
-    @Test fun `the sterna script's rules are read on the IMAP host with the IMAP login`() {
-        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules)), active = "sterna")
+    @Test fun `the active script is read on the IMAP host with the IMAP login`() {
+        val text = SieveCodec.generate(rules)
+        val sieve = FakeSieve(scripts = mapOf("sterna" to text), active = "sterna")
 
         val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount) }
 
-        assertEquals(FilterRulesState.Loaded(rules = rules, foreignActiveScript = false, scriptUnreadable = false), state)
+        assertEquals(FilterRulesState.Loaded(rules = rules, scriptName = "sterna", scriptText = text), state)
         assertEquals(listOf(login), sieve.logins)
         assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna"), sieve.commands)
         assertEquals(0, host.jmapSessions)
     }
 
-    @Test fun `another active script is reported, the sterna rules still read`() {
-        val sieve = FakeSieve(
-            scripts = mapOf("sterna" to SieveCodec.generate(rules), "roundcube" to "require \"fileinto\";\nkeep;\n"),
-            active = "roundcube",
-        )
+    @Test fun `the active script is opened, not an inactive sterna beside it`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules), "roundcube" to handWritten), active = "roundcube")
 
         val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount) }
 
-        assertEquals(FilterRulesState.Loaded(rules = rules, foreignActiveScript = true, scriptUnreadable = false), state)
+        assertEquals(
+            FilterRulesState.Loaded(rules = listOf(handRule), scriptName = "roundcube", scriptText = handWritten),
+            state,
+        )
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT roundcube"), sieve.commands)
     }
 
-    @Test fun `a sterna script edited by hand is unreadable and foreign, even while active`() {
+    @Test fun `with no active script the inactive sterna is opened`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules), "roundcube" to handWritten), active = null)
+
+        val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount) } as FilterRulesState.Loaded
+
+        assertEquals("sterna", state.scriptName)
+        assertEquals(rules, state.rules)
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna"), sieve.commands)
+    }
+
+    @Test fun `a sterna script edited by hand is read, its hand-written block kept apart`() {
         val edited = SieveCodec.generate(rules) + "if header :contains \"subject\" \"x\" { discard; }\n"
         val sieve = FakeSieve(scripts = mapOf("sterna" to edited), active = "sterna")
 
-        val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount) }
+        val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount) } as FilterRulesState.Loaded
 
-        assertEquals(FilterRulesState.Loaded(rules = rules, foreignActiveScript = true, scriptUnreadable = true), state)
+        assertEquals(false, state.foreignActiveScript)
+        assertEquals(false, state.scriptUnreadable)
+        assertEquals(rules, state.rules)
+        assertEquals(rules.size + 1, state.scriptRules.size)
     }
 
-    @Test fun `without a sterna script nothing is fetched and the list is empty`() {
+    @Test fun `a script that cannot be cut into blocks is unreadable`() {
+        val broken = "keep;\n/* never closed\n"
+        val sieve = FakeSieve(scripts = mapOf("roundcube" to broken), active = "roundcube")
+
+        val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount) }
+
+        assertEquals(
+            FilterRulesState.Loaded(
+                rules = emptyList(),
+                foreignActiveScript = true,
+                scriptUnreadable = true,
+                scriptName = "roundcube",
+                scriptText = broken,
+            ),
+            state,
+        )
+    }
+
+    @Test fun `without a script to open nothing is fetched and the list is empty`() {
         val sieve = FakeSieve(scripts = mapOf("vacation" to "vacation \"away\";\n"), active = null)
 
         val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount) }
 
-        assertEquals(FilterRulesState.Loaded(rules = emptyList(), foreignActiveScript = false, scriptUnreadable = false), state)
+        assertEquals(FilterRulesState.Loaded(rules = emptyList()), state)
         assertEquals(listOf("LISTSCRIPTS"), sieve.commands)
     }
 
@@ -282,7 +352,7 @@ class FiltersOverManageSieveTest {
 
     // ---- status --------------------------------------------------------------------------------
 
-    @Test fun `an inactive sterna script beside an active vacation script`() {
+    @Test fun `over ManageSieve an active vacation script is the one opened, and its block is counted`() {
         val sieve = FakeSieve(
             scripts = mapOf("sterna" to SieveCodec.generate(rules), "vacation" to "vacation \"away\";\n"),
             active = "vacation",
@@ -293,16 +363,16 @@ class FiltersOverManageSieveTest {
         assertEquals(
             FilterScriptStatus(
                 scriptExists = true,
-                scriptActive = false,
-                enabledRuleCount = 2,
+                scriptActive = true,
+                enabledRuleCount = 1,
                 vacationScriptExists = true,
                 vacationScriptActive = true,
-                foreignActive = true,
+                foreignActive = false,
             ),
             status,
         )
         assertEquals(listOf(login), sieve.logins)
-        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna"), sieve.commands)
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT vacation"), sieve.commands)
     }
 
     @Test fun `a vacation script that exists but is not the active one`() {
@@ -326,34 +396,25 @@ class FiltersOverManageSieveTest {
         )
     }
 
-    @Test fun `without a sterna script the status still names the other scripts`() {
-        val sieve = FakeSieve(scripts = mapOf("vacation" to "vacation \"away\";\n", "other" to "keep;\n"), active = "other")
+    @Test fun `an inactive sterna with nothing active is opened, and its rules are not running`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules), "other" to "keep;\n"), active = null)
 
-        val status = runBlocking { accounts(sieve).loadFilterScriptStatus(imapAccount) }
+        val status = runBlocking { accounts(sieve).loadFilterScriptStatus(imapAccount) }!!
 
+        assertEquals(FilterScriptStatus(scriptExists = true, scriptActive = false, enabledRuleCount = 2), status)
         assertEquals(
-            FilterScriptStatus(vacationScriptExists = true, vacationScriptActive = false, foreignActive = true),
-            status,
+            FilterScriptWarning.RULES_NOT_RUNNING,
+            refreshedFilterWarning(previous = null, status = status, responderEnabled = null),
         )
-        assertEquals(listOf("LISTSCRIPTS"), sieve.commands)
     }
 
-    @Test fun `a status without any vacation script says so`() {
-        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules), "other" to "keep;\n"), active = "sterna")
+    @Test fun `without a script to open the status still names the other scripts`() {
+        val sieve = FakeSieve(scripts = mapOf("vacation" to "vacation \"away\";\n", "other" to "keep;\n"), active = null)
 
         val status = runBlocking { accounts(sieve).loadFilterScriptStatus(imapAccount) }
 
-        assertEquals(
-            FilterScriptStatus(
-                scriptExists = true,
-                scriptActive = true,
-                enabledRuleCount = 2,
-                vacationScriptExists = false,
-                vacationScriptActive = false,
-                foreignActive = false,
-            ),
-            status,
-        )
+        assertEquals(FilterScriptStatus(vacationScriptExists = true), status)
+        assertEquals(listOf("LISTSCRIPTS"), sieve.commands)
     }
 
     @Test fun `a cancelled IMAP read stays a cancellation, for the status and for the rules`() {
@@ -378,14 +439,113 @@ class FiltersOverManageSieveTest {
 
     // ---- save ----------------------------------------------------------------------------------
 
-    @Test fun `a save checks, stores and activates the generated script in one connection`() {
-        val sieve = FakeSieve(scripts = mapOf("roundcube" to "keep;\n"), active = "roundcube", offersCheckScript = true)
+    @Test fun `a save over the active script writes it under its name and activates nothing`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules), "roundcube" to handWritten), active = "roundcube")
+        val accounts = accounts(sieve)
+        val loaded = runBlocking { accounts.loadFilterRules(imapAccount) } as FilterRulesState.Loaded
+        val added = FilterRule(name = "Boss", value = "boss@example.test", moveTo = "Work")
+        sieve.commands.clear()
 
-        runBlocking { accounts(sieve).saveFilterRules(imapAccount, rules) }
+        runBlocking { accounts.saveFilterScript(imapAccount, FilterScriptWrite(loaded.snapshot, loaded.scriptToEdit.add(added))) }
+
+        assertEquals(
+            "SETACTIVE on another script switches the running one off: none is sent over the active one",
+            listOf("LISTSCRIPTS", "GETSCRIPT roundcube", "CHECKSCRIPT", "PUTSCRIPT roundcube"),
+            sieve.commands,
+        )
+        assertEquals("roundcube", sieve.active)
+        assertEquals(listOf(handRule, added), sieve.rulesOf("roundcube"))
+        assertTrue(sieve.scripts.getValue("roundcube").startsWith(handWritten))
+        assertEquals("the inactive sterna is not touched", SieveCodec.generate(rules), sieve.scripts["sterna"])
+    }
+
+    @Test fun `a save over the active script puts it in service with no SETACTIVE to lose`() {
+        val before = listOf(FilterRule(name = "Old", value = "old@example.test", moveTo = "Old"))
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(before)), active = "sterna", cutAt = "SETACTIVE")
+        val accounts = accounts(sieve)
+        val opened = accounts.opening()
+
+        accounts.saveRules(opened, rules)
+
+        assertEquals(rules, sieve.rulesOf("sterna"))
+        val status = runBlocking { accounts.loadFilterScriptStatus(imapAccount) }!!
+        assertEquals(true, status.scriptActive)
+        assertEquals(2, status.enabledRuleCount)
+        assertNull(refreshedFilterWarning(previous = null, status = status, responderEnabled = null))
+    }
+
+    @Test fun `an inactive sterna with no active script is written and activated`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules)), active = null)
+        val accounts = accounts(sieve)
+        val loaded = runBlocking { accounts.loadFilterRules(imapAccount) } as FilterRulesState.Loaded
+        sieve.commands.clear()
+
+        runBlocking { accounts.saveFilterScript(imapAccount, FilterScriptWrite(loaded.snapshot, loaded.scriptToEdit)) }
+
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna", "CHECKSCRIPT", "PUTSCRIPT sterna", "SETACTIVE sterna"), sieve.commands)
+        assertEquals("sterna", sieve.active)
+    }
+
+    @Test fun `a script activated since the screen opened refuses the save, and nothing is written`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules), "roundcube" to handWritten), active = null)
+        val accounts = accounts(sieve)
+        val opened = accounts.opening()
+        sieve.active = "roundcube"
+        sieve.commands.clear()
+
+        thrownBy<FilterScriptChangedException> { accounts.saveRules(opened, rules.drop(1)) }
+
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT roundcube"), sieve.commands)
+        assertEquals(SieveCodec.generate(rules), sieve.scripts["sterna"])
+        assertEquals("roundcube", sieve.active)
+    }
+
+    @Test fun `a rule added elsewhere since the screen opened refuses the save, and it is kept`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules)), active = "sterna")
+        val accounts = accounts(sieve)
+        val opened = accounts.opening()
+        val elsewhere = SieveCodec.generate(rules) + "if header :contains \"subject\" \"new\" {\n    fileinto \"New\";\n}\n"
+        sieve.scripts["sterna"] = elsewhere
+        sieve.commands.clear()
+
+        thrownBy<FilterScriptChangedException> { accounts.saveRules(opened, rules.drop(1)) }
+
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna"), sieve.commands)
+        assertEquals(elsewhere, sieve.scripts["sterna"])
+    }
+
+    @Test fun `a script turned unreadable since the screen opened is not replaced unasked`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules)), active = "sterna")
+        val accounts = accounts(sieve)
+        val opened = accounts.opening()
+        sieve.scripts["sterna"] = "keep;\n/* never closed\n"
+
+        thrownBy<FilterScriptChangedException> { accounts.saveRules(opened, rules) }
+
+        assertEquals("keep;\n/* never closed\n", sieve.scripts["sterna"])
+    }
+
+    @Test fun `sterna created elsewhere after an empty account was opened refuses the save`() {
+        val sieve = FakeSieve()
+        val accounts = accounts(sieve)
+        val opened = accounts.opening()
+        sieve.scripts["sterna"] = handWritten
+
+        thrownBy<FilterScriptChangedException> { accounts.saveRules(opened, rules) }
+
+        assertEquals(handWritten, sieve.scripts["sterna"])
+        assertNull(sieve.active)
+    }
+
+    @Test fun `an account with no script gets sterna, checked, stored and activated in one connection`() {
+        val sieve = FakeSieve(offersCheckScript = true)
+        val script = readable("").add(rules[0])
+
+        runBlocking { accounts(sieve).saveFilterScript(imapAccount, FilterScriptWrite(nothingRead, script)) }
 
         assertEquals(listOf("LISTSCRIPTS", "CHECKSCRIPT", "PUTSCRIPT sterna", "SETACTIVE sterna"), sieve.commands)
-        assertEquals(listOf(SieveCodec.generate(rules)), sieve.checked)
-        assertEquals(SieveCodec.generate(rules), sieve.scripts["sterna"])
+        assertEquals(listOf(script.emit()), sieve.checked)
+        assertEquals(script.emit(), sieve.scripts["sterna"])
         assertEquals("sterna", sieve.active)
         assertEquals(listOf(login), sieve.logins)
         assertEquals(0, host.jmapSessions)
@@ -394,41 +554,48 @@ class FiltersOverManageSieveTest {
     @Test fun `without CHECKSCRIPT the save stores and activates only`() {
         val sieve = FakeSieve(offersCheckScript = false)
 
-        runBlocking { accounts(sieve).saveFilterRules(imapAccount, rules) }
+        runBlocking { accounts(sieve).saveFilterScript(imapAccount, FilterScriptWrite(nothingRead, readable("").add(rules[0]))) }
 
         assertEquals(listOf("LISTSCRIPTS", "PUTSCRIPT sterna", "SETACTIVE sterna"), sieve.commands)
         assertEquals("sterna", sieve.active)
     }
 
-    @Test fun `a PUTSCRIPT rejection reaches the caller with the server's text and activates nothing`() {
+    @Test fun `a PUTSCRIPT rejection reaches the caller with the server's text and changes nothing`() {
         val sieve = FakeSieve(
-            scripts = mapOf("roundcube" to "keep;\n"),
+            scripts = mapOf("roundcube" to handWritten),
             active = "roundcube",
             refuse = { if (it == "PUTSCRIPT") refused(it, "line 4: unknown extension") else null },
         )
 
-        val thrown = thrownBy<ManageSieveException> { runBlocking { accounts(sieve).saveFilterRules(imapAccount, rules) } }
+        val thrown = thrownBy<ManageSieveException> {
+            runBlocking {
+                accounts(sieve).saveFilterScript(imapAccount, FilterScriptWrite(ScriptSnapshot("roundcube", handWritten), readable(handWritten).add(rules[0])))
+            }
+        }
 
         assertEquals("line 4: unknown extension", thrown.serverText)
-        assertEquals(listOf("LISTSCRIPTS", "CHECKSCRIPT", "PUTSCRIPT sterna"), sieve.commands)
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT roundcube", "CHECKSCRIPT", "PUTSCRIPT roundcube"), sieve.commands)
         assertEquals("roundcube", sieve.active)
+        assertEquals(handWritten, sieve.scripts["roundcube"])
     }
 
     @Test fun `a CHECKSCRIPT rejection stops the save before anything is stored`() {
         val sieve = FakeSieve(refuse = { if (it == "CHECKSCRIPT") refused(it, "fileinto: unknown") else null })
 
-        val thrown = thrownBy<ManageSieveException> { runBlocking { accounts(sieve).saveFilterRules(imapAccount, rules) } }
+        val thrown = thrownBy<ManageSieveException> {
+            runBlocking { accounts(sieve).saveFilterScript(imapAccount, FilterScriptWrite(nothingRead, readable("").add(rules[0]))) }
+        }
 
         assertEquals("fileinto: unknown", thrown.serverText)
         assertEquals(listOf("LISTSCRIPTS", "CHECKSCRIPT"), sieve.commands)
         assertNull(sieve.scripts["sterna"])
     }
 
-    @Test fun `a connection lost between PUTSCRIPT and SETACTIVE reads back as rules not running`() {
-        val sieve = FakeSieve(scripts = mapOf("roundcube" to "keep;\n"), active = "roundcube", cutAt = "SETACTIVE")
+    @Test fun `a connection lost between PUTSCRIPT and a first SETACTIVE reads back as rules not running`() {
+        val sieve = FakeSieve(cutAt = "SETACTIVE")
         val accounts = accounts(sieve)
 
-        val thrown = thrownBy<ManageSieveException> { runBlocking { accounts.saveFilterRules(imapAccount, rules) } }
+        val thrown = thrownBy<ManageSieveException> { accounts.saveRules(accounts.opening(), rules) }
         assertEquals(ManageSieveException.Kind.UNREACHABLE, thrown.kind)
 
         val status = runBlocking { accounts.loadFilterScriptStatus(imapAccount) }!!
@@ -440,21 +607,32 @@ class FiltersOverManageSieveTest {
         )
     }
 
-    @Test fun `over an active sterna, a connection lost before SETACTIVE leaves the new rules running`() {
-        val before = listOf(FilterRule(name = "Old", value = "old@example.test", moveTo = "Old"))
-        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(before)), active = "sterna", cutAt = "SETACTIVE")
+    // ---- a sender block --------------------------------------------------------------------------
+
+    @Test fun `a readable Bulwark script, active, takes a sender block in place`() {
+        val bulwark = fixture("f237-bulwark")
+        val sieve = FakeSieve(scripts = mapOf("bulwark" to bulwark), active = "bulwark")
         val accounts = accounts(sieve)
 
-        thrownBy<ManageSieveException> { runBlocking { accounts.saveFilterRules(imapAccount, rules) } }
+        val outcome = runBlocking {
+            addBlockRule(
+                address = "spam@example.test",
+                trashFolder = "INBOX.Trash",
+                load = { accounts.loadFilterRules(imapAccount) },
+                save = { accounts.saveFilterScript(imapAccount, it) },
+            )
+        }
 
-        val status = runBlocking { accounts.loadFilterScriptStatus(imapAccount) }!!
-        assertEquals(true, status.scriptActive)
-        assertEquals(2, status.enabledRuleCount)
+        assertEquals(BlockOutcome.ADDED, outcome)
         assertEquals(
-            FilterRulesState.Loaded(rules = rules, foreignActiveScript = false, scriptUnreadable = false),
-            runBlocking { accounts.loadFilterRules(imapAccount) },
+            listOf("LISTSCRIPTS", "GETSCRIPT bulwark", "LISTSCRIPTS", "GETSCRIPT bulwark", "CHECKSCRIPT", "PUTSCRIPT bulwark"),
+            sieve.commands,
         )
-        assertNull(refreshedFilterWarning(previous = null, status = status, responderEnabled = null))
+        assertEquals(setOf("bulwark"), sieve.scripts.keys)
+        assertEquals("bulwark", sieve.active)
+        val reread = loadedFilterRules("bulwark", sieve.scripts.getValue("bulwark"))
+        assertEquals(BulwarkMetadata.READABLE, reread.script!!.bulwarkMetadata)
+        assertTrue(blockRule("spam@example.test", "INBOX.Trash") in reread.rules)
     }
 
     // ---- the auto-reply -------------------------------------------------------------------------
@@ -467,7 +645,7 @@ class FiltersOverManageSieveTest {
         textBody = "Back on the 28th.",
     )
 
-    /** [away] as the `sterna` script keeps it for [imapAccount] and [identified]. */
+    /** [away] as the opened script keeps it for [imapAccount] and [identified]. */
     private val awayInScript = SieveVacation(
         isEnabled = true,
         fromDate = "2026-09-20T00:00:00Z",
@@ -489,50 +667,53 @@ class FiltersOverManageSieveTest {
 
     private val identified = IdentifiedStorage()
 
-    @Test fun `the auto-reply is read out of the sterna script, with nothing to confirm`() {
+    @Test fun `the auto-reply is read out of the active script, with nothing to confirm`() {
         val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules, awayInScript)), active = "sterna")
 
-        val state = runBlocking { accounts(sieve).loadVacation(imapAccount) }
+        val state = runBlocking { accounts(sieve).loadVacation(imapAccount) }.withoutScript()
 
         assertEquals(VacationState.Loaded(response = away, foreignActiveScript = false), state)
         assertEquals(listOf(login), sieve.logins)
         assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna"), sieve.commands)
         assertEquals(0, host.jmapSessions)
+        assertEquals(
+            ScriptSnapshot("sterna", SieveCodec.generate(rules, awayInScript)),
+            (runBlocking { accounts(sieve).loadVacation(imapAccount) } as VacationState.Loaded).script,
+        )
     }
 
-    @Test fun `without a sterna script, or without a responder in it, the auto-reply is off and empty`() {
+    @Test fun `without a script, or without a responder in it, the auto-reply is off and empty`() {
         for (scripts in listOf(emptyMap(), mapOf("sterna" to SieveCodec.generate(rules)))) {
             val sieve = FakeSieve(scripts = scripts, active = scripts.keys.firstOrNull())
 
-            val state = runBlocking { accounts(sieve).loadVacation(imapAccount) }
+            val state = runBlocking { accounts(sieve).loadVacation(imapAccount) }.withoutScript()
 
             assertEquals("scripts $scripts", VacationState.Loaded(response = VacationResponse(), foreignActiveScript = false), state)
         }
     }
 
-    @Test fun `another active script asks before writing, and the read writes nothing`() {
+    @Test fun `another active script is where the auto-reply is read, and nothing asks before writing`() {
         val sieve = FakeSieve(
-            scripts = mapOf("sterna" to SieveCodec.generate(rules, awayInScript), "roundcube" to "keep;\n"),
+            scripts = mapOf("sterna" to SieveCodec.generate(rules, awayInScript), "roundcube" to handWritten),
             active = "roundcube",
         )
 
-        val state = runBlocking { accounts(sieve).loadVacation(imapAccount) }
+        val state = runBlocking { accounts(sieve).loadVacation(imapAccount) }.withoutScript()
 
-        assertEquals(VacationState.Loaded(response = away, foreignActiveScript = true), state)
-        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna"), sieve.commands)
+        assertEquals(VacationState.Loaded(response = VacationResponse(), foreignActiveScript = false), state)
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT roundcube"), sieve.commands)
         assertEquals("roundcube", sieve.active)
     }
 
-    @Test fun `an unreadable sterna script asks before writing and reads as an empty auto-reply`() {
+    @Test fun `only a script that cannot be cut asks before writing the auto-reply`() {
         val handEdited = SieveCodec.generate(rules, awayInScript) + "if header :contains \"subject\" \"x\" { discard; }\n"
-        val badMarker = SieveCodec.generate(rules) + "# STERNA-VACATION-V1: {not json\n"
-        for (script in listOf(handEdited, badMarker)) {
+        val broken = SieveCodec.generate(rules, awayInScript) + "/* never closed\n"
+        for ((script, confirm) in listOf(handEdited to false, broken to true)) {
             val sieve = FakeSieve(scripts = mapOf("sterna" to script), active = "sterna")
 
-            val state = runBlocking { accounts(sieve).loadVacation(imapAccount) }
+            val state = runBlocking { accounts(sieve).loadVacation(imapAccount) }.withoutScript()
 
-            val expected = if (script == handEdited) away else VacationResponse()
-            assertEquals(script, VacationState.Loaded(response = expected, foreignActiveScript = true), state)
+            assertEquals(script, VacationState.Loaded(response = away, foreignActiveScript = confirm), state)
         }
     }
 
@@ -557,7 +738,7 @@ class FiltersOverManageSieveTest {
             val accounts = accounts(sieve)
 
             assertSame(VacationState.AccountUnsupported, runBlocking { accounts.loadVacation(account) })
-            val thrown = thrownBy<IllegalStateException> { runBlocking { accounts.saveVacation(account, away) } }
+            val thrown = thrownBy<IllegalStateException> { runBlocking { accounts.saveVacation(account, away, read = null) } }
 
             assertEquals("Automatic replies are not available for this account", thrown.message)
             assertEquals(emptyList<List<Any>>(), sieve.logins)
@@ -574,20 +755,62 @@ class FiltersOverManageSieveTest {
         assertSame(offline, thrown)
     }
 
+    @Test fun `saving the auto-reply rewrites its segment alone, every other block byte for byte`() {
+        val text = "require [\"fileinto\", \"vacation\", \"date\", \"relational\"];\n\n" +
+            "# rule:[boss]\nif address :is \"from\" \"boss@example.test\" {\n    fileinto \"Work\";\n}\n\n" +
+            "# rule:[hand]\nif header :contains \"subject\" \"sale\" {\n    discard;\n}\n"
+        val boss = FilterRule(name = "boss", match = RuleMatch.IS, value = "boss@example.test", moveTo = "Work")
+        val sieve = FakeSieve(scripts = mapOf("roundcube" to text), active = "roundcube")
+        val accounts = accounts(sieve, identified)
+        val read = accounts.openingVacation()
+        sieve.commands.clear()
+
+        val written = runBlocking { accounts.saveVacation(imapAccount, away, read) }
+
+        assertEquals(away, written.response)
+        assertEquals(
+            text + "\n" + SieveCodec.vacationMarkerLine(awayInScript) + "\n" +
+                SieveCodec.vacationToSieve(awayInScript, listOf(boss)) + "\n",
+            sieve.scripts["roundcube"],
+        )
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT roundcube", "CHECKSCRIPT", "PUTSCRIPT roundcube"), sieve.commands)
+        assertEquals("roundcube", sieve.active)
+        assertEquals(ScriptSnapshot("roundcube", sieve.scripts["roundcube"]), written.script)
+    }
+
+    @Test fun `an auto-reply save over a script changed since the screen opened writes nothing`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules)), active = "sterna")
+        val accounts = accounts(sieve, identified)
+        val read = accounts.openingVacation()
+        val elsewhere = SieveCodec.generate(rules.drop(1))
+        sieve.scripts["sterna"] = elsewhere
+        sieve.commands.clear()
+
+        thrownBy<FilterScriptChangedException> { runBlocking { accounts.saveVacation(imapAccount, away, read) } }
+
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna"), sieve.commands)
+        assertEquals(elsewhere, sieve.scripts["sterna"])
+    }
+
     @Test fun `saving the auto-reply keeps the rules and replies for the account's own addresses`() {
         val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules)), active = "sterna")
+        val accounts = accounts(sieve, identified)
+        val read = accounts.openingVacation()
+        sieve.commands.clear()
+        sieve.logins.clear()
 
-        val written = runBlocking { accounts(sieve, identified).saveVacation(imapAccount, away) }
+        val written = runBlocking { accounts.saveVacation(imapAccount, away, read) }
 
-        val expected = SieveCodec.generate(rules, awayInScript)
-        assertEquals(away, written)
-        assertEquals(expected, sieve.scripts["sterna"])
-        assertEquals(listOf(expected), sieve.checked)
-        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna", "CHECKSCRIPT", "PUTSCRIPT sterna", "SETACTIVE sterna"), sieve.commands)
+        val stored = sieve.scripts.getValue("sterna")
+        assertEquals(away, written.response)
+        assertEquals(rules, sieve.rulesOf("sterna"))
+        assertEquals(VacationMarker.Found(awayInScript), SieveCodec.readVacation(stored))
+        assertEquals(listOf(stored), sieve.checked)
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna", "CHECKSCRIPT", "PUTSCRIPT sterna"), sieve.commands)
         assertEquals("sterna", sieve.active)
         assertEquals(listOf(login), sieve.logins)
         assertEquals("account-1", identified.args("identities")["accountId"])
-        assertTrue(expected, ":addresses [\"alex@example.test\", \"a.martin@example.test\"]" in expected)
+        assertTrue(stored, ":addresses [\"alex@example.test\", \"a.martin@example.test\"]" in stored)
     }
 
     @Test fun `saving the auto-reply names the account's Trash, and a filters save keeps it`() {
@@ -595,15 +818,15 @@ class FiltersOverManageSieveTest {
         val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(blocked)), active = "sterna")
         val accounts = accounts(sieve, identified)
 
-        runBlocking { accounts.saveVacation(imapAccount, away, trashFolder = "INBOX.Trash") }
+        runBlocking { accounts.saveVacation(imapAccount, away, accounts.openingVacation(), trashFolder = "INBOX.Trash") }
 
         val withTrash = awayInScript.copy(trashFolder = "INBOX.Trash")
         val stored = sieve.scripts.getValue("sterna")
         assertEquals(VacationMarker.Found(withTrash), SieveCodec.readVacation(stored))
-        assertEquals(SieveCodec.generate(blocked, withTrash), stored)
+        assertEquals(blocked, sieve.rulesOf("sterna"))
         assertTrue(stored, "if allof (not anyof (address :is \"from\" \"spam@example.test\"), currentdate" in stored)
 
-        runBlocking { accounts.saveFilterRules(imapAccount, blocked) }
+        accounts.saveRules(accounts.opening(), blocked.map { if (it.name == "News") it.copy(value = "digest") else it })
 
         assertEquals(VacationMarker.Found(withTrash), SieveCodec.readVacation(sieve.scripts.getValue("sterna")))
     }
@@ -612,43 +835,45 @@ class FiltersOverManageSieveTest {
         val sieve = FakeSieve()
         val accounts = accounts(sieve, identified)
 
-        runBlocking { accounts.saveVacation(imapAccount, away) }
-        runBlocking { accounts.saveFilterRules(imapAccount, rules) }
+        runBlocking { accounts.saveVacation(imapAccount, away, accounts.openingVacation()) }
+        assertEquals("sterna", sieve.active)
+        accounts.saveRules(accounts.opening(), rules)
 
         val stored = sieve.scripts.getValue("sterna")
-        assertEquals(SieveCodec.generate(rules, awayInScript), stored)
+        assertEquals(rules, sieve.rulesOf("sterna"))
         assertEquals(VacationMarker.Found(awayInScript), SieveCodec.readVacation(stored))
-        assertEquals(VacationState.Loaded(response = away), runBlocking { accounts.loadVacation(imapAccount) })
+        assertEquals(VacationState.Loaded(response = away), runBlocking { accounts.loadVacation(imapAccount) }.withoutScript())
     }
 
     @Test fun `the filters then the auto-reply, and the final script carries both`() {
         val sieve = FakeSieve()
         val accounts = accounts(sieve, identified)
 
-        runBlocking { accounts.saveFilterRules(imapAccount, rules) }
-        runBlocking { accounts.saveVacation(imapAccount, away) }
+        accounts.saveRules(accounts.opening(), rules)
+        runBlocking { accounts.saveVacation(imapAccount, away, accounts.openingVacation()) }
 
-        assertEquals(SieveCodec.generate(rules, awayInScript), sieve.scripts.getValue("sterna"))
-        assertEquals(
-            FilterRulesState.Loaded(rules = rules, foreignActiveScript = false, scriptUnreadable = false),
-            runBlocking { accounts.loadFilterRules(imapAccount) },
-        )
+        assertEquals(VacationMarker.Found(awayInScript), SieveCodec.readVacation(sieve.scripts.getValue("sterna")))
+        assertEquals(rules, (runBlocking { accounts.loadFilterRules(imapAccount) } as FilterRulesState.Loaded).rules)
     }
 
-    @Test fun `a filters save over an unreadable auto-reply marker writes no responder`() {
-        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules) + "# STERNA-VACATION-V1: {not json\n"), active = "sterna")
+    @Test fun `a filters save leaves an unreadable auto-reply marker where it was`() {
+        val broken = "# STERNA-VACATION-V1: {not json"
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules) + broken + "\n"), active = "sterna")
 
-        runBlocking { accounts(sieve).saveFilterRules(imapAccount, rules) }
+        val accounts = accounts(sieve)
+        accounts.saveRules(accounts.opening(), rules.map { if (it.name == "News") it.copy(value = "digest") else it })
 
-        assertEquals(SieveCodec.generate(rules), sieve.scripts["sterna"])
+        assertTrue(sieve.scripts.getValue("sterna"), sieve.scripts.getValue("sterna").contains(broken + "\n"))
     }
 
-    @Test fun `saving the auto-reply over an unreadable sterna script drops what could not be read`() {
-        val sieve = FakeSieve(scripts = mapOf("sterna" to "require \"fileinto\";\nfileinto \"Hand\";\n"), active = "sterna")
+    @Test fun `saving the auto-reply over a script that cannot be cut replaces what could not be read`() {
+        val sieve = FakeSieve(scripts = mapOf("roundcube" to "require \"fileinto\";\n/* never closed\n"), active = "roundcube")
 
-        runBlocking { accounts(sieve, identified).saveVacation(imapAccount, away) }
+        val accounts = accounts(sieve, identified)
+        runBlocking { accounts.saveVacation(imapAccount, away, accounts.openingVacation()) }
 
-        assertEquals(SieveCodec.generate(emptyList(), awayInScript), sieve.scripts["sterna"])
+        assertEquals(readable("").withResponder(awayInScript).emit(), sieve.scripts["roundcube"])
+        assertEquals("roundcube", sieve.active)
     }
 
     // ---- accounts ManageSieve does not serve -----------------------------------------------------
@@ -663,7 +888,7 @@ class FiltersOverManageSieveTest {
 
             assertSame(FilterRulesState.Unsupported, runBlocking { accounts.loadFilterRules(account) })
             assertEquals(FilterScriptStatus(), runBlocking { accounts.loadFilterScriptStatus(account) })
-            val thrown = thrownBy<IllegalStateException> { runBlocking { accounts.saveFilterRules(account, rules) } }
+            val thrown = thrownBy<IllegalStateException> { runBlocking { accounts.saveFilterScript(account, FilterScriptWrite(nothingRead, readable(""))) } }
 
             assertEquals("Server-side filters are not available for this account", thrown.message)
             assertEquals(emptyList<List<Any>>(), sieve.logins)
@@ -675,7 +900,7 @@ class FiltersOverManageSieveTest {
         val sieve = FakeSieve()
 
         val thrown = thrownBy<IllegalStateException> {
-            runBlocking { accounts(sieve).saveFilterRules(imapAccount.copy(imap = null), rules) }
+            runBlocking { accounts(sieve).saveFilterScript(imapAccount.copy(imap = null), FilterScriptWrite(nothingRead, readable(""))) }
         }
 
         assertEquals("Server-side filters are not available for this account", thrown.message)
@@ -690,9 +915,9 @@ class FiltersOverManageSieveTest {
 
         thrownBy<JmapReached> { runBlocking { accounts.loadFilterRules(jmap) } }
         assertNull(runBlocking { accounts.loadFilterScriptStatus(jmap) })
-        thrownBy<JmapReached> { runBlocking { accounts.saveFilterRules(jmap, rules) } }
+        thrownBy<JmapReached> { runBlocking { accounts.saveFilterScript(jmap, FilterScriptWrite(nothingRead, readable(""))) } }
         thrownBy<JmapReached> { runBlocking { accounts.loadVacation(jmap) } }
-        thrownBy<JmapReached> { runBlocking { accounts.saveVacation(jmap, away) } }
+        thrownBy<JmapReached> { runBlocking { accounts.saveVacation(jmap, away, read = null) } }
 
         assertEquals(5, host.jmapSessions)
         assertEquals(emptyList<List<Any>>(), sieve.logins)
@@ -721,10 +946,11 @@ class FiltersOverManageSieveTest {
         val sieve = FakeSieve()
         val accounts = accounts(sieve)
 
-        runBlocking { accounts.saveFilterRules(imapAccount, intoChinese) }
-        val state = runBlocking { accounts.loadFilterRules(imapAccount) }
+        accounts.saveRules(accounts.opening(), intoChinese)
+        val state = runBlocking { accounts.loadFilterRules(imapAccount) } as FilterRulesState.Loaded
 
-        assertEquals(FilterRulesState.Loaded(rules = intoChinese, foreignActiveScript = false, scriptUnreadable = false), state)
+        assertEquals(intoChinese, state.rules)
+        assertEquals(false, state.scriptUnreadable)
         val stored = sieve.scripts.getValue("sterna")
         assertTrue(stored, "fileinto \"项目/报告\";" in stored)
         assertTrue(stored, "fileinto \"INBOX.项目.报告\";" in stored)

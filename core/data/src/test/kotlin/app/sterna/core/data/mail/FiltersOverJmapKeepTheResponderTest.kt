@@ -9,10 +9,16 @@ import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.SnoozedDao
+import app.sterna.core.data.filter.BlockOutcome
 import app.sterna.core.data.filter.FilterRule
+import app.sterna.core.data.filter.FilterScriptChangedException
 import app.sterna.core.data.filter.RuleField
+import app.sterna.core.data.filter.ScriptRule
 import app.sterna.core.data.filter.SieveCodec
 import app.sterna.core.data.filter.SieveVacation
+import app.sterna.core.data.filter.loadedFilterRules
+import app.sterna.core.data.filter.addBlockRule
+import app.sterna.core.data.filter.formRulesWrite
 import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.SmtpClient
 import app.sterna.core.jmap.BasicAuth
@@ -37,7 +43,6 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -53,9 +58,8 @@ import java.util.concurrent.CopyOnWriteArrayList
  * What is pinned is the blob that leaves the process and the script the `SieveScript/set` updates.
  *
  * What this does NOT cover:
- * - A download of the `sterna` script that fails: the save throws before uploading, nothing here
- *   runs that path.
- * - The server-side effect of `onSuccessActivateScript` on another active script.
+ * - A download of the opened script that fails: the read throws, nothing here runs that path.
+ * - The server-side effect of `onSuccessActivateScript`: only whether it is asked is pinned.
  */
 class FiltersOverJmapKeepTheResponderTest {
 
@@ -218,58 +222,140 @@ class FiltersOverJmapKeepTheResponderTest {
     private fun updatedIds(): List<String> = methods.filter { it.first == "SieveScript/set" }
         .map { it.second["update"]?.jsonObject?.keys?.single() ?: "<create>" }
 
+    /** What each `SieveScript/set` asked to activate, null for nothing. */
+    private fun activations(): List<String?> = methods.filter { it.first == "SieveScript/set" }
+        .map { it.second["onSuccessActivateScript"]?.jsonPrimitive?.content }
+
+    /** The script as the filters screen reads it when it opens. */
+    private fun MailAccounts.opening() = runBlocking { loadFilterRules(credentials) } as FilterRulesState.Loaded
+
+    /** What the filters screen's Save writes over [opened], its read at opening: [rules] paired with the form rules by position. */
+    private fun MailAccounts.saveRules(opened: FilterRulesState.Loaded, rules: List<FilterRule>) = runBlocking {
+        val forms = opened.scriptRules.filterIsInstance<ScriptRule.Form>()
+        saveFilterScript(credentials, formRulesWrite(opened, rules.indices.map { forms.getOrNull(it)?.id }, rules))
+    }
+
     @Test fun `a JMAP filters save keeps the responder an IMAP account wrote into the sterna script`() {
         serveJmap()
         scripts = listOf(sterna(SieveCodec.generate(before, away), active = true))
         val accounts = accounts()
+        val loaded = accounts.opening()
 
-        val loaded = runBlocking { accounts.loadFilterRules(credentials) }
-        assertEquals(FilterRulesState.Loaded(rules = before, foreignActiveScript = false, scriptUnreadable = false), loaded)
+        accounts.saveRules(loaded, after)
 
-        runBlocking { accounts.saveFilterRules(credentials, after) }
-
+        assertEquals("sterna", loaded.scriptName)
+        assertEquals(before, loaded.rules)
         val uploaded = uploads.single()
         assertTrue(uploaded, uploaded.lines().any { it.startsWith("# STERNA-VACATION-V1: ") })
         assertTrue(uploaded, "vacation :subject \"Away\" :addresses [\"alex@example.test\"] \"Back on the 28th.\";" in uploaded)
         assertTrue(uploaded, "header :contains \"subject\" \"newsletter\"" in uploaded)
-        assertEquals(SieveCodec.generate(after, away), uploaded)
+        assertEquals(after, loadedFilterRules("sterna", uploaded).rules)
         assertEquals(listOf("s-sterna"), updatedIds())
+        assertEquals("the active script is written in place, never activated again", listOf<String?>(null), activations())
     }
 
-    @Test fun `an unreadable responder marker is not carried into the JMAP save`() {
+    @Test fun `the active script is opened on JMAP, not an inactive sterna, and written under its own name`() {
         serveJmap()
-        scripts = listOf(sterna(SieveCodec.generate(before) + "# STERNA-VACATION-V1: {pas du json\n", active = true))
+        val roundcube = "require [\"fileinto\"];\n\n# rule:[x]\nif header :contains \"subject\" \"x\" {\n    fileinto \"X\";\n}\n"
+        scripts = listOf(
+            sterna(SieveCodec.generate(before), active = false),
+            Script("s-roundcube", "roundcube", "blob-roundcube", active = true, body = roundcube),
+        )
+        val accounts = accounts()
+        val loaded = accounts.opening()
 
-        runBlocking { accounts().saveFilterRules(credentials, after) }
+        accounts.saveRules(loaded, listOf(FilterRule(name = "x", field = RuleField.SUBJECT, value = "y", moveTo = "X")))
 
-        val uploaded = uploads.single()
-        assertFalse(uploaded, "STERNA-VACATION-V1" in uploaded)
-        assertEquals(SieveCodec.generate(after), uploaded)
-        assertEquals(listOf("s-sterna"), updatedIds())
+        assertEquals("roundcube", loaded.scriptName)
+        assertEquals("read at opening, then again before writing", listOf("blob-roundcube", "blob-roundcube"), downloads)
+        assertEquals(roundcube.replace("\"subject\" \"x\"", "\"subject\" \"y\""), uploads.single())
+        assertEquals(listOf("s-roundcube"), updatedIds())
+        assertEquals(listOf<String?>(null), activations())
     }
 
-    @Test fun `the responder is read from the script named sterna, not from the active one`() {
+    @Test fun `an active vacation script is the server's responder, so sterna is opened and a save activates it`() {
         serveJmap()
         scripts = listOf(
             sterna(SieveCodec.generate(before, away), active = false),
             Script("s-vacation", "vacation", "blob-vacation", active = true, body = "require [\"vacation\"];\nvacation \"Gone.\";\n"),
         )
 
-        runBlocking { accounts().saveFilterRules(credentials, after) }
+        val accounts = accounts()
+        val loaded = accounts.opening()
+        accounts.saveRules(loaded, after)
 
-        assertEquals(listOf("blob-sterna"), downloads)
-        assertEquals(SieveCodec.generate(after, away), uploads.single())
+        assertEquals("sterna", loaded.scriptName)
+        assertEquals(listOf("blob-sterna", "blob-sterna"), downloads)
+        assertEquals(after, loadedFilterRules("sterna", uploads.single()).rules)
         assertEquals(listOf("s-sterna"), updatedIds())
+        assertEquals(listOf<String?>("s-sterna"), activations())
     }
 
-    @Test fun `without a sterna script nothing is downloaded and the save creates one`() {
+    @Test fun `without a script to open nothing is downloaded and the save creates sterna and activates it`() {
         serveJmap()
         scripts = listOf(Script("s-vacation", "vacation", "blob-vacation", active = true, body = "vacation \"Gone.\";\n"))
 
-        runBlocking { accounts().saveFilterRules(credentials, after) }
+        val accounts = accounts()
+        val loaded = accounts.opening()
+        accounts.saveRules(loaded, after)
 
+        assertEquals(
+            "the auto-reply running, a sender block is refused; the filters screen keeps its warning",
+            FilterRulesState.Loaded(rules = emptyList(), foreignActiveScript = true),
+            loaded,
+        )
         assertEquals(emptyList<String>(), downloads)
-        assertEquals(SieveCodec.generate(after), uploads.single())
+        assertEquals(after, loadedFilterRules("sterna", uploads.single()).rules)
         assertEquals(listOf("<create>"), updatedIds())
+        assertEquals(listOf<String?>("#new"), activations())
+    }
+
+    @Test fun `with the server's auto-reply running, a sender block writes nothing`() {
+        serveJmap()
+        scripts = listOf(
+            sterna(SieveCodec.generate(before), active = false),
+            Script("s-vacation", "vacation", "blob-vacation", active = true, body = "require [\"vacation\"];\nvacation \"Gone.\";\n"),
+        )
+        val accounts = accounts()
+
+        val outcome = runBlocking {
+            addBlockRule(
+                address = "spam@example.test",
+                trashFolder = "Trash",
+                load = { accounts.loadFilterRules(credentials) },
+                save = { accounts.saveFilterScript(credentials, it) },
+            )
+        }
+
+        assertEquals("activating sterna would stop the auto-reply without a word", BlockOutcome.FAILED, outcome)
+        assertEquals(emptyList<String>(), uploads)
+        assertEquals(emptyList<String>(), updatedIds())
+    }
+
+    @Test fun `a rule changed elsewhere since the screen opened refuses the save, and nothing is uploaded`() {
+        serveJmap()
+        scripts = listOf(sterna(SieveCodec.generate(before), active = true))
+        val accounts = accounts()
+        val opened = accounts.opening()
+        scripts = listOf(sterna(SieveCodec.generate(after), active = true))
+
+        val thrown = runCatching { accounts.saveRules(opened, after.take(1)) }.exceptionOrNull()
+
+        assertTrue("$thrown", thrown is FilterScriptChangedException)
+        assertEquals(emptyList<String>(), uploads)
+        assertEquals(emptyList<String>(), updatedIds())
+    }
+
+    @Test fun `sterna created elsewhere after an account with no script was opened refuses the save`() {
+        serveJmap()
+        val accounts = accounts()
+        val opened = accounts.opening()
+        scripts = listOf(sterna(SieveCodec.generate(before), active = false))
+
+        val thrown = runCatching { accounts.saveRules(opened, after) }.exceptionOrNull()
+
+        assertTrue("$thrown", thrown is FilterScriptChangedException)
+        assertEquals(emptyList<String>(), uploads)
+        assertEquals(emptyList<String>(), updatedIds())
     }
 }

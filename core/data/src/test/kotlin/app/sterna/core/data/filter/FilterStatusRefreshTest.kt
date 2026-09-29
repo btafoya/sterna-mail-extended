@@ -377,75 +377,74 @@ class FilterStatusRefreshTest {
         }
     }
 
-    // ---- the read itself, out of the shipped source: a last resort, not the proof ----
+    // ---- the read itself: filterScriptStatus executed, then its call read out of the source ----
 
-    /**
-     * Everything above executes the decision; this one cannot. `MailRepository` opens shared
-     */
-    @Test fun `the status read fills the foreign flag from the other scripts, and fails to null`() {
-        val body = loadFilterScriptStatusBody()
+    private fun listed(vararg scripts: Pair<String, Boolean>) = scripts.map { (name, active) -> ListedScript(name, active) }
+
+    private val twoRules = SieveCodec.generate(
+        listOf(FilterRule(name = "A", value = "a", moveTo = "Box"), FilterRule(name = "B", value = "b", flag = true), FilterRule(name = "Off", enabled = false, value = "c")),
+    )
+
+    @Test fun `an inactive sterna beside the server's active responder`() {
         assertEquals(
-            "the other-script question must be asked of the OTHER scripts and of nothing else, as " +
-                "exactly `val foreign = scripts.any { it.isActive && it.name != SieveCodec" +
-                ".SCRIPT_NAME }`: with `false` — or with `&& false` hung off the end of it — the " +
-                "warning above Save can never name the auto-reply",
-            listOf("val foreign = scripts.any { it.isActive && it.name != SieveCodec.SCRIPT_NAME }"),
-            declarationsOf(body, "foreign"),
+            FilterScriptStatus(
+                scriptExists = true,
+                scriptActive = false,
+                enabledRuleCount = 2,
+                vacationScriptExists = true,
+                vacationScriptActive = true,
+                foreignActive = true,
+            ),
+            filterScriptStatus(listed("sterna" to false, "vacation" to true), "sterna", twoRules),
         )
-        // Measured, not supposed: `val vacation = false` here left the entire suite green while
-        // deleting both sentences this lot is about, the red line above Save and the prediction
-        // on the responder screen. Every executed test is handed booleans; not one travels
-        // through this line.
+    }
+
+    @Test fun `a vacation script that exists and is not active is existence, not activity`() {
         assertEquals(
-            "the vacation script must be looked for BY NAME in the list, as exactly `val vacation " +
-                "= scripts.any { it.name == VACATION_SCRIPT_NAME }` — this is the EXISTENCE the " +
-                "prediction \"turning the auto-reply on will suspend your rules\" rests on, and " +
-                "a constant (or a `&& false` tacked on) makes that prediction permanently mute",
-            listOf("val vacation = scripts.any { it.name == VACATION_SCRIPT_NAME }"),
-            declarationsOf(body, "vacation"),
+            FilterScriptStatus(scriptExists = true, scriptActive = true, enabledRuleCount = 2, vacationScriptExists = true),
+            filterScriptStatus(listed("sterna" to true, "vacation" to false), "sterna", twoRules),
         )
+    }
+
+    @Test fun `with nothing opened the other scripts are still named`() {
         assertEquals(
-            "…and its ACTIVITY must be a second question on the same list, as exactly `val " +
-                "vacationActive = scripts.any { it.name == VACATION_SCRIPT_NAME && it.isActive }`: " +
-                "existence is not activity, and the line above Save claims the auto-reply is " +
-                "running NOW",
-            listOf("val vacationActive = scripts.any { it.name == VACATION_SCRIPT_NAME && it.isActive }"),
-            declarationsOf(body, "vacationActive"),
+            FilterScriptStatus(vacationScriptExists = true, vacationScriptActive = true, foreignActive = true),
+            filterScriptStatus(listed("vacation" to true), null, null),
         )
+        assertEquals(FilterScriptStatus(), filterScriptStatus(emptyList(), null, null))
+    }
+
+    @Test fun `every block the form cannot show counts as running, and an unreadable script counts none`() {
+        assertEquals(4, enabledRuleCount(SieveScriptReadTest.fixture("roundcube")))
+        assertEquals(0, enabledRuleCount("keep;\n/* never closed\n"))
+        assertEquals(2, enabledRuleCount(twoRules))
         assertEquals(
-            "existence travels into both states this can return — the one with a `sterna` script " +
-                "and the one without — as the value itself, nothing appended to it",
-            listOf("vacationScriptExists = vacation,", "vacationScriptExists = vacation,"),
-            assignmentsOf(body, "vacationScriptExists"),
-        )
-        assertEquals(
-            "…and so does activity: dropped from either, or narrowed on the way, the account that " +
-                "has it lands on the generic line that names no consequence",
-            listOf("vacationScriptActive = vacationActive,", "vacationScriptActive = vacationActive,"),
-            assignmentsOf(body, "vacationScriptActive"),
-        )
-        assertEquals(
-            "both states this can return carry the answer — the one with a `sterna` script and " +
-                "the one without. Dropped from either, the screen goes quiet on that account",
-            listOf("foreignActive = foreign,", "foreignActive = foreign,"),
-            assignmentsOf(body, "foreignActive"),
-        )
-        assertTrue(
-            "a FAILED read must answer null: read as the \"nothing known\" value it erases the " +
-                "warning at the moment it becomes true",
-            body.contains(".getOrElseUnlessCancelled { null }"),
+            "Sleeping, a disabled Bulwark entry with no block, filters nothing: five of the six rules run",
+            5,
+            enabledRuleCount(SieveScriptReadTest.fixture("f237-bulwark")),
         )
     }
 
     /**
-     * Every whole line of [body] declaring `val [name]`, trimmed, comments dropped.
+     * The status decision is executed above; this pins the JMAP read hands it the listing, the script
+     * `openedScriptName` picked and that script's own text. Holes 2 and 3 apply.
      */
-    private fun declarationsOf(body: String, name: String): List<String> =
-        codeLines(body).filter { it.substringBefore(" =") == "val $name" }
-
-    /** Every whole line of [body] that passes something as the named argument [name]. */
-    private fun assignmentsOf(body: String, name: String): List<String> =
-        codeLines(body).filter { it.substringBefore(" =") == name }
+    @Test fun `the status read hands filterScriptStatus the opened script, and fails to null`() {
+        val code = codeLines(loadFilterScriptStatusBody())
+        assertEquals(
+            listOf("val opened = openedScriptName(scripts.jmapListed(), serverResponder = true)"),
+            code.filter { "openedScriptName(" in it },
+        )
+        assertEquals(
+            listOf("filterScriptStatus(scripts.jmapListed(), opened?.name, opened?.let { jmapScriptText(ctx.session, ctx.accountId, ctx.auth, it.blobId) })"),
+            code.filter { "filterScriptStatus(" in it },
+        )
+        assertTrue(
+            "a FAILED read must answer null: read as the \"nothing known\" value it erases the " +
+                "warning at the moment it becomes true",
+            code.contains("}.getOrElseUnlessCancelled { null }"),
+        )
+    }
 
     /** [body] as trimmed code lines: comment lines dropped whole, trailing comments cut. */
     private fun codeLines(body: String): List<String> = body.lines().mapNotNull { line ->

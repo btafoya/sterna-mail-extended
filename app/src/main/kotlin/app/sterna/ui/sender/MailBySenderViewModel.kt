@@ -343,8 +343,8 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
     fun isBlocked(address: String): Boolean = alreadyBlocked(_state.value.rules, address)
 
     /** Add the "future mail to Trash, marked read" rule for [sender], through [addBlockRule]: read
-     * the rules, then save them with one more. `saveFilterRules` rewrites the whole script, so a
-     *  save not preceded by a successful read deletes the account's filters instead. */
+     * the script, then write it back with one block more. `saveFilterScript` writes the whole text
+     *  it is handed, so a save not preceded by a successful read deletes the account's filters instead. */
     fun blockSender(sender: SenderVolume) {
         val credentials = store.load() ?: return
         if (_state.value.working) return
@@ -363,7 +363,7 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
                     address = sender.email,
                     trashFolder = trashPath,
                     load = { repo.accounts.loadFilterRules(credentials) },
-                    save = { rules -> repo.accounts.saveFilterRules(credentials, rules) },
+                    save = { write -> repo.accounts.saveFilterScript(credentials, write) },
                 )
                 _message.value = getApplication<Application>().getString(
                     when (outcome) {

@@ -4,7 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.sterna.container
+import app.sterna.core.data.filter.FilterScriptChangedException
 import app.sterna.core.data.filter.FilterScriptWarning
+import app.sterna.core.data.filter.ScriptSnapshot
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.filter.refreshedFilterWarning
 import app.sterna.core.data.mail.VacationState
@@ -64,6 +66,10 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
     /** The responder as the server last confirmed it; edits are compared to this (#34). */
     private var serverEdits: List<Any?> = VacationUiState().edits()
 
+    private var readScript: ScriptSnapshot? = null
+
+    private var staleSave: FilterScriptChangedException? = null
+
     init { load() }
 
     fun load() {
@@ -104,6 +110,8 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
                             foreignActiveScript = result.foreignActiveScript,
                         )
                         serverEdits = _state.value.edits()
+                        readScript = result.script
+                        reportStaleSave()
                     }
                 }
             } catch (t: Throwable) {
@@ -124,6 +132,11 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
             val next = transform(it).copy(errorKind = null, savedTick = 0)
             next.copy(dirty = next.edits() != serverEdits)
         }
+
+    private fun reportStaleSave() {
+        staleSave?.let { t -> _state.update { vacationFailedState(it, VacationError.SAVE, t) } }
+        staleSave = null
+    }
 
     fun save() {
         val credentials = store.load() ?: return
@@ -146,12 +159,16 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
                 )
                 val mailboxes = runCatching { repo.observeMailboxes(credentials.id).first() }
                     .getOrElseUnlessCancelled { emptyList() }
-                repo.accounts.saveVacation(credentials, vacation, trashFolder = trashFilePath(mailboxes))
+                readScript = repo.accounts.saveVacation(credentials, vacation, readScript, trashFolder = trashFilePath(mailboxes)).script
                 serverEdits = s.edits()
                 _state.update { vacationSavedState(it) }
                 written = true
             } catch (t: Throwable) {
                 _state.update { vacationFailedState(it.copy(saving = false), VacationError.SAVE, t) }
+                if (t is FilterScriptChangedException) {
+                    staleSave = t
+                    load()
+                }
             }
             // Outside the try, and after the state that lets a "save then leave" go: that exit
             // cancels this read, and inside the catch above a cancellation would be painted as a

@@ -464,15 +464,14 @@ class SieveEmissionTest {
             ),
             SourceText.codeLines(SourceText.functionSource(source, "private fun ruleToSieve(rule: FilterRule): String {")),
         )
-        // `escape` is emitted Sieve too, and it was the hole: it is the last member of the
-        // object, so the slice that ends at the next KDoc found nothing and it stayed unpinned.
+        // `escape` is emitted Sieve too, and it writes every value of the rule model as well.
         assertEquals(
             V2_RULE,
             listOf(
-                """private fun escape(value: String): String =""",
+                """internal fun escape(value: String): String =""",
                 """value.replace("\\", "\\\\").replace("\"", "\\\"")""",
             ),
-            SourceText.codeLines(SourceText.functionSource(source, "private fun escape(value: String): String =")),
+            SourceText.codeLines(SourceText.functionSource(source, "internal fun escape(value: String): String =")),
         )
     }
 

@@ -616,10 +616,16 @@
     <string name="settings_filters_add">Add rule</string>
     <string name="settings_filters_saved">Filters saved</string>
     <string name="settings_filters_untitled">Untitled rule</string>
-    <string name="settings_filters_foreign_warning">Another filter script is active on the server; saving will make Sterna Mail\'s the active one.</string>
     <string name="settings_filters_not_running">Your filter rules are not being applied at the moment.</string>
     <string name="settings_filters_stops_auto_reply">Your auto-reply is running on the server. Saving these filters will stop it.</string>
     <string name="settings_filters_unreadable">Sterna Mail cannot read this account\'s filter script; saving will replace it.</string>
+    <string name="settings_filters_script">Script: %1$s</string>
+    <string name="settings_filters_text_rule">Sieve text</string>
+    <string name="settings_filters_bulwark_rule">Rule managed by Bulwark</string>
+    <string name="settings_filters_edit_text">Edit as text</string>
+    <string name="settings_filters_text_edit_title">Edit rule as Sieve</string>
+    <string name="settings_filters_text_help">Sieve code, checked by the server when you save.</string>
+    <string name="settings_filters_text_uncut">A rule\'s Sieve text leaves a bracket, a quote or a comment open. Close it before saving.</string>
     <string name="settings_filters_overwrite_title">Replace the filter script?</string>
     <string name="settings_filters_overwrite_body">Sterna Mail could not read this account\'s filter script. Saving replaces the whole script with the rules on this screen, so anything it holds that is not shown here is lost. This cannot be undone.</string>
     <string name="settings_filters_overwrite_confirm">Replace</string>

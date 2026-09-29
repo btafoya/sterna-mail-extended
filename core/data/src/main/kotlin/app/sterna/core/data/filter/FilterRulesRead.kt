@@ -2,29 +2,47 @@ package app.sterna.core.data.filter
 
 import app.sterna.core.data.mail.FilterRulesState
 
-/**
- * What reading an account's server-side filters answers, the decision behind
- */
-fun loadedFilterRules(sternaScript: String?, otherActiveScript: Boolean): FilterRulesState.Loaded {
-    val parsed = sternaScript?.let { SieveCodec.parseRulesOrNull(it) }
-    val unreadable = sternaScript != null &&
-        (parsed == null || holdsForeignSieve(sternaScript, parsed))
+data class ListedScript(val name: String, val isActive: Boolean)
+
+/** The active script, else `sterna`, else none. [serverResponder]: on JMAP an active `vacation` is the server's responder. */
+fun openedScriptName(scripts: List<ListedScript>, serverResponder: Boolean): String? {
+    val active = scripts.firstOrNull { it.isActive }
+        ?.takeUnless { serverResponder && it.name == VACATION_SCRIPT_NAME }
+    return active?.name ?: scripts.firstOrNull { it.name == SieveCodec.SCRIPT_NAME }?.name
+}
+
+/** Only when no script was active, since activating switches the running one off; the server's responder excepted. */
+fun activatesOnSave(scripts: List<ListedScript>, serverResponder: Boolean): Boolean {
+    val active = scripts.firstOrNull { it.isActive } ?: return true
+    return serverResponder && active.name == VACATION_SCRIPT_NAME
+}
+
+/** What reading the script [scriptName] answers, [scriptText] as the server returned it, null when none was opened. */
+fun loadedFilterRules(scriptName: String?, scriptText: String?, stopsServerResponder: Boolean = false): FilterRulesState.Loaded {
+    val parsed = scriptText?.let { SieveScript.parse(it) }
+    val unreadable = parsed is SieveParse.Unreadable
+    val rules = (parsed as? SieveParse.Readable)?.script?.rules.orEmpty()
     return FilterRulesState.Loaded(
-        rules = parsed.orEmpty(),
-        foreignActiveScript = otherActiveScript || unreadable,
+        rules = rules.filterIsInstance<ScriptRule.Form>().map { it.rule },
+        foreignActiveScript = unreadable || stopsServerResponder,
         scriptUnreadable = unreadable,
+        scriptName = scriptName,
+        scriptText = scriptText,
     )
 }
 
-/**
- * Whether [script] holds Sieve this app did not write, its rules having been read as [parsed].
- */
-internal fun holdsForeignSieve(script: String, parsed: List<FilterRule>): Boolean {
-    if (script.isBlank()) return false
-    val vacation = when (val marker = SieveCodec.readVacation(script)) {
-        VacationMarker.Absent -> null
-        VacationMarker.Unreadable -> return true
-        is VacationMarker.Found -> marker.vacation
+/** [base] with its form rules made [edited], [ids] naming the rule each was read as (null: new); other blocks stay. */
+fun withFormRules(base: SieveScript, ids: List<Int?>, edited: List<FilterRule>): SieveScript {
+    require(ids.size == edited.size) { "${ids.size} ids for ${edited.size} rules" }
+    val loaded = base.rules.filterIsInstance<ScriptRule.Form>().associate { it.id to it.rule }
+    var script = base
+    for (gone in loaded.keys - ids.filterNotNull().toSet()) script = script.remove(gone)
+    for ((id, rule) in ids.zip(edited)) {
+        script = when {
+            id == null -> script.add(rule)
+            loaded[id] != rule -> script.update(id, rule)
+            else -> script
+        }
     }
-    return SieveCodec.sieveBody(script) != SieveCodec.sieveBody(SieveCodec.generate(parsed, vacation))
+    return script
 }

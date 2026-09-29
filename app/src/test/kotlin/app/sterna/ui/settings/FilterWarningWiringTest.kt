@@ -188,10 +188,12 @@ class FilterWarningWiringTest {
             ).containsMatchIn(source),
         )
         assertTrue(
-            "and the case where nothing says what the other script is keeps the generic sentence",
+            "and another active script is the server's `vacation` behind a failed status read: " +
+                "Save stops it all the same, so it gets the auto-reply line, never the old " +
+                "\"another script is active\" sentence",
             Regex(
-                "ForeignScriptNotice\\.ANOTHER_SCRIPT\\s*->\\s*R\\.string\\.settings_filters_foreign_warning",
-            ).containsMatchIn(source),
+                "ForeignScriptNotice\\.ANOTHER_SCRIPT\\s*->\\s*R\\.string\\.settings_filters_stops_auto_reply",
+            ).containsMatchIn(source) && "settings_filters_foreign_warning" !in source,
         )
     }
 
@@ -204,12 +206,13 @@ class FilterWarningWiringTest {
             .filter { it.startsWith("showsNoRulesNote(") }
         assertEquals(
             "FiltersScreen must gate R.string.settings_filters_empty on exactly " +
-                "'showsNoRulesNote(ruleCount = state.rules.size, scriptUnreadable = " +
-                "state.scriptUnreadable) ->' — the count it is showing and the flag the warning " +
+                "'showsNoRulesNote(ruleCount = listing.size, scriptUnreadable = " +
+                "state.scriptUnreadable) ->' — the count of cards it is showing, text blocks " +
+                "included, and the flag the warning " +
                 "above is chosen from. `scriptUnreadable = false` there is the contradiction " +
                 "written back with nothing to catch it",
             listOf(
-                "showsNoRulesNote(ruleCount = state.rules.size, scriptUnreadable = state.scriptUnreadable) ->",
+                "showsNoRulesNote(ruleCount = listing.size, scriptUnreadable = state.scriptUnreadable) ->",
             ),
             condition,
         )
@@ -217,6 +220,49 @@ class FilterWarningWiringTest {
             "…and the sentence it gates must still be the existing string: no new one, and no " +
                 "silence for the ordinary empty account",
             "R.string.settings_filters_empty" in text(FILTERS_SCREEN),
+        )
+    }
+
+    @Test fun `the text editor commits on the system back, survives rotation, and never opens a Bulwark rule`() {
+        val lines = text(FILTERS_SCREEN).lines().map { it.trim() }
+        assertEquals(
+            "three back handlers, each where it belongs: the list asks before losing edits, each " +
+                "editor commits what is typed. A text editor whose back drops the text loses it silently",
+            listOf(
+                "BackHandler { onCommit(rule) }",
+                "BackHandler { onCommit(text) }",
+                "BackHandler(enabled = state.dirty) { confirmExit = true }",
+            ),
+            lines.filter { it.startsWith("BackHandler") }.sorted(),
+        )
+        assertTrue(
+            "the text editor's commit must reach the list: `viewModel.updateText(textCard.id, it)`",
+            "onCommit = { viewModel.updateText(textCard.id, it); editingText = null }," in lines,
+        )
+        assertTrue(
+            "which block is open, and its text, are saveable: a rotation must not drop the edit",
+            "var editingText by rememberSaveable { mutableStateOf<Int?>(null) }" in lines &&
+                "var text by rememberSaveable { mutableStateOf(initial) }" in lines,
+        )
+        assertEquals(
+            "both editors' top arrow commits, like their back gesture: an arrow that cancels drops the edit",
+            listOf("onBack = { onCommit(rule) },", "onBack = { onCommit(text) },"),
+            lines.filter { it.startsWith("onBack = { onCommit(") || it.startsWith("onBack = { onCancel") }.sorted(),
+        )
+        assertTrue(
+            "the text editor's Delete and the locked card's Delete both reach viewModel.removeText",
+            "onDelete = { viewModel.removeText(textCard.id); editingText = null }," in lines &&
+                "onDelete = { viewModel.removeText(item.id) }," in lines,
+        )
+        assertEquals(
+            "…and each draws its Delete button on that very callback",
+            2,
+            lines.count { it == "TextButton(onClick = onDelete) {" },
+        )
+        assertTrue(
+            "the text editor opens only a card the listing calls editable",
+            lines.any { it.contains("it is FiltersListItem.Text && it.id == id && it.editable") } &&
+                ".then(if (item.editable) Modifier.clickable(onClickLabel = open, onClick = onEdit) else Modifier)" in lines,
         )
     }
 

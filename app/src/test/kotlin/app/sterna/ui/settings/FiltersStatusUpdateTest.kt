@@ -142,6 +142,17 @@ class FiltersStatusUpdateTest {
             foreignFromRulesRead = true,
         )
         assertTrue(next.foreignActive)
+        assertEquals(
+            "on JMAP that flag is the server's auto-reply, which Save stops: the screen must say so",
+            app.sterna.R.string.settings_filters_stops_auto_reply,
+            foreignScriptLine(
+                app.sterna.core.data.filter.foreignScriptNotice(
+                    scriptUnreadable = next.scriptUnreadable,
+                    foreignActive = next.foreignActive,
+                    vacationScriptActive = next.vacationScriptActive,
+                ),
+            ),
+        )
     }
 
     /**

@@ -606,10 +606,16 @@
     <string name="settings_filters_add">添加规则</string>
     <string name="settings_filters_saved">过滤规则已保存</string>
     <string name="settings_filters_untitled">无标题规则</string>
-    <string name="settings_filters_foreign_warning">服务器上已有另一个过滤脚本处于活动状态；保存后，Sterna Mail 的脚本将成为活动脚本。</string>
     <string name="settings_filters_not_running">您的过滤规则当前未生效。</string>
     <string name="settings_filters_stops_auto_reply">您的自动回复正在服务器上运行。保存这些过滤规则将停止自动回复。</string>
     <string name="settings_filters_unreadable">Sterna Mail 无法读取此账户的过滤脚本；保存将替换它。</string>
+    <string name="settings_filters_script">脚本：%1$s</string>
+    <string name="settings_filters_text_rule">Sieve 文本</string>
+    <string name="settings_filters_bulwark_rule">由 Bulwark 管理的规则</string>
+    <string name="settings_filters_edit_text">以文本编辑</string>
+    <string name="settings_filters_text_edit_title">以 Sieve 编辑规则</string>
+    <string name="settings_filters_text_help">Sieve 代码，保存时由服务器检查。</string>
+    <string name="settings_filters_text_uncut">某条规则的 Sieve 文本中有未闭合的括号、引号或注释。请在保存前将其闭合。</string>
     <string name="settings_filters_overwrite_title">替换过滤脚本？</string>
     <string name="settings_filters_overwrite_body">Sterna Mail 无法读取此账户的过滤脚本。保存将用此屏幕上的规则替换整个脚本，因此脚本中未在此显示的规则都将丢失。此操作无法撤销。</string>
     <string name="settings_filters_overwrite_confirm">替换</string>

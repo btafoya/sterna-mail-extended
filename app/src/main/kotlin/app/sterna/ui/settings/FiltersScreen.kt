@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -33,11 +34,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -59,6 +64,7 @@ fun FiltersScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Int?>(null) }
+    var editingText by rememberSaveable { mutableStateOf<Int?>(null) }
     // Confirm-on-back (#34); both doors go through it, the scaffold's arrow and the system gesture.
     // Held above the rule-editor branch below so the early return never straddles a remember.
     var confirmExit by remember { mutableStateOf(false) }
@@ -78,6 +84,18 @@ fun FiltersScreen(
             folders = state.folders,
             onCommit = { viewModel.updateRule(editIndex, it); editing = null },
             onDelete = { viewModel.removeRule(editIndex); editing = null },
+        )
+        return
+    }
+    val textCard = editingText?.let { id ->
+        filtersListing(state).firstOrNull { it is FiltersListItem.Text && it.id == id && it.editable } as FiltersListItem.Text?
+    }
+    if (textCard != null) {
+        TextEditScreen(
+            initial = textCard.text,
+            onCommit = { viewModel.updateText(textCard.id, it); editingText = null },
+            onCancel = { editingText = null },
+            onDelete = { viewModel.removeText(textCard.id); editingText = null },
         )
         return
     }
@@ -154,6 +172,7 @@ fun FiltersScreen(
                     state = state,
                     viewModel = viewModel,
                     onEdit = { editing = it },
+                    onEditText = { editingText = it },
                     onAdd = { viewModel.addRule(); editing = state.rules.size },
                     onSave = { requestSave(thenLeave = false) },
                 )
@@ -183,6 +202,7 @@ private fun FiltersList(
     state: FiltersUiState,
     viewModel: FiltersViewModel,
     onEdit: (Int) -> Unit,
+    onEditText: (Int) -> Unit,
     onAdd: () -> Unit,
     // Not viewModel::save: the write goes through the screen's one door, which asks first when the
     // save would replace a script nobody could read.
@@ -197,8 +217,16 @@ private fun FiltersList(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
-        // Before the "another script is active" line and independent of it: the rules can be
-        // stopped with no foreign script active at all.
+        state.scriptName?.let { name ->
+            Text(
+                stringResource(R.string.settings_filters_script, name),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
+        // Before the auto-reply line and independent of it: the rules can be stopped with no
+        // other script active at all.
         if (state.rulesNotRunning) {
             Text(
                 stringResource(R.string.settings_filters_not_running),
@@ -207,41 +235,44 @@ private fun FiltersList(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
         }
-        // One line, not two, in priority order: an unreadable script of our own first, then
-        // `vacation` being active, which names what the save costs.
-        foreignScriptNotice(
-            scriptUnreadable = state.scriptUnreadable,
-            foreignActive = state.foreignActive,
-            vacationScriptActive = state.vacationScriptActive,
-        )?.let { notice ->
+        // One line at most: an unreadable script first, then the server's auto-reply, which Save stops.
+        foreignScriptLine(
+            foreignScriptNotice(
+                scriptUnreadable = state.scriptUnreadable,
+                foreignActive = state.foreignActive,
+                vacationScriptActive = state.vacationScriptActive,
+            ),
+        )?.let { line ->
             Text(
-                stringResource(
-                    when (notice) {
-                        ForeignScriptNotice.UNREADABLE_SCRIPT -> R.string.settings_filters_unreadable
-                        ForeignScriptNotice.STOPS_AUTO_REPLY -> R.string.settings_filters_stops_auto_reply
-                        ForeignScriptNotice.ANOTHER_SCRIPT -> R.string.settings_filters_foreign_warning
-                    },
-                ),
+                stringResource(line),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
         }
+        val listing = filtersListing(state)
         when {
-            state.rules.isNotEmpty() -> {
-                state.rules.forEachIndexed { index, rule ->
+            listing.isNotEmpty() -> {
+                listing.forEach { item ->
                     HorizontalDivider()
-                    RuleRow(
-                        rule = rule,
-                        onToggle = { viewModel.setRuleEnabled(index, it) },
-                        onEdit = { onEdit(index) },
-                    )
+                    when (item) {
+                        is FiltersListItem.Form -> RuleRow(
+                            rule = item.rule,
+                            onToggle = { viewModel.setRuleEnabled(item.index, it) },
+                            onEdit = { onEdit(item.index) },
+                        )
+                        is FiltersListItem.Text -> TextRuleCard(
+                            item = item,
+                            onEdit = { onEditText(item.id) },
+                            onDelete = { viewModel.removeText(item.id) },
+                        )
+                    }
                 }
                 HorizontalDivider()
             }
             // An empty list is not always "no rules": over an unreadable script the line above
             // already says a save would replace unread content, which "No rules yet" contradicts.
-            showsNoRulesNote(ruleCount = state.rules.size, scriptUnreadable = state.scriptUnreadable) ->
+            showsNoRulesNote(ruleCount = listing.size, scriptUnreadable = state.scriptUnreadable) ->
                 Text(
                     stringResource(R.string.settings_filters_empty),
                     style = MaterialTheme.typography.bodyMedium,
@@ -256,9 +287,13 @@ private fun FiltersList(
             Text(stringResource(R.string.settings_filters_add))
         }
 
-        if (state.errorKind == FiltersError.SAVE) {
+        when (state.errorKind) {
+            FiltersError.SAVE -> stringResource(filtersErrorText(FiltersError.SAVE, state.errorSieveKind), state.errorDetail)
+            FiltersError.TEXT_UNCUT -> stringResource(filtersErrorText(FiltersError.TEXT_UNCUT, state.errorSieveKind))
+            FiltersError.LOAD, null -> null
+        }?.let { message ->
             Text(
-                stringResource(filtersErrorText(FiltersError.SAVE, state.errorSieveKind), state.errorDetail),
+                message,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -318,6 +353,81 @@ private fun RuleRow(rule: FilterRule, onToggle: (Boolean) -> Unit, onEdit: () ->
         }
         Spacer(Modifier.width(16.dp))
         Switch(checked = rule.enabled, onCheckedChange = onToggle)
+    }
+}
+
+@Composable
+private fun TextRuleCard(item: FiltersListItem.Text, onEdit: () -> Unit, onDelete: () -> Unit) {
+    val open = stringResource(R.string.settings_filters_edit_text)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .then(if (item.editable) Modifier.clickable(onClickLabel = open, onClick = onEdit) else Modifier)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        if (item.name.isNotBlank()) Text(item.name, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            stringResource(if (item.editable) R.string.settings_filters_text_rule else R.string.settings_filters_bulwark_rule),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            item.text,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            maxLines = 8,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        if (!item.editable) {
+            TextButton(onClick = onDelete) {
+                Text(stringResource(R.string.settings_filter_delete), color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TextEditScreen(
+    initial: String,
+    onCommit: (String) -> Unit,
+    onCancel: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var text by rememberSaveable { mutableStateOf(initial) }
+    BackHandler { onCommit(text) }
+    DetailScaffold(
+        title = stringResource(R.string.settings_filters_text_edit_title),
+        onBack = { onCommit(text) },
+    ) { padding ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .imePadding()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            Text(
+                stringResource(R.string.settings_filters_text_help),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                TextButton(onClick = onDelete) {
+                    Text(stringResource(R.string.settings_filter_delete), color = MaterialTheme.colorScheme.error)
+                }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onCancel) { Text(stringResource(R.string.settings_cancel)) }
+            }
+            Spacer(Modifier.padding(bottom = 24.dp))
+        }
     }
 }
 
@@ -416,6 +526,14 @@ private fun ActionSwitch(label: String, checked: Boolean, onChange: (Boolean) ->
         Spacer(Modifier.width(16.dp))
         Switch(checked = checked, onCheckedChange = onChange)
     }
+}
+
+/** `foreignActive` holds only for JMAP's `vacation`: ANOTHER_SCRIPT is it behind a failed status read, and Save stops it all the same. */
+internal fun foreignScriptLine(notice: ForeignScriptNotice?): Int? = when (notice) {
+    null -> null
+    ForeignScriptNotice.UNREADABLE_SCRIPT -> R.string.settings_filters_unreadable
+    ForeignScriptNotice.STOPS_AUTO_REPLY -> R.string.settings_filters_stops_auto_reply
+    ForeignScriptNotice.ANOTHER_SCRIPT -> R.string.settings_filters_stops_auto_reply
 }
 
 /** "Sender contains \"X\" → Move to Y · Mark read", a one-line human summary. */

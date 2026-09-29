@@ -85,13 +85,12 @@ private fun sieveErrorText(sieveKind: ManageSieveException.Kind?, @StringRes fal
 }
 
 @StringRes
-internal fun filtersErrorText(kind: FiltersError, sieveKind: ManageSieveException.Kind?): Int = sieveErrorText(
-    sieveKind,
-    when (kind) {
-        FiltersError.LOAD -> R.string.settings_vacation_load_error
-        FiltersError.SAVE -> R.string.settings_vacation_save_error
-    },
-)
+internal fun filtersErrorText(kind: FiltersError, sieveKind: ManageSieveException.Kind?): Int = when (kind) {
+    FiltersError.LOAD -> sieveErrorText(sieveKind, R.string.settings_vacation_load_error)
+    FiltersError.SAVE -> sieveErrorText(sieveKind, R.string.settings_vacation_save_error)
+    // Refused before any ManageSieve dialogue, so a kind left over from an earlier failure never words it.
+    FiltersError.TEXT_UNCUT -> R.string.settings_filters_text_uncut
+}
 
 /** A date check never reached the server, so a kind left over from an earlier failure never words it. */
 @StringRes

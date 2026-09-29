@@ -579,7 +579,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 address = address,
                 trashFolder = trashPath,
                 load = { repo.accounts.loadFilterRules(credentials) },
-                save = { rules -> repo.accounts.saveFilterRules(credentials, rules) },
+                save = { write -> repo.accounts.saveFilterScript(credentials, write) },
             )
             _senderRuleStatus.value = getApplication<Application>().getString(
                 when (outcome) {

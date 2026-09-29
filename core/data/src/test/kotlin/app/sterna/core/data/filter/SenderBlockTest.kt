@@ -42,20 +42,10 @@ class SenderBlockTest {
         assertFalse(script, "reject" in script)
     }
 
-    @Test fun `composing ADDS the rule to the ones already there`() {
-        // saveFilterRules rewrites the whole script, so "add a rule" is really "save everything
-        // plus one". Getting this wrong does not add a filter: it deletes every filter.
-        val next = withBlockRule(existing, "news@example.com", "Trash")
-        assertEquals(4, next.size)
-        assertEquals(existing, next.take(3))
-        assertEquals(blockRule("news@example.com", "Trash"), next.last())
-    }
-
     @Test fun `an address already handled is recognised whatever its case`() {
         val rules = existing + blockRule("News@Example.com", "Trash")
         assertTrue(alreadyBlocked(rules, "news@example.com"))
         assertTrue(alreadyBlocked(rules, "NEWS@EXAMPLE.COM"))
-        assertEquals("nothing is added twice", rules, withBlockRule(rules, "news@example.com", "Trash"))
     }
 
     @Test fun `a FROM IS rule counts as present whatever it does with the mail`() {
@@ -119,73 +109,143 @@ class SenderBlockTest {
 
     // -- the order of the two server calls -------------------------------------------------------
 
-    @Test fun `the save receives everything that was loaded, plus one`() = runBlocking {
-        var saved: List<FilterRule>? = null
+    /** What [addBlockRule] handed its save: the name written, the read it goes over, and the text. */
+    private class Saved {
+        var name: String? = null
+        var read: ScriptSnapshot? = null
+        var text: String? = null
+        val save: suspend (FilterScriptWrite) -> Unit = { w -> name = w.name; read = w.read; text = w.script.emit() }
+    }
+
+    /** [existing] as another client wrote them, in a script named `roundcube`, with a block the form cannot show. */
+    private val roundcube = loadedFilterRules(
+        "roundcube",
+        "require [\"fileinto\", \"imap4flags\"];\n\n# rule:[stop]\nif true {\n    stop;\n}\n",
+    ).let { loaded -> loadedFilterRules("roundcube", existing.fold(loaded.scriptToEdit) { s, r -> s.add(r) }.emit()) }
+
+    @Test fun `the save receives the opened script under its name, plus one block, the rest byte for byte`() = runBlocking {
+        val saved = Saved()
         val outcome = addBlockRule(
             address = "news@example.com",
             trashFolder = "Trash",
-            load = { FilterRulesState.Loaded(existing) },
-            save = { saved = it },
+            load = { roundcube },
+            save = saved.save,
         )
         assertEquals(BlockOutcome.ADDED, outcome)
-        assertEquals(existing + blockRule("news@example.com", "Trash"), saved)
+        assertEquals("roundcube", saved.name)
+        assertEquals(ScriptSnapshot("roundcube", roundcube.scriptText), saved.read)
+        val before = roundcube.scriptText!!
+        val after = saved.text!!
+        assertTrue(after, after.startsWith(before.trimEnd('\n')))
+        assertEquals(existing + blockRule("news@example.com", "Trash"), loadedFilterRules("roundcube", after).rules)
+        assertEquals(roundcube.scriptRules.size + 1, loadedFilterRules("roundcube", after).scriptRules.size)
+    }
+
+    @Test fun `a readable Bulwark script takes the block as one of its own rules`() = runBlocking {
+        val bulwark = loadedFilterRules("bulwark", SieveScriptReadTest.fixture("f237-bulwark"))
+        val saved = Saved()
+        val outcome = addBlockRule(
+            address = "news@example.com",
+            trashFolder = "Trash",
+            load = { bulwark },
+            save = saved.save,
+        )
+        assertEquals("an active script this app can read is no longer somebody else's", BlockOutcome.ADDED, outcome)
+        assertEquals("bulwark", saved.name)
+        val reread = loadedFilterRules("bulwark", saved.text!!)
+        assertEquals(BulwarkMetadata.READABLE, reread.script!!.bulwarkMetadata)
+        assertEquals(
+            "a Bulwark entry comes after the Bulwark entries, before the external rules",
+            bulwark.rules.take(2) + blockRule("news@example.com", "Trash") + bulwark.rules.drop(2),
+            reread.rules,
+        )
+        fun texts(state: FilterRulesState.Loaded) =
+            state.scriptRules.filterIsInstance<ScriptRule.Text>().map { Triple(it.name, it.text, it.lockedByBulwark) }
+        assertEquals(texts(bulwark), texts(reread))
+    }
+
+    @Test fun `an account with no script gets sterna, holding the block alone`() = runBlocking {
+        val saved = Saved()
+        val outcome = addBlockRule("news@example.com", "Trash", load = { loadedFilterRules(null, null) }, save = saved.save)
+        assertEquals(BlockOutcome.ADDED, outcome)
+        assertEquals("sterna", saved.name)
+        assertEquals("nothing was read: the write is refused if a script appeared since", ScriptSnapshot(null, null), saved.read)
+        assertEquals(listOf(blockRule("news@example.com", "Trash")), loadedFilterRules("sterna", saved.text!!).rules)
     }
 
     @Test fun `a load that throws writes nothing`() = runBlocking {
-        var saved: List<FilterRule>? = null
+        val saved = Saved()
         val outcome = addBlockRule(
             address = "news@example.com",
             trashFolder = "Trash",
             load = { throw IllegalStateException("offline") },
-            save = { saved = it },
+            save = saved.save,
         )
         assertEquals(BlockOutcome.FAILED, outcome)
-        assertNull("a save here would wipe the account's filters", saved)
+        assertNull("a save here would wipe the account's filters", saved.text)
     }
 
     @Test fun `an unsupported account writes nothing`() = runBlocking {
-        var saved: List<FilterRule>? = null
+        val saved = Saved()
         val outcome = addBlockRule(
             address = "news@example.com",
             trashFolder = "Trash",
             load = { FilterRulesState.Unsupported },
-            save = { saved = it },
+            save = saved.save,
         )
         assertEquals(BlockOutcome.FAILED, outcome)
-        assertNull(saved)
+        assertNull(saved.text)
     }
 
     @Test fun `an address already handled is not written again`() = runBlocking {
-        var saved: List<FilterRule>? = null
+        val saved = Saved()
         val outcome = addBlockRule(
             address = "NEWS@example.com",
             trashFolder = "Trash",
             load = { FilterRulesState.Loaded(existing + blockRule("news@example.com", "Trash")) },
-            save = { saved = it },
+            save = saved.save,
         )
         assertEquals(BlockOutcome.ALREADY_PRESENT, outcome)
-        assertNull(saved)
+        assertNull(saved.text)
     }
 
-    @Test fun `an account running its own Sieve script is left alone`() = runBlocking {
-        // Saving does not just write Sterna's script, it activates it, which switches off
-        // whatever script the account was running. The filter editor warns about that in red
-        var saved: List<FilterRule>? = null
+    @Test fun `a script that cannot be cut into blocks is left alone`() = runBlocking {
+        // Written from an empty script, the block would replace everything the account runs.
+        val saved = Saved()
         val outcome = addBlockRule(
             address = "news@example.com",
             trashFolder = "Trash",
-            load = { FilterRulesState.Loaded(existing, foreignActiveScript = true) },
-            save = { saved = it },
+            load = { loadedFilterRules("roundcube", "keep;\n/* never closed\n") },
+            save = saved.save,
         )
         assertEquals(BlockOutcome.FAILED, outcome)
-        assertNull("her own Sieve script must still be the active one", saved)
+        assertNull("her own Sieve script must be left as it is", saved.text)
+    }
+
+    @Test fun `on JMAP with the server's auto-reply running, the block is refused and nothing written`() = runBlocking {
+        val saved = Saved()
+        val outcome = addBlockRule(
+            address = "news@example.com",
+            trashFolder = "Trash",
+            load = { loadedFilterRules("sterna", roundcube.scriptText, stopsServerResponder = true) },
+            save = saved.save,
+        )
+        assertEquals(BlockOutcome.FAILED, outcome)
+        assertNull("saving activates sterna and would stop the auto-reply", saved.text)
+    }
+
+    @Test fun `blockWrite goes over the opened script under its own name`() {
+        val write = blockWrite(roundcube, blockRule("news@example.com", "Trash"))
+        assertEquals("roundcube", write.name)
+        assertEquals(roundcube.snapshot, write.read)
+        assertEquals(existing + blockRule("news@example.com", "Trash"), loadedFilterRules("roundcube", write.script.emit()).rules)
     }
 
     @Test fun `an address already handled reads as already handled, script or no script`() = runBlocking {
         // Nothing would have been written either way, so the two refusals are not the same
         // refusal: "couldn't complete the action" says something went wrong, and nothing did.
         // The duplicate check answers first because it is the answer that is true.
-        var saved: List<FilterRule>? = null
+        val saved = Saved()
         val outcome = addBlockRule(
             address = "NEWS@example.com",
             trashFolder = "Trash",
@@ -195,17 +255,17 @@ class SenderBlockTest {
                     foreignActiveScript = true,
                 )
             },
-            save = { saved = it },
+            save = saved.save,
         )
         assertEquals(BlockOutcome.ALREADY_PRESENT, outcome)
-        assertNull("her own Sieve script must still be the active one", saved)
+        assertNull(saved.text)
     }
 
     @Test fun `a save the server refuses is reported as a failure`() = runBlocking {
         val outcome = addBlockRule(
             address = "news@example.com",
             trashFolder = "Trash",
-            load = { FilterRulesState.Loaded(existing) },
+            load = { roundcube },
             save = { throw IllegalStateException("the server rejected the filters") },
         )
         assertEquals(BlockOutcome.FAILED, outcome)

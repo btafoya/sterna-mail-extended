@@ -446,10 +446,16 @@
     <string name="settings_filters_add">Añadir regla</string>
     <string name="settings_filters_saved">Filtros guardados</string>
     <string name="settings_filters_untitled">Regla sin título</string>
-    <string name="settings_filters_foreign_warning">Hay otro script de filtrado activo en el servidor; al guardar, el de Sterna Mail pasará a ser el activo.</string>
     <string name="settings_filters_not_running">Tus reglas de filtrado no se están aplicando en este momento.</string>
     <string name="settings_filters_stops_auto_reply">Tu respuesta automática está activa en el servidor. Al guardar estos filtros se detendrá.</string>
     <string name="settings_filters_unreadable">Sterna Mail no puede leer el script de filtrado de esta cuenta; al guardar, lo reemplazará.</string>
+    <string name="settings_filters_script">Script: %1$s</string>
+    <string name="settings_filters_text_rule">Texto Sieve</string>
+    <string name="settings_filters_bulwark_rule">Regla gestionada por Bulwark</string>
+    <string name="settings_filters_edit_text">Editar como texto</string>
+    <string name="settings_filters_text_edit_title">Editar la regla en Sieve</string>
+    <string name="settings_filters_text_help">Código Sieve, que el servidor comprueba al guardar.</string>
+    <string name="settings_filters_text_uncut">El texto Sieve de una regla deja abierto un paréntesis, un corchete, una llave, unas comillas o un comentario. Ciérralos antes de guardar.</string>
     <string name="settings_filters_overwrite_title">¿Reemplazar el script de filtrado?</string>
     <string name="settings_filters_overwrite_body">Sterna Mail no ha podido leer el script de filtrado de esta cuenta. Al guardar se reemplaza el script entero por las reglas de esta pantalla, así que se pierde todo lo que contenga y no aparezca aquí. No se puede deshacer.</string>
     <string name="settings_filters_overwrite_confirm">Reemplazar</string>

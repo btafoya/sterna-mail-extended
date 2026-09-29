@@ -446,10 +446,16 @@
     <string name="settings_filters_add">Adicionar regra</string>
     <string name="settings_filters_saved">Filtros guardados</string>
     <string name="settings_filters_untitled">Regra sem título</string>
-    <string name="settings_filters_foreign_warning">Outro script de filtro está ativo no servidor; ao guardar, o do Sterna Mail passará a ser o ativo.</string>
     <string name="settings_filters_not_running">As suas regras de filtro não estão a ser aplicadas neste momento.</string>
     <string name="settings_filters_stops_auto_reply">A sua resposta automática está ativa no servidor. Ao guardar estes filtros, será interrompida.</string>
     <string name="settings_filters_unreadable">O Sterna Mail não consegue ler o script de filtro desta conta; ao guardar, será substituído.</string>
+    <string name="settings_filters_script">Script: %1$s</string>
+    <string name="settings_filters_text_rule">Texto Sieve</string>
+    <string name="settings_filters_bulwark_rule">Regra gerida pelo Bulwark</string>
+    <string name="settings_filters_edit_text">Editar como texto</string>
+    <string name="settings_filters_text_edit_title">Editar a regra em Sieve</string>
+    <string name="settings_filters_text_help">Código Sieve, verificado pelo servidor ao guardar.</string>
+    <string name="settings_filters_text_uncut">O texto Sieve de uma regra deixa por fechar um parêntese, um parêntese reto, uma chaveta, aspas ou um comentário. Feche-os antes de guardar.</string>
     <string name="settings_filters_overwrite_title">Substituir o script de filtro?</string>
     <string name="settings_filters_overwrite_body">O Sterna Mail não conseguiu ler o script de filtro desta conta. Ao guardar, todo o script é substituído pelas regras deste ecrã, pelo que se perde tudo o que ele contenha e não esteja aqui visível. Não é possível anular.</string>
     <string name="settings_filters_overwrite_confirm">Substituir</string>

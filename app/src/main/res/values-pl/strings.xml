@@ -446,10 +446,16 @@
     <string name="settings_filters_add">Dodaj regułę</string>
     <string name="settings_filters_saved">Filtry zapisane</string>
     <string name="settings_filters_untitled">Reguła bez nazwy</string>
-    <string name="settings_filters_foreign_warning">Na serwerze jest aktywny inny skrypt filtrujący; zapisanie sprawi, że aktywny stanie się skrypt Sterna Mail.</string>
     <string name="settings_filters_not_running">Twoje reguły filtrowania nie są obecnie stosowane.</string>
     <string name="settings_filters_stops_auto_reply">Twoja automatyczna odpowiedź działa na serwerze. Zapisanie tych filtrów ją wyłączy.</string>
     <string name="settings_filters_unreadable">Sterna Mail nie potrafi odczytać skryptu filtrującego tego konta; zapisanie go zastąpi.</string>
+    <string name="settings_filters_script">Skrypt: %1$s</string>
+    <string name="settings_filters_text_rule">Tekst Sieve</string>
+    <string name="settings_filters_bulwark_rule">Reguła zarządzana przez Bulwark</string>
+    <string name="settings_filters_edit_text">Edytuj jako tekst</string>
+    <string name="settings_filters_text_edit_title">Edytuj regułę w Sieve</string>
+    <string name="settings_filters_text_help">Kod Sieve, sprawdzany przez serwer przy zapisie.</string>
+    <string name="settings_filters_text_uncut">Tekst Sieve reguły zostawia otwarty nawias, cudzysłów lub komentarz. Zamknij go przed zapisaniem.</string>
     <string name="settings_filters_overwrite_title">Zastąpić skrypt filtrujący?</string>
     <string name="settings_filters_overwrite_body">Sterna Mail nie potrafi odczytać skryptu filtrującego tego konta. Zapisanie zastąpi cały skrypt regułami z tego ekranu, więc wszystko, co się w nim znajduje i nie jest tu widoczne, zostanie utracone. Tej operacji nie można cofnąć.</string>
     <string name="settings_filters_overwrite_confirm">Zastąp</string>

@@ -12,8 +12,8 @@ object SieveCodec {
     /**
      * **The Sieve emitted below is a compatibility surface. Changing it is expensive, and bumping
      */
-    private const val MARKER = "# STERNA-RULES-V1:"
-    private const val VACATION_MARKER = "# STERNA-VACATION-V1:"
+    internal const val MARKER = "# STERNA-RULES-V1:"
+    internal const val VACATION_MARKER = "# STERNA-VACATION-V1:"
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
     private val serializer = ListSerializer(FilterRule.serializer())
     private val vacationSerializer = SieveVacation.serializer()
@@ -87,7 +87,10 @@ object SieveCodec {
 
     private val utcDate = Regex("""(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(\.\d+)?Z""")
 
-    private fun vacationToSieve(vacation: SieveVacation, active: List<FilterRule>): String {
+    internal fun vacationMarkerLine(vacation: SieveVacation): String =
+        VACATION_MARKER + " " + json.encodeToString(vacationSerializer, vacation)
+
+    internal fun vacationToSieve(vacation: SieveVacation, active: List<FilterRule>, newline: String = "\n"): String {
         val command = StringBuilder("vacation")
         val subject = vacation.subject
         if (!subject.isNullOrBlank()) command.append(" :subject \"").append(escape(subject)).append('"')
@@ -104,8 +107,8 @@ object SieveCodec {
         )
         return when (conditions.size) {
             0 -> command.toString()
-            1 -> "if ${conditions.single()} {\n    $command\n}"
-            else -> "if allof (${conditions.joinToString(", ")}) {\n    $command\n}"
+            1 -> "if ${conditions.single()} {$newline    $command$newline}"
+            else -> "if allof (${conditions.joinToString(", ")}) {$newline    $command$newline}"
         }
     }
 
@@ -134,6 +137,6 @@ object SieveCodec {
     }
 
     /** Escape a value for a Sieve quoted-string (backslash and double-quote). */
-    private fun escape(value: String): String =
+    internal fun escape(value: String): String =
         value.replace("\\", "\\\\").replace("\"", "\\\"")
 }

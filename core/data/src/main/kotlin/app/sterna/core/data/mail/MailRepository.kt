@@ -15,6 +15,10 @@ import app.sterna.core.data.account.AuthType
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.UnifiedInbox
 import app.sterna.core.data.filter.FilterRule
+import app.sterna.core.data.filter.ScriptRule
+import app.sterna.core.data.filter.ScriptSnapshot
+import app.sterna.core.data.filter.SieveParse
+import app.sterna.core.data.filter.SieveScript
 import app.sterna.core.data.db.AccountMailboxRole
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
@@ -830,15 +834,35 @@ sealed interface FilterRulesState {
      *  OAuth or without an IMAP host. */
     data object Unsupported : FilterRulesState
     data class Loaded(
+        /** The form rules of the opened script, the ones a sender block is checked against. */
         val rules: List<FilterRule>,
-        /** True if the write must be refused: another script is the active one and saving takes it
-         *  over, or the `sterna` script could not be parsed and saving replaces unread content. */
+        /** True if a sender block must be refused: the opened script cannot be cut into blocks, or on
+         *  JMAP the active script is the server's auto-reply, which a save would stop. */
         val foreignActiveScript: Boolean = false,
-        /** The second of those two causes, kept apart so a screen can name it. It cannot be
-         *  recovered from the script list, which carries names and flags, never content. */
+        /** The same fact under the name the filters screen asks it by. */
         val scriptUnreadable: Boolean = false,
-    ) : FilterRulesState
+        /** The script opened, see `openedScriptName`; null when there is none, and a save creates `sterna`. */
+        val scriptName: String? = null,
+        /** Its text as the server returned it, null when [scriptName] is. */
+        val scriptText: String? = null,
+    ) : FilterRulesState {
+        /** [scriptText] cut into blocks, null when there is none or it cannot be cut. */
+        val script: SieveScript?
+            get() = (scriptText?.let { SieveScript.parse(it) } as? SieveParse.Readable)?.script
+
+        /** What the filters screen lists: form rules, Sieve text blocks, Bulwark rules it locks. */
+        val scriptRules: List<ScriptRule> get() = script?.rules.orEmpty()
+
+        val snapshot: ScriptSnapshot get() = ScriptSnapshot(scriptName, scriptText)
+
+        /** What a write starts from: [script], or an empty one, so an unreadable script is replaced whole. */
+        val scriptToEdit: SieveScript
+            get() = script ?: (SieveScript.parse("") as SieveParse.Readable).script
+    }
 }
+
+/** A saved responder, and on IMAP the script now holding it, which the next save goes over. */
+data class SavedVacation(val response: VacationResponse, val script: ScriptSnapshot?)
 
 /** Outcome of loading an account's server-side vacation responder. */
 sealed interface VacationState {
@@ -852,10 +876,12 @@ sealed interface VacationState {
 
     data class Loaded(
         val response: VacationResponse,
-        /** True if a save must be confirmed first: on IMAP it activates Sterna's script over
-         *  another active one, or replaces a `sterna` script that could not be read. Always false
-         *  on JMAP, whose responder is not a script this app writes. */
+        /** True if a save must be confirmed first: on IMAP the opened script cannot be cut into
+         *  blocks, and a save replaces it. Always false on JMAP, whose responder is not a script
+         *  this app writes. */
         val foreignActiveScript: Boolean = false,
+        /** On IMAP the script the responder was read from, which a save must find unchanged. */
+        val script: ScriptSnapshot? = null,
     ) : VacationState
 }
 

@@ -446,10 +446,16 @@
     <string name="settings_filters_add">Ajouter une règle</string>
     <string name="settings_filters_saved">Filtres enregistrés</string>
     <string name="settings_filters_untitled">Règle sans titre</string>
-    <string name="settings_filters_foreign_warning">Un autre script de filtrage est actif sur le serveur ; l\'enregistrement activera celui de Sterna Mail.</string>
     <string name="settings_filters_not_running">Vos règles de filtrage ne s\'appliquent pas en ce moment.</string>
     <string name="settings_filters_stops_auto_reply">Votre réponse automatique est active sur le serveur. Enregistrer ces filtres l\'arrêtera.</string>
     <string name="settings_filters_unreadable">Sterna Mail ne sait pas lire le script de filtrage de ce compte ; l\'enregistrement le remplacera.</string>
+    <string name="settings_filters_script">Script : %1$s</string>
+    <string name="settings_filters_text_rule">Texte Sieve</string>
+    <string name="settings_filters_bulwark_rule">Règle gérée par Bulwark</string>
+    <string name="settings_filters_edit_text">Modifier en texte</string>
+    <string name="settings_filters_text_edit_title">Modifier la règle en Sieve</string>
+    <string name="settings_filters_text_help">Code Sieve, vérifié par le serveur à l\'enregistrement.</string>
+    <string name="settings_filters_text_uncut">Le texte Sieve d\'une règle laisse une parenthèse, un crochet, une accolade, des guillemets ou un commentaire ouverts. Fermez-les avant d\'enregistrer.</string>
     <string name="settings_filters_overwrite_title">Remplacer le script de filtrage ?</string>
     <string name="settings_filters_overwrite_body">Sterna Mail n\'a pas pu lire le script de filtrage de ce compte. L\'enregistrement remplace tout le script par les règles de cet écran ; tout ce qu\'il contient et qui n\'apparaît pas ici sera perdu. C\'est irréversible.</string>
     <string name="settings_filters_overwrite_confirm">Remplacer</string>
