@@ -2,6 +2,7 @@ package app.sterna.ui.settings
 
 import android.os.Build
 import androidx.annotation.StringRes
+import app.sterna.R
 import app.sterna.contacts.normalizeForMatch
 import app.sterna.core.data.account.AuthType
 import app.sterna.core.data.account.MailProtocol
@@ -14,6 +15,10 @@ internal sealed interface SettingHost {
 
     /** The current account's screen. Its route comes from [settingsRouteFor], never spelled out. */
     data object CurrentAccount : SettingHost
+
+    /** The current account's folder management. It lives on the app's graph, not the settings
+     *  one: see [opensOnAppGraph]. */
+    data object CurrentAccountFolders : SettingHost
 }
 
 /** The condition a row is drawn under on its screen. An entry obeys the same one, or a result
@@ -36,6 +41,7 @@ internal data class SettingEntry(
     @StringRes val anchor: Int? = title,
     val condition: SettingCondition = SettingCondition.ALWAYS,
     val anchorKind: AnchorKind = AnchorKind.ROW,
+    @StringRes val keywords: Int? = null,
 )
 
 /** Whether [SettingEntry.anchor] titles a setting row or a section header. The two are told apart
@@ -79,8 +85,11 @@ internal fun searchableSettings(
     val protocol = current?.protocol
     val authType = current?.authType
     val accountEntries = current != null && !current.isShared
+    // The drawer offers folder management for every current account, a shared one included.
+    val folderEntries = current != null
     return index.filter { entry ->
-        (entry.host != SettingHost.CurrentAccount || accountEntries) && when (entry.condition) {
+        (entry.host != SettingHost.CurrentAccount || accountEntries) &&
+            (entry.host != SettingHost.CurrentAccountFolders || folderEntries) && when (entry.condition) {
             SettingCondition.ALWAYS -> true
             SettingCondition.MATERIAL_YOU -> sdkInt >= Build.VERSION_CODES.S
             SettingCondition.IMAP_ONLY -> protocol == MailProtocol.IMAP
@@ -104,9 +113,35 @@ internal fun searchResultRoute(
     val route = when (val host = entry.host) {
         is SettingHost.Screen -> host.route
         SettingHost.CurrentAccount -> settingsRouteFor(currentId ?: return null, accounts)
+        // Unencoded, as [settingsRouteFor] writes it: an account id is a UUID.
+        SettingHost.CurrentAccountFolders -> "folders?accountId=${currentId ?: return null}"
     }
     return if (entry.anchor == null) route else "$route?$SETTING_FOCUS_ARG=${entry.key}"
 }
+
+/** Whether [entry]'s route belongs to the app's graph: the settings graph would throw on it. */
+internal fun opensOnAppGraph(entry: SettingEntry): Boolean = entry.host == SettingHost.CurrentAccountFolders
+
+/** [entry] resolved through [text], which reads a string resource in the app language. */
+internal fun resolveSetting(entry: SettingEntry, accountLabel: String, text: (Int) -> String): ResolvedSetting {
+    val path = when (val host = entry.host) {
+        is SettingHost.Screen -> text(host.path)
+        // The hub's own name for the account group, joined like every other path.
+        SettingHost.CurrentAccount, SettingHost.CurrentAccountFolders ->
+            listOf(text(R.string.settings_group_current_account_generic), accountLabel)
+                .filter { it.isNotBlank() }
+                .joinToString(" › ")
+    }
+    return ResolvedSetting(
+        entry = entry,
+        title = text(entry.title),
+        path = path,
+        texts = (listOfNotNull(entry.summary, entry.keywords) + entry.options).map(text),
+    )
+}
+
+/** Whether the hub's rubrics are drawn under the search field for [query] and its [results]. */
+internal fun hubRubricsShown(query: String, results: List<*>): Boolean = query.isBlank() || results.isEmpty()
 
 private val WHITESPACE = Regex("\\s+")
 

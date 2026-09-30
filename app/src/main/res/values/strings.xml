@@ -452,6 +452,9 @@
     <string name="settings_hub_title">Settings</string>
     <string name="settings_search_hint">Search settings</string>
     <string name="settings_search_no_result">No setting matches</string>
+    <string name="settings_folders_title">Folders</string>
+    <string name="settings_folders_summary">Order, show or hide your folders</string>
+    <string name="settings_folders_keywords">order, show, hide, reorder, folders</string>
     <string name="settings_group_app">App</string>
     <string name="settings_group_current_account">This account · %1$s</string>
     <string name="settings_group_current_account_generic">This account</string>

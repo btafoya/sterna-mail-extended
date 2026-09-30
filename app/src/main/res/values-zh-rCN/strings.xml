@@ -442,6 +442,9 @@
     <string name="settings_hub_title">设置</string>
     <string name="settings_search_hint">搜索设置</string>
     <string name="settings_search_no_result">没有匹配的设置</string>
+    <string name="settings_folders_title">文件夹</string>
+    <string name="settings_folders_summary">排序、显示或隐藏您的文件夹</string>
+    <string name="settings_folders_keywords">顺序, 排序, 显示, 隐藏, 重新排序, 文件夹</string>
     <string name="settings_group_app">应用</string>
     <string name="settings_group_current_account">此账户 · %1$s</string>
     <string name="settings_group_current_account_generic">此账户</string>

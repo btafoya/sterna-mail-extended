@@ -14,6 +14,7 @@ private val READING = SettingHost.Screen("reading", R.string.settings_reading_ti
 private val NOTIFICATIONS = SettingHost.Screen("notifications", R.string.settings_notifications_title)
 private val PRIVACY = SettingHost.Screen("privacy", R.string.settings_privacy_title)
 private val ACCOUNT = SettingHost.CurrentAccount
+private val FOLDERS = SettingHost.CurrentAccountFolders
 
 private fun rubric(key: String, route: String, title: Int, summary: Int, path: Int) =
     SettingEntry(key, SettingHost.Screen(route, path), title, summary, anchor = null)
@@ -37,8 +38,9 @@ private val SECURITY_OPTIONS = listOf(
  * fails on a row that is drawn but missing here, and on an entry whose row is gone.
  *
  * Kept out on purpose: the About links (not settings), the Vacation and Filters fields (drawn only
- * after the server answers, reached through their rubric), folder management (outside this graph),
- * and every account but the current one.
+ * after the server answers, reached through their rubric), the rows of folder management (its
+ * screen is on the app's graph and has no row to flash, so it is one rubric), and every account but
+ * the current one.
  */
 internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
     rubric("accounts", "accounts", R.string.settings_accounts_title, R.string.settings_accounts_summary, R.string.settings_hub_title),
@@ -50,6 +52,11 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
     rubric("backup", "backup", R.string.settings_backup_title, R.string.settings_backup_summary, R.string.settings_group_app),
     rubric("vacation", "vacation", R.string.settings_vacation_title, R.string.settings_vacation_summary, R.string.settings_group_current_account_generic),
     rubric("filters", "filters", R.string.settings_filters_title, R.string.settings_filters_summary, R.string.settings_group_current_account_generic),
+    SettingEntry(
+        "folders", FOLDERS, R.string.settings_folders_title, R.string.settings_folders_summary,
+        anchor = null,
+        keywords = R.string.settings_folders_keywords,
+    ),
 
     SettingEntry(
         "language", APPEARANCE, R.string.settings_language_title,

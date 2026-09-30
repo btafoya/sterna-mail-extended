@@ -681,6 +681,7 @@ private fun MainNavHost(
                 onBack = { entry.navigateOnce { nav.popBackStack() } },
                 onAccountsChanged = onAccountsChanged,
                 initialAccountId = entry.arguments?.getString("accountId")?.ifBlank { null },
+                onOpenAppRoute = { route -> entry.navigateOnce { nav.navigate(route) } },
             )
         }
         composable(

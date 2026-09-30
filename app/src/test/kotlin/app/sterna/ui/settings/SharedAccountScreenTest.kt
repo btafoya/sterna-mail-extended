@@ -211,11 +211,13 @@ class SharedAccountScreenTest {
             listOf(
                 "onOpenSetting = { setting ->",
                 "searchResultRoute(setting, currentId, accountsViewModel.accounts.value)?.let { route ->",
-                "entry.navigateOnce { nav.navigate(route) }",
+                "entry.navigateOnce {",
+                "if (opensOnAppGraph(setting)) onOpenAppRoute(route) else nav.navigate(route)",
+                "}",
                 "}",
                 "},",
             ),
-            statementsAfter(SETTINGS, HUB_SEARCHABLE_MARKER, 5),
+            statementsAfter(SETTINGS, HUB_SEARCHABLE_MARKER, 7),
         )
     }
 

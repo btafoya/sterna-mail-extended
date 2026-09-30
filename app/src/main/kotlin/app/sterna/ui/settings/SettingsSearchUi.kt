@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -62,18 +63,8 @@ internal val settingFocusArguments = listOf(
 /** Saved-state key: set once the focus key has been shown, so no later composition shows it again. */
 private const val SPOTLIGHT_SHOWN = "settingSpotlightShown"
 
-internal fun resolveSetting(context: Context, entry: SettingEntry, accountLabel: String): ResolvedSetting {
-    val path = when (val host = entry.host) {
-        is SettingHost.Screen -> context.getString(host.path)
-        SettingHost.CurrentAccount -> context.getString(R.string.settings_accounts_title) + " › " + accountLabel
-    }
-    return ResolvedSetting(
-        entry = entry,
-        title = context.getString(entry.title),
-        path = path,
-        texts = (listOfNotNull(entry.summary) + entry.options).map(context::getString),
-    )
-}
+internal fun resolveSetting(context: Context, entry: SettingEntry, accountLabel: String): ResolvedSetting =
+    resolveSetting(entry, accountLabel, context::getString)
 
 /**
  * The row, or section header, a search result opened this screen for: brought into view, then
@@ -150,13 +141,21 @@ internal fun SettingsSearch(
     var query by rememberSaveable { mutableStateOf("") }
     Column(modifier) {
         SettingsSearchField(query = query, onQueryChange = { query = it })
-        if (query.isBlank()) {
-            rubrics()
-        } else {
-            SettingsSearchResults(
-                results = searchSettings(query, searchable, { it.title }, { it.texts }),
-                onOpenSetting = onOpenSetting,
+        val results = if (query.isBlank()) emptyList() else searchSettings(query, searchable, { it.title }, { it.texts })
+        if (query.isNotBlank() && results.isEmpty()) {
+            Text(
+                stringResource(R.string.settings_search_no_result),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             )
+        }
+        if (hubRubricsShown(query, results)) {
+            // Not inside a scrolling column: the rubrics scroll themselves, and a vertical scroll
+            // nested in another throws.
+            Box(Modifier.weight(1f)) { rubrics() }
+        } else {
+            SettingsSearchResults(results = results, onOpenSetting = onOpenSetting)
         }
     }
 }
@@ -183,6 +182,13 @@ private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) 
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
         ),
+        leadingIcon = {
+            Icon(
+                Icons.Filled.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
         trailingIcon = {
             if (query.isNotEmpty()) {
                 IconButton(onClick = { onQueryChange("") }) {
@@ -201,14 +207,6 @@ private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) 
 @Composable
 private fun SettingsSearchResults(results: List<ResolvedSetting>, onOpenSetting: (SettingEntry) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        if (results.isEmpty()) {
-            Text(
-                stringResource(R.string.settings_search_no_result),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            )
-        }
         results.forEach { result ->
             Column(
                 Modifier

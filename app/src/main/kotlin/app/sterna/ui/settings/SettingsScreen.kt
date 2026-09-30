@@ -182,6 +182,7 @@ fun SettingsScreen(
     onAccountsChanged: () -> Unit = {},
     /** When set, deep-link straight to this account's detail screen (drawer → tap account). */
     initialAccountId: String? = null,
+    onOpenAppRoute: (String) -> Unit,
     viewModel: SettingsViewModel = viewModel(),
     accountsViewModel: AccountsViewModel = viewModel(),
 ) {
@@ -253,7 +254,9 @@ fun SettingsScreen(
                 searchable = searchable,
                 onOpenSetting = { setting ->
                     searchResultRoute(setting, currentId, accountsViewModel.accounts.value)?.let { route ->
-                        entry.navigateOnce { nav.navigate(route) }
+                        entry.navigateOnce {
+                            if (opensOnAppGraph(setting)) onOpenAppRoute(route) else nav.navigate(route)
+                        }
                     }
                 },
             )

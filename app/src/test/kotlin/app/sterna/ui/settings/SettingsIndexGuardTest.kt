@@ -2,6 +2,7 @@ package app.sterna.ui.settings
 
 import app.sterna.R
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -70,7 +71,9 @@ class SettingsIndexGuardTest {
     }
 
     @Test fun `every index entry still has its row where it says`() {
-        val stale = SETTINGS_INDEX.mapNotNull { entry ->
+        // Folder management is drawn by FolderManagementScreen, on the app's graph and outside
+        // SCREENS; its route is checked by the next test but one.
+        val stale = SETTINGS_INDEX.filter { it.host != SettingHost.CurrentAccountFolders }.mapNotNull { entry ->
             val title = nameOf(entry.title)
             val screen = screenOf(entry)
             val drawn = if (entry.anchorKind == AnchorKind.SECTION) sectionTitlesOn(screen) else titlesOn(screen)
@@ -140,11 +143,20 @@ class SettingsIndexGuardTest {
             val routes = when (val host = entry.host) {
                 is SettingHost.Screen -> listOf(host.route)
                 SettingHost.CurrentAccount -> listOf("account/{id}", "sharedAccount/{id}")
+                SettingHost.CurrentAccountFolders -> emptyList()
             }
             val declared = if (entry.anchor == null) focusable + plain else focusable
             routes.filter { it !in declared }.takeIf { it.isNotEmpty() }?.let { "${entry.key}: $it" }
         }
         assertEquals(emptyList<String>(), missing)
+    }
+
+    @Test fun `the folder management a result opens is a destination of the app graph`() {
+        val app = File(root, APP_PATH).readText()
+        assertTrue(
+            "SternaApp.kt no longer declares the route searchResultRoute builds for folder management",
+            "route = \"folders?accountId={accountId}\"" in app,
+        )
     }
 
     // -- reading the source ---------------------------------------------------------------------
@@ -212,6 +224,7 @@ class SettingsIndexGuardTest {
     /** The screen names an entry's host covers: the account is drawn by two composables. */
     private fun screenOf(entry: SettingEntry): String = when (val host = entry.host) {
         SettingHost.CurrentAccount -> ACCOUNT
+        SettingHost.CurrentAccountFolders -> FOLDERS
         is SettingHost.Screen -> if (entry.anchor == null) HUB else SCREENS.entries.single { it.value == host.route }.key
     }
 
@@ -302,6 +315,7 @@ class SettingsIndexGuardTest {
     private companion object {
         const val HUB = "SettingsHub"
         const val ACCOUNT = "account"
+        const val FOLDERS = "FolderManagementScreen"
 
         /** The composables read, and the screen each one is. The account screen is two of them. */
         val SCREENS = mapOf(
@@ -342,6 +356,7 @@ class SettingsIndexGuardTest {
             "settings_storage_section" to "a message count and a cache button, not a setting",
         )
 
+        const val APP_PATH = "app/src/main/kotlin/app/sterna/ui/SternaApp.kt"
         const val SETTINGS_SCREEN_PATH = "app/src/main/kotlin/app/sterna/ui/settings/SettingsScreen.kt"
 
         val root: File by lazy {

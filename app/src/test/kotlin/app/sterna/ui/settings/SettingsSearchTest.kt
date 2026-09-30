@@ -10,6 +10,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 /** The hub's search: the folding, the matching, which entries a given install offers, and the route
  *  a result opens. All four run here; what the hub draws with them is not reached. */
@@ -245,5 +246,63 @@ class SettingsSearchTest {
 
     @Test fun `a route pattern made focusable still carries its own arguments`() {
         assertEquals("account/{id}?focus={focus}", focusable("account/{id}"))
+    }
+
+    // -- folder management and the account path, in the shipped strings ------------------------
+
+    /** The shipped text of each string resource in [folder], as the app reads it in that language. */
+    private fun shipped(folder: String): (Int) -> String {
+        val names = R.string::class.java.fields.associate { it.getInt(null) to it.name }
+        val file = generateSequence(File("").absoluteFile) { it.parentFile }
+            .map { File(it, "app/src/main/res/$folder/strings.xml") }
+            .first { it.isFile }
+        val texts = Regex("""<string name="(\w+)"[^>]*>(.*?)</string>""", RegexOption.DOT_MATCHES_ALL)
+            .findAll(file.readText())
+            .associate { it.groupValues[1] to it.groupValues[2].replace("\\'", "'") }
+        return { id -> texts.getValue(names.getValue(id)) }
+    }
+
+    private fun search(query: String, current: StoredAccount?, folder: String = "values"): List<ResolvedSetting> {
+        val text = shipped(folder)
+        val resolved = searchableSettings(current, 34).map { resolveSetting(it, current?.label().orEmpty(), text) }
+        return searchSettings(query, resolved, { it.title }, { it.texts })
+    }
+
+    @Test fun `folders finds the current account's folder management, in English and in French`() {
+        assertEquals("folders", search("folders", login()).firstOrNull()?.entry?.key)
+        assertEquals("folders", search("dossiers", login(), "values-fr").firstOrNull()?.entry?.key)
+        assertTrue(search("reorder", login()).any { it.entry.key == "folders" })
+        assertTrue(search("hide", login()).any { it.entry.key == "folders" })
+    }
+
+    @Test fun `folder management opens the app graph's folders route for the current account`() {
+        val folders = entry("folders")
+        assertNull("a rubric: FolderManagementScreen flashes nothing", folders.anchor)
+        assertEquals("folders?accountId=login-uuid", searchResultRoute(folders, "login-uuid", listOf(login())))
+        assertEquals("folders?accountId=jordan-uuid", searchResultRoute(folders, "jordan-uuid", listOf(login(), delegated())))
+        assertTrue(opensOnAppGraph(folders))
+        assertFalse(opensOnAppGraph(entry("username")))
+        assertFalse(opensOnAppGraph(entry("vacation")))
+    }
+
+    @Test fun `folder management is offered for any current account, a shared one too, and not without one`() {
+        assertTrue("folders" in offered(login()))
+        assertTrue("the drawer offers it for a shared mailbox", "folders" in offered(delegated()))
+        assertFalse("folders" in offered(null))
+        assertNull(searchResultRoute(entry("folders"), null, listOf(login())))
+    }
+
+    @Test fun `an account entry's path is the hub's own name for the current account`() {
+        val text = shipped("values")
+        assertEquals("This account › Alex", resolveSetting(entry("username"), "Alex", text).path)
+        assertEquals("This account › Alex", resolveSetting(entry("folders"), "Alex", text).path)
+        assertEquals("This account", resolveSetting(entry("username"), "", text).path)
+        assertEquals("Ce compte › Alex", resolveSetting(entry("folders"), "Alex", shipped("values-fr")).path)
+    }
+
+    @Test fun `a query with no result still shows the hub's rubrics, a query with results does not`() {
+        assertTrue(hubRubricsShown("", emptyList<Any>()))
+        assertTrue(hubRubricsShown("zzqx", emptyList<Any>()))
+        assertFalse(hubRubricsShown("theme", listOf("Theme")))
     }
 }
