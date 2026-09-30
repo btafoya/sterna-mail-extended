@@ -4,6 +4,7 @@ import app.sterna.core.data.text.htmlToText
 import app.sterna.core.imap.MimeAttachment
 import app.sterna.core.imap.MimeParser
 import app.sterna.core.jmap.ContentTooLargeException
+import app.sterna.core.jmap.model.isCryptoControlType
 
 /** What the sheet shows of a message/rfc822 attachment. */
 data class AttachedMessage(
@@ -51,6 +52,6 @@ internal fun attachedMessageOf(bytes: ByteArray): AttachedMessage {
 private fun MimeAttachment.isFileAttachment(): Boolean = when {
     cid != null && type.startsWith("image/") -> false
     type.startsWith("text/calendar") -> false
-    type == "application/pgp-encrypted" || type == "application/pgp-signature" -> false
+    isCryptoControlType(type) -> false
     else -> true
 }

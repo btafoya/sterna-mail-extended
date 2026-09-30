@@ -71,7 +71,7 @@ class PgpSignature(
 class PgpDecrypted(
     val plaintext: ByteArray,
     val signature: PgpSignatureState,
-    val signatureKeyId: Long,
+    val signatureKeyId: Long?,
     val signatureUserId: String?,
     val wasEncrypted: Boolean,
     /** Pending intent to show/import the signing key in the provider, when offered. */

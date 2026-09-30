@@ -624,6 +624,11 @@
     <string name="message_pgp_sig_expired">Ondertekend met een verlopen sleutel</string>
     <string name="message_pgp_sig_insecure">Ondertekend met een onveilige sleutel</string>
     <string name="message_pgp_sig_mismatch">Ondertekenaar komt niet overeen met de afzender</string>
+    <string name="message_smime_sig_valid">Geldige S/MIME-handtekening van %1$s, gecertificeerd door een instantie die dit apparaat vertrouwt</string>
+    <string name="message_smime_sig_unconfirmed">Geldige S/MIME-handtekening van %1$s, certificaat niet van een instantie die dit apparaat vertrouwt</string>
+    <string name="message_smime_sig_missing_certificate">S/MIME-handtekening niet controleerbaar (certificaat ontbreekt)</string>
+    <string name="message_smime_sig_expired">Ondertekend met een verlopen S/MIME-certificaat</string>
+    <string name="message_smime_sig_mismatch">S/MIME-certificaat is van %1$s, niet van de afzender</string>
     <string name="a11y_pgp_encrypted">Versleuteld</string>
     <string name="a11y_pgp_signature">Handtekeningstatus</string>
     <string name="notif_pgp_encrypted">Versleuteld bericht</string>

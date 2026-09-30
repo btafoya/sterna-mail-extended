@@ -624,6 +624,11 @@
     <string name="message_pgp_sig_expired">Подписано просроченным ключом</string>
     <string name="message_pgp_sig_insecure">Подписано небезопасным ключом</string>
     <string name="message_pgp_sig_mismatch">Подписавший не совпадает с отправителем</string>
+    <string name="message_smime_sig_valid">Действительная подпись S/MIME от %1$s, заверенная центром сертификации, которому доверяет это устройство</string>
+    <string name="message_smime_sig_unconfirmed">Действительная подпись S/MIME от %1$s, сертификат выдан не центром сертификации, которому доверяет это устройство</string>
+    <string name="message_smime_sig_missing_certificate">Подпись S/MIME нельзя проверить (сертификат не приложен)</string>
+    <string name="message_smime_sig_expired">Подписано просроченным сертификатом S/MIME</string>
+    <string name="message_smime_sig_mismatch">Сертификат S/MIME принадлежит %1$s, а не отправителю</string>
     <string name="a11y_pgp_encrypted">Зашифровано</string>
     <string name="a11y_pgp_signature">Статус подписи</string>
     <string name="notif_pgp_encrypted">Зашифрованное письмо</string>

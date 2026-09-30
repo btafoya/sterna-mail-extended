@@ -10,6 +10,7 @@ import android.provider.OpenableColumns
 import app.sterna.core.data.mail.MessageCrypto
 import app.sterna.core.data.mail.MessageUnavailableException
 import app.sterna.core.data.mail.requireAttachmentBytes
+import app.sterna.core.data.mail.smimeSignalOf
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.imap.CryptoKind
 import androidx.lifecycle.AndroidViewModel
@@ -993,6 +994,8 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     /** The detected crypto kind, kept so a cancelled unlock returns to Locked. */
     private var lockedKind: CryptoKind? = null
 
+    private var overlaidKind: CryptoKind? = null
+
     private var loadedId: String? = null
     /** Owning account when opened from the unified inbox; null = current account. */
     private var accountId: String? = null
@@ -1105,6 +1108,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         calendarLoadedFor = null
         _crypto.value = CryptoUiState.None
         autoDecryptTried = false
+        overlaidKind = null
         _replyBarVisible.value = false
         _manualShowImages.value = false
         if (!keepsResourceVerdict(tooManyResourcesFor, emailId, accountId)) {
@@ -1200,7 +1204,10 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                         maybeAutoDecrypt()
                     }
                     is MessageCrypto.Decrypted -> _crypto.value = CryptoUiState.Decrypted(c)
-                    null -> {}
+                    null -> {
+                        overlaidKind = smimeSignalOf(anchor)
+                        maybeAutoDecrypt()
+                    }
                 }
                 // An inline image we refused to download leaves a hole in the body. Say it, showing
                 // less without a word is how a problem gets hidden.
@@ -1281,9 +1288,39 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
      *  [CryptoUiState.NeedsInteraction]. */
     private fun maybeAutoDecrypt() {
         if (!active || autoDecryptTried) return
+        overlaidKind?.let { kind ->
+            autoDecryptTried = true
+            verifyOverBody(kind)
+            return
+        }
         if (_crypto.value !is CryptoUiState.Locked) return
         autoDecryptTried = true
         decrypt()
+    }
+
+    private fun verifyOverBody(kind: CryptoKind) {
+        val emailId = loadedId ?: return
+        val forAccount = accountId
+        viewModelScope.launch {
+            val credentials = credentials() ?: return@launch
+            val result = try {
+                repo.decryptMessage(credentials, emailId, lockedKind = kind)
+            } catch (t: Throwable) {
+                PgpResult.Error(t.message ?: t.javaClass.simpleName)
+            }
+            val crypto = overlayCrypto(result) ?: return@launch
+            val opened = (result as? PgpResult.Success)?.value ?: return@launch
+            val display = anchorDisplay(opened.email)
+            val message = ThreadMessage(
+                id = opened.email.id,
+                header = display,
+                body = display,
+                inlineImages = opened.inlineImages,
+            )
+            if (!publishBody(emailId, forAccount, message) { loadedId == emailId && accountId == forAccount }) return@launch
+            _state.value = MessageState.Loaded(display)
+            _crypto.value = crypto
+        }
     }
 
     /**
@@ -1299,7 +1336,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             // the failures it anticipates, but an exception escaping it (provider IPC death, parcel
             // mismatch, OOM on a huge raw source) would take the app down (#14). Mirror load().
             val result = try {
-                repo.decryptMessage(credentials, emailId, interactionResult)
+                repo.decryptMessage(credentials, emailId, interactionResult, lockedKind)
             } catch (t: Throwable) {
                 PgpResult.Error(t.message ?: t.javaClass.simpleName)
             }

@@ -127,6 +127,43 @@ class AttachedMessageTest {
         assertEquals(listOf("rapport.pdf"), m.attachmentNames)
     }
 
+    @Test fun `an S-MIME signature is not listed as its attachment, named or not`() {
+        listOf(
+            "Content-Type: application/pkcs7-signature; name=\"smime.p7s\"",
+            "Content-Type: application/x-pkcs7-signature",
+        ).forEach { sigType ->
+            val m = attachedMessageOf(
+                eml(
+                    "From: a@example.org",
+                    "Subject: signed",
+                    "Content-Type: multipart/mixed; boundary=\"xx\"",
+                    "",
+                    "--xx",
+                    "Content-Type: multipart/signed; protocol=\"application/pkcs7-signature\"; boundary=\"yy\"",
+                    "",
+                    "--yy",
+                    "Content-Type: text/plain",
+                    "",
+                    "hello",
+                    "--yy",
+                    sigType,
+                    "Content-Transfer-Encoding: base64",
+                    "",
+                    "MIIB",
+                    "--yy--",
+                    "--xx",
+                    "Content-Type: application/pkcs7-mime; smime-type=enveloped-data; name=\"smime.p7m\"",
+                    "Content-Transfer-Encoding: base64",
+                    "",
+                    "MIIB",
+                    "--xx--",
+                    "",
+                ),
+            )
+            assertEquals(sigType, listOf("smime.p7m"), m.attachmentNames)
+        }
+    }
+
     @Test fun `an html-only message is shown as text`() {
         val m = attachedMessageOf(
             eml(

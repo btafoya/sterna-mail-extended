@@ -24,7 +24,6 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   out of reach for this project. Gmail works with an app-specific password.
 - 💡 IMAP CONDSTORE incremental sync.
 - 💡 Fuller TalkBack audit and touch-target review.
-- 💡 S/MIME.
 - 💡 Calendar conflict detection (needs calendar read access).
 
 ---
@@ -171,6 +170,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   (PGP/MIME) on both protocols. Decrypted content is never written to disk, except
   an attachment you open or save. Subjects are not encrypted. Guide:
   [ENCRYPTION.md](ENCRYPTION.md).
+- ✅ S/MIME signature check on received messages, on both protocols, against the
+  Android certificate store.
+- 💡 S/MIME: decrypt, sign and encrypt.
 
 ## UX & accessibility
 

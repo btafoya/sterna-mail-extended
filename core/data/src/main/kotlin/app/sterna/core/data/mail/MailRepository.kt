@@ -46,6 +46,7 @@ import app.sterna.core.data.db.MailboxIdRole
 import app.sterna.core.data.db.MailboxUnread
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.pgp.PgpEngine
+import app.sterna.core.data.pgp.SmimeEngine
 import app.sterna.core.data.rethrowIfCancelled
 import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.settings.SettingsRepository
@@ -64,6 +65,7 @@ import app.sterna.core.jmap.jmapDiscoveryClient
 import app.sterna.core.jmap.WindowWalk
 import app.sterna.core.imap.CryptoEnvelope
 import app.sterna.core.imap.CryptoKind
+import app.sterna.core.imap.isSmime
 import app.sterna.core.imap.ImapUidValidityChanged
 import app.sterna.core.imap.inlineArmorKind
 import app.sterna.core.imap.inlineDisplayText
@@ -900,7 +902,7 @@ data class MessageBody(
     val crypto: MessageCrypto? = null,
 )
 
-/** OpenPGP state of an opened message. */
+/** OpenPGP or S/MIME state of an opened message. */
 sealed interface MessageCrypto {
     /** Crypto content detected but not yet decrypted/verified. */
     data class Locked(val kind: CryptoKind) : MessageCrypto
@@ -909,8 +911,11 @@ sealed interface MessageCrypto {
     data class Decrypted(
         val signature: PgpSignatureState,
         val signatureUserId: String?,
-        val signatureKeyId: Long,
+        /** Null for S/MIME, whose signer is a certificate, not a key id. */
+        val signatureKeyId: Long?,
         val wasEncrypted: Boolean,
+        /** The verdict is on an S/MIME certificate, and the reader words it for one. */
+        val smime: Boolean = false,
     ) : MessageCrypto
 }
 
@@ -955,6 +960,8 @@ class MailRepository(
     private val discoveryClient: JmapClient = jmapDiscoveryClient(),
     /** OpenPGP operations (null = no provider wired; all PGP features disabled). */
     private val pgpEngine: PgpEngine? = null,
+    /** S/MIME signature checks (null = none wired: signed mail shows as ordinary mail). */
+    private val smimeEngine: SmimeEngine? = null,
     /** App settings (null in tests): consulted for behavior toggles like mark-read-on-delete. */
     private val settings: SettingsRepository? = null,
     /** Persisted sync cursors (null in tests): deltas survive process death (issue #17). */
@@ -2229,10 +2236,10 @@ class MailRepository(
 
     // Both crypto caches are keyed "$accountId:$emailId" (see [cryptoKey]): same-server accounts can
     // cache colliding email ids (#31), and a bare-id key would serve the sibling account's message.
-    private val decryptedCache = android.util.LruCache<String, DecryptedEntry>(8)
+    private val decryptedCache = MemoryLru<DecryptedEntry>(8)
 
     /** Raw sources of crypto messages being decrypted (avoids refetching on interaction retries). */
-    private val rawSourceCache = android.util.LruCache<String, String>(4)
+    private val rawSourceCache = MemoryLru<String>(4)
 
     private fun cryptoKey(accountId: String, emailId: String) = "$accountId:$emailId"
 
@@ -2275,14 +2282,16 @@ class MailRepository(
         return raw
     }
 
-    /** Decrypt and/or verify an OpenPGP message via [PgpEngine]. Nothing decrypted is persisted;
-     *  [PgpResult.UserInteractionRequired] asks the caller to run the PendingIntent and retry. */
+    /** Decrypt and/or verify an OpenPGP message via [PgpEngine], or check an S/MIME signature via
+     *  [SmimeEngine]; the kind read from the source picks which (see [cryptoRoute]). Nothing decrypted
+     *  is persisted; [PgpResult.UserInteractionRequired] asks the caller to run the PendingIntent and retry. */
     suspend fun decryptMessage(
         credentials: AccountCredentials,
         emailId: String,
         interactionResult: android.content.Intent? = null,
+        lockedKind: CryptoKind? = null,
     ): PgpResult<MessageBody> {
-        val pgp = pgpEngine ?: return PgpResult.NotAvailable
+        if (notAvailableBeforeFetch(lockedKind, pgpEngine)) return PgpResult.NotAvailable
         decryptedCache.get(cryptoKey(credentials.id, emailId))?.let { return PgpResult.Success(it.body) }
         val email = runCatching { openEmail(credentials, emailId, markRead = false) }
             .getOrElse { return PgpResult.Error(it.message ?: "Cannot fetch message") }
@@ -2290,34 +2299,43 @@ class MailRepository(
             .getOrElse { return PgpResult.Error(it.message ?: "Cannot fetch message source") }
         val envelope = runCatching { MimeParser.detectCrypto(raw) }
             .getOrElse { return PgpResult.Error(it.message ?: "Cannot parse message structure") }
-            ?: return PgpResult.Error("No OpenPGP content found")
         val sender = email.from.firstOrNull()?.email
+        val route = cryptoRoute(envelope?.kind, lockedKind, pgpEngine, smimeEngine)
 
         // Contain any escaping exception as an Error so the reader shows the status card (#14).
         val result = runCatching {
-            when (envelope.kind) {
-                CryptoKind.PGP_ENCRYPTED -> pgp.decryptVerify(
-                    envelope.encryptedArmor!!.toByteArray(Charsets.UTF_8),
-                    senderAddress = sender,
-                    interactionResult = interactionResult,
-                )
-                CryptoKind.PGP_INLINE -> pgp.decryptVerify(
-                    inlineVerifyBytes(envelope),
-                    senderAddress = sender,
-                    interactionResult = interactionResult,
-                )
-                // ISO-8859-1, not UTF-8: only this reading hands the verifier the octets the sender hashed.
-                CryptoKind.PGP_SIGNED -> pgp.decryptVerify(
-                    canonicalizeCrlf(envelope.signedEntityRaw!!).toByteArray(Charsets.ISO_8859_1),
-                    senderAddress = sender,
-                    detachedSignature = envelope.signatureArmor!!.toByteArray(Charsets.UTF_8),
-                    interactionResult = interactionResult,
-                )
+            when (route) {
+                CryptoRoute.OpenPgpMissing -> return PgpResult.NotAvailable
+                CryptoRoute.NothingFound -> return PgpResult.Error("No OpenPGP content found")
+                CryptoRoute.Unverifiable -> return PgpResult.Success(unverifiedBody(credentials, emailId, email))
+                is CryptoRoute.Smime -> smimeVerify(route.engine, envelope!!, sender)
+                is CryptoRoute.OpenPgp -> route.engine.let { pgp ->
+                    when (envelope!!.kind) {
+                        CryptoKind.PGP_ENCRYPTED -> pgp.decryptVerify(
+                            envelope.encryptedArmor!!.toByteArray(Charsets.UTF_8),
+                            senderAddress = sender,
+                            interactionResult = interactionResult,
+                        )
+                        CryptoKind.PGP_INLINE -> pgp.decryptVerify(
+                            inlineVerifyBytes(envelope),
+                            senderAddress = sender,
+                            interactionResult = interactionResult,
+                        )
+                        // ISO-8859-1, not UTF-8: only this reading hands the verifier the octets the sender hashed.
+                        CryptoKind.PGP_SIGNED -> pgp.decryptVerify(
+                            canonicalizeCrlf(envelope.signedEntityRaw!!).toByteArray(Charsets.ISO_8859_1),
+                            senderAddress = sender,
+                            detachedSignature = envelope.signatureArmor!!.toByteArray(Charsets.UTF_8),
+                            interactionResult = interactionResult,
+                        )
+                        CryptoKind.SMIME_SIGNED, CryptoKind.SMIME_OPAQUE_SIGNED -> error("S/MIME is routed apart")
+                    }
+                }
             }
         }.getOrElse { return PgpResult.Error(it.message ?: it.javaClass.simpleName) }
         return when (result) {
             is PgpResult.Success -> {
-                val entry = runCatching { buildDecrypted(email, envelope, result.value) }
+                val entry = runCatching { buildDecrypted(email, envelope!!, result.value) }
                     .getOrElse { return PgpResult.Error(it.message ?: "Cannot rebuild decrypted body") }
                 decryptedCache.put(cryptoKey(credentials.id, emailId), entry)
                 rawSourceCache.remove(cryptoKey(credentials.id, emailId))
@@ -2329,9 +2347,50 @@ class MailRepository(
         }
     }
 
-    /** RFC 3156: signatures are computed over the entity with CRLF line endings. */
+    /** RFC 3156 and RFC 8551: signatures are computed over the entity with CRLF line endings. */
     private fun canonicalizeCrlf(entity: String): String =
         entity.replace("\r\n", "\n").replace("\n", "\r\n")
+
+    private suspend fun smimeVerify(
+        engine: SmimeEngine,
+        envelope: CryptoEnvelope,
+        sender: String?,
+    ): PgpResult<PgpDecrypted> {
+        val verified = withContext(Dispatchers.Default) {
+            when (envelope.kind) {
+                CryptoKind.SMIME_OPAQUE_SIGNED -> engine.verifyOpaque(envelope.signedDataDer!!, sender)
+                else -> engine.verifyDetached(
+                    canonicalizeCrlf(envelope.signedEntityRaw!!).toByteArray(Charsets.ISO_8859_1),
+                    envelope.signatureDer!!,
+                    sender,
+                )
+            }
+        }
+        return PgpResult.Success(
+            PgpDecrypted(
+                plaintext = verified.content ?: ByteArray(0),
+                signature = verified.signature,
+                signatureKeyId = null,
+                signatureUserId = verified.signer,
+                wasEncrypted = false,
+            ),
+        )
+    }
+
+    /** What `openMessage` shows of ordinary mail, minus the cache write: a signed message is asked
+     *  again at each open, and a failed image fetch must not turn into a status card. */
+    private suspend fun unverifiedBody(credentials: AccountCredentials, emailId: String, email: Email): MessageBody {
+        val shown = email.copy(originalSender = originReadFor(credentials, emailId, email).header)
+        val inline = try {
+            fetchInlineImages(credentials, shown, emailId)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            logWarn("MailRepository", "inline images of $emailId unreadable", failure)
+            emptyMap()
+        }
+        return MessageBody(shown, inline)
+    }
 
     private fun buildDecrypted(
         email: Email,
@@ -2343,8 +2402,14 @@ class MailRepository(
             signatureUserId = decrypted.signatureUserId,
             signatureKeyId = decrypted.signatureKeyId,
             wasEncrypted = decrypted.wasEncrypted || envelope.kind == CryptoKind.PGP_ENCRYPTED,
+            smime = envelope.kind.isSmime,
         )
         return when (envelope.kind) {
+            CryptoKind.SMIME_OPAQUE_SIGNED -> {
+                val entity = decrypted.plaintext.toString(Charsets.ISO_8859_1)
+                val shown = displayOfEntity(email, entity)
+                DecryptedEntry(MessageBody(shown.email, shown.inlineImages, crypto), entity)
+            }
             CryptoKind.PGP_ENCRYPTED -> {
                 // ISO-8859-1: UTF-8 would lose the octets of any attachment inside.
                 val entity = decrypted.plaintext.toString(Charsets.ISO_8859_1)
@@ -2367,7 +2432,7 @@ class MailRepository(
                 )
                 DecryptedEntry(MessageBody(display, emptyMap(), crypto), null)
             }
-            CryptoKind.PGP_SIGNED -> {
+            CryptoKind.PGP_SIGNED, CryptoKind.SMIME_SIGNED -> {
                 val entity = envelope.signedEntityRaw!!
                 val shown = displayOfEntity(email, entity)
                 DecryptedEntry(MessageBody(shown.email, shown.inlineImages, crypto), entity)

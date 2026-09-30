@@ -3,6 +3,13 @@ package app.sterna.core.jmap.model
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/** The part types of an S/MIME detached signature; `x-` is the pre-standard name old clients still send. */
+val SMIME_SIGNATURE_TYPES: Set<String> = setOf("application/pkcs7-signature", "application/x-pkcs7-signature")
+
+/** Protocol parts of a signed or encrypted message, told by the crypto badge and never listed as a file. */
+fun isCryptoControlType(type: String?): Boolean =
+    type == "application/pgp-encrypted" || type == "application/pgp-signature" || type in SMIME_SIGNATURE_TYPES
+
 /** An email address with optional display name (RFC 8621 §4.1.2.3). */
 @Serializable
 data class EmailAddress(
@@ -165,13 +172,7 @@ data class Email(
         return attachments.filter { part ->
             // A calendar invite shows only as the event card, never also as a redundant file row.
             if (part.type?.startsWith("text/calendar") == true) return@filter false
-            // PGP/MIME control parts (version blob, detached signature) are protocol
-            // plumbing surfaced via the crypto badge, not user files.
-            if (part.type == "application/pgp-encrypted" ||
-                part.type == "application/pgp-signature"
-            ) {
-                return@filter false
-            }
+            if (isCryptoControlType(part.type)) return@filter false
             // An inline image renders in the body, never also as a redundant file row.
             if (part in inline) return@filter false
             // JMAP parts carry a blobId; IMAP parts a partId (the MIME section).

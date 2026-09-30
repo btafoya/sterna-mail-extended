@@ -18,7 +18,9 @@ import app.sterna.core.data.storage.OrphanedAccountCache
 import app.sterna.core.data.storage.StorageRepository
 import app.sterna.core.jmap.JmapClient
 import app.sterna.drafts.LocalDraftUploads
+import app.sterna.pgp.BouncyCastleSmimeEngine
 import app.sterna.pgp.OpenKeychainPgpEngine
+import app.sterna.pgp.androidTrustedAuthorities
 import app.sterna.push.UnifiedPushManager
 import app.sterna.push.UnifiedPushStateStore
 import app.sterna.security.AppLock
@@ -65,6 +67,7 @@ class AppContainer(context: Context) {
             // What the IMAP client names itself as to the server (RFC 2971 ID, #173). It can only
             // come from here: core/imap and core/data have no BuildConfig.
             clientVersion = BuildConfig.VERSION_NAME,
+            smimeEngine = BouncyCastleSmimeEngine(trustAnchors = ::androidTrustedAuthorities),
         )
     val mailRepository: MailRepository = dataLayer.mailRepository
     val storageRepository: StorageRepository = dataLayer.storageRepository

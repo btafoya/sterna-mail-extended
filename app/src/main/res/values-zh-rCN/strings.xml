@@ -791,6 +791,11 @@
     <string name="message_pgp_sig_expired">使用已过期的密钥签名</string>
     <string name="message_pgp_sig_insecure">使用不安全的密钥签名</string>
     <string name="message_pgp_sig_mismatch">签名者与发件人不一致</string>
+    <string name="message_smime_sig_valid">来自 %1$s 的有效 S/MIME 签名，由本设备信任的证书颁发机构认证</string>
+    <string name="message_smime_sig_unconfirmed">来自 %1$s 的有效 S/MIME 签名，但证书并非来自本设备信任的颁发机构</string>
+    <string name="message_smime_sig_missing_certificate">无法验证 S/MIME 签名 (未附带证书)</string>
+    <string name="message_smime_sig_expired">使用已过期的 S/MIME 证书签名</string>
+    <string name="message_smime_sig_mismatch">S/MIME 证书属于 %1$s，而非发件人</string>
     <string name="a11y_pgp_encrypted">已加密</string>
     <string name="a11y_pgp_signature">签名状态</string>
     <string name="notif_pgp_encrypted">加密邮件</string>

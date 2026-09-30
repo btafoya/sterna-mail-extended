@@ -12,6 +12,7 @@ import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.OAuthTokenRefresher
 import app.sterna.core.data.mail.SyncStateStore
 import app.sterna.core.data.pgp.PgpEngine
+import app.sterna.core.data.pgp.SmimeEngine
 import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.data.storage.StorageRepository
@@ -39,6 +40,7 @@ object DataFactory {
          * `BuildConfig.VERSION_NAME` of `:app`, handed down to [ImapClient] so it can name itself
          */
         clientVersion: String? = null,
+        smimeEngine: SmimeEngine? = null,
     ): DataLayer {
         val appContext = context.applicationContext
         val database = SternaDatabase.build(appContext)
@@ -77,6 +79,7 @@ object DataFactory {
                 localDraftFilesDir = localDraftFiles,
                 scheduledFilesDir = java.io.File(appContext.filesDir, "scheduled"),
                 pgpEngine = pgpEngine,
+                smimeEngine = smimeEngine,
                 settings = settings,
                 syncStateStore = SyncStateStore(appContext),
                 flightMarkerStore = FlightMarkerPrefs(appContext),

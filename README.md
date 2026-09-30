@@ -148,6 +148,8 @@ Running your own server, with a free certificate or one you issued yourself? See
   cleared, and one you save goes to the folder you pick and stays there.
   Printing a message, or saving it as a PDF, hands its decrypted text to the
   system print service. See the [encryption guide](ENCRYPTION.md) to get started.
+- **S/MIME**: the signature of a received message is checked when you open it,
+  on both JMAP and IMAP. Decrypting, signing and encrypting are not there yet.
 
 **🔔 Notifications & server power**
 - Push for new mail with **no Google / FCM** (JMAP EventSource, IMAP IDLE or
@@ -165,7 +167,7 @@ Running your own server, with a free certificate or one you issued yourself? See
 
 The full, tracked feature set lives in [FEATURES.md](FEATURES.md).
 
-**🛠️ Planned:** S/MIME, and more.
+**🛠️ Planned:** more.
 
 ## 🌍 Languages
 

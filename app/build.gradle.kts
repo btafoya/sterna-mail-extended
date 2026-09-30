@@ -105,6 +105,15 @@ android {
         includeInBundle = false
     }
 
+    // bcprov, bcutil and bcpkix each carry the same licence file and an OSGi manifest at the same
+    // path; two copies of one path fail the resource merge.
+    packaging {
+        resources {
+            excludes += "/META-INF/versions/*/OSGI-INF/MANIFEST.MF"
+            pickFirsts += "/META-INF/LICENSE.md"
+        }
+    }
+
     // Release signing. If a git-ignored keystore.properties is present (real release
     // key), the release build is signed with it; otherwise it falls back to the local
     // debug keystore so debug builds and CI still work. keystore.properties holds:
@@ -184,6 +193,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.unifiedpush.connector)
+    implementation(libs.bouncycastle.bcpkix)
+    implementation(libs.bouncycastle.bcprov)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

@@ -2579,21 +2579,10 @@ private fun signatureTint(state: PgpSignatureState): androidx.compose.ui.graphic
         else -> MaterialTheme.colorScheme.error
     }
 
-/** One-line human verdict for an OpenPGP signature. */
+/** One-line human verdict for an OpenPGP or S/MIME signature. */
 @Composable
-private fun signatureSummary(sig: PgpSignatureState, signer: String?): String? = when (sig) {
-    PgpSignatureState.NONE -> null
-    PgpSignatureState.VALID_CONFIRMED ->
-        stringResource(R.string.message_pgp_sig_valid, signer ?: "?")
-    PgpSignatureState.VALID_UNCONFIRMED ->
-        stringResource(R.string.message_pgp_sig_unconfirmed, signer ?: "?")
-    PgpSignatureState.KEY_MISSING -> stringResource(R.string.message_pgp_sig_missing_key)
-    PgpSignatureState.INVALID -> stringResource(R.string.message_pgp_sig_invalid)
-    PgpSignatureState.KEY_REVOKED -> stringResource(R.string.message_pgp_sig_revoked)
-    PgpSignatureState.KEY_EXPIRED -> stringResource(R.string.message_pgp_sig_expired)
-    PgpSignatureState.INSECURE -> stringResource(R.string.message_pgp_sig_insecure)
-    PgpSignatureState.SENDER_MISMATCH -> stringResource(R.string.message_pgp_sig_mismatch)
-}
+private fun signatureSummary(sig: PgpSignatureState, signer: String?, smime: Boolean): String? =
+    signatureLine(sig, smime)?.let { stringResource(it, signer ?: "?") }
 
 /**
  * The OpenPGP status strip above the body: unlock prompt / progress while decrypting, then the verdict
@@ -2663,7 +2652,7 @@ private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit) {
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
-                    signatureSummary(sig, crypto.result.signatureUserId)?.let { summary ->
+                    signatureSummary(sig, crypto.result.signatureUserId, crypto.result.smime)?.let { summary ->
                         Text(
                             text = summary,
                             style = MaterialTheme.typography.bodySmall,

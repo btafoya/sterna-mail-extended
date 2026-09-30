@@ -624,6 +624,11 @@
     <string name="message_pgp_sig_expired">Firmato con una chiave scaduta</string>
     <string name="message_pgp_sig_insecure">Firmato con una chiave non sicura</string>
     <string name="message_pgp_sig_mismatch">Il firmatario non corrisponde al mittente</string>
+    <string name="message_smime_sig_valid">Firma S/MIME valida di %1$s, certificata da un\'autorità riconosciuta da questo dispositivo</string>
+    <string name="message_smime_sig_unconfirmed">Firma S/MIME valida di %1$s, certificato non emesso da un\'autorità riconosciuta da questo dispositivo</string>
+    <string name="message_smime_sig_missing_certificate">Firma S/MIME non verificabile (certificato non incluso)</string>
+    <string name="message_smime_sig_expired">Firmato con un certificato S/MIME scaduto</string>
+    <string name="message_smime_sig_mismatch">Il certificato S/MIME è di %1$s, non del mittente</string>
     <string name="a11y_pgp_encrypted">Cifrato</string>
     <string name="a11y_pgp_signature">Stato della firma</string>
     <string name="notif_pgp_encrypted">Messaggio cifrato</string>

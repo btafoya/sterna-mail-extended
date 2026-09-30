@@ -96,3 +96,12 @@
 # outside the facade the rule above keeps; merged or inlined on their own, a wide window would
 # paint one of the two halves empty in a minified build.
 -keep class app.sterna.ui.inbox.ReadingPaneKt$** { *; }
+
+# Bouncy Castle, for S/MIME signature checks. Its provider looks up every algorithm class by name
+# when it is built, so R8 must keep them and their names; the classes it refers to that Android
+# lacks (JNDI for LDAP certificate stores) are never reached on a signature check.
+-keep class org.bouncycastle.jcajce.provider.** { *; }
+-keep class org.bouncycastle.jce.provider.** { *; }
+-keep class org.bouncycastle.pqc.jcajce.provider.** { *; }
+-dontwarn javax.naming.**
+-dontwarn org.bouncycastle.**

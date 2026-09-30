@@ -39,7 +39,7 @@ class InlineArmorCallSiteTest {
             "the PGP_INLINE branch of buildDecrypted must read the engine's plaintext on exactly " +
                 "this line. Lines found:",
             listOf("val text = inlineDisplayText(envelope, decrypted.plaintext)"),
-            codeLines(between("CryptoKind.PGP_INLINE -> {", "CryptoKind.PGP_SIGNED -> {"))
+            codeLines(between("CryptoKind.PGP_INLINE -> {", "CryptoKind.PGP_SIGNED, CryptoKind.SMIME_SIGNED -> {"))
                 .filter { line ->
                     listOf("plaintext", "toString(", "Charsets", "inlineDisplayText", "val text")
                         .any { line.contains(it) }

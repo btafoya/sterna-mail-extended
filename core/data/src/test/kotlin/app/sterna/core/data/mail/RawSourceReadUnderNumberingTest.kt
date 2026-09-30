@@ -84,7 +84,7 @@ class RawSourceReadUnderNumberingTest {
                 "between accounts would then never reach the SELECT that opposes the number, and " +
                 "the copy on B would be written before anything could refuse.",
             listOf(
-                "private val rawSourceCache = android.util.LruCache<String, String>(4)",
+                "private val rawSourceCache = MemoryLru<String>(4)",
                 "rawSourceFromCache(credentials.protocol, frozen) { rawSourceCache.get(cryptoKey(credentials.id, emailId)) }?.let { return it }",
                 "rawSourceCache.put(cryptoKey(credentials.id, emailId), raw)",
                 "rawSourceCache.remove(cryptoKey(credentials.id, emailId))",
@@ -97,10 +97,10 @@ class RawSourceReadUnderNumberingTest {
                 "nobody has decided the numbering of — and if it holds message source, it answers " +
                 "in front of the refusal that this volet exists to reach.",
             listOf(
-                "private val decryptedCache = android.util.LruCache<String, DecryptedEntry>(8)",
-                "private val rawSourceCache = android.util.LruCache<String, String>(4)",
+                "private val decryptedCache = MemoryLru<DecryptedEntry>(8)",
+                "private val rawSourceCache = MemoryLru<String>(4)",
             ),
-            codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "android.util.LruCache"),
+            codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "Lru"),
         )
     }
 

@@ -624,6 +624,11 @@
     <string name="message_pgp_sig_expired">Podpisano wygasłym kluczem</string>
     <string name="message_pgp_sig_insecure">Podpisano niebezpiecznym kluczem</string>
     <string name="message_pgp_sig_mismatch">Podpisujący nie zgadza się z nadawcą</string>
+    <string name="message_smime_sig_valid">Prawidłowy podpis S/MIME od %1$s, poświadczony przez urząd certyfikacji, któremu ufa to urządzenie</string>
+    <string name="message_smime_sig_unconfirmed">Prawidłowy podpis S/MIME od %1$s, certyfikat nie pochodzi od urzędu certyfikacji, któremu ufa to urządzenie</string>
+    <string name="message_smime_sig_missing_certificate">Nie można sprawdzić podpisu S/MIME (brak certyfikatu)</string>
+    <string name="message_smime_sig_expired">Podpisano wygasłym certyfikatem S/MIME</string>
+    <string name="message_smime_sig_mismatch">Certyfikat S/MIME należy do %1$s, nie do nadawcy</string>
     <string name="a11y_pgp_encrypted">Zaszyfrowane</string>
     <string name="a11y_pgp_signature">Stan podpisu</string>
     <string name="notif_pgp_encrypted">Zaszyfrowana wiadomość</string>

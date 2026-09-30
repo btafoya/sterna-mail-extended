@@ -25,8 +25,8 @@ import java.io.File
  *   never that the level or tag a device shows is the one read here.
  * - The position of a call in a control structure. A pinned line says nothing about the branch it
  *   sits on; [DestroyChecksTheFolderWiringTest] is what holds the spared line to its `if`.
- * - The other JVM blockers of these files. `android.util.LruCache` and `android.util.Base64`
- *   both construct under the stub android.jar, so they stay where they are, deliberately.
+ * - The other JVM blockers of these files. `android.util.Base64` constructs under the stub
+ *   android.jar, so it stays where it is, deliberately. The crypto caches are a `MemoryLru`.
  * - The `Log` calls of `EmailDao.kt`, `ImapMailService.kt` and `AccountStore.kt`. Those files are
  *   reached by no test that builds a repository, and are out of this rule's scope.
  */

@@ -19,7 +19,7 @@ class SignedBranchCallSiteTest {
                 "val shown = displayOfEntity(email, entity)",
                 "DecryptedEntry(MessageBody(shown.email, shown.inlineImages, crypto), entity)",
             ),
-            between("CryptoKind.PGP_SIGNED -> {", "private fun pgpAttachmentBytes(").lines()
+            between("CryptoKind.PGP_SIGNED, CryptoKind.SMIME_SIGNED -> {", "private fun pgpAttachmentBytes(").lines()
                 .drop(1)
                 .map { it.trim() }
                 .filterNot { it.isEmpty() || it == "}" || it.startsWith("//") }

@@ -25,8 +25,11 @@ data class MimeBody(
     val tooLarge: Boolean = false,
 )
 
-/** How a message carries OpenPGP content. */
-enum class CryptoKind { PGP_ENCRYPTED, PGP_SIGNED, PGP_INLINE }
+/** How a message carries OpenPGP or S/MIME content. */
+enum class CryptoKind { PGP_ENCRYPTED, PGP_SIGNED, PGP_INLINE, SMIME_SIGNED, SMIME_OPAQUE_SIGNED }
+
+val CryptoKind.isSmime: Boolean
+    get() = this == CryptoKind.SMIME_SIGNED || this == CryptoKind.SMIME_OPAQUE_SIGNED
 
     /**
      * Legacy inline OpenPGP, recognised on an already-decoded body: the two armour headers a message
@@ -41,7 +44,7 @@ fun inlineArmorKind(text: String): CryptoKind? =
     }
 
 /**
- * The OpenPGP-relevant pieces of a raw message, extracted without any crypto:
+ * The OpenPGP- or S/MIME-relevant pieces of a raw message, extracted without any crypto:
  * what to decrypt (armor) or verify (exact signed bytes + detached signature).
  */
 data class CryptoEnvelope(
@@ -55,6 +58,8 @@ data class CryptoEnvelope(
     /** ASCII-armored detached signature (application/pgp-signature part). */
     val signatureArmor: String? = null,
     val inlineArmorOctets: InlineArmorOctets? = null,
+    val signatureDer: ByteArray? = null,
+    val signedDataDer: ByteArray? = null,
 )
 
     /**
@@ -72,6 +77,11 @@ object MimeParser {
          *  level, so a bigger source is an out-of-memory risk before it is a message; past this the
          *  parse is refused and the caller reports it (see [MimeBody.tooLarge]). */
     const val MAX_BODY_CHARS = 25 * 1024 * 1024
+
+    /** Mirrors `SMIME_SIGNATURE_TYPES` of `core/jmap`, which this module cannot see. */
+    private val SMIME_SIGNATURE_MIMES = setOf("application/pkcs7-signature", "application/x-pkcs7-signature")
+
+    private val SMIME_OPAQUE_MIMES = setOf("application/pkcs7-mime", "application/x-pkcs7-mime")
 
     fun parseBody(raw: String): MimeBody = parseWithTextLeaf(raw).first
 
@@ -148,10 +158,10 @@ object MimeParser {
                 attachments.add(MimeAttachment(section, filename ?: "invite.ics", mime, body.length, cte))
                 null to null
             }
-                // PGP/MIME control parts (version / detached signature) have no filename, so they would
-                // otherwise vanish. Kept as typed parts: the reader uses their presence to detect crypto
-                // uniformly across IMAP and JMAP, and they are filtered out of the visible list.
-            mime == "application/pgp-encrypted" || mime == "application/pgp-signature" -> {
+                // PGP/MIME control parts and an S/MIME detached signature may have no filename. Kept as typed
+                // parts so the reader detects crypto alike on IMAP and JMAP; filtered out of the visible list.
+            mime == "application/pgp-encrypted" || mime == "application/pgp-signature" ||
+                mime in SMIME_SIGNATURE_MIMES -> {
                 attachments.add(
                     MimeAttachment(section, filename ?: mime.substringAfter('/'), mime, body.length, cte),
                 )
@@ -234,8 +244,8 @@ object MimeParser {
         return cte to body
     }
 
-        /** Detect OpenPGP content in a raw RFC 5322 message (RFC 3156 PGP/MIME, plus legacy inline
-         *  armor in a plain-text body). Returns null for ordinary mail. */
+        /** Detect OpenPGP content (RFC 3156 PGP/MIME, legacy inline armor) or an S/MIME signature, detached
+         *  or opaque, in a raw message. An S/MIME `enveloped-data` is not recognised. Null for ordinary mail. */
     fun detectCrypto(raw: String): CryptoEnvelope? {
         val (headerText, body) = splitHeaders(raw)
         val headers = parseHeaders(headerText)
@@ -276,6 +286,21 @@ object MimeParser {
                     signatureArmor = sigArmor,
                 )
             }
+            val parts = splitMultipart(body, boundary)
+            val looksSmime = protocol in SMIME_SIGNATURE_MIMES || parts.any { partMime(it) in SMIME_SIGNATURE_MIMES }
+            if (looksSmime) {
+                val signedRaw = rawFirstPart(body, boundary) ?: return null
+                val sigPart = parts.firstOrNull { partMime(it) in SMIME_SIGNATURE_MIMES } ?: return null
+                val der = partOctets(sigPart).takeIf { it.isNotEmpty() } ?: return null
+                return CryptoEnvelope(CryptoKind.SMIME_SIGNED, signedEntityRaw = signedRaw, signatureDer = der)
+            }
+        }
+
+        val smimeType = paramOf(contentType, "smime-type")?.lowercase()
+        if (mime in SMIME_OPAQUE_MIMES && smimeType == "signed-data") {
+            val cte = headers["content-transfer-encoding"]?.substringBefore(';')?.trim()?.lowercase()
+            val der = decodeBytes(body, cte).takeIf { it.isNotEmpty() } ?: return null
+            return CryptoEnvelope(CryptoKind.SMIME_OPAQUE_SIGNED, signedDataDer = der)
         }
 
         // Legacy inline PGP: an armored block inside the displayable text body.
@@ -293,6 +318,12 @@ object MimeParser {
         val (headerText, _) = splitHeaders(part)
         val ct = parseHeaders(headerText)["content-type"] ?: "text/plain"
         return ct.substringBefore(';').trim().lowercase()
+    }
+
+    private fun partOctets(part: String): ByteArray {
+        val (headerText, body) = splitHeaders(part)
+        val cte = parseHeaders(headerText)["content-transfer-encoding"]?.substringBefore(';')?.trim()
+        return decodeBytes(body, cte)
     }
 
     /** A multipart child's body decoded per its Content-Transfer-Encoding (as text). */
