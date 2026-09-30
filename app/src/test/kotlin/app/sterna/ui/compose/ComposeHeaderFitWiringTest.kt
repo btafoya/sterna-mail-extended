@@ -23,7 +23,8 @@ class ComposeHeaderFitWiringTest {
                 "modifier caps it with `yieldToBody` BEFORE `verticalScroll`. Reversed, the scroll " +
                 "is measured without a bounded height and throws; without the cap, the header takes " +
                 "every pixel above the keyboard and the body is left 0 px (#219). `barShown` must be " +
-                "`bodyFocused`, the very guard of the bar, or the bar eats the body's third line.",
+                "`bodyFocused`, the very guard of the bar, or the bar eats the body's third line; `blockBelow` " +
+                "reserves the forwarded block the same way, folded by that same focus.",
             EDITOR_HEAD,
             lines.subList(at, minOf(lines.size, at + EDITOR_HEAD.size)),
         )
@@ -31,7 +32,7 @@ class ComposeHeaderFitWiringTest {
 
     @Test fun `the header takes no weight`() {
         val lines = lines()
-        val at = lines.indexOf(".yieldToBody(bodyMinHeight, barShown = bodyFocused)")
+        val at = lines.indexOf(".yieldToBody(bodyMinHeight, barShown = bodyFocused, blockBelow = forwardedBlockReserve(forwardedPreview, noteFocused = bodyFocused))")
         assertTrue("$SCREEN no longer calls `yieldToBody` on its own line", at >= 0)
         val start = lines.subList(0, at).lastIndexOf("Column(")
         val end = lines.subList(at, lines.size).indexOf(") {") + at
@@ -125,7 +126,7 @@ class ComposeHeaderFitWiringTest {
             "val bodyMinHeight = composeBodyMinHeight(LocalTextStyle.current.lineHeight, LocalDensity.current)",
             "Column(",
             "Modifier",
-            ".yieldToBody(bodyMinHeight, barShown = bodyFocused)",
+            ".yieldToBody(bodyMinHeight, barShown = bodyFocused, blockBelow = forwardedBlockReserve(forwardedPreview, noteFocused = bodyFocused))",
             ".background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f))",
             ".verticalScroll(rememberScrollState()),",
             ") {",

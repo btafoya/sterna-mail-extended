@@ -55,6 +55,10 @@
     <string name="compose_body_lost_cannot_send">Der Text dieser Nachricht ging verloren. Neu eingeben.</string>
     <string name="compose_body_lost_reopen_draft">Text verloren. Schließe und öffne die Nachricht neu.</string>
     <string name="compose_forward_attachment_dropped">Einige Anhänge der weitergeleiteten Nachricht konnten nicht übernommen werden.</string>
+    <string name="compose_forwarded_title">Weitergeleitete Nachricht</string>
+    <string name="compose_forwarded_sent_below">Wird beim Senden unter deiner Notiz angefügt, mit der ursprünglichen Formatierung.</string>
+    <string name="compose_forwarded_loading">Ursprüngliche Nachricht wird geladen…</string>
+    <string name="compose_forwarded_close">Schließen</string>
     <string name="compose_scheduled_toast">Geplant — %1$s</string>
     <string name="compose_discard_title">Nachricht verwerfen?</string>
     <string name="compose_discard_message">Du hast deine Änderungen nicht gespeichert.</string>

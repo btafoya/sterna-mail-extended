@@ -6,6 +6,8 @@ import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.Link
 import app.sterna.core.data.text.Span
+import app.sterna.ui.compose.ForwardedBlocks
+import app.sterna.ui.compose.buildForwardedBlocks
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -202,5 +204,80 @@ class SendOutboxTest {
             reopened.draftBodyIsLossy,
         )
         assertEquals("the id still travels; only the destroy is refused", "d1", reopened.draftEmailId)
+    }
+
+    private fun forwardOf(originalText: String, originalHtml: String?): ForwardedBlocks =
+        buildForwardedBlocks(
+            from = "Iris <iris@example.org>", subject = "Plans", date = "Tue, 29 Sep 2026",
+            to = "alex@masto.top", originalText = originalText, originalHtml = originalHtml,
+            carriedCids = setOf("pic1@example.org"),
+        )
+
+    private fun assembledRow(note: String, fwd: ForwardedBlocks) =
+        queued(htmlBody = "$note<br><br>${fwd.html}", body = "$note\n\n${fwd.text}")
+
+    @Test fun `a queued forward reopens with the note alone and the original carried byte for byte`() {
+        val fwd = forwardOf(
+            "Meet at six.",
+            "<p>Meet at <b>six</b>.</p><img src=\"cid:pic1@example.org\" alt=\"map\">",
+        )
+        val row = assembledRow("note C2d", fwd)
+
+        val reopened = composeDraftOf(row)
+
+        assertEquals("the editable body is the note, the original is not pasted into it", "note C2d", reopened.body)
+        assertEquals(fwd.text, reopened.forwardedText)
+        assertEquals("the carried html keeps its cid image untouched", fwd.html, reopened.forwardedHtml)
+        assertTrue(reopened.forwardedHtml!!.contains("<img src=\"cid:pic1@example.org\""))
+        assertEquals("re-sending rebuilds the same text part", row.body, "${reopened.body}\n\n${reopened.forwardedText}")
+    }
+
+    @Test fun `a forward of a forward is cut at the first separator, keeping the inner one in the original`() {
+        val inner = forwardOf("Inner words.", "<p>Inner words.</p>")
+        val outer = forwardOf("Outer words.\n\n${inner.text}", "<p>Outer words.</p><br><br>${inner.html}")
+
+        val reopened = composeDraftOf(assembledRow("note C2d", outer))
+
+        assertEquals("note C2d", reopened.body)
+        assertEquals(outer.text, reopened.forwardedText)
+        assertEquals(outer.html, reopened.forwardedHtml)
+    }
+
+    @Test fun `a separator in only one of the two bodies cuts nothing`() {
+        val fwd = forwardOf("Meet at six.", null)
+        val text = "note C2d\n\n${fwd.text}"
+
+        val noHtml = composeDraftOf(queued(htmlBody = null, body = text))
+        assertEquals(text, noHtml.body)
+        assertNull(noHtml.forwardedText)
+        assertNull(noHtml.forwardedHtml)
+
+        val htmlWithout = composeDraftOf(queued(htmlBody = "note C2d", body = text))
+        assertEquals("note C2d", htmlWithout.body)
+        assertNull(htmlWithout.forwardedText)
+        assertNull(htmlWithout.forwardedHtml)
+
+        val textWithout = composeDraftOf(queued(htmlBody = "note C2d<br><br>${fwd.html}", body = "note C2d"))
+        assertTrue("the html is still what the composer opens on", textWithout.body.contains("Meet at six."))
+        assertNull(textWithout.forwardedText)
+        assertNull(textWithout.forwardedHtml)
+    }
+
+    @Test fun `a queued forward with an empty note reopens on an empty body`() {
+        val fwd = forwardOf("Meet at six.", "<p>Meet at six.</p>")
+
+        val reopened = composeDraftOf(assembledRow("", fwd))
+
+        assertEquals("", reopened.body)
+        assertEquals(fwd.text, reopened.forwardedText)
+        assertEquals(fwd.html, reopened.forwardedHtml)
+    }
+
+    @Test fun `a queued message that is not a forward reopens unchanged`() {
+        val reopened = composeDraftOf(queued(htmlBody = "see you there"))
+
+        assertEquals("see you there", reopened.body)
+        assertNull(reopened.forwardedText)
+        assertNull(reopened.forwardedHtml)
     }
 }

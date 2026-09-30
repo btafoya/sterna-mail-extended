@@ -55,6 +55,10 @@
     <string name="compose_body_lost_cannot_send">Il testo di questo messaggio è perso. Riscrivilo.</string>
     <string name="compose_body_lost_reopen_draft">Testo perso. Chiudi la schermata e riapri il messaggio.</string>
     <string name="compose_forward_attachment_dropped">Non è stato possibile includere alcuni allegati del messaggio inoltrato.</string>
+    <string name="compose_forwarded_title">Messaggio inoltrato</string>
+    <string name="compose_forwarded_sent_below">Viene aggiunto sotto la tua nota all\'invio, con la formattazione originale.</string>
+    <string name="compose_forwarded_loading">Caricamento del messaggio originale…</string>
+    <string name="compose_forwarded_close">Chiudi</string>
     <string name="compose_scheduled_toast">Programmato — %1$s</string>
     <string name="compose_discard_title">Eliminare il messaggio?</string>
     <string name="compose_discard_message">Non hai salvato le modifiche.</string>

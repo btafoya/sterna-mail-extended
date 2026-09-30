@@ -16,6 +16,8 @@ import app.sterna.core.data.text.htmlEscape
 import app.sterna.core.data.text.htmlEscapeMultiline
 import app.sterna.core.data.text.htmlToText
 import app.sterna.core.data.text.toHtml
+import app.sterna.core.data.text.draftHtmlToSave
+import app.sterna.core.data.text.toPlainText
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailAddress
 import app.sterna.core.jmap.model.EmailBodyPart
@@ -57,14 +59,49 @@ internal fun mentionsAttachment(text: String): Boolean {
     return ATTACHMENT_HINTS.any { haystack.contains(it) }
 }
 
-/** The prebuilt "forwarded message" blocks: the original is carried to send time rather than
- *  flattened into the editable body, so the recipient keeps its formatting. */
+/** A forward's original, carried to send time outside the editable note so it keeps its formatting. */
 internal data class ForwardedBlocks(val text: String, val html: String)
 
 private const val FORWARD_HEADER = "---------- Forwarded message ----------"
 
-/** The four field labels of the forwarded-message header, translated. The dashed line and the field
- *  order are a de-facto standard other clients recognise and are deliberately not translated (D7). */
+// The gaps `bodiesForSend` puts before a forward's blocks; `splitAssembledForward` must invert them.
+private const val FORWARD_TEXT_GAP = "\n\n"
+private const val FORWARD_HTML_GAP = "<br><br>"
+
+internal data class SplitForward(val noteText: String, val noteHtml: String, val forwarded: ForwardedBlocks)
+
+/** Cut at the first separator, so a forwarded original keeps its own. Null unless both bodies carry
+ *  one: `bindQueuedRow` restores only both halves, and a note trimmed alone sends without the original. */
+internal fun splitAssembledForward(text: String, html: String?): SplitForward? {
+    if (html == null) return null
+    val t = text.indexOf("$FORWARD_TEXT_GAP$FORWARD_HEADER\n")
+    val h = html.indexOf("$FORWARD_HTML_GAP$FORWARD_HEADER<br>")
+    if (t < 0 || h < 0) return null
+    return SplitForward(
+        noteText = text.substring(0, t),
+        noteHtml = html.substring(0, h),
+        forwarded = ForwardedBlocks(
+            text = text.substring(t + FORWARD_TEXT_GAP.length),
+            html = html.substring(h + FORWARD_HTML_GAP.length),
+        ),
+    )
+}
+
+internal data class DraftBodies(val text: String, val html: String?)
+
+/** A forward reopened from the Outbox appends its original, as the send does: the save consumes the
+ *  queued row, its only other copy. A fresh or undone forward saves the note alone, a known gap. */
+internal fun draftBodiesToSave(body: RichBody, reopenedFromOutbox: Boolean, forwarded: ForwardedBlocks?): DraftBodies {
+    val text = toPlainText(body)
+    val html = draftHtmlToSave(body)
+    if (!reopenedFromOutbox || forwarded == null) return DraftBodies(text, html)
+    return DraftBodies(
+        text = "$text$FORWARD_TEXT_GAP${forwarded.text}",
+        html = "${html ?: htmlEscapeMultiline(text)}$FORWARD_HTML_GAP${forwarded.html}",
+    )
+}
+
+/** Translated field labels; the dashed line and field order stay English, a standard other clients read (D7). */
 internal data class ForwardLabels(
     val from: String = "From",
     val subject: String = "Subject",
@@ -72,8 +109,7 @@ internal data class ForwardLabels(
     val to: String = "To",
 )
 
-/** Build the text + HTML "forwarded message" blocks. [originalHtml], when non-null, is the original's
- *  HTML, verbatim except for [cleanForwardedHtml]'s rewrites; with none, the plain text is escaped. */
+/** [originalHtml] is kept verbatim but for [cleanForwardedHtml]'s rewrites; without it the text is escaped. */
 internal fun buildForwardedBlocks(
     from: String,
     subject: String,
@@ -104,11 +140,8 @@ internal fun buildForwardedBlocks(
     return ForwardedBlocks(text, html)
 }
 
-/**
- * Sanitise an original HTML body for a forward: drop script/style/head, keep an inline image whose
- * Content-ID is in [carriedCids] (it is being re-attached) and turn any other `cid:` image into
- * "[image]" so it does not render broken. Everything else is kept verbatim.
- */
+/** Drop script/style/head, keep an inline image re-attached under [carriedCids], and turn any other
+ *  `cid:` image into "[image]" so it does not render broken; everything else is kept verbatim. */
 internal fun cleanForwardedHtml(html: String, carriedCids: Set<String> = emptySet()): String {
     val normalized = carriedCids.mapNotNull { it.trim().trim('<', '>').takeIf(String::isNotBlank) }.toSet()
     val noScripts = html.replace(Regex("(?is)<(script|style|head)\\b.*?</\\1>"), "")

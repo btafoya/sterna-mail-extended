@@ -55,6 +55,10 @@
     <string name="compose_body_lost_cannot_send">Le texte de ce message a été perdu. Retapez-le.</string>
     <string name="compose_body_lost_reopen_draft">Texte perdu. Fermez cet écran et rouvrez le message.</string>
     <string name="compose_forward_attachment_dropped">Certaines pièces jointes du message transféré n\'ont pas pu être incluses.</string>
+    <string name="compose_forwarded_title">Message transféré</string>
+    <string name="compose_forwarded_sent_below">Ajouté sous votre note à l\'envoi, avec sa mise en forme d\'origine.</string>
+    <string name="compose_forwarded_loading">Chargement du message d\'origine…</string>
+    <string name="compose_forwarded_close">Fermer</string>
     <string name="compose_scheduled_toast">Programmé — %1$s</string>
     <string name="compose_discard_title">Abandonner le message ?</string>
     <string name="compose_discard_message">Vous n\'avez pas enregistré vos modifications.</string>

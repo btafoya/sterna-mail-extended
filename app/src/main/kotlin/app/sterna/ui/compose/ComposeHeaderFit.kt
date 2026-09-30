@@ -17,15 +17,15 @@ import androidx.compose.ui.unit.sp
  * It reads the height the enclosing `Column` offers the header, in the same measure pass: that is
  * the column's height minus the unweighted children above it. The bar sits below the body and is
  * measured after the header, so it is reserved through [barShown] rather than found in the
- * constraints.
+ * constraints; so is the forwarded block, through [blockBelow].
  *
  * A layout modifier and not `BoxWithConstraints`: the height moves on every frame of the keyboard's
  * animation, and a subcomposition would recompose the whole editor on each of them, where this only
  * measures again. Not `onSizeChanged` either: read one frame late, the header shakes as the keyboard
  * slides. Must come before `verticalScroll`, which throws when measured without a bounded height.
  */
-fun Modifier.yieldToBody(bodyMin: Dp, barShown: Boolean): Modifier = layout { measurable, constraints ->
-    val cap = composeHeaderMaxHeightPx(constraints.minHeight, constraints.maxHeight, bodyMin, barShown, this)
+fun Modifier.yieldToBody(bodyMin: Dp, barShown: Boolean, blockBelow: Dp): Modifier = layout { measurable, constraints ->
+    val cap = composeHeaderMaxHeightPx(constraints.minHeight, constraints.maxHeight, bodyMin, barShown, this, blockBelow)
     val placeable = measurable.measure(constraints.copy(maxHeight = cap))
     layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
 }
@@ -41,8 +41,9 @@ fun composeHeaderMaxHeightPx(
     bodyMin: Dp,
     barShown: Boolean,
     density: Density,
+    blockBelow: Dp = 0.dp,
 ): Int {
-    val reservePx = with(density) { (if (barShown) bodyMin + FORMATTING_BAR_HEIGHT else bodyMin).roundToPx() }
+    val reservePx = with(density) { ((if (barShown) bodyMin + FORMATTING_BAR_HEIGHT else bodyMin) + blockBelow).roundToPx() }
     val floorPx = with(density) { HEADER_ROW_HEIGHT.roundToPx() }
     return (maxHeightPx - reservePx).coerceAtLeast(floorPx).coerceIn(minHeightPx, maxHeightPx)
 }
@@ -74,3 +75,15 @@ val FORMATTING_BAR_HEIGHT: Dp = 48.dp
 
 /** The header never shrinks below one of its rows, the 48 dp touch target each of them keeps. */
 val HEADER_ROW_HEIGHT: Dp = 48.dp
+
+/** Set on the forwarded block while the note has the focus, and reserved by [yieldToBody]. */
+val FORWARDED_BLOCK_FOLDED_HEIGHT: Dp = 48.dp
+
+/** The unfolded block's ceiling, reserved whole: its title, the two-line sentence and four lines of text. */
+val FORWARDED_BLOCK_MAX_HEIGHT: Dp = 168.dp
+
+internal fun forwardedBlockReserve(preview: ForwardedPreview, noteFocused: Boolean): Dp = when {
+    preview == ForwardedPreview.None -> 0.dp
+    noteFocused -> FORWARDED_BLOCK_FOLDED_HEIGHT
+    else -> FORWARDED_BLOCK_MAX_HEIGHT
+}

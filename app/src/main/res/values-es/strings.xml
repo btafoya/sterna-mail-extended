@@ -55,6 +55,10 @@
     <string name="compose_body_lost_cannot_send">Se perdió el texto del mensaje. Escríbelo de nuevo.</string>
     <string name="compose_body_lost_reopen_draft">Texto perdido. Cierra la pantalla y abre el mensaje.</string>
     <string name="compose_forward_attachment_dropped">No se pudieron incluir algunos archivos adjuntos del mensaje reenviado.</string>
+    <string name="compose_forwarded_title">Mensaje reenviado</string>
+    <string name="compose_forwarded_sent_below">Se añade debajo de tu nota al enviar, con su formato original.</string>
+    <string name="compose_forwarded_loading">Cargando el mensaje original…</string>
+    <string name="compose_forwarded_close">Cerrar</string>
     <string name="compose_scheduled_toast">Programado — %1$s</string>
     <string name="compose_discard_title">¿Descartar mensaje?</string>
     <string name="compose_discard_message">No has guardado los cambios.</string>

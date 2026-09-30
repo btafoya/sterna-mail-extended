@@ -55,6 +55,10 @@
     <string name="compose_body_lost_cannot_send">Utracono tekst tej wiadomości. Wpisz go ponownie.</string>
     <string name="compose_body_lost_reopen_draft">Tekst utracony. Zamknij ekran i otwórz wiadomość.</string>
     <string name="compose_forward_attachment_dropped">Nie udało się dołączyć niektórych załączników przekazywanej wiadomości.</string>
+    <string name="compose_forwarded_title">Przekazywana wiadomość</string>
+    <string name="compose_forwarded_sent_below">Zostanie dodana pod Twoją notatką przy wysyłaniu, z oryginalnym formatowaniem.</string>
+    <string name="compose_forwarded_loading">Wczytywanie oryginalnej wiadomości…</string>
+    <string name="compose_forwarded_close">Zamknij</string>
     <string name="compose_scheduled_toast">Zaplanowano — %1$s</string>
     <string name="compose_discard_title">Odrzucić wiadomość?</string>
     <string name="compose_discard_message">Nie zapisano wprowadzonych zmian.</string>

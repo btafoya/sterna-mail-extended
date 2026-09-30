@@ -57,6 +57,10 @@
     <string name="compose_body_lost_cannot_send">The text of this message was lost. Type it again.</string>
     <string name="compose_body_lost_reopen_draft">Text lost. Close this screen and reopen the message.</string>
     <string name="compose_forward_attachment_dropped">Some attachments from the forwarded message couldn\'t be included.</string>
+    <string name="compose_forwarded_title">Forwarded message</string>
+    <string name="compose_forwarded_sent_below">Added below your note when you send, with its original formatting.</string>
+    <string name="compose_forwarded_loading">Loading the original message…</string>
+    <string name="compose_forwarded_close">Close</string>
     <string name="compose_scheduled_toast">Scheduled — %1$s</string>
     <string name="compose_discard_title">Discard message?</string>
     <string name="compose_discard_message">You haven\'t saved your changes.</string>

@@ -57,6 +57,10 @@
     <string name="compose_body_lost_cannot_send">此邮件的正文已丢失。请重新输入。</string>
     <string name="compose_body_lost_reopen_draft">正文已丢失。请关闭此界面并重新打开该邮件。</string>
     <string name="compose_forward_attachment_dropped">转发邮件中的部分附件无法包含在内。</string>
+    <string name="compose_forwarded_title">转发的邮件</string>
+    <string name="compose_forwarded_sent_below">发送时会添加在您的附言下方，并保留原有格式。</string>
+    <string name="compose_forwarded_loading">正在加载原始邮件…</string>
+    <string name="compose_forwarded_close">关闭</string>
     <string name="compose_scheduled_toast">已定时 — %1$s</string>
     <string name="compose_discard_title">放弃此邮件？</string>
     <string name="compose_discard_message">您尚未保存所做的更改。</string>

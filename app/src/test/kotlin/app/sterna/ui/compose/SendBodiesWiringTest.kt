@@ -72,20 +72,20 @@ class SendBodiesWiringTest {
         assertEquals(
             "BOTH calls that open `credentials, recipients, subject, …` are pinned here, in " +
                 "source order: the SEND's enqueue, which is handed the `textBody` " +
-                "`bodiesForSend` built, and the draft save, which must be handed " +
-                "`toPlainText(body)`. Pinning only the second would let the first be the one " +
+                "`bodiesForSend` built, and the draft save, which must be handed the text " +
+                "`draftBodiesToSave` built from `toPlainText(body)`. Pinning only the second would let the first be the one " +
                 "that answers this rule.",
             listOf(
                 "credentials, recipients, subject, textBody, replyTo, refs,",
-                "credentials, recipients, subject, toPlainText(body),",
+                "credentials, recipients, subject, bodies.text,",
             ),
             code.filter { it.startsWith("credentials, recipients, subject,") },
         )
         assertEquals(
-            "⛔ …so exactly THREE lines of this class may name `toPlainText(`: the send's two " +
-                "arms and the draft save. Fewer means one of them writes a different message " +
+            "⛔ …so exactly TWO lines of this class may name `toPlainText(`: the send's two " +
+                "arms; the draft's is inside `draftBodiesToSave`, executed by DraftBodiesToSaveTest. Fewer means one of them writes a different message " +
                 "about the same body; more means a fourth answer nothing here decides.",
-            3,
+            2,
             code.count { "toPlainText(" in it },
         )
     }

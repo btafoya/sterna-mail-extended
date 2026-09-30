@@ -54,7 +54,6 @@ import app.sterna.core.data.text.Link
 import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.Span
 import app.sterna.core.data.text.draftHtmlIsLossy
-import app.sterna.core.data.text.draftHtmlToSave
 import app.sterna.core.data.text.safeFileName
 import app.sterna.core.data.text.toPlainText
 import app.sterna.core.imap.OutgoingAttachment
@@ -643,6 +642,8 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * both alternatives so its formatting survives. Null for new/reply/replyAll.
      */
     private var forwarded: ForwardedBlocks? = null
+    private val _forwardedPreview = MutableStateFlow<ForwardedPreview>(ForwardedPreview.None)
+    val forwardedPreview: StateFlow<ForwardedPreview> = _forwardedPreview.asStateFlow()
     /** Account to send from: the replied-to message's account (unified inbox), else current. */
     private var accountId: String? = null
 
@@ -903,6 +904,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         if (d.forwardedText != null && d.forwardedHtml != null) {
             forwarded = ForwardedBlocks(d.forwardedText, d.forwardedHtml)
         }
+        _forwardedPreview.value = forwardedPreview(opening = null, forwarded, failed = false)
         val match = options.firstOrNull {
             it.accountId == d.fromAccountId && it.identity.email == d.fromIdentityEmail
         } ?: options.firstOrNull { it.accountId == d.fromAccountId }
@@ -1169,7 +1171,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // Parsed once: the three branches below read this and never the raw string, so a mode one
             // of them does not know cannot open, in silence, a threaded quoted reply.
             val opening = composeOpening(mode)
+            _forwardedPreview.value = forwardedPreview(opening, forwarded = null, failed = false)
             fun prefillFailed() {
+                _forwardedPreview.value = forwardedPreview(opening, forwarded, failed = true)
                 _attachmentStatus.value =
                     getApplication<Application>().getString(R.string.compose_prefill_failed)
             }
@@ -1201,6 +1205,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // say the original couldn't load so the missing quote is not a silent surprise.
                 // Unless the quote is already on screen: the banner would be drawn on top of the very
                 // thing it says could not be loaded (G6). Only the sentence is dropped.
+                _forwardedPreview.value = forwardedPreview(opening, forwarded, failed = true)
                 if (!quoteAlreadyOnScreen) prefillFailed()
                 return@launch
             }
@@ -1214,6 +1219,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // "Fwd: …" subject came from the cache above, set it now only if nothing was cached.
                 if (cached == null) _prefill.value = buildPrefill(original, mode, selves(credentials))
                 runCatching { forwarded = buildForwarded(credentials, original) }
+                    .onSuccess { _forwardedPreview.value = forwardedPreview(opening, forwarded, failed = false) }
                     .onFailure { prefillFailed() }
                 return@launch
             }
@@ -1939,17 +1945,18 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // and nothing at all when that pair was read under another account (#31 × #63). Unlike every
             val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)
                 .unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)
+            // Read before the consume below clears `editingOutboxId`: that consume destroys the queued
+            // row, the only copy of a reopened forward's original besides the one this draft carries.
+            val bodies = draftBodiesToSave(body, reopenedFromOutbox = editingOutboxId != null, forwarded = forwarded)
             val outcome = repo.drafts.saveDraft(
-                // `toPlainText(body)` and never `body.text` (#131): the text part is the alternative
-                // a client with no HTML shows, and it is the one plain-text answer the send already
-                // uses. `body.text` here stores a draft whose text part has the list markers nowhere
-                // and every URL missing, while the message built from the same body has both.
-                credentials, recipients, subject, toPlainText(body),
+                // `bodies.text` is `toPlainText(body)`, never `body.text` (#131): the send's own text
+                // part, with the list markers and URLs that `body.text` drops.
+                credentials, recipients, subject, bodies.text,
                 // The styling as a second part, decided by the one pure function every route uses
                 // (`draftHtmlToSave`): null for a body with no styling, so a plain draft is stored
                 // exactly as before #131. Not `htmlBodyWithSignature`, which is the send's html, it
                 // substitutes an imported signature verbatim and would not parse back on reopen.
-                html = draftHtmlToSave(body),
+                html = bodies.html,
                 cc = parseAddrs(cc), bcc = parseAddrs(bcc),
                 inReplyTo = inReplyTo, references = references,
                 replacesEmailId = replaces.emailId,

@@ -55,6 +55,10 @@
     <string name="compose_body_lost_cannot_send">De tekst van dit bericht is verloren. Typ hem opnieuw.</string>
     <string name="compose_body_lost_reopen_draft">Tekst verloren. Sluit dit scherm en open het bericht.</string>
     <string name="compose_forward_attachment_dropped">Sommige bijlagen van het doorgestuurde bericht konden niet worden meegenomen.</string>
+    <string name="compose_forwarded_title">Doorgestuurd bericht</string>
+    <string name="compose_forwarded_sent_below">Wordt bij het verzenden onder je notitie toegevoegd, met de oorspronkelijke opmaak.</string>
+    <string name="compose_forwarded_loading">Oorspronkelijk bericht laden…</string>
+    <string name="compose_forwarded_close">Sluiten</string>
     <string name="compose_scheduled_toast">Gepland — %1$s</string>
     <string name="compose_discard_title">Bericht verwijderen?</string>
     <string name="compose_discard_message">Je hebt je wijzigingen niet opgeslagen.</string>

@@ -204,6 +204,7 @@ fun ComposeScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val prefill by viewModel.prefill.collectAsStateWithLifecycle()
     val replyQuote by viewModel.replyQuote.collectAsStateWithLifecycle()
+    val forwardedPreview by viewModel.forwardedPreview.collectAsStateWithLifecycle()
     val attachments by viewModel.attachments.collectAsStateWithLifecycle()
     val attachmentStatus by viewModel.attachmentStatus.collectAsStateWithLifecycle()
     val fromOptions by viewModel.fromOptions.collectAsStateWithLifecycle()
@@ -1301,7 +1302,7 @@ fun ComposeScreen(
           // dividers run full width.
           Column(
               Modifier
-                  .yieldToBody(bodyMinHeight, barShown = bodyFocused)
+                  .yieldToBody(bodyMinHeight, barShown = bodyFocused, blockBelow = forwardedBlockReserve(forwardedPreview, noteFocused = bodyFocused))
                   .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f))
                   .verticalScroll(rememberScrollState()),
           ) {
@@ -1580,6 +1581,10 @@ fun ComposeScreen(
                         inner()
                     }
                 },
+            )
+            ForwardedOriginalBlock(
+                preview = forwardedPreview,
+                collapsed = bodyFocused,
             )
             // The formatting bar, only while the body has the focus (#131). No `imePadding()` and no
             // inset of its own: the Column above already pads for the keyboard or the nav bar, and a

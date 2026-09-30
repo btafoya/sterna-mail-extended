@@ -117,4 +117,30 @@ class ComposeHeaderFitTest {
             composeHeaderMaxHeightPx(0, 250, bodyMin = 100.dp, barShown = false, density = Density(2f)),
         )
     }
+
+    @Test fun `the forwarded block under the note is reserved with the body`() {
+        // 400 − 100 − 48 − 48: keyboard up, the note focused, the block folded to its title.
+        assertEquals(
+            "the forwarded block sits under the note and is measured before it: its height must " +
+                "come off the header's cap, or it eats the note's three lines",
+            204,
+            composeHeaderMaxHeightPx(0, 400, bodyMin = 100.dp, barShown = true, density = one, blockBelow = 48.dp),
+        )
+        // Density 2: 800 − 200 − 320.
+        assertEquals(
+            "the block's reserve is converted at the screen's density like the rest",
+            280,
+            composeHeaderMaxHeightPx(0, 800, bodyMin = 100.dp, barShown = false, density = Density(2f), blockBelow = 160.dp),
+        )
+    }
+
+    @Test fun `the block reserves nothing when absent, its folded height with the note focused, its ceiling otherwise`() {
+        val ready = ForwardedPreview.Ready("x")
+        assertEquals(0.dp, forwardedBlockReserve(ForwardedPreview.None, noteFocused = false))
+        assertEquals(0.dp, forwardedBlockReserve(ForwardedPreview.None, noteFocused = true))
+        assertEquals(FORWARDED_BLOCK_FOLDED_HEIGHT, forwardedBlockReserve(ready, noteFocused = true))
+        assertEquals(FORWARDED_BLOCK_FOLDED_HEIGHT, forwardedBlockReserve(ForwardedPreview.Pending, noteFocused = true))
+        assertEquals(FORWARDED_BLOCK_MAX_HEIGHT, forwardedBlockReserve(ready, noteFocused = false))
+        assertEquals(FORWARDED_BLOCK_MAX_HEIGHT, forwardedBlockReserve(ForwardedPreview.Pending, noteFocused = false))
+    }
 }

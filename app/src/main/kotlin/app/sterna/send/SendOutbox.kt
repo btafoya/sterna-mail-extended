@@ -7,6 +7,7 @@ import app.sterna.core.data.text.Link
 import app.sterna.core.data.text.Span
 import app.sterna.core.data.text.richBodyFrom
 import app.sterna.core.jmap.model.EmailBodyPart
+import app.sterna.ui.compose.splitAssembledForward
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -128,7 +129,12 @@ class SendOutbox(private val scope: CoroutineScope) {
 internal fun composeDraftOf(draft: MailSender.OutboxDraft): SendOutbox.ComposeDraft {
     // The row's html first, its text as the fallback (#131): a queued message this app styled
     // reopens exactly as it was written, while a forward's html and an imported HTML signature do
-    val rich = richBodyFrom(draft.htmlBody) { draft.body }
+    val split = splitAssembledForward(draft.body, draft.htmlBody)
+    val rich = if (split != null) {
+        richBodyFrom(split.noteHtml) { split.noteText }
+    } else {
+        richBodyFrom(draft.htmlBody) { draft.body }
+    }
     return SendOutbox.ComposeDraft(
         to = draft.to,
         cc = draft.cc,
@@ -143,6 +149,8 @@ internal fun composeDraftOf(draft: MailSender.OutboxDraft): SendOutbox.ComposeDr
         attachments = draft.attachments,
         inReplyTo = draft.inReplyTo,
         references = draft.references,
+        forwardedText = split?.forwarded?.text,
+        forwardedHtml = split?.forwarded?.html,
         pgpMode = draft.pgpMode,
         draftEmailId = draft.draftEmailId,
         draftUidValidity = draft.draftUidValidity,

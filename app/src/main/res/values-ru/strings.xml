@@ -55,6 +55,10 @@
     <string name="compose_body_lost_cannot_send">Текст этого письма потерян. Введите его заново.</string>
     <string name="compose_body_lost_reopen_draft">Текст потерян. Закройте экран и откройте сообщение.</string>
     <string name="compose_forward_attachment_dropped">Некоторые вложения пересылаемого сообщения не удалось включить.</string>
+    <string name="compose_forwarded_title">Пересылаемое сообщение</string>
+    <string name="compose_forwarded_sent_below">При отправке добавляется под вашей заметкой, с исходным форматированием.</string>
+    <string name="compose_forwarded_loading">Загрузка исходного сообщения…</string>
+    <string name="compose_forwarded_close">Закрыть</string>
     <string name="compose_scheduled_toast">Запланировано — %1$s</string>
     <string name="compose_discard_title">Удалить сообщение?</string>
     <string name="compose_discard_message">Вы не сохранили изменения.</string>

@@ -220,12 +220,13 @@ class ComposeViewModelWiringTest {
                 // numbering it belongs to, and it is withheld whole when that pair was read under
                 "val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)",
                 ".unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)",
+                "val bodies = draftBodiesToSave(body, reopenedFromOutbox = editingOutboxId != null, forwarded = forwarded)",
                 "val outcome = repo.drafts.saveDraft(",
                 // The text part is `toPlainText(body)` and not `body.text` (#131): a list is
                 // written `- ` / `1. ` there and a link is written `label <url>`, so a recipient
-                "credentials, recipients, subject, toPlainText(body),",
+                "credentials, recipients, subject, bodies.text,",
                 // The styling as a second part, from the one pure function every route uses:
-                "html = draftHtmlToSave(body),",
+                "html = bodies.html,",
                 "cc = parseAddrs(cc), bcc = parseAddrs(bcc),",
                 "inReplyTo = inReplyTo, references = references,",
                 "replacesEmailId = replaces.emailId,",
