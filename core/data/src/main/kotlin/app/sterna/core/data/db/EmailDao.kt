@@ -43,6 +43,18 @@ const val SENDER_VOLUMES_SQL: String =
 const val SENDER_MESSAGE_IDS_SQL: String =
     "SELECT id FROM emails WHERE " + SENDER_VOLUME_SCOPE_SQL + " AND LOWER(fromEmail) = LOWER(:email)"
 
+private const val RECEIVED_FOLDERS_SQL: String =
+    "EXISTS (SELECT 1 FROM mailboxes WHERE mailboxes.accountId = emails.accountId " +
+        "AND mailboxes.id = emails.mailboxId AND (mailboxes.role IS NULL OR LOWER(TRIM(mailboxes.role)) NOT IN " +
+        "('sent','drafts','trash','junk','spam','~sent','~drafts','~trash','~junk','~spam')))"
+
+/** `fromName` is a bare column beside `MAX(sortKey)`: SQLite reads it from the newest row. */
+const val RECEIVED_FROM_SQL: String =
+    "SELECT LOWER(fromEmail) AS email, fromName AS name, COUNT(*) AS received, MAX(sortKey) AS latest " +
+        "FROM emails WHERE fromEmail IS NOT NULL AND fromEmail != '' " +
+        "AND " + RECEIVED_FOLDERS_SQL +
+        " GROUP BY LOWER(fromEmail)"
+
 @Dao
 interface EmailDao {
 
@@ -70,14 +82,8 @@ interface EmailDao {
     @RawQuery(observedEntities = [EmailEntity::class, SnoozedEntity::class])
     fun observeRecentUnified(query: SupportSQLiteQuery): Flow<List<RecentEmailRow>>
 
-    /** Distinct recent senders matching [q] (for recipient autocomplete). */
-    @Query(
-        "SELECT fromEmail AS email, fromName AS name FROM emails " +
-            "WHERE fromEmail IS NOT NULL AND fromEmail != '' " +
-            "AND (fromEmail LIKE '%' || :q || '%' OR fromName LIKE '%' || :q || '%') " +
-            "GROUP BY LOWER(fromEmail) ORDER BY MAX(sortKey) DESC LIMIT :limit",
-    )
-    suspend fun suggestSenders(q: String, limit: Int): List<ContactRow>
+    @Query(RECEIVED_FROM_SQL)
+    suspend fun receivedFrom(): List<ReceivedContactRow>
 
     /**
      * Cached mail per sender ([SENDER_VOLUMES_SQL]). `suspend`, not a `Flow`: Room invalidates on

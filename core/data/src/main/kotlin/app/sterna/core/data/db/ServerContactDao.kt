@@ -31,12 +31,8 @@ interface ServerContactDao {
     @Query("SELECT state FROM server_contacts_state WHERE accountId = :accountId")
     suspend fun state(accountId: String): String?
 
-    @Query(
-        "SELECT email, name FROM server_contacts " +
-            "WHERE accountId = :accountId AND (email LIKE '%' || :q || '%' OR name LIKE '%' || :q || '%') " +
-            "ORDER BY name, email LIMIT :limit",
-    )
-    suspend fun search(accountId: String, q: String, limit: Int): List<ContactRow>
+    @Query("SELECT email, name FROM server_contacts WHERE accountId = :accountId")
+    suspend fun book(accountId: String): List<ContactRow>
 
     @Query("SELECT accountId FROM server_contacts UNION SELECT accountId FROM server_contacts_state")
     suspend fun accountIds(): List<String>

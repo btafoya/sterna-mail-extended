@@ -127,7 +127,7 @@ class ScheduledSendAttachmentsMigrationSqlTest {
     }
 
     @Test fun theSchemaDeclaresTheStepAndTheEntityNamesItsColumn() {
-        assertEquals(31, SCHEMA_VERSION)
+        assertTrue("the schema is past the step", SCHEMA_VERSION >= 31)
         assertTrue(
             "ScheduledSendEntity must declare attachmentsJson, or Room opens a table it does not describe",
             ScheduledSendEntity::class.java.declaredFields.any { it.name == "attachmentsJson" && it.type == String::class.java },

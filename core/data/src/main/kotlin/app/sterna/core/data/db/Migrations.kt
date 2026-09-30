@@ -398,3 +398,9 @@ val MIGRATION_30_31 = object : Migration(30, 31) {
         db.execSQL("ALTER TABLE `scheduled_sends` ADD COLUMN `attachmentsJson` TEXT NOT NULL DEFAULT '[]'")
     }
 }
+
+val MIGRATION_31_32 = object : Migration(31, 32) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `recent_contacts` ADD COLUMN `sendCount` INTEGER NOT NULL DEFAULT 1")
+    }
+}

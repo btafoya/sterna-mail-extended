@@ -4,7 +4,6 @@ import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.AccountStorage
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.autocryptHeaderValue
-import app.sterna.core.data.db.ContactRow
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.OutboxAttachment
@@ -16,7 +15,8 @@ import app.sterna.core.data.db.OutboxLogic
 import app.sterna.core.data.db.OutboxLogic.outboxPgpModeName
 import app.sterna.core.data.db.OutboxState
 import app.sterna.core.data.db.RecentContactDao
-import app.sterna.core.data.db.RecentContactEntity
+import app.sterna.core.data.db.ReceivedContactRow
+import app.sterna.core.data.db.SentContactRow
 import app.sterna.core.data.db.ScheduledSendDao
 import app.sterna.core.data.db.ScheduledSendEntity
 import app.sterna.core.data.pgp.PgpMode
@@ -108,30 +108,15 @@ class MailSender(
 
     // ---- recipient suggestions ----
 
-    /** Record people we send to, so they surface in recipient autocomplete next time. */
+    /** Count one send to each of [addresses], for the recipient menu's ranking. */
     suspend fun rememberRecipients(addresses: List<String>) {
         val now = System.currentTimeMillis()
-        addresses.map { it.trim() }.filter { it.contains('@') }.distinctBy { it.lowercase() }.forEach { addr ->
-            val (name, email) = parseAddress(addr)
-            recentContactDao.upsert(RecentContactEntity(email = email.lowercase(), name = name, lastSeen = now))
-        }
+        sendsToRecord(addresses).forEach { (email, name) -> recentContactDao.recordSend(email, name, now) }
     }
 
-    /** Deduped recipient suggestions for [query]: people we've sent to, plus cached senders. */
-    suspend fun suggestContacts(query: String, limit: Int = 6): List<ContactRow> {
-        val q = query.trim()
-        if (q.isEmpty()) return emptyList()
-        return (recentContactDao.search(q, limit) + emailDao.suggestSenders(q, limit))
-            .filter { it.email.contains('@') }
-            .distinctBy { it.email.lowercase() }
-            .take(limit)
-    }
+    suspend fun sentContacts(): List<SentContactRow> = recentContactDao.sentContacts()
 
-    private fun parseAddress(s: String): Pair<String?, String> {
-        val m = Regex("^(.*?)<([^>]+)>").find(s.trim())
-        return if (m != null) m.groupValues[1].trim().ifBlank { null } to m.groupValues[2].trim()
-        else null to s.trim()
-    }
+    suspend fun receivedContacts(): List<ReceivedContactRow> = emailDao.receivedFrom()
 
     /** SMTP OutgoingMessage from compose fields (IMAP). [requestReceipt] has no default. */
     private fun outgoing(
@@ -807,3 +792,19 @@ internal suspend fun requeueForRetry(
  */
 fun attachmentPreparedForAnotherAccount(name: String?): String =
     "The attachment ${name ?: "attachment"} was prepared for another account; attach it again."
+
+/**
+ * One `(lowercased address, name)` per person of one send: `Bob <bob@x.org>` and `bob@x.org` in the
+ * same message are one send to Bob, not two. The first name given wins over a bare address.
+ */
+internal fun sendsToRecord(addresses: List<String>): List<Pair<String, String?>> =
+    addresses.map { it.trim() }.filter { it.contains('@') }
+        .map { parseAddress(it) }
+        .groupBy({ it.second.lowercase() }, { it.first })
+        .map { (email, names) -> email to names.firstOrNull { it != null } }
+
+private fun parseAddress(s: String): Pair<String?, String> {
+    val m = Regex("^(.*?)<([^>]+)>").find(s.trim())
+    return if (m != null) m.groupValues[1].trim().ifBlank { null } to m.groupValues[2].trim()
+    else null to s.trim()
+}

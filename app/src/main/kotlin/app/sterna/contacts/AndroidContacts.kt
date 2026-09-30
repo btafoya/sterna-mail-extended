@@ -13,23 +13,21 @@ object AndroidContacts {
             PackageManager.PERMISSION_GRANTED
 
     /**
-     * Address-book matches for [q], with the contact's thumbnail URI when they have a picture.
+     * Every address of the phone's contacts, with the contact's thumbnail URI when they have a picture.
      */
-    fun query(context: Context, q: String, limit: Int): List<ContactSuggestion> {
-        if (!hasPermission(context) || q.isBlank()) return emptyList()
+    fun all(context: Context): List<ContactSuggestion> {
+        if (!hasPermission(context)) return emptyList()
         val results = mutableListOf<ContactSuggestion>()
         val projection = arrayOf(Email.ADDRESS, Email.DISPLAY_NAME_PRIMARY, Email.PHOTO_THUMBNAIL_URI)
-        val selection = "${Email.ADDRESS} LIKE ? OR ${Email.DISPLAY_NAME_PRIMARY} LIKE ?"
-        val arg = "%$q%"
         runCatching {
             context.contentResolver.query(
-                Email.CONTENT_URI, projection, selection, arrayOf(arg, arg), null,
+                Email.CONTENT_URI, projection, null, null, null,
             )?.use { cursor ->
                 val addressIdx = cursor.getColumnIndexOrThrow(Email.ADDRESS)
                 val nameIdx = cursor.getColumnIndexOrThrow(Email.DISPLAY_NAME_PRIMARY)
                 val photoIdx = cursor.getColumnIndex(Email.PHOTO_THUMBNAIL_URI)
                 val seen = HashSet<String>()
-                while (cursor.moveToNext() && results.size < limit) {
+                while (cursor.moveToNext()) {
                     val email = cursor.getString(addressIdx)?.trim() ?: continue
                     if (!email.contains('@') || !seen.add(email.lowercase())) continue
                     results += ContactSuggestion(

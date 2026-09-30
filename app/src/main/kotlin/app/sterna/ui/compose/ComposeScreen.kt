@@ -1397,12 +1397,16 @@ fun ComposeScreen(
             val missingKeyFor: (String) -> Boolean = { addr ->
                 pgpMode.encrypts && recipientKeys[addr] == false
             }
+            val onScreen = { recipientsOnScreen(to, cc, bcc) }
+            val suggestRecipients: (String) -> Unit = { viewModel.suggest(it, onScreen()) }
+            val recipientFieldFocused: (String) -> Unit = { viewModel.recipientFieldFocused(it, onScreen()) }
             RecipientChipsField(
                 label = stringResource(R.string.compose_to),
                 value = to,
                 onValueChange = { to = it },
                 suggestions = suggestions,
-                onSuggest = viewModel::suggest,
+                onSuggest = suggestRecipients,
+                onFocused = recipientFieldFocused,
                 onClearSuggestions = viewModel::clearSuggestions,
                 focusRequester = toFocus,
                 // Whenever the recipients still have to be typed: a fresh mail and a forward. A reply
@@ -1424,11 +1428,11 @@ fun ComposeScreen(
             if (expanded) {
                 RecipientChipsField(
                     stringResource(R.string.compose_cc), cc, { cc = it }, suggestions,
-                    viewModel::suggest, viewModel::clearSuggestions, missingKey = missingKeyFor,
+                    suggestRecipients, recipientFieldFocused, viewModel::clearSuggestions, missingKey = missingKeyFor,
                 )
                 RecipientChipsField(
                     stringResource(R.string.compose_bcc), bcc, { bcc = it }, suggestions,
-                    viewModel::suggest, viewModel::clearSuggestions, missingKey = missingKeyFor,
+                    suggestRecipients, recipientFieldFocused, viewModel::clearSuggestions, missingKey = missingKeyFor,
                 )
             }
             // Subject has no fixed label: the localized string is the in-field placeholder, so the
@@ -1786,6 +1790,8 @@ private fun RecipientChipsField(
     onValueChange: (String) -> Unit,
     suggestions: List<ContactSuggestion>,
     onSuggest: (String) -> Unit,
+    /** The input took the focus, holding the text still being typed. */
+    onFocused: (String) -> Unit,
     onClearSuggestions: () -> Unit,
     focusRequester: FocusRequester? = null,
     /** Open and focus the field on first composition (the To field on a fresh compose). */
@@ -1984,6 +1990,7 @@ private fun RecipientChipsField(
                         .padding(vertical = 6.dp)
                         .onFocusChanged { fs ->
                             if (fs.isFocused) {
+                                if (!wasFocused) onFocused(input)
                                 wasFocused = true
                             } else if (wasFocused) {
                                 // Commit what was typed but not yet turned into a chip, so it stays

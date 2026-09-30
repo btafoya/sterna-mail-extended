@@ -87,6 +87,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -580,22 +581,40 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /** Recipient autocomplete suggestions for the field currently being typed. */
-    private val recipients = RecipientSuggester(viewModelScope, repo.sending::suggestContacts, repo.accounts::serverContacts)
+    private val recipients = RecipientSuggester(
+        scope = viewModelScope,
+        sender = { composingAccountId(_selectedFrom.value, accountId, store::currentId) },
+        loadPool = { senderAccountId ->
+            loadRecipientPool(
+                senderAccountId,
+                sent = repo.sending::sentContacts,
+                received = repo.sending::receivedContacts,
+                serverBook = repo.accounts::serverBook,
+                // A content-provider query, which blocks: never on the main thread.
+                device = if (contactsEnabled.value) {
+                    { withContext(Dispatchers.IO) { AndroidContacts.all(getApplication()) } }
+                } else {
+                    null
+                },
+                selves = ownAddresses(store.accounts(), store::identities),
+            )
+        },
+        work = Dispatchers.Default,
+    )
     val suggestions: StateFlow<List<ContactSuggestion>> = recipients.suggestions
 
-    /** Suggest recipients for the last token in [fieldValue] (after the final comma/semicolon). */
-    fun suggest(fieldValue: String) {
-        recipients.suggest(
-            fieldValue,
-            sender = { composingAccountId(_selectedFrom.value, accountId, store::currentId) },
-            // The address book is a content-provider query: off the main thread, since this runs on
-            // every keystroke while the keyboard needs it.
-            device = if (contactsEnabled.value) {
-                { q, limit -> withContext(Dispatchers.IO) { AndroidContacts.query(getApplication(), q, limit) } }
-            } else {
-                null
-            },
-        )
+    init {
+        // Turned on by the priming sheet while To holds the focus: the pool that focus read has no phone contacts.
+        viewModelScope.launch { contactsEnabled.drop(1).collect { recipients.sourcesChanged() } }
+    }
+
+    /** Suggest recipients for the last token in [fieldValue]; [onScreen] is already in To, Cc or Bcc. */
+    fun suggest(fieldValue: String, onScreen: Set<String>) {
+        recipients.suggest(fieldValue, onScreen)
+    }
+
+    fun recipientFieldFocused(fieldValue: String, onScreen: Set<String>) {
+        recipients.focused(fieldValue, onScreen)
     }
 
     fun clearSuggestions() {

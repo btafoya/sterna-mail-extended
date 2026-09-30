@@ -273,26 +273,18 @@ class MailAccountsSyncsServerContactsTest {
         assertEquals(emptyList<String>(), dao.writes)
     }
 
-    @Test fun `the composer's search reads the given account's copy, for the query, up to the limit`() {
+    @Test fun `the composer's book is the given account's copy, and only it`() {
         dao.db.createStatement().use {
             it.executeUpdate("INSERT INTO server_contacts VALUES ('$ACCOUNT', 'c1', 'Ann', 'ann@x.org')")
-            it.executeUpdate("INSERT INTO server_contacts VALUES ('$ACCOUNT', 'c2', 'Anna', 'anna@x.org')")
-            it.executeUpdate("INSERT INTO server_contacts VALUES ('$ACCOUNT', 'c3', 'Annie', 'annie@x.org')")
             it.executeUpdate("INSERT INTO server_contacts VALUES ('$ACCOUNT', 'c4', 'Bob', 'bob@x.org')")
             it.executeUpdate("INSERT INTO server_contacts VALUES ('other', 'c5', 'Anne', 'anne@x.org')")
         }
 
-        val found = runBlocking { accounts().serverContacts(ACCOUNT, "ann", 2) }
-
-        assertEquals(listOf("ann@x.org", "anna@x.org"), found.map { it.email })
         assertEquals(
-            listOf("bob@x.org"),
-            runBlocking { accounts().serverContacts(ACCOUNT, "bob", 6) }.map { it.email },
+            listOf("ann@x.org", "bob@x.org"),
+            runBlocking { accounts().serverBook(ACCOUNT) }.map { it.email }.sorted(),
         )
-        assertEquals(
-            listOf("anne@x.org"),
-            runBlocking { accounts().serverContacts("other", "ann", 6) }.map { it.email },
-        )
+        assertEquals(listOf("anne@x.org"), runBlocking { accounts().serverBook("other") }.map { it.email })
     }
 
     @Test fun `a session without a contacts account is said, and asks nothing`() {

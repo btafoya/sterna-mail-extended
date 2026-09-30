@@ -460,6 +460,6 @@ class LocalDraftsMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("the schema now declares v31 (`scheduled_sends.attachmentsJson`)", 31, SCHEMA_VERSION)
+        assertEquals("the schema now declares v32 (`recent_contacts.sendCount`)", 32, SCHEMA_VERSION)
     }
 }

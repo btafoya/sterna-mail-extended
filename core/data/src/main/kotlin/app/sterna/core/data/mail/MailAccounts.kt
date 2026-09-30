@@ -463,8 +463,7 @@ class MailAccounts(
         ) ?: ServerContactsSync.NoAddressBook(capabilityListed = Jmap.CONTACTS_CAPABILITY in session.capabilities)
     }
 
-    suspend fun serverContacts(accountId: String, query: String, limit: Int): List<ContactRow> =
-        serverContactDao.search(accountId, query, limit)
+    suspend fun serverBook(accountId: String): List<ContactRow> = serverContactDao.book(accountId)
 
     /** #31: discover linked sub-accounts for the new login [id]; best-effort, except cancellation. */
     suspend fun reconcileLinkedAccountsAfterAdd(id: String) {

@@ -54,8 +54,8 @@ internal class SqlServerContactDao : ServerContactDao {
             ps.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else null }
         }
 
-    override suspend fun search(accountId: String, q: String, limit: Int): List<ContactRow> =
-        prepared("search", mapOf("accountId" to accountId, "q" to q, "limit" to limit)).use { ps ->
+    override suspend fun book(accountId: String): List<ContactRow> =
+        prepared("book", mapOf("accountId" to accountId)).use { ps ->
             ps.executeQuery().use { rs ->
                 buildList { while (rs.next()) add(ContactRow(rs.getString("email"), rs.getString("name"))) }
             }

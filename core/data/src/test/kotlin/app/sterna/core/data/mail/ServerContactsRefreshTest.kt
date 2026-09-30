@@ -161,21 +161,22 @@ class ServerContactsRefreshTest {
 
     // --- the DAO's read and its purge ---------------------------------------------------------------
 
-    @Test fun `the search answers only the account asked, on name or address, within the limit`() {
+    @Test fun `the book read answers only the account asked, every address of it`() {
         refresh(accountId = "accB", all = ContactsSnapshot(listOf(ServerContact("b", "Alex Other", listOf("alex@other.example"))), "b1"))
         refresh(accountId = "accA", all = firstBook)
 
-        val byName = runBlocking { dao.search("accA", "alex", 10) }
-        val byAddress = runBlocking { dao.search("accA", "jordan@", 10) }
-        val limited = runBlocking { dao.search("accA", "example", 2) }
+        val bookA = runBlocking { dao.book("accA") }
 
         assertEquals(
-            listOf(ContactRow("alex@example.org", "Alex Martin"), ContactRow("alex@work.example", "Alex Martin")),
-            byName,
+            listOf(
+                ContactRow("alex@example.org", "Alex Martin"),
+                ContactRow("alex@work.example", "Alex Martin"),
+                ContactRow("jordan@example.org", "Jordan"),
+                ContactRow("noname@example.org", ""),
+            ),
+            bookA.sortedBy { it.email },
         )
-        assertEquals(listOf(ContactRow("jordan@example.org", "Jordan")), byAddress)
-        assertEquals(2, limited.size)
-        assertEquals(listOf(ContactRow("alex@other.example", "Alex Other")), runBlocking { dao.search("accB", "alex", 10) })
+        assertEquals(listOf(ContactRow("alex@other.example", "Alex Other")), runBlocking { dao.book("accB") })
     }
 
     @Test fun `deleteForAccount takes the rows and the state of that account only`() {
