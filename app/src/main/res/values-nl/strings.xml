@@ -544,6 +544,14 @@
     <string name="settings_smtp_server_label">SMTP-server</string>
     <string name="settings_smtp_port_label">SMTP-poort</string>
     <string name="settings_smtp_security_title">SMTP-beveiliging</string>
+    <string name="settings_smtp_username_label">SMTP-gebruikersnaam (optioneel)</string>
+    <string name="settings_smtp_password_label">SMTP-wachtwoord (leeg laten om huidige te behouden)</string>
+    <string name="smtp_login_blank_help">Zonder SMTP-gebruikersnaam wordt verzonden met de login van het account. Zonder SMTP-wachtwoord geldt het wachtwoord van het account.</string>
+    <string name="connect_smtp_login_show">Andere login voor verzenden</string>
+    <string name="connect_smtp_login_hide">Login voor verzenden verbergen</string>
+    <string name="connect_smtp_username">SMTP-gebruikersnaam (optioneel)</string>
+    <string name="connect_smtp_password">SMTP-wachtwoord (optioneel)</string>
+    <string name="connect_import_smtp_password_help">Verzenden meldt zich aan als %1$s. Leeg laten om het wachtwoord hierboven te gebruiken.</string>
     <string name="settings_upload_sent_title">Verzonden berichten uploaden</string>
     <string name="settings_upload_sent_subtitle">Bewaart een kopie van elk verzonden bericht in de map Verzonden. Zet dit uit als je server verzonden berichten zelf al bewaart.</string>
     <string name="settings_server_url_label">Server-URL</string>

@@ -99,7 +99,7 @@ class AccountStoreGateWiringTest {
                 "fun remove(id: String) {",
                 "val list = accounts()",
                 "if (list.none { it.id == id }) return",
-                "prefs.edit().remove(passwordKey(id)).apply()",
+                "prefs.edit().remove(passwordKey(id)).remove(smtpPasswordKey(id)).apply()",
                 "val remaining = list.filterNot { it.id == id }",
                 "saveLinkedMemory(forgetRemovedLinked(linkedMemory(), list.filter { it.id == id }))",
                 "saveAccounts(remaining)",
@@ -157,11 +157,13 @@ class AccountStoreGateWiringTest {
                 "proven: StoredAccount,",
                 "secret: String,",
                 "alsoRecognisedBy: List<AccountKey?> = emptyList(),",
+                "smtpSecret: String = \"\",",
                 "): String {",
                 "val list = accounts()",
                 "val existing = resolveExistingLoginAmong(list, listOf(accountKeyOf(proven)) + alsoRecognisedBy)",
                 "val id = existing?.id ?: proven.id",
                 "writePassword(id, secret)",
+                "applySmtpSecretEdit(id, smtpSecretEdit(proven.smtpUsername, smtpSecret, blankKeeps = false))",
                 "val stored = if (existing == null) {",
                 "list + proven",
                 "} else {",
@@ -172,7 +174,7 @@ class AccountStoreGateWiringTest {
                 "return id",
                 "}",
             ),
-            accountStoreBlock("private fun addOrRefresh(", 18),
+            accountStoreBlock("private fun addOrRefresh(", 20),
         )
     }
 
@@ -180,8 +182,8 @@ class AccountStoreGateWiringTest {
         assertEquals(
             "add() no longer ends on addOrRefresh. Adding an account that is already there makes " +
                 "a SECOND identical line in Settings > Accounts, with its own copy of the mail.",
-            listOf("return addOrRefresh(account, password)"),
-            accountStoreBlock("return addOrRefresh(account, password)", 1),
+            listOf("return addOrRefresh(account, password, smtpSecret = smtpPassword)"),
+            accountStoreBlock("return addOrRefresh(account, password", 1),
         )
     }
 

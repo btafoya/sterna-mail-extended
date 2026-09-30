@@ -721,6 +721,14 @@
     <string name="settings_smtp_server_label">SMTP server</string>
     <string name="settings_smtp_port_label">SMTP port</string>
     <string name="settings_smtp_security_title">SMTP security</string>
+    <string name="settings_smtp_username_label">SMTP username (optional)</string>
+    <string name="settings_smtp_password_label">SMTP password (leave blank to keep current)</string>
+    <string name="smtp_login_blank_help">Leave the SMTP username blank to send with the account\'s own login. Without an SMTP password, the account\'s password is used.</string>
+    <string name="connect_smtp_login_show">Different login for sending</string>
+    <string name="connect_smtp_login_hide">Hide sending login</string>
+    <string name="connect_smtp_username">SMTP username (optional)</string>
+    <string name="connect_smtp_password">SMTP password (optional)</string>
+    <string name="connect_import_smtp_password_help">Sending signs in as %1$s. Leave blank to use the password above.</string>
     <string name="settings_upload_sent_title">Upload sent messages</string>
     <string name="settings_upload_sent_subtitle">Saves a copy of each message you send in the Sent folder. Turn this off if your server already files sent messages itself.</string>
     <string name="settings_server_url_label">Server URL</string>

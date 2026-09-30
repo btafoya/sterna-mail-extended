@@ -24,4 +24,32 @@ class AccountBackupTest {
             backupSnapshotOf(listOf(password, microsoft, token, shared)).map { it.id },
         )
     }
+
+    @Test fun `the SMTP username survives a backup, and no SMTP password is in the file`() {
+        val account = StoredAccount(
+            id = "basic",
+            server = "",
+            username = "reader@migadu.example",
+            protocol = MailProtocol.IMAP,
+            imapHost = "imap.migadu.example",
+            smtpHost = "smtp.origin.example",
+            smtpUsername = "sender@origin.example",
+        )
+        val text = app.sterna.core.data.settings.SettingsBackupCodec.encode(
+            app.sterna.core.data.settings.SettingsBackup(accounts = backupSnapshotOf(listOf(account))),
+        )
+        val back = app.sterna.core.data.settings.SettingsBackupCodec.decode(text)?.accounts.orEmpty()
+        assertEquals(
+            "a restored account must still say which login it sends with, or its reconnection " +
+                "never asks for the SMTP password",
+            listOf("sender@origin.example"),
+            back.map { importedCopy(it, "new-id").smtpUsername },
+        )
+        val keys = Regex("\"([A-Za-z_]+)\"\\s*:").findAll(text).map { it.groupValues[1].lowercase() }.toSet()
+        assertEquals(
+            "a key naming a password or a secret reached the backup file: PRIVACY.md says it holds none",
+            emptySet<String>(),
+            keys.filter { "password" in it || "secret" in it || "smtppw" in it }.toSet(),
+        )
+    }
 }

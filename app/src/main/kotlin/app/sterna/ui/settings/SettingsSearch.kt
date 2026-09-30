@@ -18,7 +18,7 @@ internal sealed interface SettingHost {
 
 /** The condition a row is drawn under on its screen. An entry obeys the same one, or a result
  *  would open a screen without the row it named. */
-internal enum class SettingCondition { ALWAYS, MATERIAL_YOU, IMAP_ONLY, JMAP_ONLY, PASSWORD, API_TOKEN }
+internal enum class SettingCondition { ALWAYS, MATERIAL_YOU, IMAP_ONLY, JMAP_ONLY, PASSWORD, API_TOKEN, IMAP_PASSWORD }
 
 /**
  * One searchable setting. Text is held as resources only and resolved at display time, so the
@@ -87,6 +87,7 @@ internal fun searchableSettings(
             SettingCondition.JMAP_ONLY -> protocol == MailProtocol.JMAP
             SettingCondition.PASSWORD -> authType == AuthType.BASIC
             SettingCondition.API_TOKEN -> authType == AuthType.API_TOKEN
+            SettingCondition.IMAP_PASSWORD -> protocol == MailProtocol.IMAP && authType != AuthType.OAUTH
         }
     }
 }

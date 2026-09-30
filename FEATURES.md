@@ -130,6 +130,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   shared mailbox becomes its own account in the switcher, on the one credential.
 - ✅ Per-account server settings with a Test connection button, an optional display
   name, and a colour that tints its avatar and its unified-inbox chip.
+- ✅ An optional SMTP username and password on IMAP password accounts, for sending
+  through a server that takes another login; blank means the IMAP login.
 - ✅ Settings export and import as a JSON file, with the setup of password accounts;
   accounts that sign in with Microsoft, with OAuth or with an API token, and shared
   accounts, are not in it, and passwords stay out.

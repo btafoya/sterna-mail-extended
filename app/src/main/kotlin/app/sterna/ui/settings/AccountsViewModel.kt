@@ -331,6 +331,8 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         signature: String? = null,
         identities: List<StoredIdentity>? = null,
         defaultIdentityId: String? = null,
+        smtpUsername: String? = null,
+        smtpPassword: String = "",
         imapHost: String? = null,
         imapPort: Int? = null,
         imapSecurity: ConnectionSecurity? = null,
@@ -350,6 +352,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         )
         if (identities != null) store.setIdentities(id, identities)
         store.setDefaultIdentity(id, defaultIdentityId)
+        if (smtpUsername != null) store.updateSmtpLogin(id, smtpUsername, smtpPassword)
         if (password.isNotBlank()) {
             store.updatePassword(id, password)
             // Saving a password signs in an inert BASIC import, take it off the pending list.

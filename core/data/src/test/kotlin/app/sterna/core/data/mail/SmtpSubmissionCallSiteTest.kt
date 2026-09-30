@@ -27,12 +27,28 @@ class SmtpSubmissionCallSiteTest {
             listOf(
                 "smtpClient.send(",
                 "MailServerConfig(smtp.host, smtp.port, smtp.security.toMailSecurity(), " +
-                    "credentials.username, credentials.password, token),",
+                    "login.username, login.password, token),",
                 "message,",
                 "zone = zone,",
                 ")",
             ),
             body.drop(at).take(5),
+        )
+    }
+
+    @Test
+    fun `the submission authenticates with the resolved SMTP login, never the IMAP one`() {
+        assertEquals(
+            "ImapMailService.send no longer takes its AUTH login from `credentials.smtpLogin()`. " +
+                "The SMTP username of the account settings is then stored and never sent: the " +
+                "reporter of #240 keeps being refused by the server he sends through.",
+            1,
+            body.count { it == "val login = credentials.smtpLogin()" },
+        )
+        val call = body.single { it.startsWith("MailServerConfig(") }
+        assertTrue(
+            "the MailServerConfig of send carries the IMAP login again:\n$call",
+            !call.contains("credentials.username") && !call.contains("credentials.password"),
         )
     }
 }

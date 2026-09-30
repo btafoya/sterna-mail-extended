@@ -331,6 +331,21 @@ class AccountIdentityTest {
         assertEquals(ConnectionSecurity.STARTTLS, r.smtpSecurity)
     }
 
+    @Test fun `a re-add writes the SMTP username it was given, set or cleared`() {
+        val withOld = settled.copy(smtpUsername = "old-sender@origin.example")
+        assertEquals(
+            "re-adding the account with another sending login kept the old one: the add says " +
+                "it worked and every send still authenticates as before (#240)",
+            "new-sender@origin.example",
+            refreshedWith(withOld, provenPassword.copy(smtpUsername = "new-sender@origin.example")).smtpUsername,
+        )
+        assertEquals(
+            "a re-add with the SMTP fields left blank must go back to the IMAP login",
+            "",
+            refreshedWith(withOld, provenPassword).smtpUsername,
+        )
+    }
+
     @Test fun `a re-add is a sign-in, so the account stops waiting for one`() {
         assertEquals(
             "importPending survived a completed sign-in: the account stays in the " +

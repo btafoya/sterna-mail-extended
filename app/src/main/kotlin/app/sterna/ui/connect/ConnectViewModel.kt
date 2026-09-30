@@ -578,6 +578,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         val email: String,
         val authType: AuthType,
         val provider: OAuthProvider?,
+        val smtpUsername: String = "",
     )
 
     /** State of the "sign in to your imported accounts" step: a [Listing] of pending accounts, a tap
@@ -613,6 +614,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 id = a.id, label = a.label(), email = a.username,
                 authType = a.authType,
                 provider = if (a.authType == AuthType.OAUTH) OAuthProvider.forImapHost(a.imapHost) else null,
+                smtpUsername = a.smtpUsername,
             )
         }
 
@@ -683,7 +685,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
 
     private fun closeImportAccountThenAdvance() = refreshListing(keepSelected = null)
 
-    fun submitImportPassword(password: String) {
+    fun submitImportPassword(password: String, smtpPassword: String = "") {
         val target = currentListing()?.selected ?: return
         if (target.verifying || password.isBlank()) return
         val account = container.accountStore.account(target.account.id) ?: return
@@ -695,6 +697,9 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             container.mailRepository.accounts.testConnection(credentialsFor(account, password)).fold(
                 onSuccess = {
+                    if (account.smtpUsername.isNotBlank()) {
+                        container.accountStore.updateSmtpLogin(target.account.id, account.smtpUsername, smtpPassword)
+                    }
                     container.accountStore.updatePassword(target.account.id, password)
                     container.accountStore.setImportPending(target.account.id, false)
                     closeImportAccountThenAdvance()
@@ -901,6 +906,8 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         smtpHost: String,
         smtpPort: Int,
         smtpSecurity: ConnectionSecurity,
+        smtpUsername: String = "",
+        smtpPassword: String = "",
     ) {
         if (_state.value is ConnectState.Connecting) return
         if (!hasUsableNetwork(app)) {
@@ -940,6 +947,8 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                                 smtpHost = smtpHost,
                                 smtpPort = smtpPort,
                                 smtpSecurity = smtpSecurity,
+                                smtpUsername = smtpUsername,
+                                smtpPassword = smtpPassword,
                             ),
                             created = created,
                         )

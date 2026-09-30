@@ -65,6 +65,8 @@ data class AccountCredentials(
     /** For API_TOKEN accounts [password] holds the token, sent as a Bearer header. */
     val authType: AuthType = AuthType.BASIC,
     val specialFolders: Map<String, String> = emptyMap(),
+    val smtpUsername: String = "",
+    val smtpPassword: String = "",
 ) {
     /**
      * Masked on purpose: [password] holds the account password (or an API token), which the
@@ -73,7 +75,7 @@ data class AccountCredentials(
     override fun toString(): String =
         "AccountCredentials(id=$id, server=$server, username=$username, password=***, " +
             "protocol=$protocol, jmapAccountId=$jmapAccountId, imap=$imap, smtp=$smtp, " +
-            "oauth=$oauth, authType=$authType)"
+            "oauth=$oauth, authType=$authType, smtpUsername=$smtpUsername, smtpPassword=***)"
 }
 
 /**
@@ -244,6 +246,8 @@ class AccountStore(context: Context) : AccountStorage {
         smtpHost: String = "",
         smtpPort: Int = 465,
         smtpSecurity: ConnectionSecurity = ConnectionSecurity.TLS,
+        smtpUsername: String = "",
+        smtpPassword: String = "",
     ): String {
         val id = UUID.randomUUID().toString()
         val account = StoredAccount(
@@ -259,8 +263,9 @@ class AccountStore(context: Context) : AccountStorage {
             smtpHost = smtpHost.trim(),
             smtpPort = smtpPort,
             smtpSecurity = smtpSecurity,
+            smtpUsername = smtpUsername.trim(),
         )
-        return addOrRefresh(account, password)
+        return addOrRefresh(account, password, smtpSecret = smtpPassword)
     }
 
     /**
@@ -319,11 +324,13 @@ class AccountStore(context: Context) : AccountStorage {
         proven: StoredAccount,
         secret: String,
         alsoRecognisedBy: List<AccountKey?> = emptyList(),
+        smtpSecret: String = "",
     ): String {
         val list = accounts()
         val existing = resolveExistingLoginAmong(list, listOf(accountKeyOf(proven)) + alsoRecognisedBy)
         val id = existing?.id ?: proven.id
         writePassword(id, secret)
+        applySmtpSecretEdit(id, smtpSecretEdit(proven.smtpUsername, smtpSecret, blankKeeps = false))
         val stored = if (existing == null) {
             list + proven
         } else {
@@ -392,6 +399,14 @@ class AccountStore(context: Context) : AccountStorage {
                 }
             },
         )
+    }
+
+    @Synchronized
+    fun updateSmtpLogin(id: String, smtpUsername: String, smtpPassword: String) {
+        val account = account(id) ?: return
+        if (account.authType == AuthType.OAUTH) return
+        applySmtpSecretEdit(account.loginKey(), smtpSecretEdit(smtpUsername, smtpPassword, blankKeeps = true))
+        saveAccounts(accounts().map { if (it.id == id) it.copy(smtpUsername = smtpUsername.trim()) else it })
     }
 
     /** Re-encrypt and store a new password for the account (written under its login slot). */
@@ -673,7 +688,7 @@ class AccountStore(context: Context) : AccountStorage {
         // which no later write-refusal can bring back.
         val list = accounts()
         if (list.none { it.id == id }) return
-        prefs.edit().remove(passwordKey(id)).apply()
+        prefs.edit().remove(passwordKey(id)).remove(smtpPasswordKey(id)).apply()
         val remaining = list.filterNot { it.id == id }
         // The third removal path, and it forgets what it removes like [removeCascading]: a linked
         // share can reach here, and PRIVACY.md promises that removing an account removes what it
@@ -712,6 +727,7 @@ class AccountStore(context: Context) : AccountStorage {
         val login = list.firstOrNull { it.id == account.loginKey() } ?: account
         // For OAuth accounts the encrypted slot holds the refresh token, not a password.
         val secret = readPassword(login.id) ?: return null
+        val smtpUsername = if (login.authType == AuthType.OAUTH) "" else login.smtpUsername
         val oauth = if (login.authType == AuthType.OAUTH) {
             OAuthCredentials(
                 accessToken = login.oauthAccessToken,
@@ -745,6 +761,8 @@ class AccountStore(context: Context) : AccountStorage {
                 null
             },
             specialFolders = account.specialFolders,
+            smtpUsername = smtpUsername,
+            smtpPassword = if (smtpUsername.isBlank()) "" else readSmtpPassword(login.id).orEmpty(),
         )
     }
 
@@ -791,7 +809,7 @@ class AccountStore(context: Context) : AccountStorage {
     fun removeCascading(id: String): List<String> {
         val target = account(id) ?: return emptyList()
         val ids = (listOf(id) + if (target.isLinked) emptyList() else linkedAccounts(id).map { it.id }).distinct()
-        prefs.edit().apply { ids.forEach { remove(passwordKey(it)) } }.apply()
+        prefs.edit().apply { ids.forEach { remove(passwordKey(it)); remove(smtpPasswordKey(it)) } }.apply()
         // Read the removed records before the list is filtered: `remaining` holds what survives and
         // can never name what is going away. Deleting an account IS the user's decision, and the
         // memory must not resurrect its settings on a later re-grant.
@@ -850,10 +868,12 @@ class AccountStore(context: Context) : AccountStorage {
     ): Boolean {
         if (accounts().none { it.id == id }) return false
         writePassword(id, refreshToken)
+        prefs.edit().remove(smtpPasswordKey(id)).apply()
         saveAccounts(
             accounts().map {
                 if (it.id == id) it.copy(
                     authType = AuthType.OAUTH,
+                    smtpUsername = "",
                     username = username?.trim().takeUnless { u -> u.isNullOrBlank() } ?: it.username,
                     oauthAccessToken = accessToken,
                     oauthAccessExpiresAt = accessExpiresAtMillis,
@@ -891,7 +911,7 @@ class AccountStore(context: Context) : AccountStorage {
     @Synchronized
     fun convertToBasicAuth(id: String) {
         if (accounts().none { it.id == id }) return
-        prefs.edit().remove(passwordKey(id)).apply()
+        prefs.edit().remove(passwordKey(id)).remove(smtpPasswordKey(id)).apply()
         saveAccounts(
             accounts().map {
                 if (it.id == id) it.copy(
@@ -1056,10 +1076,37 @@ class AccountStore(context: Context) : AccountStorage {
         }.getOrNull()?.also { writePassword(id, it) }
     }
 
-    /** AAD tying a password blob to its account slot, so it can't be swapped between accounts. */
+    /** AAD tying a password blob to its account slot, so it can't be swapped between accounts, nor with [smtpAadFor]'s. */
     private fun aadFor(id: String) = "pw:$id".toByteArray(Charsets.UTF_8)
 
     private fun passwordKey(id: String) = "pw_$id"
+
+    private fun applySmtpSecretEdit(id: String, edit: SmtpSecretEdit) {
+        when (edit) {
+            SmtpSecretEdit.Keep -> Unit
+            SmtpSecretEdit.Clear -> prefs.edit().remove(smtpPasswordKey(id)).apply()
+            is SmtpSecretEdit.Write -> writeSmtpPassword(id, edit.password)
+        }
+    }
+
+    private fun writeSmtpPassword(id: String, password: String) {
+        val encrypted = Base64.encodeToString(
+            KeystoreCrypto.encrypt(password.toByteArray(Charsets.UTF_8), smtpAadFor(id)),
+            Base64.NO_WRAP,
+        )
+        prefs.edit().putString(smtpPasswordKey(id), encrypted).apply()
+    }
+
+    private fun readSmtpPassword(id: String): String? {
+        val encrypted = prefs.getString(smtpPasswordKey(id), null) ?: return null
+        return runCatching {
+            String(KeystoreCrypto.decrypt(Base64.decode(encrypted, Base64.NO_WRAP), smtpAadFor(id)), Charsets.UTF_8)
+        }.getOrNull()
+    }
+
+    private fun smtpAadFor(id: String) = "smtppw:$id".toByteArray(Charsets.UTF_8)
+
+    private fun smtpPasswordKey(id: String) = "smtppw_$id"
 
     /** Migrate a pre-multi-account single account into the accounts list once. Writes KEY_ACCOUNTS
      *  outside [saveAccounts], but needs no publish: the only call that can find anything to

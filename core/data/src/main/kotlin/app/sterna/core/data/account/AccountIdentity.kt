@@ -76,5 +76,6 @@ fun refreshedWith(existing: StoredAccount, proven: StoredAccount): StoredAccount
         smtpHost = proven.smtpHost,
         smtpPort = proven.smtpPort,
         smtpSecurity = proven.smtpSecurity,
+        smtpUsername = proven.smtpUsername,
         importPending = false,
     )

@@ -124,7 +124,7 @@ class SecretFieldRevealWiringTest {
      * field IS one is a single argument on the far side of the repo, and nothing was watching it.
      */
     @Test fun `the account screen's secret field declares itself a secret`() {
-        val block = passwordFieldBlock()
+        val block = passwordFieldBlock(SECRET_LABEL)
         assertEquals(
             "the password / API-token field of the account screen must be called with " +
                 "'$EXPECTED_IS_PASSWORD' — the whole line. Without that flag the field is an " +
@@ -136,45 +136,73 @@ class SecretFieldRevealWiringTest {
             block.filter { "isPassword" in it },
         )
         assertEquals(
-            "'isPassword =' must appear exactly once in the whole of SettingsScreen.kt, on that " +
-                "field. A second one is either a secret field this lint does not know about, or " +
-                "the flag moved onto a field that is not a secret.",
-            listOf(EXPECTED_IS_PASSWORD),
+            "'isPassword =' must appear exactly twice in the whole of SettingsScreen.kt, on that " +
+                "field and on the SMTP password field below. A third one is either a secret field " +
+                "this lint does not know about, or the flag moved onto a field that is not a secret.",
+            listOf(EXPECTED_IS_PASSWORD, EXPECTED_IS_PASSWORD),
             screenLines().filter { "isPassword =" in it },
+        )
+    }
+
+    @Test fun `the SMTP password field declares itself a secret, its username field does not`() {
+        val block = passwordFieldBlock(SMTP_SECRET_LABEL)
+        val calls = settingTextFieldCalls(block)
+        val password = calls.single { SMTP_SECRET_LABEL in it.first() }
+        val username = calls.single { "R.string.settings_smtp_username_label" in it.first() }
+        assertEquals(
+            "the SMTP password field must be called with '$EXPECTED_IS_PASSWORD': without it the " +
+                "second password of the account is typed and left in clear. Lines found:\n" +
+                password.joinToString("\n"),
+            listOf(EXPECTED_IS_PASSWORD),
+            password.filter { "isPassword" in it },
+        )
+        assertEquals(
+            "the SMTP username is not a secret: masking it hides the login being checked",
+            emptyList<String>(),
+            username.filter { "isPassword" in it },
         )
     }
 
     // -- reading the sources -----------------------------------------------------------------------
 
     /**
-     * The body of `if (account.authType != AuthType.OAUTH) {` on the account screen, closed by
-     * counting braces, a line number would rot on the next edit of that screen. The guard itself is
+     * The body of the `if (account.authType != AuthType.OAUTH) {` naming [label] (password or SMTP
+     * login), closed by counting braces, a line number would rot on the next edit. The guard itself is
      * not this branch's business (touching it overwrites an OAuth refresh token), it is only the
      * landmark that locates the field.
      */
-    private fun passwordFieldBlock(): List<String> {
+    private fun passwordFieldBlock(label: String): List<String> {
         val lines = screenLines()
         val opener = "if (account.authType != AuthType.OAUTH) {"
-        val at = lines.indexOfFirst { it == opener }
-        check(at >= 0) {
-            "no '$opener' in SettingsScreen.kt — the secret field moved, and this lint must be " +
-                "taught where it went rather than left green over a block it never read"
-        }
-        var depth = 1
-        val result = mutableListOf<String>()
-        for (line in lines.drop(at + 1)) {
-            depth += line.count { it == '{' } - line.count { it == '}' }
-            if (depth <= 0) {
-                check(result.any { it == "SettingTextField(" }) {
-                    "the '$opener' block no longer calls SettingTextField — the secret is typed " +
-                        "into something else now, and nothing here knows how that something masks it"
-                }
-                return result
+        val blocks = lines.indices.filter { lines[it] == opener }.map { at ->
+            var depth = 1
+            val result = mutableListOf<String>()
+            for (line in lines.drop(at + 1)) {
+                depth += line.count { it == '{' } - line.count { it == '}' }
+                if (depth <= 0) break
+                result += line
             }
-            result += line
+            check(depth <= 0) { "'$opener' is never closed in SettingsScreen.kt" }
+            result.toList()
         }
-        error("'$opener' is never closed in SettingsScreen.kt")
+        val block = blocks.singleOrNull { b -> b.any { label in it } }
+        check(block != null) {
+            "no single '$opener' block naming $label in SettingsScreen.kt — the secret field " +
+                "moved, and this lint must be taught where it went rather than left green over a " +
+                "block it never read"
+        }
+        check(block.any { it == "SettingTextField(" }) {
+            "the '$opener' block no longer calls SettingTextField — the secret is typed " +
+                "into something else now, and nothing here knows how that something masks it"
+        }
+        return block
     }
+
+    private fun settingTextFieldCalls(block: List<String>): List<List<String>> =
+        block.indices.filter { block[it] == "SettingTextField(" }.map { start ->
+            val end = (start + 1 until block.size).first { block[it] == ")" }
+            block.subList(start + 1, end + 1)
+        }
 
     /**
      * The body of `fun SettingTextField(`, and only it: the block is closed by counting braces, so a
@@ -218,6 +246,8 @@ class SecretFieldRevealWiringTest {
             "visualTransformation = if (masked) PasswordVisualTransformation() " +
                 "else VisualTransformation.None,"
         const val EXPECTED_IS_PASSWORD = "isPassword = true,"
+        const val SECRET_LABEL = "R.string.settings_api_token_label"
+        const val SMTP_SECRET_LABEL = "R.string.settings_smtp_password_label"
         val BANNED = listOf("rememberSaveable", "alpha", "enabled =")
 
         private const val SETTINGS_COMPONENTS_PATH =

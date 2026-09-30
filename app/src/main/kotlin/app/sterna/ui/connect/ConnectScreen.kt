@@ -146,6 +146,10 @@ fun ConnectScreen(
     // can never disagree about which provider is selected (#105).
     var preset by rememberSaveable(stateSaver = PresetFormSaver) { mutableStateOf(PresetForm.NONE) }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var showSmtpLogin by rememberSaveable { mutableStateOf(false) }
+    var smtpUsername by rememberSaveable { mutableStateOf("") }
+    var smtpPassword by rememberSaveable { mutableStateOf("") }
+    var smtpPasswordVisible by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     // At first run this screen sits above the navigation graph, so the guard against a second
     // browser hangs off the activity.
@@ -341,6 +345,7 @@ fun ConnectScreen(
 
     // Where the Connect button goes, in one place for every step that has one.
     fun submitConnect() {
+        val (sentSmtpUsername, sentSmtpPassword) = if (showSmtpLogin) smtpUsername to smtpPassword else "" to ""
         when (route) {
             ConnectRoute.OUTLOOK_OAUTH -> viewModel.connectOutlookOAuth(username, accountName)
             ConnectRoute.JMAP_TOKEN -> viewModel.connectToken(server, username, password, accountName)
@@ -350,6 +355,7 @@ fun ConnectScreen(
                 username, password, accountName,
                 preset.imapHost, preset.imapPort.toInt(), preset.imapSecurity,
                 preset.smtpHost, preset.smtpPort.toInt(), preset.smtpSecurity,
+                smtpUsername = sentSmtpUsername, smtpPassword = sentSmtpPassword,
             )
         }
     }
@@ -764,6 +770,54 @@ fun ConnectScreen(
                                 hostPlaceholder = stringResource(R.string.connect_smtp_host_placeholder),
                             )
                             SecurityChips(preset.smtpSecurity) { preset = preset.copy(smtpSecurity = it) }
+                            TextButton(
+                                onClick = { showSmtpLogin = !showSmtpLogin },
+                                contentPadding = PaddingValues(0.dp),
+                            ) {
+                                Text(
+                                    stringResource(
+                                        if (showSmtpLogin) R.string.connect_smtp_login_hide else R.string.connect_smtp_login_show,
+                                    ),
+                                )
+                            }
+                            if (showSmtpLogin) {
+                                OutlinedTextField(
+                                    value = smtpUsername,
+                                    onValueChange = { smtpUsername = it },
+                                    label = { Text(stringResource(R.string.connect_smtp_username)) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                OutlinedTextField(
+                                    value = smtpPassword,
+                                    onValueChange = { smtpPassword = it },
+                                    label = { Text(stringResource(R.string.connect_smtp_password)) },
+                                    singleLine = true,
+                                    visualTransformation = if (smtpPasswordVisible) {
+                                        VisualTransformation.None
+                                    } else {
+                                        PasswordVisualTransformation()
+                                    },
+                                    trailingIcon = {
+                                        IconButton(onClick = { smtpPasswordVisible = !smtpPasswordVisible }) {
+                                            Icon(
+                                                if (smtpPasswordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                                contentDescription = stringResource(
+                                                    if (smtpPasswordVisible) R.string.connect_password_hide else R.string.connect_password_show,
+                                                ),
+                                            )
+                                        }
+                                    },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Text(
+                                    stringResource(R.string.smtp_login_blank_help),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
 
@@ -1192,6 +1246,9 @@ private fun ImportSignInPanel(target: ConnectViewModel.SignInTarget, viewModel: 
     val account = target.account
     var password by rememberSaveable(account.id) { mutableStateOf("") }
     var passwordVisible by rememberSaveable(account.id) { mutableStateOf(false) }
+    var smtpPassword by rememberSaveable(account.id) { mutableStateOf("") }
+    val asksSmtpPassword = account.smtpUsername.isNotBlank() && account.authType != AuthType.OAUTH
+    val focusManager = LocalFocusManager.current
     Spacer(Modifier.height(8.dp))
     Text(
         stringResource(R.string.connect_import_signin_title),
@@ -1237,16 +1294,36 @@ private fun ImportSignInPanel(target: ConnectViewModel.SignInTarget, viewModel: 
                 )
             }
         },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { if (password.isNotBlank()) viewModel.submitImportPassword(password) }),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Password,
+            imeAction = if (asksSmtpPassword) ImeAction.Next else ImeAction.Done,
+        ),
+        keyboardActions = KeyboardActions(
+            onNext = { focusManager.moveFocus(FocusDirection.Down) },
+            onDone = { if (password.isNotBlank()) viewModel.submitImportPassword(password, smtpPassword) },
+        ),
         // Autofill hint so password managers (Bitwarden…) recognise and fill this field.
         modifier = Modifier.fillMaxWidth().autofill(listOf(AutofillType.Password)) { password = it },
     )
+    if (asksSmtpPassword) {
+        OutlinedTextField(
+            value = smtpPassword,
+            onValueChange = { smtpPassword = it },
+            label = { Text(stringResource(R.string.connect_smtp_password)) },
+            supportingText = { Text(stringResource(R.string.connect_import_smtp_password_help, account.smtpUsername)) },
+            singleLine = true,
+            enabled = !target.verifying,
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (password.isNotBlank()) viewModel.submitImportPassword(password, smtpPassword) }),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
     target.error?.let {
         Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     }
     Button(
-        onClick = { viewModel.submitImportPassword(password) },
+        onClick = { viewModel.submitImportPassword(password, smtpPassword) },
         enabled = password.isNotBlank() && !target.verifying,
         modifier = Modifier.fillMaxWidth(),
     ) {

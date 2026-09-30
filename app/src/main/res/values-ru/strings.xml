@@ -544,6 +544,14 @@
     <string name="settings_smtp_server_label">Сервер SMTP</string>
     <string name="settings_smtp_port_label">Порт SMTP</string>
     <string name="settings_smtp_security_title">Безопасность SMTP</string>
+    <string name="settings_smtp_username_label">Имя пользователя SMTP (необязательно)</string>
+    <string name="settings_smtp_password_label">Пароль SMTP (оставьте пустым, чтобы сохранить текущий)</string>
+    <string name="smtp_login_blank_help">Без имени пользователя SMTP отправка использует вход учётной записи. Без пароля SMTP используется пароль учётной записи.</string>
+    <string name="connect_smtp_login_show">Другой вход для отправки</string>
+    <string name="connect_smtp_login_hide">Скрыть вход для отправки</string>
+    <string name="connect_smtp_username">Имя пользователя SMTP (необязательно)</string>
+    <string name="connect_smtp_password">Пароль SMTP (необязательно)</string>
+    <string name="connect_import_smtp_password_help">Отправка выполняет вход как %1$s. Оставьте пустым, чтобы использовать пароль выше.</string>
     <string name="settings_upload_sent_title">Загружать отправленные письма</string>
     <string name="settings_upload_sent_subtitle">Сохраняет копию каждого отправленного письма в папке «Отправленные». Отключите, если ваш сервер уже сам сохраняет отправленные письма.</string>
     <string name="settings_server_url_label">URL сервера</string>

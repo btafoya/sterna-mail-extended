@@ -3,6 +3,7 @@ package app.sterna.core.data.mail
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.ConnectionSecurity
 import app.sterna.core.data.account.MailEndpoint
+import app.sterna.core.data.account.smtpLogin
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.EmailRecipients
 import app.sterna.core.data.db.MailboxEntity
@@ -361,8 +362,9 @@ open class ImapMailService(
         val smtp = credentials.smtp ?: error("Account has no SMTP server configured.")
         val token = tokenRefresher.freshAccessToken(credentials)
         val zone = outgoingDates.atSend()
+        val login = credentials.smtpLogin()
         smtpClient.send(
-            MailServerConfig(smtp.host, smtp.port, smtp.security.toMailSecurity(), credentials.username, credentials.password, token),
+            MailServerConfig(smtp.host, smtp.port, smtp.security.toMailSecurity(), login.username, login.password, token),
             message,
             zone = zone,
         )

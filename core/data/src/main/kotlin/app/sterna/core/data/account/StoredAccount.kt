@@ -61,6 +61,7 @@ data class StoredAccount(
     val smtpHost: String = "",
     val smtpPort: Int = 587,
     val smtpSecurity: ConnectionSecurity = ConnectionSecurity.STARTTLS,
+    val smtpUsername: String = "",
     // OpenPGP (via the OpenKeychain provider). The key id is not a secret.
     val pgpEnabled: Boolean = false,
     val pgpSignKeyId: Long = 0L,

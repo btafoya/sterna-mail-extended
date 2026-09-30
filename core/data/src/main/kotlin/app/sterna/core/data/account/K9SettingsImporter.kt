@@ -81,6 +81,10 @@ object K9SettingsImporter {
         val smtpSecurity = rawSmtpSecurity
             ?.let { connectionSecurity(it, fallback = ConnectionSecurity.STARTTLS) }
             ?: ConnectionSecurity.STARTTLS
+        val outgoingUsername = outgoing?.childText("username").orEmpty().trim()
+        val smtpUsername = outgoingUsername.takeIf {
+            authType == AuthType.BASIC && it.isNotEmpty() && !it.equals(username.trim(), ignoreCase = true)
+        }.orEmpty()
 
         return AccountOutcome.Imported(
             // Either end falling back tells the user the guess needs checking: the file did not
@@ -100,6 +104,7 @@ object K9SettingsImporter {
                 smtpHost = smtpHost,
                 smtpPort = smtpPort,
                 smtpSecurity = smtpSecurity,
+                smtpUsername = smtpUsername,
                 identities = parseIdentities(account),
             ),
         )

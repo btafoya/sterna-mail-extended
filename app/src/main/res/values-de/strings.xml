@@ -544,6 +544,14 @@
     <string name="settings_smtp_server_label">SMTP-Server</string>
     <string name="settings_smtp_port_label">SMTP-Port</string>
     <string name="settings_smtp_security_title">SMTP-Sicherheit</string>
+    <string name="settings_smtp_username_label">SMTP-Benutzername (optional)</string>
+    <string name="settings_smtp_password_label">SMTP-Passwort (leer lassen, um aktuelles beizubehalten)</string>
+    <string name="smtp_login_blank_help">Ohne SMTP-Benutzernamen wird mit der Anmeldung des Kontos gesendet. Ohne SMTP-Passwort gilt das Passwort des Kontos.</string>
+    <string name="connect_smtp_login_show">Andere Anmeldung zum Senden</string>
+    <string name="connect_smtp_login_hide">Anmeldung zum Senden ausblenden</string>
+    <string name="connect_smtp_username">SMTP-Benutzername (optional)</string>
+    <string name="connect_smtp_password">SMTP-Passwort (optional)</string>
+    <string name="connect_import_smtp_password_help">Gesendet wird angemeldet als %1$s. Leer lassen, um das Passwort oben zu verwenden.</string>
     <string name="settings_upload_sent_title">Gesendete Nachrichten hochladen</string>
     <string name="settings_upload_sent_subtitle">Legt eine Kopie jeder gesendeten Nachricht im Ordner „Gesendet“ ab. Schalte dies aus, wenn dein Server gesendete Nachrichten bereits selbst ablegt.</string>
     <string name="settings_server_url_label">Server-URL</string>

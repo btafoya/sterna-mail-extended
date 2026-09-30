@@ -1455,6 +1455,8 @@ private fun AccountDetailScreen(
     var smtpHost by remember(accountId) { mutableStateOf(account.smtpHost) }
     var smtpPort by remember(accountId) { mutableStateOf(account.smtpPort.toString()) }
     var smtpSecurity by remember(accountId) { mutableStateOf(account.smtpSecurity) }
+    var smtpUsername by remember(accountId) { mutableStateOf(account.smtpUsername) }
+    var smtpPassword by remember(accountId) { mutableStateOf("") }
     val cacheCount by viewModel.cacheCount.collectAsStateWithLifecycle()
     val connTest by viewModel.connTest.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -1497,6 +1499,8 @@ private fun AccountDetailScreen(
                 defaultIdentityId = fields.defaultIdentityId,
                 imapHost = imapHost, imapPort = imapPort.toIntOrNull(), imapSecurity = imapSecurity,
                 smtpHost = smtpHost, smtpPort = smtpPort.toIntOrNull(), smtpSecurity = smtpSecurity,
+                smtpUsername = if (account.authType == AuthType.OAUTH) null else smtpUsername,
+                smtpPassword = smtpPassword,
             )
         } else {
             viewModel.save(
@@ -1507,6 +1511,7 @@ private fun AccountDetailScreen(
             )
         }
         password = ""
+        smtpPassword = ""
         saved = true
         dirty = false
         onAccountsChanged()
@@ -1778,6 +1783,27 @@ private fun AccountDetailScreen(
                         onSelect = { smtpSecurity = it; markEdited() },
                     )
                     PlaintextSecurityWarning(smtpSecurity)
+                    if (account.authType != AuthType.OAUTH) {
+                        SettingTextField(
+                            label = stringResource(R.string.settings_smtp_username_label),
+                            value = smtpUsername,
+                            onValueChange = { smtpUsername = it; markEdited() },
+                            keyboardType = KeyboardType.Email,
+                        )
+                        SettingTextField(
+                            label = stringResource(R.string.settings_smtp_password_label),
+                            value = smtpPassword,
+                            onValueChange = { smtpPassword = it; markEdited() },
+                            keyboardType = KeyboardType.Password,
+                            isPassword = true,
+                        )
+                        Text(
+                            stringResource(R.string.smtp_login_blank_help),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                    }
                     // IMAP only: this switches off the APPEND into Sent for a server that files
                     // the copy itself. JMAP has no second write to cut. Written at the toggle.
                     SettingSwitch(

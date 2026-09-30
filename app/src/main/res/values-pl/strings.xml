@@ -544,6 +544,14 @@
     <string name="settings_smtp_server_label">Serwer SMTP</string>
     <string name="settings_smtp_port_label">Port SMTP</string>
     <string name="settings_smtp_security_title">Zabezpieczenia SMTP</string>
+    <string name="settings_smtp_username_label">Nazwa użytkownika SMTP (opcjonalnie)</string>
+    <string name="settings_smtp_password_label">Hasło SMTP (pozostaw puste, aby zachować bieżące)</string>
+    <string name="smtp_login_blank_help">Bez nazwy użytkownika SMTP wysyłanie używa logowania konta. Bez hasła SMTP używa hasła konta.</string>
+    <string name="connect_smtp_login_show">Inne logowanie do wysyłania</string>
+    <string name="connect_smtp_login_hide">Ukryj logowanie do wysyłania</string>
+    <string name="connect_smtp_username">Nazwa użytkownika SMTP (opcjonalnie)</string>
+    <string name="connect_smtp_password">Hasło SMTP (opcjonalnie)</string>
+    <string name="connect_import_smtp_password_help">Wysyłanie loguje się jako %1$s. Pozostaw puste, aby użyć hasła powyżej.</string>
     <string name="settings_upload_sent_title">Przesyłaj wysłane wiadomości</string>
     <string name="settings_upload_sent_subtitle">Zapisuje kopię każdej wysłanej wiadomości w folderze Wysłane. Wyłącz tę opcję, jeśli serwer sam zapisuje już wysłane wiadomości.</string>
     <string name="settings_server_url_label">Adres URL serwera</string>

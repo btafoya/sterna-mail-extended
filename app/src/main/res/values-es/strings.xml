@@ -544,6 +544,14 @@
     <string name="settings_smtp_server_label">Servidor SMTP</string>
     <string name="settings_smtp_port_label">Puerto SMTP</string>
     <string name="settings_smtp_security_title">Seguridad SMTP</string>
+    <string name="settings_smtp_username_label">Usuario SMTP (opcional)</string>
+    <string name="settings_smtp_password_label">Contraseña SMTP (deja en blanco para conservar la actual)</string>
+    <string name="smtp_login_blank_help">Sin usuario SMTP, el envío usa el inicio de sesión de la cuenta. Sin contraseña SMTP, usa la contraseña de la cuenta.</string>
+    <string name="connect_smtp_login_show">Otro inicio de sesión para enviar</string>
+    <string name="connect_smtp_login_hide">Ocultar inicio de sesión de envío</string>
+    <string name="connect_smtp_username">Usuario SMTP (opcional)</string>
+    <string name="connect_smtp_password">Contraseña SMTP (opcional)</string>
+    <string name="connect_import_smtp_password_help">El envío inicia sesión como %1$s. Déjalo en blanco para usar la contraseña de arriba.</string>
     <string name="settings_upload_sent_title">Subir los mensajes enviados</string>
     <string name="settings_upload_sent_subtitle">Guarda una copia de cada mensaje que envías en la carpeta Enviados. Desactiva esta opción si tu servidor ya guarda por su cuenta los mensajes enviados.</string>
     <string name="settings_server_url_label">URL del servidor</string>

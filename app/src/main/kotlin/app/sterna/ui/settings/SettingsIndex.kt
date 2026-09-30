@@ -4,6 +4,7 @@ import app.sterna.R
 import app.sterna.ui.settings.AnchorKind.SECTION
 import app.sterna.ui.settings.SettingCondition.API_TOKEN
 import app.sterna.ui.settings.SettingCondition.IMAP_ONLY
+import app.sterna.ui.settings.SettingCondition.IMAP_PASSWORD
 import app.sterna.ui.settings.SettingCondition.JMAP_ONLY
 import app.sterna.ui.settings.SettingCondition.MATERIAL_YOU
 import app.sterna.ui.settings.SettingCondition.PASSWORD
@@ -220,6 +221,8 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "smtp_security", ACCOUNT, R.string.settings_smtp_security_title,
         options = SECURITY_OPTIONS, condition = IMAP_ONLY,
     ),
+    SettingEntry("smtp_username", ACCOUNT, R.string.settings_smtp_username_label, condition = IMAP_PASSWORD),
+    SettingEntry("smtp_password", ACCOUNT, R.string.settings_smtp_password_label, condition = IMAP_PASSWORD),
     SettingEntry(
         "upload_sent", ACCOUNT, R.string.settings_upload_sent_title, R.string.settings_upload_sent_subtitle,
         condition = IMAP_ONLY,

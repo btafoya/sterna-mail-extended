@@ -114,6 +114,18 @@ class SettingsSearchTest {
         assertTrue("username" in keys)
     }
 
+    @Test fun `the SMTP login is offered on an IMAP password account only`() {
+        val smtpLogin = listOf("smtp_username", "smtp_password")
+        assertTrue(offered(imapAccount()).containsAll(smtpLogin))
+        assertEquals(
+            "an OAuth account's screen hides both SMTP login fields: a result would open on nothing",
+            emptyList<String>(),
+            smtpLogin.filter { it in offered(imapAccount(AuthType.OAUTH)) },
+        )
+        assertEquals(emptyList<String>(), smtpLogin.filter { it in offered(jmapAccount()) })
+        assertEquals(emptyList<String>(), smtpLogin.filter { it in offered(jmapAccount(AuthType.API_TOKEN)) })
+    }
+
     @Test fun `an API-token account offers the token and not a password`() {
         val keys = offered(jmapAccount(AuthType.API_TOKEN))
         assertTrue("api_token" in keys)

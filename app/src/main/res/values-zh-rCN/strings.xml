@@ -711,6 +711,14 @@
     <string name="settings_smtp_server_label">SMTP 服务器</string>
     <string name="settings_smtp_port_label">SMTP 端口</string>
     <string name="settings_smtp_security_title">SMTP 安全</string>
+    <string name="settings_smtp_username_label">SMTP 用户名 (可选)</string>
+    <string name="settings_smtp_password_label">SMTP 密码 (留空则保持当前密码)</string>
+    <string name="smtp_login_blank_help">未填 SMTP 用户名时，发送使用账户的登录信息。未填 SMTP 密码时，使用账户的密码。</string>
+    <string name="connect_smtp_login_show">使用不同的发送登录</string>
+    <string name="connect_smtp_login_hide">隐藏发送登录</string>
+    <string name="connect_smtp_username">SMTP 用户名 (可选)</string>
+    <string name="connect_smtp_password">SMTP 密码 (可选)</string>
+    <string name="connect_import_smtp_password_help">发送时以 %1$s 登录。留空则使用上方的密码。</string>
     <string name="settings_upload_sent_title">上传已发送邮件</string>
     <string name="settings_upload_sent_subtitle">将您发送的每封邮件在“已发送”文件夹中保存一份副本。如果您的服务器自行归档已发送的邮件，可关闭此功能。</string>
     <string name="settings_server_url_label">服务器 URL</string>

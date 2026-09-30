@@ -544,6 +544,14 @@
     <string name="settings_smtp_server_label">Server SMTP</string>
     <string name="settings_smtp_port_label">Porta SMTP</string>
     <string name="settings_smtp_security_title">Sicurezza SMTP</string>
+    <string name="settings_smtp_username_label">Nome utente SMTP (facoltativo)</string>
+    <string name="settings_smtp_password_label">Password SMTP (lascia vuoto per mantenere quella attuale)</string>
+    <string name="smtp_login_blank_help">Senza nome utente SMTP, l\'invio usa l\'accesso dell\'account. Senza password SMTP, usa la password dell\'account.</string>
+    <string name="connect_smtp_login_show">Accesso diverso per l\'invio</string>
+    <string name="connect_smtp_login_hide">Nascondi accesso per l\'invio</string>
+    <string name="connect_smtp_username">Nome utente SMTP (facoltativo)</string>
+    <string name="connect_smtp_password">Password SMTP (facoltativa)</string>
+    <string name="connect_import_smtp_password_help">L\'invio accede come %1$s. Lascia vuoto per usare la password qui sopra.</string>
     <string name="settings_upload_sent_title">Caricare i messaggi inviati</string>
     <string name="settings_upload_sent_subtitle">Salva una copia di ogni messaggio inviato nella cartella Inviati. Disattiva questa opzione se il tuo server archivia già da solo i messaggi inviati.</string>
     <string name="settings_server_url_label">URL del server</string>

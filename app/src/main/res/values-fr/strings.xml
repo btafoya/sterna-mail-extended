@@ -544,6 +544,14 @@
     <string name="settings_smtp_server_label">Serveur SMTP</string>
     <string name="settings_smtp_port_label">Port SMTP</string>
     <string name="settings_smtp_security_title">Sécurité SMTP</string>
+    <string name="settings_smtp_username_label">Identifiant SMTP (facultatif)</string>
+    <string name="settings_smtp_password_label">Mot de passe SMTP (laisser vide pour conserver l\'actuel)</string>
+    <string name="smtp_login_blank_help">Sans identifiant SMTP, l\'envoi utilise l\'identifiant du compte. Sans mot de passe SMTP, il utilise le mot de passe du compte.</string>
+    <string name="connect_smtp_login_show">Identifiant d\'envoi différent</string>
+    <string name="connect_smtp_login_hide">Masquer l\'identifiant d\'envoi</string>
+    <string name="connect_smtp_username">Identifiant SMTP (facultatif)</string>
+    <string name="connect_smtp_password">Mot de passe SMTP (facultatif)</string>
+    <string name="connect_import_smtp_password_help">L\'envoi se connecte en tant que %1$s. Laisser vide pour utiliser le mot de passe ci-dessus.</string>
     <string name="settings_upload_sent_title">Téléverser les messages envoyés</string>
     <string name="settings_upload_sent_subtitle">Enregistre une copie de chaque message envoyé dans le dossier Envoyés. Désactivez cette option si votre serveur enregistre déjà lui-même les messages envoyés.</string>
     <string name="settings_server_url_label">URL du serveur</string>

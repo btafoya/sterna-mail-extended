@@ -116,6 +116,64 @@ class K9SettingsImporterTest {
         assertEquals("future@example.com", result.accounts.single().username)
     }
 
+    private fun k9s(incomingUser: String, outgoingUserElement: String, auth: String = "PLAIN") = """
+        <k9settings version="110" format="1">
+          <accounts>
+            <account uuid="00000000-0000-0000-0000-000000000240">
+              <name>Split login</name>
+              <incoming-server type="IMAP">
+                <host>imap.migadu.example</host>
+                <port>993</port>
+                <connection-security>SSL_TLS_REQUIRED</connection-security>
+                <authentication-type>$auth</authentication-type>
+                <username>$incomingUser</username>
+                <password>imap-secret</password>
+              </incoming-server>
+              <outgoing-server type="SMTP">
+                <host>smtp.origin.example</host>
+                <port>587</port>
+                <connection-security>STARTTLS_REQUIRED</connection-security>
+                <authentication-type>$auth</authentication-type>
+                $outgoingUserElement
+                <password>smtp-secret</password>
+              </outgoing-server>
+            </account>
+          </accounts>
+        </k9settings>
+    """.trimIndent()
+
+    private fun single(xml: String): StoredAccount =
+        xml.byteInputStream().use { K9SettingsImporter.parse(it) }.accounts.single()
+
+    @Test fun outgoingUsername_differentFromIncoming_isKeptAsTheSmtpLogin() {
+        val account = single(k9s("reader@migadu.example", "<username>sender@origin.example</username>"))
+        assertEquals(
+            "K-9 sent with this login: dropping it makes every send go out with the IMAP login (#240)",
+            "sender@origin.example",
+            account.smtpUsername,
+        )
+    }
+
+    @Test fun outgoingUsername_sameAsIncoming_orAbsent_leavesTheSmtpLoginBlank() {
+        assertEquals("", single(k9s("reader@migadu.example", "<username>reader@migadu.example</username>")).smtpUsername)
+        assertEquals("", single(k9s("reader@migadu.example", "<username>Reader@Migadu.example</username>")).smtpUsername)
+        assertEquals("", single(k9s("reader@migadu.example", "<username> </username>")).smtpUsername)
+        assertEquals("", single(k9s("reader@migadu.example", "")).smtpUsername)
+    }
+
+    @Test fun outgoingUsername_underOAuth_isIgnored() {
+        assertEquals(
+            "",
+            single(k9s("reader@outlook.example", "<username>other@outlook.example</username>", auth = "XOAUTH2")).smtpUsername,
+        )
+    }
+
+    @Test fun anImportCarriesNoPasswordOfEitherServer() {
+        val account = single(k9s("reader@migadu.example", "<username>sender@origin.example</username>"))
+        val encoded = kotlinx.serialization.json.Json.encodeToString(StoredAccount.serializer(), account)
+        assertTrue("an imported record holds a password from the file: $encoded", "secret" !in encoded)
+    }
+
     @Test fun nonK9sRoot_throws() {
         assertThrows(IllegalArgumentException::class.java) {
             "<foo/>".byteInputStream().use { K9SettingsImporter.parse(it) }
