@@ -14,37 +14,50 @@ import java.io.File
  * What it does not cover, the holes of `CONTRIBUTING.md` that apply here:
  * - A rule about the arguments says nothing about the expression around the call: the
  *   `onSwitchAccount(account.id)` pinned in the menu could sit behind a condition that is never true.
- * - Textual order is not execution order. The state is pinned just above `MediumTopAppBar(`, which
- *   says where it is declared, not that no other code resets it.
+ * - Textual order is not execution order: the preamble is pinned just above the bar's `TopAppBar(`,
+ *   which says where `titleSwitchTargets` is declared, not that nothing reassigns what it reads.
  * - Nothing here holds a value at the point the composable collects it: `titleSwitchTargets` is
  *   pinned as written, and `accounts` or `currentAccountId` could still be bound to something else.
  *
- * - Which copy is visible is decided from what `MediumTopAppBar` hands its title slot: `titleLarge`
- *   as `LocalTextStyle` in the collapsed row, `headlineSmall` in the expanded one, and the `0.5f`
- *   fraction at which it hides one row's semantics for the other. Both are read in the Material 3
- *   dependency, pinned nowhere here: a Material 3 upgrade or a theme giving both styles one font
- *   size would leave every rule green and the target on the wrong copy, or on both.
+ * The single copy of the title rests on the bar being a fixed `TopAppBar`, which composes its title
+ * slot once. A collapsing bar composes it once per row, and this switcher would then open its menu
+ * on both copies, the hidden one included; the rule on the bar's name is what stands for that.
  *
- * That a tap lands on the visible copy only, and opens its menu there, is only ever seen on a device.
+ * That a tap opens the menu under the title is only ever seen on a device.
  */
 class AccountSwitchTitleWiringLintTest {
 
-    @Test fun `the menu state and the other accounts are held above the top bar, not in its title`() {
+    @Test fun `the other accounts are listed right above the fixed top bar`() {
         val text = codeText(INBOX_SCREEN)
         assertTrue(
-            "InboxScreen.kt must declare, right before MediumTopAppBar(, the menu state and the " +
-                "list of accounts it offers, exactly as:\n$EXPECTED_PREAMBLE\nMediumTopAppBar " +
-                "composes its title slot twice, once per row, so a remember inside the slot or " +
-                "inside AccountSwitchTitle would give each copy its own state. The list is empty " +
-                "in the unified view, where there is no current account to switch away from, and " +
-                "it leaves the current account out, in the order of `accounts`.",
+            "InboxScreen.kt must declare, right before the list's TopAppBar(, the accounts the " +
+                "title offers, exactly as:\n$EXPECTED_PREAMBLE\nThe list is empty in the unified " +
+                "view and in the unread view of every account, where there is no current account " +
+                "to switch away from, and it leaves the current account out, in the order of `accounts`.",
             text.contains(EXPECTED_PREAMBLE),
         )
-        val title = titleBlock(text)
+        val bar = callAt(text, barStart(text))
         assertFalse(
-            "the title slot must not hold its own remember: its two copies would disagree. " +
-                "Title block was:\n$title",
-            Regex("""\bremember\w*\s*[({]""").containsMatchIn(title),
+            "the list's top bar is fixed: a scroll behaviour would make it a collapsing bar again. " +
+                "Call was:\n$bar",
+            bar.contains("scrollBehavior"),
+        )
+    }
+
+    @Test fun `the fixed bar grows with the title's two lines`() {
+        val bar = callAt(codeText(INBOX_SCREEN), barStart(codeText(INBOX_SCREEN)))
+        val hits = Regex("""\bexpandedHeight\s*=""").findAll(bar).toList()
+        assertEquals(
+            "the list's top bar must set expandedHeight exactly once, or the account line under the " +
+                "folder name is clipped at large font sizes. Call was:\n$bar",
+            1,
+            hits.size,
+        )
+        assertTrue(
+            "the list's top bar must take its height from inboxBarHeight, fed the two title " +
+                "styles' line heights and the current density, which carries the font scale:\n" +
+                "$EXPECTED_BAR_HEIGHT\nCall was:\n$bar",
+            bar.contains(EXPECTED_BAR_HEIGHT),
         )
     }
 
@@ -53,10 +66,15 @@ class AccountSwitchTitleWiringLintTest {
         val hits = Regex("""\bAccountSwitchTitle\s*\(""").findAll(title).toList()
         assertEquals("the title slot must call AccountSwitchTitle exactly once. Title block was:\n$title", 1, hits.size)
         assertEquals(
-            "AccountSwitchTitle must be handed the hoisted state and the drawer's own switch " +
-                "callback, nothing computed in the slot. Title block was:\n$title",
+            "AccountSwitchTitle must be handed the accounts listed above the bar and the drawer's " +
+                "own switch callback, nothing else. Title block was:\n$title",
             EXPECTED_CALL,
             callAt(title, hits.single().range.first),
+        )
+        assertFalse(
+            "the title slot must not hold its own remember: the menu's state belongs to " +
+                "AccountSwitchTitle. Title block was:\n$title",
+            Regex("""\bremember\w*\s*[({]""").containsMatchIn(title),
         )
         assertTrue(
             "the chevron after the account name must be drawn under the same list as the tap " +
@@ -82,7 +100,7 @@ class AccountSwitchTitleWiringLintTest {
         )
         assertTrue(
             "the choice must close the menu right after the switch. Source was:\n$text",
-            text.contains("onClick = { onSwitchAccount(account.id) onOpenInChange(null) }"),
+            text.contains("onClick = { onSwitchAccount(account.id) open = false }"),
         )
         assertFalse(
             "AccountSwitchTitle must not re-point the inbox itself: InboxScreen already follows " +
@@ -93,62 +111,65 @@ class AccountSwitchTitleWiringLintTest {
             "AccountSwitchTitle has no drawer to close: it lives in the top bar.",
             text.contains("drawerState"),
         )
-        assertFalse(
-            "AccountSwitchTitle must not hold its own open state: the title slot is composed " +
-                "twice and each copy would open its own menu. Source was:\n$text",
-            text.contains("mutableStateOf") || text.contains("rememberSaveable"),
-        )
-        assertEquals(
-            "the only remember in AccountSwitchTitle is the derived visibility of its copy. Source was:\n$text",
-            listOf("remember(inTopRow)"),
-            Regex("""\bremember\w*\s*[({]""").findAll(text).map { callAt(text, it.range.first) }.toList(),
-        )
         assertTrue(
             "the tap target must say what it does to a screen reader, with the drawer chevron's " +
-                "own label, and read as one button, on the visible copy only. Source was:\n$text",
+                "own label, read as one button, and open the menu. Source was:\n$text",
             text.contains(EXPECTED_TARGET),
         )
         assertEquals("AccountSwitchTitle must have exactly one clickable. Source was:\n$text", 1, Regex("""\.clickable\s*\(""").findAll(text).count())
     }
 
-    @Test fun `only the copy of the title on screen is a tap target`() {
+    @Test fun `the menu opens on its own state, never on the bar's scroll`() {
         val text = codeText(SWITCH_TITLE)
-        assertTrue(
-            "each copy must tell its row from the style MediumTopAppBar provides it: titleLarge " +
-                "in the collapsed row, headlineSmall in the expanded one. Source was:\n$text",
-            text.contains(EXPECTED_ROW),
+        assertEquals(
+            "the only remember in AccountSwitchTitle is its menu's open state, held right after " +
+                "the guard so an account with nowhere to switch holds none. Source was:\n$text",
+            listOf("remember { mutableStateOf(false) }"),
+            Regex("""\bremember\w*\s*[({]""").findAll(text).map { balancedFrom(text, it.range.first) }.toList(),
         )
         assertTrue(
-            "the collapsed row is shown from a fraction of 0.5 up, the expanded row below it, the " +
-                "threshold at which Material 3 swaps the rows' semantics; derivedStateOf so a " +
-                "scroll recomposes only when it crosses. Source was:\n$text",
-            text.contains(EXPECTED_SHOWN),
+            "the open state is declared right after the guard. Source was:\n$text",
+            text.contains("$EXPECTED_GUARD $EXPECTED_STATE"),
         )
+        for (leftover in listOf("collapsedFraction", "LocalTextStyle", "currentCompositeKeyHash", "openIn")) {
+            assertFalse(
+                "AccountSwitchTitle must not read '$leftover': on a fixed bar the title is composed " +
+                    "once, and a copy that waits for a collapse fraction or a row style to know " +
+                    "it is on screen never becomes a tap target, which leaves the menu dead " +
+                    "without an error. Source was:\n$text",
+                text.contains(leftover),
+            )
+        }
         val menus = Regex("""\bDropdownMenu\s*\(""").findAll(text).toList()
         assertEquals("AccountSwitchTitle must draw exactly one DropdownMenu. Source was:\n$text", 1, menus.size)
         assertEquals(
-            "the menu opens on the visible copy only, and only on the copy that was tapped. Source was:\n$text",
+            "the menu is shown on the local state alone, and a dismissal closes it. Source was:\n$text",
             EXPECTED_MENU,
             callAt(text, menus.single().range.first),
-        )
-        val bar = codeText(INBOX_SCREEN).let { screen ->
-            callAt(screen, Regex("""\bMediumTopAppBar\s*\(""").find(screen)!!.range.first)
-        }
-        assertTrue(
-            "the fraction handed to AccountSwitchTitle must come from the scroll behaviour that " +
-                "drives this very bar. Call was:\n$bar",
-            bar.contains("scrollBehavior = scrollBehavior,"),
         )
     }
 
     // -- reading the source ----------------------------------------------------------------------
 
-    /** The `MediumTopAppBar` call up to the brace that balances its first `{`: its `title` slot. */
-    private fun titleBlock(text: String): String {
-        val hits = Regex("""\bMediumTopAppBar\s*\(""").findAll(text).toList()
-        check(hits.size == 1) { "InboxScreen.kt is expected to call MediumTopAppBar exactly once, found ${hits.size}" }
-        return balancedFrom(text, hits.single().range.first)
+    /**
+     * Where the list's top bar starts: the first `…TopAppBar(` after the one declaration of
+     * `titleSwitchTargets`, required to be the fixed `TopAppBar`. Its name is no anchor, the search
+     * bar is a `TopAppBar` too.
+     */
+    private fun barStart(text: String): Int {
+        val anchors = Regex("""\bval titleSwitchTargets\b""").findAll(text).toList()
+        check(anchors.size == 1) { "InboxScreen.kt is expected to declare titleSwitchTargets exactly once, found ${anchors.size}" }
+        val bar = Regex("""\b(\w*TopAppBar)\s*\(""").find(text, anchors.single().range.last)
+        check(bar != null) { "no top bar follows titleSwitchTargets in InboxScreen.kt" }
+        check(bar.groupValues[1] == "TopAppBar") {
+            "the list's top bar must be the fixed TopAppBar, found ${bar.groupValues[1]}: a collapsing " +
+                "bar composes its title once per row"
+        }
+        return bar.range.first
     }
+
+    /** The list's top bar up to the brace that balances its first `{`: its `title` slot. */
+    private fun titleBlock(text: String): String = balancedFrom(text, barStart(text))
 
     /** The whole call starting at [from], up to the `)` that balances its first `(`. */
     private fun callAt(text: String, from: Int): String {
@@ -226,35 +247,33 @@ class AccountSwitchTitleWiringLintTest {
 
     companion object {
         private const val EXPECTED_PREAMBLE =
-            "var accountMenuOpenIn by remember { mutableStateOf<Int?>(null) } " +
-                "val titleSwitchTargets = if (!ui.unified && !ui.unreadAllAccounts) accounts.filter { it.id != currentAccountId } else emptyList() " +
-                "MediumTopAppBar("
+            "val titleSwitchTargets = if (!ui.unified && !ui.unreadAllAccounts) accounts.filter { it.id != currentAccountId } else emptyList() " +
+                "TopAppBar("
 
         private const val EXPECTED_CALL =
-            "AccountSwitchTitle( others = titleSwitchTargets, openIn = accountMenuOpenIn, " +
-                "onOpenInChange = { accountMenuOpenIn = it }, onSwitchAccount = onSwitchAccount, " +
-                "collapsedFraction = { scrollBehavior.state.collapsedFraction }, )"
+            "AccountSwitchTitle( others = titleSwitchTargets, onSwitchAccount = onSwitchAccount, )"
 
         private const val EXPECTED_CHEVRON =
             "if (titleSwitchTargets.isNotEmpty()) { Icon( Icons.Filled.ExpandMore, contentDescription = null,"
 
+        private const val EXPECTED_BAR_HEIGHT =
+            "expandedHeight = inboxBarHeight( titleLineHeight = MaterialTheme.typography.titleMedium.lineHeight, " +
+                "subtitleLineHeight = MaterialTheme.typography.labelMedium.lineHeight, " +
+                "density = LocalDensity.current, ),"
+
         private const val EXPECTED_GUARD =
             "if (others.isEmpty()) { content() return }"
 
+        private const val EXPECTED_STATE =
+            "var open by remember { mutableStateOf(false) }"
+
         private const val EXPECTED_TARGET =
-            "modifier = if (shown) { Modifier " +
-                ".clickable(onClickLabel = stringResource(R.string.inbox_switch_account)) { onOpenInChange(here) } " +
-                ".semantics(mergeDescendants = true) { role = Role.Button } } else { Modifier },"
-
-        private const val EXPECTED_ROW =
-            "val inTopRow = LocalTextStyle.current.fontSize == MaterialTheme.typography.titleLarge.fontSize"
-
-        private const val EXPECTED_SHOWN =
-            "val shown by remember(inTopRow) { derivedStateOf { " +
-                "if (inTopRow) collapsedFraction() >= 0.5f else collapsedFraction() < 0.5f } }"
+            "modifier = Modifier " +
+                ".clickable(onClickLabel = stringResource(R.string.inbox_switch_account)) { open = true } " +
+                ".semantics(mergeDescendants = true) { role = Role.Button },"
 
         private const val EXPECTED_MENU =
-            "DropdownMenu(expanded = shown && openIn == here, onDismissRequest = { onOpenInChange(null) })"
+            "DropdownMenu(expanded = open, onDismissRequest = { open = false })"
 
         private const val INBOX_DIR = "app/src/main/kotlin/app/sterna/ui/inbox"
 

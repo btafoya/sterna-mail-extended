@@ -97,7 +97,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.PermanentDrawerSheet
@@ -115,7 +114,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
@@ -165,7 +163,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -601,9 +598,6 @@ fun InboxScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val listState = rememberLazyListState()
-    // exitUntilCollapsed pairs with the MediumTopAppBar: the folder + account get a
-    // full-width second line at the top, then collapse into a compact bar on scroll.
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
 
     // When an Undo restores a message that belongs at the top, wait for the row to repopulate and
@@ -681,7 +675,6 @@ fun InboxScreen(
         // drawer's envelope. The Scaffold block below is deliberately not re-indented.
         ListDetailPanes(panes, detail) {
         Scaffold(
-            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             // imePadding: deleting from search happens with the keyboard open, which would
             // otherwise cover the Undo snackbar for its whole window (zero inset when closed).
             snackbarHost = { SnackbarHost(snackbarHostState, Modifier.imePadding()) },
@@ -769,16 +762,12 @@ fun InboxScreen(
                         },
                     )
                 } else {
-                    var accountMenuOpenIn by remember { mutableStateOf<Int?>(null) }
                     val titleSwitchTargets = if (!ui.unified && !ui.unreadAllAccounts) accounts.filter { it.id != currentAccountId } else emptyList()
-                    MediumTopAppBar(
+                    TopAppBar(
                         title = {
                             AccountSwitchTitle(
                                 others = titleSwitchTargets,
-                                openIn = accountMenuOpenIn,
-                                onOpenInChange = { accountMenuOpenIn = it },
                                 onSwitchAccount = onSwitchAccount,
-                                collapsedFraction = { scrollBehavior.state.collapsedFraction },
                             ) {
                                 Column {
                                     // Both titles are resolved here, not in the ViewModel: a ViewModel
@@ -795,8 +784,8 @@ fun InboxScreen(
                                         } else {
                                             mailboxDisplayName(selectedRole, ui.mailboxName)
                                         },
-                                        // titleMedium (not titleLarge) so the folder + account
-                                        // both fit the Medium bar's title area at large font scales.
+                                        // The bar's `expandedHeight` is sized from this style's
+                                        // and labelMedium's line heights: change one, change both.
                                         style = MaterialTheme.typography.titleMedium,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
@@ -1010,7 +999,11 @@ fun InboxScreen(
                                 }
                             }
                         },
-                        scrollBehavior = scrollBehavior,
+                        expandedHeight = inboxBarHeight(
+                            titleLineHeight = MaterialTheme.typography.titleMedium.lineHeight,
+                            subtitleLineHeight = MaterialTheme.typography.labelMedium.lineHeight,
+                            density = LocalDensity.current,
+                        ),
                     )
                 }
             },

@@ -272,15 +272,20 @@ class UnreadViewWiringLintTest {
         return hits.map { balancedFrom(text, it.range.last) }
     }
 
-    /** The `actions = { … }` lambda of the browse toolbar (never the search bar's). */
+    /** The `actions = { … }` lambda of the browse toolbar (never the search bar's `TopAppBar`). */
     private fun toolbarActions(): String {
         val text = codeText(INBOX_SCREEN)
-        val bars = Regex("""\bMediumTopAppBar\s*\(""").findAll(text).toList()
-        check(bars.size == 1) {
-            "InboxScreen.kt is expected to call MediumTopAppBar exactly once — the browse toolbar, " +
-                "the one carrying the unread funnel. Found ${bars.size}."
+        val anchors = Regex("""\bval titleSwitchTargets\b""").findAll(text).toList()
+        check(anchors.size == 1) {
+            "InboxScreen.kt is expected to declare titleSwitchTargets exactly once, right above the " +
+                "browse toolbar, the one carrying the unread funnel. Found ${anchors.size}."
         }
-        val bar = callAt(text, bars.single().range.first)
+        val found = Regex("""\b(\w*TopAppBar)\s*\(""").find(text, anchors.single().range.last)
+        check(found != null && found.groupValues[1] == "TopAppBar") {
+            "the browse toolbar, after titleSwitchTargets, is expected to be the fixed TopAppBar. " +
+                "Found ${found?.groupValues?.get(1)}."
+        }
+        val bar = callAt(text, found.range.first)
         val at = bar.indexOf("actions =")
         check(at >= 0) { "the browse toolbar has no actions block:\n$bar" }
         return balancedFrom(bar, at)

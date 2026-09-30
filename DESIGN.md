@@ -54,7 +54,7 @@ Three principles:
 
 | Component | Treatment |
 |---|---|
-| Top bar | `MediumTopAppBar` that collapses on scroll; an unread-only filter (a dot on it while any list filter is on), sort, search and an overflow menu as actions, the menu holding the starred-only and has-attachment filters; hamburger opens the folder drawer below 1200 dp of window width; from 1200 dp there is no hamburger, the drawer is permanent. Settings sits at the foot of that drawer rather than in the bar. |
+| Top bar | a fixed `TopAppBar` titled with the folder, and under it the account; an unread-only filter (a dot on it while any list filter is on), sort, search and an overflow menu as actions, the menu holding the starred-only and has-attachment filters; hamburger opens the folder drawer below 1200 dp of window width; from 1200 dp there is no hamburger, the drawer is permanent. Settings sits at the foot of that drawer rather than in the bar. |
 | Message row | monogram (a setting) · sender + time · subject · preview (0 to 5 lines, a setting) · an account chip, tinted with the account's own colour when one is set, where rows come from several accounts (unified inbox, search) · paperclip and favourite star at the end. **Unread is shown by weight, never by a status dot**: sender, time and subject go bold, and the row also takes `surfaceContainerHighest` unless the reader turns that background off, because bold alone read too faint in the dark scheme. |
 | Folder drawer | `ModalNavigationDrawer` (the M3 drawer I kept) below 1200 dp of window width, `PermanentNavigationDrawer` with the same sheet from 1200 dp: account header, folder tree, selected item in `secondaryContainer`. From 600 dp the list and the open message share the window side by side (list 40%, never under 280 dp); the open row takes `primaryContainer`. |
 | Compose FAB | `FloatingActionButton` (extended) that shrinks to icon-only on scroll. |
@@ -78,7 +78,7 @@ bounce) so it stays alive yet sober.
 | List → reading pane (600 dp and up) | none: the message replaces the pane's content with no fade, because a fade over a live WebView is the crash window the sentinel guards (#10) | instant |
 | Row appearance | `animateItem()` on `LazyColumn` | default, subtle |
 | Swipe actions | `SwipeableEmailRow`, action icon fades in, and out with the row | tracks the finger |
-| Top bar / FAB collapse | `exitUntilCollapsedScrollBehavior`, FAB `expanded` | native |
+| FAB collapse | FAB `expanded` | native |
 | Delete / archive by swipe | the row flies off the way the finger sent it and leaves the list without waiting on the server; a refused write flies it back | 300ms, `FastOutSlowIn` |
 | Pull-to-refresh | `PullToRefreshBox`, `TernRefreshIndicator` settles with no bounce | native, short |
 
@@ -158,8 +158,7 @@ The full kit lives in `SettingsComponents.kt`; this table lists only the main pi
   motion.
 - **Detail screens:** sectioned lists; section headers in the single accent
   (`labelLarge`); separation by whitespace, not boxes; `LargeTopAppBar` that
-  collapses on scroll (the inbox collapses the same way, from a
-  `MediumTopAppBar`).
+  collapses on scroll.
 - Controls use the accent colour; single-choice settings use an M3 dialog or
   bottom sheet.
 - Motion follows the table above: ≤ 250ms, `FastOutSlowIn`, damped (no overshoot).

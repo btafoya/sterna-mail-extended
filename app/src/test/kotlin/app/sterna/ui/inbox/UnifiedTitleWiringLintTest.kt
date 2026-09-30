@@ -14,7 +14,7 @@ class UnifiedTitleWiringLintTest {
         val block = titleBlock()
         val texts = Regex("""\bText\s*\(""").findAll(block).toList()
         assertEquals(
-            "The MediumTopAppBar title Column is expected to hold exactly two Text calls — the " +
+            "The top bar's title Column is expected to hold exactly two Text calls — the " +
                 "title, then the account subtitle — so 'the first one' names the title without " +
                 "ambiguity. Found ${texts.size} in:\n$block",
             2, texts.size,
@@ -76,7 +76,7 @@ class UnifiedTitleWiringLintTest {
         val block = titleBlock()
         val calls = Regex("""\bmailboxDisplayName\s*\(""").findAll(block).toList()
         assertEquals(
-            "The MediumTopAppBar title is expected to call mailboxDisplayName exactly once — the " +
+            "The top bar's title is expected to call mailboxDisplayName exactly once — the " +
                 "arm taken when a mailbox IS selected. Zero means the fix for the unified title was " +
                 "applied to every case, which renders Sent / Trash / Drafts in raw English. Found " +
                 "${calls.size} in:\n$block",
@@ -95,17 +95,23 @@ class UnifiedTitleWiringLintTest {
     // -- reading the source ----------------------------------------------------------------------
 
     /**
-     * The `MediumTopAppBar` call up to the brace that balances its first `{`, i.e. its `title`
+     * The first bar after `titleSwitchTargets`, up to the brace that balances its `title` slot.
      */
     private fun titleBlock(): String {
         val text = codeText(INBOX_SCREEN)
-        val hits = Regex("""\bMediumTopAppBar\s*\(""").findAll(text).toList()
-        check(hits.size == 1) {
-            "InboxScreen.kt is expected to call MediumTopAppBar exactly once — the inbox's own top " +
-                "bar, the one that carries the title this test guards. Found ${hits.size}: was it " +
-                "renamed, or was a second one added that would have to be told apart here?"
+        val anchors = Regex("""\bval titleSwitchTargets\b""").findAll(text).toList()
+        check(anchors.size == 1) {
+            "InboxScreen.kt is expected to declare titleSwitchTargets exactly once, right above the " +
+                "inbox's own top bar, the one that carries the title this test guards. Found " +
+                "${anchors.size}: was it renamed, or was a second one added that would have to be " +
+                "told apart here?"
         }
-        return balancedFrom(text, hits.single().range.first)
+        val bar = Regex("""\b(\w*TopAppBar)\s*\(""").find(text, anchors.single().range.last)
+        check(bar != null && bar.groupValues[1] == "TopAppBar") {
+            "the inbox's own top bar, after titleSwitchTargets, is expected to be the fixed " +
+                "TopAppBar. Found ${bar?.groupValues?.get(1)}."
+        }
+        return balancedFrom(text, bar.range.first)
     }
 
     /**
