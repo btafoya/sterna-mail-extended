@@ -81,6 +81,8 @@
     <string name="inbox_move_to_folder">Sposta nella cartella</string>
     <string name="inbox_filter_folders">Filtra cartelle</string>
     <string name="inbox_no_folder_matches">Nessuna cartella corrisponde</string>
+    <string name="inbox_move_suggestions">Suggerimenti</string>
+    <string name="inbox_move_all_folders">Tutte le cartelle</string>
     <string name="inbox_cancel">Annulla</string>
     <string name="inbox_new_folder">Nuova cartella</string>
     <string name="inbox_folder_name">Nome cartella</string>

@@ -1,6 +1,5 @@
 package app.sterna.ui.inbox
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +17,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,9 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -58,6 +55,8 @@ internal fun SelectionMoveDialog(
     val moveTargetsOnlySubscribed by viewModel.selectionOnlySubscribed.collectAsStateWithLifecycle()
     val moveTargetsHiding by viewModel.selectionHiding.collectAsStateWithLifecycle()
     val moveTargetsOrder by viewModel.selectionFolderOrder.collectAsStateWithLifecycle()
+    val moveHistory by viewModel.selectionMoveHistory.collectAsStateWithLifecycle()
+    val moveSender by viewModel.selectionSender.collectAsStateWithLifecycle()
     // The picker's account row (#189): the account the selection belongs to, and the one chosen
     // on the row, if any, both live in the ViewModel so the choice survives a rotation.
     val moveOwnerAccountId by viewModel.moveOwnerAccountId.collectAsStateWithLifecycle()
@@ -71,6 +70,11 @@ internal fun SelectionMoveDialog(
     val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding, moveTargetsOrder) {
         moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId, moveTargetsOrder)
     }
+    val moveListedAccountId = pickerAccount(moveAccountId, moveOwnerAccountId)
+    // Held in the dialog's composition, like the query: the section is computed at each opening.
+    var moveFrozen by remember { mutableStateOf<FrozenSuggestions?>(null) }
+    val moveSuggestions = freezeSuggestions(moveFrozen, moveListedAccountId, moveHistory, targets, moveSender, System.currentTimeMillis())
+    SideEffect { moveFrozen = moveSuggestions }
     // Nested folders sharing a leaf are one and the same row without their parent path (#109).
     // Resolved against the whole folder list, not the offered subset. Memoized like [targets]:
     // the filter field re-runs this block on every keystroke (#182).
@@ -84,6 +88,13 @@ internal fun SelectionMoveDialog(
         moveRows += FolderPickerRow(folder, mailboxDisplayName(folder.role, folder.name), path)
     }
     val shownMoveRows = filterFolderRows(moveRows, moveQuery)
+    val suggestedMoveRows = suggestedRows(moveSuggestions, moveListedAccountId, moveRows, moveQuery)
+    // One tap handler for both lists: the row's own folder, never a rank in either.
+    val pickMoveRow: (FolderPickerRow) -> Unit = { row ->
+        viewModel.moveSelectedTo(row.folder.id, moveAccountId, fromPicker = true)
+        onDismiss()
+        viewModel.chooseMoveAccount(null)
+    }
     AlertDialog(
         onDismissRequest = { onDismiss(); viewModel.chooseMoveAccount(null) },
         title = { Text(stringResource(R.string.inbox_move_to_folder)) },
@@ -147,36 +158,15 @@ internal fun SelectionMoveDialog(
                             modifier = Modifier.padding(vertical = 12.dp),
                         )
                     }
-                    shownMoveRows.forEach { row ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    // The row's own folder, never a rank in the filtered list.
-                                    viewModel.moveSelectedTo(row.folder.id, moveAccountId)
-                                    onDismiss()
-                                    viewModel.chooseMoveAccount(null)
-                                }
-                                .semantics(mergeDescendants = true) { role = Role.Button }
-                                .padding(vertical = 12.dp),
-                        ) {
-                            Text(
-                                text = row.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            if (row.path != null) {
-                                Text(
-                                    text = row.path,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    // Two lines, not one: a single line elides at the end, in
-                                    // dp, after the path was already trimmed by character count,
-                                    // eating the nearest parent at a large font size.
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
+                    if (suggestedMoveRows.isNotEmpty()) {
+                        FolderPickerSectionTitle(stringResource(R.string.inbox_move_suggestions))
+                        suggestedMoveRows.forEach { row ->
+                            FolderPickerRowItem(row) { pickMoveRow(row) }
                         }
+                        FolderPickerSectionTitle(stringResource(R.string.inbox_move_all_folders))
+                    }
+                    shownMoveRows.forEach { row ->
+                        FolderPickerRowItem(row) { pickMoveRow(row) }
                     }
                 }
             }

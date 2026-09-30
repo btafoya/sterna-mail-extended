@@ -5,6 +5,7 @@ import android.content.Context
 import android.util.Log
 import app.sterna.core.data.DataFactory
 import app.sterna.core.data.account.AccountStore
+import app.sterna.core.data.account.MoveMemory
 import app.sterna.core.data.mail.BodyCachePurge
 import app.sterna.core.data.mail.LocalDraftScheduler
 import app.sterna.core.data.mail.MailRepository
@@ -46,6 +47,7 @@ class AppContainer(context: Context) {
     val linkBodies = app.sterna.ui.compose.LinkBodyHandOff()
 
     val accountStore: AccountStore = AccountStore(context.applicationContext)
+    val moveMemory: MoveMemory = MoveMemory.of(context.applicationContext)
     val settingsRepository: SettingsRepository = SettingsRepository(context.applicationContext)
     /** `core/jmap` is plain Kotlin/JVM and cannot see `android.util.Log`, so the app hands it the
      *  sink. The tag is half of the `adb logcat` filter given to reporters and is pinned by a test;

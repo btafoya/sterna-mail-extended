@@ -35,6 +35,10 @@ data class UndoAction(
      *  put-back sent into a move still on the wire crosses it. Written by [undoOffer] alone. */
     var flight: Job? = null
 
+    /** The move this offer's gesture remembered for the pickers' suggestions, which [InboxViewModel.undo]
+     *  takes back: a move undone was a slip of the finger, not a habit. */
+    internal var remembered: RememberedMove? = null
+
     /** Only a write that landed may be reversed: nothing moved, nothing to move back, and offline
      *  the round trip fails too and puts a second error banner over a row already home. */
     val mayReverse: Boolean get() = landed

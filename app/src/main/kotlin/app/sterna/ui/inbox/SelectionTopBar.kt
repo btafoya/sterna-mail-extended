@@ -96,7 +96,7 @@ internal fun SelectionTopBar(
             }
             if (currentRole == "archive" || currentRole == "all") {
                 IconButton(
-                    onClick = { inboxId?.let { viewModel.moveSelectedTo(it) } },
+                    onClick = { inboxId?.let { viewModel.moveSelectedTo(it, targetAccountId = null, fromPicker = false) } },
                     enabled = inboxId != null,
                 ) {
                     Icon(Icons.Filled.Unarchive, contentDescription = stringResource(R.string.inbox_unarchive))

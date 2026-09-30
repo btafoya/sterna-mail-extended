@@ -24,6 +24,7 @@ import app.sterna.push.PushController
 import app.sterna.snooze.Snoozes
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.FolderHiding
+import app.sterna.core.data.account.MoveHistory
 import app.sterna.core.data.account.folderHidingOf
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.db.OutboxLogic
@@ -71,6 +72,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -221,6 +223,7 @@ class InboxViewModel(
     private val settings = application.container.settingsRepository
     private val outbox = application.container.sendOutbox
     private val appScope = application.container.appScope
+    private val moveMemory = application.container.moveMemory
 
     /** Undo-send: a message held in the outbox during its cancellable window. */
     val outboxPending: StateFlow<SendOutbox.Pending?> = outbox.pending
@@ -936,6 +939,14 @@ class InboxViewModel(
     val selectionHiding: StateFlow<FolderHiding> =
         combine(movePickerAccountId, store.accountsFlow) { accountId, accounts -> folderHidingOf(accountId, accounts) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, FolderHiding(null, emptySet(), null))
+
+    val selectionMoveHistory: StateFlow<MoveHistory> =
+        selectionListing.flatMapLatest { (accountId, _) -> moveMemory.history(accountId) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, MoveHistory.NONE)
+
+    val selectionSender: StateFlow<String?> =
+        _selectedKeys.mapLatest { keys -> if (keys.isEmpty()) null else singleSender(repo.cachedEmailsByIds(keys), keys.size) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /**
      * The browse list, paged from Room. A single folder uses the RemoteMediator-backed pager; the
@@ -1689,7 +1700,7 @@ class InboxViewModel(
             moveToAccount(email, requireNotNull(targetAccountId), targetMailboxId)
             return
         }
-        swipeRemove(email, getApplication<Application>().getString(R.string.status_message_moved)) { c, id ->
+        swipeRemove(email, getApplication<Application>().getString(R.string.status_message_moved), pickedInto = targetMailboxId) { c, id ->
             repo.moveToMailbox(c, id, targetMailboxId)
         }
     }
@@ -1721,6 +1732,7 @@ class InboxViewModel(
                 runCatching { repo.moveToAccount(source, email, target, targetMailboxId, FrozenNumbering.NothingFrozen) }
                     .getOrElseUnlessCancelled { CrossAccountMove.Failed(it.toString()) }
             }
+            rememberPickedMove(PickedMove(target.id, targetMailboxId), landedAcrossAccounts(mapOf(key to result), mapOf(key to email)))
             val folder = folderLabel(target.id, targetMailboxId)
             // Which sentence belongs to which verdict is crossAccountMessageRes's.
             val words = crossAccountMessageRes(result, online = hasUsableNetwork(app))
@@ -1944,7 +1956,7 @@ class InboxViewModel(
         }
     }
 
-    private fun swipeRemove(email: Email, label: String, op: suspend (AccountCredentials, String) -> String?) {
+    private fun swipeRemove(email: Email, label: String, pickedInto: String? = null, op: suspend (AccountCredentials, String) -> String?) {
         val credentials = credentialsFor(email) ?: return
         swipeMask.update { it.posed(email.emailKey()) }
         viewModelScope.launch {
@@ -1981,6 +1993,9 @@ class InboxViewModel(
                         android.util.Log.w("SternaInbox", "swipe action failed", it)
                         _message.value = app.getString(actionFailureMessage(it, online = hasUsableNetwork(app)))
                     }
+                // On the write's verdict, never at the tap: a move refused offline is no habit.
+                val remembered = pickedInto?.let { rememberPickedMove(PickedMove(credentials.id, it), landedByTheSwipe(written, email)) }
+                posted?.remembered = remembered
             } finally {
                 // The scope dies with the activity, and a write cut off mid-flight moved nothing.
                 // The put-back has to outlive the cancellation, or the key stays in the repository
@@ -1992,6 +2007,12 @@ class InboxViewModel(
                 }
             }
         }
+    }
+
+    private suspend fun rememberPickedMove(into: PickedMove, landed: List<Email>): RememberedMove? {
+        val event = pickedMoveEvent(landed, into.mailboxId, System.currentTimeMillis()) ?: return null
+        moveMemory.record(into.accountId, event)
+        return RememberedMove(into.accountId, event)
     }
 
     /** Tell the bar where its write landed, even once a later gesture or [undo] has taken it. */
@@ -2027,8 +2048,9 @@ class InboxViewModel(
         restoreSearchResults(action.entries.map { EmailKey(it.accountId, it.emailId) })
         swipeMask.update { mask -> mask.lifted(action.entries.map { EmailKey(it.accountId, it.emailId) }) }
         viewModelScope.launch {
-            // The bar is up before the write is out: reversing a move not yet sent races it.
+            // The bar is up before the write is out: reversing it, or its remembered move, races it.
             action.flight?.join()
+            action.remembered?.let { moveMemory.retract(it.accountId, it.event) }
             // And what never landed is not reversed: the row is already back where it was.
             if (!action.mayReverse) return@launch
             // One batch per account, so a large undo does not hit per-message server limits (#29).
@@ -2483,6 +2505,7 @@ class InboxViewModel(
         failedBefore: Int = 0,
         moves: ((Email) -> Boolean)?,
         carried: Set<EmailKey>,
+        pickedInto: PickedMove? = null,
         batchOp: suspend (AccountCredentials, List<String>) -> MailRepository.BulkResult,
     ) {
         val targetKeys = keys ?: _selectedKeys.value
@@ -2538,6 +2561,9 @@ class InboxViewModel(
             failedKeys += refusedKeys(flown)
             val moved = movedKeys(flown).mapNotNull { (key, dest) -> byKey[key]?.let { UndoCandidate(it, dest) } }
             val landedOffer = selectionOffer(undoLabelRes, moved, landed = true)
+            val remembered = pickedInto?.let { rememberPickedMove(it, moved.map { candidate -> candidate.target.email }) }
+            posted?.remembered = remembered
+            landedOffer?.remembered = remembered
             recordLanding(posted, landedOffer?.entries.orEmpty())
             // Identity: another gesture may own the bar now, and its write is the one it reverses.
             if (_undo.value === posted && landedOffer != posted) {
@@ -2703,7 +2729,7 @@ class InboxViewModel(
      * Move the selection to [targetMailboxId] (unarchive → Inbox, and move-to-folder). The messages
      * another account's folder cannot take are set aside, counted, and announced once.
      */
-    fun moveSelectedTo(targetMailboxId: String, targetAccountId: String? = null) {
+    fun moveSelectedTo(targetMailboxId: String, targetAccountId: String?, fromPicker: Boolean) {
         val keys = _selectedKeys.value
         val carried = carriedKeys
         val seat = sources.seat()
@@ -2737,6 +2763,7 @@ class InboxViewModel(
                     failedBefore = skipped.size,
                     moves = filing,
                     carried = carried,
+                    pickedInto = pickedInto(fromPicker, moveAccountId, targetMailboxId),
                 ) { c, batch -> repo.moveAllToMailbox(c, batch, targetMailboxId, numbering[c.id].orEmpty()) }
             } else if (skipped.isNotEmpty()) {
                 // Nothing movable: an empty batch would drop the sync cursors and re-query the whole
@@ -2830,6 +2857,7 @@ class InboxViewModel(
             outcomes[key] = result
         }
         val results = outcomes.values.toList()
+        rememberPickedMove(PickedMove(target.id, targetMailboxId), landedAcrossAccounts(outcomes, emails))
         if (results.isEmpty() && skipped.isEmpty()) return
         // Which line goes with which outcome is crossAccountSelectionPlural's and
         // crossAccountSelectionFailedRes's; only the counts and the labels are built here.

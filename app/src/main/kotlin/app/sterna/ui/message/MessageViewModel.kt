@@ -1,5 +1,6 @@
 package app.sterna.ui.message
 
+import app.sterna.core.data.account.MoveHistory
 import android.app.Application
 import android.app.PendingIntent
 import android.content.Intent
@@ -341,6 +342,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     private val storage = application.container.storageRepository
     private val settings = application.container.settingsRepository
     private val appScope = application.container.appScope
+    private val moveMemory = application.container.moveMemory
 
     /** Whether tapped links should have tracking params stripped before opening. */
     val stripTracking = settings.stripTrackingParams.stateIn(
@@ -514,6 +516,12 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     val pickerMailboxes: StateFlow<List<Mailbox>> = movePickerAccountId.flatMapLatest { id ->
         if (id == null) flowOf(emptyList()) else repo.observeMailboxes(id)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** The move memory of the account the picker lists, for its Suggestions section. Beside
+     *  [moveTargets], never folded into it: the section is computed apart from the list. */
+    val moveHistory: StateFlow<MoveHistory> =
+        movePickerAccountId.flatMapLatest { id -> moveMemory.history(id) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MoveHistory.NONE)
 
     /** The account's filter rules as last read; [senderRuleEntry] decides what each state offers. */
     private val _senderRules = MutableStateFlow<SenderScript>(SenderScript.Unread)

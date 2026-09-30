@@ -8,6 +8,7 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="sterna_account.xml" />
+        <exclude domain="sharedpref" path="move_memory.xml" />
         <exclude domain="database" path="sterna.db" />
         <exclude domain="database" path="sterna.db-wal" />
         <exclude domain="database" path="sterna.db-shm" />
@@ -15,6 +16,7 @@
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="sterna_account.xml" />
+        <exclude domain="sharedpref" path="move_memory.xml" />
         <exclude domain="database" path="sterna.db" />
         <exclude domain="database" path="sterna.db-wal" />
         <exclude domain="database" path="sterna.db-shm" />

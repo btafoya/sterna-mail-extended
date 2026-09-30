@@ -90,6 +90,8 @@
     <string name="inbox_move_to_folder">移动到文件夹</string>
     <string name="inbox_filter_folders">筛选文件夹</string>
     <string name="inbox_no_folder_matches">没有匹配的文件夹</string>
+    <string name="inbox_move_suggestions">建议</string>
+    <string name="inbox_move_all_folders">所有文件夹</string>
     <string name="inbox_cancel">取消</string>
     <string name="inbox_new_folder">新建文件夹</string>
     <string name="inbox_new_subfolder">新建子文件夹</string>

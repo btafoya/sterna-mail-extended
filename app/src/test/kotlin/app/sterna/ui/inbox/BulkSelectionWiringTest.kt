@@ -368,6 +368,7 @@ class BulkSelectionWiringTest {
                 "back that never moved. Body was:\n$body",
             listOf(
                 "val landedOffer = selectionOffer(undoLabelRes, moved, landed = true)",
+                "landedOffer?.remembered = remembered",
                 "recordLanding(posted, landedOffer?.entries.orEmpty())",
                 "if (_undo.value === posted && landedOffer != posted) {",
                 "if (landedOffer != null) {",
@@ -670,6 +671,7 @@ class BulkSelectionWiringTest {
                 "failedBefore = skipped.size",
                 "moves = filing",
                 "carried = carried",
+                "pickedInto = pickedInto(fromPicker, moveAccountId, targetMailboxId)",
             ),
             arguments(call),
         )

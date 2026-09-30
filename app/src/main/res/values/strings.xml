@@ -90,6 +90,8 @@
     <string name="inbox_move_to_folder">Move to folder</string>
     <string name="inbox_filter_folders">Filter folders</string>
     <string name="inbox_no_folder_matches">No folder matches</string>
+    <string name="inbox_move_suggestions">Suggestions</string>
+    <string name="inbox_move_all_folders">All folders</string>
     <string name="inbox_cancel">Cancel</string>
     <string name="inbox_new_folder">New folder</string>
     <string name="inbox_new_subfolder">New subfolder</string>

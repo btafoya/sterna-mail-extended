@@ -199,6 +199,7 @@ class CrossAccountMoveWiringLintTest {
                 "outcomes[key] = CrossAccountMove.Failed(\"renumbered since it was ticked: \${key.emailId}\")",
                 "outcomes[key] = result",
                 "val results = outcomes.values.toList()",
+                "rememberPickedMove(PickedMove(target.id, targetMailboxId), landedAcrossAccounts(outcomes, emails))",
                 "val givenBack = crossAccountGiveBack(outcomes, emails.keys)",
             ),
             codeLinesNaming(many, "outcomes"),
@@ -382,7 +383,7 @@ class CrossAccountMoveWiringLintTest {
         assertEquals(
             "the list's tap must hand the chosen account to the move, then close, then reset.",
             listOf(
-                "viewModel.moveSelectedTo(row.folder.id, moveAccountId)",
+                "viewModel.moveSelectedTo(row.folder.id, moveAccountId, fromPicker = true)",
                 "onDismiss()",
                 "viewModel.chooseMoveAccount(null)",
             ),

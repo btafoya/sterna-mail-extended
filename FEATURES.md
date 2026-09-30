@@ -81,6 +81,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   device while its mail stays searchable.
 - ✅ Put your own folders in the order you choose, on this device. Standard folders
   stay at the top.
+- ✅ The move-to-folder picker opens on up to three suggestions: the folders you recently
+  and often picked there, led by the one you picked at least twice for this sender. Kept
+  on this device only; typing in the filter hides them.
 - ✅ An Archive folder is created on first archive when the account has none.
 
 ## Composing & sending

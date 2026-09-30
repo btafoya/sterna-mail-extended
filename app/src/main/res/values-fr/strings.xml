@@ -81,6 +81,8 @@
     <string name="inbox_move_to_folder">Déplacer vers un dossier</string>
     <string name="inbox_filter_folders">Filtrer les dossiers</string>
     <string name="inbox_no_folder_matches">Aucun dossier ne correspond</string>
+    <string name="inbox_move_suggestions">Suggestions</string>
+    <string name="inbox_move_all_folders">Tous les dossiers</string>
     <string name="inbox_cancel">Annuler</string>
     <string name="inbox_new_folder">Nouveau dossier</string>
     <string name="inbox_folder_name">Nom du dossier</string>

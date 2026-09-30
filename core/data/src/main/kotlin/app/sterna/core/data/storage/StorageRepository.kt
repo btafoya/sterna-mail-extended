@@ -1,6 +1,7 @@
 package app.sterna.core.data.storage
 
 import android.content.Context
+import app.sterna.core.data.account.MoveMemory
 import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
@@ -51,6 +52,7 @@ class StorageRepository(
     private val localDraftFilesDir: File,
     private val serverContactDao: ServerContactDao,
 ) {
+    private val moveMemory: MoveMemory get() = MoveMemory.of(context)
     private val attachmentsDir: File get() = File(context.cacheDir, "attachments")
 
     /**
@@ -132,7 +134,7 @@ class StorageRepository(
             // list read below is guaranteed to contain.
             val cached = emailDao.countsByAccount().map { it.accountId } +
                 mailboxDao.accountIds() + emailFtsDao.accountIds() + emailBodyDao.accountIds() +
-                serverContactDao.accountIds()
+                serverContactDao.accountIds() + moveMemory.accountIds()
             val known = knownAccountIds()
             val orphans = OrphanedAccountCache.orphans(known, cached)
             orphans.forEach { accountId ->
@@ -143,6 +145,7 @@ class StorageRepository(
                 runCatching { mailboxDao.deleteForAccount(accountId) }
                 runCatching { serverContactDao.deleteRowsOfAccount(accountId) }
                 runCatching { serverContactDao.deleteState(accountId) }
+                runCatching { moveMemory.forget(listOf(accountId)) }
             }
             orphans
         }

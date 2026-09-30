@@ -122,6 +122,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.compositionLocalOf
@@ -173,6 +174,12 @@ import app.sterna.core.jmap.model.EmailBodyPart
 import android.text.format.DateUtils
 import app.sterna.ui.canSnoozeIn
 import app.sterna.ui.inbox.FolderPickerRow
+import app.sterna.ui.inbox.FolderPickerRowItem
+import app.sterna.ui.inbox.FolderPickerSectionTitle
+import app.sterna.ui.inbox.FrozenSuggestions
+import app.sterna.ui.inbox.freezeSuggestions
+import app.sterna.ui.inbox.pickerAccount
+import app.sterna.ui.inbox.suggestedRows
 import app.sterna.ui.inbox.MoveAccountRow
 import app.sterna.ui.inbox.filterFolderRows
 import app.sterna.ui.inbox.mailboxDisplayName
@@ -1056,6 +1063,12 @@ private fun MessageActions(
         // The filter field's text (#182). Held inside the `if`, so leaving the dialog drops the
         // composition group and the field comes back empty next time.
         var folderQuery by remember { mutableStateOf("") }
+        val folderHistory by viewModel.moveHistory.collectAsStateWithLifecycle()
+        val folderListedAccountId = pickerAccount(moveAccountId, moveOwnerAccountId)
+        // Held inside the `if`, like the query: the section is computed at each opening.
+        var folderFrozen by remember { mutableStateOf<FrozenSuggestions?>(null) }
+        val folderSuggestions = freezeSuggestions(folderFrozen, folderListedAccountId, folderHistory, folders, loaded.email.from.firstOrNull()?.email, System.currentTimeMillis())
+        SideEffect { folderFrozen = folderSuggestions }
         // Same rows as the list's picker, parent path included (#109), resolved against the account's
         // whole folder list. Memoized: each call walks a map rebuilt over that whole list, and the
         // filter field re-runs this block on every keystroke.
@@ -1070,6 +1083,22 @@ private fun MessageActions(
             folderRows += FolderPickerRow(folder, mailboxDisplayName(folder.role, folder.name), path)
         }
         val shownFolderRows = filterFolderRows(folderRows, folderQuery)
+        val suggestedFolderRows = suggestedRows(folderSuggestions, folderListedAccountId, folderRows, folderQuery)
+        // One tap handler for both lists: a suggested row moves exactly as the same row below.
+        val pickFolderRow: (FolderPickerRow) -> Unit = { row ->
+            movePicker = false
+            onMove(
+                loaded.email.copy(
+                    mailboxId = resolvedMailbox ?: loaded.email.mailboxId,
+                    accountId = accountId ?: loaded.email.accountId,
+                ),
+                // The row's own folder, never a rank in the list.
+                row.folder.id,
+                // The account chosen on the row, null for the message's own (#189).
+                moveAccountId,
+            )
+            viewModel.chooseMoveAccount(null)
+        }
         AlertDialog(
             onDismissRequest = { movePicker = false; viewModel.chooseMoveAccount(null) },
             title = { Text(stringResource(R.string.inbox_move_to_folder)) },
@@ -1130,44 +1159,15 @@ private fun MessageActions(
                                 modifier = Modifier.padding(vertical = 12.dp),
                             )
                         }
-                        shownFolderRows.forEach { row ->
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        movePicker = false
-                                        onMove(
-                                            loaded.email.copy(
-                                                mailboxId = resolvedMailbox ?: loaded.email.mailboxId,
-                                                accountId = accountId ?: loaded.email.accountId,
-                                            ),
-                                            // The row's own folder, never a rank in the list.
-                                            row.folder.id,
-                                            // The account chosen on the row, null for the message's own (#189).
-                                            moveAccountId,
-                                        )
-                                        viewModel.chooseMoveAccount(null)
-                                    }
-                                    .semantics(mergeDescendants = true) { role = Role.Button }
-                                    .padding(vertical = 12.dp),
-                            ) {
-                                Text(
-                                    text = row.name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                )
-                                if (row.path != null) {
-                                    Text(
-                                        text = row.path,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        // Two lines, for the reason spelled out in InboxScreen's
-                                        // copy of this row: one line elides at the end, in dp, and
-                                        // would cut off the nearest parent at a large font size.
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
+                        if (suggestedFolderRows.isNotEmpty()) {
+                            FolderPickerSectionTitle(stringResource(R.string.inbox_move_suggestions))
+                            suggestedFolderRows.forEach { row ->
+                                FolderPickerRowItem(row) { pickFolderRow(row) }
                             }
+                            FolderPickerSectionTitle(stringResource(R.string.inbox_move_all_folders))
+                        }
+                        shownFolderRows.forEach { row ->
+                            FolderPickerRowItem(row) { pickFolderRow(row) }
                         }
                     }
                 }

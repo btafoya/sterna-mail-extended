@@ -81,6 +81,8 @@
     <string name="inbox_move_to_folder">Переместить в папку</string>
     <string name="inbox_filter_folders">Фильтр папок</string>
     <string name="inbox_no_folder_matches">Нет подходящих папок</string>
+    <string name="inbox_move_suggestions">Предложения</string>
+    <string name="inbox_move_all_folders">Все папки</string>
     <string name="inbox_cancel">Отмена</string>
     <string name="inbox_new_folder">Новая папка</string>
     <string name="inbox_folder_name">Имя папки</string>

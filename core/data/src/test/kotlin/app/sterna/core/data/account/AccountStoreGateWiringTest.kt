@@ -103,12 +103,13 @@ class AccountStoreGateWiringTest {
                 "val remaining = list.filterNot { it.id == id }",
                 "saveLinkedMemory(forgetRemovedLinked(linkedMemory(), list.filter { it.id == id }))",
                 "saveAccounts(remaining)",
+                "moveMemory.forget(listOf(id))",
                 "if (currentId() == id || remaining.none { it.id == prefs.getString(KEY_CURRENT, null) }) {",
                 "prefs.edit().putString(KEY_CURRENT, remaining.firstOrNull()?.id).apply()",
                 "}",
                 "}",
             ),
-            accountStoreBlock("fun remove(id: String) {", 11),
+            accountStoreBlock("fun remove(id: String) {", 12),
         )
     }
 

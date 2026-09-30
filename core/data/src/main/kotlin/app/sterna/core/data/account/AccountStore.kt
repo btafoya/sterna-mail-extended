@@ -166,6 +166,7 @@ class AccountStore(context: Context) : AccountStorage {
     private val prefs = context.applicationContext
         .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true }
+    private val moveMemory = MoveMemory.of(context)
 
     // Tells an empty account list apart from a list that would not decode, and blocks writes in the
     // second case. Declared before [live] because the seeding read below already goes through it.
@@ -676,6 +677,7 @@ class AccountStore(context: Context) : AccountStorage {
         // left behind.
         saveLinkedMemory(forgetRemovedLinked(linkedMemory(), list.filter { it.id == id }))
         saveAccounts(remaining)
+        moveMemory.forget(listOf(id))
         if (currentId() == id || remaining.none { it.id == prefs.getString(KEY_CURRENT, null) }) {
             prefs.edit().putString(KEY_CURRENT, remaining.firstOrNull()?.id).apply()
         }
@@ -794,6 +796,7 @@ class AccountStore(context: Context) : AccountStorage {
         val remaining = before.filterNot { it.id in ids }
         saveLinkedMemory(forgetRemovedLinked(linkedMemory(), before.filter { it.id in ids }))
         saveAccounts(remaining)
+        moveMemory.forget(ids)
         if (currentId() in ids || remaining.none { it.id == prefs.getString(KEY_CURRENT, null) }) {
             prefs.edit().putString(KEY_CURRENT, remaining.firstOrNull()?.id).apply()
         }
