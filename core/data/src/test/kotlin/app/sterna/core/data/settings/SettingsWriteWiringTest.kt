@@ -305,6 +305,10 @@ class SettingsWriteWiringTest {
                 "suspend fun setLastScheduleMinutes(minutes: Int) {",
                 "dataStore.edit { it[KEY_LAST_SCHEDULE_MINUTES] = minutes }",
             ),
+            Write(
+                "suspend fun setSearchHistory(enabled: Boolean) {",
+                "dataStore.edit { it[KEY_SEARCH_HISTORY_ENABLED] = enabled }",
+            ),
         )
 
         /**
@@ -421,6 +425,8 @@ class SettingsWriteWiringTest {
             "suspend fun setQuietHoursStart(minutes: Int) {" to "BOUNDED",
             "suspend fun setQuietHoursEnd(minutes: Int) {" to "BOUNDED",
             "suspend fun setLastScheduleMinutes(minutes: Int) {" to "PLAIN, local, left out of the backup",
+            "suspend fun setSearchHistory(enabled: Boolean) {" to
+                "PLAIN, the rest of its wiring pinned by SettingsBackupSearchHistoryTest and SearchHistoryWiringTest",
         )
     }
 }

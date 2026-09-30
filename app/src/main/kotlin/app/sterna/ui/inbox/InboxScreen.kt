@@ -212,6 +212,7 @@ import app.sterna.ui.showsRecipients
 import app.sterna.ui.showsRecipientsInThread
 import app.sterna.ui.search.SearchCount
 import app.sterna.ui.search.SearchDisplay
+import app.sterna.ui.search.SearchHistoryRows
 import app.sterna.ui.search.searchCount
 import app.sterna.ui.search.searchDisplay
 import app.sterna.ui.search.searchResultKey
@@ -258,6 +259,7 @@ fun InboxScreen(
     detail: (@Composable () -> Unit)? = null,
 ) {
     val ui by viewModel.state.collectAsStateWithLifecycle()
+    val searchSuggestions by viewModel.searchSuggestions.collectAsStateWithLifecycle()
     val listRows = viewModel.pagedListRows.collectAsLazyPagingItems()
     val swipe by viewModel.swipeConfig.collectAsStateWithLifecycle()
     val selectionActive by viewModel.selectionActive.collectAsStateWithLifecycle()
@@ -739,11 +741,12 @@ fun InboxScreen(
                                 }
                                 TextField(
                                     value = ui.searchQuery,
-                                    onValueChange = viewModel::setSearchQuery,
+                                    onValueChange = viewModel::typeSearchQuery,
                                     singleLine = true,
-                                    // Live search-as-you-type; the Search key just folds the keyboard.
+                                    // Live search-as-you-type, so the Search key is the one
+                                    // moment the text is known to be a search and not a prefix.
                                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                                    keyboardActions = KeyboardActions(onSearch = { viewModel.recordSearch(); focusManager.clearFocus() }),
                                     colors = TextFieldDefaults.colors(
                                         focusedContainerColor = Color.Transparent,
                                         unfocusedContainerColor = Color.Transparent,
@@ -1083,11 +1086,15 @@ fun InboxScreen(
                         // A local draft is the first argument, or the selection branch would refuse it and the tap do nothing (#95).
                         // A search hit is judged by its own folder, never by `rowRole`, which is the screen's (#216).
                         when (rowTapAction(isLocalDraftRow(email.id), selectionActive, expandable, fromSearch, rowRole, messageFolderRole(email.accountId, email.mailboxId, folderRoles))) {
-                            RowTap.EDIT_DRAFT -> onEditDraft(email.id, email.accountId)
+                            RowTap.EDIT_DRAFT -> {
+                                if (fromSearch) viewModel.recordSearch()
+                                onEditDraft(email.id, email.accountId)
+                            }
                             // A collapsed conversation selects/deselects all its members at once.
                             RowTap.SELECT_THREAD -> viewModel.toggleSelectThread(email)
                             RowTap.SELECT_ROW -> viewModel.toggleSelect(email)
                             RowTap.OPEN -> {
+                                if (fromSearch) viewModel.recordSearch()
                                 viewModel.onEmailOpened(email.id)
                                 onOpenEmail(email.id, email.accountId, entryIndex, fromSearch)
                             }
@@ -1241,6 +1248,16 @@ fun InboxScreen(
             if (outboxHasFailures) {
                 OutboxFailureBanner(onClick = onOpenOutbox)
             }
+            val historyFocus = LocalFocusManager.current
+            val pickSuggestion: (String) -> Unit = { text ->
+                historyFocus.clearFocus()
+                viewModel.searchFromHistory(text)
+            }
+            // Typing: the kept searches that match sit above the live results, never in their
+            // place. An empty field gets the whole list instead, inside the list area below.
+            if (ui.searching && ui.searchQuery.isNotBlank()) {
+                SearchHistoryRows(searchSuggestions, onRun = pickSuggestion)
+            }
             PullToRefreshBox(
                 // The display, not the truth: fed ui.refreshing the tern lit the instant refresh()
                 // was called, on every folder tap and cold start (#178). ui.refreshing keeps its own
@@ -1367,6 +1384,12 @@ fun InboxScreen(
                             modifier = Modifier.align(Alignment.Center),
                         )
                     }
+                    ui.searching && ui.searchQuery.isBlank() && searchSuggestions.isNotEmpty() ->
+                        SearchHistoryRows(
+                            searchSuggestions,
+                            onRun = pickSuggestion,
+                            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                        )
                     // !staleRows: these rows may still be the PREVIOUS selection's, and drawing
                     // them under the new folder's header is the defect this guard exists for.
                     listRows.itemCount > 0 && !staleRows ->

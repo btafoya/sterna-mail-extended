@@ -134,6 +134,7 @@ fun SearchScreen(
     val folderRoles by viewModel.folderRoles.collectAsStateWithLifecycle()
     val addressSuggestions by viewModel.addressSuggestions.collectAsStateWithLifecycle()
     val addressFocus by viewModel.addressFocus.collectAsStateWithLifecycle()
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
     val query = form.query
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -144,6 +145,13 @@ fun SearchScreen(
         keyboard?.hide()
         if (selecting) inbox.clearSelection()
         viewModel.search()
+    }
+
+    fun runKeptSearch(text: String) {
+        focusManager.clearFocus()
+        keyboard?.hide()
+        if (selecting) inbox.clearSelection()
+        viewModel.searchFromHistory(text)
     }
 
     BackHandler(enabled = selecting) { inbox.clearSelection() }
@@ -374,11 +382,19 @@ fun SearchScreen(
                     }
                     Box(Modifier.fillMaxWidth().weight(1f)) {
                         when (val s = state) {
-                            is SearchState.Idle -> Text(
-                                stringResource(R.string.search_idle_hint),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.align(Alignment.Center),
-                            )
+                            is SearchState.Idle -> if (suggestions.isEmpty()) {
+                                Text(
+                                    stringResource(R.string.search_idle_hint),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.align(Alignment.Center),
+                                )
+                            } else {
+                                SearchHistoryRows(
+                                    suggestions,
+                                    onRun = { runKeptSearch(it) },
+                                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                                )
+                            }
                             is SearchState.Searching -> LoadingRing(Modifier.align(Alignment.Center))
                             is SearchState.Error -> Text(
                                 stringResource(R.string.search_failed, s.message),

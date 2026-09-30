@@ -9,6 +9,7 @@ import app.sterna.R
 import app.sterna.contacts.AndroidContacts
 import app.sterna.contacts.ContactSuggestion
 import app.sterna.core.data.account.StoredAccount
+import app.sterna.core.data.search.searchHistorySuggestions
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.SearchQuery
 import app.sterna.ui.compose.RecipientSuggester
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -86,6 +88,7 @@ class SearchViewModel(
     private val store = application.container.accountStore
     private val repo = application.container.mailRepository
     private val settings = application.container.settingsRepository
+    private val searchHistory = application.container.searchHistoryRepository
 
     /**
      * The query lives here, next to the results, not in the screen's `remember`s: split between the
@@ -175,11 +178,22 @@ class SearchViewModel(
         persist()
     }
 
+    val suggestions: StateFlow<List<String>> =
+        combine(searchHistory.offered, _form) { kept, form -> searchHistorySuggestions(kept, form.query.text) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** Run the current criteria; the panel folds away so the results get the screen. */
     fun search() {
         _form.value = _form.value.afterSearch()
         persist()
+        val text = _form.value.query.text
+        viewModelScope.launch { searchHistory.record(text) }
         run(_form.value.query)
+    }
+
+    fun searchFromHistory(text: String) {
+        updateQuery(_form.value.query.copy(text = text))
+        search()
     }
 
     private fun run(query: SearchQuery) {

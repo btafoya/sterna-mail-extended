@@ -508,6 +508,12 @@
     <string name="settings_recipient_suggestions_section">Подсказки получателей</string>
     <string name="settings_suggest_contacts_title">Подсказывать из контактов</string>
     <string name="settings_suggest_contacts_subtitle">Автодополнять получателей из контактов этого устройства при вводе. Sterna Mail читает их только на устройстве и никогда не отправляет. Если выключено, всё равно подсказывает тех, кому вы недавно писали.</string>
+    <string name="settings_search_history_section">История поиска</string>
+    <string name="settings_search_history_title">Запоминать запросы</string>
+    <string name="settings_search_history_subtitle">Хранит слова, которые вы ищете, на этом устройстве и предлагает их в следующий раз. Сам список никогда не покидает устройство.</string>
+    <string name="settings_search_history_clear">Очистить историю поиска</string>
+    <string name="settings_search_history_clear_dialog_title">Очистить историю поиска?</string>
+    <string name="settings_search_history_clear_dialog_body">Удаляет все недавние запросы с этого устройства.</string>
     <string name="settings_storage_screen_title">Хранилище</string>
     <string name="settings_on_device_usage_section">Использование на устройстве</string>
     <string name="settings_storage_total">Всего</string>
@@ -736,6 +742,7 @@
     <string name="search_title">Поиск</string>
     <string name="search_field_label">Поиск в почте</string>
     <string name="search_idle_hint">Поиск по всей вашей почте.</string>
+    <string name="search_history_recent">Недавний запрос</string>
     <string name="search_failed">Ошибка поиска: %1$s</string>
     <string name="search_no_results">Ничего не найдено по запросу «%1$s».</string>
     <string name="search_no_results_generic">Нет подходящих писем.</string>

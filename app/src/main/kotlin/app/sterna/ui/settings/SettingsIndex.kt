@@ -186,6 +186,10 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
         R.string.settings_suggest_contacts_subtitle,
     ),
     SettingEntry(
+        "search_history", PRIVACY, R.string.settings_search_history_title,
+        R.string.settings_search_history_subtitle,
+    ),
+    SettingEntry(
         "image_allowlist", PRIVACY, R.string.settings_image_allowlist_section,
         R.string.settings_image_allowlist_empty,
         anchorKind = SECTION,

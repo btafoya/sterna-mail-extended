@@ -508,6 +508,12 @@
     <string name="settings_recipient_suggestions_section">Sugestie odbiorców</string>
     <string name="settings_suggest_contacts_title">Sugeruj z kontaktów</string>
     <string name="settings_suggest_contacts_subtitle">Automatycznie uzupełniaj odbiorców z kontaktów tego urządzenia podczas pisania. Sterna Mail odczytuje je tylko na urządzeniu i nigdy ich nie przesyła. Po wyłączeniu nadal sugeruje osoby, do których ostatnio pisałeś.</string>
+    <string name="settings_search_history_section">Historia wyszukiwania</string>
+    <string name="settings_search_history_title">Zapamiętuj wyszukiwania</string>
+    <string name="settings_search_history_subtitle">Przechowuje na tym urządzeniu wyszukiwane słowa i podpowiada je następnym razem. Sama lista nigdy nie opuszcza urządzenia.</string>
+    <string name="settings_search_history_clear">Wyczyść historię wyszukiwania</string>
+    <string name="settings_search_history_clear_dialog_title">Wyczyścić historię wyszukiwania?</string>
+    <string name="settings_search_history_clear_dialog_body">Usuwa wszystkie ostatnie wyszukiwania z tego urządzenia.</string>
     <string name="settings_storage_screen_title">Pamięć</string>
     <string name="settings_on_device_usage_section">Użycie na urządzeniu</string>
     <string name="settings_storage_total">Łącznie</string>
@@ -736,6 +742,7 @@
     <string name="search_title">Szukaj</string>
     <string name="search_field_label">Szukaj w wiadomościach</string>
     <string name="search_idle_hint">Szukaj we wszystkich wiadomościach.</string>
+    <string name="search_history_recent">Ostatnie wyszukiwanie</string>
     <string name="search_failed">Wyszukiwanie nie powiodło się: %1$s</string>
     <string name="search_no_results">Brak wyników dla \"%1$s\".</string>
     <string name="search_no_results_generic">Brak pasujących wiadomości.</string>

@@ -508,6 +508,12 @@
     <string name="settings_recipient_suggestions_section">Ontvangersuggesties</string>
     <string name="settings_suggest_contacts_title">Suggesties uit contacten</string>
     <string name="settings_suggest_contacts_subtitle">Vul ontvangers aan uit de contacten van dit apparaat terwijl je typt. Sterna Mail leest ze alleen op het apparaat en uploadt ze nooit. Uitgeschakeld stelt het nog steeds mensen voor die je onlangs hebt gemaild.</string>
+    <string name="settings_search_history_section">Zoekgeschiedenis</string>
+    <string name="settings_search_history_title">Zoekopdrachten onthouden</string>
+    <string name="settings_search_history_subtitle">Bewaart de woorden waarop je zoekt op dit apparaat en stelt ze de volgende keer voor. De lijst zelf verlaat het apparaat nooit.</string>
+    <string name="settings_search_history_clear">Zoekgeschiedenis wissen</string>
+    <string name="settings_search_history_clear_dialog_title">Zoekgeschiedenis wissen?</string>
+    <string name="settings_search_history_clear_dialog_body">Verwijdert alle recente zoekopdrachten van dit apparaat.</string>
     <string name="settings_storage_screen_title">Opslag</string>
     <string name="settings_on_device_usage_section">Gebruik op apparaat</string>
     <string name="settings_storage_total">Totaal</string>
@@ -736,6 +742,7 @@
     <string name="search_title">Zoeken</string>
     <string name="search_field_label">E-mail doorzoeken</string>
     <string name="search_idle_hint">Doorzoek al je e-mail.</string>
+    <string name="search_history_recent">Recente zoekopdracht</string>
     <string name="search_failed">Zoeken mislukt: %1$s</string>
     <string name="search_no_results">Geen resultaten voor \"%1$s\".</string>
     <string name="search_no_results_generic">Geen overeenkomende berichten.</string>

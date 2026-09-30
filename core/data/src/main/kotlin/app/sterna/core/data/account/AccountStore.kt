@@ -108,10 +108,8 @@ fun diffLinkedAccounts(
 ): LinkedAccountsDiff {
     val primary = discovered.firstOrNull() ?: return LinkedAccountsDiff()
     // Eviction reads the raw list, admission the probe-filtered one, never the other way round.
-    val subs = discovered.drop(1)
     val admissible = retainReachableMailAccounts(discovered, probes).drop(1)
     val trackedJmapIds = existingLinked.mapNotNull { it.jmapAccountId }.toSet()
-    val liveSubIds = subs.map { it.jmapAccountId }.toSet()
     // Self-healing: two linked records tracking the same server account under one login are
     // duplicates (a leftover of the pre-lock reconcile write race), keep the oldest (records are
     // appended, so list order is age order) and prune the rest like a revocation.
@@ -121,7 +119,7 @@ fun diffLinkedAccounts(
         .values
         .flatMap { it.drop(1) }
         .map { it.id }
-    val revokedIds = existingLinked.filter { it.jmapAccountId !in liveSubIds }.map { it.id }
+    val revokedIds = revokedLinkedIds(existingLinked, discovered)
     return LinkedAccountsDiff(
         pinPrimaryId = primary.jmapAccountId.takeIf { login.jmapAccountId == null },
         // Skip the login's own account and ones already tracked.
@@ -130,6 +128,11 @@ fun diffLinkedAccounts(
         },
         prunedIds = (revokedIds + duplicateIds).distinct(),
     )
+}
+
+internal fun revokedLinkedIds(existingLinked: List<StoredAccount>, discovered: List<DiscoveredMailAccount>): List<String> {
+    val liveSubIds = discovered.drop(1).map { it.jmapAccountId }.toSet()
+    return existingLinked.filter { it.jmapAccountId !in liveSubIds }.map { it.id }
 }
 
 /**

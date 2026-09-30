@@ -12,6 +12,7 @@ import app.sterna.core.data.db.EmailFtsDao
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.ServerContactDao
 import app.sterna.core.data.db.SnoozedDao
+import app.sterna.core.data.search.SearchHistoryRepository
 import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.SmtpClient
 import app.sterna.core.jmap.BasicAuth
@@ -22,8 +23,14 @@ import app.sterna.core.jmap.jmapDiscoveryClient
 import app.sterna.core.jmap.OAuthClient
 import app.sterna.core.jmap.model.JmapAccount
 import app.sterna.core.jmap.model.JmapSession
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -35,7 +42,10 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 import java.lang.reflect.Proxy
 
 /**
@@ -58,6 +68,9 @@ import java.lang.reflect.Proxy
  *   as a failed `Result`, and what the diff makes of one is `LinkedAccountsDiffTest`'s.
  * - Every other function of the class: discovery, OAuth, the creators, the identities and the
  *   server settings stay under their source lints.
+ *
+ * The search history is a real one, on a file-backed DataStore: whether a prune clears it depends
+ * on which records the store answered and what the session still lists, not on the prune alone.
  */
 class MailAccountsPruneFollowsTheStoreTest {
 
@@ -84,7 +97,28 @@ class MailAccountsPruneFollowsTheStoreTest {
 
     @After fun stop() {
         server.shutdown()
+        runBlocking {
+            historyJob.cancel()
+            historyJob.join()
+        }
     }
+
+    @get:Rule val tmp = TemporaryFolder()
+
+    private val historyJob = Job()
+
+    private val history by lazy {
+        SearchHistoryRepository(
+            PreferenceDataStoreFactory.create(
+                scope = CoroutineScope(Dispatchers.IO + historyJob),
+                produceFile = { File(tmp.root, "search_history.preferences_pb") },
+            ),
+            MutableStateFlow(true),
+        )
+    }
+
+    /** The purge is launched: joined before any assertion, the history's write included. */
+    private val bgJob = SupervisorJob()
 
     /** One JMAP request the server received: the method, the account it named, its credential. */
     private data class Seen(val method: String, val accountId: String, val authorization: String?)
@@ -173,8 +207,9 @@ class MailAccountsPruneFollowsTheStoreTest {
         accountStore = store,
         oauthClient = OAuthClient(),
         // Unconfined: the purge is launched, and must have run before the assertion reads it.
-        bgScope = CoroutineScope(Dispatchers.Unconfined),
+        bgScope = CoroutineScope(Dispatchers.Unconfined + bgJob),
         host = host,
+        searchHistory = history,
     ).also { it.onAccountPruned = { purged.hook += it } }
 
     private fun credentials() = AccountCredentials(
@@ -207,6 +242,7 @@ class MailAccountsPruneFollowsTheStoreTest {
 
     private fun reconcile(session: JmapSession) = runBlocking {
         accounts().reconcileLinkedAccounts(credentials(), session, auth)
+        bgJob.children.toList().joinAll()
     }
 
     private fun storeReconciles(): List<Map<String, Any?>> =
@@ -268,6 +304,47 @@ class MailAccountsPruneFollowsTheStoreTest {
         assertEquals(emptyList<String>(), purged.snoozed)
         assertEquals(emptyList<String>(), purged.pendingExpunges.forgottenAccounts)
         assertEquals(emptyList<String>(), purged.serverContacts)
+    }
+
+    private fun linked(id: String, jmapAccountId: String) = StoredAccount(
+        id = id,
+        server = credentials().server,
+        username = "alex@example.test",
+        jmapAccountId = jmapAccountId,
+        loginId = ACCOUNT,
+    )
+
+    private fun historyAfter(session: JmapSession): List<String> = runBlocking {
+        history.record("loyer")
+        reconcile(session)
+        history.entries.first()
+    }
+
+    /** The session no longer lists `acc3`: the account left, and with it any search about it. */
+    @Test fun `a revoked sub-account clears the search history`() {
+        store.linked = listOf(linked("account-2", "acc2"), linked("account-3", "acc3"))
+        store.verdict = listOf("account-3")
+
+        assertEquals(emptyList<String>(), historyAfter(twoAccounts))
+    }
+
+    /**
+     * `account-3` tracks `acc2` like `account-2`, which stays: the store prunes the younger copy,
+     * the mailbox is still on the phone, and the searches with it.
+     */
+    @Test fun `a duplicate record pruned beside its twin keeps the search history`() {
+        store.linked = listOf(linked("account-2", "acc2"), linked("account-3", "acc2"))
+        store.verdict = listOf("account-3")
+
+        assertEquals(listOf("loyer"), historyAfter(twoAccounts))
+    }
+
+    /** The session drops `acc3`, but the store, which decides under its lock, prunes nothing. */
+    @Test fun `a revocation the store did not carry out keeps the search history`() {
+        store.linked = listOf(linked("account-2", "acc2"), linked("account-3", "acc3"))
+        store.verdict = emptyList()
+
+        assertEquals(listOf("loyer"), historyAfter(twoAccounts))
     }
 
     /** A login with one mail account and no sub-account stored costs neither the store nor the server. */

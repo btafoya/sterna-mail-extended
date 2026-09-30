@@ -672,6 +672,12 @@
     <string name="settings_recipient_suggestions_section">收件人建议</string>
     <string name="settings_suggest_contacts_title">从联系人中建议</string>
     <string name="settings_suggest_contacts_subtitle">当您输入时，从此设备的联系人中自动补全收件人。Sterna Mail 仅在设备本地读取，绝不上传。关闭后，仍会建议您近期联系过的人。</string>
+    <string name="settings_search_history_section">搜索历史</string>
+    <string name="settings_search_history_title">记住搜索</string>
+    <string name="settings_search_history_subtitle">在此设备上保存您搜索的词语，并在下次搜索时提供建议。该列表本身绝不会离开此设备。</string>
+    <string name="settings_search_history_clear">清除搜索历史</string>
+    <string name="settings_search_history_clear_dialog_title">清除搜索历史？</string>
+    <string name="settings_search_history_clear_dialog_body">从此设备删除所有最近的搜索。</string>
     <string name="settings_storage_screen_title">存储</string>
     <string name="settings_on_device_usage_section">设备本地占用</string>
     <string name="settings_storage_total">总计</string>
@@ -931,6 +937,7 @@
     <string name="search_title">搜索</string>
     <string name="search_field_label">搜索邮件</string>
     <string name="search_idle_hint">搜索您的所有邮件。</string>
+    <string name="search_history_recent">最近的搜索</string>
     <string name="search_failed">搜索失败：%1$s</string>
     <string name="search_no_results">没有“%1$s”的搜索结果。</string>
     <string name="search_no_results_generic">没有匹配的邮件。</string>

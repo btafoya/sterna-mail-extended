@@ -57,9 +57,10 @@ class SettingsCorruptionWiringTest {
                     .map { "${file.relativeTo(root).invariantSeparatorsPath}: $it" }
             }
         assertEquals(
-            "a DataStore is declared outside the one in SettingsRepository.kt: it does not pass " +
-                "settingsCorruptionHandler, and an unreadable file behind it kills the app at its first read.",
-            listOf("$REPOSITORY_PATH: $DECLARATION"),
+            "a DataStore is declared outside the two known ones: without a corruption handler of " +
+                "its own, an unreadable file behind it kills the app at its first read. The search " +
+                "history's is executed by SearchHistoryRepositoryTest.",
+            listOf(SEARCH_HISTORY_DECLARATION, "$REPOSITORY_PATH: $DECLARATION"),
             declarations,
         )
     }
@@ -82,5 +83,9 @@ class SettingsCorruptionWiringTest {
         const val REPOSITORY_PATH = "core/data/src/main/kotlin/app/sterna/core/data/settings/SettingsRepository.kt"
         const val DECLARATION = "private val Context.settingsDataStore: DataStore<Preferences> by " +
             "preferencesDataStore(name = \"settings\", corruptionHandler = settingsCorruptionHandler)"
+        const val SEARCH_HISTORY_DECLARATION =
+            "core/data/src/main/kotlin/app/sterna/core/data/search/SearchHistoryRepository.kt: " +
+                "private val Context.searchHistoryDataStore: DataStore<Preferences> by " +
+                "preferencesDataStore(name = \"search_history\", corruptionHandler = searchHistoryCorruptionHandler)"
     }
 }

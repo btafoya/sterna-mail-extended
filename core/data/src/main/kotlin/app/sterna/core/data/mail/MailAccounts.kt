@@ -11,6 +11,7 @@ import app.sterna.core.data.account.accountAddresses
 import app.sterna.core.data.account.accountKeyOf
 import app.sterna.core.data.account.resolveExistingLogin
 import app.sterna.core.data.account.resolveExistingLoginAmong
+import app.sterna.core.data.account.revokedLinkedIds
 import app.sterna.core.data.db.ContactRow
 import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EmailDao
@@ -39,6 +40,7 @@ import app.sterna.core.data.filter.unchangedSince
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.mail.MailRepository.DiscoveryResult
 import app.sterna.core.data.rethrowIfCancelled
+import app.sterna.core.data.search.SearchHistoryRepository
 import app.sterna.core.imap.MANAGESIEVE_PORT
 import app.sterna.core.imap.SieveScriptInfo
 import app.sterna.core.jmap.BasicAuth
@@ -102,6 +104,8 @@ class MailAccounts(
     private val host: MailAccountHost,
     private val logWarn: (String, String, Throwable?) -> Unit = { _, _, _ -> },
     private val sieve: SieveConnector = ManageSieveConnector(),
+    /** Cleared whole when a linked account is revoked: a search carries no account. Null in tests. */
+    private val searchHistory: SearchHistoryRepository? = null,
 ) {
 
     /**
@@ -423,6 +427,8 @@ class MailAccounts(
             candidate.jmapAccountId to
                 runCatching { client.getMailboxes(session, candidate.jmapAccountId, auth) }.rethrowIfCancelled()
         }
+        // Read before the store rewrites the list: a pruned record is no longer in it afterwards.
+        val linkedBefore = accountStore.linkedAccounts(loginId)
         val pruned = runCatching { accountStore.reconcileLinkedAccounts(loginId, discovered, probes) }
             .getOrDefault(emptyList())
         pruned.forEach { prunedId ->
@@ -440,6 +446,11 @@ class MailAccounts(
                 runCatching { imap.forgetPendingExpunges(prunedId) }
                 runCatching { serverContactDao.deleteForAccount(prunedId) }
             }
+        }
+        // A revocation only: a duplicate pruned beside the record it copies is the same mailbox,
+        // still on this phone, and its searches were never about an account that left.
+        if (revokedLinkedIds(linkedBefore, discovered).any { it in pruned }) {
+            bgScope.launch { runCatching { searchHistory?.clear() } }
         }
     }
 

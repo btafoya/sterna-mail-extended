@@ -59,6 +59,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
     private val appScope = application.container.appScope
     private val pgp = application.container.pgpEngine
     private val settings = application.container.settingsRepository
+    private val searchHistory = application.container.searchHistoryRepository
 
     /** The "Separator line above the signature" setting (#90), so the identity editor's preview
      *  shows what the composer will write. */
@@ -618,13 +619,14 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         // account, and not from inside NewMailNotifier.clear, whose callers re-seed live accounts.
         removed.forEach { Notifications.cancelAccount(app, it) }
         MailChannels.sync(app, store)
-        // The two preferences filed under an account but living outside the account blob, which
-        // removeCascading does not touch: the last view shown (an IMAP folder path in cleartext)
+        // The last view shown (an IMAP folder path in cleartext) and the refresh stamps: outside the account blob.
         val removedIds = removed.toSet()
         store.setStoredView(prunedView(store.storedView(), removedIds))
         store.setRefreshFreshness(prunedFreshness(store.refreshFreshness(), removedIds))
         refresh()
         mail.resetSyncState()
+        // Not viewModelScope: signing out of the last account leaves Settings and would cancel the write.
+        appScope.launch { runCatching { searchHistory.clear() } }
         viewModelScope.launch {
             removed.forEach {
                 mail.disconnectImap(it)

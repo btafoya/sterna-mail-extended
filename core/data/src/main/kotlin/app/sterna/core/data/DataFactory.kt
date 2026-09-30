@@ -13,6 +13,7 @@ import app.sterna.core.data.mail.OAuthTokenRefresher
 import app.sterna.core.data.mail.SyncStateStore
 import app.sterna.core.data.pgp.PgpEngine
 import app.sterna.core.data.pgp.SmimeEngine
+import app.sterna.core.data.search.SearchHistoryRepository
 import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.data.storage.StorageRepository
@@ -36,6 +37,7 @@ object DataFactory {
         accountStore: AccountStorage,
         pgpEngine: PgpEngine? = null,
         settings: SettingsRepository? = null,
+        searchHistory: SearchHistoryRepository? = null,
         /**
          * `BuildConfig.VERSION_NAME` of `:app`, handed down to [ImapClient] so it can name itself
          */
@@ -90,6 +92,7 @@ object DataFactory {
                     if (error == null) android.util.Log.w(tag, message) else android.util.Log.w(tag, message, error)
                 },
                 outgoingDates = outgoingDates,
+                searchHistory = searchHistory,
             ),
             storageRepository = StorageRepository(
                 appContext, database.emailDao(), database.emailFtsDao(), database.emailBodyDao(),

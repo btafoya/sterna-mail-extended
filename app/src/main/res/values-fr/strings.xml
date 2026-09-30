@@ -508,6 +508,12 @@
     <string name="settings_recipient_suggestions_section">Suggestions de destinataires</string>
     <string name="settings_suggest_contacts_title">Suggérer depuis les contacts</string>
     <string name="settings_suggest_contacts_subtitle">Compléter les destinataires depuis les contacts de cet appareil pendant la saisie. Sterna Mail les lit uniquement sur l\'appareil et ne les envoie jamais. Désactivé, il suggère quand même les personnes que vous avez contactées récemment.</string>
+    <string name="settings_search_history_section">Historique de recherche</string>
+    <string name="settings_search_history_title">Retenir les recherches</string>
+    <string name="settings_search_history_subtitle">Garde sur cet appareil les mots que vous recherchez et les propose la fois suivante. La liste elle-même ne quitte jamais cet appareil.</string>
+    <string name="settings_search_history_clear">Effacer l\'historique de recherche</string>
+    <string name="settings_search_history_clear_dialog_title">Effacer l\'historique de recherche ?</string>
+    <string name="settings_search_history_clear_dialog_body">Supprime toutes les recherches récentes de cet appareil.</string>
     <string name="settings_storage_screen_title">Stockage</string>
     <string name="settings_on_device_usage_section">Utilisation sur l\'appareil</string>
     <string name="settings_storage_total">Total</string>
@@ -736,6 +742,7 @@
     <string name="search_title">Rechercher</string>
     <string name="search_field_label">Rechercher dans les e-mails</string>
     <string name="search_idle_hint">Recherchez dans tous vos messages.</string>
+    <string name="search_history_recent">Recherche récente</string>
     <string name="search_failed">Échec de la recherche : %1$s</string>
     <string name="search_no_results">Aucun résultat pour « %1$s ».</string>
     <string name="search_no_results_generic">Aucun message correspondant.</string>

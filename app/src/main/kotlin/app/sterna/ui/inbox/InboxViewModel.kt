@@ -51,6 +51,7 @@ import app.sterna.ui.NotificationFolderSwitch
 import app.sterna.ui.search.CriteriaResults
 import app.sterna.ui.search.SearchDisplay
 import app.sterna.ui.search.excerptsByResultKey
+import app.sterna.ui.search.barSuggestions
 import app.sterna.ui.search.forQuery
 import app.sterna.ui.search.searchComplete
 import app.sterna.ui.search.searchDisplay
@@ -170,6 +171,7 @@ internal data class SearchUi(
      *  dropped. The count then says "at least N" (see [app.sterna.core.data.mail.MailSearchResult]). */
     val complete: Boolean = true,
     val excerpts: Map<String, String> = emptyMap(),
+    val typing: Boolean = false,
 )
 
 /** Typing pause before the (unioned-in) server full-text search fires; local FTS has no debounce. */
@@ -221,6 +223,7 @@ class InboxViewModel(
     private val store = application.container.accountStore
     private val repo = application.container.mailRepository
     private val settings = application.container.settingsRepository
+    private val searchHistory = application.container.searchHistoryRepository
     private val outbox = application.container.sendOutbox
     private val appScope = application.container.appScope
     private val moveMemory = application.container.moveMemory
@@ -3240,6 +3243,28 @@ class InboxViewModel(
             }
         }
     }
+
+    fun typeSearchQuery(query: String) {
+        setSearchQuery(query)
+        searchState.value = searchState.value.copy(typing = true)
+    }
+
+    fun recordSearch() {
+        val typed = searchState.value.query
+        searchState.value = searchState.value.copy(typing = false)
+        viewModelScope.launch { searchHistory.record(typed) }
+    }
+
+    fun searchFromHistory(text: String) {
+        clearSelection()
+        setSearchQuery(text)
+        recordSearch()
+    }
+
+    val searchSuggestions: StateFlow<List<String>> =
+        combine(searchHistory.offered, searchState, selectionActive) { kept, search, selecting ->
+            barSuggestions(kept, search, selecting)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** The accounts the current view searches over: all of them in a view of every account. */
     private fun searchAccounts(): List<AccountCredentials> =

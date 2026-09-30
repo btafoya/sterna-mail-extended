@@ -48,6 +48,7 @@ import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.pgp.PgpEngine
 import app.sterna.core.data.pgp.SmimeEngine
 import app.sterna.core.data.rethrowIfCancelled
+import app.sterna.core.data.search.SearchHistoryRepository
 import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.data.settings.SortOrder
@@ -971,6 +972,8 @@ class MailRepository(
     private val logInfo: (String, String, Throwable?) -> Unit = { _, _, _ -> },
     private val logWarn: (String, String, Throwable?) -> Unit = { _, _, _ -> },
     outgoingDates: OutgoingDateZones = OutgoingDateZones.DEVICE,
+    /** Cleared when a linked account is revoked (null in tests). */
+    searchHistory: SearchHistoryRepository? = null,
 ) : MailSendHost, MailDraftHost, MailFolderHost, MailAccountHost {
     /** Background scope for fire-and-forget work (body prefetch) that must outlive a sync call. */
     private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -1031,6 +1034,7 @@ class MailRepository(
         bgScope = bgScope,
         host = this,
         logWarn = logWarn,
+        searchHistory = searchHistory,
     )
 
     class JmapAccountSession(

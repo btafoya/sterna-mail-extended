@@ -508,6 +508,12 @@
     <string name="settings_recipient_suggestions_section">Suggerimenti destinatari</string>
     <string name="settings_suggest_contacts_title">Suggerisci dai contatti</string>
     <string name="settings_suggest_contacts_subtitle">Completa automaticamente i destinatari dai contatti di questo dispositivo mentre digiti. Sterna Mail li legge solo sul dispositivo e non li carica mai. Se disattivato, suggerisce comunque le persone a cui hai scritto di recente.</string>
+    <string name="settings_search_history_section">Cronologia delle ricerche</string>
+    <string name="settings_search_history_title">Ricorda le ricerche</string>
+    <string name="settings_search_history_subtitle">Conserva su questo dispositivo le parole che cerchi e te le suggerisce la volta successiva. La lista stessa non lascia mai il dispositivo.</string>
+    <string name="settings_search_history_clear">Cancella cronologia delle ricerche</string>
+    <string name="settings_search_history_clear_dialog_title">Cancellare la cronologia delle ricerche?</string>
+    <string name="settings_search_history_clear_dialog_body">Rimuove tutte le ricerche recenti da questo dispositivo.</string>
     <string name="settings_storage_screen_title">Archiviazione</string>
     <string name="settings_on_device_usage_section">Uso sul dispositivo</string>
     <string name="settings_storage_total">Totale</string>
@@ -736,6 +742,7 @@
     <string name="search_title">Cerca</string>
     <string name="search_field_label">Cerca nella posta</string>
     <string name="search_idle_hint">Cerca in tutta la tua posta.</string>
+    <string name="search_history_recent">Ricerca recente</string>
     <string name="search_failed">Ricerca non riuscita: %1$s</string>
     <string name="search_no_results">Nessun risultato per \"%1$s\".</string>
     <string name="search_no_results_generic">Nessun messaggio corrispondente.</string>

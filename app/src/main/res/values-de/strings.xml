@@ -508,6 +508,12 @@
     <string name="settings_recipient_suggestions_section">Empfängervorschläge</string>
     <string name="settings_suggest_contacts_title">Aus Kontakten vorschlagen</string>
     <string name="settings_suggest_contacts_subtitle">Empfänger während der Eingabe aus den Kontakten dieses Geräts vervollständigen. Sterna Mail liest sie nur auf dem Gerät und lädt sie nie hoch. Wenn deaktiviert, werden trotzdem Personen vorgeschlagen, denen du kürzlich geschrieben hast.</string>
+    <string name="settings_search_history_section">Suchverlauf</string>
+    <string name="settings_search_history_title">Suchen merken</string>
+    <string name="settings_search_history_subtitle">Speichert die gesuchten Wörter auf diesem Gerät und schlägt sie beim nächsten Mal vor. Die Liste selbst verlässt das Gerät nie.</string>
+    <string name="settings_search_history_clear">Suchverlauf löschen</string>
+    <string name="settings_search_history_clear_dialog_title">Suchverlauf löschen?</string>
+    <string name="settings_search_history_clear_dialog_body">Entfernt alle letzten Suchen von diesem Gerät.</string>
     <string name="settings_storage_screen_title">Speicher</string>
     <string name="settings_on_device_usage_section">Nutzung auf dem Gerät</string>
     <string name="settings_storage_total">Gesamt</string>
@@ -736,6 +742,7 @@
     <string name="search_title">Suchen</string>
     <string name="search_field_label">E-Mails durchsuchen</string>
     <string name="search_idle_hint">Durchsuche alle deine E-Mails.</string>
+    <string name="search_history_recent">Letzte Suche</string>
     <string name="search_failed">Suche fehlgeschlagen: %1$s</string>
     <string name="search_no_results">Keine Ergebnisse für \"%1$s\".</string>
     <string name="search_no_results_generic">Keine passenden Nachrichten.</string>

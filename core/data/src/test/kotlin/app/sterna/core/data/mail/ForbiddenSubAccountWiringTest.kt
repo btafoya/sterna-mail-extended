@@ -43,6 +43,8 @@ class ForbiddenSubAccountWiringTest {
             candidate.jmapAccountId to
             runCatching { client.getMailboxes(session, candidate.jmapAccountId, auth) }.rethrowIfCancelled()
             }
+            // Read before the store rewrites the list: a pruned record is no longer in it afterwards.
+            val linkedBefore = accountStore.linkedAccounts(loginId)
             val pruned = runCatching { accountStore.reconcileLinkedAccounts(loginId, discovered, probes) }
             .getOrDefault(emptyList())
             pruned.forEach { prunedId ->
@@ -60,6 +62,11 @@ class ForbiddenSubAccountWiringTest {
             runCatching { imap.forgetPendingExpunges(prunedId) }
             runCatching { serverContactDao.deleteForAccount(prunedId) }
             }
+            }
+            // A revocation only: a duplicate pruned beside the record it copies is the same mailbox,
+            // still on this phone, and its searches were never about an account that left.
+            if (revokedLinkedIds(linkedBefore, discovered).any { it in pruned }) {
+            bgScope.launch { runCatching { searchHistory?.clear() } }
             }
             }
             """,

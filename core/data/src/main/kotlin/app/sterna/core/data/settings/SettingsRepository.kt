@@ -376,6 +376,7 @@ class SettingsRepository(context: Context) {
         unreadTint = unreadTint.first(),
         pureBlack = pureBlack.first(),
         listMonogram = listMonogram.first(),
+        searchHistory = searchHistory.first(),
         deliveryMode = deliveryMode.first().name,
         notificationContent = notificationContent.first().name,
     )
@@ -413,6 +414,7 @@ class SettingsRepository(context: Context) {
         backup.unreadTint?.let { setUnreadTint(it) }
         backup.pureBlack?.let { setPureBlack(it) }
         backup.listMonogram?.let { setListMonogram(it) }
+        backup.searchHistory?.let { setSearchHistory(it) }
         backup.deliveryMode?.let { v -> runCatching { DeliveryMode.valueOf(v) }.getOrNull()?.let { setDeliveryMode(it) } }
         notificationContentOrNull(backup.notificationContent)?.let { setNotificationContent(it) }
     }
@@ -447,6 +449,12 @@ class SettingsRepository(context: Context) {
 
     suspend fun setLastScheduleMinutes(minutes: Int) {
         dataStore.edit { it[KEY_LAST_SCHEDULE_MINUTES] = minutes }
+    }
+
+    val searchHistory: Flow<Boolean> = dataStore.data.map(::searchHistoryFrom)
+
+    suspend fun setSearchHistory(enabled: Boolean) {
+        dataStore.edit { it[KEY_SEARCH_HISTORY_ENABLED] = enabled }
     }
 
     private fun swipeFlow(key: Preferences.Key<String>, default: SwipeAction): Flow<SwipeAction> =
@@ -619,3 +627,10 @@ const val QUOTED_DATES_UTC_DEFAULT = false
 /** Whether outgoing dates are written in UTC, read from the stored preferences. */
 internal fun quotedDatesUtcFrom(prefs: Preferences): Boolean =
     prefs[KEY_QUOTED_DATES_UTC] ?: QUOTED_DATES_UTC_DEFAULT
+
+internal val KEY_SEARCH_HISTORY_ENABLED = booleanPreferencesKey("search_history")
+
+const val SEARCH_HISTORY_DEFAULT = true
+
+internal fun searchHistoryFrom(prefs: Preferences): Boolean =
+    prefs[KEY_SEARCH_HISTORY_ENABLED] ?: SEARCH_HISTORY_DEFAULT

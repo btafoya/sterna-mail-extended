@@ -17,6 +17,7 @@ import app.sterna.core.data.settings.PreviewLines
 import app.sterna.core.data.settings.PURE_BLACK_DEFAULT
 import app.sterna.core.data.settings.REPLY_BAR_DEFAULT
 import app.sterna.core.data.settings.UNREAD_TINT_DEFAULT
+import app.sterna.core.data.settings.SEARCH_HISTORY_DEFAULT
 import app.sterna.core.data.settings.SettingsBackup
 import app.sterna.core.data.settings.SettingsBackupCodec
 import app.sterna.core.data.settings.SwipeAction
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -41,6 +43,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val store = application.container.accountStore
     private val appLock = application.container.appLock
     private val settings = application.container.settingsRepository
+    private val searchHistoryRepository = application.container.searchHistoryRepository
 
     private val _pushAllAccounts = MutableStateFlow(store.pushAllAccounts())
     val pushAllAccounts = _pushAllAccounts.asStateFlow()
@@ -203,6 +206,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setImageAllowed(sender: String, allowed: Boolean) {
         viewModelScope.launch { settings.setImageAllowed(sender, allowed) }
+    }
+
+    val searchHistory = settings.searchHistory.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = SEARCH_HISTORY_DEFAULT,
+    )
+
+    fun setSearchHistory(enabled: Boolean) {
+        viewModelScope.launch { settings.setSearchHistory(enabled) }
+    }
+
+    val searchHistoryEmpty = searchHistoryRepository.entries.map { it.isEmpty() }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = true,
+    )
+
+    fun clearSearchHistory() {
+        viewModelScope.launch { searchHistoryRepository.clear() }
     }
 
     /** Everything the notifications screen shows, delivery mode (#17), notification content (#25)

@@ -13,6 +13,7 @@ import app.sterna.core.data.mail.OutboxScheduler
 import app.sterna.core.data.mail.localDraftUploadJobs
 import app.sterna.core.data.mail.scheduledSendJobs
 import app.sterna.core.data.rethrowIfCancelled
+import app.sterna.core.data.search.SearchHistoryRepository
 import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.data.storage.OrphanedAccountCache
 import app.sterna.core.data.storage.StorageRepository
@@ -51,6 +52,8 @@ class AppContainer(context: Context) {
     val accountStore: AccountStore = AccountStore(context.applicationContext)
     val moveMemory: MoveMemory = MoveMemory.of(context.applicationContext)
     val settingsRepository: SettingsRepository = SettingsRepository(context.applicationContext)
+    val searchHistoryRepository: SearchHistoryRepository =
+        SearchHistoryRepository(context.applicationContext, settingsRepository.searchHistory)
     /** `core/jmap` is plain Kotlin/JVM and cannot see `android.util.Log`, so the app hands it the
      *  sink. The tag is half of the `adb logcat` filter given to reporters and is pinned by a test;
      *  info/warn only, release stripping debug and verbose. */
@@ -64,6 +67,7 @@ class AppContainer(context: Context) {
     private val dataLayer =
         DataFactory.create(
             context.applicationContext, jmapClient, accountStore, pgpEngine, settingsRepository,
+            searchHistory = searchHistoryRepository,
             // What the IMAP client names itself as to the server (RFC 2971 ID, #173). It can only
             // come from here: core/imap and core/data have no BuildConfig.
             clientVersion = BuildConfig.VERSION_NAME,

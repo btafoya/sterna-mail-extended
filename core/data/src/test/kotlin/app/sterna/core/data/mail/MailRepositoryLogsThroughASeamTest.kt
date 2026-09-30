@@ -229,6 +229,7 @@ class MailRepositoryLogsThroughASeamTest {
                 "bgScope = bgScope,",
                 "host = this,",
                 "logWarn = logWarn,",
+                "searchHistory = searchHistory,",
                 ")",
             ),
             callAt("= MailAccounts("),

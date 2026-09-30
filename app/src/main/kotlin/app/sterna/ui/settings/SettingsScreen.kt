@@ -964,6 +964,9 @@ private fun PrivacySecurityScreen(viewModel: SettingsViewModel, onBack: () -> Un
     val askReadReceipt by viewModel.askReadReceipt.collectAsStateWithLifecycle()
     val quotedDatesUtc by viewModel.quotedDatesUtc.collectAsStateWithLifecycle()
     val imageAllowlist by viewModel.imageAllowlist.collectAsStateWithLifecycle()
+    val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
+    val searchHistoryEmpty by viewModel.searchHistoryEmpty.collectAsStateWithLifecycle()
+    var confirmClearHistory by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val contactsPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -1116,7 +1119,40 @@ private fun PrivacySecurityScreen(viewModel: SettingsViewModel, onBack: () -> Un
                     },
                 )
             }
+            SettingsSection(stringResource(R.string.settings_search_history_section)) {
+                SettingSwitch(
+                    title = stringResource(R.string.settings_search_history_title),
+                    subtitle = stringResource(R.string.settings_search_history_subtitle),
+                    checked = searchHistory,
+                    onCheckedChange = viewModel::setSearchHistory,
+                )
+                TextButton(
+                    onClick = { confirmClearHistory = true },
+                    enabled = !searchHistoryEmpty,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                ) {
+                    Text(stringResource(R.string.settings_search_history_clear))
+                }
+            }
         }
+    }
+    if (confirmClearHistory) {
+        AlertDialog(
+            onDismissRequest = { confirmClearHistory = false },
+            title = { Text(stringResource(R.string.settings_search_history_clear_dialog_title)) },
+            text = { Text(stringResource(R.string.settings_search_history_clear_dialog_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmClearHistory = false
+                        viewModel.clearSearchHistory()
+                    },
+                ) { Text(stringResource(R.string.settings_clear), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearHistory = false }) { Text(stringResource(R.string.settings_cancel)) }
+            },
+        )
     }
 }
 
