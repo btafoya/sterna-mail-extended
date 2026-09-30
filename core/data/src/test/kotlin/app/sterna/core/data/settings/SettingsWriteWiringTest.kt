@@ -219,7 +219,7 @@ class SettingsWriteWiringTest {
             File(root, REPOSITORY_PATH)
         }
 
-        /** Settings whose setter stores its boolean argument as it stands. */
+        /** Settings whose setter stores its argument as it stands. */
         val PLAIN = listOf(
             Write(
                 "suspend fun setDynamicColor(enabled: Boolean) {",
@@ -300,6 +300,10 @@ class SettingsWriteWiringTest {
             Write(
                 "suspend fun setQuietHoursEnabled(enabled: Boolean) {",
                 "dataStore.edit { it[KEY_QUIET_ENABLED] = enabled }",
+            ),
+            Write(
+                "suspend fun setLastScheduleMinutes(minutes: Int) {",
+                "dataStore.edit { it[KEY_LAST_SCHEDULE_MINUTES] = minutes }",
             ),
         )
 
@@ -416,6 +420,7 @@ class SettingsWriteWiringTest {
             "suspend fun setQuietHoursEnabled(enabled: Boolean) {" to "PLAIN",
             "suspend fun setQuietHoursStart(minutes: Int) {" to "BOUNDED",
             "suspend fun setQuietHoursEnd(minutes: Int) {" to "BOUNDED",
+            "suspend fun setLastScheduleMinutes(minutes: Int) {" to "PLAIN, local, left out of the backup",
         )
     }
 }

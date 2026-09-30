@@ -238,6 +238,7 @@ fun ComposeScreen(
     // a bare `remember` fell back to false on every rotation and took the dialog off screen without a
     // word, while `rememberSaveable` outlives the process, which the draft it names does not.
     val pendingDraftDelete by viewModel.pendingDraftDelete.collectAsStateWithLifecycle()
+    val lastScheduleMinutes by viewModel.lastScheduleMinutes.collectAsStateWithLifecycle()
     // The leave dialog (#35, #127) and the two chained pre-send guards. All three are the
     // ViewModel's for the reason above: a rotation restarts the composition and a bare `remember`
     // fell back to false, so the question left the screen as if it had been answered. Not
@@ -848,6 +849,7 @@ fun ComposeScreen(
                         // clock, which is not snapshot state, a window at most the tail of one minute.
                         if (millis != null) {
                             viewModel.clearScheduleTime()
+                            viewModel.rememberScheduleTime(timeState.hour, timeState.minute)
                             // The confirmation belongs to the schedule, not to the tap: the view
                             // model answers `false` on every refusal it owns. Announced regardless,
                             // "Scheduled, …" is a sentence about a message that was not scheduled.
@@ -1220,8 +1222,8 @@ fun ComposeScreen(
                         DropdownMenu(expanded = scheduleMenu, onDismissRequest = { scheduleMenu = false }, shape = MaterialTheme.shapes.medium) {
                             // All three fields travel to the tap: the preset says which kind of promise
                             // the entry made, and `drawnAt` is the instant it was drawn for, the answer
-                            // itself for the three absolute entries.
-                            schedulePresets(context, menuOpenedAt).forEach { (preset, label, drawnAt) ->
+                            // itself for the absolute entries.
+                            schedulePresets(context, menuOpenedAt, lastScheduleMinutes).forEach { (preset, label, drawnAt) ->
                                 DropdownMenuItem(
                                     text = { Text(label) },
                                     onClick = {
@@ -2279,16 +2281,23 @@ private fun FormattingButton(
 }
 
 /**
- * Quick "send later" presets as (preset, label, epoch-millis) for a menu drawn at [nowMillis]. The zone
+ * Quick "send later" presets as (preset, label, epoch-millis) for a menu drawn at [nowMillis].
  */
-private fun schedulePresets(context: android.content.Context, nowMillis: Long): List<Triple<SchedulePreset, String, Long>> =
+private fun schedulePresets(context: android.content.Context, nowMillis: Long, lastScheduleMinutes: Int?): List<Triple<SchedulePreset, String, Long>> =
     schedulePresetsAt(nowMillis, java.time.ZoneId.systemDefault())
+        .let { fixed ->
+            fixed + listOfNotNull(
+                lastPickedPresetMillis(lastScheduleMinutes, nowMillis, java.time.ZoneId.systemDefault(), fixed.map { it.second })
+                    ?.let { SchedulePreset.LAST_PICKED to it },
+            )
+        }
         .map { (preset, millis) ->
             val label = when (preset) {
-                SchedulePreset.IN_1_HOUR -> R.string.schedule_in_1_hour
-                SchedulePreset.THIS_EVENING -> R.string.schedule_this_evening
-                SchedulePreset.TOMORROW_MORNING -> R.string.schedule_tomorrow_morning
-                SchedulePreset.TOMORROW_EVENING -> R.string.schedule_tomorrow_evening
+                SchedulePreset.IN_1_HOUR -> context.getString(R.string.schedule_in_1_hour)
+                SchedulePreset.THIS_EVENING -> context.getString(R.string.schedule_this_evening)
+                SchedulePreset.TOMORROW_MORNING -> context.getString(R.string.schedule_tomorrow_morning)
+                SchedulePreset.TOMORROW_EVENING -> context.getString(R.string.schedule_tomorrow_evening)
+                SchedulePreset.LAST_PICKED -> DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)
             }
-            Triple(preset, context.getString(label), millis)
+            Triple(preset, label, millis)
         }

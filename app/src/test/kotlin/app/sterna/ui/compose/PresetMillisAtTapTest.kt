@@ -118,4 +118,17 @@ class PresetMillisAtTapTest {
             presetMillisAtTap(SchedulePreset.THIS_EVENING, evening, evening, utc),
         )
     }
+
+    @Test fun `the last picked time carries what was drawn and is refused the millisecond it lapses`() {
+        assertEquals(
+            "one millisecond before, the tap hands back the drawn instant untouched",
+            millis(utc, 14, 30),
+            presetMillisAtTap(SchedulePreset.LAST_PICKED, millis(utc, 14, 30), millis(utc, 14, 29, 59, 999_000_000), utc),
+        )
+        assertNull(
+            "on the stroke of 2:30 PM the entry has lapsed: refused, not re-projected to tomorrow, " +
+                "and not sent at once",
+            presetMillisAtTap(SchedulePreset.LAST_PICKED, millis(utc, 14, 30), millis(utc, 14, 30), utc),
+        )
+    }
 }

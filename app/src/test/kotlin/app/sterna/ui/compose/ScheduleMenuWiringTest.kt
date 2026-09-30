@@ -267,21 +267,22 @@ class ScheduleMenuWiringTest {
             "onClick = { moreMenu = false; menuOpenedAt = System.currentTimeMillis(); " +
                 "scheduleMenu = true },"
         private const val LIST_FROM_STAMP =
-            "schedulePresets(context, menuOpenedAt).forEach { (preset, label, drawnAt) ->"
+            "schedulePresets(context, menuOpenedAt, lastScheduleMinutes).forEach { (preset, label, drawnAt) ->"
         private const val PRESETS_SIGNATURE =
-            "private fun schedulePresets(context: android.content.Context, nowMillis: Long): " +
+            "private fun schedulePresets(context: android.content.Context, nowMillis: Long, lastScheduleMinutes: Int?): " +
                 "List<Triple<SchedulePreset, String, Long>> ="
         private const val PRESETS_CALL = "schedulePresetsAt(nowMillis, java.time.ZoneId.systemDefault())"
 
         /** From the `when` that resolves the labels to the end of the file, whole lines. */
         private val LABEL_TABLE = listOf(
             "val label = when (preset) {",
-            "SchedulePreset.IN_1_HOUR -> R.string.schedule_in_1_hour",
-            "SchedulePreset.THIS_EVENING -> R.string.schedule_this_evening",
-            "SchedulePreset.TOMORROW_MORNING -> R.string.schedule_tomorrow_morning",
-            "SchedulePreset.TOMORROW_EVENING -> R.string.schedule_tomorrow_evening",
+            "SchedulePreset.IN_1_HOUR -> context.getString(R.string.schedule_in_1_hour)",
+            "SchedulePreset.THIS_EVENING -> context.getString(R.string.schedule_this_evening)",
+            "SchedulePreset.TOMORROW_MORNING -> context.getString(R.string.schedule_tomorrow_morning)",
+            "SchedulePreset.TOMORROW_EVENING -> context.getString(R.string.schedule_tomorrow_evening)",
+            "SchedulePreset.LAST_PICKED -> DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)",
             "}",
-            "Triple(preset, context.getString(label), millis)",
+            "Triple(preset, label, millis)",
             "}",
         )
 

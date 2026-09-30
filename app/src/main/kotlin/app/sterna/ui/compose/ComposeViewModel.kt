@@ -328,6 +328,13 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         _pendingScheduleTime.value = false
     }
 
+    val lastScheduleMinutes: StateFlow<Int?> =
+        settings.lastScheduleMinutes.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    fun rememberScheduleTime(hour: Int, minute: Int) {
+        appScope.launch { settings.setLastScheduleMinutes(hour * 60 + minute) }
+    }
+
     /**
      * The day already chosen in the calendar, as the picker gives it: UTC midnight, never local
      * midnight. [pickedScheduleMillis] is what turns it into a real instant.

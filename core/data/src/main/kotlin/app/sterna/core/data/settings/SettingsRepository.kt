@@ -441,6 +441,14 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_QUIET_END] = minutes.coerceIn(0, 24 * 60 - 1) }
     }
 
+    val lastScheduleMinutes: Flow<Int?> = dataStore.data.map { prefs ->
+        prefs[KEY_LAST_SCHEDULE_MINUTES]?.takeIf { it in 0 until 24 * 60 }
+    }
+
+    suspend fun setLastScheduleMinutes(minutes: Int) {
+        dataStore.edit { it[KEY_LAST_SCHEDULE_MINUTES] = minutes }
+    }
+
     private fun swipeFlow(key: Preferences.Key<String>, default: SwipeAction): Flow<SwipeAction> =
         dataStore.data.map { prefs ->
             prefs[key]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: default
@@ -487,6 +495,7 @@ class SettingsRepository(context: Context) {
         private val KEY_QUIET_ENABLED = booleanPreferencesKey("quiet_hours_enabled")
         private val KEY_QUIET_START = intPreferencesKey("quiet_hours_start")
         private val KEY_QUIET_END = intPreferencesKey("quiet_hours_end")
+        private val KEY_LAST_SCHEDULE_MINUTES = intPreferencesKey("last_schedule_minutes")
     }
 }
 

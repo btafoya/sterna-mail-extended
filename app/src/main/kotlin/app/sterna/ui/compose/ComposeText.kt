@@ -563,8 +563,8 @@ internal fun draftSaveAllowed(pgpMode: PgpMode): Boolean = !pgpMode.encrypts
  */
 internal fun scheduleSendAllowed(pgpMode: PgpMode): Boolean = pgpMode == PgpMode.OFF
 
-/** The quick "send later" choices, in the order the composer's menu draws them. */
-internal enum class SchedulePreset { IN_1_HOUR, THIS_EVENING, TOMORROW_MORNING, TOMORROW_EVENING }
+/** The quick "send later" choices in menu order; [LAST_PICKED] comes from [lastPickedPresetMillis]. */
+internal enum class SchedulePreset { IN_1_HOUR, THIS_EVENING, TOMORROW_MORNING, TOMORROW_EVENING, LAST_PICKED }
 
 /**
  * The presets still offerable at [nowMillis], read in [zone], in menu order, those strictly in the
@@ -591,8 +591,8 @@ internal fun schedulePresetsAt(nowMillis: Long, zone: ZoneId): List<Pair<Schedul
  * The same danger as [pickedScheduleMillis], one tap earlier: the menu can stand open for minutes,
  * and a lapsed instant becomes a delay coerced to zero, the message going out at once.
  *
- * One preset is asked again and three are not: [SchedulePreset.IN_1_HOUR] is relative, while the
- * three others are absolute of the day they were drawn, re-reading them moves them a whole day at
+ * One preset is asked again and the others are not: [SchedulePreset.IN_1_HOUR] is relative, while
+ * the others are absolute of the day they were drawn, re-reading them moves them a whole day at
  * midnight, and their refusal is read on [drawnMillis].
  */
 internal fun presetMillisAtTap(
@@ -603,10 +603,32 @@ internal fun presetMillisAtTap(
 ): Long? = when (preset) {
     SchedulePreset.IN_1_HOUR ->
         schedulePresetsAt(nowMillis, zone).firstOrNull { it.first == preset }?.second
-    // Named one by one rather than an `else`: a fifth preset must not be swallowed into "carry what
+    // Named one by one rather than an `else`: a new preset must not be swallowed into "carry what
     // was drawn" in silence, the compiler has to ask which of the two kinds it is.
     SchedulePreset.THIS_EVENING, SchedulePreset.TOMORROW_MORNING, SchedulePreset.TOMORROW_EVENING ->
         drawnMillis.takeIf { it > nowMillis }
+    SchedulePreset.LAST_PICKED -> drawnMillis.takeIf { it > nowMillis }
+}
+
+/**
+ * The instant the last hand-picked wall time, [pickedMinutes] past midnight, names from [nowMillis]:
+ * today when strictly ahead, else tomorrow. This entry alone folds over, its label being the instant
+ * itself. Rebuilt from the civil day, never a day of millis added, so a clock change keeps the wall
+ * time. Null when a fixed entry in [fixedMillis] already offers that instant.
+ */
+internal fun lastPickedPresetMillis(
+    pickedMinutes: Int?,
+    nowMillis: Long,
+    zone: ZoneId,
+    fixedMillis: List<Long>,
+): Long? {
+    if (pickedMinutes == null) return null
+    val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
+    val time = LocalTime.of(pickedMinutes / 60, pickedMinutes % 60)
+    fun on(day: java.time.LocalDate) = ZonedDateTime.of(day, time, zone).toInstant().toEpochMilli()
+    val today = on(now.toLocalDate())
+    val projected = if (today > nowMillis) today else on(now.toLocalDate().plusDays(1))
+    return projected.takeIf { it !in fixedMillis }
 }
 
 /**
