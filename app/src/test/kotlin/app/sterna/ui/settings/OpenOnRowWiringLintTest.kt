@@ -286,7 +286,7 @@ class OpenOnRowWiringLintTest {
         )
 
         val EXPECTED_APPEARANCE_ROUTE = listOf(
-            "composable(\"appearance\") { entry ->",
+            "composable(focusable(\"appearance\"), arguments = settingFocusArguments) { entry ->",
             "val accounts by accountsViewModel.accounts.collectAsStateWithLifecycle()",
             "AppearanceScreen(",
             "viewModel = viewModel,",

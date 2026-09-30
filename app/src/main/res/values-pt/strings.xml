@@ -296,6 +296,8 @@
 
     <!-- Settings -->
     <string name="settings_hub_title">Configurações</string>
+    <string name="settings_search_hint">Pesquisar configurações</string>
+    <string name="settings_search_no_result">Nenhuma configuração corresponde</string>
     <string name="settings_back">Voltar</string>
     <string name="settings_cancel">Cancelar</string>
     <string name="settings_clear">Limpar</string>

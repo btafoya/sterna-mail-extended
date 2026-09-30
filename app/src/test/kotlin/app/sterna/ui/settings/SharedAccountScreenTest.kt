@@ -198,6 +198,25 @@ class SharedAccountScreenTest {
             ),
             statementsAfter(SETTINGS, ACCOUNTS_SCREEN_MARKER, 3),
         )
+        assertEquals(
+            listOf(
+                "val searchable = remember(current, currentLabel) {",
+                "searchableSettings(current, Build.VERSION.SDK_INT)",
+                ".map { resolveSetting(context, it, currentLabel) }",
+                "}",
+            ),
+            statementsAfter(SETTINGS, HUB_CURRENT_MARKER, 4),
+        )
+        assertEquals(
+            listOf(
+                "onOpenSetting = { setting ->",
+                "searchResultRoute(setting, currentId, accountsViewModel.accounts.value)?.let { route ->",
+                "entry.navigateOnce { nav.navigate(route) }",
+                "}",
+                "},",
+            ),
+            statementsAfter(SETTINGS, HUB_SEARCHABLE_MARKER, 5),
+        )
     }
 
     /**
@@ -208,7 +227,7 @@ class SharedAccountScreenTest {
     @Test fun `the shared route opens the shared screen with the id it carries`() {
         assertEquals(
             listOf(
-                "composable(\"sharedAccount/{id}\") { entry ->",
+                "composable(focusable(\"sharedAccount/{id}\"), arguments = settingFocusArguments) { entry ->",
                 "val id = entry.arguments?.getString(\"id\").orEmpty()",
                 "SharedAccountScreen(",
                 "accountId = id,",
@@ -224,7 +243,7 @@ class SharedAccountScreenTest {
     @Test fun `the account route keeps a shared mailbox off the login editor`() {
         assertEquals(
             listOf(
-                "composable(\"account/{id}\") { entry ->",
+                "composable(focusable(\"account/{id}\"), arguments = settingFocusArguments) { entry ->",
                 "val id = entry.arguments?.getString(\"id\").orEmpty()",
                 "val accounts by accountsViewModel.accounts.collectAsStateWithLifecycle()",
                 "if (sharedAccountFor(id, accounts) != null) {",
@@ -340,6 +359,8 @@ class SharedAccountScreenTest {
         const val SHARED_ROUTE_MARKER =
             "// PINNED BY SharedAccountScreenTest \u2014 the shared route, statement by statement"
         const val ACCOUNTS_SCREEN_MARKER = "AccountsScreen("
+        const val HUB_CURRENT_MARKER = "val current = accounts.firstOrNull { it.id == currentId }"
+        const val HUB_SEARCHABLE_MARKER = "searchable = searchable,"
 
         /**
          * Doors a screen can open, and what the user loses through each one, half a line apiece.

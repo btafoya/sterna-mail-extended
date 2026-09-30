@@ -109,12 +109,16 @@ fun SettingsCategoryRow(
 @Composable
 fun SettingsSection(title: String, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth()) {
-        Text(
-            title,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
-        )
+        SettingSpotlightTarget(title, AnchorKind.SECTION) {
+            Text(
+                title,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+            )
+        }
         content()
     }
 }
@@ -128,42 +132,44 @@ fun SettingSwitch(
     onCheckedChange: (Boolean) -> Unit,
     enabled: Boolean = true,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .toggleable(
-                value = checked,
+    SettingSpotlightTarget(title) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = checked,
+                    enabled = enabled,
+                    role = Role.Switch,
+                    onValueChange = onCheckedChange,
+                )
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (enabled) {
+                        Color.Unspecified
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    },
+                )
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                        .copy(alpha = if (enabled) 1f else 0.38f),
+                )
+            }
+            Spacer(Modifier.width(16.dp))
+            Switch(
+                checked = checked,
+                onCheckedChange = null,
+                modifier = Modifier.minimumInteractiveComponentSize(),
                 enabled = enabled,
-                role = Role.Switch,
-                onValueChange = onCheckedChange,
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (enabled) {
-                    Color.Unspecified
-                } else {
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                },
-            )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-                    .copy(alpha = if (enabled) 1f else 0.38f),
             )
         }
-        Spacer(Modifier.width(16.dp))
-        Switch(
-            checked = checked,
-            onCheckedChange = null,
-            modifier = Modifier.minimumInteractiveComponentSize(),
-            enabled = enabled,
-        )
     }
 }
 
@@ -177,20 +183,22 @@ fun <T> SettingChoiceRow(
     onSelect: (T) -> Unit,
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { showDialog = true }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                optionLabel(selected),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    SettingSpotlightTarget(title) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showDialog = true }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    optionLabel(selected),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
     if (showDialog) {
@@ -220,20 +228,22 @@ fun <T> SettingMultiChoiceRow(
     onCheckedChange: (T, Boolean) -> Unit,
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { showDialog = true }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                options.filter { it in checked }.joinToString { optionLabel(it) }.ifEmpty { noneLabel },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    SettingSpotlightTarget(title) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showDialog = true }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    options.filter { it in checked }.joinToString { optionLabel(it) }.ifEmpty { noneLabel },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
     if (showDialog) {
@@ -348,29 +358,31 @@ fun SettingCopyableRow(
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                clipboard.setText(AnnotatedString(value))
-                Toast.makeText(context, copiedMessage, Toast.LENGTH_SHORT).show()
+    SettingSpotlightTarget(label) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    clipboard.setText(AnnotatedString(value))
+                    Toast.makeText(context, copiedMessage, Toast.LENGTH_SHORT).show()
+                }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(label, style = MaterialTheme.typography.titleMedium)
+                SelectionContainer {
+                    Text(
+                        value,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.titleMedium)
-            SelectionContainer {
-                Text(
-                    value,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Spacer(Modifier.width(16.dp))
+            // Decorative: the whole row is the one click target, and a screen reader already reads it.
+            Icon(Icons.Filled.ContentCopy, contentDescription = null)
         }
-        Spacer(Modifier.width(16.dp))
-        // Decorative: the whole row is the one click target, and a screen reader already reads it.
-        Icon(Icons.Filled.ContentCopy, contentDescription = null)
     }
 }
 
@@ -390,31 +402,33 @@ fun SettingTextField(
     // next secret typed into it in clear text.
     var revealRequested by remember(value.isEmpty()) { mutableStateOf(false) }
     val masked = isPassword && !revealRequested
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        singleLine = true,
-        visualTransformation = if (masked) PasswordVisualTransformation() else VisualTransformation.None,
-        trailingIcon = if (revealIconOffered(isPassword, value)) {
-            {
-                IconButton(onClick = { revealRequested = !revealRequested }) {
-                    Icon(
-                        if (revealRequested) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                        contentDescription = stringResource(
-                            if (revealRequested) R.string.connect_password_hide else R.string.connect_password_show,
-                        ),
-                    )
+    SettingSpotlightTarget(label) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            singleLine = true,
+            visualTransformation = if (masked) PasswordVisualTransformation() else VisualTransformation.None,
+            trailingIcon = if (revealIconOffered(isPassword, value)) {
+                {
+                    IconButton(onClick = { revealRequested = !revealRequested }) {
+                        Icon(
+                            if (revealRequested) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = stringResource(
+                                if (revealRequested) R.string.connect_password_hide else R.string.connect_password_show,
+                            ),
+                        )
+                    }
                 }
-            }
-        } else {
-            null
-        },
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-    )
+            } else {
+                null
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+    }
 }
 
 @Composable

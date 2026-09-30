@@ -146,8 +146,16 @@ The full kit lives in `SettingsComponents.kt`; this table lists only the main pi
 
 ### Visual & motion rules
 
-- **Hub:** a `Column` of category rows in a `verticalScroll`, **no cards**, 16dp margins, icon tint
-  `onSurfaceVariant`, summary line in `bodyMedium` / `onSurfaceVariant`.
+- **Hub:** a search field on top, then a `Column` of category rows in a `verticalScroll`, **no
+  cards**, 16dp margins, icon tint `onSurfaceVariant`, summary line in `bodyMedium` /
+  `onSurfaceVariant`.
+- **Hub search:** a typed query replaces the category rows with matching settings, each with its
+  path in `bodySmall` below it (the rubric, or "Accounts › <account>"). Words match in any order,
+  without case or accents; `ł`, `ø`, `đ`, `ß` are not folded. It covers the rubrics, the settings of
+  Appearance, Reading, Notifications and Privacy, and those of the current account only; the
+  Vacation and Filters fields are reached through their rubric. A tapped result opens its screen,
+  scrolls to the row and tints it once, like the message list on return; no tint under reduced
+  motion.
 - **Detail screens:** sectioned lists; section headers in the single accent
   (`labelLarge`); separation by whitespace, not boxes; `LargeTopAppBar` that
   collapses on scroll (the inbox collapses the same way, from a

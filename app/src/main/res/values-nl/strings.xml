@@ -296,6 +296,8 @@
 
     <!-- Settings -->
     <string name="settings_hub_title">Instellingen</string>
+    <string name="settings_search_hint">Instellingen doorzoeken</string>
+    <string name="settings_search_no_result">Geen instelling komt overeen</string>
     <string name="settings_back">Terug</string>
     <string name="settings_cancel">Annuleren</string>
     <string name="settings_clear">Wissen</string>

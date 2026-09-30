@@ -232,6 +232,11 @@ fun SettingsScreen(
             // The About rows leave the app: one opener for all, so two rows tapped together open
             // once (#106).
             val leaveOnce = rememberLeaveOnce(entry)
+            val current = accounts.firstOrNull { it.id == currentId }
+            val searchable = remember(current, currentLabel) {
+                searchableSettings(current, Build.VERSION.SDK_INT)
+                    .map { resolveSetting(context, it, currentLabel) }
+            }
             SettingsHub(
                 onBack = onBack,
                 onOpenAccounts = { entry.navigateOnce { nav.navigate("accounts") } },
@@ -245,6 +250,12 @@ fun SettingsScreen(
                 onOpenBackup = { entry.navigateOnce { nav.navigate("backup") } },
                 onOpenUrl = { url -> leaveOnce { openUrl(context, url) } },
                 currentAccountLabel = currentLabel,
+                searchable = searchable,
+                onOpenSetting = { setting ->
+                    searchResultRoute(setting, currentId, accountsViewModel.accounts.value)?.let { route ->
+                        entry.navigateOnce { nav.navigate(route) }
+                    }
+                },
             )
         }
         composable("accounts") { entry ->
@@ -276,7 +287,7 @@ fun SettingsScreen(
         // "account/<id>" arrives with nothing between the id and the login editor's password field,
         // which writes under [StoredAccount.loginKey].
         // PINNED BY SharedAccountScreenTest — the account route, statement by statement
-        composable("account/{id}") { entry ->
+        composable(focusable("account/{id}"), arguments = settingFocusArguments) { entry ->
             val id = entry.arguments?.getString("id").orEmpty()
             val accounts by accountsViewModel.accounts.collectAsStateWithLifecycle()
             if (sharedAccountFor(id, accounts) != null) {
@@ -306,7 +317,7 @@ fun SettingsScreen(
         // The two settings a delegated account genuinely owns (#31). Its own destination rather
         // than a mode of "account/{id}", which edits the borrowed LOGIN's credential.
         // PINNED BY SharedAccountScreenTest — the shared route, statement by statement
-        composable("sharedAccount/{id}") { entry ->
+        composable(focusable("sharedAccount/{id}"), arguments = settingFocusArguments) { entry ->
             val id = entry.arguments?.getString("id").orEmpty()
             SharedAccountScreen(
                 accountId = id,
@@ -315,7 +326,7 @@ fun SettingsScreen(
                 onAccountsChanged = onAccountsChanged,
             )
         }
-        composable("appearance") { entry ->
+        composable(focusable("appearance"), arguments = settingFocusArguments) { entry ->
             val accounts by accountsViewModel.accounts.collectAsStateWithLifecycle()
             AppearanceScreen(
                 viewModel = viewModel,
@@ -323,10 +334,10 @@ fun SettingsScreen(
                 onBack = { entry.navigateOnce { nav.popBackStack() } },
             )
         }
-        composable("reading") { entry ->
+        composable(focusable("reading"), arguments = settingFocusArguments) { entry ->
             ReadingScreen(viewModel = viewModel, onBack = { entry.navigateOnce { nav.popBackStack() } })
         }
-        composable("notifications") { entry ->
+        composable(focusable("notifications"), arguments = settingFocusArguments) { entry ->
             NotificationsScreen(viewModel = viewModel, onBack = { entry.navigateOnce { nav.popBackStack() } })
         }
         composable("vacation") { entry ->
@@ -335,7 +346,7 @@ fun SettingsScreen(
         composable("filters") { entry ->
             FiltersScreen(onBack = { entry.navigateOnce { nav.popBackStack() } })
         }
-        composable("privacy") { entry ->
+        composable(focusable("privacy"), arguments = settingFocusArguments) { entry ->
             PrivacySecurityScreen(viewModel = viewModel, onBack = { entry.navigateOnce { nav.popBackStack() } })
         }
         composable("storage") { entry ->
@@ -366,58 +377,62 @@ private fun SettingsHub(
     onOpenBackup: () -> Unit,
     onOpenUrl: (String) -> Unit,
     currentAccountLabel: String,
+    searchable: List<ResolvedSetting>,
+    onOpenSetting: (SettingEntry) -> Unit,
 ) {
     DetailScaffold(title = stringResource(R.string.settings_hub_title), onBack = onBack) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()),
-        ) {
-            SettingsCategoryRow(
-                Icons.Filled.Person,
-                stringResource(R.string.settings_accounts_title),
-                stringResource(R.string.settings_accounts_summary),
-                onOpenAccounts,
-            )
-            SettingsSection(stringResource(R.string.settings_group_app)) {
-                SettingsCategoryRow(Icons.Filled.Palette, stringResource(R.string.settings_appearance_title), stringResource(R.string.settings_appearance_summary), onOpenAppearance)
-                SettingsCategoryRow(Icons.AutoMirrored.Filled.List, stringResource(R.string.settings_reading_title), stringResource(R.string.settings_reading_summary), onOpenReading)
-                SettingsCategoryRow(Icons.Filled.Notifications, stringResource(R.string.settings_notifications_title), stringResource(R.string.settings_notifications_summary), onOpenNotifications)
-                SettingsCategoryRow(Icons.Filled.Lock, stringResource(R.string.settings_privacy_title), stringResource(R.string.settings_privacy_summary), onOpenPrivacy)
-                SettingsCategoryRow(Icons.Filled.Storage, stringResource(R.string.settings_storage_title), stringResource(R.string.settings_storage_summary), onOpenStorage)
-                SettingsCategoryRow(Icons.Filled.Backup, stringResource(R.string.settings_backup_title), stringResource(R.string.settings_backup_summary), onOpenBackup)
-            }
-            // Server-side settings that apply to the current account only; the header names it.
-            val accountGroupTitle = if (currentAccountLabel.isNotBlank()) {
-                stringResource(R.string.settings_group_current_account, currentAccountLabel)
-            } else {
-                stringResource(R.string.settings_group_current_account_generic)
-            }
-            SettingsSection(accountGroupTitle) {
-                SettingsCategoryRow(Icons.Filled.BeachAccess, stringResource(R.string.settings_vacation_title), stringResource(R.string.settings_vacation_summary), onOpenVacation)
-                SettingsCategoryRow(Icons.Filled.FilterAlt, stringResource(R.string.settings_filters_title), stringResource(R.string.settings_filters_summary), onOpenFilters)
-            }
-            // These four rows hand a URL to a browser; [onOpenUrl] carries the double-tap guard.
-            // No Context is taken here, so a row added later cannot fire an intent of its own.
-            SettingsSection(stringResource(R.string.settings_about_section)) {
-                SettingsCategoryRow(
-                    Icons.Filled.Info,
-                    stringResource(R.string.settings_about_version),
-                    "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · ${BuildConfig.VERSION_DATE}",
-                ) { onOpenUrl("$REPO_URL/releases") }
-                SettingsCategoryRow(
-                    Icons.Filled.Code,
-                    stringResource(R.string.settings_about_source),
-                    REPO_URL.removePrefix("https://"),
-                ) { onOpenUrl(REPO_URL) }
-                SettingsCategoryRow(
-                    Icons.Filled.Description,
-                    stringResource(R.string.settings_about_license),
-                    "GPL-3.0-only",
-                ) { onOpenUrl("$REPO_URL/src/branch/main/LICENSE") }
+        SettingsSearch(searchable, onOpenSetting, Modifier.fillMaxSize().padding(padding)) {
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            ) {
                 SettingsCategoryRow(
                     Icons.Filled.Person,
-                    stringResource(R.string.settings_about_author),
-                    "emon",
-                ) { onOpenUrl("https://codeberg.org/emon") }
+                    stringResource(R.string.settings_accounts_title),
+                    stringResource(R.string.settings_accounts_summary),
+                    onOpenAccounts,
+                )
+                SettingsSection(stringResource(R.string.settings_group_app)) {
+                    SettingsCategoryRow(Icons.Filled.Palette, stringResource(R.string.settings_appearance_title), stringResource(R.string.settings_appearance_summary), onOpenAppearance)
+                    SettingsCategoryRow(Icons.AutoMirrored.Filled.List, stringResource(R.string.settings_reading_title), stringResource(R.string.settings_reading_summary), onOpenReading)
+                    SettingsCategoryRow(Icons.Filled.Notifications, stringResource(R.string.settings_notifications_title), stringResource(R.string.settings_notifications_summary), onOpenNotifications)
+                    SettingsCategoryRow(Icons.Filled.Lock, stringResource(R.string.settings_privacy_title), stringResource(R.string.settings_privacy_summary), onOpenPrivacy)
+                    SettingsCategoryRow(Icons.Filled.Storage, stringResource(R.string.settings_storage_title), stringResource(R.string.settings_storage_summary), onOpenStorage)
+                    SettingsCategoryRow(Icons.Filled.Backup, stringResource(R.string.settings_backup_title), stringResource(R.string.settings_backup_summary), onOpenBackup)
+                }
+                // Server-side settings that apply to the current account only; the header names it.
+                val accountGroupTitle = if (currentAccountLabel.isNotBlank()) {
+                    stringResource(R.string.settings_group_current_account, currentAccountLabel)
+                } else {
+                    stringResource(R.string.settings_group_current_account_generic)
+                }
+                SettingsSection(accountGroupTitle) {
+                    SettingsCategoryRow(Icons.Filled.BeachAccess, stringResource(R.string.settings_vacation_title), stringResource(R.string.settings_vacation_summary), onOpenVacation)
+                    SettingsCategoryRow(Icons.Filled.FilterAlt, stringResource(R.string.settings_filters_title), stringResource(R.string.settings_filters_summary), onOpenFilters)
+                }
+                // These four rows hand a URL to a browser; [onOpenUrl] carries the double-tap guard.
+                // No Context is taken here, so a row added later cannot fire an intent of its own.
+                SettingsSection(stringResource(R.string.settings_about_section)) {
+                    SettingsCategoryRow(
+                        Icons.Filled.Info,
+                        stringResource(R.string.settings_about_version),
+                        "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · ${BuildConfig.VERSION_DATE}",
+                    ) { onOpenUrl("$REPO_URL/releases") }
+                    SettingsCategoryRow(
+                        Icons.Filled.Code,
+                        stringResource(R.string.settings_about_source),
+                        REPO_URL.removePrefix("https://"),
+                    ) { onOpenUrl(REPO_URL) }
+                    SettingsCategoryRow(
+                        Icons.Filled.Description,
+                        stringResource(R.string.settings_about_license),
+                        "GPL-3.0-only",
+                    ) { onOpenUrl("$REPO_URL/src/branch/main/LICENSE") }
+                    SettingsCategoryRow(
+                        Icons.Filled.Person,
+                        stringResource(R.string.settings_about_author),
+                        "emon",
+                    ) { onOpenUrl("https://codeberg.org/emon") }
+                }
             }
         }
     }
@@ -827,19 +842,21 @@ private fun formatMinutes(minutes: Int): String = "%02d:%02d".format(minutes / 6
 @Composable
 private fun TimePickerRow(label: String, minutes: Int, onChange: (Int) -> Unit) {
     var show by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { show = true }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Text(
-            formatMinutes(minutes),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
+    SettingSpotlightTarget(label) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { show = true }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            Text(
+                formatMinutes(minutes),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
     }
     if (show) {
         val state = rememberTimePickerState(
@@ -3030,22 +3047,24 @@ private fun DeliveryModeOption(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RadioButton(selected = selected, onClick = null)
-        Spacer(Modifier.width(16.dp))
-        Column {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    SettingSpotlightTarget(title) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RadioButton(selected = selected, onClick = null)
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(title, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

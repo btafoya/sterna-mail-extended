@@ -296,6 +296,8 @@
 
     <!-- Settings -->
     <string name="settings_hub_title">Paramètres</string>
+    <string name="settings_search_hint">Rechercher dans les paramètres</string>
+    <string name="settings_search_no_result">Aucun paramètre ne correspond</string>
     <string name="settings_back">Retour</string>
     <string name="settings_cancel">Annuler</string>
     <string name="settings_clear">Effacer</string>

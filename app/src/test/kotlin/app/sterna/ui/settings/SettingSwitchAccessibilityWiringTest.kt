@@ -14,6 +14,7 @@ class SettingSwitchAccessibilityWiringTest {
 
     @Test fun `the whole row is the toggle, placed before the padding`() {
         val expected = listOf(
+            "SettingSpotlightTarget(title) {",
             "Row(",
             "modifier = Modifier",
             ".fillMaxWidth()",

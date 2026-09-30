@@ -296,6 +296,8 @@
 
     <!-- Settings -->
     <string name="settings_hub_title">Настройки</string>
+    <string name="settings_search_hint">Поиск по настройкам</string>
+    <string name="settings_search_no_result">Нет подходящих настроек</string>
     <string name="settings_back">Назад</string>
     <string name="settings_cancel">Отмена</string>
     <string name="settings_clear">Очистить</string>
