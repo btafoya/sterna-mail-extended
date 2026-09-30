@@ -15,19 +15,22 @@ class RecipientMenuFitTest {
     @Test fun `the recipient field, its measurements and its keyed remember are all still found`() {
         // The rule that keeps the others honest: every rule below reads one of these, and a rule
         // that quietly matches nothing is worse than no rule.
-        val body = fieldBody()
+        val body = menuBody()
         assertTrue(
-            "RecipientChipsField no longer calls $CALL — either the #143 fix was removed, or the " +
+            "RecipientSuggestionMenu no longer calls $CALL — either the #143 fix was removed, or the " +
                 "computation moved somewhere this file cannot read, in which case this lint must " +
                 "be taught the new shape rather than left green",
             CALL in body,
         )
-        assertTrue("RecipientChipsField no longer composes a Popup( — re-read it", "Popup(" in body)
-        assertTrue(
-            "RecipientChipsField no longer measures itself with .onGloballyPositioned — rules A " +
-                "and the window height below read that block",
-            POSITIONED in body,
-        )
+        assertTrue("RecipientSuggestionMenu no longer composes a Popup( — re-read it", "Popup(" in body)
+        callers().forEach { (caller, callerBody) ->
+            assertTrue(
+                "$caller no longer measures itself with .onGloballyPositioned — rules A " +
+                    "and the window height below read that block",
+                POSITIONED in callerBody,
+            )
+            assertTrue("$caller no longer draws its menu with $MENU_CALL", MENU_CALL in callerBody)
+        }
         val keyed = keyedRemember(body)
         assertTrue(
             "the $CALL call must be bound to a name (`val <name> = remember(…) { … }`); the cap " +
@@ -40,11 +43,11 @@ class RecipientMenuFitTest {
      * Mutation M1, the one that puts #143 straight back: hand `heightIn` the flat 256.dp again.
      */
     @Test fun `the suggestion menu is capped by the computed height, not by a constant`() {
-        val body = fieldBody()
+        val body = menuBody()
         val name = keyedRemember(body).name
         val caps = HEIGHT_IN.findAll(body).map { it.groupValues[1].trim() }.toList()
         assertEquals(
-            "exactly one `heightIn(max = …)` in RecipientChipsField must receive '$name', the " +
+            "exactly one `heightIn(max = …)` in RecipientSuggestionMenu must receive '$name', the " +
                 "height computed for the room left under the field with the keyboard up. Found " +
                 "these caps instead: $caps. A literal here is #143 itself: on a 432 px tall screen " +
                 "a 256 dp menu covers the keyboard and the address can no longer be narrowed down.",
@@ -52,7 +55,7 @@ class RecipientMenuFitTest {
             caps.count { it == name },
         )
         assertEquals(
-            "no flat 256.dp may remain in RecipientChipsField: the menu's own maximum belongs to " +
+            "no flat 256.dp may remain in RecipientSuggestionMenu: the menu's own maximum belongs to " +
                 "SuggestionMenuFit.kt, where the room actually left is what bounds it. Lines:",
             emptyList<String>(),
             body.lines().map { it.trim() }.filter { "256.dp" in it },
@@ -63,18 +66,20 @@ class RecipientMenuFitTest {
      * Mutation A: the field measures itself, and this is the block where a wrong number is born
      */
     @Test fun `the field measures its own bottom edge and the root's height, whole`() {
-        val block = positionedBlock(fieldBody())
-        val assignments = assignments(block)
-        listOf(FIELD_BOTTOM_RHS, WINDOW_HEIGHT_RHS).forEach { rhs ->
-            assertEquals(
-                "exactly one assignment in RecipientChipsField's onGloballyPositioned must read " +
-                    "'$rhs', whole. Found instead: $assignments. Anything shorter is measured " +
-                    "against a field of zero height (the menu covers the first row of keys again) " +
-                    "or against a width, and nothing else in this repo would see it. Block was:\n" +
-                    block,
-                1,
-                assignments.values.count { it == rhs },
-            )
+        callers().forEach { (caller, callerBody) ->
+            val block = positionedBlock(callerBody)
+            val assignments = assignments(block)
+            listOf(FIELD_BOTTOM_RHS, WINDOW_HEIGHT_RHS).forEach { rhs ->
+                assertEquals(
+                    "exactly one assignment in $caller's onGloballyPositioned must read " +
+                        "'$rhs', whole. Found instead: $assignments. Anything shorter is measured " +
+                        "against a field of zero height (the menu covers the first row of keys again) " +
+                        "or against a width, and nothing else in this repo would see it. Block was:\n" +
+                        block,
+                    1,
+                    assignments.values.count { it == rhs },
+                )
+            }
         }
     }
 
@@ -82,12 +87,12 @@ class RecipientMenuFitTest {
      * Mutation B, half of it: the keyboard is read, once, before the popup, and halved.
      */
     @Test fun `the keyboard height is read whole, once, in the field, before the popup`() {
-        val body = fieldBody()
+        val body = menuBody()
         val binding = imeBinding(body)
         assertTrue("read as: ${binding.line}", binding.name.isNotEmpty())
         val reads = body.indicesOf(IME_READ)
         assertEquals(
-            "RecipientChipsField must read '$IME_READ' exactly once — found ${reads.size}. Two " +
+            "RecipientSuggestionMenu must read '$IME_READ' exactly once — found ${reads.size}. Two " +
                 "reads mean one of them is somewhere this rule did not look; none means the " +
                 "keyboard is not measured at all and the cap is computed as if it were down.",
             1,
@@ -105,11 +110,27 @@ class RecipientMenuFitTest {
      * Mutation A and B together, at the seam neither the pure function nor the lines above can
      */
     @Test fun `each measurement reaches the parameter it belongs to`() {
-        val body = fieldBody()
-        val block = positionedBlock(body)
+        callers().forEach { (caller, callerBody) ->
+            val block = positionedBlock(callerBody)
+            val handed = splitTopLevel(balanced(callerBody, callerBody.indexOf(MENU_CALL) + MENU_CALL.length - 1))
+                .filter { '=' in it }
+                .associate { it.substringBefore('=').trim() to it.substringAfter('=').trim() }
+            mapOf(
+                "windowHeightPx" to nameHolding(block, WINDOW_HEIGHT_RHS),
+                "fieldBottomPx" to nameHolding(block, FIELD_BOTTOM_RHS),
+            ).forEach { (parameter, identifier) ->
+                assertEquals(
+                    "$caller must hand $MENU_CALL's '$parameter' the local '$identifier' that holds " +
+                        "that measurement. Handed: $handed",
+                    identifier,
+                    handed[parameter],
+                )
+            }
+        }
+        val body = menuBody()
         val expected = mapOf(
-            "windowHeightPx" to nameHolding(block, WINDOW_HEIGHT_RHS),
-            "fieldBottomPx" to nameHolding(block, FIELD_BOTTOM_RHS),
+            "windowHeightPx" to "windowHeightPx",
+            "fieldBottomPx" to "fieldBottomPx",
             "imeHeightPx" to imeBinding(body).name,
         )
         val actual = keyedRemember(body).namedArguments
@@ -129,7 +150,7 @@ class RecipientMenuFitTest {
      * Mutation M4, the one that is invisible in a diff review: drop the keys.
      */
     @Test fun `every measurement fed to the height computation is a remember key`() {
-        val keyed = keyedRemember(fieldBody())
+        val keyed = keyedRemember(menuBody())
         val opaque = keyed.namedArguments.filterValues { !IDENTIFIER.matches(it) }
         assertEquals(
             "every argument of $CALL must be a bare local, so that this rule can check it is a " +
@@ -155,7 +176,7 @@ class RecipientMenuFitTest {
      * Mutation C: the menu scrolls, and under a computed cap that is no longer a comfort.
      */
     @Test fun `the menu still scrolls under its cap`() {
-        val body = fieldBody()
+        val body = menuBody()
         val name = keyedRemember(body).name
         val lines = popupContent(body).lines().map { it.trim() }.filter { it.isNotEmpty() }
         // The trailing comma is allowed off the cap line, so that deleting the scroll and moving
@@ -196,11 +217,11 @@ class RecipientMenuFitTest {
      * Decision of the fix, at the call site: under one row of room there is NO menu. A cropped menu
      */
     @Test fun `no menu at all is composed when no height came back`() {
-        val body = fieldBody()
+        val body = menuBody()
         val name = keyedRemember(body).name
         val popup = body.indexOf("Popup(")
         val guard = body.lastIndexOf("if (", popup)
-        assertTrue("no `if (` guards the Popup in RecipientChipsField", guard in 0 until popup)
+        assertTrue("no `if (` guards the Popup in RecipientSuggestionMenu", guard in 0 until popup)
         val condition = balanced(body, guard)
         val terms = condition.split("&&").map { it.trim() }
         assertTrue(
@@ -223,7 +244,7 @@ class RecipientMenuFitTest {
 
     private fun keyedRemember(body: String): Keyed {
         val at = body.indexOf(CALL)
-        check(at >= 0) { "no '$CALL' in RecipientChipsField" }
+        check(at >= 0) { "no '$CALL' in RecipientSuggestionMenu" }
         val rememberAt = body.lastIndexOf("remember", at)
         check(rememberAt >= 0) { "no 'remember' before the '$CALL' call" }
         var i = rememberAt + "remember".length
@@ -263,7 +284,7 @@ class RecipientMenuFitTest {
             IME_BINDING.matchEntire(line)?.let { ImeBinding(it.groupValues[1], line) }
         }
         check(matches.size == 1) {
-            "RecipientChipsField must bind the keyboard height with exactly one line matching " +
+            "RecipientSuggestionMenu must bind the keyboard height with exactly one line matching " +
                 "'val <name> = WindowInsets.ime.getBottom(density)', whole — found " +
                 "${matches.size}. Lines carrying the read: " +
                 body.lines().map { it.trim() }.filter { IME_READ in it }
@@ -274,7 +295,7 @@ class RecipientMenuFitTest {
     /** The `.onGloballyPositioned { … }` block of the recipient row. */
     private fun positionedBlock(body: String): String {
         val at = body.indexOf(POSITIONED)
-        check(at >= 0) { "no '$POSITIONED' in RecipientChipsField" }
+        check(at >= 0) { "no '$POSITIONED' in the field" }
         return braces(body, body.indexOf('{', at))
     }
 
@@ -293,7 +314,7 @@ class RecipientMenuFitTest {
     /** The content lambda of the `Popup(…) { … }` call. */
     private fun popupContent(body: String): String {
         val at = body.indexOf("Popup(")
-        check(at >= 0) { "no 'Popup(' in RecipientChipsField" }
+        check(at >= 0) { "no 'Popup(' in RecipientSuggestionMenu" }
         var i = body.indexOf('(', at)
         var depth = 0
         do {
@@ -306,14 +327,20 @@ class RecipientMenuFitTest {
         return braces(body, body.indexOf('{', i))
     }
 
-    /** The body of `RecipientChipsField`, comments removed, braces balanced. */
-    private fun fieldBody(): String {
-        val code = code(COMPOSE_SCREEN)
-        val at = code.indexOf(FIELD_FUN)
+    private fun menuBody(): String = functionBody(SUGGESTION_MENU, MENU_FUN)
+
+    private fun callers(): Map<String, String> = mapOf(
+        "RecipientChipsField" to functionBody(COMPOSE_SCREEN, FIELD_FUN),
+        "AddressCriterion" to functionBody(SEARCH_SCREEN, SEARCH_FIELD_FUN),
+    )
+
+    /** The body of the function declared by [declaration] in [file], comments removed, braces balanced. */
+    private fun functionBody(file: File, declaration: String): String {
+        val code = code(file)
+        val at = code.indexOf(declaration)
         check(at >= 0) {
-            "no '$FIELD_FUN' in ComposeScreen.kt — the recipient field was renamed or moved out, " +
-                "and every rule in this file reads it (ComposeScreenIncognitoTest pins the same " +
-                "name for the incognito guarantee)"
+            "no '$declaration' in ${file.name} — renamed or moved out, and the rules in this file " +
+                "read it (ComposeScreenIncognitoTest pins RecipientChipsField for the incognito guarantee)"
         }
         // Past the parameter list (its default values carry braces of their own ({ false })) to
         // the body's own opening brace.
@@ -412,6 +439,9 @@ class RecipientMenuFitTest {
 
     private companion object {
         const val FIELD_FUN = "private fun RecipientChipsField("
+        const val SEARCH_FIELD_FUN = "private fun AddressCriterion("
+        const val MENU_FUN = "internal fun RecipientSuggestionMenu("
+        const val MENU_CALL = "RecipientSuggestionMenu("
         const val CALL = "suggestionMenuMaxHeight("
         const val IME_READ = "WindowInsets.ime.getBottom("
         const val POSITIONED = ".onGloballyPositioned"
@@ -443,6 +473,12 @@ class RecipientMenuFitTest {
 
         val COMPOSE_SCREEN: File by lazy {
             File(root, "app/src/main/kotlin/app/sterna/ui/compose/ComposeScreen.kt")
+        }
+        val SEARCH_SCREEN: File by lazy {
+            File(root, "app/src/main/kotlin/app/sterna/ui/search/SearchScreen.kt")
+        }
+        val SUGGESTION_MENU: File by lazy {
+            File(root, "app/src/main/kotlin/app/sterna/ui/compose/RecipientSuggestionMenu.kt")
         }
         val MANIFEST: File by lazy { File(root, "app/src/main/AndroidManifest.xml") }
     }

@@ -6,16 +6,23 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import app.sterna.container
 import app.sterna.R
+import app.sterna.contacts.AndroidContacts
+import app.sterna.contacts.ContactSuggestion
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.SearchQuery
+import app.sterna.ui.compose.RecipientSuggester
+import app.sterna.ui.compose.ownAddresses
 import app.sterna.ui.inbox.folderRolesFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 sealed interface SearchState {
     data object Idle : SearchState
@@ -78,6 +85,7 @@ class SearchViewModel(
 ) : AndroidViewModel(application) {
     private val store = application.container.accountStore
     private val repo = application.container.mailRepository
+    private val settings = application.container.settingsRepository
 
     /**
      * The query lives here, next to the results, not in the screen's `remember`s: split between the
@@ -98,7 +106,34 @@ class SearchViewModel(
         folderRolesFlow(store.accountsFlow) { accountIds -> repo.observeFolderRoles(accountIds) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    private val contactsEnabled =
+        settings.contactSuggestions.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val recipients = RecipientSuggester(
+        scope = viewModelScope,
+        sender = { null },
+        loadPool = {
+            loadSearchRecipientPool(
+                accountIds = store.accounts().map { it.id },
+                sent = repo.sending::sentContacts,
+                received = repo.sending::receivedContacts,
+                serverBook = repo.accounts::serverBook,
+                device = if (contactsEnabled.value) {
+                    { withContext(Dispatchers.IO) { AndroidContacts.all(getApplication()) } }
+                } else {
+                    null
+                },
+                selves = ownAddresses(store.accounts(), store::identities),
+            )
+        },
+        work = Dispatchers.Default,
+    )
+    private val addresses = AddressSuggestions(recipients)
+    internal val addressSuggestions: StateFlow<List<ContactSuggestion>> = addresses.suggestions
+    internal val addressFocus: StateFlow<AddressField?> = addresses.focused
+
     init {
+        viewModelScope.launch { contactsEnabled.drop(1).collect { addresses.sourcesChanged() } }
         // The screen was showing results when the process died: run the restored criteria again
         // rather than come back to an empty list under a summary that promises hits.
         if (handle.get<Boolean>(KEY_SUBMITTED) == true && !_form.value.query.isEmpty()) {
@@ -110,6 +145,19 @@ class SearchViewModel(
         _form.value = _form.value.copy(query = query)
         persist()
     }
+
+    internal fun addressFocused(field: AddressField, value: String) = addresses.focusGained(field, value)
+
+    internal fun addressTyped(field: AddressField, value: String) = addresses.typed(field, value)
+
+    internal fun addressLeft(field: AddressField) = addresses.focusLost(field)
+
+    internal fun pickAddress(field: AddressField, contact: ContactSuggestion) {
+        updateQuery(_form.value.query.withAddress(field, contact))
+        addresses.picked()
+    }
+
+    internal fun dismissAddressSuggestions() = addresses.picked()
 
     /** The toolbar toggle and the summary row: show the criteria again to change them. */
     fun togglePanel() {

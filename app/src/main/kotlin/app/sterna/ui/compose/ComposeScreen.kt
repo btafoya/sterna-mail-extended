@@ -143,14 +143,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupPositionProvider
 import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.RichBody
@@ -160,7 +154,6 @@ import app.sterna.core.data.text.remapAfterEdit
 import app.sterna.core.data.text.stylesAt
 import app.sterna.core.data.text.toggle as toggleFormatting
 import app.sterna.core.data.text.toggleBlock
-import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -172,7 +165,6 @@ import app.sterna.contacts.AndroidContacts
 import app.sterna.util.isValidEmail
 import app.sterna.ui.FORCE_ONBOARDING_PREVIEW
 import app.sterna.ui.rememberMotionEnabled
-import app.sterna.ui.components.ContactAvatar
 import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.drawTern
 import app.sterna.contacts.ContactSuggestion
@@ -2021,107 +2013,18 @@ private fun RecipientChipsField(
             trailing?.invoke()
         }
         FieldDivider()
-        val density = LocalDensity.current
-        // The keyboard is read here, in the field's own composition, and never inside the Popup: a
-        // Popup is a separate window and its insets are not the screen's. Reading it as an inset is the
-        // only way to know the keyboard is up, since the window is not resized (edge to edge).
-        val imeBottomPx = WindowInsets.ime.getBottom(density)
-        // The height the menu may take, or null when there is not even one row of room left under the
-        // field, in which case no menu is drawn at all (#143). Keyed on every quantity that moves: the
-        // keyboard's height changes without any of this composable's own state changing.
-        val menuMaxHeight = remember(windowHeightPx, fieldBottomPx, imeBottomPx, density) {
-            suggestionMenuMaxHeight(
-                windowHeightPx = windowHeightPx,
-                fieldBottomPx = fieldBottomPx,
-                imeHeightPx = imeBottomPx,
-                density = density,
-            )
-        }
-        if (expanded && suggestions.isNotEmpty() && menuMaxHeight != null) {
-            // A floating contextual menu, not an inline list: it hangs under the field and over
-            // whatever is below, so the subject and body never shift as suggestions appear. Positioned
-            // by the popup's own anchor bounds and sized to the field's measured width. Not focusable,
-            // so the keyboard stays up and each keystroke keeps filtering.
-            val below = remember {
-                object : PopupPositionProvider {
-                    override fun calculatePosition(
-                        anchorBounds: IntRect,
-                        windowSize: IntSize,
-                        layoutDirection: LayoutDirection,
-                        popupContentSize: IntSize,
-                    ): IntOffset = IntOffset(anchorBounds.left, anchorBounds.bottom)
-                }
-            }
-            Popup(
-                popupPositionProvider = below,
-                onDismissRequest = onClearSuggestions,
-                properties = PopupProperties(focusable = false),
-            ) {
-                Surface(
-                    modifier = if (fieldWidthPx > 0) {
-                        Modifier.width(with(density) { fieldWidthPx.toDp() })
-                    } else {
-                        Modifier
-                    },
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 6.dp,
-                ) {
-                    // Cap the menu at the room measured under the field with the keyboard up, and let it
-                    // scroll on its own, a lower cap therefore loses no suggestion, it only stops the
-                    // list covering the keys that filter it.
-                    Column(
-                        Modifier
-                            .heightIn(max = menuMaxHeight)
-                            .verticalScroll(rememberScrollState()),
-                    ) {
-                        suggestions.forEachIndexed { index, contact ->
-                            if (index > 0) {
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                            }
-                            // Picture on the left when the address book has one, monogram otherwise:
-                            // the slot is the same size either way, so rows keep their height while
-                            // photos decode and the list never jumps under the finger.
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        onValueChange(rebuild(chips + contact.email, ""))
-                                        onClearSuggestions()
-                                    }
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                ContactAvatar(
-                                    email = contact.email,
-                                    name = contact.name,
-                                    photoUri = contact.photoUri,
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        contact.name ?: contact.email,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    if (contact.name != null) {
-                                        Text(
-                                            contact.email,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        RecipientSuggestionMenu(
+            suggestions = suggestions,
+            visible = expanded,
+            fieldWidthPx = fieldWidthPx,
+            fieldBottomPx = fieldBottomPx,
+            windowHeightPx = windowHeightPx,
+            onPick = { contact ->
+                onValueChange(rebuild(chips + contact.email, ""))
+                onClearSuggestions()
+            },
+            onDismiss = onClearSuggestions,
+        )
     }
 }
 

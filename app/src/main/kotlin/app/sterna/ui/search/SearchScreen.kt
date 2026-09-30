@@ -63,12 +63,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.pluralStringResource
@@ -77,11 +81,15 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.sterna.R
+import app.sterna.contacts.ContactSuggestion
+import app.sterna.ui.compose.RecipientSuggestionMenu
+import kotlin.math.roundToInt
 import app.sterna.ui.rememberMotionEnabled
 import kotlinx.coroutines.launch
 import app.sterna.core.jmap.model.SearchQuery
@@ -124,6 +132,8 @@ fun SearchScreen(
     val form by viewModel.form.collectAsStateWithLifecycle()
     val accounts by viewModel.accounts.collectAsStateWithLifecycle()
     val folderRoles by viewModel.folderRoles.collectAsStateWithLifecycle()
+    val addressSuggestions by viewModel.addressSuggestions.collectAsStateWithLifecycle()
+    val addressFocus by viewModel.addressFocus.collectAsStateWithLifecycle()
     val query = form.query
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -474,25 +484,26 @@ fun SearchScreen(
                             .nestedScroll(panelNestedScroll)
                             .verticalScroll(rememberScrollState()),
                     ) {
-                        OutlinedTextField(
+                        AddressCriterion(
+                            field = AddressField.FROM,
                             value = query.from,
+                            label = R.string.search_from,
                             onValueChange = { viewModel.updateQuery(query.copy(from = it)) },
-                            label = { Text(stringResource(R.string.search_from)) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                            suggestions = suggestionsUnder(AddressField.FROM, addressFocus, addressSuggestions),
+                            menuVisible = form.expanded,
+                            onNext = { focusManager.moveFocus(FocusDirection.Down) },
+                            viewModel = viewModel,
                         )
-                        // Matches To or Cc: a message that only carries the address in copy was
-                        // still received at it, so one field and no To/Cc switch.
-                        OutlinedTextField(
+                        // To or Cc, one field: a message carrying the address only in copy was still received at it.
+                        AddressCriterion(
+                            field = AddressField.RECIPIENT,
                             value = query.recipient,
+                            label = R.string.search_recipient,
                             onValueChange = { viewModel.updateQuery(query.copy(recipient = it)) },
-                            label = { Text(stringResource(R.string.search_recipient)) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                            suggestions = suggestionsUnder(AddressField.RECIPIENT, addressFocus, addressSuggestions),
+                            menuVisible = form.expanded,
+                            onNext = { focusManager.moveFocus(FocusDirection.Down) },
+                            viewModel = viewModel,
                         )
                         OutlinedTextField(
                             value = query.subject,
@@ -577,6 +588,63 @@ fun SearchScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AddressCriterion(
+    field: AddressField,
+    value: String,
+    @StringRes label: Int,
+    onValueChange: (String) -> Unit,
+    suggestions: List<ContactSuggestion>,
+    menuVisible: Boolean,
+    onNext: () -> Unit,
+    viewModel: SearchViewModel,
+) {
+    var fieldWidthPx by remember { mutableIntStateOf(0) }
+    var fieldBottomPx by remember { mutableIntStateOf(0) }
+    var windowHeightPx by remember { mutableIntStateOf(0) }
+    // Only a change of focus is reported: a prefilled criterion opens no menu until it is touched.
+    var focused by remember { mutableStateOf(false) }
+    var edited by remember { mutableStateOf(TextFieldValue(value)) }
+    val shown = edited.showing(value)
+    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        OutlinedTextField(
+            value = shown,
+            onValueChange = {
+                edited = it
+                if (it.text != shown.text) {
+                    onValueChange(it.text)
+                    viewModel.addressTyped(field, it.text)
+                }
+            },
+            label = { Text(stringResource(label)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { onNext() }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { fs ->
+                    if (fs.isFocused == focused) return@onFocusChanged
+                    focused = fs.isFocused
+                    if (fs.isFocused) viewModel.addressFocused(field, value) else viewModel.addressLeft(field)
+                }
+                .onGloballyPositioned {
+                    fieldWidthPx = it.size.width
+                    fieldBottomPx = (it.positionInRoot().y + it.size.height).roundToInt()
+                    windowHeightPx = it.findRootCoordinates().size.height
+                },
+        )
+        RecipientSuggestionMenu(
+            suggestions = suggestions,
+            visible = menuVisible && focused,
+            fieldWidthPx = fieldWidthPx,
+            fieldBottomPx = fieldBottomPx,
+            windowHeightPx = windowHeightPx,
+            onPick = { contact -> viewModel.pickAddress(field, contact) },
+            onDismiss = viewModel::dismissAddressSuggestions,
+        )
     }
 }
 
