@@ -427,13 +427,13 @@ class FilterStatusRefreshTest {
 
     /**
      * The status decision is executed above; this pins the JMAP read hands it the listing, the script
-     * `openedScriptName` picked and that script's own text. Holes 2 and 3 apply.
+     * `chosenScriptName` picked from the name asked for, and that script's own text. Holes 2 and 3 apply.
      */
     @Test fun `the status read hands filterScriptStatus the opened script, and fails to null`() {
         val code = codeLines(loadFilterScriptStatusBody())
         assertEquals(
-            listOf("val opened = openedScriptName(scripts.jmapListed(), serverResponder = true)"),
-            code.filter { "openedScriptName(" in it },
+            listOf("val opened = chosenScriptName(scripts.jmapListed(), script, serverResponder = true)"),
+            code.filter { "ScriptName(" in it },
         )
         assertEquals(
             listOf("filterScriptStatus(scripts.jmapListed(), opened?.name, opened?.let { jmapScriptText(ctx.session, ctx.accountId, ctx.auth, it.blobId) })"),
@@ -471,7 +471,7 @@ class FilterStatusRefreshTest {
     /** The body of `MailAccounts.loadFilterScriptStatus`, from its signature to the next block. */
     private fun loadFilterScriptStatusBody(): String {
         val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailAccounts.kt").readText()
-        val start = source.indexOf("suspend fun loadFilterScriptStatus(credentials: AccountCredentials)")
+        val start = source.indexOf("suspend fun loadFilterScriptStatus(credentials: AccountCredentials, script: String? = null)")
         check(start >= 0) { "MailAccounts no longer declares loadFilterScriptStatus(credentials)" }
         val end = source.indexOf("\n    /**", start)
         check(end > start) { "no declaration follows loadFilterScriptStatus — the slice would be the whole file" }

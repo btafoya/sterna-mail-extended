@@ -15,6 +15,7 @@ import app.sterna.core.data.account.AuthType
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.UnifiedInbox
 import app.sterna.core.data.filter.FilterRule
+import app.sterna.core.data.filter.ListedScript
 import app.sterna.core.data.filter.ScriptRule
 import app.sterna.core.data.filter.ScriptSnapshot
 import app.sterna.core.data.filter.SieveParse
@@ -841,10 +842,16 @@ sealed interface FilterRulesState {
         val foreignActiveScript: Boolean = false,
         /** The same fact under the name the filters screen asks it by. */
         val scriptUnreadable: Boolean = false,
-        /** The script opened, see `openedScriptName`; null when there is none, and a save creates `sterna`. */
+        /** The script opened, see `chosenScriptName`; null when there is none, and a save creates `sterna`. */
         val scriptName: String? = null,
         /** Its text as the server returned it, null when [scriptName] is. */
         val scriptText: String? = null,
+        /** Every script of the account, as the read listed them. */
+        val scripts: List<ListedScript> = emptyList(),
+        /** Opened by its name rather than picked, see [ScriptSnapshot.chosen]. */
+        val chosen: Boolean = false,
+        /** See `inactiveBesideActive`. */
+        val inactiveBesideActive: Boolean = false,
     ) : FilterRulesState {
         /** [scriptText] cut into blocks, null when there is none or it cannot be cut. */
         val script: SieveScript?
@@ -853,7 +860,7 @@ sealed interface FilterRulesState {
         /** What the filters screen lists: form rules, Sieve text blocks, Bulwark rules it locks. */
         val scriptRules: List<ScriptRule> get() = script?.rules.orEmpty()
 
-        val snapshot: ScriptSnapshot get() = ScriptSnapshot(scriptName, scriptText)
+        val snapshot: ScriptSnapshot get() = ScriptSnapshot(scriptName, scriptText, chosen)
 
         /** What a write starts from: [script], or an empty one, so an unreadable script is replaced whole. */
         val scriptToEdit: SieveScript

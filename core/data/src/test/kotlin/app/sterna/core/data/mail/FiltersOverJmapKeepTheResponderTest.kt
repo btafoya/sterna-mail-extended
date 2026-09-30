@@ -12,6 +12,8 @@ import app.sterna.core.data.db.SnoozedDao
 import app.sterna.core.data.filter.BlockOutcome
 import app.sterna.core.data.filter.FilterRule
 import app.sterna.core.data.filter.FilterScriptChangedException
+import app.sterna.core.data.filter.FilterScriptWrite
+import app.sterna.core.data.filter.ListedScript
 import app.sterna.core.data.filter.RuleField
 import app.sterna.core.data.filter.ScriptRule
 import app.sterna.core.data.filter.SieveCodec
@@ -120,10 +122,10 @@ class FiltersOverJmapKeepTheResponderTest {
             "SieveScript/validate" -> """["SieveScript/validate",{"accountId":"acc1","error":null},"s0"]"""
             "SieveScript/set" -> {
                 val updated = args["update"]?.jsonObject?.keys?.joinToString(",", "{", "}") { "\"$it\":null" }
-                if (updated != null) {
-                    """["SieveScript/set",{"accountId":"acc1","updated":$updated},"s0"]"""
-                } else {
-                    """["SieveScript/set",{"accountId":"acc1","created":{"new":{"id":"s-new"}}},"s0"]"""
+                when {
+                    updated != null -> """["SieveScript/set",{"accountId":"acc1","updated":$updated},"s0"]"""
+                    "create" in args -> """["SieveScript/set",{"accountId":"acc1","created":{"new":{"id":"s-new"}}},"s0"]"""
+                    else -> """["SieveScript/set",{"accountId":"acc1"},"s0"]"""
                 }
             }
             else -> error("unexpected JMAP call: $name $args")
@@ -301,7 +303,7 @@ class FiltersOverJmapKeepTheResponderTest {
 
         assertEquals(
             "the auto-reply running, a sender block is refused; the filters screen keeps its warning",
-            FilterRulesState.Loaded(rules = emptyList(), foreignActiveScript = true),
+            FilterRulesState.Loaded(rules = emptyList(), foreignActiveScript = true, scripts = listOf(ListedScript("vacation", true))),
             loaded,
         )
         assertEquals(emptyList<String>(), downloads)
@@ -357,5 +359,59 @@ class FiltersOverJmapKeepTheResponderTest {
         assertTrue("$thrown", thrown is FilterScriptChangedException)
         assertEquals(emptyList<String>(), uploads)
         assertEquals(emptyList<String>(), updatedIds())
+    }
+
+    private val roundcubeText = "require [\"fileinto\"];\n\n# rule:[x]\nif header :contains \"subject\" \"x\" {\n    fileinto \"X\";\n}\n"
+
+    private fun roundcube(active: Boolean) = Script("s-roundcube", "roundcube", "blob-roundcube", active, roundcubeText)
+
+    @Test fun `making a script active on JMAP is a SieveScript set with the activation alone, and no blob moves`() {
+        serveJmap()
+        scripts = listOf(
+            sterna(SieveCodec.generate(before), active = true),
+            Script("s-other", "other", "blob-other", active = false, body = "keep;\n"),
+            roundcube(active = false),
+        )
+
+        runBlocking { accounts().activateScript(credentials, "roundcube") }
+
+        val sets = methods.filter { it.first == "SieveScript/set" }.map { it.second }
+        assertEquals("one SieveScript/set", 1, sets.size)
+        assertEquals(
+            "no create, no update: the script's text is not written",
+            setOf("accountId", "onSuccessActivateScript"),
+            sets.single().keys,
+        )
+        assertEquals("s-roundcube", sets.single()["onSuccessActivateScript"]?.jsonPrimitive?.content)
+        assertEquals(emptyList<String>(), uploads)
+        assertEquals(emptyList<String>(), downloads)
+    }
+
+    @Test fun `a script asked by name on JMAP is the one downloaded, not the active one`() {
+        serveJmap()
+        scripts = listOf(sterna(SieveCodec.generate(before), active = true), roundcube(active = false))
+
+        val state = runBlocking { accounts().loadFilterRules(credentials, "roundcube") } as FilterRulesState.Loaded
+
+        assertEquals("roundcube", state.scriptName)
+        assertEquals(roundcubeText, state.scriptText)
+        assertEquals(listOf("blob-roundcube"), downloads)
+        assertEquals(listOf(ListedScript("sterna", true), ListedScript("roundcube", false)), state.scripts)
+        assertEquals(true, state.chosen)
+        assertEquals(true, state.inactiveBesideActive)
+    }
+
+    @Test fun `a save over a chosen inactive script on JMAP updates it and activates nothing`() {
+        serveJmap()
+        scripts = listOf(sterna(SieveCodec.generate(before), active = true), roundcube(active = false))
+        val accounts = accounts()
+        val opened = runBlocking { accounts.loadFilterRules(credentials, "roundcube") } as FilterRulesState.Loaded
+
+        val saved = runBlocking { accounts.saveFilterScript(credentials, FilterScriptWrite(opened.snapshot, opened.scriptToEdit.add(after[1]))) }
+
+        assertEquals(listOf("s-roundcube"), updatedIds())
+        assertEquals("sterna stays the active script", listOf<String?>(null), activations())
+        assertEquals(listOf("blob-roundcube", "blob-roundcube"), downloads)
+        assertEquals(true, saved.inactiveBesideActive)
     }
 }

@@ -5,7 +5,7 @@ import app.sterna.core.data.filter.refreshedFilterWarning
 import app.sterna.core.data.filter.rulesAreNotRunning
 
 /**
- * Fold a status read into the filters screen's state.
+ * Fold a status read into the filters screen's state; beside the active script neither flag holds, Save leaves it running.
  */
 internal fun filtersStateWithStatus(
     state: FiltersUiState,
@@ -19,10 +19,10 @@ internal fun filtersStateWithStatus(
         state.copy(
             // responderEnabled = null: this screen never loads the responder, so only the
             // statement of fact is read out of the verdict, not the prediction.
-            rulesNotRunning = rulesAreNotRunning(
+            rulesNotRunning = !state.scriptNotActive && rulesAreNotRunning(
                 refreshedFilterWarning(previous = null, status = status, responderEnabled = null),
             ),
-            foreignActive = status.foreignActive,
+            foreignActive = !state.scriptNotActive && status.foreignActive,
             vacationScriptActive = status.vacationScriptActive,
             // A successful read supersedes whatever the previous rules read concluded; only this
             // call's argument may raise it again, one line below.

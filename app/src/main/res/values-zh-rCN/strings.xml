@@ -610,6 +610,11 @@
     <string name="settings_filters_stops_auto_reply">您的自动回复正在服务器上运行。保存这些过滤规则将停止自动回复。</string>
     <string name="settings_filters_unreadable">Sterna Mail 无法读取此账户的过滤脚本；保存将替换它。</string>
     <string name="settings_filters_script">脚本：%1$s</string>
+    <string name="settings_filters_script_choose">选择过滤脚本</string>
+    <string name="settings_filters_script_active">生效中</string>
+    <string name="settings_filters_script_inactive">此脚本未生效。</string>
+    <string name="settings_filters_make_active">设为生效</string>
+    <string name="settings_filters_activate_error">无法将此脚本设为生效：%1$s</string>
     <string name="settings_filters_text_rule">Sieve 文本</string>
     <string name="settings_filters_bulwark_rule">由 Bulwark 管理的规则</string>
     <string name="settings_filters_edit_text">以文本编辑</string>

@@ -620,6 +620,11 @@
     <string name="settings_filters_stops_auto_reply">Your auto-reply is running on the server. Saving these filters will stop it.</string>
     <string name="settings_filters_unreadable">Sterna Mail cannot read this account\'s filter script; saving will replace it.</string>
     <string name="settings_filters_script">Script: %1$s</string>
+    <string name="settings_filters_script_choose">Choose a filter script</string>
+    <string name="settings_filters_script_active">active</string>
+    <string name="settings_filters_script_inactive">This script is not active.</string>
+    <string name="settings_filters_make_active">Make active</string>
+    <string name="settings_filters_activate_error">Couldn\'t make this script active: %1$s</string>
     <string name="settings_filters_text_rule">Sieve text</string>
     <string name="settings_filters_bulwark_rule">Rule managed by Bulwark</string>
     <string name="settings_filters_edit_text">Edit as text</string>

@@ -1670,6 +1670,29 @@ class JmapClient internal constructor(
         }
     }
 
+        /** A `SieveScript/set` with neither create nor update: [scriptId] is activated, and no blob is written. */
+    suspend fun activateSieveScript(session: JmapSession, accountId: String, scriptId: String, auth: JmapAuth) =
+        withContext(Dispatchers.IO) {
+            val payload = buildJsonObject {
+                putJsonArray("using") {
+                    add(Jmap.CORE_CAPABILITY)
+                    add(Jmap.SIEVE_CAPABILITY)
+                }
+                putJsonArray("methodCalls") {
+                    addJsonArray {
+                        add("SieveScript/set")
+                        addJsonObject {
+                            put("accountId", accountId)
+                            put("onSuccessActivateScript", scriptId)
+                        }
+                        add("s0")
+                    }
+                }
+            }
+            methodResponseArgs(postJmap(session, auth, payload), "SieveScript/set")
+            Unit
+        }
+
         /** Send a plain-text email: create a draft (Email/set) and submit it (EmailSubmission/set)
          *  in one request, moving it to Sent on success. */
     suspend fun sendEmail(

@@ -5,21 +5,23 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.sterna.container
 import app.sterna.core.data.filter.FilterRule
+import app.sterna.core.data.filter.ListedScript
 import app.sterna.core.data.filter.ScriptRule
 import app.sterna.core.data.filter.FilterScriptChangedException
 import app.sterna.core.data.filter.FilterScriptWrite
 import app.sterna.core.data.filter.formRulesWrite
-import app.sterna.core.data.filter.loadedFilterRules
 import app.sterna.core.data.mail.FilterRulesState
 import app.sterna.core.imap.ManageSieveException
 import app.sterna.ui.inbox.mailboxFilePath
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class FiltersError { LOAD, SAVE, TEXT_UNCUT }
+enum class FiltersError { LOAD, SAVE, TEXT_UNCUT, ACTIVATE }
 
 data class FiltersUiState(
     val loading: Boolean = true,
@@ -38,6 +40,9 @@ data class FiltersUiState(
     val scriptUnreadable: Boolean = false,
     val accountLabel: String = "",
     val scriptName: String? = null,
+    val scripts: List<ListedScript> = emptyList(),
+    val scriptNotActive: Boolean = false,
+    val activating: Boolean = false,
     val scriptRules: List<ScriptRule> = emptyList(),
     val rules: List<FilterRule> = emptyList(),
     /** For each of [rules], the id of the form rule it was read as, null for one added since. */
@@ -72,9 +77,23 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
 
     private var opened: FilterRulesState.Loaded? = null
 
-    private var staleSave: Throwable? = null
+    private var staleFailure: Pair<FiltersError, Throwable>? = null
+
+    private var pickedScript: String? = null
+
+    private var loads = 0
+
+    private var loadJob: Job? = null
 
     init { load() }
+
+    fun openScript(name: String) {
+        pickedScript = name
+        opened = null
+        serverRules = emptyList()
+        _state.update { it.leavingScript() }
+        load()
+    }
 
     fun load() {
         val credentials = store.load()
@@ -83,7 +102,9 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
             return
         }
         _state.update { it.copy(loading = true, errorKind = null) }
-        viewModelScope.launch {
+        loads++
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             try {
                 // Whole paths, resolved against the account's folder list: the server knows
                 // "INBOX.ProjectA.Done", not "Done". mapNotNull, so a folder the app cannot name
@@ -92,7 +113,7 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
                     repo.observeMailboxes(credentials.id).first()
                         .let { all -> all.mapNotNull { mb -> mailboxFilePath(mb, all) } }
                 }.getOrDefault(emptyList())
-                when (val result = repo.accounts.loadFilterRules(credentials)) {
+                when (val result = repo.accounts.loadFilterRules(credentials, pickedScript)) {
                     FilterRulesState.Unsupported -> {
                         serverRules = emptyList()
                         opened = null
@@ -113,16 +134,36 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
                                 accountLabel = store.accountLabel(),
                                 folders = folders,
                             ).withScript(result),
-                            status = repo.accounts.loadFilterScriptStatus(credentials),
+                            status = repo.accounts.loadFilterScriptStatus(credentials, result.scriptName),
                             foreignFromRulesRead = result.foreignActiveScript,
                             unreadableFromRulesRead = result.scriptUnreadable,
                         )
-                        reportStaleSave()
+                        reportStaleFailure()
                     }
                 }
+            } catch (c: CancellationException) {
+                throw c
             } catch (t: Throwable) {
                 _state.update { filtersFailedState(it.copy(loading = false), FiltersError.LOAD, t) }
             }
+        }
+    }
+
+    fun activate() {
+        val credentials = store.load() ?: return
+        val name = opened?.scriptName ?: return
+        if (!filtersAcceptEdits(_state.value)) return
+        _state.update { it.copy(activating = true, loading = true, errorKind = null) }
+        viewModelScope.launch {
+            try {
+                repo.accounts.activateScript(credentials, name)
+            } catch (c: CancellationException) {
+                throw c
+            } catch (t: Throwable) {
+                staleFailure = FiltersError.ACTIVATE to t
+            }
+            _state.update { it.copy(activating = false) }
+            load()
         }
     }
 
@@ -155,36 +196,40 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
 
     private fun edit(transform: (FiltersUiState) -> FiltersUiState) =
         _state.update {
+            if (!filtersAcceptEdits(it)) return@update it
             val next = transform(it).copy(errorKind = null, savedTick = 0)
             next.copy(dirty = filtersDirty(next, serverRules))
         }
 
-    private fun reportStaleSave() {
-        staleSave?.let { t -> _state.update { filtersFailedState(it, FiltersError.SAVE, t) } }
-        staleSave = null
+    private fun reportStaleFailure() {
+        staleFailure?.let { (kind, t) -> _state.update { filtersFailedState(it, kind, t) } }
+        staleFailure = null
     }
 
     fun save() {
         val credentials = store.load() ?: return
         val base = opened ?: return
         val edited = _state.value
+        if (!filtersAcceptEdits(edited)) return
+        val generation = loads
         _state.update { it.copy(saving = true, errorKind = null) }
         viewModelScope.launch {
-            var written = false
+            var written: String? = null
             try {
                 val write = filtersWrite(base, edited) ?: throw SieveTextUncut()
-                repo.accounts.saveFilterScript(credentials, write)
-                val saved = loadedFilterRules(write.name, write.script.emit())
+                val saved = repo.accounts.saveFilterScript(credentials, write)
+                if (generation != loads) return@launch
                 opened = saved
                 serverRules = saved.rules
                 _state.update {
                     it.withScript(saved).copy(saving = false, savedTick = it.savedTick + 1, dirty = false)
                 }
-                written = true
+                written = write.name
             } catch (t: Throwable) {
+                if (generation != loads) return@launch
                 _state.update { filtersSaveFailed(it, t) }
                 if (reloadsAfterFailedSave(t)) {
-                    staleSave = t
+                    staleFailure = FiltersError.SAVE to t
                     load()
                 }
             }
@@ -192,9 +237,9 @@ class FiltersViewModel(application: Application) : AndroidViewModel(application)
             // cancels this read, and inside the catch above a cancellation would be painted as a
             // failed save over rules the server has already taken. All three flags come from this
             // read, so they cannot describe two moments; a failed read moves none.
-            if (written) {
-                val status = repo.accounts.loadFilterScriptStatus(credentials)
-                _state.update { filtersStateWithStatus(state = it, status = status) }
+            if (written != null) {
+                val status = repo.accounts.loadFilterScriptStatus(credentials, written)
+                if (generation == loads) _state.update { filtersStateWithStatus(state = it, status = status) }
             }
         }
     }
@@ -204,6 +249,8 @@ internal fun FiltersUiState.withScript(loaded: FilterRulesState.Loaded): Filters
     val forms = loaded.scriptRules.filterIsInstance<ScriptRule.Form>()
     return copy(
         scriptName = loaded.scriptName,
+        scripts = loaded.scripts,
+        scriptNotActive = loaded.inactiveBesideActive,
         scriptRules = loaded.scriptRules,
         rules = forms.map { it.rule },
         ruleIds = forms.map { it.id },
@@ -221,6 +268,11 @@ internal fun filtersWrite(opened: FilterRulesState.Loaded, state: FiltersUiState
     for ((id, text) in state.textEdits) script = script.replaceText(id, text) ?: return null
     return FilterScriptWrite(forms.read, script)
 }
+
+internal fun FiltersUiState.leavingScript(): FiltersUiState =
+    FiltersUiState(loading = true, accountLabel = accountLabel, folders = folders)
+
+internal fun filtersAcceptEdits(state: FiltersUiState): Boolean = !state.loading && !state.activating
 
 internal fun filtersDirty(state: FiltersUiState, serverRules: List<FilterRule>): Boolean =
     state.rules != serverRules || state.textEdits.isNotEmpty() || state.removedText.isNotEmpty()

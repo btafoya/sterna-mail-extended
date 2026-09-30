@@ -450,6 +450,11 @@
     <string name="settings_filters_stops_auto_reply">Je automatische antwoord loopt op de server. Als je deze filters opslaat, stopt het.</string>
     <string name="settings_filters_unreadable">Sterna Mail kan het filterscript van dit account niet lezen; door op te slaan wordt het vervangen.</string>
     <string name="settings_filters_script">Script: %1$s</string>
+    <string name="settings_filters_script_choose">Kies een filterscript</string>
+    <string name="settings_filters_script_active">actief</string>
+    <string name="settings_filters_script_inactive">Dit script is niet actief.</string>
+    <string name="settings_filters_make_active">Activeren</string>
+    <string name="settings_filters_activate_error">Dit script activeren is mislukt: %1$s</string>
     <string name="settings_filters_text_rule">Sieve-tekst</string>
     <string name="settings_filters_bulwark_rule">Regel beheerd door Bulwark</string>
     <string name="settings_filters_edit_text">Als tekst bewerken</string>

@@ -50,7 +50,7 @@ class FeatureUnavailableTest {
     }
 
     @Test fun `an unreachable filter service is never worded as a server without filters`() {
-        listOf(FiltersError.LOAD, FiltersError.SAVE).forEach { kind ->
+        listOf(FiltersError.LOAD, FiltersError.SAVE, FiltersError.ACTIVATE).forEach { kind ->
             assertEquals(
                 "$kind: a refused connection, a timeout or a firewall on port 4190 must say Sterna " +
                     "could not reach the service, not that the server has no filters",
@@ -61,7 +61,7 @@ class FeatureUnavailableTest {
     }
 
     @Test fun `a filter service without a secure connection says the password was not sent`() {
-        listOf(FiltersError.LOAD, FiltersError.SAVE).forEach { kind ->
+        listOf(FiltersError.LOAD, FiltersError.SAVE, FiltersError.ACTIVATE).forEach { kind ->
             assertEquals(
                 R.string.settings_filters_sieve_insecure,
                 filtersErrorText(kind, ManageSieveException.Kind.INSECURE),
@@ -74,6 +74,12 @@ class FeatureUnavailableTest {
         assertEquals(R.string.settings_vacation_save_error, filtersErrorText(FiltersError.SAVE, ManageSieveException.Kind.REFUSED))
         assertEquals(R.string.settings_vacation_load_error, filtersErrorText(FiltersError.LOAD, null))
         assertEquals(R.string.settings_vacation_save_error, filtersErrorText(FiltersError.SAVE, null))
+        assertEquals(
+            "a failed activation says so, never \"Couldn't save\": nothing was written",
+            R.string.settings_filters_activate_error,
+            filtersErrorText(FiltersError.ACTIVATE, ManageSieveException.Kind.REFUSED),
+        )
+        assertEquals(R.string.settings_filters_activate_error, filtersErrorText(FiltersError.ACTIVATE, null))
     }
 
     @Test fun `a text left open has its own sentence, whatever ManageSieve kind an earlier failure left`() {
@@ -376,11 +382,12 @@ class FeatureUnavailableTest {
         )
         assertTrue(
             "FiltersScreen's line above Save must draw the SAVE kind with its detail, the TEXT_UNCUT kind " +
-                "without one, and nothing for LOAD or no error, as one when over state.errorKind",
+                "without one, the ACTIVATE kind with its detail, and nothing for LOAD or no error, as one when over state.errorKind",
             Regex(
                 "when\\s*\\(state\\.errorKind\\)\\s*\\{\\s*" +
                     "FiltersError\\.SAVE\\s*->\\s*stringResource\\(filtersErrorText\\(FiltersError\\.SAVE, state\\.errorSieveKind\\), state\\.errorDetail\\)\\s*" +
                     "FiltersError\\.TEXT_UNCUT\\s*->\\s*stringResource\\(filtersErrorText\\(FiltersError\\.TEXT_UNCUT, state\\.errorSieveKind\\)\\)\\s*" +
+                    "FiltersError\\.ACTIVATE\\s*->\\s*stringResource\\(filtersErrorText\\(FiltersError\\.ACTIVATE, state\\.errorSieveKind\\), state\\.errorDetail\\)\\s*" +
                     "FiltersError\\.LOAD,\\s*null\\s*->\\s*null\\s*" +
                     "\\}\\?\\.let\\s*\\{\\s*message\\s*->\\s*Text\\(\\s*message,",
             ).containsMatchIn(filters),

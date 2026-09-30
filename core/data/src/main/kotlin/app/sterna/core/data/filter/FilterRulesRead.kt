@@ -11,6 +11,24 @@ fun openedScriptName(scripts: List<ListedScript>, serverResponder: Boolean): Str
     return active?.name ?: scripts.firstOrNull { it.name == SieveCodec.SCRIPT_NAME }?.name
 }
 
+/** [requested] while the listing still holds it, else [openedScriptName]: a script deleted elsewhere is not recreated by a save. */
+fun chosenScriptName(scripts: List<ListedScript>, requested: String?, serverResponder: Boolean): String? =
+    requested?.takeIf { r -> scripts.any { it.name == r } } ?: openedScriptName(scripts, serverResponder)
+
+/** [opened] is not the active script, and a save over it leaves the active one running: only an activation changes that. */
+fun inactiveBesideActive(scripts: List<ListedScript>, opened: String?, serverResponder: Boolean): Boolean =
+    opened != null && scripts.none { it.name == opened && it.isActive } && !activatesOnSave(scripts, serverResponder)
+
+fun FilterRulesState.Loaded.listing(
+    scripts: List<ListedScript>,
+    requested: String?,
+    serverResponder: Boolean,
+): FilterRulesState.Loaded = copy(
+    scripts = scripts,
+    chosen = requested != null && requested == scriptName,
+    inactiveBesideActive = inactiveBesideActive(scripts, scriptName, serverResponder),
+)
+
 /** Only when no script was active, since activating switches the running one off; the server's responder excepted. */
 fun activatesOnSave(scripts: List<ListedScript>, serverResponder: Boolean): Boolean {
     val active = scripts.firstOrNull { it.isActive } ?: return true

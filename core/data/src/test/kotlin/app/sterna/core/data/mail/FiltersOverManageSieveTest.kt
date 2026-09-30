@@ -19,6 +19,7 @@ import app.sterna.core.data.filter.FilterRule
 import app.sterna.core.data.filter.FilterScriptChangedException
 import app.sterna.core.data.filter.FilterScriptWrite
 import app.sterna.core.data.filter.FilterScriptStatus
+import app.sterna.core.data.filter.ListedScript
 import app.sterna.core.data.filter.FilterScriptWarning
 import app.sterna.core.data.filter.RuleField
 import app.sterna.core.data.filter.RuleMatch
@@ -270,7 +271,10 @@ class FiltersOverManageSieveTest {
 
         val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount) }
 
-        assertEquals(FilterRulesState.Loaded(rules = rules, scriptName = "sterna", scriptText = text), state)
+        assertEquals(
+            FilterRulesState.Loaded(rules = rules, scriptName = "sterna", scriptText = text, scripts = listOf(ListedScript("sterna", true))),
+            state,
+        )
         assertEquals(listOf(login), sieve.logins)
         assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna"), sieve.commands)
         assertEquals(0, host.jmapSessions)
@@ -282,7 +286,12 @@ class FiltersOverManageSieveTest {
         val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount) }
 
         assertEquals(
-            FilterRulesState.Loaded(rules = listOf(handRule), scriptName = "roundcube", scriptText = handWritten),
+            FilterRulesState.Loaded(
+                rules = listOf(handRule),
+                scriptName = "roundcube",
+                scriptText = handWritten,
+                scripts = listOf(ListedScript("roundcube", true), ListedScript("sterna", false)),
+            ),
             state,
         )
         assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT roundcube"), sieve.commands)
@@ -323,6 +332,7 @@ class FiltersOverManageSieveTest {
                 scriptUnreadable = true,
                 scriptName = "roundcube",
                 scriptText = broken,
+                scripts = listOf(ListedScript("roundcube", true)),
             ),
             state,
         )
@@ -333,7 +343,7 @@ class FiltersOverManageSieveTest {
 
         val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount) }
 
-        assertEquals(FilterRulesState.Loaded(rules = emptyList()), state)
+        assertEquals(FilterRulesState.Loaded(rules = emptyList(), scripts = listOf(ListedScript("vacation", false))), state)
         assertEquals(listOf("LISTSCRIPTS"), sieve.commands)
     }
 
@@ -348,6 +358,107 @@ class FiltersOverManageSieveTest {
 
         assertEquals(ManageSieveException.Kind.REFUSED, thrown.kind)
         assertEquals("permission denied", thrown.serverText)
+    }
+
+    // ---- a script chosen by name ------------------------------------------------------------------
+
+    @Test fun `a script asked by name is the one read, not the active one, and it is marked chosen and inactive`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules), "roundcube" to handWritten), active = "sterna")
+
+        val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount, "roundcube") } as FilterRulesState.Loaded
+
+        assertEquals("roundcube", state.scriptName)
+        assertEquals(handWritten, state.scriptText)
+        assertEquals(listOf(handRule), state.rules)
+        assertEquals(listOf(ListedScript("roundcube", false), ListedScript("sterna", true)), state.scripts)
+        assertEquals(true, state.chosen)
+        assertEquals("sterna stays active beside it, and a save leaves it so", true, state.inactiveBesideActive)
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT roundcube"), sieve.commands)
+    }
+
+    @Test fun `a script asked by name that is gone opens the active one instead, not chosen`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules)), active = "sterna")
+
+        val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount, "deleted") } as FilterRulesState.Loaded
+
+        assertEquals("sterna", state.scriptName)
+        assertEquals(false, state.chosen)
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT sterna"), sieve.commands)
+    }
+
+    @Test fun `making a script active sends SETACTIVE alone, and no script is read or written`() {
+        val sieve = FakeSieve(
+            scripts = mapOf("sterna" to SieveCodec.generate(rules), "other" to "keep;\n", "roundcube" to "keep;\n/* never closed\n"),
+            active = "sterna",
+        )
+        val before = sieve.scripts.toMap()
+
+        runBlocking { accounts(sieve).activateScript(imapAccount, "roundcube") }
+
+        assertEquals(listOf("SETACTIVE roundcube"), sieve.commands)
+        assertEquals("roundcube", sieve.active)
+        assertEquals("an unreadable script is put in service as it stands", before, sieve.scripts)
+        assertEquals(listOf(login), sieve.logins)
+        assertEquals(0, host.jmapSessions)
+    }
+
+    @Test fun `a save over a chosen inactive script writes it and leaves the active one active`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules), "roundcube" to handWritten), active = "sterna")
+        val accounts = accounts(sieve)
+        val opened = runBlocking { accounts.loadFilterRules(imapAccount, "roundcube") } as FilterRulesState.Loaded
+        val added = FilterRule(name = "Boss", value = "boss@example.test", moveTo = "Work")
+        sieve.commands.clear()
+
+        val saved = runBlocking {
+            accounts.saveFilterScript(imapAccount, FilterScriptWrite(opened.snapshot, opened.scriptToEdit.add(added)))
+        }
+
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT roundcube", "CHECKSCRIPT", "PUTSCRIPT roundcube"), sieve.commands)
+        assertEquals("sterna", sieve.active)
+        assertEquals(listOf(handRule, added), sieve.rulesOf("roundcube"))
+        assertEquals("the active script is not touched", SieveCodec.generate(rules), sieve.scripts["sterna"])
+        assertEquals("roundcube", saved.scriptName)
+        assertEquals(listOf(ListedScript("roundcube", false), ListedScript("sterna", true)), saved.scripts)
+        assertEquals(true, saved.inactiveBesideActive)
+        assertEquals("the next save checks the same script", true, saved.snapshot.chosen)
+    }
+
+    @Test fun `a chosen script with nothing active is written and activated`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules), "roundcube" to handWritten), active = null)
+        val accounts = accounts(sieve)
+        val opened = runBlocking { accounts.loadFilterRules(imapAccount, "roundcube") } as FilterRulesState.Loaded
+        sieve.commands.clear()
+
+        val saved = runBlocking { accounts.saveFilterScript(imapAccount, FilterScriptWrite(opened.snapshot, opened.scriptToEdit)) }
+
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT roundcube", "CHECKSCRIPT", "PUTSCRIPT roundcube", "SETACTIVE roundcube"), sieve.commands)
+        assertEquals("roundcube", sieve.active)
+        assertEquals(listOf(ListedScript("roundcube", true), ListedScript("sterna", false)), saved.scripts)
+        assertEquals(false, saved.inactiveBesideActive)
+    }
+
+    @Test fun `a chosen script changed elsewhere refuses the save, and nothing is written`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules), "roundcube" to handWritten), active = "sterna")
+        val accounts = accounts(sieve)
+        val opened = runBlocking { accounts.loadFilterRules(imapAccount, "roundcube") } as FilterRulesState.Loaded
+        sieve.scripts["roundcube"] = handWritten + "keep;\n"
+        sieve.commands.clear()
+
+        thrownBy<FilterScriptChangedException> {
+            runBlocking { accounts.saveFilterScript(imapAccount, FilterScriptWrite(opened.snapshot, opened.scriptToEdit)) }
+        }
+
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT roundcube"), sieve.commands)
+        assertEquals(handWritten + "keep;\n", sieve.scripts["roundcube"])
+    }
+
+    @Test fun `the status of a chosen script is read for that script`() {
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules), "roundcube" to handWritten), active = "sterna")
+
+        val status = runBlocking { accounts(sieve).loadFilterScriptStatus(imapAccount, "roundcube") }!!
+
+        assertEquals(FilterScriptStatus(scriptExists = true, scriptActive = false, enabledRuleCount = 1, foreignActive = true), status)
+        assertEquals(listOf("LISTSCRIPTS", "GETSCRIPT roundcube"), sieve.commands)
     }
 
     // ---- status --------------------------------------------------------------------------------

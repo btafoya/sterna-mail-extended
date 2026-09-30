@@ -18,9 +18,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +52,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.sterna.R
 import app.sterna.core.data.filter.FilterRule
+import app.sterna.core.data.filter.ListedScript
 import app.sterna.core.data.filter.ForeignScriptNotice
 import app.sterna.core.data.filter.RuleField
 import app.sterna.core.data.filter.RuleMatch
@@ -68,13 +73,13 @@ fun FiltersScreen(
     // Confirm-on-back (#34); both doors go through it, the scaffold's arrow and the system gesture.
     // Held above the rule-editor branch below so the early return never straddles a remember.
     var confirmExit by remember { mutableStateOf(false) }
-    // Saving from the dialog is a network round-trip (compile, validate, activate), so the
-    // screen leaves only once the server has taken it; a refusal keeps the error in view.
+    // Leaves, or opens `switchTo`, only once the server has taken the save; a refusal keeps the error in view.
     var leaveAfterSave by remember { mutableStateOf(false) }
     // The overwrite confirmation, and which gesture waits behind it: the exit dialog's Save must
     // still leave once the write lands, the button must still stay.
     var confirmOverwrite by remember { mutableStateOf(false) }
     var overwriteThenLeave by remember { mutableStateOf(false) }
+    var switchTo by remember { mutableStateOf<String?>(null) }
 
     val editIndex = editing
     if (editIndex != null && editIndex < state.rules.size) {
@@ -100,11 +105,16 @@ fun FiltersScreen(
         return
     }
 
+    fun leave() {
+        val next = switchTo
+        switchTo = null
+        if (next != null) viewModel.openScript(next) else onBack()
+    }
     LaunchedEffect(leaveAfterSave, state.saving, state.dirty, state.errorKind) {
         if (!leaveAfterSave) return@LaunchedEffect
         when (pendingExitStep(state.saving, state.dirty, failed = state.errorKind != null)) {
-            PendingExit.LEAVE -> { leaveAfterSave = false; onBack() }
-            PendingExit.STAY -> leaveAfterSave = false
+            PendingExit.LEAVE -> { leaveAfterSave = false; leave() }
+            PendingExit.STAY -> { leaveAfterSave = false; switchTo = null }
             PendingExit.WAIT -> Unit
         }
     }
@@ -123,8 +133,8 @@ fun FiltersScreen(
         SaveChangesDialog(
             message = stringResource(R.string.settings_save_changes_message_generic),
             canSave = !state.saving,
-            onCancel = { confirmExit = false },
-            onDiscard = { confirmExit = false; onBack() },
+            onCancel = { confirmExit = false; switchTo = null },
+            onDiscard = { confirmExit = false; leave() },
             onSave = { confirmExit = false; requestSave(thenLeave = true) },
         )
     }
@@ -132,7 +142,7 @@ fun FiltersScreen(
         // Same shape as the block-sender dialog: server-side, permanent, no Undo behind it.
         // Cancelling leaves both the screen and the exit alone, so the edits stay unwritten.
         AlertDialog(
-            onDismissRequest = { confirmOverwrite = false },
+            onDismissRequest = { confirmOverwrite = false; switchTo = null },
             title = { Text(stringResource(R.string.settings_filters_overwrite_title)) },
             text = {
                 // The body must scroll: Material's text slot is a height-bounded box, so a bare
@@ -150,7 +160,7 @@ fun FiltersScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmOverwrite = false }) { Text(stringResource(R.string.settings_cancel)) }
+                TextButton(onClick = { confirmOverwrite = false; switchTo = null }) { Text(stringResource(R.string.settings_cancel)) }
             },
         )
     }
@@ -175,6 +185,13 @@ fun FiltersScreen(
                     onEditText = { editingText = it },
                     onAdd = { viewModel.addRule(); editing = state.rules.size },
                     onSave = { requestSave(thenLeave = false) },
+                    onPickScript = { picked ->
+                        when (scriptPickStep(picked = picked, opened = state.scriptName, dirty = state.dirty)) {
+                            ScriptPick.STAY -> Unit
+                            ScriptPick.ASK -> { switchTo = picked; confirmExit = true }
+                            ScriptPick.OPEN -> viewModel.openScript(picked)
+                        }
+                    },
                 )
             }
         }
@@ -207,6 +224,7 @@ private fun FiltersList(
     // Not viewModel::save: the write goes through the screen's one door, which asks first when the
     // save would replace a script nobody could read.
     onSave: () -> Unit,
+    onPickScript: (String) -> Unit,
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         if (state.accountLabel.isNotBlank()) {
@@ -218,12 +236,32 @@ private fun FiltersList(
             )
         }
         state.scriptName?.let { name ->
-            Text(
-                stringResource(R.string.settings_filters_script, name),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp),
+            ScriptSelector(
+                opened = name,
+                scripts = state.scripts,
+                enabled = !state.saving && !state.activating,
+                onPick = onPickScript,
             )
+        }
+        if (state.scriptNotActive) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(R.string.settings_filters_script_inactive),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.weight(1f),
+                )
+                // Not while edits are unwritten: the read that follows the activation would drop them.
+                TextButton(
+                    onClick = viewModel::activate,
+                    enabled = !state.activating && !state.saving && !state.dirty,
+                ) {
+                    Text(stringResource(R.string.settings_filters_make_active))
+                }
+            }
         }
         // Before the auto-reply line and independent of it: the rules can be stopped with no
         // other script active at all.
@@ -290,6 +328,7 @@ private fun FiltersList(
         when (state.errorKind) {
             FiltersError.SAVE -> stringResource(filtersErrorText(FiltersError.SAVE, state.errorSieveKind), state.errorDetail)
             FiltersError.TEXT_UNCUT -> stringResource(filtersErrorText(FiltersError.TEXT_UNCUT, state.errorSieveKind))
+            FiltersError.ACTIVATE -> stringResource(filtersErrorText(FiltersError.ACTIVATE, state.errorSieveKind), state.errorDetail)
             FiltersError.LOAD, null -> null
         }?.let { message ->
             Text(
@@ -329,6 +368,42 @@ private fun FiltersList(
             )
         }
         Spacer(Modifier.padding(bottom = 24.dp))
+    }
+}
+
+@Composable
+private fun ScriptSelector(opened: String, scripts: List<ListedScript>, enabled: Boolean, onPick: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val choose = stringResource(R.string.settings_filters_script_choose)
+    val activeLabel = stringResource(R.string.settings_filters_script_active)
+    Box(Modifier.padding(horizontal = 16.dp)) {
+        Row(
+            modifier = Modifier.clickable(enabled = enabled, onClickLabel = choose) { expanded = true },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.settings_filters_script, opened),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            scripts.forEach { script ->
+                DropdownMenuItem(
+                    text = { Text(script.name) },
+                    leadingIcon = {
+                        if (script.isActive) Icon(Icons.Filled.Check, contentDescription = null) else Spacer(Modifier.width(24.dp))
+                    },
+                    trailingIcon = if (script.isActive) {
+                        { Text(activeLabel, style = MaterialTheme.typography.labelSmall) }
+                    } else {
+                        null
+                    },
+                    onClick = { expanded = false; onPick(script.name) },
+                )
+            }
+        }
     }
 }
 

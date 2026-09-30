@@ -2,8 +2,11 @@ package app.sterna.core.data.filter
 
 import app.sterna.core.data.mail.FilterRulesState
 
-/** A script as it was read: its name and its text, both null when there was none to open. */
-data class ScriptSnapshot(val name: String?, val text: String?)
+/**
+ * A script as it was read: its name and its text, both null when there was none to open. [chosen]: opened by its
+ * name, so a write checks that script alone; otherwise the script the filters open now must still be this one.
+ */
+data class ScriptSnapshot(val name: String?, val text: String?, val chosen: Boolean = false)
 
 /** [script] to be written over the script [read]; the write is refused when the server no longer holds [read]. */
 class FilterScriptWrite(val read: ScriptSnapshot, val script: SieveScript) {
@@ -19,7 +22,17 @@ class FilterScriptChangedException :
  * Whether a write may go over the script the server holds now, [name] opened with [text]. Any difference
  * refuses it: a rule or an auto-reply added elsewhere would be overwritten, an unreadable one replaced unasked.
  */
-fun unchangedSince(read: ScriptSnapshot, name: String?, text: String?): Boolean = read == ScriptSnapshot(name, text)
+fun unchangedSince(read: ScriptSnapshot, name: String?, text: String?): Boolean = read.name == name && read.text == text
+
+/** The script a write over [read] must find unchanged, null when there is none to find. */
+fun scriptWrittenOver(read: ScriptSnapshot, scripts: List<ListedScript>, serverResponder: Boolean): String? =
+    if (read.chosen) read.name?.takeIf { n -> scripts.any { it.name == n } } else openedScriptName(scripts, serverResponder)
+
+/** [scripts] once [name] is written, and made the active one when [activated]. */
+fun listedAfterWrite(scripts: List<ListedScript>, name: String, activated: Boolean): List<ListedScript> {
+    val written = if (scripts.any { it.name == name }) scripts else scripts + ListedScript(name, isActive = false)
+    return if (!activated) written else written.map { it.copy(isActive = it.name == name) }
+}
 
 /** On JMAP, the active script is the server's `VacationResponse`: a save would activate another and stop it. */
 fun stopsServerResponder(scripts: List<ListedScript>, serverResponder: Boolean): Boolean =

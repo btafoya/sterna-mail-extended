@@ -450,6 +450,11 @@
     <string name="settings_filters_stops_auto_reply">Tu respuesta automática está activa en el servidor. Al guardar estos filtros se detendrá.</string>
     <string name="settings_filters_unreadable">Sterna Mail no puede leer el script de filtrado de esta cuenta; al guardar, lo reemplazará.</string>
     <string name="settings_filters_script">Script: %1$s</string>
+    <string name="settings_filters_script_choose">Elegir un script de filtros</string>
+    <string name="settings_filters_script_active">activo</string>
+    <string name="settings_filters_script_inactive">Este script no está activo.</string>
+    <string name="settings_filters_make_active">Activar</string>
+    <string name="settings_filters_activate_error">No se pudo activar este script: %1$s</string>
     <string name="settings_filters_text_rule">Texto Sieve</string>
     <string name="settings_filters_bulwark_rule">Regla gestionada por Bulwark</string>
     <string name="settings_filters_edit_text">Editar como texto</string>

@@ -29,7 +29,11 @@ import app.sterna.core.data.filter.VacationMarker
 import app.sterna.core.data.filter.activatesOnSave
 import app.sterna.core.data.filter.filterScriptStatus
 import app.sterna.core.data.filter.loadedFilterRules
+import app.sterna.core.data.filter.chosenScriptName
+import app.sterna.core.data.filter.listedAfterWrite
+import app.sterna.core.data.filter.listing
 import app.sterna.core.data.filter.openedScriptName
+import app.sterna.core.data.filter.scriptWrittenOver
 import app.sterna.core.data.filter.stopsServerResponder
 import app.sterna.core.data.filter.unchangedSince
 import app.sterna.core.data.getOrElseUnlessCancelled
@@ -543,38 +547,58 @@ class MailAccounts(
     }
 
     /**
-     * What the script the filters open says, see [openedScriptName]; Unsupported for an IMAP account
-     * on OAuth or without an IMAP host, and for JMAP without the capability. A failed ManageSieve read throws.
+     * What the script [script] says, or without a name the one the filters open, see [chosenScriptName];
+     * Unsupported for an IMAP account on OAuth or without an IMAP host, and for JMAP without the capability.
+     * A failed ManageSieve read throws.
      */
-    suspend fun loadFilterRules(credentials: AccountCredentials): FilterRulesState {
-        if (credentials.protocol == MailProtocol.IMAP) return loadFilterRulesBySieve(credentials)
+    suspend fun loadFilterRules(credentials: AccountCredentials, script: String? = null): FilterRulesState {
+        if (credentials.protocol == MailProtocol.IMAP) return loadFilterRulesBySieve(credentials, script)
         val ctx = host.jmapSession(credentials)
         if (!ctx.session.capabilities.containsKey(app.sterna.core.jmap.Jmap.SIEVE_CAPABILITY)) {
             return FilterRulesState.Unsupported
         }
         val scripts = client.getSieveScripts(ctx.session, ctx.accountId, ctx.auth)
-        val opened = openedScriptName(scripts.jmapListed(), serverResponder = true)
+        val opened = chosenScriptName(scripts.jmapListed(), script, serverResponder = true)
             ?.let { name -> scripts.first { it.name == name } }
         return loadedFilterRules(
             scriptName = opened?.name,
             scriptText = opened?.let { jmapScriptText(ctx.session, ctx.accountId, ctx.auth, it.blobId) },
             stopsServerResponder = stopsServerResponder(scripts.jmapListed(), serverResponder = true),
-        )
+        ).listing(scripts.jmapListed(), script, serverResponder = true)
     }
 
     /**
-     * Whether the filter rules are actually running server-side, and whether the vacation responder
-     * runs as a script beside them; null when the read fails.
+     * Make [name] the account's active script, and nothing else: its text is neither read nor written, so a
+     * script Sterna cannot cut into blocks is put in service as it stands.
      */
-    suspend fun loadFilterScriptStatus(credentials: AccountCredentials): FilterScriptStatus? {
-        if (credentials.protocol == MailProtocol.IMAP) return loadFilterScriptStatusBySieve(credentials)
+    suspend fun activateScript(credentials: AccountCredentials, name: String) {
+        when (credentials.protocol) {
+            MailProtocol.IMAP -> {
+                val sieveHost = manageSieveHost(credentials)
+                    ?: throw IllegalStateException("Server-side filters are not available for this account")
+                return sieveSession(sieveHost, credentials) { setActive(name) }
+            }
+            MailProtocol.JMAP -> Unit
+        }
+        val ctx = host.jmapSession(credentials)
+        val script = client.getSieveScripts(ctx.session, ctx.accountId, ctx.auth).firstOrNull { it.name == name }
+            ?: throw FilterScriptChangedException()
+        client.activateSieveScript(ctx.session, ctx.accountId, script.id, ctx.auth)
+    }
+
+    /**
+     * Whether the rules of [script], or without a name of the script the filters open, are actually running
+     * server-side, and whether the vacation responder runs as a script beside them; null when the read fails.
+     */
+    suspend fun loadFilterScriptStatus(credentials: AccountCredentials, script: String? = null): FilterScriptStatus? {
+        if (credentials.protocol == MailProtocol.IMAP) return loadFilterScriptStatusBySieve(credentials, script)
         return runCatching {
             val ctx = host.jmapSession(credentials)
             if (!ctx.session.capabilities.containsKey(app.sterna.core.jmap.Jmap.SIEVE_CAPABILITY)) {
                 return@runCatching FilterScriptStatus()
             }
             val scripts = client.getSieveScripts(ctx.session, ctx.accountId, ctx.auth)
-            val opened = openedScriptName(scripts.jmapListed(), serverResponder = true)
+            val opened = chosenScriptName(scripts.jmapListed(), script, serverResponder = true)
                 ?.let { name -> scripts.first { it.name == name } }
             filterScriptStatus(scripts.jmapListed(), opened?.name, opened?.let { jmapScriptText(ctx.session, ctx.accountId, ctx.auth, it.blobId) })
         }.getOrElseUnlessCancelled { null }
@@ -582,56 +606,72 @@ class MailAccounts(
 
     /**
      * Write [write] once the server still holds what it was built on and has validated it, activating
-     * only as [activatesOnSave] decides. Throws on refusal, and before any network for an account no
-     * transport serves: the screen hiding Save is not the guard.
+     * only as [activatesOnSave] decides, and answer the script as written. Throws on refusal, and before
+     * any network for an account no transport serves: the screen hiding Save is not the guard.
      */
-    suspend fun saveFilterScript(credentials: AccountCredentials, write: FilterScriptWrite) {
+    suspend fun saveFilterScript(credentials: AccountCredentials, write: FilterScriptWrite): FilterRulesState.Loaded {
         val name = write.name
         val text = write.script.emit()
         when (credentials.protocol) {
             MailProtocol.IMAP -> {
                 val sieveHost = manageSieveHost(credentials)
                     ?: throw IllegalStateException("Server-side filters are not available for this account")
-                return sieveSession(sieveHost, credentials) { writeOver(write.read, name, text) }
+                return sieveSession(sieveHost, credentials) {
+                    val (scripts, activated) = writeOver(write.read, name, text)
+                    write.written(text, scripts, activated, serverResponder = false)
+                }
             }
             MailProtocol.JMAP -> Unit
         }
         val ctx = host.jmapSession(credentials)
         val scripts = client.getSieveScripts(ctx.session, ctx.accountId, ctx.auth)
-        val opened = openedScriptName(scripts.jmapListed(), serverResponder = true)
+        val over = scriptWrittenOver(write.read, scripts.jmapListed(), serverResponder = true)
             ?.let { current -> scripts.first { it.name == current } }
-        val current = opened?.let { jmapScriptText(ctx.session, ctx.accountId, ctx.auth, it.blobId) }
-        if (!unchangedSince(write.read, opened?.name, current)) throw FilterScriptChangedException()
+        val current = over?.let { jmapScriptText(ctx.session, ctx.accountId, ctx.auth, it.blobId) }
+        if (!unchangedSince(write.read, over?.name, current)) throw FilterScriptChangedException()
         val blob = client.uploadBlob(
             ctx.session, ctx.accountId, text.toByteArray(Charsets.UTF_8), "application/sieve", ctx.auth,
         )
         client.validateSieve(ctx.session, ctx.accountId, blob.blobId, ctx.auth)?.let {
             throw IllegalStateException("The server rejected the filters: $it")
         }
+        val activated = activatesOnSave(scripts.jmapListed(), serverResponder = true)
         client.saveSieveScript(
             ctx.session, ctx.accountId, name, blob.blobId,
             existingId = scripts.firstOrNull { it.name == name }?.id,
-            activate = activatesOnSave(scripts.jmapListed(), serverResponder = true),
+            activate = activated,
             auth = ctx.auth,
         )
+        return write.written(text, scripts.jmapListed(), activated, serverResponder = true)
     }
 
-    /** [loadFilterRules] over ManageSieve: one listing, then the script [openedScriptName] picks. */
-    private suspend fun loadFilterRulesBySieve(credentials: AccountCredentials): FilterRulesState {
+    /** What the server holds once [this] is written as [text] over [scripts], the listing read before the write. */
+    private fun FilterScriptWrite.written(
+        text: String,
+        scripts: List<ListedScript>,
+        activated: Boolean,
+        serverResponder: Boolean,
+    ): FilterRulesState.Loaded = loadedFilterRules(name, text)
+        .listing(listedAfterWrite(scripts, name, activated), requested = name.takeIf { read.chosen }, serverResponder)
+
+    /** [loadFilterRules] over ManageSieve: one listing, then the script [chosenScriptName] picks. */
+    private suspend fun loadFilterRulesBySieve(credentials: AccountCredentials, script: String?): FilterRulesState {
         val sieveHost = manageSieveHost(credentials) ?: return FilterRulesState.Unsupported
         return sieveSession(sieveHost, credentials) {
-            val name = openedScriptName(listScripts().sieveListed(), serverResponder = false)
+            val scripts = listScripts().sieveListed()
+            val name = chosenScriptName(scripts, script, serverResponder = false)
             loadedFilterRules(scriptName = name, scriptText = name?.let { getScript(it) })
+                .listing(scripts, script, serverResponder = false)
         }
     }
 
     /** [loadFilterScriptStatus] over ManageSieve, the same facts from one listing; null when the read fails. */
-    private suspend fun loadFilterScriptStatusBySieve(credentials: AccountCredentials): FilterScriptStatus? {
+    private suspend fun loadFilterScriptStatusBySieve(credentials: AccountCredentials, script: String?): FilterScriptStatus? {
         val sieveHost = manageSieveHost(credentials) ?: return FilterScriptStatus()
         return runCatching {
             sieveSession(sieveHost, credentials) {
                 val scripts = listScripts().sieveListed()
-                val name = openedScriptName(scripts, serverResponder = false)
+                val name = chosenScriptName(scripts, script, serverResponder = false)
                 filterScriptStatus(scripts, name, name?.let { getScript(it) })
             }
         }.getOrElseUnlessCancelled { null }
@@ -641,14 +681,17 @@ class MailAccounts(
      * A ManageSieve write over the script [read], refused if the server no longer holds it. `PUTSCRIPT` then `SETACTIVE`
      * is not atomic: a first activation cut between the two leaves the script stored and inactive; over the active script
      * `PUTSCRIPT` alone puts it in service. A rejection passes through as `ManageSieveException`, text and kind intact.
+     * Answers the listing read before the write, and whether [name] was activated.
      */
-    private fun SieveScripts.writeOver(read: ScriptSnapshot, name: String, text: String) {
+    private fun SieveScripts.writeOver(read: ScriptSnapshot, name: String, text: String): Pair<List<ListedScript>, Boolean> {
         val scripts = listScripts().sieveListed()
-        val opened = openedScriptName(scripts, serverResponder = false)
-        if (!unchangedSince(read, opened, opened?.let { getScript(it) })) throw FilterScriptChangedException()
+        val over = scriptWrittenOver(read, scripts, serverResponder = false)
+        if (!unchangedSince(read, over, over?.let { getScript(it) })) throw FilterScriptChangedException()
         checkScript(text)
         putScript(name, text)
-        if (activatesOnSave(scripts, serverResponder = false)) setActive(name)
+        val activated = activatesOnSave(scripts, serverResponder = false)
+        if (activated) setActive(name)
+        return scripts to activated
     }
 
     /** [loadVacation] over ManageSieve: the capability gate, one listing, then the script [openedScriptName] picks. */

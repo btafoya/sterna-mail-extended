@@ -88,6 +88,7 @@ private fun sieveErrorText(sieveKind: ManageSieveException.Kind?, @StringRes fal
 internal fun filtersErrorText(kind: FiltersError, sieveKind: ManageSieveException.Kind?): Int = when (kind) {
     FiltersError.LOAD -> sieveErrorText(sieveKind, R.string.settings_vacation_load_error)
     FiltersError.SAVE -> sieveErrorText(sieveKind, R.string.settings_vacation_save_error)
+    FiltersError.ACTIVATE -> sieveErrorText(sieveKind, R.string.settings_filters_activate_error)
     // Refused before any ManageSieve dialogue, so a kind left over from an earlier failure never words it.
     FiltersError.TEXT_UNCUT -> R.string.settings_filters_text_uncut
 }

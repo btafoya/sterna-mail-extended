@@ -169,13 +169,18 @@ class FilterRulesReadTest {
      * argument that read passes and that nothing picks a script beside it. Holes 2 and 3 apply: the expression
      * around the pinned call and its place in the function are not seen.
      */
-    @Test fun `the JMAP read opens what openedScriptName picks, the active script first and sterna as the fallback`() {
+    @Test fun `the JMAP read opens what chosenScriptName picks, the script asked for, else the active one, else sterna`() {
         val code = SourceText.codeLines(loadFilterRulesBody())
         assertEquals(
-            "the script must be picked by openedScriptName, as the JMAP account whose `vacation` script is the " +
-                "server's responder: `serverResponder = true`",
-            listOf("val opened = openedScriptName(scripts.jmapListed(), serverResponder = true)"),
-            code.filter { "openedScriptName(" in it },
+            "the script must be picked by chosenScriptName from the name asked for, as the JMAP account whose " +
+                "`vacation` script is the server's responder: `serverResponder = true`",
+            listOf("val opened = chosenScriptName(scripts.jmapListed(), script, serverResponder = true)"),
+            code.filter { "ScriptName(" in it },
+        )
+        assertEquals(
+            "the listing and the name asked for reach the state, as JMAP",
+            listOf(").listing(scripts.jmapListed(), script, serverResponder = true)"),
+            code.filter { "listing(" in it },
         )
         assertEquals(
             "no second selection beside it: a script picked by name alone is the bug this replaces",
@@ -199,6 +204,6 @@ class FilterRulesReadTest {
     /** The body of `MailAccounts.loadFilterRules`, from its signature to the next declaration. */
     private fun loadFilterRulesBody(): String = SourceText.functionSource(
         SourceText.read("core/data/src/main/kotlin/app/sterna/core/data/mail/MailAccounts.kt"),
-        "suspend fun loadFilterRules(credentials: AccountCredentials)",
+        "suspend fun loadFilterRules(credentials: AccountCredentials, script: String? = null)",
     )
 }
