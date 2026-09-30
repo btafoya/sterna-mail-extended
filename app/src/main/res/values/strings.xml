@@ -159,13 +159,12 @@
     <string name="inbox_search_in">Search %1$s</string>
     <string name="inbox_clear">Clear</string>
     <string name="inbox_menu">Menu</string>
-    <string name="inbox_unread_only">Unread only</string>
-    <!-- Spoken name of the unread funnel while a starred or attachment filter is also on. -->
-    <string name="inbox_unread_only_other_filters">Unread only, other filters on</string>
-    <string name="inbox_filter_flagged">Starred only</string>
-    <string name="inbox_filter_attachment">With attachment</string>
-    <!-- Spoken state of the overflow button in the unread view while a starred or attachment filter is on. -->
-    <string name="inbox_filter_active">Filter on</string>
+    <!-- Short labels of the list's filter chips, also used by the advanced search: keep them to a word or two. -->
+    <string name="filter_unread">Unread</string>
+    <string name="filter_starred">Starred</string>
+    <string name="filter_attachment">Has attachment</string>
+    <!-- Placed between two filter labels in empty_filtered_body; quoted so the trailing space survives. -->
+    <string name="filter_list_separator">", "</string>
     <string name="inbox_sort">Sort</string>
     <string name="inbox_search">Search</string>
     <string name="inbox_more">More</string>
@@ -281,10 +280,10 @@
     <string name="empty_unread_title">No unread messages</string>
     <string name="empty_unread_body">You\'ve read everything here. Turn off the unread filter to see all mail.</string>
     <string name="empty_unread_view_body">You\'ve read everything in your folders.</string>
-    <string name="empty_unread_action">Show all</string>
-    <!-- Shown when a starred or attachment filter empties the list; its "Show all" turns every filter off. -->
+    <string name="empty_unread_action">Clear filters</string>
+    <!-- Shown when a starred or attachment filter empties the list; its "Clear filters" turns every filter off. empty_filtered_body receives the active filters' labels, joined by filter_list_separator. -->
     <string name="empty_filtered_title">No messages match your filters</string>
-    <string name="empty_filtered_body">Your filters may be hiding messages here.</string>
+    <string name="empty_filtered_body">No messages match: %1$s</string>
     <string name="inbox_sort_newest_first">Newest first</string>
     <string name="inbox_sort_oldest_first">Oldest first</string>
     <string name="inbox_sort_subject">Subject</string>
@@ -979,8 +978,6 @@
     <string name="search_from">From</string>
     <string name="search_recipient">Recipient</string>
     <string name="search_subject">Subject</string>
-    <string name="search_has_attachment">Has attachment</string>
-    <string name="search_flagged">Starred only</string>
     <string name="search_after">After</string>
     <string name="search_before">Before</string>
     <string name="search_date_any">Any</string>

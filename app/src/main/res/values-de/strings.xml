@@ -145,11 +145,10 @@
     <string name="inbox_close_search">Suche schließen</string>
     <string name="inbox_clear">Löschen</string>
     <string name="inbox_menu">Menü</string>
-    <string name="inbox_unread_only">Nur ungelesene</string>
-    <string name="inbox_unread_only_other_filters">Nur ungelesene, weitere Filter aktiv</string>
-    <string name="inbox_filter_flagged">Nur markierte</string>
-    <string name="inbox_filter_attachment">Mit Anhang</string>
-    <string name="inbox_filter_active">Filter aktiv</string>
+    <string name="filter_unread">Ungelesen</string>
+    <string name="filter_starred">Markiert</string>
+    <string name="filter_attachment">Mit Anhang</string>
+    <string name="filter_list_separator">", "</string>
     <string name="inbox_sort">Sortieren</string>
     <string name="inbox_search">Suchen</string>
     <string name="inbox_more">Mehr</string>
@@ -774,8 +773,6 @@
     <string name="search_from">Von</string>
     <string name="search_recipient">Empfänger</string>
     <string name="search_subject">Betreff</string>
-    <string name="search_has_attachment">Mit Anhang</string>
-    <string name="search_flagged">Nur markierte</string>
     <string name="search_after">Nach</string>
     <string name="search_before">Vor</string>
     <string name="search_date_any">Beliebig</string>
@@ -1013,9 +1010,9 @@
     <string name="empty_unread_title">Keine ungelesenen Nachrichten</string>
     <string name="empty_unread_body">Hier ist alles gelesen. Schalte den Ungelesen-Filter aus, um alle E-Mails zu sehen.</string>
     <string name="empty_unread_view_body">In deinen Ordnern ist alles gelesen.</string>
-    <string name="empty_unread_action">Alle anzeigen</string>
+    <string name="empty_unread_action">Filter löschen</string>
     <string name="empty_filtered_title">Keine Nachrichten passen zu deinen Filtern</string>
-    <string name="empty_filtered_body">Deine Filter blenden hier vielleicht Nachrichten aus.</string>
+    <string name="empty_filtered_body">Keine Nachrichten passen zu: %1$s</string>
     <string name="inbox_empty_trash">Papierkorb leeren</string>
     <string name="status_trash_emptied">Papierkorb wird geleert…</string>
 

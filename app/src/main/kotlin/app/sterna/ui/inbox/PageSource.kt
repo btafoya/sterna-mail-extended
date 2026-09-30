@@ -105,13 +105,42 @@ internal fun ListFilter.toggled(criterion: ListCriterion): ListFilter = when (cr
     ListCriterion.ATTACHMENT -> copy(withAttachment = !withAttachment)
 }
 
-internal fun ListFilter.anyActive(): Boolean = unreadOnly || flaggedOnly || withAttachment
+internal fun ListFilter.has(criterion: ListCriterion): Boolean = when (criterion) {
+    ListCriterion.UNREAD -> unreadOnly
+    ListCriterion.FLAGGED -> flaggedOnly
+    ListCriterion.ATTACHMENT -> withAttachment
+}
 
 internal fun ListFilter.narrowsBeyondUnread(): Boolean = flaggedOnly || withAttachment
 
-internal fun ListFilter.dotOnOverflow(unreadView: Boolean): Boolean = unreadView && narrowsBeyondUnread()
-
 internal fun ListFilter.afterShowAll(): ListFilter = ListFilter.NONE
+
+private fun offeredCriteria(unreadView: Boolean): List<ListCriterion> =
+    ListCriterion.entries.filterNot { unreadView && it == ListCriterion.UNREAD }
+
+internal data class QuickFilter(val criterion: ListCriterion, val checked: Boolean)
+
+internal data class QuickFilterRow(val filters: List<QuickFilter>, val enabled: Boolean)
+
+/** Null once a query is typed (results ignore the toggles); inert under a selection (`selectAll`, #126). */
+internal fun filterChipRow(
+    unreadView: Boolean,
+    selectionActive: Boolean,
+    queryTyped: Boolean,
+    toggles: ListFilter,
+): QuickFilterRow? {
+    if (queryTyped) return null
+    return QuickFilterRow(
+        filters = offeredCriteria(unreadView).map { QuickFilter(it, toggles.has(it)) },
+        enabled = !selectionActive,
+    )
+}
+
+internal fun filterLabel(criterion: ListCriterion): Int = when (criterion) {
+    ListCriterion.UNREAD -> R.string.filter_unread
+    ListCriterion.FLAGGED -> R.string.filter_starred
+    ListCriterion.ATTACHMENT -> R.string.filter_attachment
+}
 
 /** The number the drawer's "unread" entry carries: [Mailbox.unreadForList] summed over the scope
  * that view pages. Never a second exclusion rule: no role is named here, the scope is the
@@ -133,6 +162,7 @@ internal data class EmptyScene(
     val title: Int,
     val body: Int,
     val clearsFilter: Boolean,
+    val activeFilters: List<ListCriterion> = emptyList(),
 )
 
 /** Which empty scene an empty list shows. The unread view selects no mailbox, so the null-mailbox
@@ -164,8 +194,7 @@ internal fun emptyListScene(
         },
         body = when {
             narrowed -> R.string.empty_filtered_body
-            // Before the funnel's arm: empty_unread_body ends on "turn off the unread filter",
-            // which this view has no button for, and its own sentence says "your folders".
+            // Above the unread toggle's arm: that body points at a chip this view does not draw.
             unreadView -> R.string.empty_unread_view_body
             filtered -> R.string.empty_unread_body
             art == EmptyArt.TRASH -> R.string.empty_trash_body
@@ -173,6 +202,7 @@ internal fun emptyListScene(
             else -> R.string.empty_inbox_body
         },
         clearsFilter = narrowed || (toggles.unreadOnly && !unreadView),
+        activeFilters = if (narrowed) offeredCriteria(unreadView).filter { toggles.has(it) } else emptyList(),
     )
 }
 

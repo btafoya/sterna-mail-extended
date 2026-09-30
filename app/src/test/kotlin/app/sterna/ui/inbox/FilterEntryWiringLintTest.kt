@@ -5,55 +5,70 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Source lint, not a behaviour test. What the screen does with the list toggles: the funnel's and
- * the overflow button's dots and spoken state, the two menu entries, the ViewModel's toggles, and
- * the empty state's scene and "Show all". The decisions are run by `ListFilterIndicatorTest` and
- * `EmptyListSceneTest`; this pins that the screen asks them. Holes (CONTRIBUTING.md, Tests):
- *  1. `ui.filterToggles` is a name: nothing here proves it holds the toggles the pager reads.
- *  2. Whole lines are pinned, but not what spans them: the `else` before `if (overflowDot)` hangs
- *     off the outbox's `if`, so the outbox dot hides the filter dot, and nothing here says so.
- *  3. A pinned line says nothing about the `if (!ui.unreadView)` around the funnel, which
- *     `UnreadViewWiringLintTest` pins, nor about which menu the entries are drawn in.
- *  4. Nothing here holds the value the composable collects, nor proves a dot is drawn or a
- *     checked state is spoken: `IconToggleButton` and the item's semantics are trusted.
+ * Source lint, not a behaviour test. What the list screen does with the toggles: the chip row it
+ * asks for and draws, the ViewModel's toggles, and the empty state's scene, sentence and "Clear
+ * filters". The decisions are run by `FilterChipRowTest` and `EmptyListSceneTest`; this pins that
+ * the screen asks them. Holes (CONTRIBUTING.md, Tests):
+ *  1. `ui.filterToggles` and `selectionActive` are names: nothing here proves they hold the toggles
+ *     the pager reads, or the selection `selectAll` fills.
+ *  2. Whole calls are pinned, not what wraps them: a `?.let` dropped for a `!!` still reads the same
+ *     call, and nothing here says the row is drawn only when the function answers.
+ *  3. The row's place is pinned as source order between the banners and `PullToRefreshBox`, not as
+ *     a position in the layout: a `Box` wrapped around it would put it over the list unseen.
+ *  4. Nothing here holds the value the composable collects, nor proves a chip is drawn checked or
+ *     disabled: `FilterChip` is trusted.
  */
 class FilterEntryWiringLintTest {
 
     @Test
-    fun `the funnel's dot, accent and spoken state all read the any-toggle decision`() {
-        val lines = codeLines(INBOX_SCREEN).map { it.trim() }
-            .filter { Regex("""\b(filterOn|filterOnLabel|dotColor|overflowDot)\b""").containsMatchIn(it) }
+    fun `the chip row is asked once, with the view, the selection, the typed query and the toggles`() {
+        val text = codeText(INBOX_SCREEN)
+        val calls = Regex("""\bfilterChipRow\s*\(""").findAll(text).map { callAt(text, it.range.first) }.toList()
         assertEquals(
-            "The funnel's dot and accent must read anyActive() over the three toggles, and the " +
-                "overflow button's dot and stateDescription must read dotOnOverflow(ui.unreadView). " +
-                "'ui.unreadOnly' compiles in its place and leaves starred-only with no sign at all. " +
-                "The dot takes the bar's content colour, not an accent: it reads by its shape. " +
-                "Whole lines, in source order. Lines found were:\n${lines.joinToString("\n")}",
-            EXPECTED_SIGN_LINES,
-            lines,
+            "The row must be asked with the screen's own view flag (no Unread chip in the unread " +
+                "view), the selection (chips inert while selectAll reads the filter) and the typed " +
+                "query (search results are not filtered by the toggles). 'queryTyped = ui.searching' " +
+                "compiles and hides the chips over the empty search field, whose list they still filter. " +
+                "Calls found were:\n${calls.joinToString("\n")}",
+            listOf(EXPECTED_ROW_QUESTION),
+            calls,
         )
     }
 
     @Test
-    fun `the funnel speaks its own toggle, and the others only when they are on`() {
+    fun `the chip row is drawn once, each chip flipping its own toggle`() {
         val text = codeText(INBOX_SCREEN)
-        val toggles = Regex("""\bIconToggleButton\s*\(""").findAll(text)
-            .map { callAt(text, it.range.first) }
-            .toList()
+        val calls = Regex("""(?<!fun )\bFilterChipRow\s*\(""").findAll(text).map { callAt(text, it.range.first) }.toList()
         assertEquals(
-            "The funnel is a checkable button whose checked state is the unread toggle: a stateDescription " +
-                "saying 'filter on' over an unread toggle that is off is what this replaced. Calls found " +
-                "were:\n${toggles.joinToString("\n")}",
-            listOf(EXPECTED_FUNNEL_CALL),
-            toggles,
+            "Each chip must show the state of the toggle it flips and flip only it: a crossed arm of " +
+                "the when compiles, and a chip then lies about the list. 'enabled = true' compiles " +
+                "and lets a chip change what a selection covers. Calls found were:" +
+                "\n${calls.joinToString("\n")}",
+            listOf(EXPECTED_ROW_DRAWN),
+            calls,
         )
-        val names = codeLines(INBOX_SCREEN).map { it.trim() }
-            .filter { Regex("""R\.string\.inbox_unread_only(_other_filters)?\b|\bnarrowsBeyondUnread\b""").containsMatchIn(it) }
+    }
+
+    @Test
+    fun `the chip row sits under the banners, above the pulled list, outside the bar`() {
+        val text = codeText(INBOX_SCREEN)
+        val body = text.indexOf("Column(Modifier.fillMaxSize().padding(padding))")
+        val banner = text.indexOf("OutboxFailureBanner(onClick = onOpenOutbox)")
+        val row = text.indexOf("FilterChipRow(")
+        val pulled = text.indexOf("PullToRefreshBox(")
         assertEquals(
-            "The funnel's name adds 'other filters on' only when starred or attachment is on. Lines " +
-                "found were:\n${names.joinToString("\n")}",
-            EXPECTED_FUNNEL_NAME_LINES,
-            names,
+            "Source order must be: the body's Column, the outbox banner, the chip row, the " +
+                "PullToRefreshBox. Inside the box the row would scroll away with the list; in the " +
+                "bar it would enter inboxBarHeight. Offsets were: column $body, banner $banner, " +
+                "row $row, box $pulled.",
+            true,
+            body in 0 until banner && banner < row && row < pulled,
+        )
+        assertEquals(
+            "No funnel and no menu entry may survive beside the chips: a second control for the " +
+                "same toggle is how starred-only ended up unreachable from the funnel.",
+            emptyList<String>(),
+            Regex("""\bFilterMenuItem\b|\bIcons\.Filled\.FilterList\b|\bIconToggleButton\b""").findAll(text).map { it.value }.toList(),
         )
     }
 
@@ -65,7 +80,7 @@ class FilterEntryWiringLintTest {
             check(at >= 0) { "InboxViewModel.kt no longer declares '$declaration'" }
             assertEquals(
                 "'$declaration' must hold exactly this one statement: toggleFlaggedOnly and " +
-                    "toggleWithAttachment swapped compile, and each menu entry then flips the other " +
+                    "toggleWithAttachment swapped compile, and each chip then flips the other " +
                     "filter under its own tick.",
                 listOf(body, "}"),
                 lines.subList(at + 1, at + 3),
@@ -74,35 +89,7 @@ class FilterEntryWiringLintTest {
     }
 
     @Test
-    fun `the two menu entries are bound to their own toggle and their own state`() {
-        val text = codeText(INBOX_SCREEN)
-        val calls = Regex("""(?<!fun )\bFilterMenuItem\s*\(""").findAll(text)
-            .map { callAt(text, it.range.first) }
-            .toList()
-        assertEquals(
-            "Each entry must show the state of the toggle it flips: a crossed pair compiles, and " +
-                "its box then lies about the list. Whole calls, in source order. Calls found were:" +
-                "\n${calls.joinToString("\n")}",
-            EXPECTED_MENU_CALLS,
-            calls,
-        )
-        val lines = codeLines(INBOX_SCREEN)
-        val start = lines.indexOfFirst { it.startsWith("private fun FilterMenuItem(") }
-        check(start >= 0) { "InboxScreen.kt no longer declares FilterMenuItem at top level" }
-        val end = (start until lines.size).first { lines[it] == "}" }
-        val body = lines.subList(start, end + 1).map { it.trim() }
-        assertEquals(
-            "FilterMenuItem must be exactly this: the tap forwarded (onClick = onClick; '{}' compiles " +
-                "and makes both entries inert), and the checked state carried by the item with its " +
-                "checkbox role, since the box has no click of its own. Whole lines. Body was:" +
-                "\n${body.joinToString("\n")}",
-            EXPECTED_MENU_ITEM_BODY,
-            body,
-        )
-    }
-
-    @Test
-    fun `the empty state asks the scene with every toggle, and Show all lifts them all`() {
+    fun `the empty state asks the scene with every toggle, names its filters, and clears them all`() {
         val text = codeText(INBOX_SCREEN)
         val scenes = Regex("""\bemptyListScene\s*\(""").findAll(text)
             .map { callAt(text, it.range.first) }
@@ -114,13 +101,21 @@ class FilterEntryWiringLintTest {
             listOf(EXPECTED_SCENE_CALL),
             scenes,
         )
+        val lines = codeLines(INBOX_SCREEN).map { it.trim() }
+            .filter { Regex("""\bscene\.(body|activeFilters)\b|\bmatched\b""").containsMatchIn(it) }
+        assertEquals(
+            "The sentence must name the scene's own filters with the chips' own words. Whole " +
+                "lines, in source order. Lines found were:\n${lines.joinToString("\n")}",
+            EXPECTED_BODY_LINES,
+            lines,
+        )
         val label = text.indexOf("stringResource(R.string.empty_unread_action)")
         check(label >= 0) { "InboxScreen.kt no longer draws empty_unread_action" }
         val button = text.lastIndexOf("Button(", label)
         assertEquals(
-            "Show all must call clearListFilters(), which lifts the three toggles (afterShowAll). " +
-                "toggleUnreadOnly() compiles there and, under starred alone, turns unread ON: the " +
-                "list stays empty under a button called Show all.",
+            "Clear filters must call clearListFilters(), which lifts the three toggles " +
+                "(afterShowAll). toggleUnreadOnly() compiles there and, under starred alone, turns " +
+                "unread ON: the list stays empty under a button called Clear filters.",
             EXPECTED_SHOW_ALL,
             callAt(text, button),
         )
@@ -188,26 +183,22 @@ class FilterEntryWiringLintTest {
     }
 
     companion object {
-        private val EXPECTED_SIGN_LINES = listOf(
-            "val filterOnLabel = stringResource(R.string.inbox_filter_active)",
-            "val dotColor = LocalContentColor.current",
-            "val filterOn = ui.filterToggles.anyActive()",
-            "BadgedBox(badge = { if (filterOn) Badge(containerColor = dotColor) }) {",
-            "tint = if (filterOn) MaterialTheme.colorScheme.primary else LocalContentColor.current,",
-            "val overflowDot = ui.filterToggles.dotOnOverflow(ui.unreadView)",
-            "modifier = if (overflowDot) Modifier.semantics { stateDescription = filterOnLabel } else Modifier,",
-            "} else if (overflowDot) {",
-            "Badge(containerColor = dotColor)",
-        )
+        private const val EXPECTED_ROW_QUESTION =
+            "filterChipRow( unreadView = ui.unreadView, selectionActive = selectionActive, " +
+                "queryTyped = ui.searching && ui.searchQuery.isNotBlank(), toggles = ui.filterToggles, )"
 
-        private const val EXPECTED_FUNNEL_CALL =
-            "IconToggleButton( checked = ui.filterToggles.unreadOnly, " +
-                "onCheckedChange = { viewModel.toggleUnreadOnly() }, )"
+        private const val EXPECTED_ROW_DRAWN =
+            "FilterChipRow( entries = row.filters.map { filter -> FilterChipEntry( " +
+                "label = stringResource(filterLabel(filter.criterion)), selected = filter.checked, " +
+                "enabled = row.enabled, onClick = { when (filter.criterion) { " +
+                "ListCriterion.UNREAD -> viewModel.toggleUnreadOnly() " +
+                "ListCriterion.FLAGGED -> viewModel.toggleFlaggedOnly() " +
+                "ListCriterion.ATTACHMENT -> viewModel.toggleWithAttachment() } }, ) }, )"
 
-        private val EXPECTED_FUNNEL_NAME_LINES = listOf(
-            "contentDescription = if (ui.filterToggles.narrowsBeyondUnread()) {",
-            "stringResource(R.string.inbox_unread_only_other_filters)",
-            "stringResource(R.string.inbox_unread_only)",
+        private val EXPECTED_BODY_LINES = listOf(
+            "val matched = scene.activeFilters.map { stringResource(filterLabel(it)) }" +
+                ".joinToString(stringResource(R.string.filter_list_separator))",
+            "body = if (matched.isEmpty()) stringResource(scene.body) else stringResource(scene.body, matched),",
         )
 
         /** Declaration line to its single statement, in pairs so no sort can cross them. */
@@ -216,30 +207,6 @@ class FilterEntryWiringLintTest {
             "fun toggleFlaggedOnly() {" to "filterToggles.value = filterToggles.value.toggled(ListCriterion.FLAGGED)",
             "fun toggleWithAttachment() {" to "filterToggles.value = filterToggles.value.toggled(ListCriterion.ATTACHMENT)",
             "fun clearListFilters() {" to "filterToggles.value = filterToggles.value.afterShowAll()",
-        )
-
-        private val EXPECTED_MENU_CALLS = listOf(
-            "FilterMenuItem( label = stringResource(R.string.inbox_filter_flagged), icon = Icons.Filled.Star, " +
-                "checked = ui.filterToggles.flaggedOnly, " +
-                "onClick = { viewModel.toggleFlaggedOnly(); overflowOpen = false }, )",
-            "FilterMenuItem( label = stringResource(R.string.inbox_filter_attachment), icon = Icons.Filled.AttachFile, " +
-                "checked = ui.filterToggles.withAttachment, " +
-                "onClick = { viewModel.toggleWithAttachment(); overflowOpen = false }, )",
-        )
-
-        private val EXPECTED_MENU_ITEM_BODY = listOf(
-            "private fun FilterMenuItem(label: String, icon: ImageVector, checked: Boolean, onClick: () -> Unit) {",
-            "DropdownMenuItem(",
-            "text = { Text(label) },",
-            "leadingIcon = { Icon(icon, contentDescription = null) },",
-            "trailingIcon = { Checkbox(checked = checked, onCheckedChange = null) },",
-            "onClick = onClick,",
-            "modifier = Modifier.semantics {",
-            "role = Role.Checkbox",
-            "toggleableState = ToggleableState(checked)",
-            "},",
-            ")",
-            "}",
         )
 
         private const val EXPECTED_SCENE_CALL =

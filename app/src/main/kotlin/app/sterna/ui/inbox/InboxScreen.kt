@@ -65,9 +65,6 @@ import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.AllInbox
 import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.Menu
@@ -84,7 +81,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -94,8 +90,6 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconToggleButton
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -146,11 +140,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.semantics.toggleableState
-import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -193,6 +182,8 @@ import app.sterna.ui.canSnoozeIn
 import app.sterna.ui.components.EmailListItem
 import app.sterna.ui.components.EmptyArt
 import app.sterna.ui.components.EmptyState
+import app.sterna.ui.components.FilterChipEntry
+import app.sterna.ui.components.FilterChipRow
 import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.TernRefreshIndicator
 import app.sterna.ui.components.Monogram
@@ -824,29 +815,6 @@ fun InboxScreen(
                             }
                         },
                         actions = {
-                            // The funnel is hidden in the unread view, where listFilter forces unread on
-                            // and it would not say so. Both dots read by their shape, not an accent.
-                            val filterOnLabel = stringResource(R.string.inbox_filter_active)
-                            val dotColor = LocalContentColor.current
-                            if (!ui.unreadView) {
-                                val filterOn = ui.filterToggles.anyActive()
-                                IconToggleButton(
-                                    checked = ui.filterToggles.unreadOnly,
-                                    onCheckedChange = { viewModel.toggleUnreadOnly() },
-                                ) {
-                                    BadgedBox(badge = { if (filterOn) Badge(containerColor = dotColor) }) {
-                                        Icon(
-                                            Icons.Filled.FilterList,
-                                            contentDescription = if (ui.filterToggles.narrowsBeyondUnread()) {
-                                                stringResource(R.string.inbox_unread_only_other_filters)
-                                            } else {
-                                                stringResource(R.string.inbox_unread_only)
-                                            },
-                                            tint = if (filterOn) MaterialTheme.colorScheme.primary else LocalContentColor.current,
-                                        )
-                                    }
-                                }
-                            }
                             var sortOpen by remember { mutableStateOf(false) }
                             // Boxed with its button for the anchoring reason spelled out on the
                             // overflow menu below (#74).
@@ -876,11 +844,7 @@ fun InboxScreen(
                             // layout node that contains it, so emitted straight into the actions row
                             // a narrow menu opened under the leftmost icon (#74).
                             Box {
-                                val overflowDot = ui.filterToggles.dotOnOverflow(ui.unreadView)
-                                IconButton(
-                                    onClick = { overflowOpen = true },
-                                    modifier = if (overflowDot) Modifier.semantics { stateDescription = filterOnLabel } else Modifier,
-                                ) {
+                                IconButton(onClick = { overflowOpen = true }) {
                                     BadgedBox(
                                         badge = {
                                             // Discreet dot when the outbox has pending or failed items;
@@ -893,8 +857,6 @@ fun InboxScreen(
                                                         MaterialTheme.colorScheme.primary
                                                     },
                                                 )
-                                            } else if (overflowDot) {
-                                                Badge(containerColor = dotColor)
                                             }
                                         },
                                     ) {
@@ -909,18 +871,6 @@ fun InboxScreen(
                                         text = { Text(stringResource(R.string.inbox_select_all)) },
                                         leadingIcon = { Icon(Icons.Filled.Checklist, contentDescription = null) },
                                         onClick = { viewModel.selectAll(); overflowOpen = false },
-                                    )
-                                    FilterMenuItem(
-                                        label = stringResource(R.string.inbox_filter_flagged),
-                                        icon = Icons.Filled.Star,
-                                        checked = ui.filterToggles.flaggedOnly,
-                                        onClick = { viewModel.toggleFlaggedOnly(); overflowOpen = false },
-                                    )
-                                    FilterMenuItem(
-                                        label = stringResource(R.string.inbox_filter_attachment),
-                                        icon = Icons.Filled.AttachFile,
-                                        checked = ui.filterToggles.withAttachment,
-                                        onClick = { viewModel.toggleWithAttachment(); overflowOpen = false },
                                     )
                                     // Unread state is meaningless in Drafts and Sent, the mail
                                     // there is your own, so the bulk mark-as-read is dropped there
@@ -1241,6 +1191,31 @@ fun InboxScreen(
             if (outboxHasFailures) {
                 OutboxFailureBanner(onClick = onOpenOutbox)
             }
+            // Here, not in the bar nor in the list: the chips stay put while the list scrolls, and
+            // inboxBarHeight keeps measuring the two title lines only.
+            filterChipRow(
+                unreadView = ui.unreadView,
+                selectionActive = selectionActive,
+                queryTyped = ui.searching && ui.searchQuery.isNotBlank(),
+                toggles = ui.filterToggles,
+            )?.let { row ->
+                FilterChipRow(
+                    entries = row.filters.map { filter ->
+                        FilterChipEntry(
+                            label = stringResource(filterLabel(filter.criterion)),
+                            selected = filter.checked,
+                            enabled = row.enabled,
+                            onClick = {
+                                when (filter.criterion) {
+                                    ListCriterion.UNREAD -> viewModel.toggleUnreadOnly()
+                                    ListCriterion.FLAGGED -> viewModel.toggleFlaggedOnly()
+                                    ListCriterion.ATTACHMENT -> viewModel.toggleWithAttachment()
+                                }
+                            },
+                        )
+                    },
+                )
+            }
             val historyFocus = LocalFocusManager.current
             val pickSuggestion: (String) -> Unit = { text ->
                 historyFocus.clearFocus()
@@ -1489,11 +1464,12 @@ fun InboxScreen(
                         // Empty list still pulls to refresh; tapping the empty space opens the
                         // drawer, except from 1 200 dp, where the drawer is on screen and the tap
                         // has nothing to do: null, so the empty state is not even clickable.
+                        val matched = scene.activeFilters.map { stringResource(filterLabel(it)) }.joinToString(stringResource(R.string.filter_list_separator))
                         PullableCenter(onClick = if (permanentDrawer) null else ({ scope.launch { drawerState.open() } })) {
                             EmptyState(
                                 art = scene.art,
                                 title = stringResource(scene.title),
-                                body = stringResource(scene.body),
+                                body = if (matched.isEmpty()) stringResource(scene.body) else stringResource(scene.body, matched),
                                 modifier = Modifier.align(Alignment.Center),
                                 // Filtered-empty offers a one-tap way out (clear the filter). A
                                 // genuinely empty inbox has none: the corner Compose FAB covers it,
@@ -2741,19 +2717,4 @@ private fun OutboxFailureBanner(onClick: () -> Unit) {
             )
         }
     }
-}
-
-/** `onCheckedChange = null` leaves the box without semantics: the item carries the checked state. */
-@Composable
-private fun FilterMenuItem(label: String, icon: ImageVector, checked: Boolean, onClick: () -> Unit) {
-    DropdownMenuItem(
-        text = { Text(label) },
-        leadingIcon = { Icon(icon, contentDescription = null) },
-        trailingIcon = { Checkbox(checked = checked, onCheckedChange = null) },
-        onClick = onClick,
-        modifier = Modifier.semantics {
-            role = Role.Checkbox
-            toggleableState = ToggleableState(checked)
-        },
-    )
 }

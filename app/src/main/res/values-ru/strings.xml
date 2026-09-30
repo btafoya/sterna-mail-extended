@@ -145,11 +145,10 @@
     <string name="inbox_close_search">Закрыть поиск</string>
     <string name="inbox_clear">Очистить</string>
     <string name="inbox_menu">Меню</string>
-    <string name="inbox_unread_only">Только непрочитанные</string>
-    <string name="inbox_unread_only_other_filters">Только непрочитанные, другие фильтры включены</string>
-    <string name="inbox_filter_flagged">Только помеченные</string>
-    <string name="inbox_filter_attachment">С вложением</string>
-    <string name="inbox_filter_active">Фильтр включён</string>
+    <string name="filter_unread">Непрочитанные</string>
+    <string name="filter_starred">Помеченные</string>
+    <string name="filter_attachment">С вложением</string>
+    <string name="filter_list_separator">", "</string>
     <string name="inbox_sort">Сортировка</string>
     <string name="inbox_search">Поиск</string>
     <string name="inbox_more">Ещё</string>
@@ -778,8 +777,6 @@
     <string name="search_from">Отправитель</string>
     <string name="search_recipient">Получатель</string>
     <string name="search_subject">Тема</string>
-    <string name="search_has_attachment">С вложением</string>
-    <string name="search_flagged">Только помеченные</string>
     <string name="search_after">После</string>
     <string name="search_before">До</string>
     <string name="search_date_any">Любая</string>
@@ -1036,9 +1033,9 @@
     <string name="empty_unread_title">Нет непрочитанных сообщений</string>
     <string name="empty_unread_body">Здесь всё прочитано. Отключите фильтр непрочитанных, чтобы увидеть всю почту.</string>
     <string name="empty_unread_view_body">В ваших папках всё прочитано.</string>
-    <string name="empty_unread_action">Показать все</string>
+    <string name="empty_unread_action">Сбросить фильтры</string>
     <string name="empty_filtered_title">Нет сообщений, подходящих под фильтры</string>
-    <string name="empty_filtered_body">Возможно, фильтры скрывают здесь сообщения.</string>
+    <string name="empty_filtered_body">Нет сообщений по фильтрам: %1$s</string>
     <string name="inbox_empty_trash">Очистить корзину</string>
     <string name="status_trash_emptied">Очистка корзины…</string>
 

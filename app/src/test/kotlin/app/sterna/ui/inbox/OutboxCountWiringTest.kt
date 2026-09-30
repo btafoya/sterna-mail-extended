@@ -112,28 +112,20 @@ class OutboxCountWiringTest {
 
     // -- reading the sources --------------------------------------------------------------------
 
-    /** The arguments of the `BadgedBox(` on the overflow button. The screen holds exactly two, and
-     *  the other must be the funnel's, whole (`FUNNEL_BADGE`): a third, or a funnel badge that
-     *  grew, fails here instead of being skipped. */
+    /** The arguments of the `BadgedBox(` on the overflow button, the screen's only one: a second
+     *  fails here instead of being skipped. */
     private fun toolbarBadge(): String {
         val all = callArguments(code(INBOX_SCREEN), "BadgedBox")
         assertEquals(
-            "InboxScreen is expected to host exactly two BadgedBox: the overflow button's dot and " +
-                "the filter funnel's. Found ${all.size}:\n${all.joinToString("\n")}",
-            2, all.size,
-        )
-        val calls = all.filter { DOT_READ.containsMatchIn(it) }
-        assertEquals(
-            "Exactly one BadgedBox must read $DOT (the overflow button's). Badges were:" +
-                "\n${all.joinToString("\n")}",
-            1, calls.size,
+            "InboxScreen is expected to host exactly one BadgedBox, the overflow button's dot. " +
+                "Found ${all.size}:\n${all.joinToString("\n")}",
+            1, all.size,
         )
         assertEquals(
-            "The other BadgedBox must be the filter funnel's, argument for argument.",
-            FUNNEL_BADGE,
-            (all - calls.single()).single(),
+            "The BadgedBox must read $DOT (the overflow button's). Badge was:\n${all.single()}",
+            true, DOT_READ.containsMatchIn(all.single()),
         )
-        return calls.single()
+        return all.single()
     }
 
     /** The `trailingIcon` lambda of the menu entry that opens the Outbox, found by the string it
@@ -257,8 +249,6 @@ class OutboxCountWiringTest {
             """outboxDao\.observeAll\(\s*\)\s*\.map\s*\{\s*rows\s*->\s*rows\.filter\s*\{\s*""" +
                 """OutboxLogic\.isWaitingInOutbox\(\s*it\.state\s*,?\s*\)\s*}\s*}""",
         )
-
-        private const val FUNNEL_BADGE = "badge = { if (filterOn) Badge(containerColor = dotColor) }"
 
         /** The label the Outbox menu entry is found by. */
         private const val OUTBOX_LABEL = "R.string.inbox_outbox"

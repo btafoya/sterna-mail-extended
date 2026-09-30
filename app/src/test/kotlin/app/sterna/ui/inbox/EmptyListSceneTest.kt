@@ -72,7 +72,7 @@ class EmptyListSceneTest {
         assertEquals(
             "Starred alone emptied the list: the unread words would claim everything is read, and " +
                 "without the button the reader has no way back from the empty screen.",
-            EmptyScene(EmptyArt.INBOX_ZERO, R.string.empty_filtered_title, R.string.empty_filtered_body, true),
+            EmptyScene(EmptyArt.INBOX_ZERO, R.string.empty_filtered_title, R.string.empty_filtered_body, true, listOf(ListCriterion.FLAGGED)),
             scene(flagged = true, selectedMailboxId = "in", role = "inbox"),
         )
     }
@@ -80,7 +80,7 @@ class EmptyListSceneTest {
     @Test
     fun `attachment alone - the general words, and a way out`() {
         assertEquals(
-            EmptyScene(EmptyArt.TRASH, R.string.empty_filtered_title, R.string.empty_filtered_body, true),
+            EmptyScene(EmptyArt.TRASH, R.string.empty_filtered_title, R.string.empty_filtered_body, true, listOf(ListCriterion.ATTACHMENT)),
             scene(attachment = true, selectedMailboxId = "t", role = "trash"),
         )
     }
@@ -88,7 +88,10 @@ class EmptyListSceneTest {
     @Test
     fun `starred with the funnel - the general words win over the unread ones`() {
         assertEquals(
-            EmptyScene(EmptyArt.FOLDER, R.string.empty_filtered_title, R.string.empty_filtered_body, true),
+            EmptyScene(
+                EmptyArt.FOLDER, R.string.empty_filtered_title, R.string.empty_filtered_body, true,
+                listOf(ListCriterion.UNREAD, ListCriterion.FLAGGED, ListCriterion.ATTACHMENT),
+            ),
             scene(toggle = true, flagged = true, attachment = true, selectedMailboxId = "p"),
         )
     }
@@ -99,12 +102,26 @@ class EmptyListSceneTest {
             "In the unread view the button is offered only when a toggle it can lift is on. A " +
                 "starred toggle is one: without the button the view stays empty with no way out but " +
                 "the menu.",
-            EmptyScene(EmptyArt.FOLDER, R.string.empty_filtered_title, R.string.empty_filtered_body, true),
+            EmptyScene(EmptyArt.FOLDER, R.string.empty_filtered_title, R.string.empty_filtered_body, true, listOf(ListCriterion.FLAGGED)),
             scene(unreadView = true, flagged = true, selectedMailboxId = null),
         )
         assertEquals(
-            EmptyScene(EmptyArt.FOLDER, R.string.empty_filtered_title, R.string.empty_filtered_body, true),
+            EmptyScene(EmptyArt.FOLDER, R.string.empty_filtered_title, R.string.empty_filtered_body, true, listOf(ListCriterion.ATTACHMENT)),
             scene(unreadView = true, attachment = true, selectedMailboxId = null),
+        )
+    }
+
+    @Test
+    fun `the filters named are the chips on screen, in row order`() {
+        assertEquals(
+            "The sentence names what the row shows checked: the unread view has no Unread chip, so " +
+                "a raw unread toggle left underneath must not be named there.",
+            listOf(ListCriterion.FLAGGED, ListCriterion.ATTACHMENT),
+            scene(unreadView = true, toggle = true, flagged = true, attachment = true, selectedMailboxId = null).activeFilters,
+        )
+        assertEquals(
+            listOf(ListCriterion.UNREAD, ListCriterion.ATTACHMENT),
+            scene(toggle = true, attachment = true, selectedMailboxId = "p").activeFilters,
         )
     }
 

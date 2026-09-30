@@ -145,11 +145,10 @@
     <string name="inbox_close_search">Zamknij wyszukiwanie</string>
     <string name="inbox_clear">Wyczyść</string>
     <string name="inbox_menu">Menu</string>
-    <string name="inbox_unread_only">Tylko nieprzeczytane</string>
-    <string name="inbox_unread_only_other_filters">Tylko nieprzeczytane, inne filtry włączone</string>
-    <string name="inbox_filter_flagged">Tylko oznaczone</string>
-    <string name="inbox_filter_attachment">Z załącznikiem</string>
-    <string name="inbox_filter_active">Filtr włączony</string>
+    <string name="filter_unread">Nieprzeczytane</string>
+    <string name="filter_starred">Oznaczone</string>
+    <string name="filter_attachment">Z załącznikiem</string>
+    <string name="filter_list_separator">", "</string>
     <string name="inbox_sort">Sortuj</string>
     <string name="inbox_search">Szukaj</string>
     <string name="inbox_more">Więcej</string>
@@ -778,8 +777,6 @@
     <string name="search_from">Od</string>
     <string name="search_recipient">Odbiorca</string>
     <string name="search_subject">Temat</string>
-    <string name="search_has_attachment">Z załącznikiem</string>
-    <string name="search_flagged">Tylko oznaczone</string>
     <string name="search_after">Po</string>
     <string name="search_before">Przed</string>
     <string name="search_date_any">Dowolna</string>
@@ -1033,9 +1030,9 @@
     <string name="empty_unread_title">Brak nieprzeczytanych wiadomości</string>
     <string name="empty_unread_body">Wszystko tutaj przeczytane. Wyłącz filtr nieprzeczytanych, aby zobaczyć całą pocztę.</string>
     <string name="empty_unread_view_body">Wszystko w Twoich folderach przeczytane.</string>
-    <string name="empty_unread_action">Pokaż wszystkie</string>
+    <string name="empty_unread_action">Wyczyść filtry</string>
     <string name="empty_filtered_title">Brak wiadomości pasujących do filtrów</string>
-    <string name="empty_filtered_body">Filtry mogą tu ukrywać wiadomości.</string>
+    <string name="empty_filtered_body">Brak wiadomości pasujących do: %1$s</string>
     <string name="inbox_empty_trash">Opróżnij kosz</string>
     <string name="status_trash_emptied">Opróżnianie kosza…</string>
 

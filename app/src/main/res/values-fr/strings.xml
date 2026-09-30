@@ -145,11 +145,10 @@
     <string name="inbox_close_search">Fermer la recherche</string>
     <string name="inbox_clear">Effacer</string>
     <string name="inbox_menu">Menu</string>
-    <string name="inbox_unread_only">Non lus uniquement</string>
-    <string name="inbox_unread_only_other_filters">Non lus uniquement, autres filtres activés</string>
-    <string name="inbox_filter_flagged">Suivis uniquement</string>
-    <string name="inbox_filter_attachment">Avec pièce jointe</string>
-    <string name="inbox_filter_active">Filtre activé</string>
+    <string name="filter_unread">Non lus</string>
+    <string name="filter_starred">Suivis</string>
+    <string name="filter_attachment">Avec pièce jointe</string>
+    <string name="filter_list_separator">", "</string>
     <string name="inbox_sort">Trier</string>
     <string name="inbox_search">Rechercher</string>
     <string name="inbox_more">Plus</string>
@@ -776,8 +775,6 @@
     <string name="search_from">Expéditeur</string>
     <string name="search_recipient">Destinataire</string>
     <string name="search_subject">Objet</string>
-    <string name="search_has_attachment">Avec pièce jointe</string>
-    <string name="search_flagged">Suivis uniquement</string>
     <string name="search_after">Après le</string>
     <string name="search_before">Avant le</string>
     <string name="search_date_any">Indifférent</string>
@@ -1025,9 +1022,9 @@
     <string name="empty_unread_title">Aucun message non lu</string>
     <string name="empty_unread_body">Vous avez tout lu ici. Désactivez le filtre « non lus » pour voir tout le courrier.</string>
     <string name="empty_unread_view_body">Vous avez tout lu dans vos dossiers.</string>
-    <string name="empty_unread_action">Tout afficher</string>
+    <string name="empty_unread_action">Effacer les filtres</string>
     <string name="empty_filtered_title">Aucun message ne correspond à vos filtres</string>
-    <string name="empty_filtered_body">Vos filtres masquent peut-être des messages ici.</string>
+    <string name="empty_filtered_body">Aucun message ne correspond à : %1$s</string>
     <string name="inbox_empty_trash">Vider la corbeille</string>
     <string name="status_trash_emptied">Vidage de la corbeille…</string>
 

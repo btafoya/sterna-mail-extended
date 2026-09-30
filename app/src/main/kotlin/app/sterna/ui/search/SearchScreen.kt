@@ -535,7 +535,7 @@ fun SearchScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                stringResource(R.string.search_has_attachment),
+                                stringResource(R.string.filter_attachment),
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.weight(1f),
                             )
@@ -552,7 +552,7 @@ fun SearchScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                stringResource(R.string.search_flagged),
+                                stringResource(R.string.filter_starred),
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.weight(1f),
                             )
@@ -679,8 +679,8 @@ private fun CriteriaSummary(query: SearchQuery, onClick: () -> Unit) {
             SearchCriterion.FROM -> criterionPair(R.string.search_from, filter.text)
             SearchCriterion.RECIPIENT -> criterionPair(R.string.search_recipient, filter.text)
             SearchCriterion.SUBJECT -> criterionPair(R.string.search_subject, filter.text)
-            SearchCriterion.ATTACHMENT -> stringResource(R.string.search_has_attachment)
-            SearchCriterion.FLAGGED -> stringResource(R.string.search_flagged)
+            SearchCriterion.ATTACHMENT -> stringResource(R.string.filter_attachment)
+            SearchCriterion.FLAGGED -> stringResource(R.string.filter_starred)
             // The date labels are already worded as prepositions, so they take the value without a
             // colon, hence a second join pattern.
             SearchCriterion.AFTER -> stringResource(

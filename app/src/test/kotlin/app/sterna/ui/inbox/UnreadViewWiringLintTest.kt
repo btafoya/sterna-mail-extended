@@ -77,23 +77,25 @@ class UnreadViewWiringLintTest {
     // -- the toolbar ------------------------------------------------------------------------------
 
     @Test
-    fun `the unread funnel is not offered in a view that is already filtered`() {
+    fun `the unread control is not offered in a view that is already filtered`() {
         val actions = toolbarActions()
         assertEquals(
-            "The toolbar's unread funnel must be hidden in the unread view. [listFilter] forces " +
-                "the unread criterion on there, so the button would be drawn in its OFF colour over a filtered " +
-                "list (it reads ui.unreadOnly, which the scope does not touch) and tapping it would " +
-                "change nothing on screen. Compared as whole conditions: an empty answer means the " +
-                "guard was dropped, and a longer one means it grew a term. Conditions mentioning the " +
-                "view, found in the toolbar's actions, were:\n${viewConditions(actions).joinToString("\n")}",
-            listOf(EXPECTED_FUNNEL_GUARD),
-            viewConditions(actions),
+            "The toolbar must offer no list filter at all: the chip row under it carries all three, " +
+                "and a second control for the same toggle is how the funnel came to flip unread " +
+                "while starred alone was on. Matches found in the toolbar's actions were:",
+            emptyList<String>(),
+            Regex("""\b(toggleUnreadOnly|toggleFlaggedOnly|toggleWithAttachment)\s*\(|\bFilterList\b""")
+                .findAll(actions).map { it.value }.toList(),
         )
+        val text = codeText(INBOX_SCREEN)
+        val asked = callsTo("filterChipRow", text).map { argumentsOf(it) }
         assertEquals(
-            "The toolbar's actions are expected to hold exactly one toggleUnreadOnly() — the funnel " +
-                "the rule above guards. Actions block was:\n$actions",
-            1,
-            Regex("""\btoggleUnreadOnly\s*\(""").findAll(actions).count(),
+            "The chip row must be asked with the view flag itself: filterChipRow drops the Unread " +
+                "chip in the unread view (FilterChipRowTest), where listFilter forces unread on and " +
+                "the chip would be drawn off over a filtered list. 'unreadView = false' compiles. " +
+                "First arguments found were:\n${asked.joinToString("\n")}",
+            listOf("unreadView = ui.unreadView"),
+            asked.map { it.firstOrNull() },
         )
     }
 
@@ -108,7 +110,7 @@ class UnreadViewWiringLintTest {
             .filter { Regex("""\bunreadView(Count)?\b""").containsMatchIn(it) }
         assertEquals(
             "MailUi.unreadView is what the drawer tick, the title, the search hint and the hidden " +
-                "funnel are all decided on, and 'sel is Sel.Unified' would compile in its place; " +
+                "chip row are all decided on, and 'sel is Sel.Unified' would compile in its place; " +
                 "MailUi.unreadViewCount is the number on the entry, and any other Int compiles " +
                 "there. Whole lines, because a fragment is blind to a term added. Lines found were:" +
                 "\n${lines.joinToString("\n")}",
@@ -278,7 +280,7 @@ class UnreadViewWiringLintTest {
         val anchors = Regex("""\bval titleSwitchTargets\b""").findAll(text).toList()
         check(anchors.size == 1) {
             "InboxScreen.kt is expected to declare titleSwitchTargets exactly once, right above the " +
-                "browse toolbar, the one carrying the unread funnel. Found ${anchors.size}."
+                "browse toolbar. Found ${anchors.size}."
         }
         val found = Regex("""\b(\w*TopAppBar)\s*\(""").find(text, anchors.single().range.last)
         check(found != null && found.groupValues[1] == "TopAppBar") {
@@ -311,10 +313,6 @@ class UnreadViewWiringLintTest {
         Regex("""\b(stringResource|mailboxDisplayName)\s*\(""").findAll(block)
             .map { callAt(block, it.range.first) }
             .toList()
-
-    /** Every `if` condition of [block] that mentions the unread view, each one whole. */
-    private fun viewConditions(block: String): List<String> =
-        ifConditions(block).filter { Regex("""\bunreadView\b""").containsMatchIn(it) }
 
     /** Every `if` condition in [block], whole, in source order. */
     private fun ifConditions(block: String): List<String> =
@@ -457,9 +455,6 @@ class UnreadViewWiringLintTest {
             "stringResource(R.string.inbox_unread_view_unread, ui.unreadViewCount)",
             "stringResource(R.string.inbox_unread_view)",
         )
-
-        /** The funnel's guard, whole. */
-        private const val EXPECTED_FUNNEL_GUARD = "!ui.unreadView"
 
         /** Every line of the ViewModel that names the flag, or the number, the screen reads. */
         private val EXPECTED_VIEW_FLAG_LINES = listOf(

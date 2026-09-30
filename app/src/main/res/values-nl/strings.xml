@@ -145,11 +145,10 @@
     <string name="inbox_close_search">Zoeken sluiten</string>
     <string name="inbox_clear">Wissen</string>
     <string name="inbox_menu">Menu</string>
-    <string name="inbox_unread_only">Alleen ongelezen</string>
-    <string name="inbox_unread_only_other_filters">Alleen ongelezen, andere filters actief</string>
-    <string name="inbox_filter_flagged">Alleen met ster</string>
-    <string name="inbox_filter_attachment">Met bijlage</string>
-    <string name="inbox_filter_active">Filter actief</string>
+    <string name="filter_unread">Ongelezen</string>
+    <string name="filter_starred">Met ster</string>
+    <string name="filter_attachment">Met bijlage</string>
+    <string name="filter_list_separator">", "</string>
     <string name="inbox_sort">Sorteren</string>
     <string name="inbox_search">Zoeken</string>
     <string name="inbox_more">Meer</string>
@@ -774,8 +773,6 @@
     <string name="search_from">Van</string>
     <string name="search_recipient">Ontvanger</string>
     <string name="search_subject">Onderwerp</string>
-    <string name="search_has_attachment">Heeft bijlage</string>
-    <string name="search_flagged">Alleen met ster</string>
     <string name="search_after">Na</string>
     <string name="search_before">Voor</string>
     <string name="search_date_any">Alle</string>
@@ -1016,9 +1013,9 @@
     <string name="empty_unread_title">Geen ongelezen berichten</string>
     <string name="empty_unread_body">Je hebt hier alles gelezen. Schakel het filter voor ongelezen berichten uit om alle e-mail te zien.</string>
     <string name="empty_unread_view_body">Je hebt alles in je mappen gelezen.</string>
-    <string name="empty_unread_action">Alles tonen</string>
+    <string name="empty_unread_action">Filters wissen</string>
     <string name="empty_filtered_title">Geen berichten voldoen aan je filters</string>
-    <string name="empty_filtered_body">Je filters verbergen hier misschien berichten.</string>
+    <string name="empty_filtered_body">Geen berichten voor: %1$s</string>
     <string name="inbox_empty_trash">Prullenbak legen</string>
     <string name="status_trash_emptied">Prullenbak legen…</string>
 
