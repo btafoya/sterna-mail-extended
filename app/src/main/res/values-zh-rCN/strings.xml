@@ -1112,6 +1112,9 @@
          promises no recovery: the staged copy is what was lost, and nothing brings it back. -->
     <string name="status_attach_vanished">此手机上无法读取的附件已从列表中移除。</string>
     <string name="status_attaching">正在添加附件…</string>
+    <plurals name="status_attach_some_failed">
+        <item quantity="other">%2$d 个文件中有 %1$d 个无法添加为附件</item>
+    </plurals>
     <string name="status_read_file_failed">无法读取所选文件。</string>
     <string name="status_open_attachment_failed">无法打开附件：%1$s</string>
     <string name="status_save_attachment_failed">无法保存附件：%1$s</string>

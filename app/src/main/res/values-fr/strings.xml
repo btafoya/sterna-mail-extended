@@ -917,6 +917,11 @@
     <string name="status_removed_account">Compte supprimé</string>
     <string name="status_attach_vanished">Les pièces jointes qui ne sont plus disponibles sur ce téléphone ont été retirées.</string>
     <string name="status_attaching">Ajout en cours…</string>
+    <plurals name="status_attach_some_failed">
+        <item quantity="one">%1$d fichier sur %2$d n\'a pas pu être joint</item>
+        <item quantity="many">%1$d fichiers sur %2$d n\'ont pas pu être joints</item>
+        <item quantity="other">%1$d fichiers sur %2$d n\'ont pas pu être joints</item>
+    </plurals>
     <string name="status_read_file_failed">Impossible de lire le fichier sélectionné.</string>
     <string name="status_open_attachment_failed">Impossible d\'ouvrir la pièce jointe : %1$s</string>
     <string name="status_save_attachment_failed">Impossible d\'enregistrer la pièce jointe : %1$s</string>

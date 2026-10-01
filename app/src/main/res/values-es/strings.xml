@@ -913,6 +913,11 @@
     <string name="status_removed_account">Cuenta eliminada</string>
     <string name="status_attach_vanished">Se han quitado los archivos adjuntos que ya no están disponibles en este teléfono.</string>
     <string name="status_attaching">Adjuntando…</string>
+    <plurals name="status_attach_some_failed">
+        <item quantity="one">No se pudo adjuntar %1$d de %2$d archivos</item>
+        <item quantity="many">No se pudieron adjuntar %1$d de %2$d archivos</item>
+        <item quantity="other">No se pudieron adjuntar %1$d de %2$d archivos</item>
+    </plurals>
     <string name="status_read_file_failed">No se pudo leer el archivo seleccionado.</string>
     <string name="status_open_attachment_failed">No se pudo abrir el adjunto: %1$s</string>
     <string name="status_save_attachment_failed">No se pudo guardar el adjunto: %1$s</string>

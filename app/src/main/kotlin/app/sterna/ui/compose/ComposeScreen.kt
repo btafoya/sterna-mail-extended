@@ -258,8 +258,8 @@ fun ComposeScreen(
     val draftLoading by viewModel.draftLoading.collectAsStateWithLifecycle()
     val draftLoadFailed by viewModel.draftLoadFailed.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { viewModel.attach(it) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        viewModel.attachAll(uris)
     }
     val takePhoto = rememberTakePhoto(viewModel)
     // OpenKeychain's dialog round-trip: consume the pause, then launch, nothing between (`composeStateAfterPgpLaunch`).
@@ -312,7 +312,7 @@ fun ComposeScreen(
         val app = context.applicationContext as android.app.Application
         app.container.pendingShareUris.takeIf { it.isNotEmpty() }?.let { shared ->
             app.container.pendingShareUris = emptyList()
-            shared.forEach { viewModel.attach(it) }
+            viewModel.attachAll(shared)
         }
     }
 

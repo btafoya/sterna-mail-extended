@@ -91,6 +91,8 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 sealed interface ComposeState {
@@ -633,6 +635,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     private val composerBinding = ComposerBinding()
 
+    /** Two picks share the one status line: run together, the first to end clears the other's "Attaching…". */
+    private val attachAllLock = Mutex()
+
     private val linkBodyClaim = LinkBodyClaim(application.container.linkBodies)
 
     fun claimLinkBody(token: String?): String? = linkBodyClaim.body(token)
@@ -772,17 +777,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _attachmentStatus.value = getApplication<Application>().getString(R.string.status_attaching)
             try {
-                val credentials = credentials() ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
-                val resolver = app.contentResolver
-                val type = resolver.getType(uri)
-                val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-                    ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
-                val bytes = withContext(Dispatchers.IO) {
-                    resolver.openInputStream(uri)?.use { it.readBytes() }
-                } ?: error(getApplication<Application>().getString(R.string.status_read_file_failed))
-                val part = stageOutgoing(credentials, bytes, type, name, disposition = "attachment", cid = null, forceLocal = stageLocally)
-                _attachments.value = _attachments.value + part
-                _attachmentsTouched.value = true
+                attachOneFile(uri, stageLocally)
                 _attachmentStatus.value = null
             } catch (t: Throwable) {
                 // The exception text is a resolver/HTTP string; logcat keeps it for diagnosis.
@@ -792,6 +787,54 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 afterRead()
             }
         }
+    }
+
+    fun attachAll(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            attachAllLock.withLock {
+                // As in `attachCapture`: after a process death the pick arrives before `prepare`.
+                // Nothing is shown while waiting, so a cancel here leaves no "Attaching…" behind.
+                val settled = composerBinding.awaitSettled(CAPTURE_BINDING_WAIT_MS)
+                attachInSequence(
+                    uris,
+                    _attachmentStatus,
+                    app.getString(R.string.status_attaching),
+                    online = { hasUsableNetwork(app) },
+                    attachOne = { uri -> attachOneFile(uri, stageLocally = !settled) },
+                    say = { word ->
+                        when (word) {
+                            is AttachAllWord.OneFailed -> {
+                                val f = word.failure
+                                Log.w(TAG, "Attachment failed", f.error)
+                                app.getString(composedAttachFailure(f.error, online = f.online), f.error.message ?: "error")
+                            }
+                            is AttachAllWord.SomeFailed -> {
+                                word.failures.forEach { Log.w(TAG, "Attachment failed", it.error) }
+                                val failed = word.failures.size
+                                app.resources.getQuantityString(R.plurals.status_attach_some_failed, failed, failed, word.total)
+                            }
+                        }
+                    },
+                )
+            }
+        }
+    }
+
+    private suspend fun attachOneFile(uri: Uri, stageLocally: Boolean) {
+        val app = getApplication<Application>()
+        val credentials = credentials() ?: error(app.getString(R.string.status_no_saved_account))
+        val resolver = app.contentResolver
+        val type = resolver.getType(uri)
+        val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+        val bytes = withContext(Dispatchers.IO) {
+            resolver.openInputStream(uri)?.use { it.readBytes() }
+        } ?: error(app.getString(R.string.status_read_file_failed))
+        val part = stageOutgoing(credentials, bytes, type, name, disposition = "attachment", cid = null, forceLocal = stageLocally)
+        _attachments.value = _attachments.value + part
+        _attachmentsTouched.value = true
     }
 
     /** Whether the camera may open for a photo to attach; if not, the attachment status line says why. */

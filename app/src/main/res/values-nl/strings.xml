@@ -911,6 +911,10 @@
     <string name="status_removed_account">Account verwijderd</string>
     <string name="status_attach_vanished">Bijlagen die niet meer beschikbaar zijn op deze telefoon, zijn verwijderd.</string>
     <string name="status_attaching">Bijvoegen…</string>
+    <plurals name="status_attach_some_failed">
+        <item quantity="one">%1$d van %2$d bestanden kon niet worden bijgevoegd</item>
+        <item quantity="other">%1$d van %2$d bestanden konden niet worden bijgevoegd</item>
+    </plurals>
     <string name="status_read_file_failed">Kon het geselecteerde bestand niet lezen.</string>
     <string name="status_open_attachment_failed">Kon bijlage niet openen: %1$s</string>
     <string name="status_save_attachment_failed">Kan bijlage niet opslaan: %1$s</string>

@@ -1125,6 +1125,12 @@
          promises no recovery: the staged copy is what was lost, and nothing brings it back. -->
     <string name="status_attach_vanished">Attachments that are no longer available on this phone have been removed.</string>
     <string name="status_attaching">Attaching…</string>
+    <!-- Several files of one pick could not be attached: the count, not one file's reason, which
+         would be read as every file's. Chosen by the number that failed; the second is the pick. -->
+    <plurals name="status_attach_some_failed">
+        <item quantity="one">%1$d of %2$d files could not be attached</item>
+        <item quantity="other">%1$d of %2$d files could not be attached</item>
+    </plurals>
     <string name="status_read_file_failed">Couldn\'t read the selected file.</string>
     <string name="status_open_attachment_failed">Couldn\'t open attachment: %1$s</string>
     <string name="status_save_attachment_failed">Couldn\'t save attachment: %1$s</string>

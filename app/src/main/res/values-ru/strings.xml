@@ -925,6 +925,12 @@
     <string name="status_removed_account">Аккаунт удалён</string>
     <string name="status_attach_vanished">Вложения, которых больше нет на этом телефоне, удалены.</string>
     <string name="status_attaching">Прикрепление…</string>
+    <plurals name="status_attach_some_failed">
+        <item quantity="one">Не удалось прикрепить файлы: %1$d из %2$d</item>
+        <item quantity="few">Не удалось прикрепить файлы: %1$d из %2$d</item>
+        <item quantity="many">Не удалось прикрепить файлы: %1$d из %2$d</item>
+        <item quantity="other">Не удалось прикрепить файлы: %1$d из %2$d</item>
+    </plurals>
     <string name="status_read_file_failed">Не удалось прочитать выбранный файл.</string>
     <string name="status_open_attachment_failed">Не удалось открыть вложение: %1$s</string>
     <string name="status_save_attachment_failed">Не удалось сохранить вложение: %1$s</string>
